@@ -1,0 +1,30 @@
+version: 1
+
+library:
+  skillsDir: ./skills
+  agentsDir: ./agents
+  generatedDir: ./generated
+
+targets:
+  claude:
+    enabled: true
+    skillsHome: ~/.claude/skills
+    agentsHome: ~/.claude/agents
+    installMode: symlink
+
+  codex:
+    enabled: true
+    skillsHome: ~/.agents/skills
+    agentsHome: ~/.codex/agents
+    installMode: symlink
+
+defaults:
+  installMode: symlink
+  overwritePolicy: overwrite-managed
+  cleanManagedOutputs: true
+
+platform:
+  windowsSymlinkFallback: copy
+
+manifest:
+  path: ~/.agents-manager/manifest.json

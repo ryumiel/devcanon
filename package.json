@@ -1,0 +1,49 @@
+{
+  "name": "agents-manager",
+  "version": "0.1.0",
+  "description": "User-wide CLI for managing shared AI skills and generating native Claude Code and Codex agent files from a single source of truth.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "agents-manager": "./dist/cli/index.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "setup": "git config core.hooksPath scripts/hooks && git config commit.template .gitmessage.txt",
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "format": "biome check --write --linter-enabled=false .",
+    "format:check": "biome check --linter-enabled=false .",
+    "format:markdown": "node scripts/format-tracked-markdown.mjs --write",
+    "format:markdown:check": "node scripts/format-tracked-markdown.mjs --check",
+    "lint": "biome lint .",
+    "lint:markdown": "node scripts/lint-tracked-markdown.mjs",
+    "validate:commit-msg": "node scripts/validate-commit-message.mjs",
+    "check": "pnpm run format:check && pnpm run format:markdown:check && pnpm run lint && pnpm run lint:markdown && pnpm run test",
+    "check:staged": "node scripts/run-pre-commit-checks.mjs",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "diff": "^7.0.0",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.7.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/diff": "^7.0.2",
+    "@types/node": "^22.15.21",
+    "markdownlint-cli2": "^0.18.1",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.1"
+  }
+}

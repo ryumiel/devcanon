@@ -1,0 +1,22 @@
+# Build artifacts
+dist/
+node_modules/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Generated outputs (managed by agents-manager itself)
+generated/
+
+# Logs and reports
+coverage/
+test-results/
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

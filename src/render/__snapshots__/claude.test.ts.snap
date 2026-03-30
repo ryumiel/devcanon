@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderClaudeAgent > renders a sample agent to Claude markdown format (snapshot) 1`] = `
+"<!-- Managed by agents-manager. Do not edit directly. -->
+<!-- Source: agents/test-agent.yaml -->
+---
+name: test-agent
+description: "A test agent for unit testing."
+tools: Read, Grep, Bash
+model: sonnet
+---
+
+Follow these steps:
+
+## Step One
+
+Do the first thing.
+
+## Step Two
+
+Do the second thing.
+
+## Skills
+
+- **test-skill** (\`~/.claude/skills/test-skill\`)
+"
+`;

@@ -1,0 +1,9 @@
+# type(scope): subject (max 80 chars)
+#
+# Types: feat fix refactor perf style test docs build ops chore
+# Scope: optional but recommended (for example: cli, config, render, install, validate, diff, doctor)
+#
+# Body: explain why, not what. Wrap at 80 chars.
+# Leave one blank line after the subject.
+#
+# Footer: issue links, follow-ups, breaking changes.
