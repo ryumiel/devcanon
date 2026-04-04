@@ -14,7 +14,6 @@ import {
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { renderAll } from "../render/pipeline.js";
-import { hashDirectory } from "../utils/hash.js";
 import { diffAll } from "./diff.js";
 
 describe("diffAll integration", () => {

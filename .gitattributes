@@ -17,5 +17,8 @@
 .gitignore text eol=lf
 .nvmrc text eol=lf
 
+# Test snapshots — force LF (byte-for-byte comparison)
+*.snap text eol=lf
+
 # Scripts and hooks — force LF
 scripts/hooks/* text eol=lf

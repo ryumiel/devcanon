@@ -96,7 +96,7 @@ describe("copyDirectory", () => {
 
     await copyDirectory(srcDir, dstDir);
 
-    const entries = await readdir(dstDir);
+    const entries = (await readdir(dstDir)).sort();
     expect(entries).toEqual(["new.txt"]);
     const content = await readFile(path.join(dstDir, "new.txt"), "utf-8");
     expect(content).toBe("fresh");

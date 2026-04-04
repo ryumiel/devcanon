@@ -163,7 +163,7 @@ describe("loadAndValidateSkills", () => {
 
     try {
       await loadAndValidateSkills(skillsDir);
-      expect.fail("should have thrown");
+      expect.unreachable("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(UserError);
       const message = (err as UserError).message;
