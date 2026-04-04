@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { stringify as yamlStringify } from "yaml";
@@ -57,7 +57,8 @@ export async function createConfigFile(
   yamlContent?: string,
 ): Promise<string> {
   const content =
-    yamlContent ?? `version: 1\nlibrary:\n  skillsDir: ./skills\n  agentsDir: ./agents\n  generatedDir: ./generated\n`;
+    yamlContent ??
+    "version: 1\nlibrary:\n  skillsDir: ./skills\n  agentsDir: ./agents\n  generatedDir: ./generated\n";
   const configPath = path.join(dir, "agents-manager.config.yaml");
   await writeFile(configPath, content, "utf-8");
   return configPath;

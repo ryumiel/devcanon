@@ -126,19 +126,12 @@ describe("loadConfig", () => {
     const result = await loadConfig(configPath);
 
     const configDir = path.dirname(path.resolve(configPath));
-    expect(result.library.skillsDir).toBe(
-      path.resolve(configDir, "my-skills"),
-    );
-    expect(result.library.agentsDir).toBe(
-      path.resolve(configDir, "my-agents"),
-    );
+    expect(result.library.skillsDir).toBe(path.resolve(configDir, "my-skills"));
+    expect(result.library.agentsDir).toBe(path.resolve(configDir, "my-agents"));
   });
 
   it("warns about unknown top-level fields in non-strict mode but still returns config", async () => {
-    const yaml = [
-      "version: 1",
-      "bogusField: surprise",
-    ].join("\n");
+    const yaml = ["version: 1", "bogusField: surprise"].join("\n");
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
@@ -150,10 +143,7 @@ describe("loadConfig", () => {
   });
 
   it("throws UserError for unknown top-level field in strict mode", async () => {
-    const yaml = [
-      "version: 1",
-      "bogusField: surprise",
-    ].join("\n");
+    const yaml = ["version: 1", "bogusField: surprise"].join("\n");
     const configPath = await createConfigFile(tempDir, yaml);
 
     await expect(loadConfig(configPath, true)).rejects.toThrow(UserError);

@@ -13,8 +13,8 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { hashDirectory } from "../utils/hash.js";
 import { renderAll } from "../render/pipeline.js";
+import { hashDirectory } from "../utils/hash.js";
 import { diffAll } from "./diff.js";
 
 describe("diffAll integration", () => {
@@ -72,22 +72,26 @@ describe("diffAll integration", () => {
     // Render to get expected content
     const { outputs } = await renderAll(config, false);
     const claudeAgent = outputs.find(
-      (o) => o.target === "claude" && o.type === "agent" && o.name === "test-agent",
+      (o) =>
+        o.target === "claude" && o.type === "agent" && o.name === "test-agent",
     );
     expect(claudeAgent).toBeDefined();
 
     // Write rendered content to installed path
-    await mkdir(path.dirname(claudeAgent!.installedPath), { recursive: true });
-    await writeFile(claudeAgent!.installedPath, claudeAgent!.content!, "utf-8");
+    const installedPath = claudeAgent?.installedPath as string;
+    const content = claudeAgent?.content as string;
+    await mkdir(path.dirname(installedPath), { recursive: true });
+    await writeFile(installedPath, content, "utf-8");
 
     const results = await diffAll(config, "claude");
 
     const result = results.find(
-      (r) => r.target === "claude" && r.type === "agent" && r.name === "test-agent",
+      (r) =>
+        r.target === "claude" && r.type === "agent" && r.name === "test-agent",
     );
     expect(result).toBeDefined();
-    expect(result!.status).toBe("up-to-date");
-    expect(result!.diff).toBeNull();
+    expect(result?.status).toBe("up-to-date");
+    expect(result?.diff).toBeNull();
   });
 
   it("reports agent as changed with unified diff when installed content differs", async () => {
@@ -100,14 +104,15 @@ describe("diffAll integration", () => {
     // Render to get expected content
     const { outputs } = await renderAll(config, false);
     const claudeAgent = outputs.find(
-      (o) => o.target === "claude" && o.type === "agent" && o.name === "test-agent",
+      (o) =>
+        o.target === "claude" && o.type === "agent" && o.name === "test-agent",
     );
     expect(claudeAgent).toBeDefined();
 
     // Write different content to installed path
-    await mkdir(path.dirname(claudeAgent!.installedPath), { recursive: true });
+    await mkdir(path.dirname(claudeAgent?.installedPath), { recursive: true });
     await writeFile(
-      claudeAgent!.installedPath,
+      claudeAgent?.installedPath,
       "<!-- old content -->\nThis is outdated.\n",
       "utf-8",
     );
@@ -115,12 +120,13 @@ describe("diffAll integration", () => {
     const results = await diffAll(config, "claude");
 
     const result = results.find(
-      (r) => r.target === "claude" && r.type === "agent" && r.name === "test-agent",
+      (r) =>
+        r.target === "claude" && r.type === "agent" && r.name === "test-agent",
     );
     expect(result).toBeDefined();
-    expect(result!.status).toBe("changed");
-    expect(result!.diff).toContain("---");
-    expect(result!.diff).toContain("+++");
+    expect(result?.status).toBe("changed");
+    expect(result?.diff).toContain("---");
+    expect(result?.diff).toContain("+++");
   });
 
   it("reports skill as added when not yet installed", async () => {
@@ -143,12 +149,13 @@ describe("diffAll integration", () => {
     // Render to get expected output with hash
     const { outputs } = await renderAll(config, false, false, "claude");
     const skillOutput = outputs.find(
-      (o) => o.target === "claude" && o.type === "skill" && o.name === "test-skill",
+      (o) =>
+        o.target === "claude" && o.type === "skill" && o.name === "test-skill",
     );
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory (copy the source)
-    const installedSkillDir = skillOutput!.installedPath;
+    const installedSkillDir = skillOutput?.installedPath;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -165,11 +172,11 @@ describe("diffAll integration", () => {
         {
           target: "claude",
           type: "skill",
-          sourcePath: skillOutput!.sourcePath,
+          sourcePath: skillOutput?.sourcePath,
           generatedPath: null,
-          installedPath: skillOutput!.installedPath,
+          installedPath: skillOutput?.installedPath,
           installMode: "copy",
-          contentHash: skillOutput!.contentHash,
+          contentHash: skillOutput?.contentHash,
           timestamp: new Date().toISOString(),
         },
       ]),
@@ -179,11 +186,12 @@ describe("diffAll integration", () => {
     const results = await diffAll(config, "claude");
 
     const result = results.find(
-      (r) => r.target === "claude" && r.type === "skill" && r.name === "test-skill",
+      (r) =>
+        r.target === "claude" && r.type === "skill" && r.name === "test-skill",
     );
     expect(result).toBeDefined();
-    expect(result!.status).toBe("up-to-date");
-    expect(result!.diff).toBeNull();
+    expect(result?.status).toBe("up-to-date");
+    expect(result?.diff).toBeNull();
   });
 
   it("reports skill as changed when hash differs from manifest record", async () => {
@@ -192,12 +200,13 @@ describe("diffAll integration", () => {
     // Render to get expected output
     const { outputs } = await renderAll(config, false, false, "claude");
     const skillOutput = outputs.find(
-      (o) => o.target === "claude" && o.type === "skill" && o.name === "test-skill",
+      (o) =>
+        o.target === "claude" && o.type === "skill" && o.name === "test-skill",
     );
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory
-    const installedSkillDir = skillOutput!.installedPath;
+    const installedSkillDir = skillOutput?.installedPath;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -214,9 +223,9 @@ describe("diffAll integration", () => {
         {
           target: "claude",
           type: "skill",
-          sourcePath: skillOutput!.sourcePath,
+          sourcePath: skillOutput?.sourcePath,
           generatedPath: null,
-          installedPath: skillOutput!.installedPath,
+          installedPath: skillOutput?.installedPath,
           installMode: "copy",
           contentHash: "stale-hash-does-not-match",
           timestamp: new Date().toISOString(),
@@ -228,11 +237,12 @@ describe("diffAll integration", () => {
     const results = await diffAll(config, "claude");
 
     const result = results.find(
-      (r) => r.target === "claude" && r.type === "skill" && r.name === "test-skill",
+      (r) =>
+        r.target === "claude" && r.type === "skill" && r.name === "test-skill",
     );
     expect(result).toBeDefined();
-    expect(result!.status).toBe("changed");
-    expect(result!.diff).toBe("Skill directory content has changed.");
+    expect(result?.status).toBe("changed");
+    expect(result?.diff).toBe("Skill directory content has changed.");
   });
 
   it("reports skill as unmanaged-conflict when installed but not in manifest", async () => {
@@ -241,12 +251,13 @@ describe("diffAll integration", () => {
     // Render to get expected output
     const { outputs } = await renderAll(config, false, false, "claude");
     const skillOutput = outputs.find(
-      (o) => o.target === "claude" && o.type === "skill" && o.name === "test-skill",
+      (o) =>
+        o.target === "claude" && o.type === "skill" && o.name === "test-skill",
     );
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory but NO manifest record
-    const installedSkillDir = skillOutput!.installedPath;
+    const installedSkillDir = skillOutput?.installedPath;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -262,10 +273,11 @@ describe("diffAll integration", () => {
     const results = await diffAll(config, "claude");
 
     const result = results.find(
-      (r) => r.target === "claude" && r.type === "skill" && r.name === "test-skill",
+      (r) =>
+        r.target === "claude" && r.type === "skill" && r.name === "test-skill",
     );
     expect(result).toBeDefined();
-    expect(result!.status).toBe("unmanaged-conflict");
+    expect(result?.status).toBe("unmanaged-conflict");
   });
 
   it("reports removed when manifest has record for source that no longer exists", async () => {
@@ -296,8 +308,8 @@ describe("diffAll integration", () => {
 
     const result = results.find((r) => r.name === "deleted.md");
     expect(result).toBeDefined();
-    expect(result!.status).toBe("removed");
-    expect(result!.diff).toBeNull();
+    expect(result?.status).toBe("removed");
+    expect(result?.diff).toBeNull();
   });
 
   it("target filter limits results to matching target only", async () => {
@@ -340,14 +352,15 @@ describe("diffAll integration", () => {
     // Render to get installed path
     const { outputs } = await renderAll(config, false, false, "claude");
     const claudeAgent = outputs.find(
-      (o) => o.target === "claude" && o.type === "agent" && o.name === "test-agent",
+      (o) =>
+        o.target === "claude" && o.type === "agent" && o.name === "test-agent",
     );
     expect(claudeAgent).toBeDefined();
 
     // Create a broken symlink at the installed path
     const brokenTarget = path.join(tempDir, "nonexistent-target.md");
-    await mkdir(path.dirname(claudeAgent!.installedPath), { recursive: true });
-    await symlink(brokenTarget, claudeAgent!.installedPath);
+    await mkdir(path.dirname(claudeAgent?.installedPath), { recursive: true });
+    await symlink(brokenTarget, claudeAgent?.installedPath);
 
     // On Linux, access() on a broken symlink returns ENOENT so pathExists
     // returns false and diffAll reports "added".  On Windows, access()
@@ -357,10 +370,13 @@ describe("diffAll integration", () => {
     } else {
       const results = await diffAll(config, "claude");
       const result = results.find(
-        (r) => r.target === "claude" && r.type === "agent" && r.name === "test-agent",
+        (r) =>
+          r.target === "claude" &&
+          r.type === "agent" &&
+          r.name === "test-agent",
       );
       expect(result).toBeDefined();
-      expect(result!.status).toBe("added");
+      expect(result?.status).toBe("added");
     }
   });
 });

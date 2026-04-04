@@ -33,7 +33,11 @@ describe("sync", () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
-    await createSkillFixture(config.library.skillsDir, "greet", "# greet\n\nHello.\n");
+    await createSkillFixture(
+      config.library.skillsDir,
+      "greet",
+      "# greet\n\nHello.\n",
+    );
     await createAgentFixture(
       config.library.agentsDir,
       "helper",
@@ -297,10 +301,7 @@ describe("sync", () => {
     expect(agentStat.isSymbolicLink()).toBe(true);
 
     // Skill installed path should be a symlink
-    const claudeSkillPath = path.join(
-      config.targets.claude.skillsHome,
-      "s1",
-    );
+    const claudeSkillPath = path.join(config.targets.claude.skillsHome, "s1");
     const skillStat = await lstat(claudeSkillPath);
     expect(skillStat.isSymbolicLink()).toBe(true);
   });

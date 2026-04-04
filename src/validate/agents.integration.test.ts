@@ -65,26 +65,26 @@ describe("loadAndValidateAgents", () => {
   it("throws UserError for invalid YAML syntax", async () => {
     await createAgentFixture(agentsDir, "bad", "name: [\ninvalid yaml");
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("invalid YAML");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("invalid YAML");
+        return true;
+      },
+    );
   });
 
   it("throws UserError when a required field is missing", async () => {
     const yaml = "name: test-agent\ndescription: A test agent\nskills: []";
     await createAgentFixture(agentsDir, "no-instructions", yaml);
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("no-instructions.yaml");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("no-instructions.yaml");
+        return true;
+      },
+    );
   });
 
   it("throws UserError when name field is not filesystem-safe", async () => {
@@ -93,13 +93,13 @@ describe("loadAndValidateAgents", () => {
     });
     await createAgentFixture(agentsDir, "uppercase", yaml);
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("filesystem-safe");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("filesystem-safe");
+        return true;
+      },
+    );
   });
 
   it("throws UserError when agent references an unknown skill", async () => {
@@ -108,13 +108,13 @@ describe("loadAndValidateAgents", () => {
     });
     await createAgentFixture(agentsDir, "ref-agent", yaml);
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("nonexistent-skill");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("nonexistent-skill");
+        return true;
+      },
+    );
   });
 
   it("succeeds when agent references a valid skill", async () => {
@@ -137,20 +137,20 @@ describe("loadAndValidateAgents", () => {
   });
 
   it("returns agent with warning for unknown field in non-strict mode", async () => {
-    const yaml = makeAgentYaml("warn-agent") + "\nextra_field: surprise";
+    const yaml = `${makeAgentYaml("warn-agent")}\nextra_field: surprise`;
     await createAgentFixture(agentsDir, "warn-agent", yaml);
 
     const result = await loadAndValidateAgents(agentsDir, noSkills, false);
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("warn-agent");
-    expect(
-      testLogger.warnings.some((w) => w.includes("extra_field")),
-    ).toBe(true);
+    expect(testLogger.warnings.some((w) => w.includes("extra_field"))).toBe(
+      true,
+    );
   });
 
   it("throws UserError for unknown field in strict mode", async () => {
-    const yaml = makeAgentYaml("strict-agent") + "\nextra_field: surprise";
+    const yaml = `${makeAgentYaml("strict-agent")}\nextra_field: surprise`;
     await createAgentFixture(agentsDir, "strict-agent", yaml);
 
     await expect(
@@ -173,12 +173,10 @@ describe("loadAndValidateAgents", () => {
     const result = await loadAndValidateAgents(agentsDir, noSkills);
 
     expect(result).toEqual([]);
-    expect(
-      testLogger.warnings.some((w) => w.includes("ignored.yml")),
-    ).toBe(true);
-    expect(
-      testLogger.warnings.some((w) => w.includes(".yaml")),
-    ).toBe(true);
+    expect(testLogger.warnings.some((w) => w.includes("ignored.yml"))).toBe(
+      true,
+    );
+    expect(testLogger.warnings.some((w) => w.includes(".yaml"))).toBe(true);
   });
 
   it("throws UserError mentioning duplicate when two files share the same name field", async () => {
@@ -187,13 +185,13 @@ describe("loadAndValidateAgents", () => {
     await createAgentFixture(agentsDir, "alpha", yamlA);
     await createAgentFixture(agentsDir, "beta", yamlB);
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message.toLowerCase()).toContain("duplicate");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message.toLowerCase()).toContain("duplicate");
+        return true;
+      },
+    );
   });
 
   it("ignores non-YAML files and returns empty array", async () => {
@@ -220,14 +218,14 @@ describe("loadAndValidateAgents", () => {
       makeAgentYaml("Upper", { name: "Upper" }),
     );
 
-    await expect(
-      loadAndValidateAgents(agentsDir, noSkills),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      const msg = (err as UserError).message;
-      expect(msg).toContain("broken.yaml");
-      expect(msg).toContain("upper.yaml");
-      return true;
-    });
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        const msg = (err as UserError).message;
+        expect(msg).toContain("broken.yaml");
+        expect(msg).toContain("upper.yaml");
+        return true;
+      },
+    );
   });
 });

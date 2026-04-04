@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import path from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
-import { createTempDir, cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
-import { loadManifest, saveManifest, emptyManifest } from "./manifest.js";
-import { pathExists } from "../utils/fs.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
+import { pathExists } from "../utils/fs.js";
+import { emptyManifest, loadManifest, saveManifest } from "./manifest.js";
 
 describe("manifest integration", () => {
   let tempDir: string;

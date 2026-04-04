@@ -1,7 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, createSkillFixture, createTempDir } from "../__test-helpers__/fixtures.js";
+import {
+  cleanupTempDir,
+  createSkillFixture,
+  createTempDir,
+} from "../__test-helpers__/fixtures.js";
 import { UserError } from "../utils/errors.js";
 import { loadAndValidateSkills } from "./skills.js";
 
@@ -58,7 +62,12 @@ describe("loadAndValidateSkills", () => {
     const result = await loadAndValidateSkills(skillsDir);
 
     expect(result).toHaveLength(1);
-    expect(result[0].subdirs).toEqual(["assets", "examples", "references", "scripts"]);
+    expect(result[0].subdirs).toEqual([
+      "assets",
+      "examples",
+      "references",
+      "scripts",
+    ]);
   });
 
   it("returns empty subdirs when no known subdirs exist", async () => {
@@ -78,7 +87,9 @@ describe("loadAndValidateSkills", () => {
     await writeFile(path.join(skillDir, "SKILL.md"), "# MySkill\n", "utf-8");
 
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
-    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow("not filesystem-safe");
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      "not filesystem-safe",
+    );
   });
 
   it("throws UserError for name starting with a dot or dash", async () => {
@@ -88,7 +99,9 @@ describe("loadAndValidateSkills", () => {
     await writeFile(path.join(skillDir, "SKILL.md"), "# bad\n", "utf-8");
 
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
-    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow("not filesystem-safe");
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      "not filesystem-safe",
+    );
   });
 
   it("throws UserError when SKILL.md is missing", async () => {
@@ -97,7 +110,9 @@ describe("loadAndValidateSkills", () => {
     await mkdir(skillDir, { recursive: true });
 
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
-    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow("missing SKILL.md");
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      "missing SKILL.md",
+    );
   });
 
   it("loads multiple valid skills", async () => {

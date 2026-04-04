@@ -69,7 +69,8 @@ describe("renderAll", () => {
       (o) => o.type === "agent" && o.generatedPath,
     );
     for (const output of agentOutputs) {
-      expect(await pathExists(output.generatedPath!)).toBe(true);
+      expect(output.generatedPath).toBeTruthy();
+      expect(await pathExists(output.generatedPath as string)).toBe(true);
     }
   });
 
@@ -155,7 +156,7 @@ describe("renderAll", () => {
     expect(agentOutputs.length).toBeGreaterThan(0);
     for (const output of agentOutputs) {
       expect(output.content).not.toBeNull();
-      expect(output.content!.length).toBeGreaterThan(0);
+      expect(output.content?.length).toBeGreaterThan(0);
       expect(output.content).toContain("a1");
     }
   });
@@ -172,7 +173,7 @@ describe("renderAll", () => {
     await createAgentFixture(
       config.library.agentsDir,
       "strict-agent",
-      makeAgentYaml("strict-agent") + "\nunknown_field: oops",
+      `${makeAgentYaml("strict-agent")}\nunknown_field: oops`,
     );
 
     await expect(renderAll(config, false, true)).rejects.toSatisfy(

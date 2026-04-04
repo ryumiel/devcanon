@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
@@ -106,11 +106,18 @@ describe("copyDirectory", () => {
     const srcDir = path.join(tempDir, "src");
     const dstDir = path.join(tempDir, "dst");
     await mkdir(path.join(srcDir, "level1", "level2"), { recursive: true });
-    await writeFile(path.join(srcDir, "level1", "level2", "deep.txt"), "deep content", "utf-8");
+    await writeFile(
+      path.join(srcDir, "level1", "level2", "deep.txt"),
+      "deep content",
+      "utf-8",
+    );
 
     await copyDirectory(srcDir, dstDir);
 
-    const content = await readFile(path.join(dstDir, "level1", "level2", "deep.txt"), "utf-8");
+    const content = await readFile(
+      path.join(dstDir, "level1", "level2", "deep.txt"),
+      "utf-8",
+    );
     expect(content).toBe("deep content");
   });
 
