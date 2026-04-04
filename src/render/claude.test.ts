@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
@@ -101,8 +102,10 @@ describe("renderClaudeAgent", () => {
     expect(result.name).toBe("test-agent");
     expect(result.sourcePath).toBe("/test/agents/test-agent.yaml");
     expect(result.generatedPath).toBe(
-      "/test/generated/claude/agents/test-agent.md",
+      path.join("/test/generated", "claude", "agents", "test-agent.md"),
     );
-    expect(result.installedPath).toBe("~/.claude/agents/test-agent.md");
+    expect(result.installedPath).toBe(
+      path.join("~/.claude/agents", "test-agent.md"),
+    );
   });
 });

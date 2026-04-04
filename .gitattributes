@@ -1,0 +1,24 @@
+* text=auto
+
+# Source code — force LF
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+
+# Config files — force LF
+*.txt text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.nvmrc text eol=lf
+
+# Test snapshots — force LF (byte-for-byte comparison)
+*.snap text eol=lf
+
+# Scripts and hooks — force LF
+scripts/hooks/* text eol=lf
