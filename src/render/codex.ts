@@ -53,7 +53,9 @@ export function renderCodexAgent(
   if (agentSkills.length > 0) {
     instrContent += "\n\n## Skills\n";
     for (const skillName of agentSkills) {
-      const installPath = path.join(config.targets.codex.skillsHome, skillName);
+      const installPath = path
+        .join(config.targets.codex.skillsHome, skillName)
+        .replaceAll("\\", "/");
       instrContent += `\n- **${skillName}** (\`${installPath}\`)`;
     }
   }

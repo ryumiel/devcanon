@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
@@ -103,8 +104,10 @@ describe("renderCodexAgent", () => {
     expect(result.name).toBe("test-agent");
     expect(result.sourcePath).toBe("/test/agents/test-agent.yaml");
     expect(result.generatedPath).toBe(
-      "/test/generated/codex/agents/test-agent.toml",
+      path.join("/test/generated", "codex", "agents", "test-agent.toml"),
     );
-    expect(result.installedPath).toBe("~/.codex/agents/test-agent.toml");
+    expect(result.installedPath).toBe(
+      path.join("~/.codex/agents", "test-agent.toml"),
+    );
   });
 });

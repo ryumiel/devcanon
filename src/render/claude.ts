@@ -44,10 +44,9 @@ export function renderClaudeAgent(
     lines.push("## Skills");
     lines.push("");
     for (const skillName of agentSkills) {
-      const installPath = path.join(
-        config.targets.claude.skillsHome,
-        skillName,
-      );
+      const installPath = path
+        .join(config.targets.claude.skillsHome, skillName)
+        .replaceAll("\\", "/");
       lines.push(`- **${skillName}** (\`${installPath}\`)`);
     }
   }
