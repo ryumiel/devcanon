@@ -14,6 +14,8 @@ import { installTestLogger } from "../__test-helpers__/logger.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { sync } from "./sync.js";
 
+const symlinkAvailable = await canCreateSymlinks();
+
 describe("sync", () => {
   let tempDir: string;
   let restoreLogger: () => void;
@@ -266,84 +268,80 @@ describe("sync", () => {
     expect(await pathExists(codexAgentPath)).toBe(false);
   });
 
-  it("symlink mode creates symlinks for installed outputs", async () => {
-    const supportsSymlinks = await canCreateSymlinks();
-    if (!supportsSymlinks) {
-      return; // skip on systems without symlink support
-    }
+  it.skipIf(!symlinkAvailable)(
+    "symlink mode creates symlinks for installed outputs",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createSkillFixture(config.library.skillsDir, "s1");
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
 
-    const config = makeResolvedConfig(tempDir);
-    await mkdir(config.library.skillsDir, { recursive: true });
-    await mkdir(config.library.agentsDir, { recursive: true });
-    await createSkillFixture(config.library.skillsDir, "s1");
-    await createAgentFixture(
-      config.library.agentsDir,
-      "a1",
-      makeAgentYaml("a1"),
-    );
+      const result = await sync(config, {
+        mode: "symlink",
+        dryRun: false,
+        force: false,
+        strict: false,
+      });
 
-    const result = await sync(config, {
-      mode: "symlink",
-      dryRun: false,
-      force: false,
-      strict: false,
-    });
+      expect(result.installed).toBeGreaterThan(0);
+      expect(result.errors).toEqual([]);
 
-    expect(result.installed).toBeGreaterThan(0);
-    expect(result.errors).toEqual([]);
+      // Agent installed path should be a symlink
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "a1.md",
+      );
+      const agentStat = await lstat(claudeAgentPath);
+      expect(agentStat.isSymbolicLink()).toBe(true);
 
-    // Agent installed path should be a symlink
-    const claudeAgentPath = path.join(
-      config.targets.claude.agentsHome,
-      "a1.md",
-    );
-    const agentStat = await lstat(claudeAgentPath);
-    expect(agentStat.isSymbolicLink()).toBe(true);
+      // Skill installed path should be a symlink
+      const claudeSkillPath = path.join(config.targets.claude.skillsHome, "s1");
+      const skillStat = await lstat(claudeSkillPath);
+      expect(skillStat.isSymbolicLink()).toBe(true);
+    },
+  );
 
-    // Skill installed path should be a symlink
-    const claudeSkillPath = path.join(config.targets.claude.skillsHome, "s1");
-    const skillStat = await lstat(claudeSkillPath);
-    expect(skillStat.isSymbolicLink()).toBe(true);
-  });
+  it.skipIf(symlinkAvailable)(
+    "windows symlink fallback copies when symlinks fail",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { installMode: "symlink" },
+        platform: { windowsSymlinkFallback: "copy" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createSkillFixture(config.library.skillsDir, "s1");
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
 
-  it("windows symlink fallback copies when symlinks fail", async () => {
-    const supportsSymlinks = await canCreateSymlinks();
-    if (supportsSymlinks) {
-      return; // skip on systems where symlinks work — fallback won't trigger
-    }
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+      });
 
-    const config = makeResolvedConfig(tempDir, {
-      claude: { installMode: "symlink" },
-      codex: { installMode: "symlink" },
-      platform: { windowsSymlinkFallback: "copy" },
-    });
-    await mkdir(config.library.skillsDir, { recursive: true });
-    await mkdir(config.library.agentsDir, { recursive: true });
-    await createSkillFixture(config.library.skillsDir, "s1");
-    await createAgentFixture(
-      config.library.agentsDir,
-      "a1",
-      makeAgentYaml("a1"),
-    );
+      expect(result.installed).toBeGreaterThan(0);
+      expect(result.errors).toEqual([]);
 
-    const result = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-    });
-
-    expect(result.installed).toBeGreaterThan(0);
-    expect(result.errors).toEqual([]);
-
-    // Files should exist (installed via copy fallback) but not be symlinks
-    const claudeAgentPath = path.join(
-      config.targets.claude.agentsHome,
-      "a1.md",
-    );
-    expect(await pathExists(claudeAgentPath)).toBe(true);
-    const stat = await lstat(claudeAgentPath);
-    expect(stat.isSymbolicLink()).toBe(false);
-  });
+      // Files should exist (installed via copy fallback) but not be symlinks
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "a1.md",
+      );
+      expect(await pathExists(claudeAgentPath)).toBe(true);
+      const stat = await lstat(claudeAgentPath);
+      expect(stat.isSymbolicLink()).toBe(false);
+    },
+  );
 
   it("collects errors without throwing when an action fails", async () => {
     const config = makeResolvedConfig(tempDir);

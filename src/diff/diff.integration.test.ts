@@ -16,6 +16,8 @@ import type { ResolvedConfig } from "../config/schema.js";
 import { renderAll } from "../render/pipeline.js";
 import { diffAll } from "./diff.js";
 
+const symlinkAvailable = await canCreateSymlinks();
+
 describe("diffAll integration", () => {
   let tempDir: string;
   let config: ResolvedConfig;
@@ -109,9 +111,10 @@ describe("diffAll integration", () => {
     expect(claudeAgent).toBeDefined();
 
     // Write different content to installed path
-    await mkdir(path.dirname(claudeAgent?.installedPath), { recursive: true });
+    const installedPath = claudeAgent?.installedPath as string;
+    await mkdir(path.dirname(installedPath), { recursive: true });
     await writeFile(
-      claudeAgent?.installedPath,
+      installedPath,
       "<!-- old content -->\nThis is outdated.\n",
       "utf-8",
     );
@@ -154,7 +157,7 @@ describe("diffAll integration", () => {
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory (copy the source)
-    const installedSkillDir = skillOutput?.installedPath;
+    const installedSkillDir = skillOutput?.installedPath as string;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -171,11 +174,11 @@ describe("diffAll integration", () => {
         {
           target: "claude",
           type: "skill",
-          sourcePath: skillOutput?.sourcePath,
+          sourcePath: skillOutput?.sourcePath as string,
           generatedPath: null,
-          installedPath: skillOutput?.installedPath,
+          installedPath: installedSkillDir,
           installMode: "copy",
-          contentHash: skillOutput?.contentHash,
+          contentHash: skillOutput?.contentHash as string,
           timestamp: new Date().toISOString(),
         },
       ]),
@@ -205,7 +208,7 @@ describe("diffAll integration", () => {
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory
-    const installedSkillDir = skillOutput?.installedPath;
+    const installedSkillDir = skillOutput?.installedPath as string;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -222,9 +225,9 @@ describe("diffAll integration", () => {
         {
           target: "claude",
           type: "skill",
-          sourcePath: skillOutput?.sourcePath,
+          sourcePath: skillOutput?.sourcePath as string,
           generatedPath: null,
-          installedPath: skillOutput?.installedPath,
+          installedPath: installedSkillDir,
           installMode: "copy",
           contentHash: "stale-hash-does-not-match",
           timestamp: new Date().toISOString(),
@@ -256,7 +259,7 @@ describe("diffAll integration", () => {
     expect(skillOutput).toBeDefined();
 
     // Create installed skill directory but NO manifest record
-    const installedSkillDir = skillOutput?.installedPath;
+    const installedSkillDir = skillOutput?.installedPath as string;
     await mkdir(installedSkillDir, { recursive: true });
     await writeFile(
       path.join(installedSkillDir, "SKILL.md"),
@@ -336,37 +339,33 @@ describe("diffAll integration", () => {
     expect(codexResults.length).toBeGreaterThan(0);
   });
 
-  it("treats broken symlink at installed path as added", async () => {
-    const symlinkSupported = await canCreateSymlinks();
-    if (!symlinkSupported) {
-      return; // skip on systems that don't support symlinks
-    }
+  it.skipIf(!symlinkAvailable)(
+    "treats broken symlink at installed path as added",
+    async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "test-agent",
+        makeAgentYaml("test-agent", { description: "A test agent" }),
+      );
 
-    await createAgentFixture(
-      config.library.agentsDir,
-      "test-agent",
-      makeAgentYaml("test-agent", { description: "A test agent" }),
-    );
+      // Render to get installed path
+      const { outputs } = await renderAll(config, false, false, "claude");
+      const claudeAgent = outputs.find(
+        (o) =>
+          o.target === "claude" &&
+          o.type === "agent" &&
+          o.name === "test-agent",
+      );
+      expect(claudeAgent).toBeDefined();
 
-    // Render to get installed path
-    const { outputs } = await renderAll(config, false, false, "claude");
-    const claudeAgent = outputs.find(
-      (o) =>
-        o.target === "claude" && o.type === "agent" && o.name === "test-agent",
-    );
-    expect(claudeAgent).toBeDefined();
+      // Create a broken symlink at the installed path
+      const installedPath = claudeAgent?.installedPath as string;
+      const brokenTarget = path.join(tempDir, "nonexistent-target.md");
+      await mkdir(path.dirname(installedPath), { recursive: true });
+      await symlink(brokenTarget, installedPath);
 
-    // Create a broken symlink at the installed path
-    const brokenTarget = path.join(tempDir, "nonexistent-target.md");
-    await mkdir(path.dirname(claudeAgent?.installedPath), { recursive: true });
-    await symlink(brokenTarget, claudeAgent?.installedPath);
-
-    // On Linux, access() on a broken symlink returns ENOENT so pathExists
-    // returns false and diffAll reports "added".  On Windows, access()
-    // succeeds for the dangling link so diffAll tries to read and throws.
-    if (process.platform === "win32") {
-      await expect(diffAll(config, "claude")).rejects.toThrow();
-    } else {
+      // A dangling installed-path symlink should be treated as a missing
+      // file and reported as "added" consistently across platforms.
       const results = await diffAll(config, "claude");
       const result = results.find(
         (r) =>
@@ -376,6 +375,6 @@ describe("diffAll integration", () => {
       );
       expect(result).toBeDefined();
       expect(result?.status).toBe("added");
-    }
-  });
+    },
+  );
 });

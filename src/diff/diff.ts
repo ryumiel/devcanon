@@ -111,7 +111,20 @@ async function diffAgentFile(
     resolvedPath = output.installedPath;
   }
 
-  const installedContent = await readTextFile(resolvedPath);
+  let installedContent: string;
+  try {
+    installedContent = await readTextFile(resolvedPath);
+  } catch {
+    // Broken symlink or unreadable file — treat as missing
+    return {
+      status: "added",
+      target: output.target as "claude" | "codex",
+      type: output.type as "skill" | "agent",
+      name: output.name,
+      installedPath: output.installedPath,
+      diff: null,
+    };
+  }
 
   if (installedContent === generatedContent) {
     return {
