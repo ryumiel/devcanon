@@ -2,12 +2,12 @@
 
 ## 1. Title Format
 
-- Format: `<type>(<scope>): <short summary>`
+- Format: `<type>(<scope>): <short summary>` or `<type>: <short summary>`
 - Use lowercase throughout
 - Summary describes the result, not implementation steps
 - No period at end
 - Keep under 80 characters
-- Use `!` after scope only for breaking changes (e.g., `feat(config)!: remove legacy format`)
+- Use `!` only for breaking changes; both `feat(config)!: remove legacy format` and `feat!: remove legacy format` are valid
 - Types and scopes match CONTRIBUTING.md Commit Policy
 
 ## 2. Description Structure

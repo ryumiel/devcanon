@@ -21,7 +21,7 @@ This document is the procedural guide for contributing to the repository. For po
 
 ## Creating an Issue
 
-- **Title**: Use Conventional Commits prefix: `type(scope): short summary`
+- **Title**: Use a Conventional Commits-style prefix: `type(scope): short summary` or `type: short summary`
 - **Body structure**:
   - Problem statement: what is wrong or missing
   - Acceptance criteria: observable conditions that mean "done"
