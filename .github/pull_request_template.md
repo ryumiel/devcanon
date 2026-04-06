@@ -1,6 +1,8 @@
 ## Summary
 
-## <!-- 1-3 bullet points: main outcomes, by behavior/subsystem -->
+<!-- 1-3 bullet points: main outcomes, by behavior/subsystem -->
+
+-
 
 ## Why
 
@@ -8,7 +10,9 @@
 
 ## Changes
 
-## <!-- One bullet per major behavior change, grouped by subsystem -->
+<!-- One bullet per major behavior change, grouped by subsystem -->
+
+-
 
 ## Impact
 

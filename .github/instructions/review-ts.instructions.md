@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.ts,**/*.tsx"
+applyTo: "**/*.{ts,tsx}"
 ---
 
 When performing a code review on TypeScript files, apply these checks in addition to the general review guideline (`docs/guidelines/code-review-guideline.md`):
