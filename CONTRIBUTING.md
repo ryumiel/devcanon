@@ -38,6 +38,8 @@ For detailed guidance, examples, and common mistakes, see the [Commit Guideline]
 
 **Convention:** `<type>/<scope>-<short-description>` or `<type>/<short-description>` when scope is omitted
 
+The branch name uses one path segment after `type/`. When scope is present, it is the leading prefix of that post-`/` slug, followed by the short description.
+
 - `type` and `scope` follow the same vocabulary as the Commit Policy
 - Scope is optional but recommended when it narrows the area
 - Use hyphens for word separation in the description (not underscores or camelCase)

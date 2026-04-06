@@ -2,6 +2,8 @@
 applyTo: "**/*.{ts,tsx}"
 ---
 
+<!-- GitHub repository custom instructions / Copilot consume the `applyTo` frontmatter in `.github/instructions/*.instructions.md`; see https://docs.github.com/en/copilot/how-tos/custom-instructions/adding-repository-custom-instructions-for-github-copilot for the authoritative format and matcher semantics. -->
+
 When performing a code review on TypeScript files, apply these checks in addition to the general review guideline (`docs/guidelines/code-review-guideline.md`):
 
 **P0 -- Correctness & safety:**

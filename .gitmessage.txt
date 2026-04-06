@@ -1,4 +1,5 @@
 # <type>(<scope>): <subject>
+# or <type>: <subject> when no scope adds signal
 #
 # Subject: imperative mood, no period, max 80 chars
 # Types: feat fix refactor perf style test docs build ops chore
