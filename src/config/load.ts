@@ -49,7 +49,16 @@ export async function loadConfig(
 ): Promise<ResolvedConfig> {
   const configPath = await findConfigPath(explicitPath);
   const raw = await readTextFile(configPath);
-  const parsed = parseYaml(raw);
+  let parsed: unknown;
+
+  try {
+    parsed = parseYaml(raw);
+  } catch (error) {
+    throw new UserError(
+      `Invalid config YAML: ${(error as Error).message}`,
+      configPath,
+    );
+  }
 
   if (strict) {
     // In strict mode, unknown fields cause errors

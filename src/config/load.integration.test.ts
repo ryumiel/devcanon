@@ -149,13 +149,17 @@ describe("loadConfig", () => {
     await expect(loadConfig(configPath, true)).rejects.toThrow(UserError);
   });
 
-  it("throws a non-UserError for invalid YAML syntax", async () => {
+  it("throws UserError for invalid YAML syntax", async () => {
     const yaml = "version: 1\n  bad:\nindent: broken\n\t\tmixed";
     const configPath = await createConfigFile(tempDir, yaml);
 
     await expect(loadConfig(configPath)).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeDefined();
-      expect(err).not.toBeInstanceOf(UserError);
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).filePath).toBe(configPath);
+      expect((err as UserError).message).toContain("Invalid config YAML:");
+      expect((err as UserError).message.length).toBeGreaterThan(
+        "Invalid config YAML: ".length,
+      );
       return true;
     });
   });
