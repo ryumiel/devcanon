@@ -1,9 +1,11 @@
-# type(scope): subject (max 80 chars)
+# <type>(<scope>): <subject>
 #
+# Subject: imperative mood, no period, max 80 chars
 # Types: feat fix refactor perf style test docs build ops chore
-# Scope: optional but recommended (for example: cli, config, render, install, validate, diff, doctor)
+# Scopes: cli config render install validate diff doctor skills agents ci
 #
-# Body: explain why, not what. Wrap at 80 chars.
-# Leave one blank line after the subject.
+# Body (optional): blank line after subject, wrap at 80 chars
+# Explain why, not what. Required for behavior changes.
 #
-# Footer: issue links, follow-ups, breaking changes.
+# Footer (optional): blank line after body
+# Closes #N | Related to #N | BREAKING CHANGE: description

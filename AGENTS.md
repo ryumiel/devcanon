@@ -186,17 +186,31 @@ agents-manager/
 
 ## Documentation
 
-| Topic                          | Location                             |
-| ------------------------------ | ------------------------------------ |
-| Product spec (full)            | [`SPEC.md`](SPEC.md)                 |
-| Configuration format           | [`SPEC.md`](SPEC.md) § 9             |
-| Skill specification            | [`SPEC.md`](SPEC.md) § 10            |
-| Agent source schema            | [`SPEC.md`](SPEC.md) § 11            |
-| Target mapping (Claude/Codex)  | [`SPEC.md`](SPEC.md) § 12            |
-| Install and sync policy        | [`SPEC.md`](SPEC.md) § 15            |
-| CLI command reference          | [`SPEC.md`](SPEC.md) § 16            |
-| Contributing and commit policy | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Navigation index               | [`MAP.md`](MAP.md)                   |
+| Topic                          | Location                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| Product spec (full)            | [`SPEC.md`](SPEC.md)                                                                         |
+| Configuration format           | [`SPEC.md`](SPEC.md) § 9                                                                     |
+| Skill specification            | [`SPEC.md`](SPEC.md) § 10                                                                    |
+| Agent source schema            | [`SPEC.md`](SPEC.md) § 11                                                                    |
+| Target mapping (Claude/Codex)  | [`SPEC.md`](SPEC.md) § 12                                                                    |
+| Install and sync policy        | [`SPEC.md`](SPEC.md) § 15                                                                    |
+| CLI command reference          | [`SPEC.md`](SPEC.md) § 16                                                                    |
+| Contributing and commit policy | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                         |
+| Decision matrix                | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                   |
+| Commit guideline               | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                 |
+| PR guideline                   | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                         |
+| Code review guideline          | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)       |
+| Contributor workflow           | [`WORKFLOW.md`](WORKFLOW.md)                                                                 |
+| Project management model       | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md) |
+| Navigation index               | [`MAP.md`](MAP.md)                                                                           |
+
+---
+
+## Decision Matrix
+
+| **Do without asking:**                                                                                                                                                                                                                                                                                                        | **Ask first:**                                                                                                                                                                                                                                                                                                                                                                                                                                               | **Do not do:**                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fix typos in code and documentation<br>Add or update tests for existing behavior<br>Update stale documentation (broken links, outdated examples)<br>Run the full validation suite (`pnpm run check`)<br>Create follow-up issues for problems found during work<br>Refactor code without changing behavior when scope is small | Change Zod schemas in `src/config/schema.ts` or `src/models/types.ts`<br>Add or remove npm dependencies<br>Move, rename, or delete source files<br>Modify CI workflows (`.github/workflows/`)<br>Modify git hooks (`scripts/hooks/`)<br>Change `SPEC.md`, `AGENTS.md`, or `CONTRIBUTING.md`<br>Create new CLI commands<br>Change rendered output format (Claude `.md` or Codex `.toml`)<br>Modify install/sync behavior that writes to user home directories | Push directly to `main`<br>Merge your own PR without review<br>Skip or bypass pre-commit hooks (`--no-verify`)<br>Commit secrets, credentials, or tokens<br>Expand PR scope beyond the linked issue<br>Delete or overwrite the install manifest without backup<br>Force-push to shared branches |
 
 ---
 

@@ -10,6 +10,8 @@ Quick navigation index for the agents-manager repository.
 - Where is the Claude Code entry point? -> [`CLAUDE.md`](CLAUDE.md)
 - Where is this navigation index? -> [`MAP.md`](MAP.md)
 - Where is the contributing and commit policy? -> [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Where is the decision matrix? -> [`AGENTS.md`](AGENTS.md) § Decision Matrix
+- Where is the contributor workflow? -> [`WORKFLOW.md`](WORKFLOW.md)
 - Where is the product spec? -> [`SPEC.md`](SPEC.md)
 
 ---
@@ -22,6 +24,19 @@ Quick navigation index for the agents-manager repository.
 - Where is the Biome config? -> [`biome.json`](biome.json)
 - Where is the Vitest config? -> [`vitest.config.ts`](vitest.config.ts)
 - Where is the CLI config (dogfooding)? -> [`agents-manager.config.yaml`](agents-manager.config.yaml)
+
+---
+
+## Guidelines and templates
+
+- Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
+- Where is the PR guideline? -> [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)
+- Where is the code review guideline? -> [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)
+- Where is the project management model? -> [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
+- Where are the Copilot review instructions? -> [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
+- Where are the TypeScript review instructions? -> [`.github/instructions/review-ts.instructions.md`](.github/instructions/review-ts.instructions.md)
+- Where is the PR template? -> [`.github/pull_request_template.md`](.github/pull_request_template.md)
+- Where is the branch naming convention? -> [`CONTRIBUTING.md`](CONTRIBUTING.md) § Branch Naming
 
 ---
 
