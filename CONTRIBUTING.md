@@ -22,15 +22,36 @@ manually set `git config core.hooksPath scripts/hooks`.
 
 ## Commit Policy
 
+For detailed guidance, examples, and common mistakes, see the [Commit Guideline](docs/guidelines/commit-guideline.md).
+
 - Use Conventional Commits with `type(scope): subject` or `type: subject`; scope is optional but recommended when it adds signal.
 - Allowed types: `feat`, `fix`, `refactor`, `perf`, `style`, `test`, `docs`, `build`, `ops`, `chore`.
-- Recommended scopes: `cli`, `config`, `render`, `install`, `validate`, `diff`, `doctor`, `skills`, `agents`.
+- Recommended scopes: `cli`, `config`, `render`, `install`, `validate`, `diff`, `doctor`, `skills`, `agents`, `ci`.
 - Keep the subject imperative, do not end it with a period, and keep it at or under 80 characters.
 - If you add a body, leave one blank line after the subject and wrap each body line at 80 characters.
 - A blank body is only acceptable when the change is too trivial to need extra context. If the reader might ask why, what changed behavior, or what follow-up is implied, add a body.
 - Use the body for intent, behavior changes, follow-up context, or migration notes. Explain why the change exists and any behavior shifts; do not just restate file moves.
 - If you add footers, separate them from the body with one blank line. Use footers for issue links, follow-ups, or breaking-change notes.
 - The shared `commit-msg` hook enforces the header format, the no-trailing-period rule, the 80-character subject cap, the blank line after the subject, and 80-character body wrapping. It does not require a body because triviality is a judgment call.
+
+## Branch Naming
+
+**Convention:** `<type>/<scope>-<short-description>` or `<type>/<short-description>` when scope is omitted
+
+The branch name uses one path segment after `type/`. When scope is present, it is the leading prefix of that post-`/` slug, followed by the short description.
+
+- `type` and `scope` follow the same vocabulary as the Commit Policy
+- Scope is optional but recommended when it narrows the area
+- Use hyphens for word separation in the description (not underscores or camelCase)
+- Keep the description short and specific
+
+| Branch name                     | What it means                            |
+| ------------------------------- | ---------------------------------------- |
+| `feat/render-codex-support`     | New feature in the render module         |
+| `fix/config-schema-validation`  | Bug fix in config validation             |
+| `docs/review-guideline`         | Documentation addition (no scope needed) |
+| `refactor/install-plan-extract` | Refactoring in the install module        |
+| `test/sync-integration`         | Test addition for sync                   |
 
 ## Pre-commit Checks
 
@@ -43,6 +64,9 @@ The shared `pre-commit` hook enforces the following quality gates on staged file
 - **Markdown linting** -- markdownlint on staged `.md` files
 
 ## Pull Request Policy
+
+PR titles and descriptions must follow the [PR Guideline](docs/guidelines/pr-guideline.md). Use the GitHub PR template for the required structure.
+Review PRs and self-review changes using the [Code Review Guideline](docs/guidelines/code-review-guideline.md).
 
 Every PR should answer:
 
