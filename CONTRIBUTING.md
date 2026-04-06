@@ -64,6 +64,7 @@ The shared `pre-commit` hook enforces the following quality gates on staged file
 ## Pull Request Policy
 
 PR titles and descriptions must follow the [PR Guideline](docs/guidelines/pr-guideline.md). Use the GitHub PR template for the required structure.
+Review PRs and self-review changes using the [Code Review Guideline](docs/guidelines/code-review-guideline.md).
 
 Every PR should answer:
 
