@@ -74,6 +74,19 @@ describe("loadAndValidateAgents", () => {
     );
   });
 
+  it("does not emit unknown-field warnings when agent YAML root is a list", async () => {
+    await createAgentFixture(agentsDir, "list-root", "- name: wrong-shape");
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).not.toContain('unknown field "0"');
+        return true;
+      },
+    );
+    expect(testLogger.warnings).toEqual([]);
+  });
+
   it("throws UserError when a required field is missing", async () => {
     const yaml = "name: test-agent\ndescription: A test agent\nskills: []";
     await createAgentFixture(agentsDir, "no-instructions", yaml);

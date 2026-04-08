@@ -202,7 +202,7 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects empty granular approval policy objects", () => {
+  it("rejects granular approval policy objects missing required keys", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,
       codex: {

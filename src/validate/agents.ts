@@ -72,7 +72,7 @@ export async function loadAndValidateAgents(
     }
 
     // Check for unknown fields
-    if (parsed && typeof parsed === "object") {
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       const parsedRecord = parsed as Record<string, unknown>;
       const unknownFields = collectUnknownFields(
         parsedRecord,
