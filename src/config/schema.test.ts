@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { AgentSourceSchema, ConfigSchema } from "./schema.js";
+import {
+  AGENT_SOURCE_FIELDS,
+  AgentSourceSchema,
+  CLAUDE_TARGET_FIELDS,
+  CODEX_APPROVAL_POLICY_FIELDS,
+  CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
+  CODEX_TARGET_FIELDS,
+  ConfigSchema,
+} from "./schema.js";
 
 describe("ConfigSchema", () => {
   it("parses valid minimal config (version 1 only)", () => {
@@ -87,6 +95,214 @@ describe("AgentSourceSchema", () => {
   it("defaults skills to empty array", () => {
     const result = AgentSourceSchema.parse(validAgent);
     expect(result.skills).toEqual([]);
+  });
+
+  it("exposes the exact supported shared and target-specific field lists", () => {
+    expect(new Set(AGENT_SOURCE_FIELDS)).toEqual(
+      new Set([
+        "name",
+        "description",
+        "instructions",
+        "skills",
+        "claude",
+        "codex",
+        "tags",
+        "notes",
+      ]),
+    );
+    expect(AGENT_SOURCE_FIELDS).toHaveLength(8);
+    expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(new Set(["model", "tools"]));
+    expect(CLAUDE_TARGET_FIELDS).toHaveLength(2);
+    expect(new Set(CODEX_TARGET_FIELDS)).toEqual(
+      new Set([
+        "model",
+        "model_reasoning_effort",
+        "sandbox_mode",
+        "nickname_candidates",
+        "approval_policy",
+      ]),
+    );
+    expect(CODEX_TARGET_FIELDS).toHaveLength(5);
+    expect(new Set(CODEX_APPROVAL_POLICY_GRANULAR_FIELDS)).toEqual(
+      new Set([
+        "mcp_elicitations",
+        "request_permissions",
+        "rules",
+        "sandbox_approval",
+        "skill_approval",
+      ]),
+    );
+    expect(CODEX_APPROVAL_POLICY_GRANULAR_FIELDS).toHaveLength(5);
+    expect(new Set(CODEX_APPROVAL_POLICY_FIELDS)).toEqual(
+      new Set(["granular"]),
+    );
+    expect(CODEX_APPROVAL_POLICY_FIELDS).toHaveLength(1);
+  });
+
+  it("strips unknown target-specific fields during parsing", () => {
+    const result = AgentSourceSchema.parse({
+      ...validAgent,
+      claude: {
+        model: "sonnet",
+        tools: ["Read", "Grep"],
+        tols: ["Read"],
+      },
+      codex: {
+        sandbox_mode: "workspace-write",
+        approvval_policy: "never",
+      },
+    });
+
+    expect(result.claude).toEqual({
+      model: "sonnet",
+      tools: ["Read", "Grep"],
+    });
+    expect(result.codex).toEqual({
+      sandbox_mode: "workspace-write",
+    });
+  });
+
+  it("rejects invalid nested claude field types", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: "Read",
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid nested codex enum values", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        sandbox_mode: "unrestricted",
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts granular codex approval policy objects", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        approval_policy: {
+          granular: {
+            mcp_elicitations: true,
+            rules: true,
+            sandbox_approval: true,
+            request_permissions: false,
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty granular approval policy objects", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        approval_policy: {
+          granular: {
+            skill_approval: true,
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts on-failure approval_policy", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        approval_policy: "on-failure",
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts model_reasoning_effort none", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        model_reasoning_effort: "none",
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid model_reasoning_effort values", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        model_reasoning_effort: "banana",
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects empty nickname_candidates arrays", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        nickname_candidates: [],
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects duplicate nickname_candidates", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        nickname_candidates: ["Atlas", "Atlas"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects blank nickname_candidates after trimming", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        nickname_candidates: ["   "],
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("normalizes nickname_candidates by trimming whitespace", () => {
+    const result = AgentSourceSchema.parse({
+      ...validAgent,
+      codex: {
+        nickname_candidates: [" Atlas ", "Delta"],
+      },
+    });
+
+    expect(result.codex?.nickname_candidates).toEqual(["Atlas", "Delta"]);
+  });
+
+  it("rejects duplicate nickname_candidates after trimming", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        nickname_candidates: ["Atlas", " Atlas "],
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("rejects invalid name with spaces", () => {

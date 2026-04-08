@@ -12,6 +12,24 @@ function tomlQuote(s: string): string {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+function renderGranularApprovalPolicy(
+  granular: Record<string, boolean | undefined>,
+): string {
+  const fields = [
+    "mcp_elicitations",
+    "request_permissions",
+    "rules",
+    "sandbox_approval",
+    "skill_approval",
+  ]
+    .flatMap((field) =>
+      granular[field] === undefined ? [] : [`${field} = ${granular[field]}`],
+    )
+    .join(", ");
+
+  return `approval_policy = { granular = { ${fields} } }`;
+}
+
 export function renderCodexAgent(
   agent: LoadedAgent,
   skills: Map<string, LoadedSkill>,
@@ -42,8 +60,15 @@ export function renderCodexAgent(
       const items = codex.nickname_candidates.map(tomlQuote).join(", ");
       lines.push(`nickname_candidates = [${items}]`);
     }
-    if (codex.approval_policy)
-      lines.push(`approval_policy = ${tomlQuote(codex.approval_policy)}`);
+    if (codex.approval_policy) {
+      if (typeof codex.approval_policy === "string") {
+        lines.push(`approval_policy = ${tomlQuote(codex.approval_policy)}`);
+      } else {
+        lines.push(
+          renderGranularApprovalPolicy(codex.approval_policy.granular),
+        );
+      }
+    }
   }
 
   // Build developer_instructions

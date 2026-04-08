@@ -184,4 +184,225 @@ describe("renderAll", () => {
       },
     );
   });
+
+  it("propagates strict mode for unknown nested target-specific fields", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "strict-target-agent",
+      makeAgentYaml("strict-target-agent", {
+        claude: {
+          model: "sonnet",
+          tols: ["Read"],
+        },
+        codex: {
+          sandbox_mode: "read-only",
+          approvval_policy: "never",
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false, true)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("claude.tols");
+        expect((err as UserError).message).toContain("codex.approvval_policy");
+        return true;
+      },
+    );
+  });
+
+  it("propagates strict mode for unknown granular approval policy fields", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "strict-granular-approval-agent",
+      makeAgentYaml("strict-granular-approval-agent", {
+        codex: {
+          approval_policy: {
+            extra_toggle: true,
+            granular: {
+              sandbox_approval: true,
+              extra_toggle: true,
+            },
+          },
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false, true)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.approval_policy.extra_toggle",
+        );
+        expect((err as UserError).message).toContain(
+          "codex.approval_policy.granular.extra_toggle",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("fails render pipeline for invalid nested target-specific values", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "bad-nested-values",
+      makeAgentYaml("bad-nested-values", {
+        claude: {
+          tools: "Read",
+        },
+        codex: {
+          sandbox_mode: "unrestricted",
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain("claude.tools");
+      expect((err as UserError).message).toContain("codex.sandbox_mode");
+      return true;
+    });
+  });
+
+  it("fails render pipeline for invalid model_reasoning_effort values", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "bad-reasoning-effort",
+      makeAgentYaml("bad-reasoning-effort", {
+        codex: {
+          model_reasoning_effort: "banana",
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.model_reasoning_effort",
+      );
+      return true;
+    });
+  });
+
+  it("fails render pipeline for invalid approval_policy object shapes", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "bad-approval-policy",
+      makeAgentYaml("bad-approval-policy", {
+        codex: {
+          approval_policy: {},
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.approval_policy.granular",
+      );
+      return true;
+    });
+  });
+
+  it("fails render pipeline for empty granular approval_policy objects", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "empty-granular-approval-policy",
+      makeAgentYaml("empty-granular-approval-policy", {
+        codex: {
+          approval_policy: {
+            granular: {
+              skill_approval: true,
+            },
+          },
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.approval_policy.granular",
+      );
+      return true;
+    });
+  });
+
+  it("fails render pipeline for empty nickname_candidates lists", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "empty-nickname-candidates",
+      makeAgentYaml("empty-nickname-candidates", {
+        codex: {
+          nickname_candidates: [],
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain("codex.nickname_candidates");
+      return true;
+    });
+  });
+
+  it("fails render pipeline for invalid nickname_candidates characters", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "invalid-nickname-candidates",
+      makeAgentYaml("invalid-nickname-candidates", {
+        codex: {
+          nickname_candidates: ["bad!name"],
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.nickname_candidates.0",
+      );
+      return true;
+    });
+  });
+
+  it("fails render pipeline for blank nickname_candidates after trimming", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "blank-nickname-candidates",
+      makeAgentYaml("blank-nickname-candidates", {
+        codex: {
+          nickname_candidates: ["   "],
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.nickname_candidates.0",
+      );
+      return true;
+    });
+  });
+
+  it("fails render pipeline for duplicate nickname_candidates after trimming", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "trim-duplicate-nickname-candidates",
+      makeAgentYaml("trim-duplicate-nickname-candidates", {
+        codex: {
+          nickname_candidates: ["Atlas", " Atlas "],
+        },
+      }),
+    );
+
+    await expect(renderAll(config, false)).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.nickname_candidates.1",
+      );
+      return true;
+    });
+  });
 });

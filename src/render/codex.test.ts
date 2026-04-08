@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ResolvedConfig } from "../config/schema.js";
+import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { renderCodexAgent } from "./codex.js";
 
@@ -95,6 +95,61 @@ describe("renderCodexAgent", () => {
     expect(content).toContain(
       "- **test-skill** (`~/.agents/skills/test-skill`)",
     );
+  });
+
+  it("renders all supported codex target fields", () => {
+    const fullAgent: LoadedAgent = {
+      ...agent,
+      source: {
+        ...agent.source,
+        codex: {
+          model: "gpt-5.4",
+          model_reasoning_effort: "high",
+          sandbox_mode: "danger-full-access",
+          nickname_candidates: ["builder", "reviewer"],
+          approval_policy: {
+            granular: {
+              mcp_elicitations: true,
+              request_permissions: false,
+              rules: true,
+              sandbox_approval: true,
+              skill_approval: false,
+            },
+          },
+        },
+      },
+    };
+
+    const result = renderCodexAgent(fullAgent, emptySkills, config);
+    const content = result.content as string;
+    const expectedFragments = {
+      model: 'model = "gpt-5.4"',
+      model_reasoning_effort: 'model_reasoning_effort = "high"',
+      sandbox_mode: 'sandbox_mode = "danger-full-access"',
+      nickname_candidates: 'nickname_candidates = ["builder", "reviewer"]',
+      approval_policy:
+        "approval_policy = { granular = { mcp_elicitations = true, request_permissions = false, rules = true, sandbox_approval = true, skill_approval = false } }",
+    } satisfies Record<(typeof CODEX_TARGET_FIELDS)[number], string>;
+
+    for (const field of CODEX_TARGET_FIELDS) {
+      expect(content).toContain(expectedFragments[field]);
+    }
+  });
+
+  it("renders string approval_policy values", () => {
+    const stringApprovalAgent: LoadedAgent = {
+      ...agent,
+      source: {
+        ...agent.source,
+        codex: {
+          approval_policy: "on-failure",
+        },
+      },
+    };
+
+    const result = renderCodexAgent(stringApprovalAgent, emptySkills, config);
+    const content = result.content as string;
+    expect(content).toContain('approval_policy = "on-failure"');
   });
 
   it("returns correct metadata fields", () => {
