@@ -304,7 +304,7 @@ describe("renderAll", () => {
     });
   });
 
-  it("fails render pipeline for empty granular approval_policy objects", async () => {
+  it("fails render pipeline for granular approval_policy objects missing required keys", async () => {
     await createAgentFixture(
       config.library.agentsDir,
       "empty-granular-approval-policy",

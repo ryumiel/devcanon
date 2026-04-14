@@ -501,7 +501,7 @@ describe("loadAndValidateAgents", () => {
     );
   });
 
-  it("throws UserError for empty granular approval_policy objects", async () => {
+  it("throws UserError for granular approval_policy objects missing required keys", async () => {
     const yaml = makeAgentYaml("empty-granular-approval-policy", {
       codex: {
         approval_policy: {
