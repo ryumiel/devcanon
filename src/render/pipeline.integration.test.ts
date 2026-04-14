@@ -460,5 +460,19 @@ describe("renderAll", () => {
       expect(aClaude).toBe(aCodex);
       expect(aClaude).not.toBe(bClaude);
     });
+
+    it("propagates hashDirectory rejection without writing generated outputs", async () => {
+      await createSkillFixture(config.library.skillsDir, "doomed-skill");
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      mockedHashDirectory.mockRejectedValueOnce(new Error("disk on fire"));
+
+      await expect(renderAll(config, true)).rejects.toThrow("disk on fire");
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+    });
   });
 });
