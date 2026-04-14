@@ -43,6 +43,7 @@
     "@types/node": "^22.15.21",
     "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.5.3",
+    "smol-toml": "^1.6.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.2.1"
