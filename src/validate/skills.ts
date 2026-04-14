@@ -4,8 +4,8 @@ import type { LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { isDirectory, pathExists } from "../utils/fs.js";
 import { readTextFile } from "../utils/fs.js";
+import { FILESYSTEM_SAFE } from "../utils/naming.js";
 
-const FILESYSTEM_SAFE = /^[a-z0-9][a-z0-9._-]*$/;
 const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
 
 export async function loadAndValidateSkills(

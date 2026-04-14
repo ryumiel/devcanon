@@ -2,9 +2,8 @@ import path from "node:path";
 import { loadConfig } from "../../config/load.js";
 import { UserError } from "../../utils/errors.js";
 import { ensureDir, pathExists, writeTextFile } from "../../utils/fs.js";
+import { FILESYSTEM_SAFE } from "../../utils/naming.js";
 import { getLogger } from "../../utils/output.js";
-
-const FILESYSTEM_SAFE = /^[a-z0-9][a-z0-9._-]*$/;
 
 export async function newSkillAction(
   name: string,
