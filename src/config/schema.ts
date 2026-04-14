@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FILESYSTEM_SAFE } from "../utils/naming.js";
 
 // --- Install mode ---
 export const InstallModeSchema = z.enum(["symlink", "copy"]);
@@ -98,8 +99,6 @@ export interface ResolvedTargetConfig {
 }
 
 // --- Agent source ---
-const FILESYSTEM_SAFE = /^[a-z0-9][a-z0-9._-]*$/;
-
 const ClaudeTargetShape = {
   model: z.string().optional(),
   tools: z.array(z.string()).optional(),

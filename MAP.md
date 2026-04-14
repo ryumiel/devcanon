@@ -99,6 +99,7 @@ Quick navigation index for the agents-manager repository.
 - Where are filesystem helpers? -> [`src/utils/fs.ts`](src/utils/fs.ts)
 - Where is content hashing? -> [`src/utils/hash.ts`](src/utils/hash.ts)
 - Where is managed header generation? -> [`src/utils/managed-header.ts`](src/utils/managed-header.ts)
+- Where is the filesystem-safe name regex? -> [`src/utils/naming.ts`](src/utils/naming.ts)
 - Where is CLI output formatting? -> [`src/utils/output.ts`](src/utils/output.ts)
 - Where is path resolution? -> [`src/utils/paths.ts`](src/utils/paths.ts)
 
