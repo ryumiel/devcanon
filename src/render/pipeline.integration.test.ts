@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanupTempDir,
   createAgentFixture,
@@ -13,7 +13,16 @@ import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
+import { hashDirectory } from "../utils/hash.js";
 import { renderAll } from "./pipeline.js";
+
+vi.mock("../utils/hash.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/hash.js")>();
+  return {
+    ...actual,
+    hashDirectory: vi.fn(actual.hashDirectory),
+  };
+});
 
 describe("renderAll", () => {
   let tempDir: string;
@@ -403,6 +412,53 @@ describe("renderAll", () => {
         "codex.nickname_candidates.1",
       );
       return true;
+    });
+  });
+
+  describe("skill hash hoisting", () => {
+    const mockedHashDirectory = vi.mocked(hashDirectory);
+
+    beforeEach(() => {
+      mockedHashDirectory.mockClear();
+    });
+
+    it("computes each skill's hash once, reuses across enabled targets", async () => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "# skill-a\n\nAlpha content.\n",
+      );
+      await createSkillFixture(
+        config.library.skillsDir,
+        "skill-b",
+        "# skill-b\n\nBeta content.\n",
+      );
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      const result = await renderAll(config, false);
+
+      expect(mockedHashDirectory).toHaveBeenCalledTimes(2);
+
+      const skillOutputs = result.outputs.filter((o) => o.type === "skill");
+      expect(skillOutputs).toHaveLength(4);
+
+      const aClaude = skillOutputs.find(
+        (o) => o.target === "claude" && o.name === "skill-a",
+      )?.contentHash;
+      const aCodex = skillOutputs.find(
+        (o) => o.target === "codex" && o.name === "skill-a",
+      )?.contentHash;
+      const bClaude = skillOutputs.find(
+        (o) => o.target === "claude" && o.name === "skill-b",
+      )?.contentHash;
+
+      expect(aClaude).toBeDefined();
+      expect(aClaude).toBe(aCodex);
+      expect(aClaude).not.toBe(bClaude);
     });
   });
 });

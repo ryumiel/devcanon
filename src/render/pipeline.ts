@@ -32,6 +32,16 @@ export async function renderAll(
   );
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
+
+  const skillHashes = new Map(
+    await Promise.all(
+      skills.map(
+        async (skill) =>
+          [skill.name, await hashDirectory(skill.dirPath)] as const,
+      ),
+    ),
+  );
+
   const outputs: RenderedOutput[] = [];
   const targets = ["claude", "codex"] as const;
 
@@ -50,7 +60,12 @@ export async function renderAll(
 
     // Create skill entries (skills are not rendered, just tracked)
     for (const skill of skills) {
-      const hash = await hashDirectory(skill.dirPath);
+      const hash = skillHashes.get(skill.name);
+      if (hash === undefined) {
+        throw new Error(
+          `internal: missing precomputed hash for skill ${skill.name}`,
+        );
+      }
       outputs.push({
         target,
         type: "skill",
