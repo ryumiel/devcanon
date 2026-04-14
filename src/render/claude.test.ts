@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ResolvedConfig } from "../config/schema.js";
+import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { renderClaudeAgent } from "./claude.js";
 
@@ -76,6 +76,19 @@ describe("renderClaudeAgent", () => {
     expect(content).toContain('description: "A test agent for unit testing."');
     expect(content).toContain("tools: Read, Grep, Bash");
     expect(content).toContain("model: sonnet");
+  });
+
+  it("renders every supported claude target field", () => {
+    const result = renderClaudeAgent(agent, emptySkills, config);
+    const content = result.content as string;
+    const expectedFragments = {
+      model: "model: sonnet",
+      tools: "tools: Read, Grep, Bash",
+    } satisfies Record<(typeof CLAUDE_TARGET_FIELDS)[number], string>;
+
+    for (const field of CLAUDE_TARGET_FIELDS) {
+      expect(content).toContain(expectedFragments[field]);
+    }
   });
 
   it("emits instructions body directly without ## Instructions wrapper", () => {

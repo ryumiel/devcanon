@@ -1,11 +1,44 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { AgentSourceSchema } from "../config/schema.js";
+import type { ZodIssue } from "zod";
+import {
+  AGENT_SOURCE_FIELDS,
+  AgentSourceSchema,
+  CLAUDE_TARGET_FIELDS,
+  CODEX_APPROVAL_POLICY_FIELDS,
+  CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
+  CODEX_TARGET_FIELDS,
+} from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
+
+function collectUnknownFields(
+  value: Record<string, unknown>,
+  knownKeys: readonly string[],
+  pathPrefix = "",
+): string[] {
+  const known = new Set(knownKeys);
+  return Object.keys(value)
+    .filter((key) => !known.has(key))
+    .map((key) => `${pathPrefix}${key}`);
+}
+
+function formatZodIssue(issue: ZodIssue): string {
+  if (issue.code === "invalid_union") {
+    return issue.unionErrors
+      .flatMap((unionError) => unionError.issues.map(formatZodIssue))
+      .join("; ");
+  }
+
+  if (issue.path.length === 0) {
+    return issue.message;
+  }
+
+  return `${issue.path.join(".")}: ${issue.message}`;
+}
 
 export async function loadAndValidateAgents(
   agentsDir: string,
@@ -39,31 +72,83 @@ export async function loadAndValidateAgents(
     }
 
     // Check for unknown fields
-    if (parsed && typeof parsed === "object") {
-      const knownKeys = new Set([
-        "name",
-        "description",
-        "instructions",
-        "skills",
-        "claude",
-        "codex",
-        "tags",
-        "notes",
-      ]);
-      for (const key of Object.keys(parsed as Record<string, unknown>)) {
-        if (!knownKeys.has(key)) {
-          if (strict) {
-            errors.push(`Agent "${entry.name}": unknown field "${key}".`);
-          } else {
-            getLogger().warn(`Warning: unknown field "${key}" in ${filePath}`);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const parsedRecord = parsed as Record<string, unknown>;
+      const unknownFields = collectUnknownFields(
+        parsedRecord,
+        AGENT_SOURCE_FIELDS,
+      );
+
+      if (
+        parsedRecord.claude &&
+        typeof parsedRecord.claude === "object" &&
+        !Array.isArray(parsedRecord.claude)
+      ) {
+        unknownFields.push(
+          ...collectUnknownFields(
+            parsedRecord.claude as Record<string, unknown>,
+            CLAUDE_TARGET_FIELDS,
+            "claude.",
+          ),
+        );
+      }
+
+      if (
+        parsedRecord.codex &&
+        typeof parsedRecord.codex === "object" &&
+        !Array.isArray(parsedRecord.codex)
+      ) {
+        unknownFields.push(
+          ...collectUnknownFields(
+            parsedRecord.codex as Record<string, unknown>,
+            CODEX_TARGET_FIELDS,
+            "codex.",
+          ),
+        );
+
+        const approvalPolicy = (parsedRecord.codex as Record<string, unknown>)
+          .approval_policy;
+        if (
+          approvalPolicy &&
+          typeof approvalPolicy === "object" &&
+          !Array.isArray(approvalPolicy)
+        ) {
+          unknownFields.push(
+            ...collectUnknownFields(
+              approvalPolicy as Record<string, unknown>,
+              CODEX_APPROVAL_POLICY_FIELDS,
+              "codex.approval_policy.",
+            ),
+          );
+          const granular = (approvalPolicy as Record<string, unknown>).granular;
+          if (
+            granular &&
+            typeof granular === "object" &&
+            !Array.isArray(granular)
+          ) {
+            unknownFields.push(
+              ...collectUnknownFields(
+                granular as Record<string, unknown>,
+                CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
+                "codex.approval_policy.granular.",
+              ),
+            );
           }
+        }
+      }
+
+      for (const field of unknownFields) {
+        if (strict) {
+          errors.push(`Agent "${entry.name}": unknown field "${field}".`);
+        } else {
+          getLogger().warn(`Warning: unknown field "${field}" in ${filePath}`);
         }
       }
     }
 
     const result = AgentSourceSchema.safeParse(parsed);
     if (!result.success) {
-      const issues = result.error.issues.map((i) => i.message).join(", ");
+      const issues = result.error.issues.map(formatZodIssue).join("; ");
       errors.push(`Agent "${entry.name}": ${issues}`);
       continue;
     }

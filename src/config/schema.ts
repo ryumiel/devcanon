@@ -100,26 +100,100 @@ export interface ResolvedTargetConfig {
 // --- Agent source ---
 const FILESYSTEM_SAFE = /^[a-z0-9][a-z0-9._-]*$/;
 
-const ClaudeTargetSchema = z
-  .object({
-    model: z.string().optional(),
-    tools: z.array(z.string()).optional(),
-  })
-  .passthrough();
+const ClaudeTargetShape = {
+  model: z.string().optional(),
+  tools: z.array(z.string()).optional(),
+};
 
-const CodexTargetSchema = z
-  .object({
-    model: z.string().optional(),
-    model_reasoning_effort: z.string().optional(),
-    sandbox_mode: z
-      .enum(["read-only", "workspace-write", "danger-full-access"])
-      .optional(),
-    nickname_candidates: z.array(z.string()).optional(),
-    approval_policy: z.string().optional(),
-  })
-  .passthrough();
+const NICKNAME_CANDIDATE = /^[A-Za-z0-9 _-]+$/;
 
-export const AgentSourceSchema = z.object({
+const NicknameCandidatesSchema = z
+  .array(z.string())
+  .nonempty("Nickname candidates must be a non-empty list")
+  .superRefine((candidates, ctx) => {
+    const seen = new Set<string>();
+
+    for (const [index, candidate] of candidates.entries()) {
+      const normalized = candidate.trim();
+      if (normalized.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Nickname candidates cannot contain blank names",
+          path: [index],
+        });
+        continue;
+      }
+
+      if (!NICKNAME_CANDIDATE.test(normalized)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Nickname candidates may only use ASCII letters, digits, spaces, hyphens, and underscores",
+          path: [index],
+        });
+      }
+
+      if (seen.has(normalized)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Nickname candidates must be unique",
+          path: [index],
+        });
+        continue;
+      }
+
+      seen.add(normalized);
+    }
+  })
+  .transform((candidates) => candidates.map((candidate) => candidate.trim()));
+
+const CodexApprovalPolicyGranularShape = {
+  mcp_elicitations: z.boolean(),
+  request_permissions: z.boolean().optional(),
+  rules: z.boolean(),
+  sandbox_approval: z.boolean(),
+  skill_approval: z.boolean().optional(),
+};
+
+const CodexApprovalPolicyShape = {
+  granular: z.object(CodexApprovalPolicyGranularShape),
+};
+
+const CodexApprovalPolicySchema = z.union([
+  z.enum(["untrusted", "on-request", "on-failure", "never"]),
+  z.object(CodexApprovalPolicyShape),
+]);
+
+const CodexTargetShape = {
+  model: z.string().optional(),
+  model_reasoning_effort: z
+    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
+    .optional(),
+  sandbox_mode: z
+    .enum(["read-only", "workspace-write", "danger-full-access"])
+    .optional(),
+  nickname_candidates: NicknameCandidatesSchema.optional(),
+  approval_policy: CodexApprovalPolicySchema.optional(),
+};
+
+export const CLAUDE_TARGET_FIELDS = Object.keys(ClaudeTargetShape) as Array<
+  keyof typeof ClaudeTargetShape
+>;
+export const CODEX_APPROVAL_POLICY_FIELDS = Object.keys(
+  CodexApprovalPolicyShape,
+) as Array<keyof typeof CodexApprovalPolicyShape>;
+export const CODEX_APPROVAL_POLICY_GRANULAR_FIELDS = Object.keys(
+  CodexApprovalPolicyGranularShape,
+) as Array<keyof typeof CodexApprovalPolicyGranularShape>;
+export const CODEX_TARGET_FIELDS = Object.keys(CodexTargetShape) as Array<
+  keyof typeof CodexTargetShape
+>;
+
+const ClaudeTargetSchema = z.object(ClaudeTargetShape);
+
+const CodexTargetSchema = z.object(CodexTargetShape);
+
+const AgentSourceShape = {
   name: z
     .string()
     .regex(
@@ -133,7 +207,13 @@ export const AgentSourceSchema = z.object({
   codex: CodexTargetSchema.optional(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
-});
+};
+
+export const AGENT_SOURCE_FIELDS = Object.keys(AgentSourceShape) as Array<
+  keyof typeof AgentSourceShape
+>;
+
+export const AgentSourceSchema = z.object(AgentSourceShape);
 
 export type AgentSource = z.infer<typeof AgentSourceSchema>;
 

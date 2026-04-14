@@ -74,6 +74,19 @@ describe("loadAndValidateAgents", () => {
     );
   });
 
+  it("does not emit unknown-field warnings when agent YAML root is a list", async () => {
+    await createAgentFixture(agentsDir, "list-root", "- name: wrong-shape");
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).not.toContain('unknown field "0"');
+        return true;
+      },
+    );
+    expect(testLogger.warnings).toEqual([]);
+  });
+
   it("throws UserError when a required field is missing", async () => {
     const yaml = "name: test-agent\ndescription: A test agent\nskills: []";
     await createAgentFixture(agentsDir, "no-instructions", yaml);
@@ -160,6 +173,460 @@ describe("loadAndValidateAgents", () => {
       expect((err as UserError).message).toContain("extra_field");
       return true;
     });
+  });
+
+  it("warns for unknown target-specific fields in non-strict mode", async () => {
+    const yaml = makeAgentYaml("warn-target-agent", {
+      claude: {
+        model: "sonnet",
+        tols: ["Read"],
+      },
+      codex: {
+        sandbox_mode: "read-only",
+        approvval_policy: "on-request",
+      },
+    });
+    await createAgentFixture(agentsDir, "warn-target-agent", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("warn-target-agent");
+    expect(result[0].source.claude).toEqual({ model: "sonnet" });
+    expect(result[0].source.codex).toEqual({ sandbox_mode: "read-only" });
+    expect(testLogger.warnings.some((w) => w.includes("claude.tols"))).toBe(
+      true,
+    );
+    expect(
+      testLogger.warnings.some((w) => w.includes("codex.approvval_policy")),
+    ).toBe(true);
+  });
+
+  it("warns for unknown nested granular approval policy fields in non-strict mode", async () => {
+    const yaml = makeAgentYaml("warn-granular-approval-agent", {
+      codex: {
+        approval_policy: {
+          extra_toggle: true,
+          granular: {
+            mcp_elicitations: true,
+            rules: true,
+            sandbox_approval: true,
+            extra_toggle: true,
+          },
+        },
+      },
+    });
+    await createAgentFixture(agentsDir, "warn-granular-approval-agent", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].source.codex).toEqual({
+      approval_policy: {
+        granular: {
+          mcp_elicitations: true,
+          rules: true,
+          sandbox_approval: true,
+        },
+      },
+    });
+    expect(
+      testLogger.warnings.some((w) =>
+        w.includes("codex.approval_policy.extra_toggle"),
+      ),
+    ).toBe(true);
+    expect(
+      testLogger.warnings.some((w) =>
+        w.includes("codex.approval_policy.granular.extra_toggle"),
+      ),
+    ).toBe(true);
+  });
+
+  it("throws UserError for unknown target-specific fields in strict mode", async () => {
+    const yaml = makeAgentYaml("strict-target-agent", {
+      claude: {
+        model: "sonnet",
+        tols: ["Read"],
+      },
+      codex: {
+        sandbox_mode: "read-only",
+        approvval_policy: "on-request",
+      },
+    });
+    await createAgentFixture(agentsDir, "strict-target-agent", yaml);
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, true),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain("claude.tols");
+      expect((err as UserError).message).toContain("codex.approvval_policy");
+      return true;
+    });
+  });
+
+  it("throws UserError for unknown nested granular approval policy fields in strict mode", async () => {
+    const yaml = makeAgentYaml("strict-granular-approval-agent", {
+      codex: {
+        approval_policy: {
+          extra_toggle: true,
+          granular: {
+            sandbox_approval: true,
+            extra_toggle: true,
+          },
+        },
+      },
+    });
+    await createAgentFixture(agentsDir, "strict-granular-approval-agent", yaml);
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, true),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        "codex.approval_policy.extra_toggle",
+      );
+      expect((err as UserError).message).toContain(
+        "codex.approval_policy.granular.extra_toggle",
+      );
+      return true;
+    });
+  });
+
+  it("accepts all supported target-specific fields without warnings", async () => {
+    const yaml = makeAgentYaml("all-target-fields", {
+      claude: {
+        model: "sonnet",
+        tools: ["Read", "Grep"],
+      },
+      codex: {
+        model: "gpt-5.4",
+        model_reasoning_effort: "high",
+        sandbox_mode: "danger-full-access",
+        nickname_candidates: ["builder", "reviewer"],
+        approval_policy: {
+          granular: {
+            mcp_elicitations: true,
+            request_permissions: false,
+            rules: true,
+            sandbox_approval: true,
+            skill_approval: false,
+          },
+        },
+      },
+    });
+    await createAgentFixture(agentsDir, "all-target-fields", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("all-target-fields");
+    expect(result[0].source.claude).toEqual({
+      model: "sonnet",
+      tools: ["Read", "Grep"],
+    });
+    expect(result[0].source.codex).toEqual({
+      model: "gpt-5.4",
+      model_reasoning_effort: "high",
+      sandbox_mode: "danger-full-access",
+      nickname_candidates: ["builder", "reviewer"],
+      approval_policy: {
+        granular: {
+          mcp_elicitations: true,
+          request_permissions: false,
+          rules: true,
+          sandbox_approval: true,
+          skill_approval: false,
+        },
+      },
+    });
+    expect(testLogger.warnings).toEqual([]);
+  });
+
+  it("accepts string approval_policy values", async () => {
+    const yaml = makeAgentYaml("string-approval-policy", {
+      codex: {
+        approval_policy: "on-failure",
+      },
+    });
+    await createAgentFixture(agentsDir, "string-approval-policy", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].source.codex).toEqual({
+      approval_policy: "on-failure",
+    });
+  });
+
+  it("accepts model_reasoning_effort none", async () => {
+    const yaml = makeAgentYaml("none-reasoning-effort", {
+      codex: {
+        model_reasoning_effort: "none",
+      },
+    });
+    await createAgentFixture(agentsDir, "none-reasoning-effort", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].source.codex).toEqual({
+      model_reasoning_effort: "none",
+    });
+  });
+
+  it("accepts all supported target-specific fields in strict mode", async () => {
+    const yaml = makeAgentYaml("all-target-fields-strict", {
+      claude: {
+        model: "sonnet",
+        tools: ["Read", "Grep"],
+      },
+      codex: {
+        model: "gpt-5.4",
+        model_reasoning_effort: "high",
+        sandbox_mode: "danger-full-access",
+        nickname_candidates: ["builder", "reviewer"],
+        approval_policy: {
+          granular: {
+            mcp_elicitations: true,
+            request_permissions: false,
+            rules: true,
+            sandbox_approval: true,
+            skill_approval: false,
+          },
+        },
+      },
+    });
+    await createAgentFixture(agentsDir, "all-target-fields-strict", yaml);
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, true),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        name: "all-target-fields-strict",
+        source: expect.objectContaining({
+          claude: {
+            model: "sonnet",
+            tools: ["Read", "Grep"],
+          },
+          codex: {
+            model: "gpt-5.4",
+            model_reasoning_effort: "high",
+            sandbox_mode: "danger-full-access",
+            nickname_candidates: ["builder", "reviewer"],
+            approval_policy: {
+              granular: {
+                mcp_elicitations: true,
+                request_permissions: false,
+                rules: true,
+                sandbox_approval: true,
+                skill_approval: false,
+              },
+            },
+          },
+        }),
+      }),
+    ]);
+  });
+
+  it("throws UserError for invalid nested claude field types", async () => {
+    const yaml = makeAgentYaml("bad-claude-tools", {
+      claude: {
+        tools: "Read",
+      },
+    });
+    await createAgentFixture(agentsDir, "bad-claude-tools", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("claude.tools");
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for invalid nested codex enum values", async () => {
+    const yaml = makeAgentYaml("bad-codex-sandbox", {
+      codex: {
+        sandbox_mode: "unrestricted",
+      },
+    });
+    await createAgentFixture(agentsDir, "bad-codex-sandbox", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain("codex.sandbox_mode");
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for invalid model_reasoning_effort values", async () => {
+    const yaml = makeAgentYaml("bad-reasoning-effort", {
+      codex: {
+        model_reasoning_effort: "banana",
+      },
+    });
+    await createAgentFixture(agentsDir, "bad-reasoning-effort", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.model_reasoning_effort",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for invalid approval_policy object shapes", async () => {
+    const yaml = makeAgentYaml("bad-approval-policy", {
+      codex: {
+        approval_policy: {},
+      },
+    });
+    await createAgentFixture(agentsDir, "bad-approval-policy", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.approval_policy.granular",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for granular approval_policy objects missing required keys", async () => {
+    const yaml = makeAgentYaml("empty-granular-approval-policy", {
+      codex: {
+        approval_policy: {
+          granular: {
+            skill_approval: true,
+          },
+        },
+      },
+    });
+    await createAgentFixture(agentsDir, "empty-granular-approval-policy", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.approval_policy.granular",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for invalid nickname_candidates", async () => {
+    const yaml = makeAgentYaml("bad-nickname-candidates", {
+      codex: {
+        nickname_candidates: ["Atlas", "Atlas"],
+      },
+    });
+    await createAgentFixture(agentsDir, "bad-nickname-candidates", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.nickname_candidates",
+        );
+        expect((err as UserError).message).toContain(
+          "Nickname candidates must be unique",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for empty nickname_candidates lists", async () => {
+    const yaml = makeAgentYaml("empty-nickname-candidates", {
+      codex: {
+        nickname_candidates: [],
+      },
+    });
+    await createAgentFixture(agentsDir, "empty-nickname-candidates", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.nickname_candidates",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for invalid nickname_candidates characters", async () => {
+    const yaml = makeAgentYaml("invalid-nickname-candidates", {
+      codex: {
+        nickname_candidates: ["bad!name"],
+      },
+    });
+    await createAgentFixture(agentsDir, "invalid-nickname-candidates", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.nickname_candidates.0",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for blank nickname_candidates after trimming", async () => {
+    const yaml = makeAgentYaml("blank-nickname-candidates", {
+      codex: {
+        nickname_candidates: ["   "],
+      },
+    });
+    await createAgentFixture(agentsDir, "blank-nickname-candidates", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.nickname_candidates.0",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for duplicate nickname_candidates after trimming", async () => {
+    const yaml = makeAgentYaml("trim-duplicate-nickname-candidates", {
+      codex: {
+        nickname_candidates: ["Atlas", " Atlas "],
+      },
+    });
+    await createAgentFixture(
+      agentsDir,
+      "trim-duplicate-nickname-candidates",
+      yaml,
+    );
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.nickname_candidates.1",
+        );
+        expect((err as UserError).message).toContain(
+          "Nickname candidates must be unique",
+        );
+        return true;
+      },
+    );
   });
 
   it("warns about .yml files and does not load them", async () => {
