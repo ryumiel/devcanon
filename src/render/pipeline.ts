@@ -33,17 +33,25 @@ export async function renderAll(
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
-  const skillHashes = new Map(
-    await Promise.all(
-      skills.map(
-        async (skill) =>
-          [skill.name, await hashDirectory(skill.dirPath)] as const,
-      ),
-    ),
+  const targets = ["claude", "codex"] as const;
+  const willRender = targets.some(
+    (target) =>
+      config.targets[target].enabled &&
+      (!targetFilter || target === targetFilter),
   );
 
+  const skillHashes = willRender
+    ? new Map(
+        await Promise.all(
+          skills.map(
+            async (skill) =>
+              [skill.name, await hashDirectory(skill.dirPath)] as const,
+          ),
+        ),
+      )
+    : new Map<string, string>();
+
   const outputs: RenderedOutput[] = [];
-  const targets = ["claude", "codex"] as const;
 
   for (const target of targets) {
     if (!config.targets[target].enabled) continue;

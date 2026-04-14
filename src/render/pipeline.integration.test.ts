@@ -474,5 +474,30 @@ describe("renderAll", () => {
       await expect(renderAll(config, true)).rejects.toThrow("disk on fire");
       expect(await pathExists(config.library.generatedDir)).toBe(false);
     });
+
+    it("skips skill hashing when no targets will render", async () => {
+      const noTargetsConfig = makeResolvedConfig(tempDir, {
+        claude: { enabled: false },
+        codex: { enabled: false },
+      });
+      await createSkillFixture(noTargetsConfig.library.skillsDir, "skill-a");
+
+      const result = await renderAll(noTargetsConfig, false);
+
+      expect(mockedHashDirectory).not.toHaveBeenCalled();
+      expect(result.outputs).toEqual([]);
+    });
+
+    it("skips skill hashing when targetFilter excludes all enabled targets", async () => {
+      const claudeOnlyConfig = makeResolvedConfig(tempDir, {
+        codex: { enabled: false },
+      });
+      await createSkillFixture(claudeOnlyConfig.library.skillsDir, "skill-a");
+
+      const result = await renderAll(claudeOnlyConfig, false, false, "codex");
+
+      expect(mockedHashDirectory).not.toHaveBeenCalled();
+      expect(result.outputs).toEqual([]);
+    });
   });
 });
