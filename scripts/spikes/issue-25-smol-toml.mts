@@ -110,7 +110,7 @@ try {
   );
 }
 
-// Probe 3 — U+0080 pass-through (CURRENT buggy tomlQuote)
+// Probe 3 — U+0080 pass-through
 try {
   const agent3 = cloneWith({ description: "hi\u0080there" });
   const rendered = render(agent3);
