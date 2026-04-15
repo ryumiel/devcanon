@@ -5,13 +5,13 @@ vi.mock("../utils/fs.js", () => ({
 }));
 
 import type { Manifest } from "../config/schema.js";
-import type { RenderedOutput } from "../models/types.js";
+import type { RenderedAgent } from "../models/types.js";
 import { pathExists } from "../utils/fs.js";
 import { computePlan } from "./plan.js";
 
 const mockedPathExists = vi.mocked(pathExists);
 
-function makeOutput(overrides: Partial<RenderedOutput> = {}): RenderedOutput {
+function makeOutput(overrides: Partial<RenderedAgent> = {}): RenderedAgent {
   return {
     target: "claude",
     type: "agent",

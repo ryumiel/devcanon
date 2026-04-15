@@ -17,7 +17,7 @@ export async function diffAll(
   const results: DiffResult[] = [];
 
   for (const output of outputs) {
-    if (output.type === "agent" && output.content) {
+    if (output.type === "agent") {
       results.push(await diffAgentFile(output.content, output));
     } else if (output.type === "skill") {
       // For skills, just check if installed and hash matches
