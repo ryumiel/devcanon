@@ -25,7 +25,9 @@ function toUnicodeEscape(ch: string): string {
 }
 
 /**
- * TOML 1.0 basic-string quoter.
+ * TOML 1.0 basic-string quoter. Assumes well-formed Unicode input: lone
+ * surrogate code units are passed through unchanged, and the caller owns
+ * string validity (the quoter does not enforce scalar-value-only inputs).
  * @internal Not suitable for multi-line or literal strings.
  */
 export function tomlQuote(s: string): string {
