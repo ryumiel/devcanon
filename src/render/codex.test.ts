@@ -3,7 +3,11 @@ import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
-import { renderCodexAgent, tomlQuote } from "./codex.js";
+import {
+  renderCodexAgent,
+  tomlQuote,
+  tomlQuoteMultilineBasic,
+} from "./codex.js";
 
 const agent: LoadedAgent = {
   name: "test-agent",
@@ -79,11 +83,11 @@ describe("renderCodexAgent", () => {
     expect(content).toContain('sandbox_mode = "read-only"');
   });
 
-  it("uses triple-quoted literal strings for developer_instructions", () => {
+  it("uses triple-quoted basic strings for developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     const content = result.content as string;
-    expect(content).toContain("developer_instructions = '''");
-    expect(content).toContain("'''");
+    expect(content).toContain('developer_instructions = """');
+    expect(content).toContain('"""');
     // Verify instructions content is inside the triple quotes
     expect(content).toContain("## Step One");
     expect(content).toContain("## Step Two");
@@ -232,6 +236,100 @@ describe("tomlQuote basic-string escaping", () => {
   });
 });
 
+describe("developer_instructions multi-line basic escaping", () => {
+  // The escaper returns `"""\n${body}\n"""`. TOML trims the leading newline
+  // after `"""`, but the trailing `\n` before the closing delimiter is
+  // preserved in the parsed value (see plan §1 "Output shape"). Round-trip
+  // assertions therefore expect `input + "\n"` on the parsed side.
+  const wrap = (escaped: string) => parse(`x = ${escaped}`) as { x: string };
+
+  it("wraps in triple quotes with leading newline", () => {
+    expect(tomlQuoteMultilineBasic("hi")).toBe('"""\nhi\n"""');
+  });
+
+  it("preserves literal LF", () => {
+    expect(tomlQuoteMultilineBasic("a\nb")).toBe('"""\na\nb\n"""');
+  });
+
+  it("preserves TAB unescaped", () => {
+    const out = tomlQuoteMultilineBasic("a\tb");
+    expect(out).toContain("a\tb");
+    expect(out).not.toContain("\\t");
+  });
+
+  it("escapes backslash before other rewrites (ordering)", () => {
+    expect(tomlQuoteMultilineBasic("a\\b")).toContain("\\\\");
+  });
+
+  it("escapes bare CR to \\r", () => {
+    const out = tomlQuoteMultilineBasic("a\rb");
+    expect(out).toContain("\\r");
+    expect(out).not.toMatch(/\r[^\n]/);
+    expect(out).not.toMatch(/\r$/);
+  });
+
+  it("preserves CRLF pairs", () => {
+    const out = tomlQuoteMultilineBasic("a\r\nb");
+    expect(out).toContain("a\r\nb");
+    expect(out).not.toContain("\\r");
+  });
+
+  it("escapes C0 controls and FF/VT via short or unicode escape", () => {
+    const out = tomlQuoteMultilineBasic("\u0000\u0001\u000B\fb");
+    expect(out).toContain("\\u0000");
+    expect(out).toContain("\\u0001");
+    expect(out).toContain("\\u000B");
+    expect(out).toContain("\\f");
+  });
+
+  it("escapes DEL U+007F", () => {
+    expect(tomlQuoteMultilineBasic("a\u007Fb")).toContain("\\u007F");
+  });
+
+  it("passes through U+0080 and astral code points", () => {
+    const input = "a\u0080\u{1F600}b";
+    const out = tomlQuoteMultilineBasic(input);
+    expect(out).toContain("a\u0080\u{1F600}b");
+  });
+
+  it("breaks runs of three double quotes (round-trip)", () => {
+    const input = 'a"""b';
+    expect(wrap(tomlQuoteMultilineBasic(input)).x).toBe(`${input}\n`);
+  });
+
+  it("handles four consecutive quotes (round-trip)", () => {
+    const input = 'a""""b';
+    expect(wrap(tomlQuoteMultilineBasic(input)).x).toBe(`${input}\n`);
+  });
+
+  it("handles body ending in one or two quotes (round-trip)", () => {
+    expect(wrap(tomlQuoteMultilineBasic('hi"')).x).toBe('hi"\n');
+    expect(wrap(tomlQuoteMultilineBasic('hi""')).x).toBe('hi""\n');
+  });
+
+  it("handles runs of 5, 6, 7 consecutive quotes (round-trip)", () => {
+    for (const input of ['a"""""b', 'a""""""b', 'a"""""""b']) {
+      expect(wrap(tomlQuoteMultilineBasic(input)).x).toBe(`${input}\n`);
+    }
+  });
+
+  it("handles body ending in a single backslash (round-trip)", () => {
+    const input = "hi\\";
+    expect(wrap(tomlQuoteMultilineBasic(input)).x).toBe(`${input}\n`);
+  });
+
+  it("handles empty body", () => {
+    // Empty body yields `"""\n\n"""`; TOML trims the leading newline,
+    // so the parsed value is the trailing structural `\n`.
+    expect(wrap(tomlQuoteMultilineBasic("")).x).toBe("\n");
+  });
+
+  it("handles body that is only a run of quotes", () => {
+    const input = '""""""';
+    expect(wrap(tomlQuoteMultilineBasic(input)).x).toBe(`${input}\n`);
+  });
+});
+
 describe("Codex TOML renderer round-trip", () => {
   it("round-trips all basic-string fields through smol-toml", () => {
     const mixedPayload =
@@ -275,5 +373,70 @@ describe("Codex TOML renderer round-trip", () => {
     expect(parsed.nickname_candidates).toEqual(
       fixture.source.codex?.nickname_candidates,
     );
+  });
+
+  const makeInstrFixture = (instructions: string): LoadedAgent => ({
+    name: "test-agent",
+    filePath: "/test/agents/test-agent.yaml",
+    source: {
+      name: "test-agent",
+      description: "desc",
+      instructions,
+      skills: [],
+      claude: undefined,
+      codex: { sandbox_mode: "read-only" },
+      tags: undefined,
+      notes: undefined,
+    },
+  });
+
+  it("round-trips instructions containing ''' through smol-toml", () => {
+    const instructions = "pre\n'''\nmid\n'''\npost";
+    const result = renderCodexAgent(
+      makeInstrFixture(instructions),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    const di = parsed.developer_instructions as string;
+    expect(di).toContain("pre");
+    expect(di).toContain("mid");
+    expect(di).toContain("post");
+    // Trailing "\n" is the structural newline before the closing """
+    // delimiter (same contract as the previous '''...''' output).
+    expect(di).toBe("pre\n'''\nmid\n'''\npost\n");
+  });
+
+  it("round-trips instructions containing triple double-quotes through smol-toml", () => {
+    const instructions = 'pre\n"""\nmid\n"""\npost';
+    const result = renderCodexAgent(
+      makeInstrFixture(instructions),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.developer_instructions).toBe('pre\n"""\nmid\n"""\npost\n');
+  });
+
+  it("round-trips instructions containing backslashes and embedded quotes", () => {
+    const instructions = 'a\\b\n"c\nd"""e';
+    const result = renderCodexAgent(
+      makeInstrFixture(instructions),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.developer_instructions).toBe('a\\b\n"c\nd"""e\n');
+  });
+
+  it("round-trips instructions containing tabs and CRLF", () => {
+    const instructions = "line1\r\nline2\tcol";
+    const result = renderCodexAgent(
+      makeInstrFixture(instructions),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.developer_instructions).toBe("line1\r\nline2\tcol\n");
   });
 });

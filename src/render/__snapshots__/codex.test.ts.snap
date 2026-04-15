@@ -8,7 +8,7 @@ name = "test-agent"
 description = "A test agent for unit testing."
 sandbox_mode = "read-only"
 
-developer_instructions = '''
+developer_instructions = """
 Follow these steps:
 
 ## Step One
@@ -22,6 +22,6 @@ Do the second thing.
 ## Skills
 
 - **test-skill** (\`~/.agents/skills/test-skill\`)
-'''
+"""
 "
 `;
