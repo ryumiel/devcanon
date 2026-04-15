@@ -86,9 +86,7 @@ describe("renderCodexAgent", () => {
   it("uses triple-quoted basic strings for developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     const content = result.content as string;
-    expect(content).toContain('developer_instructions = """');
-    expect(content).toContain('"""');
-    // Verify instructions content is inside the triple quotes
+    expect(content).toMatch(/developer_instructions = """\n[\s\S]*\n"""/);
     expect(content).toContain("## Step One");
     expect(content).toContain("## Step Two");
   });
