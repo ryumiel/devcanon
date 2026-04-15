@@ -3,6 +3,22 @@ import os from "node:os";
 import path from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import type { ResolvedConfig } from "../config/schema.js";
+import type { LoadedAgent } from "../models/types.js";
+
+type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
+
+// Widens enum-typed fields to plain strings so renderer tests can supply
+// payloads that would not pass Zod validation (the single downcast at
+// makeCodexSource preserves type-safety for non-enum fields).
+type CodexSourceOverrides = {
+  model?: CodexSource["model"];
+  model_reasoning_effort?: string;
+  sandbox_mode?: string;
+  nickname_candidates?: CodexSource["nickname_candidates"];
+  approval_policy?:
+    | string
+    | Extract<CodexSource["approval_policy"], { granular: unknown }>;
+};
 
 export async function createTempDir(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "am-test-"));
@@ -50,6 +66,12 @@ export function makeAgentYaml(
     ...overrides,
   };
   return yamlStringify(fields);
+}
+
+export function makeCodexSource(
+  overrides: CodexSourceOverrides = {},
+): CodexSource {
+  return { sandbox_mode: "read-only", ...overrides } as CodexSource;
 }
 
 export async function createConfigFile(
