@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ResolvedConfig } from "../config/schema.js";
+import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -7,6 +7,61 @@ import type {
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import { makeMdHeader } from "../utils/managed-header.js";
+import {
+  SAFE_PASSTHROUGH_KEY,
+  describeValueShape,
+  isHomogeneousScalarArray,
+  isPassthroughPrimitive,
+  sortedUnknownEntries,
+  warnPassthroughSkip,
+} from "./passthrough.js";
+
+/**
+ * Emit one YAML frontmatter line for an unknown Claude field, or `null` when
+ * the value or key is not safely renderable. Strings are JSON-stringified
+ * (valid YAML 1.2 flow scalars), arrays use JSON flow form `[...]` — both
+ * guard against characters (`:`, `#`, newlines) that would break frontmatter
+ * parsing. The bare comma-joined `tools:` shape is a Claude convention for
+ * that specific field and is not extrapolated here.
+ */
+function renderClaudePassthroughLine(
+  key: string,
+  value: unknown,
+  agentName: string,
+): string | null {
+  if (!SAFE_PASSTHROUGH_KEY.test(key)) {
+    warnPassthroughSkip(
+      "claude",
+      agentName,
+      key,
+      "key must match /^[A-Za-z0-9_-]+$/",
+    );
+    return null;
+  }
+
+  if (value === undefined) return null;
+
+  if (isPassthroughPrimitive(value)) {
+    if (typeof value === "string") return `${key}: ${JSON.stringify(value)}`;
+    if (value === null) return `${key}: null`;
+    return `${key}: ${String(value)}`;
+  }
+
+  if (isHomogeneousScalarArray(value)) {
+    const items = value.map((item) =>
+      typeof item === "string" ? JSON.stringify(item) : String(item),
+    );
+    return `${key}: [${items.join(", ")}]`;
+  }
+
+  warnPassthroughSkip(
+    "claude",
+    agentName,
+    key,
+    `unsupported value shape: ${describeValueShape(value)}`,
+  );
+  return null;
+}
 
 export function renderClaudeAgent(
   agent: LoadedAgent,
@@ -29,6 +84,14 @@ export function renderClaudeAgent(
   }
   if (agent.source.claude?.model) {
     lines.push(`model: ${agent.source.claude.model}`);
+  }
+
+  for (const [key, value] of sortedUnknownEntries(
+    agent.source.claude as Record<string, unknown> | undefined,
+    CLAUDE_TARGET_FIELDS,
+  )) {
+    const line = renderClaudePassthroughLine(key, value, agent.name);
+    if (line !== null) lines.push(line);
   }
 
   lines.push("---");

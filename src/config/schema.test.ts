@@ -139,7 +139,7 @@ describe("AgentSourceSchema", () => {
     expect(CODEX_APPROVAL_POLICY_FIELDS).toHaveLength(1);
   });
 
-  it("strips unknown target-specific fields during parsing", () => {
+  it("preserves unknown target-specific fields during parsing", () => {
     const result = AgentSourceSchema.parse({
       ...validAgent,
       claude: {
@@ -156,9 +156,11 @@ describe("AgentSourceSchema", () => {
     expect(result.claude).toEqual({
       model: "sonnet",
       tools: ["Read", "Grep"],
+      tols: ["Read"],
     });
     expect(result.codex).toEqual({
       sandbox_mode: "workspace-write",
+      approvval_policy: "never",
     });
   });
 

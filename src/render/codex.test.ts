@@ -1,7 +1,8 @@
 import path from "node:path";
 import { parse } from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeCodexSource } from "../__test-helpers__/fixtures.js";
+import { installTestLogger } from "../__test-helpers__/logger.js";
 import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import {
@@ -9,6 +10,24 @@ import {
   tomlQuote,
   tomlQuoteMultilineBasic,
 } from "./codex.js";
+
+type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
+
+function withCodex(
+  base: LoadedAgent,
+  codexFields: Record<string, unknown>,
+): LoadedAgent {
+  return {
+    ...base,
+    source: {
+      ...base.source,
+      codex: {
+        ...(base.source.codex ?? {}),
+        ...codexFields,
+      } as CodexSource,
+    },
+  };
+}
 
 const agent: LoadedAgent = {
   name: "test-agent",
@@ -434,5 +453,167 @@ describe("Codex TOML renderer round-trip", () => {
     );
     const parsed = parse(result.content) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe("line1\r\nline2\tcol\n");
+  });
+});
+
+describe("renderCodexAgent passthrough", () => {
+  let warnings: string[];
+  let restore: () => void;
+
+  beforeEach(() => {
+    const installed = installTestLogger();
+    warnings = installed.testLogger.warnings;
+    restore = installed.restore;
+  });
+
+  afterEach(() => restore());
+
+  it("emits unknown string field as TOML string assignment", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { future_flag: "x" }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('future_flag = "x"');
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.future_flag).toBe("x");
+    expect(warnings).toEqual([]);
+  });
+
+  it("emits unknown number and boolean scalars bare", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { temperature: 0.7, eager: true }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("temperature = 0.7");
+    expect(result.content).toContain("eager = true");
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.temperature).toBe(0.7);
+    expect(parsed.eager).toBe(true);
+  });
+
+  it("emits unknown string array using tomlQuote", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { extra_servers: ["a", 'with"quote'] }),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.extra_servers).toEqual(["a", 'with"quote']);
+  });
+
+  it("emits unknown number and boolean arrays bare", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { weights: [1, 2, 3], flags: [true, false] }),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.weights).toEqual([1, 2, 3]);
+    expect(parsed.flags).toEqual([true, false]);
+  });
+
+  it("sorts unknown fields alphabetically after known fields", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { zeta_field: 1, alpha_field: 2, middle_field: 3 }),
+      emptySkills,
+      config,
+    );
+    const alpha = result.content.indexOf("alpha_field");
+    const middle = result.content.indexOf("middle_field");
+    const zeta = result.content.indexOf("zeta_field");
+    const knownSandbox = result.content.indexOf("sandbox_mode");
+    expect(knownSandbox).toBeGreaterThan(-1);
+    expect(alpha).toBeGreaterThan(knownSandbox);
+    expect(middle).toBeGreaterThan(alpha);
+    expect(zeta).toBeGreaterThan(middle);
+  });
+
+  it("skips null values with warning (TOML has no null)", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { opt_out: null }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toContain("opt_out");
+    expect(warnings.some((w) => w.includes('"opt_out"'))).toBe(true);
+    expect(warnings.some((w) => w.includes("TOML has no null"))).toBe(true);
+  });
+
+  it("skips inline objects with warning (no inline-table passthrough)", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { nested: { a: 1, b: "x" } }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^nested /m);
+    expect(warnings.some((w) => w.includes('"nested"'))).toBe(true);
+    expect(warnings.some((w) => w.includes("object"))).toBe(true);
+  });
+
+  it("skips mixed-type array with warning", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { mixed: [1, "a"] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^mixed /m);
+    expect(warnings.some((w) => w.includes('"mixed"'))).toBe(true);
+  });
+
+  it("skips non-finite numbers with warning", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { bad: Number.NaN }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^bad /m);
+    expect(warnings.some((w) => w.includes('"bad"'))).toBe(true);
+  });
+
+  it("skips unsafe keys with warning", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { "bad key!": "x" }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toContain("bad key!");
+    expect(warnings.some((w) => w.includes('"bad key!"'))).toBe(true);
+  });
+
+  it("coexists with known approval_policy without duplicate emission", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, {
+        approval_policy: "on-request",
+        alpha: 1,
+      }),
+      emptySkills,
+      config,
+    );
+    const approvalLines = result.content.match(/^approval_policy =/gm) ?? [];
+    expect(approvalLines).toHaveLength(1);
+    expect(result.content).toContain('approval_policy = "on-request"');
+    expect(result.content).toContain("alpha = 1");
+  });
+
+  it("TOML round-trip: parser accepts all passthrough output", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, {
+        str_field: "hello",
+        num_field: 42,
+        bool_field: true,
+        arr_strings: ["a", "b"],
+        arr_numbers: [1, 2],
+      }),
+      emptySkills,
+      config,
+    );
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.str_field).toBe("hello");
+    expect(parsed.num_field).toBe(42);
+    expect(parsed.bool_field).toBe(true);
+    expect(parsed.arr_strings).toEqual(["a", "b"]);
+    expect(parsed.arr_numbers).toEqual([1, 2]);
   });
 });

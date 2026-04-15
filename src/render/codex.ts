@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ResolvedConfig } from "../config/schema.js";
+import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -7,6 +7,14 @@ import type {
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import { makeTomlHeader } from "../utils/managed-header.js";
+import {
+  SAFE_PASSTHROUGH_KEY,
+  describeValueShape,
+  isFiniteNumber,
+  isHomogeneousScalarArray,
+  sortedUnknownEntries,
+  warnPassthroughSkip,
+} from "./passthrough.js";
 
 /** TOML 1.0 basic-string short escapes. */
 const TOML_SHORT_ESCAPES: Readonly<Record<string, string>> = Object.freeze({
@@ -79,6 +87,61 @@ function renderGranularApprovalPolicy(
   return `approval_policy = { granular = { ${fields} } }`;
 }
 
+/**
+ * Emit one TOML assignment for an unknown Codex field, or `null` when the
+ * value or key is not safely renderable. TOML has no null (null values are
+ * skipped with a warning). Inline tables are deferred — the only known
+ * inline-table field (`approval_policy.granular`) has dedicated rendering
+ * and a generic emitter would require recursive key quoting well beyond the
+ * scope of forward-compat passthrough.
+ */
+function renderCodexPassthroughLine(
+  key: string,
+  value: unknown,
+  agentName: string,
+): string | null {
+  if (!SAFE_PASSTHROUGH_KEY.test(key)) {
+    warnPassthroughSkip(
+      "codex",
+      agentName,
+      key,
+      "key must match /^[A-Za-z0-9_-]+$/",
+    );
+    return null;
+  }
+
+  if (value === undefined) return null;
+
+  if (value === null) {
+    warnPassthroughSkip(
+      "codex",
+      agentName,
+      key,
+      "TOML has no null representation",
+    );
+    return null;
+  }
+
+  if (typeof value === "string") return `${key} = ${tomlQuote(value)}`;
+  if (typeof value === "boolean") return `${key} = ${String(value)}`;
+  if (isFiniteNumber(value)) return `${key} = ${String(value)}`;
+
+  if (isHomogeneousScalarArray(value)) {
+    const items = value.map((item) =>
+      typeof item === "string" ? tomlQuote(item) : String(item),
+    );
+    return `${key} = [${items.join(", ")}]`;
+  }
+
+  warnPassthroughSkip(
+    "codex",
+    agentName,
+    key,
+    `unsupported value shape: ${describeValueShape(value)}`,
+  );
+  return null;
+}
+
 export function renderCodexAgent(
   agent: LoadedAgent,
   skills: Map<string, LoadedSkill>,
@@ -117,6 +180,14 @@ export function renderCodexAgent(
           renderGranularApprovalPolicy(codex.approval_policy.granular),
         );
       }
+    }
+
+    for (const [key, value] of sortedUnknownEntries(
+      codex as Record<string, unknown>,
+      CODEX_TARGET_FIELDS,
+    )) {
+      const line = renderCodexPassthroughLine(key, value, agent.name);
+      if (line !== null) lines.push(line);
     }
   }
 
