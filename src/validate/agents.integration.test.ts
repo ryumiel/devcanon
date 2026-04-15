@@ -192,8 +192,14 @@ describe("loadAndValidateAgents", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("warn-target-agent");
-    expect(result[0].source.claude).toEqual({ model: "sonnet" });
-    expect(result[0].source.codex).toEqual({ sandbox_mode: "read-only" });
+    expect(result[0].source.claude).toEqual({
+      model: "sonnet",
+      tols: ["Read"],
+    });
+    expect(result[0].source.codex).toEqual({
+      sandbox_mode: "read-only",
+      approvval_policy: "on-request",
+    });
     expect(testLogger.warnings.some((w) => w.includes("claude.tols"))).toBe(
       true,
     );

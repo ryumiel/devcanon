@@ -1,8 +1,27 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { installTestLogger } from "../__test-helpers__/logger.js";
 import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { renderClaudeAgent } from "./claude.js";
+
+type ClaudeSource = NonNullable<LoadedAgent["source"]["claude"]>;
+
+function withClaude(
+  base: LoadedAgent,
+  claudeFields: Record<string, unknown>,
+): LoadedAgent {
+  return {
+    ...base,
+    source: {
+      ...base.source,
+      claude: {
+        ...(base.source.claude ?? {}),
+        ...claudeFields,
+      } as ClaudeSource,
+    },
+  };
+}
 
 const agent: LoadedAgent = {
   name: "test-agent",
@@ -120,5 +139,150 @@ describe("renderClaudeAgent", () => {
     expect(result.installedPath).toBe(
       path.join("~/.claude/agents", "test-agent.md"),
     );
+  });
+});
+
+describe("renderClaudeAgent passthrough", () => {
+  let warnings: string[];
+  let restore: () => void;
+
+  beforeEach(() => {
+    const installed = installTestLogger();
+    warnings = installed.testLogger.warnings;
+    restore = installed.restore;
+  });
+
+  afterEach(() => restore());
+
+  it("emits unknown string field as JSON-quoted frontmatter line", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { experimental_mode: "beta" }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('experimental_mode: "beta"');
+    expect(warnings).toEqual([]);
+  });
+
+  it("emits unknown number, boolean, and null scalars", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, {
+        temperature: 0.7,
+        eager: true,
+        opt_out: null,
+      }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("temperature: 0.7");
+    expect(result.content).toContain("eager: true");
+    expect(result.content).toContain("opt_out: null");
+  });
+
+  it("emits unknown string array as JSON flow form", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { mcp_servers: ["fs", "web"] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('mcp_servers: ["fs", "web"]');
+  });
+
+  it("emits unknown number and boolean arrays bare", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { weights: [1, 2, 3], flags: [true, false] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("weights: [1, 2, 3]");
+    expect(result.content).toContain("flags: [true, false]");
+  });
+
+  it("emits empty unknown array as []", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { mcp_servers: [] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("mcp_servers: []");
+    expect(warnings).toEqual([]);
+  });
+
+  it("sorts unknown fields alphabetically after known fields", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { zeta: 1, alpha: 2, middle: 3 }),
+      emptySkills,
+      config,
+    );
+    const frontmatter = result.content.split("---")[1];
+    const keys = frontmatter
+      .split("\n")
+      .map((l) => l.match(/^(\w[\w-]*):/)?.[1])
+      .filter((k): k is string => Boolean(k));
+    const passthroughStart = keys.indexOf("model") + 1;
+    expect(keys.slice(passthroughStart)).toEqual(["alpha", "middle", "zeta"]);
+  });
+
+  it("skips inline object value with warning", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { nested: { a: 1 } }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^nested:/m);
+    expect(warnings.some((w) => w.includes('"nested"'))).toBe(true);
+    expect(warnings.some((w) => w.includes("object"))).toBe(true);
+  });
+
+  it("skips mixed-type array with warning", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { mixed: [1, "a"] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^mixed:/m);
+    expect(warnings.some((w) => w.includes('"mixed"'))).toBe(true);
+  });
+
+  it("skips non-finite numbers with warning", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { bad: Number.POSITIVE_INFINITY }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toMatch(/^bad:/m);
+    expect(warnings.some((w) => w.includes('"bad"'))).toBe(true);
+  });
+
+  it("skips unsafe keys with warning", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { "bad key!": "x" }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).not.toContain("bad key!");
+    expect(warnings.some((w) => w.includes('"bad key!"'))).toBe(true);
+  });
+
+  it("does not double-emit or clobber known fields present via passthrough object", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { extra: "x" }),
+      emptySkills,
+      config,
+    );
+    const modelLines = result.content.match(/^model:/gm) ?? [];
+    const toolsLines = result.content.match(/^tools:/gm) ?? [];
+    expect(modelLines).toHaveLength(1);
+    expect(toolsLines).toHaveLength(1);
+    expect(result.content).toContain("tools: Read, Grep, Bash");
+  });
+
+  it("JSON-quotes strings containing frontmatter-hostile characters", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { note: 'has "quotes": and #hash' }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('note: "has \\"quotes\\": and #hash"');
   });
 });

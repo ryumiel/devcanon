@@ -416,6 +416,77 @@ describe("renderAll", () => {
     });
   });
 
+  describe("unknown target-field passthrough (normal mode)", () => {
+    it("preserves unknown claude field end-to-end into rendered .md", async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "passthrough-claude",
+        makeAgentYaml("passthrough-claude", {
+          claude: {
+            model: "sonnet",
+            experimental_mode: "beta",
+            mcp_servers: ["fs", "web"],
+          },
+        }),
+      );
+
+      const result = await renderAll(config, false);
+
+      const claudeOutput = result.outputs.find(
+        (o): o is RenderedAgent => o.type === "agent" && o.target === "claude",
+      );
+      expect(claudeOutput).toBeDefined();
+      expect(claudeOutput?.content).toContain('experimental_mode: "beta"');
+      expect(claudeOutput?.content).toContain('mcp_servers: ["fs", "web"]');
+      expect(claudeOutput?.content).toContain("model: sonnet");
+    });
+
+    it("preserves unknown codex field end-to-end into rendered .toml", async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "passthrough-codex",
+        makeAgentYaml("passthrough-codex", {
+          codex: {
+            sandbox_mode: "read-only",
+            future_flag: "x",
+            tool_budget: 42,
+          },
+        }),
+      );
+
+      const result = await renderAll(config, false);
+
+      const codexOutput = result.outputs.find(
+        (o): o is RenderedAgent => o.type === "agent" && o.target === "codex",
+      );
+      expect(codexOutput).toBeDefined();
+      expect(codexOutput?.content).toContain('future_flag = "x"');
+      expect(codexOutput?.content).toContain("tool_budget = 42");
+      expect(codexOutput?.content).toContain('sandbox_mode = "read-only"');
+    });
+
+    it("skips unrenderable shapes at render time without affecting other fields", async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "passthrough-shape-skip",
+        makeAgentYaml("passthrough-shape-skip", {
+          claude: {
+            model: "sonnet",
+            nested_object: { a: 1 },
+          },
+        }),
+      );
+
+      const result = await renderAll(config, false);
+
+      const claudeOutput = result.outputs.find(
+        (o): o is RenderedAgent => o.type === "agent" && o.target === "claude",
+      );
+      expect(claudeOutput?.content).not.toContain("nested_object");
+      expect(claudeOutput?.content).toContain("model: sonnet");
+    });
+  });
+
   describe("skill hash hoisting", () => {
     const mockedHashDirectory = vi.mocked(hashDirectory);
 

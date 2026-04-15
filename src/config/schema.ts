@@ -188,9 +188,12 @@ export const CODEX_TARGET_FIELDS = Object.keys(CodexTargetShape) as Array<
   keyof typeof CodexTargetShape
 >;
 
-const ClaudeTargetSchema = z.object(ClaudeTargetShape);
+// Extra keys flow through to renderers for forward compatibility with
+// upstream target fields the schema has not yet adopted. Typo detection
+// happens in `collectUnknownFields` (src/validate/agents.ts), not here.
+const ClaudeTargetSchema = z.object(ClaudeTargetShape).passthrough();
 
-const CodexTargetSchema = z.object(CodexTargetShape);
+const CodexTargetSchema = z.object(CodexTargetShape).passthrough();
 
 const AgentSourceShape = {
   name: z
