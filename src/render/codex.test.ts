@@ -351,14 +351,14 @@ describe("Codex TOML renderer round-trip", () => {
           sandbox_mode: "sb\tmode",
           approval_policy: 'ap\\prov"al',
           nickname_candidates: ["name\twith\ttab", 'quote"and\\slash'],
-        } as LoadedAgent["source"]["codex"],
+        } as unknown as LoadedAgent["source"]["codex"],
         tags: undefined,
         notes: undefined,
       },
     };
 
     const result = renderCodexAgent(fixture, emptySkills, config);
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parse(result.content as string) as Record<string, unknown>;
 
     expect(parsed.name).toBe(fixture.source.name);
     expect(parsed.description).toBe(fixture.source.description);
@@ -395,7 +395,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parse(result.content as string) as Record<string, unknown>;
     const di = parsed.developer_instructions as string;
     expect(di).toContain("pre");
     expect(di).toContain("mid");
@@ -412,7 +412,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parse(result.content as string) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe('pre\n"""\nmid\n"""\npost\n');
   });
 
@@ -423,7 +423,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parse(result.content as string) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe('a\\b\n"c\nd"""e\n');
   });
 
@@ -434,7 +434,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parse(result.content as string) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe("line1\r\nline2\tcol\n");
   });
 });
