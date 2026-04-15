@@ -11,6 +11,7 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
+import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
 import { hashDirectory } from "../utils/hash.js";
@@ -75,11 +76,11 @@ describe("renderAll", () => {
     const result = await renderAll(config, true);
 
     const agentOutputs = result.outputs.filter(
-      (o) => o.type === "agent" && o.generatedPath,
+      (o): o is RenderedAgent => o.type === "agent",
     );
     for (const output of agentOutputs) {
       expect(output.generatedPath).toBeTruthy();
-      expect(await pathExists(output.generatedPath as string)).toBe(true);
+      expect(await pathExists(output.generatedPath)).toBe(true);
     }
   });
 

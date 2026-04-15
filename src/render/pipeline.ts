@@ -90,7 +90,7 @@ export async function renderAll(
   // Write agent outputs to generated/ directory
   if (writeToGenerated) {
     for (const output of outputs) {
-      if (output.content && output.generatedPath) {
+      if (output.type === "agent") {
         await ensureDir(path.dirname(output.generatedPath));
         await writeTextFile(output.generatedPath, output.content);
       }

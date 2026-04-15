@@ -68,7 +68,7 @@ describe("renderCodexAgent", () => {
 
   it("includes managed comment header", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain(
       "# Managed by agents-manager. Do not edit directly.",
     );
@@ -77,7 +77,7 @@ describe("renderCodexAgent", () => {
 
   it("includes name, description, and sandbox_mode fields", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain('name = "test-agent"');
     expect(content).toContain('description = "A test agent for unit testing."');
     expect(content).toContain('sandbox_mode = "read-only"');
@@ -85,7 +85,7 @@ describe("renderCodexAgent", () => {
 
   it("uses triple-quoted basic strings for developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toMatch(/developer_instructions = """\n[\s\S]*\n"""/);
     expect(content).toContain("## Step One");
     expect(content).toContain("## Step Two");
@@ -93,7 +93,7 @@ describe("renderCodexAgent", () => {
 
   it("includes skills section in developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain("## Skills");
     expect(content).toContain(
       "- **test-skill** (`~/.agents/skills/test-skill`)",
@@ -124,7 +124,7 @@ describe("renderCodexAgent", () => {
     };
 
     const result = renderCodexAgent(fullAgent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     const expectedFragments = {
       model: 'model = "gpt-5.4"',
       model_reasoning_effort: 'model_reasoning_effort = "high"',
@@ -151,7 +151,7 @@ describe("renderCodexAgent", () => {
     };
 
     const result = renderCodexAgent(stringApprovalAgent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain('approval_policy = "on-failure"');
   });
 
@@ -358,7 +358,7 @@ describe("Codex TOML renderer round-trip", () => {
     };
 
     const result = renderCodexAgent(fixture, emptySkills, config);
-    const parsed = parse(result.content as string) as Record<string, unknown>;
+    const parsed = parse(result.content) as Record<string, unknown>;
 
     expect(parsed.name).toBe(fixture.source.name);
     expect(parsed.description).toBe(fixture.source.description);
@@ -395,7 +395,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content as string) as Record<string, unknown>;
+    const parsed = parse(result.content) as Record<string, unknown>;
     const di = parsed.developer_instructions as string;
     expect(di).toContain("pre");
     expect(di).toContain("mid");
@@ -412,7 +412,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content as string) as Record<string, unknown>;
+    const parsed = parse(result.content) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe('pre\n"""\nmid\n"""\npost\n');
   });
 
@@ -423,7 +423,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content as string) as Record<string, unknown>;
+    const parsed = parse(result.content) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe('a\\b\n"c\nd"""e\n');
   });
 
@@ -434,7 +434,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content as string) as Record<string, unknown>;
+    const parsed = parse(result.content) as Record<string, unknown>;
     expect(parsed.developer_instructions).toBe("line1\r\nline2\tcol\n");
   });
 });

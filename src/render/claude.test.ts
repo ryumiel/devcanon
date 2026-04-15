@@ -71,7 +71,7 @@ describe("renderClaudeAgent", () => {
 
   it("includes frontmatter with name, description, tools, model", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain("name: test-agent");
     expect(content).toContain('description: "A test agent for unit testing."');
     expect(content).toContain("tools: Read, Grep, Bash");
@@ -80,7 +80,7 @@ describe("renderClaudeAgent", () => {
 
   it("renders every supported claude target field", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     const expectedFragments = {
       model: "model: sonnet",
       tools: "tools: Read, Grep, Bash",
@@ -93,7 +93,7 @@ describe("renderClaudeAgent", () => {
 
   it("emits instructions body directly without ## Instructions wrapper", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain("## Step One");
     expect(content).toContain("## Step Two");
     expect(content).not.toContain("## Instructions");
@@ -101,7 +101,7 @@ describe("renderClaudeAgent", () => {
 
   it("appends ## Skills section", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    const content = result.content as string;
+    const content = result.content;
     expect(content).toContain("## Skills");
     expect(content).toContain(
       "- **test-skill** (`~/.claude/skills/test-skill`)",

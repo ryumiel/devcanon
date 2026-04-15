@@ -77,10 +77,15 @@ describe("diffAll integration", () => {
         o.target === "claude" && o.type === "agent" && o.name === "test-agent",
     );
     expect(claudeAgent).toBeDefined();
+    if (!claudeAgent || claudeAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered claude agent for 'test-agent'",
+      );
+    }
 
     // Write rendered content to installed path
-    const installedPath = claudeAgent?.installedPath as string;
-    const content = claudeAgent?.content as string;
+    const installedPath = claudeAgent.installedPath;
+    const content = claudeAgent.content;
     await mkdir(path.dirname(installedPath), { recursive: true });
     await writeFile(installedPath, content, "utf-8");
 

@@ -11,16 +11,27 @@ export interface LoadedAgent {
   source: import("../config/schema.js").AgentSource;
 }
 
-export interface RenderedOutput {
+interface RenderedBase {
   target: "claude" | "codex";
-  type: "skill" | "agent";
   name: string;
   sourcePath: string;
-  generatedPath: string | null;
   installedPath: string;
-  content: string | null;
   contentHash: string;
 }
+
+export interface RenderedAgent extends RenderedBase {
+  type: "agent";
+  generatedPath: string;
+  content: string;
+}
+
+export interface RenderedSkill extends RenderedBase {
+  type: "skill";
+  generatedPath: null;
+  content: null;
+}
+
+export type RenderedOutput = RenderedAgent | RenderedSkill;
 
 export type PlanActionKind =
   | "install"

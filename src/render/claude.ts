@@ -3,7 +3,7 @@ import type { ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
-  RenderedOutput,
+  RenderedAgent,
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import { makeMdHeader } from "../utils/managed-header.js";
@@ -12,7 +12,7 @@ export function renderClaudeAgent(
   agent: LoadedAgent,
   skills: Map<string, LoadedSkill>,
   config: ResolvedConfig,
-): RenderedOutput {
+): RenderedAgent {
   const sourcePath = `agents/${agent.name}.yaml`;
   const lines: string[] = [];
 
