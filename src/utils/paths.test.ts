@@ -23,6 +23,31 @@ describe("expandHome", () => {
     const result = expandHome("relative/path");
     expect(result).toBe("relative/path");
   });
+
+  it("replaces ~\\path with homedir + path (Windows-style tilde)", () => {
+    const result = expandHome("~\\foo");
+    expect(result).toBe(path.join(os.homedir(), "\\foo"));
+  });
+
+  it("replaces ~\\ nested path with homedir + path", () => {
+    const result = expandHome("~\\documents\\subdir");
+    expect(result).toBe(path.join(os.homedir(), "\\documents\\subdir"));
+  });
+
+  it("returns ~name unchanged (unsupported tilde form)", () => {
+    const result = expandHome("~name");
+    expect(result).toBe("~name");
+  });
+
+  it("returns ~name/foo unchanged (unsupported tilde form)", () => {
+    const result = expandHome("~name/foo");
+    expect(result).toBe("~name/foo");
+  });
+
+  it("returns foo~\\bar unchanged (tilde must be at start)", () => {
+    const result = expandHome("foo~\\bar");
+    expect(result).toBe("foo~\\bar");
+  });
 });
 
 describe("resolveFromBase", () => {

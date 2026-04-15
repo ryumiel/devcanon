@@ -2,7 +2,8 @@ import os from "node:os";
 import path from "node:path";
 
 export function expandHome(p: string): string {
-  if (p === "~" || p.startsWith("~/")) {
+  // Accept "~\" on every platform: POSIX users never write it, Windows users sometimes do.
+  if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) {
     return path.join(os.homedir(), p.slice(1));
   }
   return p;
