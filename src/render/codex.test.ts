@@ -1,6 +1,7 @@
 import path from "node:path";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
+import { makeCodexSource } from "../__test-helpers__/fixtures.js";
 import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import {
@@ -333,9 +334,6 @@ describe("Codex TOML renderer round-trip", () => {
     const mixedPayload =
       'hello\\world"q\ttab\nline\rcr\bbs\fff\u0000nul\u007Fdel\u0080c1\u{1F600}emoji';
 
-    // Cast codex block: renderer consumes these as strings and is the
-    // unit under test; we bypass the Zod enum narrowing to exercise escaping
-    // for the typically-enum fields (sandbox_mode, approval_policy, etc.).
     const fixture: LoadedAgent = {
       name: "test-agent",
       filePath: "/test/agents/test-agent.yaml",
@@ -345,13 +343,13 @@ describe("Codex TOML renderer round-trip", () => {
         instructions: "hello",
         skills: [],
         claude: undefined,
-        codex: {
+        codex: makeCodexSource({
           model: "mo\ndel",
           model_reasoning_effort: "hi\tgh",
           sandbox_mode: "sb\tmode",
           approval_policy: 'ap\\prov"al',
           nickname_candidates: ["name\twith\ttab", 'quote"and\\slash'],
-        } as unknown as LoadedAgent["source"]["codex"],
+        }),
         tags: undefined,
         notes: undefined,
       },
