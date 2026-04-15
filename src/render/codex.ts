@@ -105,7 +105,7 @@ function renderCodexPassthroughLine(
       "codex",
       agentName,
       key,
-      "key must match /^[A-Za-z0-9_-]+$/",
+      `key must match ${SAFE_PASSTHROUGH_KEY}`,
     );
     return null;
   }
