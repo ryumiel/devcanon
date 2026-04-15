@@ -465,7 +465,7 @@ describe("renderAll", () => {
       expect(codexOutput?.content).toContain('sandbox_mode = "read-only"');
     });
 
-    it("skips unrenderable shapes at render time and keeps validation warnings", async () => {
+    it("skips unrenderable shapes at render time without affecting other fields", async () => {
       await createAgentFixture(
         config.library.agentsDir,
         "passthrough-shape-skip",

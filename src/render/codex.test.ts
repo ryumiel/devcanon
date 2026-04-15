@@ -514,6 +514,18 @@ describe("renderCodexAgent passthrough", () => {
     expect(parsed.flags).toEqual([true, false]);
   });
 
+  it("emits empty unknown array as []", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, { extra_servers: [] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("extra_servers = []");
+    const parsed = parse(result.content) as Record<string, unknown>;
+    expect(parsed.extra_servers).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
   it("sorts unknown fields alphabetically after known fields", () => {
     const result = renderCodexAgent(
       withCodex(agent, { zeta_field: 1, alpha_field: 2, middle_field: 3 }),

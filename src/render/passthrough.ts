@@ -28,7 +28,8 @@ export function isPassthroughPrimitive(v: unknown): v is PassthroughPrimitive {
 export function isHomogeneousScalarArray(
   v: unknown,
 ): v is ReadonlyArray<string> | ReadonlyArray<number> | ReadonlyArray<boolean> {
-  if (!Array.isArray(v) || v.length === 0) return false;
+  if (!Array.isArray(v)) return false;
+  if (v.length === 0) return true;
   const first = v[0];
   if (typeof first === "string")
     return v.every((item) => typeof item === "string");

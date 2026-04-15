@@ -198,6 +198,16 @@ describe("renderClaudeAgent passthrough", () => {
     expect(result.content).toContain("flags: [true, false]");
   });
 
+  it("emits empty unknown array as []", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { mcp_servers: [] }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("mcp_servers: []");
+    expect(warnings).toEqual([]);
+  });
+
   it("sorts unknown fields alphabetically after known fields", () => {
     const result = renderClaudeAgent(
       withClaude(agent, { zeta: 1, alpha: 2, middle: 3 }),
