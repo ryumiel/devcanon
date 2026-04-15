@@ -41,6 +41,26 @@ export function tomlQuote(s: string): string {
   return `"${escaped}"`;
 }
 
+/**
+ * TOML 1.0 multi-line basic-string quoter. Returns the fully-delimited
+ * `"""\n<body>\n"""` form. Literal LF is preserved; TAB is passed through
+ * raw; bare CR (not part of CRLF) is escaped to `\r`; runs of three or
+ * more `"` are broken so they cannot terminate the string; other C0
+ * controls and DEL are escaped via short escapes or `\uXXXX`.
+ * @internal Not suitable for single-line or literal strings.
+ */
+export function tomlQuoteMultilineBasic(s: string): string {
+  const escaped = s
+    .replace(/\\/g, "\\\\")
+    .replace(/"""/g, '""\\"')
+    .replace(/\r(?!\n)/g, "\\r")
+    .replace(TOML_ESCAPE_REQUIRED, (ch) => {
+      if (ch === "\t" || ch === "\n" || ch === "\r") return ch;
+      return TOML_SHORT_ESCAPES[ch] ?? toUnicodeEscape(ch);
+    });
+  return `"""\n${escaped}\n"""`;
+}
+
 function renderGranularApprovalPolicy(
   granular: Record<string, boolean | undefined>,
 ): string {
@@ -114,11 +134,10 @@ export function renderCodexAgent(
     }
   }
 
-  // Use TOML multi-line literal strings (''') to avoid backslash escape interpretation
-  const escapedContent = instrContent.replace(/'''/g, "'''\"'''\"'''");
-
   lines.push("");
-  lines.push(`developer_instructions = '''\n${escapedContent}\n'''`);
+  lines.push(
+    `developer_instructions = ${tomlQuoteMultilineBasic(instrContent)}`,
+  );
   lines.push("");
 
   const content = lines.join("\n");
