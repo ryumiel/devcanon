@@ -8,8 +8,37 @@ import type {
 import { sha256 } from "../utils/hash.js";
 import { makeTomlHeader } from "../utils/managed-header.js";
 
-function tomlQuote(s: string): string {
-  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+/** TOML 1.0 basic-string short escapes. */
+const TOML_SHORT_ESCAPES: Readonly<Record<string, string>> = Object.freeze({
+  "\b": "\\b",
+  "\t": "\\t",
+  "\n": "\\n",
+  "\f": "\\f",
+  "\r": "\\r",
+});
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — TOML 1.0 requires escaping these control chars.
+const TOML_ESCAPE_REQUIRED = /[\x00-\x1F\x7F]/g;
+
+function toUnicodeEscape(ch: string): string {
+  return `\\u${ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/**
+ * TOML 1.0 basic-string quoter. Assumes well-formed Unicode input: lone
+ * surrogate code units are passed through unchanged, and the caller owns
+ * string validity (the quoter does not enforce scalar-value-only inputs).
+ * @internal Not suitable for multi-line or literal strings.
+ */
+export function tomlQuote(s: string): string {
+  const escaped = s
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(
+      TOML_ESCAPE_REQUIRED,
+      (ch) => TOML_SHORT_ESCAPES[ch] ?? toUnicodeEscape(ch),
+    );
+  return `"${escaped}"`;
 }
 
 function renderGranularApprovalPolicy(
