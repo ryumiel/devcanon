@@ -1,6 +1,6 @@
 ---
 name: delivery-orchestration
-description: "Use when: applying a reusable phased-delivery workflow inside the current agent, including planning, plan review, verification, fixes, and release gates for behavior-preserving implementations and refactors."
+description: "Use when coordinating multi-phase work with explicit scope, acceptance criteria, and quality gates - especially behavior-preserving refactors or changes requiring plan review before execution."
 argument-hint: "Describe the phase, deliverable, constraints, and required quality gates."
 user-invocable: true
 ---
