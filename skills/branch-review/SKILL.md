@@ -75,6 +75,8 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 | `*.ts` / `*.tsx` | TypeScript — types, React patterns, bridge sync |
 | `tests/` or `*_test.*` | Test — coverage, correctness, fixtures |
 | `docs/` or `*.md` | Docs — accuracy, staleness, contract alignment |
+| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes |
+| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps |
 
 **Agent briefing — each prompt MUST include:**
 1. Role — one sentence
