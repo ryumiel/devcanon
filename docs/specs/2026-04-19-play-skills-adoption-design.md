@@ -6,27 +6,27 @@ synced via `agents-manager sync`.
 
 ## Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Strategy | Replace | Skills install to user-global dirs; Superpowers plugin is uninstalled after migration |
-| Naming | `play-` prefix | Avoids conflict with other skills; visually groups methodology skills |
-| Naming style | Match existing convention (`[noun]-[action]`) | Cohesive library feel |
-| Adaptation depth | Moderate | Keep battle-tested methodology; adapt paths, cross-refs, and opinionated sections |
+| Decision         | Choice                                        | Rationale                                                                             |
+| ---------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Strategy         | Replace                                       | Skills install to user-global dirs; Superpowers plugin is uninstalled after migration |
+| Naming           | `play-` prefix                                | Avoids conflict with other skills; visually groups methodology skills                 |
+| Naming style     | Match existing convention (`[noun]-[action]`) | Cohesive library feel                                                                 |
+| Adaptation depth | Moderate                                      | Keep battle-tested methodology; adapt paths, cross-refs, and opinionated sections     |
 
 ## Naming Map
 
-| Superpowers Original | Local Name |
-|----------------------|------------|
-| `brainstorming` | `play-brainstorm` |
-| `writing-plans` | `play-planning` |
-| `subagent-driven-development` | `play-subagent-execution` |
-| `verification-before-completion` | `play-verification` |
-| `finishing-a-development-branch` | `play-branch-finish` |
-| `systematic-debugging` | `play-debug` |
-| `writing-skills` | `play-skill-authoring` |
-| `dispatching-parallel-agents` | `play-agent-dispatch` |
-| `receiving-code-review` | `play-review-response` |
-| `test-driven-development` | `play-tdd` |
+| Superpowers Original             | Local Name                |
+| -------------------------------- | ------------------------- |
+| `brainstorming`                  | `play-brainstorm`         |
+| `writing-plans`                  | `play-planning`           |
+| `subagent-driven-development`    | `play-subagent-execution` |
+| `verification-before-completion` | `play-verification`       |
+| `finishing-a-development-branch` | `play-branch-finish`      |
+| `systematic-debugging`           | `play-debug`              |
+| `writing-skills`                 | `play-skill-authoring`    |
+| `dispatching-parallel-agents`    | `play-agent-dispatch`     |
+| `receiving-code-review`          | `play-review-response`    |
+| `test-driven-development`        | `play-tdd`                |
 
 ## File Structure
 
@@ -195,42 +195,42 @@ Source: `superpowers/skills/receiving-code-review/`
 
 ### github-issue-priming/SKILL.md
 
-| Old Reference | New Reference |
-|---------------|---------------|
-| `superpowers:brainstorming` | `play-brainstorm` |
-| `superpowers:writing-plans` | `play-planning` |
-| `superpowers:subagent-driven-development` | `play-subagent-execution` |
-| `superpowers:finishing-a-development-branch` | `play-branch-finish` |
+| Old Reference                                | New Reference             |
+| -------------------------------------------- | ------------------------- |
+| `superpowers:brainstorming`                  | `play-brainstorm`         |
+| `superpowers:writing-plans`                  | `play-planning`           |
+| `superpowers:subagent-driven-development`    | `play-subagent-execution` |
+| `superpowers:finishing-a-development-branch` | `play-branch-finish`      |
 
 ### pr-merge/SKILL.md
 
-| Old Reference | New Reference |
-|---------------|---------------|
-| `superpowers:systematic-debugging` | `play-debug` |
+| Old Reference                                | New Reference       |
+| -------------------------------------------- | ------------------- |
+| `superpowers:systematic-debugging`           | `play-debug`        |
 | `superpowers:verification-before-completion` | `play-verification` |
 
 ### branch-review/SKILL.md
 
-| Old Reference | New Reference |
-|---------------|---------------|
+| Old Reference                        | New Reference                                                |
+| ------------------------------------ | ------------------------------------------------------------ |
 | `superpowers:requesting-code-review` | _(remove line -- `branch-review` itself is the replacement)_ |
 
 ## Resulting Skill Library (15 Total)
 
-| Skill | Category | Description |
-|-------|----------|-------------|
-| `branch-review` | Domain | Multi-agent local code review |
-| `pr-review` | Domain | Multi-agent GitHub PR review |
-| `pr-merge` | Domain | CI-gated PR merge |
-| `github-issue-priming` | Domain | Issue-to-PR orchestration |
-| `delivery-orchestration` | Domain | Phased delivery with quality gates |
-| `play-brainstorm` | Methodology | Idea to design via collaborative dialogue |
-| `play-planning` | Methodology | Spec to implementation plan |
-| `play-subagent-execution` | Methodology | Execute plan via fresh subagents |
-| `play-verification` | Methodology | Evidence before completion claims |
-| `play-branch-finish` | Methodology | Branch to PR/merge with cleanup |
-| `play-debug` | Methodology | Systematic root-cause investigation |
-| `play-skill-authoring` | Methodology | TDD for skill creation |
-| `play-agent-dispatch` | Methodology | Parallel agent delegation |
-| `play-review-response` | Methodology | Respond to code review with rigor |
-| `play-tdd` | Methodology | Red-green-refactor cycle |
+| Skill                     | Category    | Description                               |
+| ------------------------- | ----------- | ----------------------------------------- |
+| `branch-review`           | Domain      | Multi-agent local code review             |
+| `pr-review`               | Domain      | Multi-agent GitHub PR review              |
+| `pr-merge`                | Domain      | CI-gated PR merge                         |
+| `github-issue-priming`    | Domain      | Issue-to-PR orchestration                 |
+| `delivery-orchestration`  | Domain      | Phased delivery with quality gates        |
+| `play-brainstorm`         | Methodology | Idea to design via collaborative dialogue |
+| `play-planning`           | Methodology | Spec to implementation plan               |
+| `play-subagent-execution` | Methodology | Execute plan via fresh subagents          |
+| `play-verification`       | Methodology | Evidence before completion claims         |
+| `play-branch-finish`      | Methodology | Branch to PR/merge with cleanup           |
+| `play-debug`              | Methodology | Systematic root-cause investigation       |
+| `play-skill-authoring`    | Methodology | TDD for skill creation                    |
+| `play-agent-dispatch`     | Methodology | Parallel agent delegation                 |
+| `play-review-response`    | Methodology | Respond to code review with rigor         |
+| `play-tdd`                | Methodology | Red-green-refactor cycle                  |

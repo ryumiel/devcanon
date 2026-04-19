@@ -27,6 +27,7 @@ if (files.length === 0) {
 
 const result = spawnSync("pnpm", ["exec", "prettier", mode, ...files], {
   stdio: "inherit",
+  shell: true,
 });
 
 process.exit(result.status ?? 1);

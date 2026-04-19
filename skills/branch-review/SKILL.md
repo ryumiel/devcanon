@@ -24,10 +24,10 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg | Effect |
-|-----|--------|
-| `<base>` | Base branch to diff against (default: `main`) |
-| `--fix` | Auto-fix blocking findings instead of presenting them. Used by `github-issue-priming --auto`. |
+| Arg      | Effect                                                                                        |
+| -------- | --------------------------------------------------------------------------------------------- |
+| `<base>` | Base branch to diff against (default: `main`)                                                 |
+| `--fix`  | Auto-fix blocking findings instead of presenting them. Used by `github-issue-priming --auto`. |
 
 ## Phase 1: Gather
 
@@ -46,12 +46,14 @@ git diff $BASE...HEAD --stat
 If the diff is empty, report "no changes to review" and stop.
 
 Extract from the diff:
+
 - Changed files with +/- line counts
 - Total scope (files changed, insertions, deletions)
 
 ## Phase 2: Discover Guidelines
 
 Glob for review guidelines — read them, don't just list paths:
+
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
 - `AGENTS.md`, `CONTRIBUTING.md` — project conventions
@@ -62,23 +64,24 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 
 **Core agents (always spawned):**
 
-| Agent | Focus |
-|-------|-------|
-| Correctness | Logic bugs, panic discipline, error propagation, API contracts |
+| Agent       | Focus                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| Correctness | Logic bugs, panic discipline, error propagation, API contracts                                          |
 | Data-safety | Secrets/credentials, injection (path traversal, SQL, XSS, command), PII in logs/errors, untrusted input |
 
 **Dynamic agents (by file types in diff):**
 
-| Trigger | Agent |
-|---------|-------|
-| `*.rs` | Rust — clippy, unsafe, ECS, serde, WASM |
-| `*.ts` / `*.tsx` | TypeScript — types, React patterns, bridge sync |
-| `tests/` or `*_test.*` | Test — coverage, correctness, fixtures |
-| `docs/` or `*.md` | Docs — accuracy, staleness, contract alignment |
-| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes |
-| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps |
+| Trigger                                                                                                     | Agent                                                                                                |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `*.rs`                                                                                                      | Rust — clippy, unsafe, ECS, serde, WASM                                                              |
+| `*.ts` / `*.tsx`                                                                                            | TypeScript — types, React patterns, bridge sync                                                      |
+| `tests/` or `*_test.*`                                                                                      | Test — coverage, correctness, fixtures                                                               |
+| `docs/` or `*.md`                                                                                           | Docs — accuracy, staleness, contract alignment                                                       |
+| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, or 3+ modules            | Architecture — boundary violations, dependency justification, responsibility drift, contract changes |
+| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps  |
 
 **Agent briefing — each prompt MUST include:**
+
 1. Role — one sentence
 2. Context — branch name, base branch, changed files with +/- counts
 3. Diff — full `git diff` output
@@ -92,6 +95,7 @@ All agents run in parallel with `run_in_background: true`.
 ## Phase 4: Verify
 
 Spawn critic agent with all findings merged. The critic reads actual code in the working directory and tags each **blocking** finding:
+
 - **VALID** — holds up
 - **INVALID** — code doesn't match the claim
 - **DOWNGRADE** — valid but not blocking
@@ -121,11 +125,13 @@ Present findings with evidence code, same format as `pr-review`:
 **With `--fix` (autonomous mode, used by `github-issue-priming --auto`):**
 
 For each blocking finding verified by the critic:
+
 1. Fix the issue
 2. Run local CI checks to verify the fix doesn't break anything
 3. Commit the fix with a descriptive message
 
 After all blocking findings are fixed, report:
+
 - Number of blocking findings fixed
 - Remaining nits (left for user)
 - Any blocking findings that couldn't be fixed (requires design changes)
@@ -134,26 +140,29 @@ If a blocking finding requires design changes, **stop and report** — don't att
 
 ## Quick Reference
 
-| Situation | Action |
-|-----------|--------|
-| Empty diff | Report "no changes", stop |
-| No guidelines found | Note in report, proceed |
-| All clean | Report "no issues found" |
-| Blocking findings + `--fix` | Auto-fix, commit, report |
-| Blocking finding needs design change | Stop, report to caller |
-| Nits + `--fix` | Leave for user, list in report |
+| Situation                            | Action                         |
+| ------------------------------------ | ------------------------------ |
+| Empty diff                           | Report "no changes", stop      |
+| No guidelines found                  | Note in report, proceed        |
+| All clean                            | Report "no issues found"       |
+| Blocking findings + `--fix`          | Auto-fix, commit, report       |
+| Blocking finding needs design change | Stop, report to caller         |
+| Nits + `--fix`                       | Leave for user, list in report |
 
 ## Common Mistakes
 
 ### Using `gh pr diff` instead of `git diff`
+
 - **Problem:** No PR exists yet — `gh` commands will fail
 - **Fix:** Always use `git diff <base>...HEAD`
 
 ### Posting findings to GitHub
+
 - **Problem:** No PR to post to; this is a local review
 - **Fix:** Present findings in the conversation or auto-fix with `--fix`
 
 ### Skipping the critic
+
 - **Problem:** Review agents sometimes flag code that doesn't match their claim
 - **Fix:** Always run critic verification on blocking findings
 
@@ -171,9 +180,11 @@ If a blocking finding requires design changes, **stop and report** — don't att
 ## Integration
 
 **Called by:**
+
 - `github-issue-priming --auto` (Phase 8, with `--fix`)
 - Any workflow needing pre-PR review
 
 **Complements:**
+
 - `pr-review` — for reviewing existing GitHub PRs
 - `play-review-response` — guidance for responding to review feedback with technical rigor
