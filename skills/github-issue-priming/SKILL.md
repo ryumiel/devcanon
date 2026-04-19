@@ -9,11 +9,11 @@ Fetch a GitHub issue, set up an isolated worktree, assess whether it needs multi
 
 ## Arguments
 
-| Arg | Effect |
-|-----|--------|
-| `<number>` or `<url>` | Issue to work on (required) |
-| `--research` | Skip gate, go directly to research |
-| `--auto` | Autonomous mode: skip user review gates, pick the architecturally cleanest option, write plan, and execute via `subagent-driven-development` end-to-end |
+| Arg                   | Effect                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<number>` or `<url>` | Issue to work on (required)                                                                                                                             |
+| `--research`          | Skip gate, go directly to research                                                                                                                      |
+| `--auto`              | Autonomous mode: skip user review gates, pick the architecturally cleanest option, write plan, and execute via `subagent-driven-development` end-to-end |
 
 Examples: `/github-issue-priming 149`, `/github-issue-priming 149 --auto`, `/github-issue-priming --auto --research 149`
 
@@ -98,6 +98,7 @@ The gate is **always evaluated** — it is not optional. Only the research phase
 Dispatch a **dedicated agent** (subagent_type: `Explore`, model: `sonnet`) using the prompt template in `gate-agent-prompt.md`. The agent reads the issue body, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `sonnet` as the floor — escalate to `opus` for issues with ambiguous scope or multiple conflicting signals.
 
 **Pass to the gate agent:**
+
 - Issue title + body (verbatim)
 - Repository root path
 
@@ -109,15 +110,16 @@ Dispatch a **dedicated agent** (subagent_type: `Explore`, model: `sonnet`) using
 
 **Trigger research if ANY of:**
 
-| Signal | Detection |
-|--------|-----------|
-| Cross-module impact | Issue references files/types in 2+ crates or requires coordinated edits across module boundaries |
-| New module or public API | Issue describes adding a component, crate, or public interface that doesn't exist yet |
-| No covering ADR | Scan of `docs/adr/` finds no existing decision covering this domain |
-| Conflicting guidelines | Existing policies or ADRs pull in different directions for this issue |
-| Explicit request | Issue body contains "brainstorm", "design decision", or "choose between" |
+| Signal                   | Detection                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| Cross-module impact      | Issue references files/types in 2+ crates or requires coordinated edits across module boundaries |
+| New module or public API | Issue describes adding a component, crate, or public interface that doesn't exist yet            |
+| No covering ADR          | Scan of `docs/adr/` finds no existing decision covering this domain                              |
+| Conflicting guidelines   | Existing policies or ADRs pull in different directions for this issue                            |
+| Explicit request         | Issue body contains "brainstorm", "design decision", or "choose between"                         |
 
 **Skip research if ALL of:**
+
 - Single-module, single-file change
 - Clear precedent exists in the codebase
 - Covering ADR or guideline prescribes the approach
@@ -127,11 +129,13 @@ Dispatch a **dedicated agent** (subagent_type: `Explore`, model: `sonnet`) using
 Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet`) using the prompt template in `research-agent-prompt.md`. Use `sonnet` as the floor — escalate to `opus` for cross-module or architecturally complex issues.
 
 **Pass to the research agent:**
+
 - Issue title + body
 - Repository root path
 - Gate agent's reasoning (so it knows why research was triggered)
 
 **Research agent internally dispatches sub-agents in parallel:**
+
 1. Policy/guideline scanner
 2. Codebase pattern explorer
 3. External OSS precedent searcher (web search + Codex)
@@ -142,15 +146,19 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet
 ## Issue Brief: #<N> — <title>
 
 ### Policy Constraints
+
 - [rules that apply]
 
 ### Existing Patterns
+
 - [how the codebase handles similar things]
 
 ### External Precedent
+
 - [how other projects solve this]
 
 ### Recommended Approaches
+
 - [2-3 options, leading with the architecturally cleanest]
 ```
 
@@ -165,6 +173,7 @@ Skill(skill: "play-brainstorm", args: "<composed args>")
 ```
 
 **Args format when research was done:**
+
 ```
 Resolve GitHub issue #<N>: <title>
 
@@ -176,6 +185,7 @@ Resolve GitHub issue #<N>: <title>
 ```
 
 **Args format when research was skipped:**
+
 ```
 Resolve GitHub issue #<N>: <title>
 
@@ -189,6 +199,7 @@ Skipped — <reason from gate agent>. Proceed with codebase exploration in brain
 **`--auto` mode behavior in brainstorming:**
 
 When `--auto` is set, the brainstorming skill still runs fully (exploration, option generation, spec writing), but:
+
 - Do NOT ask the user to choose between options — pick the architecturally cleanest approach
 - Do NOT wait for user approval of the spec/design — proceed immediately
 - Do NOT ask clarifying questions — make reasonable assumptions and document them in the spec
@@ -232,6 +243,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 **Default PR title:** Follow Conventional Commits — `<type>(<scope>): <short summary>`. Do not append issue numbers to the title; link issues in the description body instead.
 
 **Default PR description should include:**
+
 - Issue reference (`Closes #<N>`)
 - The design decisions made (especially any assumptions from Phase 5)
 - Summary of what was implemented
@@ -239,37 +251,42 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ## Quick Reference
 
-| Phase | What | Key constraint |
-|-------|------|----------------|
-| 1. Fetch | `gh issue view <N>` | Stop if not found |
-| 2. Worktree | Isolate before file writes | Detect remote-control vs local |
-| 3. Gate | Dedicated agent assesses complexity | Always evaluated; default to `RESEARCH_NEEDED` on failure |
-| 4. Research | Dedicated agent synthesizes brief | Optional — only if gate says so |
-| 5. Brainstorm | Invoke `play-brainstorm` | Never skip, even for "simple" issues |
-| 6. Plan | `play-planning` | `--auto` only |
-| 7. Implement | `play-subagent-execution` | `--auto` only |
-| 8. Branch Review | `branch-review --fix` | `--auto` only; review before PR, not after |
-| 9. Create PR | Push + `gh pr create` | `--auto` only; never auto-merge; follow project PR guideline |
+| Phase            | What                                | Key constraint                                               |
+| ---------------- | ----------------------------------- | ------------------------------------------------------------ |
+| 1. Fetch         | `gh issue view <N>`                 | Stop if not found                                            |
+| 2. Worktree      | Isolate before file writes          | Detect remote-control vs local                               |
+| 3. Gate          | Dedicated agent assesses complexity | Always evaluated; default to `RESEARCH_NEEDED` on failure    |
+| 4. Research      | Dedicated agent synthesizes brief   | Optional — only if gate says so                              |
+| 5. Brainstorm    | Invoke `play-brainstorm`            | Never skip, even for "simple" issues                         |
+| 6. Plan          | `play-planning`                     | `--auto` only                                                |
+| 7. Implement     | `play-subagent-execution`           | `--auto` only                                                |
+| 8. Branch Review | `branch-review --fix`               | `--auto` only; review before PR, not after                   |
+| 9. Create PR     | Push + `gh pr create`               | `--auto` only; never auto-merge; follow project PR guideline |
 
 ## Common Mistakes
 
 ### Writing specs to main workspace instead of worktree
+
 - **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths
 - **Fix:** Worktree is created in Phase 2, before brainstorming writes any files
 
 ### Creating nested worktree in remote-control session
+
 - **Problem:** `using-git-worktrees` creates a worktree inside `.claude/worktrees/<session>/`, causing double nesting and path confusion
 - **Fix:** Detect remote-control context with `pwd | grep '\.claude/worktrees/'` and branch in place
 
 ### Running research in the main session
+
 - **Problem:** CI logs, file reads, and web searches pollute the main context window
 - **Fix:** Always dispatch dedicated agents for gate and research phases
 
 ### Ignoring project PR guideline
+
 - **Problem:** PR title/description uses a generic format instead of the project's required template, requiring manual rework
 - **Fix:** Always glob for PR guidelines before composing the PR title and description in Phase 9
 
 ### Skipping the gate for "obvious" issues
+
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
 - **Fix:** Always run the gate — it's cheap (Explore agent, sonnet) and catches surprises
 
@@ -290,14 +307,14 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ## Error Handling
 
-| Scenario | Action |
-|----------|--------|
-| `gh` not authenticated | Stop, suggest `! gh auth login` |
-| Issue not found | Stop, verify number/URL |
-| Issue already closed | Warn user, ask whether to proceed |
-| Gate agent fails | Default to `RESEARCH_NEEDED` (safer to over-research than under-research) |
-| Research agent fails/times out | Report partial results, invoke brainstorming with what's available |
-| No `docs/adr/` directory | Gate treats as "no covering ADR" (research signal) |
+| Scenario                       | Action                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| `gh` not authenticated         | Stop, suggest `! gh auth login`                                           |
+| Issue not found                | Stop, verify number/URL                                                   |
+| Issue already closed           | Warn user, ask whether to proceed                                         |
+| Gate agent fails               | Default to `RESEARCH_NEEDED` (safer to over-research than under-research) |
+| Research agent fails/times out | Report partial results, invoke brainstorming with what's available        |
+| No `docs/adr/` directory       | Gate treats as "no covering ADR" (research signal)                        |
 
 ## Project-Specific Overrides
 
@@ -310,6 +327,7 @@ Brainstorming specs, design docs, and plans are workflow ephemera, not durable r
 Write all spec, design, and plan files to the **main workspace's** `.claude/superpowers/<YYYY-MM-DD>-<topic>-{design,plan}.md`, not the worktree's. This overrides the brainstorming skill's default output path (`docs/superpowers/specs/`). Worktrees don't have their own `.claude/` directory, so Write/mkdir permissions from `settings.local.json` may not be in effect there.
 
 Resolve the main workspace root and create the directory before writing:
+
 ```bash
 MAIN_ROOT=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
 mkdir -p "$MAIN_ROOT/.claude/superpowers"
@@ -321,21 +339,23 @@ Pass the absolute path to all downstream skills (brainstorming, writing-plans) s
 
 Use `sonnet` as the floor for all agents that make judgment calls. Only haiku is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent | Minimum model | Escalate to opus when |
-|-------|--------------|----------------------|
-| Gate (Phase 3) | sonnet | Ambiguous scope, multiple conflicting signals |
-| Research (Phase 4) | sonnet | Cross-module or architecturally complex issues |
-| Spec compliance reviewer | sonnet | Multi-file changes, complex requirements |
-| Code quality reviewer | sonnet | Architectural or pattern-level concerns |
-| PR review agents | opus | Always — final gate, highest cost of failure |
+| Agent                    | Minimum model | Escalate to opus when                          |
+| ------------------------ | ------------- | ---------------------------------------------- |
+| Gate (Phase 3)           | sonnet        | Ambiguous scope, multiple conflicting signals  |
+| Research (Phase 4)       | sonnet        | Cross-module or architecturally complex issues |
+| Spec compliance reviewer | sonnet        | Multi-file changes, complex requirements       |
+| Code quality reviewer    | sonnet        | Architectural or pattern-level concerns        |
+| PR review agents         | opus          | Always — final gate, highest cost of failure   |
 
 ## What This Skill Does NOT Do
 
 **Without `--auto`:**
+
 - Does not write code or create PRs
 - Does not manage implementation — returns control to user after brainstorming
 
 **With `--auto`:**
+
 - Does not merge PRs — the PR is the user's review gate
 - Does not skip brainstorming or planning — runs the full pipeline, just without user checkpoints
 - Does not make genuinely ambiguous design decisions — stops and asks if options are equally valid

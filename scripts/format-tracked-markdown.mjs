@@ -27,6 +27,7 @@ if (files.length === 0) {
 
 const result = spawnSync("pnpm", ["exec", "prettier", mode, ...files], {
   stdio: "inherit",
+  shell: process.platform === "win32",
 });
 
 process.exit(result.status ?? 1);

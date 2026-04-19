@@ -113,6 +113,7 @@ gh pr checks <N>
 **Default interval: 3 minutes.** User can override via args (e.g., `5m`, `1m`).
 
 Classify output:
+
 - All checks show `pass` → proceed to merge (Step 3)
 - Any check shows `pending`/`queued` → wait and re-poll
 - Any check shows `fail` → proceed to investigation (Step 4)
@@ -128,6 +129,7 @@ gh pr merge <N> --squash --delete-branch
 If `--delete-branch` fails locally (e.g., worktree holds the branch), the remote merge still succeeds. Check `gh pr view <N> --json state` — if `MERGED`, proceed to cleanup. The local error is handled in Step 3b.
 
 If merge itself fails, check for:
+
 - **Merge conflicts:** Report to user — conflicts require manual resolution
 - **Missing review approvals:** Report which reviews are missing — do not bypass branch protection
 - **Branch protection rules:** Report the specific rule blocking merge
@@ -179,13 +181,13 @@ git pull --ff-only
 
 ### Key invariants
 
-| Rule | Why |
-|------|-----|
-| `cd` to main worktree before `rm -rf` | Avoids "device busy" on CWD (Windows) |
-| `git worktree prune` before `branch -d` | Prune removes worktree→branch lock |
-| `branch -d` not `-D` | Refuses to delete unmerged branches |
+| Rule                                     | Why                                                          |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| `cd` to main worktree before `rm -rf`    | Avoids "device busy" on CWD (Windows)                        |
+| `git worktree prune` before `branch -d`  | Prune removes worktree→branch lock                           |
+| `branch -d` not `-D`                     | Refuses to delete unmerged branches                          |
 | `rm -rf` failure is a warning, not error | Windows file locks are transient; metadata is already pruned |
-| `--ff-only` pull | Fails loudly if main diverged — no silent merge commits |
+| `--ff-only` pull                         | Fails loudly if main diverged — no silent merge commits      |
 
 Report the merge to the user with the PR URL. Done.
 
@@ -215,6 +217,7 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`) to investigate
 7. Reports back with status
 
 **Pass to the investigation agent:**
+
 - PR number and branch name
 - Failed check name and log output
 - Repository root path
@@ -223,11 +226,13 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`) to investigate
 ### 4c. "In scope" definition
 
 A failure is **in scope** if ALL of:
+
 - The failing code, test, or lint rule directly involves files the PR modified
 - The fix stays within the same files/modules the PR touches
 - The fix is mechanical (formatting, lint, test assertion) not architectural
 
 A failure is **out of scope** if ANY of:
+
 - Flaky test in an unrelated module
 - CI infrastructure issue (network timeout, cache corruption, runner problem)
 - Failure in code the PR never touched
@@ -236,6 +241,7 @@ A failure is **out of scope** if ANY of:
 ### 4d. After the fix
 
 The investigation agent must:
+
 1. Read `.github/workflows/*.yml` to extract the actual CI commands
 2. Run the relevant CI steps locally (not hardcoded — derived from workflow files)
 3. Use `play-verification` to confirm the fix
@@ -247,6 +253,7 @@ After push, return to Step 2 (poll CI) with retry count incremented.
 ### 4e. Second failure or out-of-scope
 
 If retry count reaches 2, or investigation determines the failure is out of scope, report:
+
 - The exact failing check name and log excerpt
 - Whether it is in scope or out of scope
 - What was attempted (if anything)
@@ -254,22 +261,22 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation | Action |
-|-----------|--------|
-| No PR number given | Auto-detect from current branch via `gh pr view` |
-| PR guideline found | Validate title + description, fix with `gh pr edit` |
-| No PR guideline found | Skip validation, proceed to CI |
-| CI pending | Poll every 3 min (configurable) |
-| CI passes | `gh pr merge --squash --delete-branch` → cleanup |
-| In a worktree | `cd` to main worktree → prune → `branch -d` → `rm -rf` → `pull --ff-only` |
-| On main checkout | `branch -d` → `pull --ff-only` |
-| Worktree dir locked (Windows) | Warn and continue — metadata is already pruned |
-| CI fails (1st time) | Investigate → fix if in scope → push → re-poll |
-| CI fails (2nd time) | Report and stop |
-| Out-of-scope failure | Report and stop immediately |
-| CI not done after 30 min | Report and stop |
-| Merge conflicts | Report to user — requires manual resolution |
-| Missing review approvals | Report which reviews are missing |
+| Situation                     | Action                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| No PR number given            | Auto-detect from current branch via `gh pr view`                          |
+| PR guideline found            | Validate title + description, fix with `gh pr edit`                       |
+| No PR guideline found         | Skip validation, proceed to CI                                            |
+| CI pending                    | Poll every 3 min (configurable)                                           |
+| CI passes                     | `gh pr merge --squash --delete-branch` → cleanup                          |
+| In a worktree                 | `cd` to main worktree → prune → `branch -d` → `rm -rf` → `pull --ff-only` |
+| On main checkout              | `branch -d` → `pull --ff-only`                                            |
+| Worktree dir locked (Windows) | Warn and continue — metadata is already pruned                            |
+| CI fails (1st time)           | Investigate → fix if in scope → push → re-poll                            |
+| CI fails (2nd time)           | Report and stop                                                           |
+| Out-of-scope failure          | Report and stop immediately                                               |
+| CI not done after 30 min      | Report and stop                                                           |
+| Merge conflicts               | Report to user — requires manual resolution                               |
+| Missing review approvals      | Report which reviews are missing                                          |
 
 ## Common Mistakes
 

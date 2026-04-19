@@ -99,6 +99,7 @@ These changes apply to ALL adopted SKILL.md files. Each task below assumes these
 ### Task 1: play-verification
 
 **Files:**
+
 - Create: `skills/play-verification/SKILL.md`
 - Source: `D:\workspace\superpowers\skills\verification-before-completion\SKILL.md`
 
@@ -116,6 +117,7 @@ cp D:/workspace/superpowers/skills/verification-before-completion/SKILL.md skill
 In `skills/play-verification/SKILL.md`:
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-verification
@@ -152,6 +154,7 @@ Quality gate: evidence before completion claims."
 ### Task 2: play-debug
 
 **Files:**
+
 - Create: `skills/play-debug/SKILL.md`
 - Copy: `skills/play-debug/root-cause-tracing.md`
 - Copy: `skills/play-debug/defense-in-depth.md`
@@ -177,6 +180,7 @@ Do NOT copy: `CREATION-LOG.md`, `test-academic.md`, `test-pressure-*.md` (those 
 - [ ] **Step 2: Apply common adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-debug
@@ -216,6 +220,7 @@ Four-phase root-cause investigation with supporting techniques."
 ### Task 3: play-agent-dispatch
 
 **Files:**
+
 - Create: `skills/play-agent-dispatch/SKILL.md`
 - Source: `D:\workspace\superpowers\skills\dispatching-parallel-agents\SKILL.md`
 
@@ -229,6 +234,7 @@ cp D:/workspace/superpowers/skills/dispatching-parallel-agents/SKILL.md skills/p
 - [ ] **Step 2: Apply common adaptations**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-agent-dispatch
@@ -261,6 +267,7 @@ Parallel agent delegation for independent problem domains."
 ### Task 4: play-review-response
 
 **Files:**
+
 - Create: `skills/play-review-response/SKILL.md`
 - Source: `D:\workspace\superpowers\skills\receiving-code-review\SKILL.md`
 
@@ -274,6 +281,7 @@ cp D:/workspace/superpowers/skills/receiving-code-review/SKILL.md skills/play-re
 - [ ] **Step 2: Apply common adaptations**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-review-response
@@ -308,6 +316,7 @@ Technical rigor for responding to code review feedback."
 ### Task 5: play-tdd
 
 **Files:**
+
 - Create: `skills/play-tdd/SKILL.md`
 - Copy: `skills/play-tdd/testing-anti-patterns.md`
 - Source: `D:\workspace\superpowers\skills\test-driven-development\`
@@ -323,6 +332,7 @@ cp D:/workspace/superpowers/skills/test-driven-development/testing-anti-patterns
 - [ ] **Step 2: Apply common adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-tdd
@@ -335,10 +345,13 @@ cp D:/workspace/superpowers/skills/test-driven-development/testing-anti-patterns
 3. Replace all `your human partner` with `the user` (appears in: "Exceptions", "When Stuck", "Final Rule")
 
 4. Soften the "delete" rule in "The Rule" section. Change:
+
    ```
    Write code before the test? Delete it. Start over.
    ```
+
    to:
+
    ```
    Write code before the test? Strongly consider deleting it and starting over.
    ```
@@ -380,6 +393,7 @@ Red-green-refactor cycle with testing anti-patterns reference."
 ### Task 6: play-brainstorm
 
 **Files:**
+
 - Create: `skills/play-brainstorm/SKILL.md`
 - Copy: `skills/play-brainstorm/spec-document-reviewer-prompt.md`
 - Source: `D:\workspace\superpowers\skills\brainstorming\`
@@ -397,6 +411,7 @@ Do NOT copy: `visual-companion.md`, `scripts/` directory.
 - [ ] **Step 2: Apply adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-brainstorm
@@ -405,6 +420,7 @@ Do NOT copy: `visual-companion.md`, `scripts/` directory.
    ```
 
 2. In the **Checklist** section, remove item 2 (visual companion offer). Renumber remaining items 1-8:
+
    ```
    1. Explore project context
    2. Ask clarifying questions
@@ -422,15 +438,19 @@ Do NOT copy: `visual-companion.md`, `scripts/` directory.
    - `"Invoke writing-plans skill"` -> `"Invoke play-planning skill"`
 
 5. Replace the line:
+
    ```
    **The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
    ```
+
    with:
+
    ```
    **The terminal state is invoking play-planning.** Do NOT invoke any other implementation skill. The ONLY skill you invoke after brainstorming is play-planning.
    ```
 
 6. In **Documentation** section, change spec path:
+
    ```
    Write the validated design (spec) to `docs/specs/YYYY-MM-DD-<topic>-design.md`
    ```
@@ -466,6 +486,7 @@ Idea-to-design via collaborative dialogue with spec self-review."
 ### Task 7: play-planning
 
 **Files:**
+
 - Create: `skills/play-planning/SKILL.md`
 - Copy: `skills/play-planning/plan-document-reviewer-prompt.md`
 - Source: `D:\workspace\superpowers\skills\writing-plans\`
@@ -481,6 +502,7 @@ cp D:/workspace/superpowers/skills/writing-plans/plan-document-reviewer-prompt.m
 - [ ] **Step 2: Apply adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-planning
@@ -489,11 +511,13 @@ cp D:/workspace/superpowers/skills/writing-plans/plan-document-reviewer-prompt.m
    ```
 
 2. Change plan output path:
+
    ```
    **Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
    ```
 
 3. In **Plan Document Header**, update the agentic worker note:
+
    ```
    > **For agentic workers:** REQUIRED SUB-SKILL: Use play-subagent-execution (recommended) to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
    ```
@@ -527,6 +551,7 @@ Spec-to-implementation plan with bite-sized task decomposition."
 ### Task 8: play-subagent-execution
 
 **Files:**
+
 - Create: `skills/play-subagent-execution/SKILL.md`
 - Copy: `skills/play-subagent-execution/implementer-prompt.md`
 - Copy: `skills/play-subagent-execution/spec-reviewer-prompt.md`
@@ -546,6 +571,7 @@ cp D:/workspace/superpowers/skills/subagent-driven-development/code-quality-revi
 - [ ] **Step 2: Apply adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-subagent-execution
@@ -560,6 +586,7 @@ cp D:/workspace/superpowers/skills/subagent-driven-development/code-quality-revi
    - `docs/superpowers/plans/feature-plan.md` -> `docs/plans/feature-plan.md`
 
 4. In **Integration** section, update all references:
+
    ```
    **Required workflow skills:**
    - **play-planning** - Creates the plan this skill executes
@@ -577,6 +604,7 @@ cp D:/workspace/superpowers/skills/subagent-driven-development/code-quality-revi
 - [ ] **Step 3: Apply adaptations to code-quality-reviewer-prompt.md**
 
 Update the dispatch template:
+
 - `Task tool (superpowers:code-reviewer):` -> `Task tool (general-purpose):`
 - `Use template at requesting-code-review/code-reviewer.md` -> remove this line
 - Keep the WHAT_WAS_IMPLEMENTED, PLAN_OR_REQUIREMENTS, BASE_SHA, HEAD_SHA, DESCRIPTION fields
@@ -602,6 +630,7 @@ Execute plans via fresh subagents with two-stage review."
 ### Task 9: play-branch-finish
 
 **Files:**
+
 - Create: `skills/play-branch-finish/SKILL.md`
 - Source: `D:\workspace\superpowers\skills\finishing-a-development-branch\SKILL.md`
 
@@ -615,6 +644,7 @@ cp D:/workspace/superpowers/skills/finishing-a-development-branch/SKILL.md skill
 - [ ] **Step 2: Apply adaptations**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-branch-finish
@@ -626,6 +656,7 @@ cp D:/workspace/superpowers/skills/finishing-a-development-branch/SKILL.md skill
    - `"I'm using the finishing-a-development-branch skill"` -> `"I'm using the play-branch-finish skill"`
 
 3. In **Integration** section, update:
+
    ```
    **Called by:**
    - **play-subagent-execution** - After all tasks complete
@@ -655,6 +686,7 @@ Branch completion with structured merge/PR/cleanup options."
 ### Task 10: play-skill-authoring
 
 **Files:**
+
 - Create: `skills/play-skill-authoring/SKILL.md`
 - Copy: `skills/play-skill-authoring/anthropic-best-practices.md`
 - Copy: `skills/play-skill-authoring/persuasion-principles.md`
@@ -688,6 +720,7 @@ cp D:/workspace/superpowers/skills/systematic-debugging/test-pressure-3.md skill
 - [ ] **Step 2: Apply adaptations to SKILL.md**
 
 1. Change frontmatter:
+
    ```yaml
    ---
    name: play-skill-authoring
@@ -704,6 +737,7 @@ cp D:/workspace/superpowers/skills/systematic-debugging/test-pressure-3.md skill
 4. In "Personal skills" line, keep as-is (already correct: `~/.claude/skills`, `~/.agents/skills/`)
 
 5. In "Deployment" checklist, add:
+
    ```
    - [ ] Run `agents-manager validate` to verify skill structure
    ```
@@ -717,6 +751,7 @@ cp D:/workspace/superpowers/skills/systematic-debugging/test-pressure-3.md skill
 - [ ] **Step 3: Apply adaptations to testing-skills-with-subagents.md**
 
 Update all `superpowers:*` references:
+
 - `superpowers:test-driven-development` -> `play-tdd`
 
 - [ ] **Step 4: Validate**
@@ -740,6 +775,7 @@ from systematic-debugging. TDD-based skill creation methodology."
 ### Task 11: Update existing skill cross-references
 
 **Files:**
+
 - Modify: `skills/github-issue-priming/SKILL.md`
 - Modify: `skills/pr-merge/SKILL.md`
 - Modify: `skills/branch-review/SKILL.md`
@@ -748,34 +784,37 @@ from systematic-debugging. TDD-based skill creation methodology."
 
 Replace all `superpowers:*` references (6 occurrences):
 
-| Line | Old | New |
-|------|-----|-----|
-| 161 | `superpowers:brainstorming` | `play-brainstorm` |
-| 164 | `superpowers:brainstorming` | `play-brainstorm` |
-| 206 | `superpowers:writing-plans` | `play-planning` |
-| 210 | `superpowers:subagent-driven-development` | `play-subagent-execution` |
-| 226 | `superpowers:finishing-a-development-branch` | `play-branch-finish` |
-| 248 | `superpowers:brainstorming` | `play-brainstorm` |
-| 249 | `superpowers:writing-plans` | `play-planning` |
-| 250 | `superpowers:subagent-driven-development` | `play-subagent-execution` |
+| Line | Old                                          | New                       |
+| ---- | -------------------------------------------- | ------------------------- |
+| 161  | `superpowers:brainstorming`                  | `play-brainstorm`         |
+| 164  | `superpowers:brainstorming`                  | `play-brainstorm`         |
+| 206  | `superpowers:writing-plans`                  | `play-planning`           |
+| 210  | `superpowers:subagent-driven-development`    | `play-subagent-execution` |
+| 226  | `superpowers:finishing-a-development-branch` | `play-branch-finish`      |
+| 248  | `superpowers:brainstorming`                  | `play-brainstorm`         |
+| 249  | `superpowers:writing-plans`                  | `play-planning`           |
+| 250  | `superpowers:subagent-driven-development`    | `play-subagent-execution` |
 
 - [ ] **Step 2: Update pr-merge/SKILL.md**
 
 Replace 3 occurrences:
 
-| Line | Old | New |
-|------|-----|-----|
-| 212 | `superpowers:systematic-debugging` | `play-debug` |
-| 214 | `superpowers:verification-before-completion` | `play-verification` |
-| 241 | `superpowers:verification-before-completion` | `play-verification` |
+| Line | Old                                          | New                 |
+| ---- | -------------------------------------------- | ------------------- |
+| 212  | `superpowers:systematic-debugging`           | `play-debug`        |
+| 214  | `superpowers:verification-before-completion` | `play-verification` |
+| 241  | `superpowers:verification-before-completion` | `play-verification` |
 
 - [ ] **Step 3: Update branch-review/SKILL.md**
 
 At line 177, change:
+
 ```
 - `superpowers:requesting-code-review` — lighter-weight single-reviewer check
 ```
+
 to:
+
 ```
 - `play-review-response` — guidance for responding to review feedback with technical rigor
 ```
@@ -848,4 +887,4 @@ Expected: 30 files across 10 skill directories.
 ls -la skills/
 ```
 
-Expected: 15 skill directories (5 existing + 10 new play-* skills).
+Expected: 15 skill directories (5 existing + 10 new play-\* skills).

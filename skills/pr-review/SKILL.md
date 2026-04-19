@@ -30,17 +30,20 @@ digraph pr_review {
 ### Phase 1: Gather
 
 Run in parallel:
+
 - `gh pr view <N> --json title,body,baseRefName,headRefName,commits,files,reviews,comments,url`
 - `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
 Detect mode:
+
 - **Initial:** No prior review from current user on this PR.
 - **Follow-up:** Prior review exists. Find last reviewed commit from review's `commit_id`.
 
 ### Phase 2: Discover
 
 Glob for review guidelines — read them, don't just list paths:
+
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
 - `AGENTS.md`, `CONTRIBUTING.md` — project conventions
@@ -50,31 +53,34 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 ### Phase 3: Review
 
 **Worktree — always detached HEAD, from repo root:**
+
 ```sh
 git fetch origin <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
+
 If the PR is from a fork and `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a worktree instead, or add the fork remote first.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
 **Core agents (always spawned):**
 
-| Agent | Focus |
-|-------|-------|
-| Correctness | Logic bugs, panic discipline, error propagation, API contracts |
+| Agent       | Focus                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| Correctness | Logic bugs, panic discipline, error propagation, API contracts                                          |
 | Data-safety | Secrets/credentials, injection (path traversal, SQL, XSS, command), PII in logs/errors, untrusted input |
 
 **Dynamic agents (by file types in diff):**
 
-| Trigger | Agent |
-|---------|-------|
-| `*.rs` | Rust — clippy, unsafe, ECS, serde, WASM |
-| `*.ts` / `*.tsx` | TypeScript — types, React patterns, bridge sync |
-| `tests/` or `*_test.*` | Test — coverage, correctness, fixtures |
-| `docs/` or `*.md` | Docs — accuracy, staleness, contract alignment |
+| Trigger                | Agent                                           |
+| ---------------------- | ----------------------------------------------- |
+| `*.rs`                 | Rust — clippy, unsafe, ECS, serde, WASM         |
+| `*.ts` / `*.tsx`       | TypeScript — types, React patterns, bridge sync |
+| `tests/` or `*_test.*` | Test — coverage, correctness, fixtures          |
+| `docs/` or `*.md`      | Docs — accuracy, staleness, contract alignment  |
 
 **Agent briefing — each prompt MUST include:**
+
 1. Role — one sentence
 2. PR context — title, summary, changed files with +/- counts
 3. Diff — full or incremental (see follow-up rules)
@@ -89,6 +95,7 @@ All agents run in parallel with `run_in_background: true`.
 **Model selection:** Use `opus` for all review agents and the critic. PR review is the final quality gate — the cost of missing a real bug far outweighs the cost of a more capable model.
 
 **Follow-up review scoping:**
+
 - **Narrow changes:** Incremental diff (`last_reviewed..HEAD`) + prior thread verification.
 - **Broad changes — escalate to full `base...HEAD` diff when ANY of:** >5 files changed since last review, new public API functions/types introduced, or logic restructured beyond flagged lines. When in doubt, prefer full diff. Even on full diff, still verify prior comment threads.
 - **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), carry it forward into the new report as "still open" rather than silently dropping it.
@@ -96,6 +103,7 @@ All agents run in parallel with `run_in_background: true`.
 ### Phase 4: Verify
 
 Spawn critic agent with all findings merged. The critic reads actual code in the worktree and tags each **blocking** finding:
+
 - **VALID** — holds up
 - **INVALID** — code doesn't match the claim
 - **DOWNGRADE** — valid but not blocking
@@ -136,19 +144,20 @@ Include draft review body preview.
 
 **User actions:**
 
-| Action | Effect |
-|--------|--------|
-| `post` | Post review + resolve approved threads |
-| `post as comment` | Comment only, no verdict |
-| `drop #N` | Remove finding |
-| `change #N to blocking/nit` | Reclassify |
-| `edit` | Revise draft text |
-| `skip threads` | Post but don't resolve |
-| `abort` | Discard all, clean up |
+| Action                      | Effect                                 |
+| --------------------------- | -------------------------------------- |
+| `post`                      | Post review + resolve approved threads |
+| `post as comment`           | Comment only, no verdict               |
+| `drop #N`                   | Remove finding                         |
+| `change #N to blocking/nit` | Reclassify                             |
+| `edit`                      | Revise draft text                      |
+| `skip threads`              | Post but don't resolve                 |
+| `abort`                     | Discard all, clean up                  |
 
 ### Phase 6: Post
 
 Only after user approval:
+
 1. Post via `gh pr review <N> --<verdict> --body "$(cat <<'EOF' ... EOF)"` — use HEREDOC
 2. Resolve threads via GraphQL:
    ```sh
@@ -161,12 +170,15 @@ Only after user approval:
 ## GitHub API Reference
 
 **Reply to inline comment** (use correct endpoint):
+
 ```sh
 gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies -f body="<text>"
 ```
+
 Verify the response includes the new comment ID. Do not assume success.
 
 **Fetch thread IDs for resolution:**
+
 ```sh
 gh api graphql -f query='{ repository(owner: "O", name: "R") {
   pullRequest(number: N) { reviewThreads(first: 50) { nodes {
@@ -199,14 +211,14 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario | Action |
-|----------|--------|
-| `gh` not authenticated | Fail, suggest `gh auth login` |
-| PR not found | Fail, verify number/URL |
-| PR already merged/closed | Warn user of state, ask whether to proceed |
+| Scenario                         | Action                                               |
+| -------------------------------- | ---------------------------------------------------- |
+| `gh` not authenticated           | Fail, suggest `gh auth login`                        |
+| PR not found                     | Fail, verify number/URL                              |
+| PR already merged/closed         | Warn user of state, ask whether to proceed           |
 | Fork PR (head ref not on origin) | Use `gh pr checkout <N> --detach` or add fork remote |
-| Worktree exists | Remove stale, recreate |
-| Agent fails/times out | Report partial results |
-| API returns non-2xx | Report failure, stop |
-| No guidelines found | Note in report, proceed |
-| Worktree cleanup fails | Warn user, suggest manual `git worktree remove` |
+| Worktree exists                  | Remove stale, recreate                               |
+| Agent fails/times out            | Report partial results                               |
+| API returns non-2xx              | Report failure, stop                                 |
+| No guidelines found              | Note in report, proceed                              |
+| Worktree cleanup fails           | Warn user, suggest manual `git worktree remove`      |

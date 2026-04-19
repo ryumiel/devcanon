@@ -3,7 +3,7 @@
 Use this template when dispatching the research agent in Phase 3. The research
 agent runs in a dedicated agent to keep the main session context clean.
 
-```
+````
 Agent(
   description: "Research issue #<ISSUE_NUMBER> context",
   subagent_type: "general-purpose",
@@ -104,16 +104,16 @@ Agent(
 
     Work from: <REPO_ROOT>
 )
-```
+````
 
 ## Placeholder Reference
 
 Replace these placeholders when dispatching:
 
-| Placeholder | Source |
-|-------------|--------|
-| `<ISSUE_NUMBER>` | Parsed from skill args |
-| `<ISSUE_TITLE>` | From `gh issue view` JSON: `.title` |
-| `<ISSUE_BODY>` | From `gh issue view` JSON: `.body` |
-| `<GATE_REASON>` | From gate agent's response (the reason after the `—`) |
-| `<REPO_ROOT>` | Current working directory |
+| Placeholder      | Source                                                |
+| ---------------- | ----------------------------------------------------- |
+| `<ISSUE_NUMBER>` | Parsed from skill args                                |
+| `<ISSUE_TITLE>`  | From `gh issue view` JSON: `.title`                   |
+| `<ISSUE_BODY>`   | From `gh issue view` JSON: `.body`                    |
+| `<GATE_REASON>`  | From gate agent's response (the reason after the `—`) |
+| `<REPO_ROOT>`    | Current working directory                             |

@@ -66,8 +66,8 @@ Agent(
 
 Replace these placeholders when dispatching:
 
-| Placeholder | Source |
-|-------------|--------|
+| Placeholder     | Source                              |
+| --------------- | ----------------------------------- |
 | `<ISSUE_TITLE>` | From `gh issue view` JSON: `.title` |
-| `<ISSUE_BODY>` | From `gh issue view` JSON: `.body` |
-| `<REPO_ROOT>` | Current working directory |
+| `<ISSUE_BODY>`  | From `gh issue view` JSON: `.body`  |
+| `<REPO_ROOT>`   | Current working directory           |
