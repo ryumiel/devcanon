@@ -174,4 +174,4 @@ If a blocking finding requires design changes, **stop and report** — don't att
 
 **Complements:**
 - `pr-review` — for reviewing existing GitHub PRs
-- `superpowers:requesting-code-review` — lighter-weight single-reviewer check
+- `play-review-response` — guidance for responding to review feedback with technical rigor

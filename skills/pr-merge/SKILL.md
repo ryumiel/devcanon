@@ -209,9 +209,9 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`) to investigate
 1. Reads `.github/workflows/*.yml` to understand what CI runs and what commands to reproduce locally
 2. Reads the failed log output
 3. Reads the PR diff (`gh pr diff <N>`) to understand what changed
-4. Uses `superpowers:systematic-debugging` to diagnose root cause
+4. Uses `play-debug` to diagnose root cause
 5. Determines if the failure is **in scope** (see below)
-6. If fixable: fixes the issue, reproduces CI steps locally, uses `superpowers:verification-before-completion` before pushing
+6. If fixable: fixes the issue, reproduces CI steps locally, uses `play-verification` before pushing
 7. Reports back with status
 
 **Pass to the investigation agent:**
@@ -238,7 +238,7 @@ A failure is **out of scope** if ANY of:
 The investigation agent must:
 1. Read `.github/workflows/*.yml` to extract the actual CI commands
 2. Run the relevant CI steps locally (not hardcoded — derived from workflow files)
-3. Use `superpowers:verification-before-completion` to confirm the fix
+3. Use `play-verification` to confirm the fix
 4. Commit with a descriptive message referencing the CI failure
 5. Push to the PR branch
 

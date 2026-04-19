@@ -158,10 +158,10 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet
 
 ## Phase 5: Invoke Brainstorming
 
-Call the `Skill` tool to invoke the `superpowers:brainstorming` skill with combined context:
+Call the `Skill` tool to invoke the `play-brainstorm` skill with combined context:
 
 ```
-Skill(skill: "superpowers:brainstorming", args: "<composed args>")
+Skill(skill: "play-brainstorm", args: "<composed args>")
 ```
 
 **Args format when research was done:**
@@ -203,11 +203,11 @@ These phases run only when `--auto` is set. They chain automatically after brain
 
 ### Phase 6: Write Plan
 
-Invoke `superpowers:writing-plans` using the spec produced in Phase 5. Do not wait for user review of the plan — proceed directly to implementation.
+Invoke `play-planning` using the spec produced in Phase 5. Do not wait for user review of the plan — proceed directly to implementation.
 
 ### Phase 7: Implement
 
-Invoke `superpowers:subagent-driven-development` to execute the plan. All subagent-driven-development rules apply (fresh subagent per task, two-stage review, spec compliance then code quality).
+Invoke `play-subagent-execution` to execute the plan. All subagent-driven-development rules apply (fresh subagent per task, two-stage review, spec compliance then code quality).
 
 ### Phase 8: Branch Review
 
@@ -223,7 +223,7 @@ If a blocking finding requires design changes, **stop `--auto` and report to the
 
 ### Phase 9: Create PR
 
-Invoke `superpowers:finishing-a-development-branch`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate.
+Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate.
 
 **Always assign the PR to yourself:** Pass `--assignee @me` to `gh pr create`.
 
@@ -245,9 +245,9 @@ Invoke `superpowers:finishing-a-development-branch`. In `--auto` mode, choose **
 | 2. Worktree | Isolate before file writes | Detect remote-control vs local |
 | 3. Gate | Dedicated agent assesses complexity | Always evaluated; default to `RESEARCH_NEEDED` on failure |
 | 4. Research | Dedicated agent synthesizes brief | Optional — only if gate says so |
-| 5. Brainstorm | Invoke `superpowers:brainstorming` | Never skip, even for "simple" issues |
-| 6. Plan | `superpowers:writing-plans` | `--auto` only |
-| 7. Implement | `superpowers:subagent-driven-development` | `--auto` only |
+| 5. Brainstorm | Invoke `play-brainstorm` | Never skip, even for "simple" issues |
+| 6. Plan | `play-planning` | `--auto` only |
+| 7. Implement | `play-subagent-execution` | `--auto` only |
 | 8. Branch Review | `branch-review --fix` | `--auto` only; review before PR, not after |
 | 9. Create PR | Push + `gh pr create` | `--auto` only; never auto-merge; follow project PR guideline |
 
