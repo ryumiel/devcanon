@@ -129,6 +129,29 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
+## Plan Review
+
+After self-review, dispatch a dedicated opus subagent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
+
+**Subagent contract:**
+- **Model:** opus
+- **Input:** The full plan document + the original spec/design document
+- **Role:** Independent validation of plan completeness and spec alignment
+
+**The subagent checks:**
+- Every spec requirement maps to at least one task
+- No tasks that aren't justified by the spec (scope creep)
+- Task ordering respects dependencies
+- Verification commands exist and cover acceptance criteria
+- File paths reference real locations (the subagent can use Glob, Grep, Read to verify)
+- No placeholder violations (catches what self-review missed)
+
+**Output:** PASS with confidence notes, or FAIL with specific gaps listed.
+
+**On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
+
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS proceeds automatically to execution. A FAIL after 2 rounds stops and reports to the user.
+
 ## Execution Handoff
 
 After saving the plan, offer execution choice:
