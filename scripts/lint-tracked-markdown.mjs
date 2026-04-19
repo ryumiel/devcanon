@@ -26,7 +26,7 @@ if (files.length === 0) {
 
 const result = spawnSync("pnpm", ["exec", "markdownlint-cli2", ...files], {
   stdio: "inherit",
-  shell: true,
+  shell: process.platform === "win32",
 });
 
 process.exit(result.status ?? 1);
