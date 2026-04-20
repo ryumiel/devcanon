@@ -37,7 +37,6 @@ skills/
   pr-review/
   pr-merge/
   github-issue-priming/
-  delivery-orchestration/
 
   # Methodology plays (adopted from Superpowers)
   play-brainstorm/
@@ -215,7 +214,7 @@ Source: `superpowers/skills/receiving-code-review/`
 | ------------------------------------ | ------------------------------------------------------------ |
 | `superpowers:requesting-code-review` | _(remove line -- `branch-review` itself is the replacement)_ |
 
-## Resulting Skill Library (15 Total)
+## Resulting Skill Library (14 Total)
 
 | Skill                     | Category    | Description                               |
 | ------------------------- | ----------- | ----------------------------------------- |
@@ -223,7 +222,6 @@ Source: `superpowers/skills/receiving-code-review/`
 | `pr-review`               | Domain      | Multi-agent GitHub PR review              |
 | `pr-merge`                | Domain      | CI-gated PR merge                         |
 | `github-issue-priming`    | Domain      | Issue-to-PR orchestration                 |
-| `delivery-orchestration`  | Domain      | Phased delivery with quality gates        |
 | `play-brainstorm`         | Methodology | Idea to design via collaborative dialogue |
 | `play-planning`           | Methodology | Spec to implementation plan               |
 | `play-subagent-execution` | Methodology | Execute plan via fresh subagents          |
