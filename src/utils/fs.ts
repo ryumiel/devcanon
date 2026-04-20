@@ -24,6 +24,15 @@ export async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+export async function pathOrSymlinkExists(p: string): Promise<boolean> {
+  try {
+    await lstat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function isSymlink(p: string): Promise<boolean> {
   try {
     const stat = await lstat(p);

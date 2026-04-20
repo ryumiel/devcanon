@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -571,5 +571,33 @@ describe("renderAll", () => {
       expect(mockedHashDirectory).not.toHaveBeenCalled();
       expect(result.outputs).toEqual([]);
     });
+  });
+
+  it("removes stale generated files when source agent is deleted", async () => {
+    await createSkillFixture(config.library.skillsDir, "s1");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "a1",
+      makeAgentYaml("a1"),
+    );
+
+    // First render creates generated files
+    await renderAll(config, true);
+
+    const staleClaudePath = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      "a1.md",
+    );
+    expect(await pathExists(staleClaudePath)).toBe(true);
+
+    // Delete the agent source
+    await rm(path.join(config.library.agentsDir, "a1.yaml"));
+
+    // Re-render — stale generated file should be removed
+    await renderAll(config, true);
+
+    expect(await pathExists(staleClaudePath)).toBe(false);
   });
 });

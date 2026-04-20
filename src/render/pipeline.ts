@@ -1,11 +1,13 @@
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
+  RenderedAgent,
   RenderedOutput,
 } from "../models/types.js";
-import { ensureDir, writeTextFile } from "../utils/fs.js";
+import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { hashDirectory } from "../utils/hash.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import { loadAndValidateSkills } from "../validate/skills.js";
@@ -93,6 +95,36 @@ export async function renderAll(
       if (output.type === "agent") {
         await ensureDir(path.dirname(output.generatedPath));
         await writeTextFile(output.generatedPath, output.content);
+      }
+    }
+
+    // Remove stale generated files that no longer have corresponding sources
+    const currentGeneratedPaths = new Set(
+      outputs
+        .filter((o): o is RenderedAgent => o.type === "agent")
+        .map((o) => o.generatedPath),
+    );
+
+    for (const target of targets) {
+      if (!config.targets[target].enabled) continue;
+      if (targetFilter && target !== targetFilter) continue;
+
+      const agentsDir = path.join(
+        config.library.generatedDir,
+        target,
+        "agents",
+      );
+      let entries: string[];
+      try {
+        entries = await readdir(agentsDir);
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const filePath = path.join(agentsDir, entry);
+        if (!currentGeneratedPaths.has(filePath)) {
+          await unlink(filePath);
+        }
       }
     }
   }
