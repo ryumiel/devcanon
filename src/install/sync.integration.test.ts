@@ -232,6 +232,62 @@ describe("sync", () => {
     expect(manifestContent).not.toContain("removeme");
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "removes broken skill symlinks when source directory is deleted",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createSkillFixture(config.library.skillsDir, "ephemeral-skill");
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      const opts = {
+        mode: "symlink" as const,
+        dryRun: false,
+        force: false,
+        strict: false,
+      };
+      const first = await sync(config, opts);
+      expect(first.installed).toBeGreaterThan(0);
+      expect(first.errors).toEqual([]);
+
+      // Verify skill symlink exists
+      const claudeSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "ephemeral-skill",
+      );
+      const stat = await lstat(claudeSkillPath);
+      expect(stat.isSymbolicLink()).toBe(true);
+
+      // Delete the skill source directory
+      await rm(path.join(config.library.skillsDir, "ephemeral-skill"), {
+        recursive: true,
+      });
+
+      // Re-sync — broken symlink should be removed
+      const second = await sync(config, opts);
+      expect(second.removed).toBeGreaterThan(0);
+      expect(second.errors).toEqual([]);
+
+      // Broken symlink should be gone
+      let symlinkGone = false;
+      try {
+        await lstat(claudeSkillPath);
+      } catch {
+        symlinkGone = true;
+      }
+      expect(symlinkGone).toBe(true);
+
+      // Manifest should not contain the removed skill
+      const manifestContent = await readTextFile(config.manifest.path);
+      expect(manifestContent).not.toContain("ephemeral-skill");
+    },
+  );
+
   it("target filter installs only for the specified target", async () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
