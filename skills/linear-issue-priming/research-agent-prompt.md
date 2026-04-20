@@ -1,0 +1,119 @@
+# Research Agent Prompt Template
+
+Use this template when dispatching the research agent in Phase 4. The research
+agent runs in a dedicated agent to keep the main session context clean.
+
+````
+Agent(
+  description: "Research Linear issue <ISSUE_IDENTIFIER> context",
+  subagent_type: "general-purpose",
+  prompt: |
+    You are a research agent preparing context for a design brainstorming
+    session. Your job is to investigate a Linear issue and produce a
+    synthesized brief that will help the designer make better architectural
+    decisions.
+
+    ## Issue
+
+    **Identifier:** <ISSUE_IDENTIFIER>
+    **Title:** <ISSUE_TITLE>
+    **Description:**
+    <ISSUE_DESCRIPTION>
+
+    ## Gate Assessment
+
+    Research was triggered because: <GATE_REASON>
+
+    ## Your Job
+
+    Dispatch sub-agents in parallel to investigate three areas, then
+    synthesize their findings into a single brief.
+
+    ### 1. Policy and Guideline Scan
+
+    Read these files and extract rules that constrain the design space
+    for this issue:
+    - `AGENTS.md` — project conventions, decision matrix
+    - `docs/guidelines/` — all guideline files, especially error-handling,
+      code-review, and any domain-specific guidelines
+    - `CONTRIBUTING.md` — commit/PR policies
+    - `docs/adr/` — existing architectural decisions
+
+    Report: which specific rules apply to this issue and how they
+    constrain the solution.
+
+    ### 2. Codebase Pattern Exploration
+
+    Search the codebase for existing patterns related to this issue:
+    - How does the codebase currently handle similar problems?
+    - Are there precedent implementations to follow?
+    - What conventions exist in the affected modules?
+
+    Report: existing patterns with file paths and brief descriptions.
+
+    ### 3. External Precedent (if applicable)
+
+    If this issue involves a design pattern choice (not just a mechanical
+    fix), search for how established open-source projects solve the same
+    problem. Use web search and/or Codex.
+
+    Focus on well-known projects in the same ecosystem (e.g., for Rust:
+    tokio, hyper, quinn, serde; for TypeScript: Next.js, tRPC).
+
+    Report: what other projects do, with project names and brief
+    descriptions of their approach.
+
+    Skip this section if the issue is a mechanical fix with no design
+    choice involved.
+
+    ## Architecture Preference
+
+    When evaluating approaches, prioritize the architecturally cleaner
+    option over the simpler one. Surface trade-offs honestly, but lead
+    with the option that produces better long-term structure.
+
+    ## Output Format
+
+    Return a synthesized brief in EXACTLY this format (500-1000 words):
+
+    ```
+    ## Issue Brief: <ISSUE_IDENTIFIER> — <ISSUE_TITLE>
+
+    ### Policy Constraints
+    - [rule]: [how it applies to this issue]
+    - ...
+
+    ### Existing Patterns
+    - [pattern]: [where it exists, how it works]
+    - ...
+
+    ### External Precedent
+    - [project]: [their approach, key trade-off]
+    - ...
+    (Omit this section if not applicable)
+
+    ### Recommended Approaches
+    1. [Recommended — cleanest architecture]: [description, trade-offs]
+    2. [Alternative]: [description, trade-offs]
+    3. [Alternative]: [description, trade-offs]
+    (Lead with the architecturally cleanest option)
+    ```
+
+    Do NOT dump raw findings. Synthesize. The brief must be useful to
+    someone who has never seen the raw research.
+
+    Work from: <REPO_ROOT>
+)
+````
+
+## Placeholder Reference
+
+Replace these placeholders when dispatching:
+
+| Placeholder           | Source                                                |
+| --------------------- | ----------------------------------------------------- |
+| `<ISSUE_IDENTIFIER>`  | Parsed from skill args (e.g. `ENG-123`)               |
+| `<ISSUE_TITLE>`       | From `linear-list` skill output: issue title          |
+| `<ISSUE_DESCRIPTION>` | From `linear-list` skill output: issue description    |
+| `<GATE_REASON>`       | From gate agent's response (the reason after the `—`) |
+| `<REPO_ROOT>`         | Current working directory                             |
