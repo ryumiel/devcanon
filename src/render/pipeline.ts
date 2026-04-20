@@ -105,7 +105,6 @@ export async function renderAll(
         .map((o) => o.generatedPath),
     );
 
-    const targets = ["claude", "codex"] as const;
     for (const target of targets) {
       if (!config.targets[target].enabled) continue;
       if (targetFilter && target !== targetFilter) continue;
@@ -115,16 +114,17 @@ export async function renderAll(
         target,
         "agents",
       );
+      let entries: string[];
       try {
-        const entries = await readdir(agentsDir);
-        for (const entry of entries) {
-          const filePath = path.join(agentsDir, entry);
-          if (!currentGeneratedPaths.has(filePath)) {
-            await unlink(filePath);
-          }
-        }
+        entries = await readdir(agentsDir);
       } catch {
-        // Directory doesn't exist yet — nothing to clean
+        continue;
+      }
+      for (const entry of entries) {
+        const filePath = path.join(agentsDir, entry);
+        if (!currentGeneratedPaths.has(filePath)) {
+          await unlink(filePath);
+        }
       }
     }
   }
