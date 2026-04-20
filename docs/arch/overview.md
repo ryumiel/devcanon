@@ -111,8 +111,8 @@ A generated file or installed skill directory that is owned and tracked by
 
 Source agent definitions render to target-native formats:
 
-| Target | Agent format | Agent install path          | Skill install path       |
-| ------ | ------------ | --------------------------- | ------------------------ |
+| Target | Agent format | Agent install path            | Skill install path         |
+| ------ | ------------ | ----------------------------- | -------------------------- |
 | Claude | Markdown     | `~/.claude/agents/<name>.md`  | `~/.claude/skills/<name>/` |
 | Codex  | TOML         | `~/.codex/agents/<name>.toml` | `~/.agents/skills/<name>/` |
 
@@ -138,10 +138,10 @@ TOML comment) identifying the source.
 
 ## Install Modes
 
-| Mode    | Behavior                                                          | When used              |
-| ------- | ----------------------------------------------------------------- | ---------------------- |
+| Mode    | Behavior                                                                          | When used              |
+| ------- | --------------------------------------------------------------------------------- | ---------------------- |
 | symlink | Symlink from install path to source directory (skills) or generated file (agents) | Default on macOS/Linux |
-| copy    | Full copy from generated output to install path                   | Windows fallback       |
+| copy    | Full copy from generated output to install path                                   | Windows fallback       |
 
 ### Overwrite Policy
 

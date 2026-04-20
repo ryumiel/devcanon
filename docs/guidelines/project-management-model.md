@@ -21,15 +21,15 @@ Companion guideline docs may expand an owning document, but they should link bac
 
 ## 3. Ownership Table
 
-| What                                          | Belongs in        | Does NOT belong in     |
-| --------------------------------------------- | ----------------- | ---------------------- |
-| Intended behavior, constraints, format specs  | `docs/specs/`     | Issue comments         |
-| Repository structure                          | AGENTS.md, MAP.md              | Agent session notes    |
-| Module responsibilities and architecture      | `docs/arch/overview.md`        | Agent session notes    |
-| Commit/PR/branch policy                       | CONTRIBUTING.md   | Scattered across docs/ |
-| Bug reports, feature requests, task tracking  | GitHub Issues     | Repository docs        |
-| Review feedback, approval status              | GitHub PRs        | Repository docs        |
-| Implementation plans for a single PR          | Agent session     | Repository docs        |
+| What                                         | Belongs in              | Does NOT belong in     |
+| -------------------------------------------- | ----------------------- | ---------------------- |
+| Intended behavior, constraints, format specs | `docs/specs/`           | Issue comments         |
+| Repository structure                         | AGENTS.md, MAP.md       | Agent session notes    |
+| Module responsibilities and architecture     | `docs/arch/overview.md` | Agent session notes    |
+| Commit/PR/branch policy                      | CONTRIBUTING.md         | Scattered across docs/ |
+| Bug reports, feature requests, task tracking | GitHub Issues           | Repository docs        |
+| Review feedback, approval status             | GitHub PRs              | Repository docs        |
+| Implementation plans for a single PR         | Agent session           | Repository docs        |
 
 Detailed companion guides may elaborate on commit, PR, or branch policy, but `CONTRIBUTING.md` remains the canonical summary and owner for those rules.
 

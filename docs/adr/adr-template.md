@@ -17,18 +17,23 @@ alternatives.
 # ADR-<NNNN>: <Title>
 
 ## Status
+
 Proposed | Accepted | Superseded
 
 ## Context
+
 <Problem, constraints, and decision pressure>
 
 ## Decision
+
 <What was decided>
 
 ## Consequences
+
 <Tradeoffs, follow-on effects, migrations, or risks>
 
 ## Alternatives considered
+
 - <Option A>
 - <Option B>
 ```

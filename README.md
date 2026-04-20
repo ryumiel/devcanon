@@ -24,14 +24,14 @@ pnpm run dev -- sync
 
 ## Documentation
 
-| Topic              | Location                                               |
-| ------------------ | ------------------------------------------------------ |
-| Getting started    | [AGENTS.md](AGENTS.md)                                 |
-| Navigation index   | [MAP.md](MAP.md)                                       |
-| Product specs      | [docs/specs/](docs/specs/)                             |
-| Architecture       | [docs/arch/overview.md](docs/arch/overview.md)         |
-| Contributing       | [CONTRIBUTING.md](CONTRIBUTING.md)                     |
-| Decision records   | [docs/adr/](docs/adr/)                                 |
+| Topic            | Location                                       |
+| ---------------- | ---------------------------------------------- |
+| Getting started  | [AGENTS.md](AGENTS.md)                         |
+| Navigation index | [MAP.md](MAP.md)                               |
+| Product specs    | [docs/specs/](docs/specs/)                     |
+| Architecture     | [docs/arch/overview.md](docs/arch/overview.md) |
+| Contributing     | [CONTRIBUTING.md](CONTRIBUTING.md)             |
+| Decision records | [docs/adr/](docs/adr/)                         |
 
 ## Status
 
