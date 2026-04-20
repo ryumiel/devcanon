@@ -31,7 +31,6 @@ digraph priming {
   auto_check [label="--auto?", shape=diamond];
   plan [label="6. Plan\nWrite implementation plan"];
   implement [label="7. Implement\nsubagent-driven-development"];
-  finish [label="8. Finish\nfinishing-a-development-branch"];
   stop_interactive [label="STOP\nReturn to user"];
 
   fetch -> worktree -> gate -> decide;
