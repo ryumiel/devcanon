@@ -172,7 +172,12 @@ Only after user approval:
    Each comment object in the array:
 
    ```json
-   {"path": "relative/file.ts", "line": 42, "side": "RIGHT", "body": "**P0 Blocking** ..."}
+   {
+     "path": "relative/file.ts",
+     "line": 42,
+     "side": "RIGHT",
+     "body": "**P0 Blocking** ..."
+   }
    ```
 
    - `path`: file path relative to repo root (from the diff)
@@ -183,7 +188,13 @@ Only after user approval:
    For multi-line comments spanning a range, add `start_line`:
 
    ```json
-   {"path": "src/auth.rs", "start_line": 10, "line": 15, "side": "RIGHT", "body": "..."}
+   {
+     "path": "src/auth.rs",
+     "start_line": 10,
+     "line": 15,
+     "side": "RIGHT",
+     "body": "..."
+   }
    ```
 
    **Nits and blocking findings alike become inline comments.** The overall review `body` should contain only a brief summary (1-3 sentences) and the verdict rationale — not duplicate findings.
