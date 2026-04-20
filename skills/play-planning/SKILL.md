@@ -58,6 +58,10 @@ This structure informs the task decomposition. Each task should produce self-con
 ---
 ```
 
+## Commit Messages
+
+When writing commit steps in plans, glob for `**/commit-guideline*.md` in the repository. If found, follow its header format, allowed types, and scope rules in all commit message examples. If no guideline is found, default to Conventional Commits: `type(scope): subject`.
+
 ## Task Structure
 
 ````markdown

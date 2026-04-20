@@ -128,7 +128,9 @@ For each blocking finding verified by the critic:
 
 1. Fix the issue
 2. Run local CI checks to verify the fix doesn't break anything
-3. Commit the fix with a descriptive message
+3. Commit the fix
+
+**Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If no guideline is found, use Conventional Commits: `fix(<scope>): <what was fixed>`. The scope should match the file/module being fixed.
 
 After all blocking findings are fixed, report:
 

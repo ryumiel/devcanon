@@ -32,7 +32,7 @@ Task tool (general-purpose):
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Verify implementation works
-    4. Commit your work
+    4. Commit your work (see Committing section below)
     5. Self-review (see below)
     6. Report back
 
@@ -70,6 +70,12 @@ Task tool (general-purpose):
     specifically what you're stuck on, what you've tried, and what kind of help you need.
     The controller can provide more context, re-dispatch with a more capable model,
     or break the task into smaller pieces.
+
+    ## Committing
+
+    Before composing commit messages, glob for `**/commit-guideline*.md` in the repository.
+    If found, read it and follow its header format, type/scope rules, and body guidelines exactly.
+    If no guideline is found, use Conventional Commits: `type(scope): subject` in imperative mood.
 
     ## Before Reporting Back: Self-Review
 
