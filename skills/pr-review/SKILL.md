@@ -86,7 +86,7 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 3. Diff — full or incremental (see follow-up rules)
 4. Discovered guidelines — actual content, not file paths
 5. Prior review context (follow-up only) — threads, author replies
-6. Output format — file, line, priority P0-P3, blocking/nit, code reference, recommendation
+6. Output format — file path (repo-relative), line number (in HEAD), priority P0-P3, blocking/nit, code reference, recommendation
 
 Compose PR-specific prompts referencing actual files and line counts. Generic prompts like "review this PR" are prohibited.
 
@@ -158,7 +158,36 @@ Include draft review body preview.
 
 Only after user approval:
 
-1. Post via `gh pr review <N> --<verdict> --body "$(cat <<'EOF' ... EOF)"` — use HEREDOC
+1. **Post review with inline comments** via the REST API. Each finding becomes a line-level comment on the diff:
+
+   ```sh
+   gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+     --method POST \
+     -f commit_id="<HEAD SHA>" \
+     -f body="<overall summary>" \
+     -f event="<APPROVE|REQUEST_CHANGES|COMMENT>" \
+     --input <(jq -n '{comments: $comments}' --argjson comments '<JSON array>')
+   ```
+
+   Each comment object in the array:
+
+   ```json
+   {"path": "relative/file.ts", "line": 42, "side": "RIGHT", "body": "**P0 Blocking** ..."}
+   ```
+
+   - `path`: file path relative to repo root (from the diff)
+   - `line`: the absolute line number in the HEAD version of the file
+   - `side`: `"RIGHT"` for lines in the PR head (almost always what you want)
+   - `body`: finding text — include priority, blocking/nit tag, and recommendation
+
+   For multi-line comments spanning a range, add `start_line`:
+
+   ```json
+   {"path": "src/auth.rs", "start_line": 10, "line": 15, "side": "RIGHT", "body": "..."}
+   ```
+
+   **Nits and blocking findings alike become inline comments.** The overall review `body` should contain only a brief summary (1-3 sentences) and the verdict rationale — not duplicate findings.
+
 2. Resolve threads via GraphQL:
    ```sh
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
@@ -168,6 +197,25 @@ Only after user approval:
 **Always clean up:** `git worktree remove .worktrees/pr-<N>-review`
 
 ## GitHub API Reference
+
+**Create review with inline comments** (primary posting method):
+
+```sh
+gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+  --method POST \
+  -f commit_id="$(gh pr view <N> --json headRefOid -q .headRefOid)" \
+  -f body="Summary" \
+  -f event="REQUEST_CHANGES" \
+  --input <(cat <<'EOF'
+{"comments":[
+  {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**P0 Blocking** — unchecked error\n\n**Recommendation:** propagate with `?`"},
+  {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**P2 Nit** — consider extracting helper"}
+]}
+EOF
+)
+```
+
+Use `line` (absolute file line in HEAD), not `position` (diff offset). `side` is `"RIGHT"` for PR head lines.
 
 **Reply to inline comment** (use correct endpoint):
 
@@ -206,6 +254,8 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 - You resolved threads "since they were obviously addressed"
 - You used a generic agent prompt without PR-specific file references
 - You skipped the critic pass because "findings were straightforward"
+- You posted all findings in the review body instead of as inline comments on specific lines
+- You used `gh pr review --body` with findings instead of the reviews API with `comments` array
 
 **All of these mean: STOP. You skipped the user gate or a required step. Go back.**
 
