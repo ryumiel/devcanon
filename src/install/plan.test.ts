@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../utils/fs.js", () => ({
   pathExists: vi.fn(),
+  pathOrSymlinkExists: vi.fn(),
 }));
 
 import type { Manifest } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
-import { pathExists } from "../utils/fs.js";
+import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 import { computePlan } from "./plan.js";
 
 const mockedPathExists = vi.mocked(pathExists);
+const mockedPathOrSymlinkExists = vi.mocked(pathOrSymlinkExists);
 
 function makeOutput(overrides: Partial<RenderedAgent> = {}): RenderedAgent {
   return {
@@ -151,8 +153,9 @@ describe("computePlan", () => {
   });
 
   it("outputs remove for stale manifest entries when cleanManagedOutputs=true", async () => {
-    // pathExists is called for: the current output + the stale record
+    // pathExists is called for the current output; pathOrSymlinkExists for the stale record
     mockedPathExists.mockResolvedValue(true);
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
 
     const currentOutput = makeOutput({
       installedPath: "/installed/current.md",
@@ -196,6 +199,7 @@ describe("computePlan", () => {
 
   it("does not remove other target's records when targetFilter is set", async () => {
     mockedPathExists.mockResolvedValue(true);
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
 
     const claudeOutput = makeOutput({
       target: "claude",
@@ -278,5 +282,53 @@ describe("computePlan", () => {
 
     const removeActions = actions.filter((a) => a.kind === "remove");
     expect(removeActions).toHaveLength(0);
+  });
+
+  it("outputs remove for stale manifest entry even when symlink is broken", async () => {
+    // Simulate broken symlink: access() fails (pathExists→false) but lstat() succeeds
+    // (pathOrSymlinkExists→true). The current installed path uses a normal file so
+    // pathExists returns true for it.
+    mockedPathExists.mockImplementation((p: string) =>
+      Promise.resolve(p === "/installed/current.md"),
+    );
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
+
+    const currentOutput = makeOutput({
+      installedPath: "/installed/current.md",
+    });
+    const manifest = makeManifest([
+      {
+        target: "claude",
+        type: "agent",
+        sourcePath: "/src/agents/current.yaml",
+        generatedPath: null,
+        installedPath: "/installed/current.md",
+        installMode: "symlink",
+        contentHash: currentOutput.contentHash,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        target: "claude",
+        type: "skill",
+        sourcePath: "/src/skills/stale-skill",
+        generatedPath: null,
+        installedPath: "/installed/stale-skill",
+        installMode: "symlink",
+        contentHash: "stale-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [currentOutput],
+      manifest,
+      "overwrite-managed",
+      false,
+      true,
+    );
+
+    const removeActions = actions.filter((a) => a.kind === "remove");
+    expect(removeActions).toHaveLength(1);
+    expect(removeActions[0].installedPath).toBe("/installed/stale-skill");
   });
 });

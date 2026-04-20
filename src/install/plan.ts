@@ -2,7 +2,7 @@ import path from "node:path";
 import type { OverwritePolicy } from "../config/schema.js";
 import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
-import { pathExists } from "../utils/fs.js";
+import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 
 export async function computePlan(
   outputs: RenderedOutput[],
@@ -117,7 +117,7 @@ export async function computePlan(
     for (const record of manifest.records) {
       if (targetFilter && record.target !== targetFilter) continue;
       if (!currentInstalledPaths.has(record.installedPath)) {
-        const exists = await pathExists(record.installedPath);
+        const exists = await pathOrSymlinkExists(record.installedPath);
         if (exists) {
           actions.push({
             kind: "remove",
