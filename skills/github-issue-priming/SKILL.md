@@ -319,21 +319,6 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 These rules apply to any project using this skill. They override defaults from downstream skills.
 
-### Spec and plan file location
-
-Brainstorming specs, design docs, and plans are workflow ephemera, not durable repo documentation. Do not commit them. The durable record lives in the implementation PR description and the committed code. If an ADR-worthy decision emerges, it lands separately in `docs/adr/`.
-
-Write all spec, design, and plan files to the **main workspace's** `.claude/superpowers/<YYYY-MM-DD>-<topic>-{design,plan}.md`, not the worktree's. This overrides the brainstorming skill's default output path (`docs/superpowers/specs/`). Worktrees don't have their own `.claude/` directory, so Write/mkdir permissions from `settings.local.json` may not be in effect there.
-
-Resolve the main workspace root and create the directory before writing:
-
-```bash
-MAIN_ROOT=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
-mkdir -p "$MAIN_ROOT/.claude/superpowers"
-```
-
-Pass the absolute path to all downstream skills (brainstorming, writing-plans) so they write to the correct location regardless of CWD.
-
 ### Model selection
 
 Use `sonnet` as the floor for all agents that make judgment calls. Only haiku is acceptable for mechanical implementer tasks with fully-specified plans.
