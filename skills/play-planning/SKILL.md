@@ -13,9 +13,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
-
-- (User preferences for plan location override this default)
+**Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`
 
 ## Scope Check
 
@@ -163,7 +161,7 @@ After self-review, dispatch a dedicated opus subagent to validate plan-vs-spec a
 
 After saving the plan, offer execution choice:
 
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
+**"Plan complete and saved to `.ephemeral/<filename>.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task using play-subagent-execution, review between tasks, fast iteration
 
