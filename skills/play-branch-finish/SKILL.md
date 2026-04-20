@@ -92,8 +92,12 @@ Then: Cleanup worktree (Step 5)
 ```bash
 # Push branch
 git push -u origin <feature-branch>
+```
 
-# Create PR
+**Before composing the PR title and description**, glob for project PR guidelines (`**/pr-guideline*.md`) and read them. Follow the project's title format and description template exactly. If no guideline is found, use Conventional Commits for the title and this default structure:
+
+```bash
+# Create PR (default format — only if no PR guideline found)
 gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 <2-3 bullets of what changed>
@@ -184,6 +188,11 @@ git worktree remove <worktree-path>
 
 - **Problem:** Accidentally delete work
 - **Fix:** Require typed "discard" confirmation
+
+**Ignoring project PR guideline**
+
+- **Problem:** PR uses generic format instead of project's required template
+- **Fix:** Always glob for `**/pr-guideline*.md` before composing title/description
 
 ## Red Flags
 
