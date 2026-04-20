@@ -6,13 +6,25 @@ Quick navigation index for the agents-manager repository.
 
 ## Project entry points
 
+- Where is the GitHub landing page? -> [`README.md`](README.md)
 - Where is the agent entry point? -> [`AGENTS.md`](AGENTS.md)
 - Where is the Claude Code entry point? -> [`CLAUDE.md`](CLAUDE.md)
 - Where is this navigation index? -> [`MAP.md`](MAP.md)
 - Where is the contributing and commit policy? -> [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Where is the decision matrix? -> [`AGENTS.md`](AGENTS.md) § Decision Matrix
 - Where is the contributor workflow? -> [`WORKFLOW.md`](WORKFLOW.md)
-- Where is the product spec? -> [`SPEC.md`](SPEC.md)
+- Where are product specs? -> [`docs/specs/`](docs/specs/)
+- Where is the product overview? -> [`docs/specs/overview.md`](docs/specs/overview.md)
+- Where are core concepts and principles? -> [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)
+- Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
+- Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
+- Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
+- Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
+- Where is the install/sync spec? -> [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)
+- Where is the CLI command spec? -> [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)
+- Where is the error handling spec? -> [`docs/specs/error-handling.md`](docs/specs/error-handling.md)
+- Where is the platform/security spec? -> [`docs/specs/platform.md`](docs/specs/platform.md)
+- Where is the testing requirements spec? -> [`docs/specs/testing.md`](docs/specs/testing.md)
 
 ---
 
@@ -27,8 +39,18 @@ Quick navigation index for the agents-manager repository.
 
 ---
 
+## Architecture and decisions
+
+- Where is the system architecture overview? -> [`docs/arch/overview.md`](docs/arch/overview.md)
+- Where are architecture decision records? -> [`docs/adr/`](docs/adr/)
+- Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
+
+---
+
 ## Guidelines and templates
 
+- Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Where are the documentation checklists? -> [`docs/guidelines/documentation-checklists.md`](docs/guidelines/documentation-checklists.md)
 - Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
 - Where is the PR guideline? -> [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)
 - Where is the code review guideline? -> [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)

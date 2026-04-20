@@ -14,7 +14,7 @@ The tool is designed for **user-wide** setup, not repository-level setup.
 
 Source files are authoritative. Generated outputs are disposable.
 
-For the full product spec, see [`SPEC.md`](SPEC.md).
+For product specs, see [`docs/specs/`](docs/specs/).
 
 ---
 
@@ -93,6 +93,7 @@ pnpm run check
 
 ```
 agents-manager/
+  README.md                  # GitHub landing page
   package.json               # Project manifest
   tsconfig.json              # TypeScript config
   agents-manager.config.yaml # CLI config (dogfooding)
@@ -143,6 +144,13 @@ agents-manager/
     claude/agents/           # Generated Claude agent files (.md)
     codex/agents/            # Generated Codex agent files (.toml)
 
+  docs/
+    specs/                   # Product and domain specifications
+    arch/
+      overview.md            # System architecture overview
+    adr/                     # Architecture decision records
+    guidelines/              # Engineering rules and norms
+
   scripts/
     hooks/                   # Shared git hooks
       pre-commit             # Pre-commit quality gates
@@ -153,18 +161,8 @@ agents-manager/
     validate-commit-message.mjs
 ```
 
-### Module responsibilities
-
-| Module          | Responsibility                                                                   |
-| --------------- | -------------------------------------------------------------------------------- |
-| `src/cli/`      | CLI entrypoint and command wiring (commander)                                    |
-| `src/config/`   | Config loading, Zod schema, defaults                                             |
-| `src/models/`   | Shared domain types (Skill, AgentRole, Target, Manifest)                         |
-| `src/validate/` | Validation for config, skills, and agent source files                            |
-| `src/render/`   | Deterministic rendering of agent roles to Claude (.md) and Codex (.toml) formats |
-| `src/install/`  | Sync orchestration, install plan, manifest tracking, copy/symlink modes          |
-| `src/diff/`     | Diff between generated outputs and installed managed outputs                     |
-| `src/utils/`    | Filesystem helpers, path resolution, hashing, managed headers, CLI output        |
+For module responsibilities, dependency rules, and data flow, see
+[`docs/arch/overview.md`](docs/arch/overview.md).
 
 ---
 
@@ -188,15 +186,22 @@ agents-manager/
 
 | Topic                          | Location                                                                                     |
 | ------------------------------ | -------------------------------------------------------------------------------------------- |
-| Product spec (full)            | [`SPEC.md`](SPEC.md)                                                                         |
-| Configuration format           | [`SPEC.md`](SPEC.md) § 9                                                                     |
-| Skill specification            | [`SPEC.md`](SPEC.md) § 10                                                                    |
-| Agent source schema            | [`SPEC.md`](SPEC.md) § 11                                                                    |
-| Target mapping (Claude/Codex)  | [`SPEC.md`](SPEC.md) § 12                                                                    |
-| Install and sync policy        | [`SPEC.md`](SPEC.md) § 15                                                                    |
-| CLI command reference          | [`SPEC.md`](SPEC.md) § 16                                                                    |
+| Product specs                  | [`docs/specs/`](docs/specs/)                                                                 |
+| Core concepts and principles   | [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)                                 |
+| Architecture overview          | [`docs/arch/overview.md`](docs/arch/overview.md)                                             |
+| Architecture decisions         | [`docs/adr/`](docs/adr/)                                                                     |
+| Configuration format           | [`docs/specs/configuration.md`](docs/specs/configuration.md)                                 |
+| Skill specification            | [`docs/specs/skills.md`](docs/specs/skills.md)                                               |
+| Agent source schema            | [`docs/specs/agents.md`](docs/specs/agents.md)                                               |
+| Target mapping (Claude/Codex)  | [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)                               |
+| Install and sync policy        | [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)                           |
+| CLI command reference          | [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)                                   |
+| Error handling and logging     | [`docs/specs/error-handling.md`](docs/specs/error-handling.md)                               |
+| Platform and security          | [`docs/specs/platform.md`](docs/specs/platform.md)                                           |
+| Testing requirements           | [`docs/specs/testing.md`](docs/specs/testing.md)                                             |
 | Contributing and commit policy | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                         |
 | Decision matrix                | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                   |
+| Documentation standard         | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)     |
 | Commit guideline               | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                 |
 | PR guideline                   | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                         |
 | Code review guideline          | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)       |
@@ -208,9 +213,9 @@ agents-manager/
 
 ## Decision Matrix
 
-| **Do without asking:**                                                                                                                                                                                                                                                                                                        | **Ask first:**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **Do not do:**                                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fix typos in code and documentation<br>Add or update tests for existing behavior<br>Update stale documentation (broken links, outdated examples)<br>Run the full validation suite (`pnpm run check`)<br>Create follow-up issues for problems found during work<br>Refactor code without changing behavior when scope is small | Change Zod schemas in `src/config/schema.ts` or `src/models/types.ts`<br>Add or remove npm dependencies<br>Move, rename, or delete source files<br>Modify CI workflows (`.github/workflows/`)<br>Modify git hooks (`scripts/hooks/`)<br>Change `SPEC.md`, `AGENTS.md`, or `CONTRIBUTING.md` (except in issues or PRs explicitly about process or docs policy)<br>Create new CLI commands<br>Change rendered output format (Claude `.md` or Codex `.toml`)<br>Modify install/sync behavior that writes to user home directories | Push directly to `main`<br>Merge your own PR without review<br>Skip or bypass pre-commit hooks (`--no-verify`)<br>Commit secrets, credentials, or tokens<br>Expand PR scope beyond the linked issue<br>Delete or overwrite the install manifest without backup<br>Force-push to shared branches |
+| **Do without asking:**                                                                                                                                                                                                                                                                                                        | **Ask first:**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | **Do not do:**                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fix typos in code and documentation<br>Add or update tests for existing behavior<br>Update stale documentation (broken links, outdated examples)<br>Run the full validation suite (`pnpm run check`)<br>Create follow-up issues for problems found during work<br>Refactor code without changing behavior when scope is small | Change Zod schemas in `src/config/schema.ts` or `src/models/types.ts`<br>Add or remove npm dependencies<br>Move, rename, or delete source files<br>Modify CI workflows (`.github/workflows/`)<br>Modify git hooks (`scripts/hooks/`)<br>Change `docs/specs/`, `AGENTS.md`, or `CONTRIBUTING.md` (except in issues or PRs explicitly about process or docs policy)<br>Create new CLI commands<br>Change rendered output format (Claude `.md` or Codex `.toml`)<br>Modify install/sync behavior that writes to user home directories | Push directly to `main`<br>Merge your own PR without review<br>Skip or bypass pre-commit hooks (`--no-verify`)<br>Commit secrets, credentials, or tokens<br>Expand PR scope beyond the linked issue<br>Delete or overwrite the install manifest without backup<br>Force-push to shared branches |
 
 ---
 
@@ -218,4 +223,4 @@ agents-manager/
 
 - Navigation index: [`MAP.md`](MAP.md)
 - Contributing and commit policy: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Product spec: [`SPEC.md`](SPEC.md)
+- Product specs: [`docs/specs/`](docs/specs/)

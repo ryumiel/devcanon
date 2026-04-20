@@ -78,10 +78,10 @@ Every PR should answer:
 - **CLI commands added or changed?**
   - Update [AGENTS.md](AGENTS.md) command table.
 - **Config format changed?**
-  - Update `agents-manager.config.yaml` example in [SPEC.md](SPEC.md).
+  - Update `agents-manager.config.yaml` example in [docs/specs/configuration.md](docs/specs/configuration.md).
 - **New major path or file added?**
   - Update [MAP.md](MAP.md).
 - **Root workflow changed?**
   - Update [AGENTS.md](AGENTS.md).
 - **New module or complex feature added?**
-  - Update relevant documentation in [SPEC.md](SPEC.md) and [MAP.md](MAP.md).
+  - Update relevant documentation in [docs/specs/](docs/specs/) and [MAP.md](MAP.md).
