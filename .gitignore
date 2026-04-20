@@ -18,6 +18,9 @@ test-results/
 # Git worktrees
 .worktrees/
 
+# Ephemeral working documents (designs, plans)
+.ephemeral/
+
 # OS and editor files
 .DS_Store
 Thumbs.db
