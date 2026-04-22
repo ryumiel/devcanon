@@ -10,6 +10,11 @@ Because Claude and Codex do not use the same native agent format,
 **Shared source defines the role intent. Target-specific blocks define native
 behavior. Unsupported target fields are ignored with warning.**
 
+The source schema does not define first-class delegation or orchestration
+controls in v1. If authors describe coordination behavior, that guidance lives
+in the role's prose instructions and remains target-dependent rather than a
+validated source-schema field.
+
 ### Claude mapping
 
 Source agent definitions render to:

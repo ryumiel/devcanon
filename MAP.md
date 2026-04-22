@@ -50,6 +50,7 @@ Quick navigation index for the agents-manager repository.
 ## Guidelines and templates
 
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where are the documentation checklists? -> [`docs/guidelines/documentation-checklists.md`](docs/guidelines/documentation-checklists.md)
 - Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
 - Where is the PR guideline? -> [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)
