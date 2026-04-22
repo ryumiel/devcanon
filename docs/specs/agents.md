@@ -51,6 +51,25 @@ codex:
 - `tags`
 - `notes`
 
+### Documented target-specific fields in v1
+
+Within `claude`:
+
+- `model`
+- `tools`
+
+Within `codex`:
+
+- `model`
+- `model_reasoning_effort`
+- `sandbox_mode`
+- `nickname_candidates`
+- `approval_policy`
+
+These are the repository's documented target-specific fields in v1. Do not use
+this spec to imply support for other target fields unless they are documented
+here.
+
 ---
 
 ## Not supported in v1
@@ -59,6 +78,7 @@ codex:
 - extends/merge behavior
 - overlays as a first-class feature
 - automatic prompt composition from multiple files
+- first-class delegation or orchestration policy fields
 
 ---
 

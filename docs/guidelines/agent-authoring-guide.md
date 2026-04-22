@@ -22,7 +22,7 @@ agent.
 
 ## 2. When an Agent Adds Value
 
-Create an agent only when one of these is true:
+In this repository, create an agent only when one of these is true:
 
 - You need tool or sandbox restrictions that a skill cannot enforce.
 - You need a stable role identity with documented target-supported constraints,
@@ -44,9 +44,9 @@ Avoid these cases:
 - Using agent creation as a response to prompt growth instead of moving shared
   method content into skills.
 - Giving broad permissions by default when least privilege would work.
-- Treating unbounded delegation as a reason to add a YAML field or schema
-  control knob. If delegation is mentioned at all, describe it in prose in the
-  agent instructions and only when the target can actually honor it.
+- Treating delegation or orchestration as a YAML field or schema control knob.
+  In v1, those expectations belong only in prose instructions, not in
+  first-class source-schema fields.
 
 ## 4. Example Agent Definitions
 
@@ -109,10 +109,10 @@ codex:
    split.
 3. Keep `instructions` short and role-shaped, not checklist-shaped.
 4. Make the role contract explicit: what it owns, when it is used, what
-   context it receives, what it returns, and whether any delegated behavior is
-   described in prose for a supported target.
-5. Start with least privilege: minimum tools, minimum sandbox, and no
-   delegation unless the target supports it and the role truly needs it.
+   context it receives, what it returns, and whether any coordination
+   expectations need to be described in prose instructions.
+5. Start with least privilege: minimum tools, minimum sandbox, and no new
+   schema knobs for coordination behavior.
 6. Validate with `agents-manager validate`.
 7. Preview the generated output with `agents-manager render`.
 

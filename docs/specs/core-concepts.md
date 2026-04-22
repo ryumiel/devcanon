@@ -22,6 +22,11 @@ Skills are shared across Claude Code and Codex.
 
 An **agent role** is a tool-agnostic source definition of a specialist.
 
+In this repository, agent roles are intended to stay narrow. They are the
+right choice when a contributor needs a specialist shell that carries role
+identity plus documented target-specific controls, while reusable operational
+knowledge still lives in skills.
+
 Examples:
 
 - `reviewer`
@@ -63,7 +68,8 @@ A generated file or installed skill directory that is owned and tracked by
    Reusable operational knowledge belongs in skills.
 
 3. **Thin wrappers**\
-   Agents should remain lightweight wrappers over skills and role guidance.
+   Agents should remain lightweight wrappers over skills plus narrow,
+   role-specific guidance and documented target controls.
 
 4. **Native outputs**\
    Generated Claude and Codex files should look like ordinary native files for

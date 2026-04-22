@@ -15,7 +15,14 @@ The question was whether agents or skills should be the primary unit of reuse.
 ## Decision
 
 Skills are the primary reusable unit. Agent roles are thin wrappers that
-reference skills and add role-specific guidance.
+should exist only when they add narrow role-specific value on top of skills.
+
+In this repository, an agent role earns its keep when it provides at least one
+of these:
+
+- tool or sandbox restrictions a skill cannot enforce,
+- documented target-specific controls such as model selection or tool access,
+- a reusable specialist shell whose operational method still lives in skills.
 
 Skills are tool-agnostic directories containing `SKILL.md` and optional
 supporting assets. They install identically to both Claude Code and Codex
@@ -28,8 +35,10 @@ native target formats.
   duplicated across agent definitions.
 - Adding a new target requires only a new renderer, not rewriting all
   operational knowledge.
-- Agent definitions stay small and focused on role identity, model selection,
-  and tool access.
+- Agent definitions stay small and focused on role identity plus narrow,
+  documented target controls.
+- Role-specific guidance should stay short and should not duplicate reusable
+  workflow content that belongs in skills.
 - Skills must be self-contained enough to be useful without an agent wrapper.
 
 ## Alternatives considered
