@@ -87,4 +87,28 @@ describe("resolvePlaceholders", () => {
       "plain text",
     );
   });
+
+  it("does not treat a language-tagged fence line as a closing fence", () => {
+    const input = [
+      "```",
+      "```typescript",
+      'const model = "{{model:deep}}";',
+      "```",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    // Inside the outer ``` fence, placeholders stay literal even past
+    // the nested ```typescript line.
+    expect(out).toContain('const model = "{{model:deep}}"');
+    // Substitution resumes after the outer fence closes.
+    expect(out).toContain("after: haiku");
+  });
+
+  it("leaves a preceding backslash untouched when the escape lands on the backslash of an escape pair", () => {
+    // `\\{{model:deep}}` = one literal backslash + an unescaped placeholder.
+    // The first `\` is outside the match; the placeholder substitutes normally.
+    const out = resolvePlaceholders("\\\\{{model:deep}}", "claude", TIERS);
+    expect(out).toBe("\\opus");
+  });
 });

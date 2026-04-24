@@ -364,4 +364,12 @@ describe("ConfigSchema.modelTiers", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects tier names with hyphens", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: { "gpt-fast": { claude: "haiku", codex: "gpt-5.4-mini" } },
+    });
+    expect(result.success).toBe(false);
+  });
 });

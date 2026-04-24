@@ -1,13 +1,22 @@
 import type { ModelTiers } from "../config/schema.js";
 
 /**
- * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
+ * Matches any run of preceding backslashes followed by `{{namespace:value}}`.
  * Only `\w+` characters inside the braces.
+ *
+ * Backslash pairs collapse: every two backslashes emit one literal backslash.
+ * An odd final backslash escapes the placeholder (keeps it literal).
  */
-const PLACEHOLDER = /(\\)?\{\{(\w+):(\w+)\}\}/g;
+const PLACEHOLDER = /(\\*)\{\{(\w+):(\w+)\}\}/g;
 
-/** Detects the start of a fenced code block (```). */
-const CODE_FENCE = /^```/;
+/** Detects the start of a fenced code block (```). Matches with or without info string. */
+const CODE_FENCE_OPEN = /^```/;
+/**
+ * Detects a closing fenced code block. Per CommonMark, closing fences must
+ * not carry an info string — so `\`\`\`lang` inside an open fence does not
+ * close it.
+ */
+const CODE_FENCE_CLOSE = /^```\s*$/;
 
 export function resolvePlaceholders(
   input: string,
@@ -19,8 +28,14 @@ export function resolvePlaceholders(
   const out: string[] = [];
 
   for (const line of lines) {
-    if (CODE_FENCE.test(line.trimStart())) {
-      inFence = !inFence;
+    const trimmed = line.trimStart();
+    if (!inFence && CODE_FENCE_OPEN.test(trimmed)) {
+      inFence = true;
+      out.push(line);
+      continue;
+    }
+    if (inFence && CODE_FENCE_CLOSE.test(trimmed)) {
+      inFence = false;
       out.push(line);
       continue;
     }
@@ -39,9 +54,12 @@ function substituteLine(
   target: "claude" | "codex",
   modelTiers: ModelTiers | undefined,
 ): string {
-  return line.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
-    if (esc) {
-      return `{{${namespace}:${value}}}`;
+  return line.replace(PLACEHOLDER, (_match, backslashes, namespace, value) => {
+    const slashCount: number = backslashes.length;
+    const literalSlashes = "\\".repeat(Math.floor(slashCount / 2));
+    const escaped = slashCount % 2 === 1;
+    if (escaped) {
+      return `${literalSlashes}{{${namespace}:${value}}}`;
     }
     if (namespace !== "model") {
       throw new Error(
@@ -59,6 +77,6 @@ function substituteLine(
         `Unknown tier "${value}" — define it under modelTiers in config`,
       );
     }
-    return tier[target];
+    return `${literalSlashes}${tier[target]}`;
   });
 }

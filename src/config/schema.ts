@@ -27,7 +27,21 @@ const ModelTierEntrySchema = z.object({
   codex: z.string().min(1),
 });
 
-export const ModelTiersSchema = z.record(z.string(), ModelTierEntrySchema);
+const MODEL_TIER_KEY = /^\w+$/;
+
+export const ModelTiersSchema = z
+  .record(z.string(), ModelTierEntrySchema)
+  .superRefine((tiers, ctx) => {
+    for (const key of Object.keys(tiers)) {
+      if (!MODEL_TIER_KEY.test(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Model tier name "${key}" must match /^\\w+$/ (letters, digits, underscore)`,
+          path: [key],
+        });
+      }
+    }
+  });
 
 export type ModelTiers = z.infer<typeof ModelTiersSchema>;
 
