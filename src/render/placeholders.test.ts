@@ -105,10 +105,11 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("after: haiku");
   });
 
-  it("leaves a preceding backslash untouched when the escape lands on the backslash of an escape pair", () => {
-    // `\\{{model:deep}}` = one literal backslash + an unescaped placeholder.
-    // The first `\` is outside the match; the placeholder substitutes normally.
+  it("consumes only the closest backslash as the escape marker", () => {
+    // Two literal backslashes then a placeholder. The regex only captures
+    // one backslash as the escape, so the outer backslash passes through
+    // and the inner one marks the placeholder as literal.
     const out = resolvePlaceholders("\\\\{{model:deep}}", "claude", TIERS);
-    expect(out).toBe("\\opus");
+    expect(out).toBe("\\{{model:deep}}");
   });
 });

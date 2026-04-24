@@ -1,13 +1,10 @@
 import type { ModelTiers } from "../config/schema.js";
 
 /**
- * Matches any run of preceding backslashes followed by `{{namespace:value}}`.
+ * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
  * Only `\w+` characters inside the braces.
- *
- * Backslash pairs collapse: every two backslashes emit one literal backslash.
- * An odd final backslash escapes the placeholder (keeps it literal).
  */
-const PLACEHOLDER = /(\\*)\{\{(\w+):(\w+)\}\}/g;
+const PLACEHOLDER = /(\\)?\{\{(\w+):(\w+)\}\}/g;
 
 /** Detects the start of a fenced code block (```). Matches with or without info string. */
 const CODE_FENCE_OPEN = /^```/;
@@ -54,12 +51,9 @@ function substituteLine(
   target: "claude" | "codex",
   modelTiers: ModelTiers | undefined,
 ): string {
-  return line.replace(PLACEHOLDER, (_match, backslashes, namespace, value) => {
-    const slashCount: number = backslashes.length;
-    const literalSlashes = "\\".repeat(Math.floor(slashCount / 2));
-    const escaped = slashCount % 2 === 1;
-    if (escaped) {
-      return `${literalSlashes}{{${namespace}:${value}}}`;
+  return line.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
+    if (esc) {
+      return `{{${namespace}:${value}}}`;
     }
     if (namespace !== "model") {
       throw new Error(
@@ -77,6 +71,6 @@ function substituteLine(
         `Unknown tier "${value}" — define it under modelTiers in config`,
       );
     }
-    return `${literalSlashes}${tier[target]}`;
+    return tier[target];
   });
 }
