@@ -43,7 +43,7 @@ describe("renderCodexSkill", () => {
       TIERS,
     );
     expect(out.skillMd).toContain("license: MIT");
-    expect(out.skillMd).toContain("short-description: blurb");
+    expect(out.skillMd).toContain("metadata:\n  short-description: blurb");
     expect(out.skillMd).not.toContain("model: opus");
     expect(out.skillMd).not.toContain("display_name");
   });
@@ -70,6 +70,8 @@ describe("renderCodexSkill", () => {
       display_name: "X",
       brand_color: "#00ccff",
     });
+    expect(parsed.policy).toMatchObject({ allow_implicit_invocation: true });
+    expect(parsed.dependencies).toMatchObject({ tools: [] });
   });
 
   it("substitutes {{model:*}} in body using the codex resolution", () => {
@@ -81,5 +83,21 @@ describe("renderCodexSkill", () => {
       TIERS,
     );
     expect(out.skillMd).toContain("use gpt-5.4-mini for cleanup.");
+  });
+
+  it("normalizes allowed-tools arrays to a space-joined string", () => {
+    const out = renderCodexSkill(
+      make(
+        {
+          name: "x",
+          description: "d",
+          "allowed-tools": ["Bash", "Read"],
+        },
+        "",
+      ),
+      TIERS,
+    );
+    expect(out.skillMd).toContain("allowed-tools: Bash Read");
+    expect(out.skillMd).not.toContain("- Bash");
   });
 });

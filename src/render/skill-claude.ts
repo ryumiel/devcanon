@@ -1,18 +1,10 @@
 import { stringify as yamlStringify } from "yaml";
-import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { ModelTiers } from "../config/schema.js";
 import { makeMdHeader } from "../utils/managed-header.js";
 import { resolvePlaceholders } from "./placeholders.js";
+import { SHARED_KEY_ORDER, type SkillInput } from "./skill-shared.js";
 
-export interface SkillInput {
-  source: SkillSource;
-  body: string;
-}
-
-const SHARED_KEY_ORDER: Array<keyof SkillSource> = [
-  "name",
-  "description",
-  "allowed-tools",
-];
+export type { SkillInput } from "./skill-shared.js";
 
 export function renderClaudeSkill(
   input: SkillInput,
