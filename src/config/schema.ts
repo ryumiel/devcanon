@@ -271,7 +271,10 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 // --- Skill source ---
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 
-const AllowedToolsSchema = z.union([z.string().min(1), z.array(z.string())]);
+const AllowedToolsSchema = z.union([
+  z.string().min(1),
+  z.array(z.string().min(1)),
+]);
 
 const ClaudeSkillOverrideShape = {
   model: z.string().optional(),

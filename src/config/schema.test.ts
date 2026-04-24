@@ -449,4 +449,22 @@ describe("SkillSourceSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects unknown top-level keys", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      typo_key: "oops",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid claude effort enum values", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      claude: { effort: "turbo" },
+    });
+    expect(result.success).toBe(false);
+  });
 });
