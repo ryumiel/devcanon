@@ -22,8 +22,12 @@ export function renderClaudeSkill(
 
   const frontmatter: Record<string, unknown> = {};
   for (const key of SHARED_KEY_ORDER) {
-    if (source[key] !== undefined) {
-      frontmatter[key as string] = source[key];
+    const value = source[key];
+    if (value === undefined) continue;
+    if (key === "allowed-tools" && Array.isArray(value)) {
+      frontmatter[key] = value.join(" ");
+    } else {
+      frontmatter[key as string] = value;
     }
   }
 
@@ -39,7 +43,7 @@ export function renderClaudeSkill(
   }
 
   const headerMd = makeMdHeader(`skills/${source.name}/SKILL.md`);
-  const yaml = yamlStringify(frontmatter);
+  const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
   const renderedBody = resolvePlaceholders(body, "claude", modelTiers);
 
   return `${headerMd}\n---\n${yaml}---\n${renderedBody}`;

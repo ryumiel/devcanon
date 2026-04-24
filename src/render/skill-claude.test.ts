@@ -43,6 +43,22 @@ describe("renderClaudeSkill", () => {
     expect(out).toContain("allowed-tools: Bash Read");
   });
 
+  it("normalizes allowed-tools arrays to a space-joined string", () => {
+    const out = renderClaudeSkill(
+      make(
+        {
+          name: "x",
+          description: "d",
+          "allowed-tools": ["Bash", "Read"],
+        },
+        "",
+      ),
+      TIERS,
+    );
+    expect(out).toContain("allowed-tools: Bash Read");
+    expect(out).not.toContain("- Bash");
+  });
+
   it("inlines claude override fields and strips codex/codex_sidecar", () => {
     const out = renderClaudeSkill(
       make(
