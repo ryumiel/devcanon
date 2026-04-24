@@ -1,19 +1,24 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
+import type { ZodIssue } from "zod";
+import { SkillSourceSchema } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
+import { parseFrontmatter } from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
-import { isDirectory, pathExists } from "../utils/fs.js";
-import { readTextFile } from "../utils/fs.js";
+import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 
 const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
 
+function formatZodIssue(issue: ZodIssue): string {
+  if (issue.path.length === 0) return issue.message;
+  return `${issue.path.join(".")}: ${issue.message}`;
+}
+
 export async function loadAndValidateSkills(
   skillsDir: string,
 ): Promise<LoadedSkill[]> {
-  if (!(await pathExists(skillsDir))) {
-    return [];
-  }
+  if (!(await pathExists(skillsDir))) return [];
 
   const entries = await readdir(skillsDir, { withFileTypes: true });
   const skills: LoadedSkill[] = [];
@@ -45,14 +50,48 @@ export async function loadAndValidateSkills(
 
     const skillMdContent = await readTextFile(skillMdPath);
 
-    const subdirs: string[] = [];
-    for (const sub of KNOWN_SUBDIRS) {
-      if (await isDirectory(path.join(dirPath, sub))) {
-        subdirs.push(sub);
-      }
+    let parsed: { frontmatter: Record<string, unknown>; body: string };
+    try {
+      parsed = parseFrontmatter(skillMdContent);
+    } catch (e) {
+      errors.push(`Skill "${name}": ${(e as Error).message}`);
+      continue;
     }
 
-    skills.push({ name, dirPath, skillMdContent, subdirs });
+    if (Object.keys(parsed.frontmatter).length === 0) {
+      errors.push(
+        `Skill "${name}": missing frontmatter (expected name and description).`,
+      );
+      continue;
+    }
+
+    const result = SkillSourceSchema.safeParse(parsed.frontmatter);
+    if (!result.success) {
+      const issues = result.error.issues.map(formatZodIssue).join("; ");
+      errors.push(`Skill "${name}": ${issues}`);
+      continue;
+    }
+
+    if (result.data.name !== name) {
+      errors.push(
+        `Skill "${name}": frontmatter name "${result.data.name}" does not match directory name.`,
+      );
+      continue;
+    }
+
+    const subdirs: string[] = [];
+    for (const sub of KNOWN_SUBDIRS) {
+      if (await isDirectory(path.join(dirPath, sub))) subdirs.push(sub);
+    }
+
+    skills.push({
+      name,
+      dirPath,
+      skillMdContent,
+      source: result.data,
+      body: parsed.body,
+      subdirs,
+    });
   }
 
   if (errors.length > 0) {

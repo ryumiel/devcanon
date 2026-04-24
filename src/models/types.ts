@@ -2,6 +2,8 @@ export interface LoadedSkill {
   name: string;
   dirPath: string;
   skillMdContent: string;
+  source: import("../config/schema.js").SkillSource;
+  body: string;
   subdirs: string[];
 }
 

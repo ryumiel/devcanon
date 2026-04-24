@@ -498,12 +498,12 @@ describe("renderAll", () => {
       await createSkillFixture(
         config.library.skillsDir,
         "skill-a",
-        "# skill-a\n\nAlpha content.\n",
+        "---\nname: skill-a\ndescription: Alpha skill.\n---\n\n# skill-a\n\nAlpha content.\n",
       );
       await createSkillFixture(
         config.library.skillsDir,
         "skill-b",
-        "# skill-b\n\nBeta content.\n",
+        "---\nname: skill-b\ndescription: Beta skill.\n---\n\n# skill-b\n\nBeta content.\n",
       );
       await createAgentFixture(
         config.library.agentsDir,

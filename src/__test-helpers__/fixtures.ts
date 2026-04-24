@@ -31,7 +31,7 @@ export async function cleanupTempDir(dir: string): Promise<void> {
 export async function createSkillFixture(
   skillsDir: string,
   name: string,
-  content = `# ${name}\n\nA test skill.\n`,
+  content = `---\nname: ${name}\ndescription: A test skill.\n---\n\n# ${name}\n\nA test skill.\n`,
   subdirs: string[] = [],
 ): Promise<string> {
   const skillDir = path.join(skillsDir, name);

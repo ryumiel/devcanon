@@ -38,7 +38,7 @@ describe("sync", () => {
     await createSkillFixture(
       config.library.skillsDir,
       "greet",
-      "# greet\n\nHello.\n",
+      "---\nname: greet\ndescription: A greeting skill.\n---\n\n# greet\n\nHello.\n",
     );
     await createAgentFixture(
       config.library.agentsDir,
