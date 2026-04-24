@@ -266,4 +266,15 @@ describe("loadAndValidateSkills", () => {
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/license/);
   });
+
+  it("rejects a skill where frontmatter name differs from directory name", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = "---\nname: other-name\ndescription: d.\n---\n\n# body\n";
+    await createSkillFixture(skillsDir, "my-dir", content);
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /other-name/,
+    );
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/my-dir/);
+  });
 });

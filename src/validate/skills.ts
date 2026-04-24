@@ -11,6 +11,12 @@ import { FILESYSTEM_SAFE } from "../utils/naming.js";
 const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
 
 function formatZodIssue(issue: ZodIssue): string {
+  if (issue.code === "invalid_union") {
+    return issue.unionErrors
+      .flatMap((unionError) => unionError.issues.map(formatZodIssue))
+      .join("; ");
+  }
+
   if (issue.path.length === 0) return issue.message;
   return `${issue.path.join(".")}: ${issue.message}`;
 }
