@@ -1,0 +1,57 @@
+import path from "node:path";
+import type { ResolvedConfig } from "../config/schema.js";
+import type { LoadedSkill, RenderedSkill } from "../models/types.js";
+import { sha256 } from "../utils/hash.js";
+import { renderClaudeSkill } from "./skill-claude.js";
+import { renderCodexSkill } from "./skill-codex.js";
+
+export interface RenderedSkillBundle {
+  outputs: RenderedSkill[];
+  /**
+   * Files to write under `generated/<target>/skills/<name>/`.
+   * Keyed by absolute path.
+   */
+  extraFiles: Map<string, string>;
+}
+
+export function renderSkillForTarget(
+  skill: LoadedSkill,
+  target: "claude" | "codex",
+  config: ResolvedConfig,
+): { rendered: RenderedSkill; extraFiles: Map<string, string> } {
+  const input = { source: skill.source, body: skill.body };
+  const generatedDir = path.join(
+    config.library.generatedDir,
+    target,
+    "skills",
+    skill.name,
+  );
+  const extraFiles = new Map<string, string>();
+
+  let content: string;
+  if (target === "claude") {
+    content = renderClaudeSkill(input, config.modelTiers);
+  } else {
+    const out = renderCodexSkill(input, config.modelTiers);
+    content = out.skillMd;
+    if (out.sidecar !== null) {
+      extraFiles.set(
+        path.join(generatedDir, "agents", "openai.yaml"),
+        out.sidecar,
+      );
+    }
+  }
+
+  const rendered: RenderedSkill = {
+    target,
+    type: "skill",
+    name: skill.name,
+    sourcePath: skill.dirPath,
+    generatedPath: generatedDir,
+    installedPath: path.join(config.targets[target].skillsHome, skill.name),
+    content,
+    contentHash: sha256(content),
+  };
+
+  return { rendered, extraFiles };
+}
