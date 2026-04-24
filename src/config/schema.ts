@@ -21,6 +21,16 @@ const TargetConfigSchema = z.object({
   installMode: InstallModeSchema.optional(),
 });
 
+// --- Model tiers ---
+const ModelTierEntrySchema = z.object({
+  claude: z.string().min(1),
+  codex: z.string().min(1),
+});
+
+export const ModelTiersSchema = z.record(z.string(), ModelTierEntrySchema);
+
+export type ModelTiers = z.infer<typeof ModelTiersSchema>;
+
 // --- Main config ---
 export const ConfigSchema = z.object({
   version: z.literal(1),
@@ -62,6 +72,7 @@ export const ConfigSchema = z.object({
       path: z.string().default("~/.agents-manager/manifest.json"),
     })
     .default({}),
+  modelTiers: ModelTiersSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -89,6 +100,7 @@ export interface ResolvedConfig {
   manifest: {
     path: string;
   };
+  modelTiers?: ModelTiers;
 }
 
 export interface ResolvedTargetConfig {
