@@ -162,21 +162,22 @@ async function executeAction(
           await copyFile(action.generatedPath, action.installedPath);
         }
       } else if (action.type === "skill") {
+        const sourceDir = action.generatedPath ?? action.sourcePath;
         if (installMode === "symlink") {
           try {
-            await createSymlink(action.sourcePath, action.installedPath, true);
+            await createSymlink(sourceDir, action.installedPath, true);
           } catch (err) {
             if (
               (err as NodeJS.ErrnoException).code === "EPERM" &&
               config.platform.windowsSymlinkFallback === "copy"
             ) {
-              await copyDirectory(action.sourcePath, action.installedPath);
+              await copyDirectory(sourceDir, action.installedPath);
             } else {
               throw err;
             }
           }
         } else {
-          await copyDirectory(action.sourcePath, action.installedPath);
+          await copyDirectory(sourceDir, action.installedPath);
         }
       }
 
