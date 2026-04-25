@@ -42,29 +42,7 @@ export function renderSkillForTarget(
     }
   }
 
-  // Hash includes both SKILL.md and any extra files (e.g. the Codex
-  // `agents/openai.yaml` sidecar) so that edits to the sidecar invalidate the
-  // skill's contentHash. Without this, plan computation emits
-  // skip-up-to-date and copy-mode installs leave the sidecar stale.
-  // Extra-file basenames (relative to the skill's generated dir) are folded
-  // in alongside their content. We use basenames rather than absolute paths
-  // so the hash stays stable across machines / users.
-  //
-  // Determinism guards:
-  //   1. Sort with a byte-wise comparator rather than `localeCompare`. Locale
-  //      collation (e.g. tr-TR) can reorder otherwise-identical inputs.
-  //   2. Normalize the path separator to forward slash before hashing so the
-  //      same skill yields the same hash on POSIX and Windows.
-  const hashParts: string[] = [content];
-  const extraEntries = Array.from(extraFiles.entries()).sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  );
-  for (const [absPath, fileContent] of extraEntries) {
-    const relPath = path.relative(generatedDir, absPath);
-    const posixRelPath = relPath.split(path.sep).join("/");
-    hashParts.push(posixRelPath, fileContent);
-  }
-  const contentHash = sha256(hashParts.join("\0"));
+  const contentHash = buildSkillContentHash(content, extraFiles, generatedDir);
 
   const rendered: RenderedSkill = {
     target,
@@ -78,4 +56,38 @@ export function renderSkillForTarget(
   };
 
   return { rendered, extraFiles };
+}
+
+/**
+ * Compute the contentHash for a rendered skill.
+ *
+ * The hash includes both SKILL.md and any extra files (e.g. the Codex
+ * `agents/openai.yaml` sidecar) so that edits to the sidecar invalidate the
+ * skill's contentHash. Without this, plan computation emits
+ * skip-up-to-date and copy-mode installs leave the sidecar stale.
+ * Extra-file basenames (relative to the skill's generated dir) are folded
+ * in alongside their content. We use basenames rather than absolute paths
+ * so the hash stays stable across machines / users.
+ *
+ * Determinism guards:
+ *   1. Sort with a byte-wise comparator rather than `localeCompare`. Locale
+ *      collation (e.g. tr-TR) can reorder otherwise-identical inputs.
+ *   2. Normalize the path separator to forward slash before hashing so the
+ *      same skill yields the same hash on POSIX and Windows.
+ */
+export function buildSkillContentHash(
+  content: string,
+  extraFiles: Map<string, string>,
+  generatedDir: string,
+): string {
+  const hashParts: string[] = [content];
+  const extraEntries = Array.from(extraFiles.entries()).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  for (const [absPath, fileContent] of extraEntries) {
+    const relPath = path.relative(generatedDir, absPath);
+    const posixRelPath = relPath.split(path.sep).join("/");
+    hashParts.push(posixRelPath, fileContent);
+  }
+  return sha256(hashParts.join("\0"));
 }
