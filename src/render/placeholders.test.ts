@@ -105,6 +105,47 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("after: haiku");
   });
 
+  it("does not treat an inner triple-backtick line as closing a 4-backtick fence", () => {
+    const input = [
+      "````",
+      "```",
+      "{{model:deep}}",
+      "```",
+      "````",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    // Inside the outer 4-backtick fence, placeholders must remain literal,
+    // even past nested triple-backtick lines.
+    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("after: haiku");
+  });
+
+  it("treats tilde fences as code fences", () => {
+    const input = ["~~~", "{{model:deep}}", "~~~", "", "after: {{model:fast}}"].join(
+      "\n",
+    );
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("after: haiku");
+  });
+
+  it("does not let a tilde line close a backtick fence", () => {
+    const input = [
+      "```",
+      "~~~",
+      "{{model:deep}}",
+      "~~~",
+      "```",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("{{model:deep}}");
+    expect(out).toContain("after: haiku");
+  });
+
   it("consumes only the closest backslash as the escape marker", () => {
     // Two literal backslashes then a placeholder. The regex only captures
     // one backslash as the escape, so the outer backslash passes through
