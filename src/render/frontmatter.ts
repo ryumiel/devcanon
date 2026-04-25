@@ -14,7 +14,7 @@ export function parseFrontmatter(input: string): ParsedFrontmatter {
 
   const firstFenceEnd = input.indexOf("\n") + 1;
   const rest = input.slice(firstFenceEnd);
-  const closingMatch = rest.match(/^---[ \t]*\r?\n/m);
+  const closingMatch = rest.match(/^---[ \t]*(?:\r?\n|$)/m);
 
   if (!closingMatch || closingMatch.index === undefined) {
     throw new Error("Frontmatter is unterminated: missing closing '---' fence");
@@ -23,7 +23,14 @@ export function parseFrontmatter(input: string): ParsedFrontmatter {
   const yamlBlock = rest.slice(0, closingMatch.index);
   const bodyStart = closingMatch.index + closingMatch[0].length;
   const rawBody = rest.slice(bodyStart);
-  const body = rawBody.startsWith("\n") ? rawBody.slice(1) : rawBody;
+  // Strip the single newline that conventionally follows the closing fence
+  // (handles both LF and CRLF). Without this the leading "\r" on Windows
+  // documents survives and corrupts SKILL.md / contentHash.
+  const body = rawBody.startsWith("\r\n")
+    ? rawBody.slice(2)
+    : rawBody.startsWith("\n")
+      ? rawBody.slice(1)
+      : rawBody;
 
   const parsed = yamlBlock.trim().length === 0 ? {} : parseYaml(yamlBlock);
 

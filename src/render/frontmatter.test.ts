@@ -26,6 +26,20 @@ describe("parseFrontmatter", () => {
     const result = parseFrontmatter(input);
     expect(result.body).toBe("\n  indented body\n");
   });
+
+  it("handles CRLF line endings without leaking a leading \\r into the body", () => {
+    const input = "---\r\nname: x\r\n---\r\n\r\nbody\r\n";
+    const result = parseFrontmatter(input);
+    expect(result.frontmatter).toEqual({ name: "x" });
+    expect(result.body).toBe("body\r\n");
+  });
+
+  it("accepts a closing fence at end-of-input with no trailing newline", () => {
+    const input = "---\nname: x\n---";
+    const result = parseFrontmatter(input);
+    expect(result.frontmatter).toEqual({ name: "x" });
+    expect(result.body).toBe("");
+  });
 });
 
 describe("serializeFrontmatter", () => {
