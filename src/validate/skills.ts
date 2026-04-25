@@ -3,7 +3,10 @@ import path from "node:path";
 import type { ZodIssue } from "zod";
 import { SkillSourceSchema } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
-import { parseFrontmatter } from "../render/frontmatter.js";
+import {
+  parseFrontmatter,
+  type ParsedFrontmatter,
+} from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
 import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
@@ -56,7 +59,7 @@ export async function loadAndValidateSkills(
 
     const skillMdContent = await readTextFile(skillMdPath);
 
-    let parsed: { frontmatter: Record<string, unknown>; body: string };
+    let parsed: ParsedFrontmatter;
     try {
       parsed = parseFrontmatter(skillMdContent);
     } catch (e) {

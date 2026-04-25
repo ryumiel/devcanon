@@ -24,7 +24,7 @@ export function renderCodexSkill(
     if (key === "allowed-tools" && Array.isArray(value)) {
       frontmatter[key] = value.join(" ");
     } else {
-      frontmatter[key as string] = value;
+      frontmatter[key] = value;
     }
   }
 
