@@ -373,6 +373,18 @@ describe("ConfigSchema.modelTiers", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects an empty modelTiers object", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {},
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one tier/i);
+    }
+  });
 });
 
 describe("SkillSourceSchema", () => {
@@ -397,6 +409,15 @@ describe("SkillSourceSchema", () => {
     });
     expect(str.success).toBe(true);
     expect(arr.success).toBe(true);
+  });
+
+  it("rejects an empty allowed-tools array", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      "allowed-tools": [],
+    });
+    expect(result.success).toBe(false);
   });
 
   it("accepts claude and codex override blocks", () => {

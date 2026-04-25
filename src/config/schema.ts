@@ -32,6 +32,13 @@ const MODEL_TIER_KEY = /^\w+$/;
 export const ModelTiersSchema = z
   .record(z.string(), ModelTierEntrySchema)
   .superRefine((tiers, ctx) => {
+    if (Object.keys(tiers).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "modelTiers must define at least one tier",
+      });
+      return;
+    }
     for (const key of Object.keys(tiers)) {
       if (!MODEL_TIER_KEY.test(key)) {
         ctx.addIssue({
@@ -273,7 +280,7 @@ const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 
 const AllowedToolsSchema = z.union([
   z.string().min(1),
-  z.array(z.string().min(1)),
+  z.array(z.string().min(1)).min(1),
 ]);
 
 const ClaudeSkillOverrideShape = {
