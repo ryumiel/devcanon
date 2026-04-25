@@ -63,6 +63,12 @@ export async function renderAll(
       outputs.push(rendered);
 
       if (writeToGenerated) {
+        // Purge the per-skill generated dir before writing. Without this,
+        // dropping `codex_sidecar:` from a source or removing a previously
+        // mirrored subdir (e.g. scripts/) leaves stale files lingering in
+        // generated/<target>/skills/<name>/. The generated/ tree is
+        // documented as disposable, so a full rebuild per skill is fine.
+        await rm(rendered.generatedPath, { recursive: true, force: true });
         await ensureDir(rendered.generatedPath);
         await writeTextFile(
           path.join(rendered.generatedPath, "SKILL.md"),

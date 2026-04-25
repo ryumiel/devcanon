@@ -743,6 +743,77 @@ describe("renderAll", () => {
     expect(await pathExists(codexFile)).toBe(true);
   });
 
+  it("purges stale orphans inside a per-skill generated dir on re-render", async () => {
+    // First render: skill with codex_sidecar and a mirrored scripts/ subdir.
+    await createSkillFixture(
+      config.library.skillsDir,
+      "purge-skill",
+      [
+        "---",
+        "name: purge-skill",
+        "description: A skill with sidecar and subdir.",
+        "codex_sidecar:",
+        "  interface:",
+        "    display_name: Purge Skill",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+      ["scripts"],
+    );
+    await writeFile(
+      path.join(config.library.skillsDir, "purge-skill", "scripts", "foo.txt"),
+      "hello\n",
+      "utf-8",
+    );
+
+    await renderAll(config, true);
+
+    const sidecarPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "purge-skill",
+      "agents",
+      "openai.yaml",
+    );
+    const scriptsPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "purge-skill",
+      "scripts",
+      "foo.txt",
+    );
+    expect(await pathExists(sidecarPath)).toBe(true);
+    expect(await pathExists(scriptsPath)).toBe(true);
+
+    // Re-render with codex_sidecar removed AND scripts/ removed from source.
+    await rm(path.join(config.library.skillsDir, "purge-skill"), {
+      recursive: true,
+      force: true,
+    });
+    await createSkillFixture(
+      config.library.skillsDir,
+      "purge-skill",
+      [
+        "---",
+        "name: purge-skill",
+        "description: A skill with sidecar and subdir.",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+    );
+
+    await renderAll(config, true);
+
+    expect(await pathExists(sidecarPath)).toBe(false);
+    expect(await pathExists(scriptsPath)).toBe(false);
+  });
+
   it("removes stale per-target skill directories when the source is deleted", async () => {
     await createSkillFixture(
       config.library.skillsDir,
