@@ -123,9 +123,13 @@ describe("resolvePlaceholders", () => {
   });
 
   it("treats tilde fences as code fences", () => {
-    const input = ["~~~", "{{model:deep}}", "~~~", "", "after: {{model:fast}}"].join(
-      "\n",
-    );
+    const input = [
+      "~~~",
+      "{{model:deep}}",
+      "~~~",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
     const out = resolvePlaceholders(input, "claude", TIERS);
     expect(out).toContain("{{model:deep}}");
     expect(out).toContain("after: haiku");

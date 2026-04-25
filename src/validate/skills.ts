@@ -4,8 +4,8 @@ import type { ZodIssue } from "zod";
 import { SkillSourceSchema } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import {
-  parseFrontmatter,
   type ParsedFrontmatter,
+  parseFrontmatter,
 } from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
 import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
