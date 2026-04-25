@@ -130,4 +130,91 @@ describe("renderSkillForTarget contentHash", () => {
     );
     expect(rendered.contentHash).toBe(expected);
   });
+
+  it("isolates claude override changes from codex hash", () => {
+    // A `claude:` override change must flip the claude hash but never the
+    // codex hash. If a regression bled claude overrides into the codex
+    // render path, both hashes would change.
+    const config = makeResolvedConfig("/tmp/test-hash");
+    config.modelTiers = TIERS;
+
+    const baseSource: SkillSource = {
+      name: "x",
+      description: "d",
+      claude: { model: "sonnet" },
+    };
+    const mutatedSource: SkillSource = {
+      name: "x",
+      description: "d",
+      claude: { model: "opus" },
+    };
+
+    const baseClaude = renderSkillForTarget(
+      makeLoaded(baseSource),
+      "claude",
+      config,
+    ).rendered;
+    const mutatedClaude = renderSkillForTarget(
+      makeLoaded(mutatedSource),
+      "claude",
+      config,
+    ).rendered;
+    const baseCodex = renderSkillForTarget(
+      makeLoaded(baseSource),
+      "codex",
+      config,
+    ).rendered;
+    const mutatedCodex = renderSkillForTarget(
+      makeLoaded(mutatedSource),
+      "codex",
+      config,
+    ).rendered;
+
+    expect(baseClaude.contentHash).not.toBe(mutatedClaude.contentHash);
+    expect(baseCodex.contentHash).toBe(mutatedCodex.contentHash);
+  });
+
+  it("isolates codex sidecar changes from claude hash", () => {
+    // Symmetric: a `codex_sidecar:` mutation must flip the codex hash but
+    // leave the claude hash untouched.
+    const config = makeResolvedConfig("/tmp/test-hash");
+    config.modelTiers = TIERS;
+
+    const baseSource: SkillSource = {
+      name: "x",
+      description: "d",
+      codex_sidecar: { interface: { display_name: "Original" } },
+    };
+    const mutatedSource: SkillSource = {
+      name: "x",
+      description: "d",
+      codex_sidecar: {
+        interface: { display_name: "Original", brand_color: "#fff" },
+      },
+    };
+
+    const baseCodex = renderSkillForTarget(
+      makeLoaded(baseSource),
+      "codex",
+      config,
+    ).rendered;
+    const mutatedCodex = renderSkillForTarget(
+      makeLoaded(mutatedSource),
+      "codex",
+      config,
+    ).rendered;
+    const baseClaude = renderSkillForTarget(
+      makeLoaded(baseSource),
+      "claude",
+      config,
+    ).rendered;
+    const mutatedClaude = renderSkillForTarget(
+      makeLoaded(mutatedSource),
+      "claude",
+      config,
+    ).rendered;
+
+    expect(baseCodex.contentHash).not.toBe(mutatedCodex.contentHash);
+    expect(baseClaude.contentHash).toBe(mutatedClaude.contentHash);
+  });
 });
