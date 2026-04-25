@@ -488,4 +488,40 @@ describe("SkillSourceSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects unknown keys inside the claude override block", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      claude: { unknown_field: 1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside the codex override block", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex: { unknown_field: 1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside codex_sidecar.interface", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex_sidecar: { interface: { unknown: 1 } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside codex_sidecar.policy", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex_sidecar: { policy: { unknown: 1 } },
+    });
+    expect(result.success).toBe(false);
+  });
 });
