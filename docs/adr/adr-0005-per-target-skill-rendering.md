@@ -17,7 +17,8 @@ that a single file cannot satisfy both:
 - Claude and Codex accept different model identifiers
   (`claude-opus-4-7` vs `gpt-5.4`).
 - Codex configures UI/policy/tool dependencies through a sidecar
-  `agents/openai.yaml` file Claude does not understand.
+  `generated/codex/skills/<name>/agents/openai.yaml` file Claude
+  does not understand.
 
 Investigation across 15 existing skills showed body divergence is
 concentrated in 3 skills. The majority are already target-neutral.
@@ -36,8 +37,8 @@ Authors express divergence in three places:
 2. An optional top-level `codex_sidecar:` block (emitted as
    a separate file for the Codex target only).
 3. `{{model:fast}}` / `{{model:standard}}` / `{{model:deep}}`
-   placeholders in body prose and string values inside override
-   blocks, resolved at render time against a `modelTiers`
+   placeholders in body prose and top-level string values inside
+   override blocks, resolved at render time against a `modelTiers`
    glossary in config.
 
 **Namespace scope-lock:** only `{{model:*}}` is permitted. Any
@@ -82,7 +83,7 @@ requires a new ADR.
 
 - [Skills](../specs/skills.md) -- skill authoring and frontmatter
 - [Configuration](../specs/configuration.md) -- `modelTiers` glossary
-- `src/render/placeholders.ts` -- `{{model:*}}` resolver
-- `src/render/skill-claude.ts` -- Claude skill renderer
-- `src/render/skill-codex.ts` -- Codex skill renderer (with sidecar)
-- `src/config/schema.ts` -- frontmatter and config schemas
+- [`src/render/placeholders.ts`](../../src/render/placeholders.ts) -- `{{model:*}}` resolver
+- [`src/render/skill-claude.ts`](../../src/render/skill-claude.ts) -- Claude skill renderer
+- [`src/render/skill-codex.ts`](../../src/render/skill-codex.ts) -- Codex skill renderer (with sidecar)
+- [`src/config/schema.ts`](../../src/config/schema.ts) -- frontmatter and config schemas
