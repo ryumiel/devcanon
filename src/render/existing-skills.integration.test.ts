@@ -5,7 +5,7 @@ import { loadConfig } from "../config/load.js";
 import { renderAll } from "./pipeline.js";
 
 describe("existing skills render cleanly", () => {
-  it("renders all 15 shipped skills to both targets without error", async () => {
+  it("renders every shipped skill to both targets without error", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "agents-manager.config.yaml"),
