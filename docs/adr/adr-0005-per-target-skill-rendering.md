@@ -6,9 +6,10 @@ Accepted
 
 ## Context
 
-Skills today are copied verbatim from `skills/<name>/` to both
-`~/.claude/skills/<name>/` and `~/.agents/skills/<name>/`. The two
-targets have diverged enough that a single file cannot satisfy both:
+Before this decision, skills were copied verbatim from
+`skills/<name>/` to both `~/.claude/skills/<name>/` and
+`~/.agents/skills/<name>/`. The two targets have diverged enough
+that a single file cannot satisfy both:
 
 - Codex whitelists skill frontmatter (`name`, `description`,
   `license`, `allowed-tools`, `metadata`) and rejects Claude-only
@@ -43,6 +44,17 @@ Authors express divergence in three places:
 other namespace is a validator error. Adding a new namespace
 requires a new ADR.
 
+**Substitution scope:**
+
+- Placeholders inside fenced code blocks (backtick or tilde) are
+  intentionally not substituted, so authors can document the
+  syntax verbatim. A single leading backslash escapes a
+  placeholder: `\{{model:x}}` renders literally.
+- Substitution is applied to body prose AND to top-level string
+  values inside `claude:` / `codex:` override blocks. Nested
+  values (for example `codex.metadata.*`) pass through
+  unchanged.
+
 ## Consequences
 
 - Skills become first-class rendered outputs. Install/sync
@@ -65,3 +77,12 @@ requires a new ADR.
   Deferred — adopt only when concrete need emerges.
 - **Per-target source files (`SKILL.claude.md` /
   `SKILL.codex.md`):** doubles authoring cost and invites drift.
+
+## See also
+
+- [Skills](../specs/skills.md) -- skill authoring and frontmatter
+- [Configuration](../specs/configuration.md) -- `modelTiers` glossary
+- `src/render/placeholders.ts` -- `{{model:*}}` resolver
+- `src/render/skill-claude.ts` -- Claude skill renderer
+- `src/render/skill-codex.ts` -- Codex skill renderer (with sidecar)
+- `src/config/schema.ts` -- frontmatter and config schemas

@@ -12,6 +12,10 @@ Each skill is a directory under `skills/` and must contain:
 
 ## Frontmatter schema
 
+Frontmatter is `.strict()` — unknown top-level keys are rejected.
+Three optional top-level keys (`claude`, `codex`, `codex_sidecar`)
+host target-specific overrides; the rest are shared.
+
 ### Shared keys (emitted to both targets)
 
 | Key             | Type           | Required | Notes                                           |
@@ -30,11 +34,17 @@ Each skill is a directory under `skills/` and must contain:
 `codex:` accepts Codex-whitelisted fields (`license`, `metadata`).
 Strict.
 
+Placeholder substitution inside override blocks is applied to
+top-level string values only. Nested values (for example
+`codex.metadata.*`) pass through unchanged.
+
 ### Codex sidecar
 
-`codex_sidecar:` is a top-level block emitted as
-`agents/openai.yaml` next to the generated Codex `SKILL.md`.
-Supports `interface.*`, `policy.*`, `dependencies.*`.
+`codex_sidecar:` is a top-level block. When present in the source,
+the renderer emits it for the Codex target only as a separate YAML
+file at `generated/codex/skills/<name>/agents/openai.yaml`. It is
+not inlined into the Codex `SKILL.md`. Supports `interface.*`,
+`policy.*`, `dependencies.*`, each strict.
 
 ---
 
@@ -42,9 +52,13 @@ Supports `interface.*`, `policy.*`, `dependencies.*`.
 
 `{{model:fast}}`, `{{model:standard}}`, `{{model:deep}}` resolve at
 render time against the `modelTiers` glossary in
-`agents-manager.config.yaml`. The resolution target depends on
-the rendering pass. Escape with a leading backslash: `\{{model:deep}}`.
-Placeholders inside fenced code blocks are not substituted.
+`agents-manager.config.yaml`. During the Claude render pass,
+`{{model:deep}}` resolves to `modelTiers.deep.claude`; during the
+Codex pass, to `modelTiers.deep.codex`. The same skill source
+therefore produces different model IDs in `generated/claude/...`
+and `generated/codex/...`. Escape with a leading backslash:
+`\{{model:deep}}`. Placeholders inside fenced code blocks
+(backtick or tilde) are not substituted.
 
 Only the `model:` namespace is permitted. Other namespaces
 (`path:`, `tool:`, etc.) are a validator error.
