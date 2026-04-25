@@ -96,4 +96,26 @@ describe("renderClaudeSkill", () => {
     expect(out).toContain("model: opus");
     expect(out).toContain("use opus for synthesis.");
   });
+
+  it("matches snapshot for a representative skill", () => {
+    const out = renderClaudeSkill(
+      make(
+        {
+          name: "snap-skill",
+          description: "Snapshot fixture skill.",
+          "allowed-tools": ["Bash", "Read"],
+          claude: {
+            model: "{{model:deep}}",
+            effort: "high",
+            when_to_use: "Use when synthesizing.",
+          },
+          codex: { license: "MIT" },
+          codex_sidecar: { interface: { display_name: "Snap" } },
+        },
+        "Use {{model:deep}} for synthesis.\n",
+      ),
+      TIERS,
+    );
+    expect(out).toMatchSnapshot();
+  });
 });

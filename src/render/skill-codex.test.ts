@@ -100,4 +100,34 @@ describe("renderCodexSkill", () => {
     expect(out.skillMd).toContain("allowed-tools: Bash Read");
     expect(out.skillMd).not.toContain("- Bash");
   });
+
+  it("matches snapshot for a representative skill with sidecar", () => {
+    const out = renderCodexSkill(
+      make(
+        {
+          name: "snap-skill",
+          description: "Snapshot fixture skill.",
+          "allowed-tools": ["Bash", "Read"],
+          claude: { model: "opus" },
+          codex: {
+            license: "MIT",
+            metadata: { "short-description": "Snapshot blurb" },
+          },
+          codex_sidecar: {
+            interface: {
+              display_name: "Snap",
+              short_description: "Snapshot blurb",
+              brand_color: "#00ccff",
+            },
+            policy: { allow_implicit_invocation: true },
+            dependencies: { tools: ["fs", "web"] },
+          },
+        },
+        "Use {{model:deep}} for synthesis.\n",
+      ),
+      TIERS,
+    );
+    expect(out.skillMd).toMatchSnapshot("skillMd");
+    expect(out.sidecar).toMatchSnapshot("sidecar");
+  });
 });

@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderClaudeSkill > matches snapshot for a representative skill 1`] = `
+"<!-- Managed by agents-manager. Do not edit directly. -->
+<!-- Source: skills/snap-skill/SKILL.md -->
+---
+name: snap-skill
+description: Snapshot fixture skill.
+allowed-tools: Bash Read
+effort: high
+model: opus
+when_to_use: Use when synthesizing.
+---
+Use opus for synthesis.
+"
+`;
