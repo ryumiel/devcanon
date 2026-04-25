@@ -1,9 +1,10 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeResolvedConfig } from "../__test-helpers__/fixtures.js";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
-import { renderSkillForTarget } from "./skill.js";
+import { buildSkillContentHash, renderSkillForTarget } from "./skill.js";
 
 const TIERS: ModelTiers = {
   fast: { claude: "haiku", codex: "gpt-5.4-mini" },
@@ -134,7 +135,9 @@ describe("renderSkillForTarget contentHash", () => {
   it("isolates claude override changes from codex hash", () => {
     // A `claude:` override change must flip the claude hash but never the
     // codex hash. If a regression bled claude overrides into the codex
-    // render path, both hashes would change.
+    // render path, both hashes would change. Both blocks are populated
+    // so a regression that hashed the entire SkillSource (rather than the
+    // per-target render) would also be caught.
     const config = makeResolvedConfig("/tmp/test-hash");
     config.modelTiers = TIERS;
 
@@ -142,11 +145,13 @@ describe("renderSkillForTarget contentHash", () => {
       name: "x",
       description: "d",
       claude: { model: "sonnet" },
+      codex_sidecar: { interface: { display_name: "Original" } },
     };
     const mutatedSource: SkillSource = {
       name: "x",
       description: "d",
       claude: { model: "opus" },
+      codex_sidecar: { interface: { display_name: "Original" } },
     };
 
     const baseClaude = renderSkillForTarget(
@@ -176,18 +181,22 @@ describe("renderSkillForTarget contentHash", () => {
 
   it("isolates codex sidecar changes from claude hash", () => {
     // Symmetric: a `codex_sidecar:` mutation must flip the codex hash but
-    // leave the claude hash untouched.
+    // leave the claude hash untouched. Both blocks are populated so a
+    // regression that hashed the entire SkillSource (rather than the
+    // per-target render) would also be caught.
     const config = makeResolvedConfig("/tmp/test-hash");
     config.modelTiers = TIERS;
 
     const baseSource: SkillSource = {
       name: "x",
       description: "d",
+      claude: { model: "sonnet" },
       codex_sidecar: { interface: { display_name: "Original" } },
     };
     const mutatedSource: SkillSource = {
       name: "x",
       description: "d",
+      claude: { model: "sonnet" },
       codex_sidecar: {
         interface: { display_name: "Original", brand_color: "#fff" },
       },
@@ -216,5 +225,31 @@ describe("renderSkillForTarget contentHash", () => {
 
     expect(baseCodex.contentHash).not.toBe(mutatedCodex.contentHash);
     expect(baseClaude.contentHash).toBe(mutatedClaude.contentHash);
+  });
+});
+
+describe("buildSkillContentHash", () => {
+  it("sorts extra-files by byte order, not locale collation", () => {
+    // Byte-wise: "B" (0x42) sorts before "a" (0x61).
+    // localeCompare (case-insensitive then case-tiebreak) would put "a"
+    // first, producing a different hash.
+    // A nested path is included to also pin POSIX-separator normalization:
+    // the relative key in the hash must be `sub/x`, not `sub\\x`.
+    const generatedDir = "/g";
+    const extraFiles = new Map([
+      [path.join("/g", "a"), "a-content"],
+      [path.join("/g", "B"), "B-content"],
+      [path.join("/g", "sub", "x"), "x-content"],
+    ]);
+    // Byte-wise sort over the POSIX-normalized relative keys yields:
+    //   "B" (0x42) < "a" (0x61) < "sub/x" (starts with 0x73)
+    const expected = sha256(
+      ["body", "B", "B-content", "a", "a-content", "sub/x", "x-content"].join(
+        "\0",
+      ),
+    );
+    expect(buildSkillContentHash("body", extraFiles, generatedDir)).toBe(
+      expected,
+    );
   });
 });
