@@ -42,6 +42,23 @@ export function renderSkillForTarget(
     }
   }
 
+  // Hash includes both SKILL.md and any extra files (e.g. the Codex
+  // `agents/openai.yaml` sidecar) so that edits to the sidecar invalidate the
+  // skill's contentHash. Without this, plan computation emits
+  // skip-up-to-date and copy-mode installs leave the sidecar stale.
+  // Extra-file basenames (relative to the skill's generated dir) are folded
+  // in alongside their content. We use basenames rather than absolute paths
+  // so the hash stays stable across machines / users.
+  const hashParts: string[] = [content];
+  const extraEntries = Array.from(extraFiles.entries()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  for (const [absPath, fileContent] of extraEntries) {
+    const relPath = path.relative(generatedDir, absPath);
+    hashParts.push(relPath, fileContent);
+  }
+  const contentHash = sha256(hashParts.join("\0"));
+
   const rendered: RenderedSkill = {
     target,
     type: "skill",
@@ -50,7 +67,7 @@ export function renderSkillForTarget(
     generatedPath: generatedDir,
     installedPath: path.join(config.targets[target].skillsHome, skill.name),
     content,
-    contentHash: sha256(content),
+    contentHash,
   };
 
   return { rendered, extraFiles };
