@@ -7,6 +7,7 @@ import {
   CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
   CODEX_TARGET_FIELDS,
   ConfigSchema,
+  SkillSourceSchema,
 } from "./schema.js";
 
 describe("ConfigSchema", () => {
@@ -319,6 +320,207 @@ describe("AgentSourceSchema", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,
       name: "MyAgent",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("ConfigSchema.modelTiers", () => {
+  it("parses a valid modelTiers glossary", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+        standard: { claude: "sonnet", codex: "gpt-5.4" },
+        deep: { claude: "opus", codex: "gpt-5.4" },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelTiers?.deep.claude).toBe("opus");
+      expect(result.data.modelTiers?.fast.codex).toBe("gpt-5.4-mini");
+    }
+  });
+
+  it("accepts config without modelTiers", () => {
+    const result = ConfigSchema.safeParse({ version: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelTiers).toBeUndefined();
+    }
+  });
+
+  it("rejects a tier missing the claude key", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: { fast: { codex: "gpt-5.4-mini" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a tier name that is not a string", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: { deep: { claude: 123, codex: "gpt-5.4" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects tier names with hyphens", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: { "gpt-fast": { claude: "haiku", codex: "gpt-5.4-mini" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty modelTiers object", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {},
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one tier/i);
+    }
+  });
+});
+
+describe("SkillSourceSchema", () => {
+  it("accepts a minimal skill with only name and description", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "example",
+      description: "Use when X.",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts allowed-tools as a string or string array", () => {
+    const str = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      "allowed-tools": "Bash Read",
+    });
+    const arr = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      "allowed-tools": ["Bash", "Read"],
+    });
+    expect(str.success).toBe(true);
+    expect(arr.success).toBe(true);
+  });
+
+  it("rejects an empty allowed-tools array", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      "allowed-tools": [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts claude and codex override blocks", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      claude: { model: "opus", effort: "high" },
+      codex: { license: "MIT", metadata: { "short-description": "blurb" } },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a codex_sidecar block", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex_sidecar: {
+        interface: {
+          display_name: "X",
+          short_description: "blurb",
+          brand_color: "#00ccff",
+        },
+        policy: { allow_implicit_invocation: true },
+        dependencies: { tools: [] },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a description over 1024 chars", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d".repeat(1025),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing angle brackets", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "uses <tool> for things",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a name violating the kebab-case contract", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "Bad_Name",
+      description: "d",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown top-level keys", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      typo_key: "oops",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid claude effort enum values", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      claude: { effort: "turbo" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside the claude override block", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      claude: { unknown_field: 1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside the codex override block", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex: { unknown_field: 1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside codex_sidecar.interface", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex_sidecar: { interface: { unknown: 1 } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown keys inside codex_sidecar.policy", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d",
+      codex_sidecar: { policy: { unknown: 1 } },
     });
     expect(result.success).toBe(false);
   });

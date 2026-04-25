@@ -134,7 +134,10 @@ describe("loadAndValidateAgents", () => {
     const skill: LoadedSkill = {
       name: "my-skill",
       dirPath: "/fake",
-      skillMdContent: "# my-skill",
+      skillMdContent:
+        "---\nname: my-skill\ndescription: A test skill.\n---\n\n# my-skill\n",
+      source: { name: "my-skill", description: "A test skill." },
+      body: "# my-skill\n",
       subdirs: [],
     };
     const yaml = makeAgentYaml("skill-user", {

@@ -1,4 +1,4 @@
-import { unlink } from "node:fs/promises";
+import { cp, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type {
@@ -6,13 +6,14 @@ import type {
   LoadedSkill,
   RenderedAgent,
   RenderedOutput,
+  RenderedSkill,
 } from "../models/types.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
-import { hashDirectory } from "../utils/hash.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import { loadAndValidateSkills } from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
+import { renderSkillForTarget } from "./skill.js";
 
 export interface RenderResult {
   outputs: RenderedOutput[];
@@ -36,22 +37,6 @@ export async function renderAll(
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
   const targets = ["claude", "codex"] as const;
-  const willRender = targets.some(
-    (target) =>
-      config.targets[target].enabled &&
-      (!targetFilter || target === targetFilter),
-  );
-
-  const skillHashes = willRender
-    ? new Map(
-        await Promise.all(
-          skills.map(
-            async (skill) =>
-              [skill.name, await hashDirectory(skill.dirPath)] as const,
-          ),
-        ),
-      )
-    : new Map<string, string>();
 
   const outputs: RenderedOutput[] = [];
 
@@ -68,24 +53,40 @@ export async function renderAll(
       outputs.push(rendered);
     }
 
-    // Create skill entries (skills are not rendered, just tracked)
+    // Render skills per target
     for (const skill of skills) {
-      const hash = skillHashes.get(skill.name);
-      if (hash === undefined) {
-        throw new Error(
-          `internal: missing precomputed hash for skill ${skill.name}`,
-        );
-      }
-      outputs.push({
+      const { rendered, extraFiles } = renderSkillForTarget(
+        skill,
         target,
-        type: "skill",
-        name: skill.name,
-        sourcePath: skill.dirPath,
-        generatedPath: null,
-        installedPath: path.join(config.targets[target].skillsHome, skill.name),
-        content: null,
-        contentHash: hash,
-      });
+        config,
+      );
+      outputs.push(rendered);
+
+      if (writeToGenerated) {
+        // Purge the per-skill generated dir before writing. Without this,
+        // dropping `codex_sidecar:` from a source or removing a previously
+        // mirrored subdir (e.g. scripts/) leaves stale files lingering in
+        // generated/<target>/skills/<name>/. The generated/ tree is
+        // documented as disposable, so a full rebuild per skill is fine.
+        await rm(rendered.generatedPath, { recursive: true, force: true });
+        await ensureDir(rendered.generatedPath);
+        await writeTextFile(
+          path.join(rendered.generatedPath, "SKILL.md"),
+          rendered.content,
+        );
+        for (const [filePath, fileContent] of extraFiles) {
+          await ensureDir(path.dirname(filePath));
+          await writeTextFile(filePath, fileContent);
+        }
+        // Mirror known subdirs
+        for (const sub of skill.subdirs) {
+          await cp(
+            path.join(skill.dirPath, sub),
+            path.join(rendered.generatedPath, sub),
+            { recursive: true, verbatimSymlinks: true },
+          );
+        }
+      }
     }
   }
 
@@ -124,6 +125,36 @@ export async function renderAll(
         const filePath = path.join(agentsDir, entry);
         if (!currentGeneratedPaths.has(filePath)) {
           await unlink(filePath);
+        }
+      }
+    }
+
+    // Remove stale per-target skill directories
+    const currentSkillGeneratedDirs = new Set(
+      outputs
+        .filter((o): o is RenderedSkill => o.type === "skill")
+        .map((o) => o.generatedPath),
+    );
+
+    for (const target of targets) {
+      if (!config.targets[target].enabled) continue;
+      if (targetFilter && target !== targetFilter) continue;
+
+      const skillsGeneratedDir = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+      );
+      let skillEntries: string[];
+      try {
+        skillEntries = await readdir(skillsGeneratedDir);
+      } catch {
+        continue;
+      }
+      for (const entry of skillEntries) {
+        const entryPath = path.join(skillsGeneratedDir, entry);
+        if (!currentSkillGeneratedDirs.has(entryPath)) {
+          await rm(entryPath, { recursive: true, force: true });
         }
       }
     }

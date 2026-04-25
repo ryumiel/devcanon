@@ -2,6 +2,8 @@ export interface LoadedSkill {
   name: string;
   dirPath: string;
   skillMdContent: string;
+  source: import("../config/schema.js").SkillSource;
+  body: string;
   subdirs: string[];
 }
 
@@ -27,8 +29,8 @@ export interface RenderedAgent extends RenderedBase {
 
 export interface RenderedSkill extends RenderedBase {
   type: "skill";
-  generatedPath: null;
-  content: null;
+  generatedPath: string;
+  content: string;
 }
 
 export type RenderedOutput = RenderedAgent | RenderedSkill;

@@ -95,8 +95,13 @@ Quick navigation index for the agents-manager repository.
 ## Rendering
 
 - Where is the render pipeline? -> [`src/render/pipeline.ts`](src/render/pipeline.ts)
-- Where is the Claude renderer? -> [`src/render/claude.ts`](src/render/claude.ts)
-- Where is the Codex renderer? -> [`src/render/codex.ts`](src/render/codex.ts)
+- Where is the Claude agent renderer? -> [`src/render/claude.ts`](src/render/claude.ts)
+- Where is the Codex agent renderer? -> [`src/render/codex.ts`](src/render/codex.ts)
+- Where is the skill render orchestrator? -> [`src/render/skill.ts`](src/render/skill.ts)
+- Where is the Claude skill renderer? -> [`src/render/skill-claude.ts`](src/render/skill-claude.ts)
+- Where is the Codex skill renderer (with sidecar)? -> [`src/render/skill-codex.ts`](src/render/skill-codex.ts)
+- Where is the `{{model:*}}` placeholder resolver? -> [`src/render/placeholders.ts`](src/render/placeholders.ts)
+- Where is frontmatter parse/serialize? -> [`src/render/frontmatter.ts`](src/render/frontmatter.ts)
 
 ---
 

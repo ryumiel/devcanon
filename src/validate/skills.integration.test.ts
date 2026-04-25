@@ -36,7 +36,8 @@ describe("loadAndValidateSkills", () => {
 
   it("loads a single valid skill with correct fields", async () => {
     await mkdir(skillsDir, { recursive: true });
-    const content = "# greeting\n\nA greeting skill.\n";
+    const content =
+      "---\nname: greeting\ndescription: A greeting skill.\n---\n\n# greeting\n\nA greeting skill.\n";
     await createSkillFixture(skillsDir, "greeting", content);
 
     const result = await loadAndValidateSkills(skillsDir);
@@ -46,6 +47,8 @@ describe("loadAndValidateSkills", () => {
       name: "greeting",
       dirPath: path.join(skillsDir, "greeting"),
       skillMdContent: content,
+      source: { name: "greeting", description: "A greeting skill." },
+      body: "# greeting\n\nA greeting skill.\n",
       subdirs: [],
     });
   });
@@ -170,5 +173,108 @@ describe("loadAndValidateSkills", () => {
       expect(message).toContain("not filesystem-safe");
       expect(message).toContain("missing SKILL.md");
     }
+  });
+
+  it("parses frontmatter and populates source + body", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = [
+      "---",
+      "name: example",
+      "description: Use when X.",
+      "---",
+      "",
+      "# Body",
+      "",
+      "content.",
+      "",
+    ].join("\n");
+    await createSkillFixture(skillsDir, "example", content);
+
+    const result = await loadAndValidateSkills(skillsDir);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].source.name).toBe("example");
+    expect(result[0].source.description).toBe("Use when X.");
+    expect(result[0].body).toBe("# Body\n\ncontent.\n");
+  });
+
+  it("rejects a skill missing frontmatter", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(skillsDir, "no-fm", "# just body\n");
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /missing frontmatter|required/i,
+    );
+  });
+
+  it("rejects a skill with unknown top-level frontmatter key", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content =
+      "---\nname: bad\ndescription: d\nunknown_key: 1\n---\n\n# body\n";
+    await createSkillFixture(skillsDir, "bad", content);
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /unknown_key/,
+    );
+  });
+
+  it("rejects a description containing angle brackets", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = "---\nname: xy\ndescription: uses <tool>\n---\n\n# b\n";
+    await createSkillFixture(skillsDir, "xy", content);
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
+  });
+
+  it("accepts claude and codex override blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = [
+      "---",
+      "name: example",
+      "description: Use when X.",
+      "claude:",
+      "  model: opus",
+      "codex:",
+      "  license: MIT",
+      "---",
+      "",
+      "# body",
+      "",
+    ].join("\n");
+    await createSkillFixture(skillsDir, "example", content);
+
+    const result = await loadAndValidateSkills(skillsDir);
+    expect(result[0].source.claude?.model).toBe("opus");
+    expect(result[0].source.codex?.license).toBe("MIT");
+  });
+
+  it("rejects a claude block containing a codex-only key", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = [
+      "---",
+      "name: xy",
+      "description: d",
+      "claude:",
+      "  license: MIT",
+      "---",
+      "",
+    ].join("\n");
+    await createSkillFixture(skillsDir, "xy", content);
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(UserError);
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/license/);
+  });
+
+  it("rejects a skill where frontmatter name differs from directory name", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = "---\nname: other-name\ndescription: d.\n---\n\n# body\n";
+    await createSkillFixture(skillsDir, "my-dir", content);
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /other-name/,
+    );
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/my-dir/);
   });
 });

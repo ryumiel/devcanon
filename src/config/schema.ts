@@ -21,6 +21,37 @@ const TargetConfigSchema = z.object({
   installMode: InstallModeSchema.optional(),
 });
 
+// --- Model tiers ---
+const ModelTierEntrySchema = z.object({
+  claude: z.string().min(1),
+  codex: z.string().min(1),
+});
+
+const MODEL_TIER_KEY = /^\w+$/;
+
+export const ModelTiersSchema = z
+  .record(z.string(), ModelTierEntrySchema)
+  .superRefine((tiers, ctx) => {
+    if (Object.keys(tiers).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "modelTiers must define at least one tier",
+      });
+      return;
+    }
+    for (const key of Object.keys(tiers)) {
+      if (!MODEL_TIER_KEY.test(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Model tier name "${key}" must match /^\\w+$/ (letters, digits, underscore)`,
+          path: [key],
+        });
+      }
+    }
+  });
+
+export type ModelTiers = z.infer<typeof ModelTiersSchema>;
+
 // --- Main config ---
 export const ConfigSchema = z.object({
   version: z.literal(1),
@@ -62,6 +93,7 @@ export const ConfigSchema = z.object({
       path: z.string().default("~/.agents-manager/manifest.json"),
     })
     .default({}),
+  modelTiers: ModelTiersSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -89,6 +121,7 @@ export interface ResolvedConfig {
   manifest: {
     path: string;
   };
+  modelTiers?: ModelTiers;
 }
 
 export interface ResolvedTargetConfig {
@@ -241,3 +274,96 @@ export const ManifestSchema = z.object({
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
+
+// --- Skill source ---
+const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
+
+const AllowedToolsSchema = z.union([
+  z.string().min(1),
+  z.array(z.string().min(1)).min(1),
+]);
+
+const ClaudeSkillOverrideShape = {
+  model: z.string().optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  when_to_use: z.string().optional(),
+  "argument-hint": z.string().optional(),
+  arguments: z.union([z.string(), z.array(z.string())]).optional(),
+  "disable-model-invocation": z.boolean().optional(),
+  "user-invocable": z.boolean().optional(),
+  context: z.string().optional(),
+  agent: z.string().optional(),
+  paths: z.array(z.string()).optional(),
+  shell: z.enum(["bash", "powershell"]).optional(),
+};
+
+export const CLAUDE_SKILL_OVERRIDE_FIELDS = Object.keys(
+  ClaudeSkillOverrideShape,
+) as Array<keyof typeof ClaudeSkillOverrideShape>;
+
+const ClaudeSkillOverrideSchema = z.object(ClaudeSkillOverrideShape).strict();
+
+const CodexSkillOverrideShape = {
+  license: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+};
+
+export const CODEX_SKILL_OVERRIDE_FIELDS = Object.keys(
+  CodexSkillOverrideShape,
+) as Array<keyof typeof CodexSkillOverrideShape>;
+
+const CodexSkillOverrideSchema = z.object(CodexSkillOverrideShape).strict();
+
+const CodexSidecarShape = {
+  interface: z
+    .object({
+      display_name: z.string().optional(),
+      short_description: z.string().optional(),
+      icon_small: z.string().optional(),
+      icon_large: z.string().optional(),
+      brand_color: z.string().optional(),
+      default_prompt: z.string().optional(),
+    })
+    .strict()
+    .optional(),
+  policy: z
+    .object({
+      allow_implicit_invocation: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+  dependencies: z
+    .object({
+      tools: z.array(z.string()).optional(),
+    })
+    .strict()
+    .optional(),
+};
+
+const CodexSidecarSchema = z.object(CodexSidecarShape).strict();
+
+const SkillSourceShape = {
+  name: z
+    .string()
+    .regex(SKILL_NAME, "Must match /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/")
+    .max(64),
+  description: z
+    .string()
+    .min(1)
+    .max(1024)
+    .refine((v) => !/[<>]/.test(v), {
+      message: "description must not contain '<' or '>'",
+    }),
+  "allowed-tools": AllowedToolsSchema.optional(),
+  claude: ClaudeSkillOverrideSchema.optional(),
+  codex: CodexSkillOverrideSchema.optional(),
+  codex_sidecar: CodexSidecarSchema.optional(),
+};
+
+export const SKILL_SOURCE_FIELDS = Object.keys(SkillSourceShape) as Array<
+  keyof typeof SkillSourceShape
+>;
+
+export const SkillSourceSchema = z.object(SkillSourceShape).strict();
+
+export type SkillSource = z.infer<typeof SkillSourceSchema>;

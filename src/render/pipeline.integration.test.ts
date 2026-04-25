@@ -1,6 +1,6 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
   createAgentFixture,
@@ -14,16 +14,7 @@ import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
-import { hashDirectory } from "../utils/hash.js";
 import { renderAll } from "./pipeline.js";
-
-vi.mock("../utils/hash.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../utils/hash.js")>();
-  return {
-    ...actual,
-    hashDirectory: vi.fn(actual.hashDirectory),
-  };
-});
 
 describe("renderAll", () => {
   let tempDir: string;
@@ -487,23 +478,17 @@ describe("renderAll", () => {
     });
   });
 
-  describe("skill hash hoisting", () => {
-    const mockedHashDirectory = vi.mocked(hashDirectory);
-
-    beforeEach(() => {
-      mockedHashDirectory.mockClear();
-    });
-
-    it("computes each skill's hash once, reuses across enabled targets", async () => {
+  describe("skill content hashing", () => {
+    it("produces distinct hashes for skills with different content", async () => {
       await createSkillFixture(
         config.library.skillsDir,
         "skill-a",
-        "# skill-a\n\nAlpha content.\n",
+        "---\nname: skill-a\ndescription: Alpha skill.\n---\n\n# skill-a\n\nAlpha content.\n",
       );
       await createSkillFixture(
         config.library.skillsDir,
         "skill-b",
-        "# skill-b\n\nBeta content.\n",
+        "---\nname: skill-b\ndescription: Beta skill.\n---\n\n# skill-b\n\nBeta content.\n",
       );
       await createAgentFixture(
         config.library.agentsDir,
@@ -512,8 +497,6 @@ describe("renderAll", () => {
       );
 
       const result = await renderAll(config, false);
-
-      expect(mockedHashDirectory).toHaveBeenCalledTimes(2);
 
       const skillOutputs = result.outputs.filter((o) => o.type === "skill");
       expect(skillOutputs).toHaveLength(4);
@@ -529,25 +512,13 @@ describe("renderAll", () => {
       )?.contentHash;
 
       expect(aClaude).toBeDefined();
+      // For a neutral skill with no target overrides, rendered content is identical
       expect(aClaude).toBe(aCodex);
+      // Skills with different content produce different hashes
       expect(aClaude).not.toBe(bClaude);
     });
 
-    it("propagates hashDirectory rejection without writing generated outputs", async () => {
-      await createSkillFixture(config.library.skillsDir, "doomed-skill");
-      await createAgentFixture(
-        config.library.agentsDir,
-        "a1",
-        makeAgentYaml("a1"),
-      );
-
-      mockedHashDirectory.mockRejectedValueOnce(new Error("disk on fire"));
-
-      await expect(renderAll(config, true)).rejects.toThrow("disk on fire");
-      expect(await pathExists(config.library.generatedDir)).toBe(false);
-    });
-
-    it("skips skill hashing when no targets will render", async () => {
+    it("produces no outputs when all targets are disabled", async () => {
       const noTargetsConfig = makeResolvedConfig(tempDir, {
         claude: { enabled: false },
         codex: { enabled: false },
@@ -556,11 +527,10 @@ describe("renderAll", () => {
 
       const result = await renderAll(noTargetsConfig, false);
 
-      expect(mockedHashDirectory).not.toHaveBeenCalled();
       expect(result.outputs).toEqual([]);
     });
 
-    it("skips skill hashing when targetFilter excludes all enabled targets", async () => {
+    it("produces no outputs when targetFilter excludes all enabled targets", async () => {
       const claudeOnlyConfig = makeResolvedConfig(tempDir, {
         codex: { enabled: false },
       });
@@ -568,7 +538,6 @@ describe("renderAll", () => {
 
       const result = await renderAll(claudeOnlyConfig, false, false, "codex");
 
-      expect(mockedHashDirectory).not.toHaveBeenCalled();
       expect(result.outputs).toEqual([]);
     });
   });
@@ -599,5 +568,287 @@ describe("renderAll", () => {
     await renderAll(config, true);
 
     expect(await pathExists(staleClaudePath)).toBe(false);
+  });
+
+  it("writes per-target SKILL.md with managed headers", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "my-skill",
+      [
+        "---",
+        "name: my-skill",
+        "description: A test skill.",
+        "---",
+        "",
+        "# my-skill",
+        "",
+        "Body.",
+        "",
+      ].join("\n"),
+    );
+
+    await renderAll(config, true);
+
+    const claudePath = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "my-skill",
+      "SKILL.md",
+    );
+    const codexPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "my-skill",
+      "SKILL.md",
+    );
+
+    const claudeContent = await readFile(claudePath, "utf-8");
+    const codexContent = await readFile(codexPath, "utf-8");
+
+    expect(claudeContent).toContain("<!-- Managed by agents-manager");
+    expect(claudeContent).toContain("name: my-skill");
+    expect(codexContent).toContain("<!-- Managed by agents-manager");
+    expect(codexContent).toContain("name: my-skill");
+  });
+
+  it("writes the codex sidecar when codex_sidecar is present", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "sc-skill",
+      [
+        "---",
+        "name: sc-skill",
+        "description: A test skill.",
+        "codex_sidecar:",
+        "  interface:",
+        "    display_name: SC Skill",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+    );
+
+    await renderAll(config, true);
+
+    const sidecarPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "sc-skill",
+      "agents",
+      "openai.yaml",
+    );
+    expect(await pathExists(sidecarPath)).toBe(true);
+    const content = await readFile(sidecarPath, "utf-8");
+    expect(content).toContain("display_name: SC Skill");
+  });
+
+  it("substitutes {{model:*}} placeholders per target", async () => {
+    const tieredConfig = makeResolvedConfig(tempDir);
+    tieredConfig.modelTiers = {
+      fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+      standard: { claude: "sonnet", codex: "gpt-5.4" },
+      deep: { claude: "opus", codex: "gpt-5.4" },
+    };
+
+    await createSkillFixture(
+      tieredConfig.library.skillsDir,
+      "tier-skill",
+      [
+        "---",
+        "name: tier-skill",
+        "description: A test skill.",
+        "---",
+        "",
+        "use {{model:deep}} for synthesis",
+        "",
+      ].join("\n"),
+    );
+
+    await renderAll(tieredConfig, true);
+
+    const claudeContent = await readFile(
+      path.join(
+        tieredConfig.library.generatedDir,
+        "claude",
+        "skills",
+        "tier-skill",
+        "SKILL.md",
+      ),
+      "utf-8",
+    );
+    const codexContent = await readFile(
+      path.join(
+        tieredConfig.library.generatedDir,
+        "codex",
+        "skills",
+        "tier-skill",
+        "SKILL.md",
+      ),
+      "utf-8",
+    );
+    expect(claudeContent).toContain("use opus for synthesis");
+    expect(codexContent).toContain("use gpt-5.4 for synthesis");
+  });
+
+  it("mirrors known subdirs into each target's generated dir", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "sub-skill",
+      [
+        "---",
+        "name: sub-skill",
+        "description: A test skill.",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+      ["references", "scripts"],
+    );
+    // Put a file inside references/ to verify mirroring.
+    await writeFile(
+      path.join(
+        config.library.skillsDir,
+        "sub-skill",
+        "references",
+        "notes.md",
+      ),
+      "hello\n",
+      "utf-8",
+    );
+
+    await renderAll(config, true);
+
+    const claudeFile = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sub-skill",
+      "references",
+      "notes.md",
+    );
+    const codexFile = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "sub-skill",
+      "references",
+      "notes.md",
+    );
+    expect(await pathExists(claudeFile)).toBe(true);
+    expect(await pathExists(codexFile)).toBe(true);
+  });
+
+  it("purges stale orphans inside a per-skill generated dir on re-render", async () => {
+    // First render: skill with codex_sidecar and a mirrored scripts/ subdir.
+    await createSkillFixture(
+      config.library.skillsDir,
+      "purge-skill",
+      [
+        "---",
+        "name: purge-skill",
+        "description: A skill with sidecar and subdir.",
+        "codex_sidecar:",
+        "  interface:",
+        "    display_name: Purge Skill",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+      ["scripts"],
+    );
+    await writeFile(
+      path.join(config.library.skillsDir, "purge-skill", "scripts", "foo.txt"),
+      "hello\n",
+      "utf-8",
+    );
+
+    await renderAll(config, true);
+
+    const sidecarPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "purge-skill",
+      "agents",
+      "openai.yaml",
+    );
+    const scriptsPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "purge-skill",
+      "scripts",
+      "foo.txt",
+    );
+    expect(await pathExists(sidecarPath)).toBe(true);
+    expect(await pathExists(scriptsPath)).toBe(true);
+
+    // Re-render with codex_sidecar removed AND scripts/ removed from source.
+    await rm(path.join(config.library.skillsDir, "purge-skill"), {
+      recursive: true,
+      force: true,
+    });
+    await createSkillFixture(
+      config.library.skillsDir,
+      "purge-skill",
+      [
+        "---",
+        "name: purge-skill",
+        "description: A skill with sidecar and subdir.",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+    );
+
+    await renderAll(config, true);
+
+    expect(await pathExists(sidecarPath)).toBe(false);
+    expect(await pathExists(scriptsPath)).toBe(false);
+  });
+
+  it("removes stale per-target skill directories when the source is deleted", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "stale-skill",
+      "---\nname: stale-skill\ndescription: A skill that will be deleted.\n---\n\n# body\n",
+    );
+
+    // First render — skill dirs are created
+    await renderAll(config, true);
+
+    const claudeSkillDir = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "stale-skill",
+    );
+    const codexSkillDir = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "stale-skill",
+    );
+    expect(await pathExists(claudeSkillDir)).toBe(true);
+    expect(await pathExists(codexSkillDir)).toBe(true);
+
+    // Delete the source skill
+    await rm(path.join(config.library.skillsDir, "stale-skill"), {
+      recursive: true,
+      force: true,
+    });
+
+    // Re-render — stale generated dirs should be removed
+    await renderAll(config, true);
+
+    expect(await pathExists(claudeSkillDir)).toBe(false);
+    expect(await pathExists(codexSkillDir)).toBe(false);
   });
 });

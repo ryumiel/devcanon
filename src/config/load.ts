@@ -90,6 +90,7 @@ export async function loadConfig(
       "defaults",
       "platform",
       "manifest",
+      "modelTiers",
     ]);
     for (const key of Object.keys(parsed)) {
       if (!knownKeys.has(key)) {
@@ -147,5 +148,6 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
     manifest: {
       path: expandHome(config.manifest.path),
     },
+    modelTiers: config.modelTiers,
   };
 }
