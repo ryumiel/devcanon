@@ -49,13 +49,20 @@ export function renderSkillForTarget(
   // Extra-file basenames (relative to the skill's generated dir) are folded
   // in alongside their content. We use basenames rather than absolute paths
   // so the hash stays stable across machines / users.
+  //
+  // Determinism guards:
+  //   1. Sort with a byte-wise comparator rather than `localeCompare`. Locale
+  //      collation (e.g. tr-TR) can reorder otherwise-identical inputs.
+  //   2. Normalize the path separator to forward slash before hashing so the
+  //      same skill yields the same hash on POSIX and Windows.
   const hashParts: string[] = [content];
   const extraEntries = Array.from(extraFiles.entries()).sort(([a], [b]) =>
-    a.localeCompare(b),
+    a < b ? -1 : a > b ? 1 : 0,
   );
   for (const [absPath, fileContent] of extraEntries) {
     const relPath = path.relative(generatedDir, absPath);
-    hashParts.push(relPath, fileContent);
+    const posixRelPath = relPath.split(path.sep).join("/");
+    hashParts.push(posixRelPath, fileContent);
   }
   const contentHash = sha256(hashParts.join("\0"));
 

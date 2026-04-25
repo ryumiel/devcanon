@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeResolvedConfig } from "../__test-helpers__/fixtures.js";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
+import { sha256 } from "../utils/hash.js";
 import { renderSkillForTarget } from "./skill.js";
 
 const TIERS: ModelTiers = {
@@ -102,5 +103,31 @@ describe("renderSkillForTarget contentHash", () => {
     const a = renderSkillForTarget(makeLoaded(source), "codex", config);
     const b = renderSkillForTarget(makeLoaded(source), "codex", config);
     expect(a.rendered.contentHash).toBe(b.rendered.contentHash);
+  });
+
+  it("uses POSIX-normalized relative paths in the sidecar hash", () => {
+    // The hash must not depend on the host's path separator. We pin it to
+    // the POSIX representation by reproducing the implementation's recipe
+    // with `agents/openai.yaml` (forward-slash) and asserting equality. A
+    // regression that hashed `agents\openai.yaml` on Windows would diverge.
+    const config = makeResolvedConfig("/tmp/test-hash");
+    config.modelTiers = TIERS;
+
+    const source: SkillSource = {
+      name: "x",
+      description: "d",
+      codex_sidecar: { interface: { display_name: "Stable" } },
+    };
+    const rendered = renderSkillForTarget(
+      makeLoaded(source),
+      "codex",
+      config,
+    ).rendered;
+
+    const sidecarYaml = "interface:\n  display_name: Stable\n";
+    const expected = sha256(
+      [rendered.content, "agents/openai.yaml", sidecarYaml].join("\0"),
+    );
+    expect(rendered.contentHash).toBe(expected);
   });
 });
