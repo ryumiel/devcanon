@@ -24,6 +24,8 @@ describe("resolvePlaceholders", () => {
     expect(segments).toHaveLength(2);
     expect(segments[0]).toContain("Use opus here.");
     expect(segments[1]).toContain("Use sonnet here.");
+    expect(segments.join("\n")).not.toContain('const model = "opus";');
+    expect(segments.join("\n")).not.toContain("```ts");
   });
 
   it("substitutes a single tier for the claude target", () => {
