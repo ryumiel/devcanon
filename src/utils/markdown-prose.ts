@@ -35,23 +35,49 @@ function isClosingFence(line: string, open: FenceState): boolean {
   return /^\s*$/.test(after);
 }
 
+function isIndentedCodeLine(line: string): boolean {
+  return /^( {4,}|\t)/.test(line);
+}
+
 export function visitMarkdownLines(
   input: string,
   visitor: MarkdownLineVisitor,
 ): void {
   const lines = input.split("\n");
   let openFence: FenceState | null = null;
+  let inIndentedCodeBlock = false;
+  let afterProseLine = false;
 
   for (const line of lines) {
     const trimmed = line.trimStart();
     if (openFence === null) {
+      if (inIndentedCodeBlock) {
+        if (line.trim().length === 0 || isIndentedCodeLine(line)) {
+          visitor.onCodeLine?.(line);
+          afterProseLine = false;
+          continue;
+        }
+
+        inIndentedCodeBlock = false;
+      }
+
       const opening = fenceInfo(trimmed);
       if (opening) {
         openFence = opening;
         visitor.onFenceLine?.(line);
+        afterProseLine = false;
         continue;
       }
+
+      if (!afterProseLine && isIndentedCodeLine(line)) {
+        inIndentedCodeBlock = true;
+        visitor.onCodeLine?.(line);
+        afterProseLine = false;
+        continue;
+      }
+
       visitor.onProseLine(line);
+      afterProseLine = line.trim().length > 0;
       continue;
     }
 
@@ -61,10 +87,12 @@ export function visitMarkdownLines(
     if (isClosingFence(trimmed, openFence)) {
       openFence = null;
       visitor.onFenceLine?.(line);
+      afterProseLine = false;
       continue;
     }
 
     visitor.onCodeLine?.(line);
+    afterProseLine = false;
   }
 }
 

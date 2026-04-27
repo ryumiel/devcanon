@@ -116,7 +116,7 @@ export async function loadAndValidateSkills(
 
     if (diagnostics?.enabled) {
       const driftDiagnostics = collectDriftDiagnostics(
-        parsed.body,
+        [result.data.description, parsed.body],
         diagnostics.modelTiers,
       );
 
@@ -151,10 +151,12 @@ export async function loadAndValidateSkills(
 }
 
 function collectDriftDiagnostics(
-  skillBody: string,
+  sharedProseInputs: readonly string[],
   modelTiers: ModelTiers | undefined,
 ): DriftDiagnostic[] {
-  const proseSegments = collectProseSegments(skillBody);
+  const proseSegments = sharedProseInputs.flatMap((input) =>
+    collectProseSegments(input),
+  );
   if (proseSegments.length === 0) return [];
 
   const found = new Map<string, DriftDiagnostic>();

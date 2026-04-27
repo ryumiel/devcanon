@@ -370,6 +370,36 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("warns on drift-prone tokens in frontmatter description", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "description-drift",
+      [
+        "---",
+        "name: description-drift",
+        "description: Prefer sonnet when drafting shared instructions.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Body prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /description-drift/i, /sonnet/i);
+    });
+  });
+
   it("fails in strict validate mode on raw Claude aliases in prose", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
@@ -518,6 +548,44 @@ describe("loadAndValidateSkills", () => {
         "preferred_model: sonnet",
         "backup_model: gpt-5.4",
         "```",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("ignores flagged tokens inside indented code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "indented-code-immunity",
+      [
+        "---",
+        "name: indented-code-immunity",
+        "description: Ignore literal tokens inside indented code blocks.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "    preferred_model: sonnet",
+        "    backup_model: gpt-5.4",
         "",
         "Outside prose stays neutral.",
         "",
