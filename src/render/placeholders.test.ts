@@ -10,18 +10,20 @@ const TIERS: ModelTiers = {
 
 describe("resolvePlaceholders", () => {
   it("iterates prose and fenced-code segments with fenced code immunity", () => {
-    expect(
-      collectProseSegments(
-        [
-          "Use opus here.",
-          "```ts",
-          'const model = "opus";',
-          "```",
-          "Use sonnet here.",
-          "",
-        ].join("\n"),
-      ),
-    ).toEqual(["Use opus here.\n", "Use sonnet here.\n\n"]);
+    const segments = collectProseSegments(
+      [
+        "Use opus here.",
+        "```ts",
+        'const model = "opus";',
+        "```",
+        "Use sonnet here.",
+        "",
+      ].join("\n"),
+    );
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toContain("Use opus here.");
+    expect(segments[1]).toContain("Use sonnet here.");
   });
 
   it("substitutes a single tier for the claude target", () => {

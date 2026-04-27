@@ -74,13 +74,12 @@ describe("loadAndValidateSkills", () => {
     }
   }
 
-  function expectWarnings(
-    warnings: string[],
-    expectedPatterns: RegExp[],
-  ): void {
-    for (const pattern of expectedPatterns) {
-      expect(warnings.some((warning) => pattern.test(warning))).toBe(true);
-    }
+  function expectWarningLine(warnings: string[], ...patterns: RegExp[]): void {
+    expect(
+      warnings.some((warning) =>
+        patterns.every((pattern) => pattern.test(warning)),
+      ),
+    ).toBe(true);
   }
 
   it("returns empty array when skills directory does not exist", async () => {
@@ -366,7 +365,8 @@ describe("loadAndValidateSkills", () => {
       });
 
       expect(result).toHaveLength(1);
-      expectWarnings(warnings, [/raw model alias/i, /sonnet/i, /opus/i]);
+      expectWarningLine(warnings, /raw model alias/i, /sonnet/i);
+      expectWarningLine(warnings, /raw model alias/i, /opus/i);
     });
   });
 
@@ -436,7 +436,7 @@ describe("loadAndValidateSkills", () => {
         },
       });
 
-      expectWarnings(warnings, [/raw configured model id/i, /gpt-5\.4-mini/i]);
+      expectWarningLine(warnings, /raw configured model id/i, /gpt-5\.4-mini/i);
     });
   });
 
