@@ -22,10 +22,7 @@ describe("resolvePlaceholders", () => {
           "after opus",
         ].join("\n"),
       ),
-    ).toEqual([
-      { text: "before sonnet\n", startLine: 1, endLine: 1 },
-      { text: "\nafter opus", startLine: 6, endLine: 7 },
-    ]);
+    ).toEqual(["before sonnet\n", "\nafter opus"]);
   });
 
   it("substitutes a single tier for the claude target", () => {

@@ -6,6 +6,7 @@ import {
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
+import type { ModelTiers } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";
@@ -16,8 +17,11 @@ describe("loadAndValidateSkills", () => {
   const loadAndValidateSkillsWithDiagnostics = loadAndValidateSkills as (
     skillsDir: string,
     options?: {
-      strict?: boolean;
-      codexModelIds?: string[];
+      diagnostics?: {
+        enabled?: boolean;
+        strict?: boolean;
+        modelTiers?: ModelTiers;
+      };
       logger?: Logger;
     },
   ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
@@ -329,11 +333,17 @@ describe("loadAndValidateSkills", () => {
 
     try {
       const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
-        strict: false,
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
         logger,
       });
 
       expect(result).toHaveLength(1);
+      expect(warnings).toContainEqual(
+        expect.stringMatching(/raw model alias/i),
+      );
       expect(warnings).toContainEqual(expect.stringMatching(/sonnet/i));
       expect(warnings).toContainEqual(expect.stringMatching(/opus/i));
     } finally {
@@ -360,7 +370,20 @@ describe("loadAndValidateSkills", () => {
     );
 
     await expect(
-      loadAndValidateSkillsWithDiagnostics(skillsDir, { strict: true }),
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+        },
+      }),
+    ).rejects.toThrow(/raw model alias/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+        },
+      }),
     ).rejects.toThrow(/haiku/i);
   });
 
@@ -388,10 +411,20 @@ describe("loadAndValidateSkills", () => {
 
     try {
       await loadAndValidateSkillsWithDiagnostics(skillsDir, {
-        codexModelIds: ["gpt-5.4-mini", "gpt-5.4"],
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          modelTiers: {
+            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+            standard: { claude: "sonnet", codex: "gpt-5.4" },
+          },
+        },
         logger,
       });
 
+      expect(warnings).toContainEqual(
+        expect.stringMatching(/raw configured model id/i),
+      );
       expect(warnings).toContainEqual(expect.stringMatching(/gpt-5\.4-mini/i));
     } finally {
       setLogger(priorLogger);
@@ -428,8 +461,13 @@ describe("loadAndValidateSkills", () => {
     try {
       await expect(
         loadAndValidateSkillsWithDiagnostics(skillsDir, {
-          strict: true,
-          codexModelIds: ["gpt-5.4"],
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
           logger,
         }),
       ).resolves.toHaveLength(1);
