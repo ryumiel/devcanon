@@ -7,11 +7,20 @@ import {
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
 import { UserError } from "../utils/errors.js";
+import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";
 
 describe("loadAndValidateSkills", () => {
   let tempDir: string;
   let skillsDir: string;
+  const loadAndValidateSkillsWithDiagnostics = loadAndValidateSkills as (
+    skillsDir: string,
+    options?: {
+      strict?: boolean;
+      codexModelIds?: string[];
+      logger?: Logger;
+    },
+  ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -21,6 +30,24 @@ describe("loadAndValidateSkills", () => {
   afterEach(async () => {
     await cleanupTempDir(tempDir);
   });
+
+  function createRecordingLogger(): {
+    logger: Logger;
+    warnings: string[];
+  } {
+    const warnings: string[] = [];
+    return {
+      logger: {
+        error: () => {},
+        warn: (msg) => warnings.push(msg),
+        info: () => {},
+        verbose: () => {},
+        debug: () => {},
+        json: () => {},
+      },
+      warnings,
+    };
+  }
 
   it("returns empty array when skills directory does not exist", async () => {
     const result = await loadAndValidateSkills(skillsDir);
@@ -276,5 +303,140 @@ describe("loadAndValidateSkills", () => {
       /other-name/,
     );
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/my-dir/);
+  });
+
+  it("warns in non-strict validate mode on raw Claude aliases in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-claude-alias",
+      [
+        "---",
+        "name: raw-claude-alias",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Prefer sonnet for planning and opus for review.",
+        "",
+      ].join("\n"),
+    );
+
+    const { logger, warnings } = createRecordingLogger();
+    const priorLogger = getLogger();
+    setLogger(logger);
+
+    try {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        strict: false,
+        logger,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(warnings).toContainEqual(expect.stringMatching(/sonnet/i));
+      expect(warnings).toContainEqual(expect.stringMatching(/opus/i));
+    } finally {
+      setLogger(priorLogger);
+    }
+  });
+
+  it("fails in strict validate mode on raw Claude aliases in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-raw-claude-alias",
+      [
+        "---",
+        "name: strict-raw-claude-alias",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use haiku for lightweight scans.",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { strict: true }),
+    ).rejects.toThrow(/haiku/i);
+  });
+
+  it("warns for configured Codex model ids in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-model",
+      [
+        "---",
+        "name: raw-codex-model",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Reach for gpt-5.4-mini when turnaround matters.",
+        "",
+      ].join("\n"),
+    );
+
+    const { logger, warnings } = createRecordingLogger();
+    const priorLogger = getLogger();
+    setLogger(logger);
+
+    try {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        codexModelIds: ["gpt-5.4-mini", "gpt-5.4"],
+        logger,
+      });
+
+      expect(warnings).toContainEqual(expect.stringMatching(/gpt-5\.4-mini/i));
+    } finally {
+      setLogger(priorLogger);
+    }
+  });
+
+  it("ignores flagged tokens inside fenced code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "fenced-code-immunity",
+      [
+        "---",
+        "name: fenced-code-immunity",
+        "description: Ignore literal tokens inside fences.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "```yaml",
+        "preferred_model: sonnet",
+        "backup_model: gpt-5.4",
+        "```",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    const { logger, warnings } = createRecordingLogger();
+    const priorLogger = getLogger();
+    setLogger(logger);
+
+    try {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          strict: true,
+          codexModelIds: ["gpt-5.4"],
+          logger,
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    } finally {
+      setLogger(priorLogger);
+    }
   });
 });

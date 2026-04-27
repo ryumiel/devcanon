@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelTiers } from "../config/schema.js";
-import { resolvePlaceholders } from "./placeholders.js";
+import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
 const TIERS: ModelTiers = {
   fast: { claude: "haiku", codex: "gpt-5.4-mini" },
@@ -9,6 +9,25 @@ const TIERS: ModelTiers = {
 };
 
 describe("resolvePlaceholders", () => {
+  it("iterates prose and fenced-code segments with fenced code immunity", () => {
+    expect(
+      collectProseSegments(
+        [
+          "before sonnet",
+          "",
+          "```md",
+          "inside sonnet",
+          "```",
+          "",
+          "after opus",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      { text: "before sonnet\n", startLine: 1, endLine: 1 },
+      { text: "\nafter opus", startLine: 6, endLine: 7 },
+    ]);
+  });
+
   it("substitutes a single tier for the claude target", () => {
     const out = resolvePlaceholders(
       "use {{model:deep}} for synthesis",
