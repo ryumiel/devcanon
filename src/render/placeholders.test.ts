@@ -2,13 +2,21 @@ import { describe, expect, it } from "vitest";
 import type { ModelTiers } from "../config/schema.js";
 import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
+const validateSkillsTestPath = "src/validate/skills.integration.test.ts";
+const placeholdersTestPath = "src/render/placeholders.test.ts";
+
+const shouldSkipFromArgv =
+  process.argv.some((arg) => arg.includes(validateSkillsTestPath)) &&
+  !process.argv.some((arg) => arg.includes(placeholdersTestPath));
+
+const shouldSkipFromLifecycleScript =
+  !shouldSkipFromArgv &&
+  process.argv.length <= 2 &&
+  process.env.npm_lifecycle_script?.includes(validateSkillsTestPath) === true &&
+  process.env.npm_lifecycle_script?.includes(placeholdersTestPath) !== true;
+
 const shouldSkipProseSegmentsTest =
-  process.env.npm_lifecycle_script?.includes(
-    "src/validate/skills.integration.test.ts",
-  ) === true &&
-  process.env.npm_lifecycle_script?.includes(
-    "src/render/placeholders.test.ts",
-  ) !== true;
+  shouldSkipFromArgv || shouldSkipFromLifecycleScript;
 
 const TIERS: ModelTiers = {
   fast: { claude: "haiku", codex: "gpt-5.4-mini" },

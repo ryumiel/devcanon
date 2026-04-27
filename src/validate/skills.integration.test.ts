@@ -22,7 +22,6 @@ describe("loadAndValidateSkills", () => {
         strict?: boolean;
         modelTiers?: ModelTiers;
       };
-      logger?: Logger;
     },
   ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
 
@@ -43,7 +42,15 @@ describe("loadAndValidateSkills", () => {
     return {
       logger: {
         error: () => {},
-        warn: (msg) => warnings.push(msg),
+        warn: (msg, ...args) => {
+          warnings.push(
+            [msg, ...args]
+              .map((value) =>
+                typeof value === "string" ? value : JSON.stringify(value),
+              )
+              .join(" "),
+          );
+        },
         info: () => {},
         verbose: () => {},
         debug: () => {},
@@ -51,6 +58,28 @@ describe("loadAndValidateSkills", () => {
       },
       warnings,
     };
+  }
+
+  async function captureWarnings<T>(
+    callback: (warnings: string[]) => Promise<T>,
+  ): Promise<T> {
+    const { logger, warnings } = createRecordingLogger();
+    const priorLogger = getLogger();
+    setLogger(logger);
+
+    try {
+      return await callback(warnings);
+    } finally {
+      setLogger(priorLogger);
+    }
+  }
+
+  function expectWarning(warnings: string[], ...patterns: RegExp[]): void {
+    expect(
+      warnings.some((warning) =>
+        patterns.every((pattern) => pattern.test(warning)),
+      ),
+    ).toBe(true);
   }
 
   it("returns empty array when skills directory does not exist", async () => {
@@ -327,28 +356,17 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
-    const { logger, warnings } = createRecordingLogger();
-    const priorLogger = getLogger();
-    setLogger(logger);
-
-    try {
+    await captureWarnings(async (warnings) => {
       const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
         diagnostics: {
           enabled: true,
           strict: false,
         },
-        logger,
       });
 
       expect(result).toHaveLength(1);
-      expect(warnings).toContainEqual(
-        expect.stringMatching(/raw model alias/i),
-      );
-      expect(warnings).toContainEqual(expect.stringMatching(/sonnet/i));
-      expect(warnings).toContainEqual(expect.stringMatching(/opus/i));
-    } finally {
-      setLogger(priorLogger);
-    }
+      expectWarning(warnings, /raw model alias/i, /sonnet/i, /opus/i);
+    });
   });
 
   it("fails in strict validate mode on raw Claude aliases in prose", async () => {
@@ -405,11 +423,7 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
-    const { logger, warnings } = createRecordingLogger();
-    const priorLogger = getLogger();
-    setLogger(logger);
-
-    try {
+    await captureWarnings(async (warnings) => {
       await loadAndValidateSkillsWithDiagnostics(skillsDir, {
         diagnostics: {
           enabled: true,
@@ -419,16 +433,10 @@ describe("loadAndValidateSkills", () => {
             standard: { claude: "sonnet", codex: "gpt-5.4" },
           },
         },
-        logger,
       });
 
-      expect(warnings).toContainEqual(
-        expect.stringMatching(/raw configured model id/i),
-      );
-      expect(warnings).toContainEqual(expect.stringMatching(/gpt-5\.4-mini/i));
-    } finally {
-      setLogger(priorLogger);
-    }
+      expectWarning(warnings, /raw configured model id/i, /gpt-5\.4-mini/i);
+    });
   });
 
   it("ignores flagged tokens inside fenced code blocks", async () => {
@@ -454,11 +462,7 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
-    const { logger, warnings } = createRecordingLogger();
-    const priorLogger = getLogger();
-    setLogger(logger);
-
-    try {
+    await captureWarnings(async (warnings) => {
       await expect(
         loadAndValidateSkillsWithDiagnostics(skillsDir, {
           diagnostics: {
@@ -468,13 +472,10 @@ describe("loadAndValidateSkills", () => {
               standard: { claude: "sonnet", codex: "gpt-5.4" },
             },
           },
-          logger,
         }),
       ).resolves.toHaveLength(1);
 
       expect(warnings).toEqual([]);
-    } finally {
-      setLogger(priorLogger);
-    }
+    });
   });
 });
