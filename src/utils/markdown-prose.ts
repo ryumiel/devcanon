@@ -39,6 +39,17 @@ function isIndentedCodeLine(line: string): boolean {
   return /^( {4,}|\t)/.test(line);
 }
 
+function isParagraphLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return false;
+  if (/^#{1,6}(?:\s|$)/.test(trimmed)) return false;
+  if (/^>/.test(trimmed)) return false;
+  if (/^([-+*])(?:\s|$)/.test(trimmed)) return false;
+  if (/^\d+[.)]\s/.test(trimmed)) return false;
+  if (/^([-*_])(?:\s*\1){2,}\s*$/.test(trimmed)) return false;
+  return true;
+}
+
 export function visitMarkdownLines(
   input: string,
   visitor: MarkdownLineVisitor,
@@ -46,7 +57,7 @@ export function visitMarkdownLines(
   const lines = input.split("\n");
   let openFence: FenceState | null = null;
   let inIndentedCodeBlock = false;
-  let afterProseLine = false;
+  let afterParagraphLine = false;
 
   for (const line of lines) {
     const trimmed = line.trimStart();
@@ -54,7 +65,7 @@ export function visitMarkdownLines(
       if (inIndentedCodeBlock) {
         if (line.trim().length === 0 || isIndentedCodeLine(line)) {
           visitor.onCodeLine?.(line);
-          afterProseLine = false;
+          afterParagraphLine = false;
           continue;
         }
 
@@ -65,19 +76,19 @@ export function visitMarkdownLines(
       if (opening) {
         openFence = opening;
         visitor.onFenceLine?.(line);
-        afterProseLine = false;
+        afterParagraphLine = false;
         continue;
       }
 
-      if (!afterProseLine && isIndentedCodeLine(line)) {
+      if (!afterParagraphLine && isIndentedCodeLine(line)) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
-        afterProseLine = false;
+        afterParagraphLine = false;
         continue;
       }
 
       visitor.onProseLine(line);
-      afterProseLine = line.trim().length > 0;
+      afterParagraphLine = isParagraphLine(line);
       continue;
     }
 
@@ -87,12 +98,12 @@ export function visitMarkdownLines(
     if (isClosingFence(trimmed, openFence)) {
       openFence = null;
       visitor.onFenceLine?.(line);
-      afterProseLine = false;
+      afterParagraphLine = false;
       continue;
     }
 
     visitor.onCodeLine?.(line);
-    afterProseLine = false;
+    afterParagraphLine = false;
   }
 }
 

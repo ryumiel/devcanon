@@ -643,4 +643,41 @@ describe("loadAndValidateSkills", () => {
       expect(warnings).toEqual([]);
     });
   });
+
+  it("ignores flagged tokens inside heading-adjacent indented code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "heading-adjacent-indented-code-immunity",
+      [
+        "---",
+        "name: heading-adjacent-indented-code-immunity",
+        "description: Ignore literal tokens inside heading-adjacent indented code blocks.",
+        "---",
+        "",
+        "# Example",
+        "    preferred_model: sonnet",
+        "    backup_model: gpt-5.4",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
 });

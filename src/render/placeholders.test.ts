@@ -71,6 +71,18 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("and haiku after");
   });
 
+  it("leaves heading-adjacent indented code blocks untouched", () => {
+    const input = [
+      "# Example",
+      "    model: {{model:deep}}",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("    model: {{model:deep}}");
+    expect(out).toContain("after: haiku");
+  });
+
   it("respects escape syntax", () => {
     const out = resolvePlaceholders(
       "literal \\{{model:deep}} here",
