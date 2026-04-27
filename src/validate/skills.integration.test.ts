@@ -440,6 +440,37 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("warns for target-specific path tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-target-path",
+      [
+        "---",
+        "name: raw-target-path",
+        "description: Detect target-specific path drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Do not tell users to copy files into ~/.claude/skills or ~/.codex/agents.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /raw-target-path/i, /\.claude\//i);
+      expectWarningLine(warnings, /raw-target-path/i, /~\/\.codex\//i);
+    });
+  });
+
   it("ignores flagged tokens inside fenced code blocks", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(

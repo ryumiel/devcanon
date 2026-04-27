@@ -18,6 +18,12 @@ interface FenceState {
   length: number;
 }
 
+interface MarkdownLineVisitor {
+  onProseLine(line: string): void;
+  onFenceLine?(line: string): void;
+  onCodeLine?(line: string): void;
+}
+
 function fenceInfo(line: string): FenceState | null {
   const match = line.match(FENCE_OPEN);
   if (!match) return null;
@@ -37,14 +43,9 @@ function isClosingFence(line: string, open: FenceState): boolean {
   return /^\s*$/.test(after);
 }
 
-export function resolvePlaceholders(
-  input: string,
-  target: "claude" | "codex",
-  modelTiers: ModelTiers | undefined,
-): string {
+function visitMarkdownLines(input: string, visitor: MarkdownLineVisitor): void {
   const lines = input.split("\n");
   let openFence: FenceState | null = null;
-  const out: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trimStart();
@@ -52,22 +53,70 @@ export function resolvePlaceholders(
       const opening = fenceInfo(trimmed);
       if (opening) {
         openFence = opening;
-        out.push(line);
+        visitor.onFenceLine?.(line);
         continue;
       }
-      out.push(substituteLine(line, target, modelTiers));
+      visitor.onProseLine(line);
       continue;
     }
+
     // Inside an open fence: only a same-char, equal-or-longer fence with no
     // info string closes it. A nested ``` inside a 4-backtick fence, or a
     // tilde line inside a backtick fence, does not close.
     if (isClosingFence(trimmed, openFence)) {
       openFence = null;
-      out.push(line);
+      visitor.onFenceLine?.(line);
       continue;
     }
-    out.push(line);
+
+    visitor.onCodeLine?.(line);
   }
+}
+
+export function collectProseSegments(input: string): string[] {
+  const segments: string[] = [];
+  let current: string[] = [];
+
+  const flush = () => {
+    if (current.length === 0) return;
+    segments.push(current.join("\n"));
+    current = [];
+  };
+
+  visitMarkdownLines(input, {
+    onProseLine: (line) => {
+      current.push(line);
+    },
+    onFenceLine: () => {
+      flush();
+    },
+    onCodeLine: () => {
+      flush();
+    },
+  });
+
+  flush();
+  return segments;
+}
+
+export function resolvePlaceholders(
+  input: string,
+  target: "claude" | "codex",
+  modelTiers: ModelTiers | undefined,
+): string {
+  const out: string[] = [];
+
+  visitMarkdownLines(input, {
+    onProseLine: (line) => {
+      out.push(substituteLine(line, target, modelTiers));
+    },
+    onFenceLine: (line) => {
+      out.push(line);
+    },
+    onCodeLine: (line) => {
+      out.push(line);
+    },
+  });
 
   return out.join("\n");
 }

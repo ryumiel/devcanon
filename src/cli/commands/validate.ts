@@ -21,7 +21,13 @@ export async function validateAction(
   );
   logger.info("Config: valid");
 
-  const skills = await loadAndValidateSkills(config.library.skillsDir);
+  const skills = await loadAndValidateSkills(config.library.skillsDir, {
+    diagnostics: {
+      enabled: true,
+      strict,
+      modelTiers: config.modelTiers,
+    },
+  });
   logger.info(`Skills: ${skills.length} valid`);
 
   const agents = await loadAndValidateAgents(
