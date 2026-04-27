@@ -187,7 +187,7 @@ function collectDriftDiagnostics(
 function containsToken(input: string, token: string): boolean {
   const escapedToken = escapeRegExp(token);
   const pattern = new RegExp(
-    `(^|[^A-Za-z0-9._/-])${escapedToken}(?=$|[^A-Za-z0-9._/-])`,
+    `(^|[^A-Za-z0-9_/-])${escapedToken}(?=$|[^A-Za-z0-9_/-])`,
     "iu",
   );
   return pattern.test(input);

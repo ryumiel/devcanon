@@ -470,6 +470,41 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("warns for sentence-final drift tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "sentence-final-drift",
+      [
+        "---",
+        "name: sentence-final-drift",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use sonnet. Reach for gpt-5.4-mini.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          modelTiers: {
+            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+            standard: { claude: "sonnet", codex: "gpt-5.4" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /sentence-final-drift/i, /sonnet/i);
+      expectWarningLine(warnings, /sentence-final-drift/i, /gpt-5\.4-mini/i);
+    });
+  });
+
   it("warns for target-specific path tokens in prose", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
