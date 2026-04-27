@@ -365,8 +365,8 @@ describe("loadAndValidateSkills", () => {
       });
 
       expect(result).toHaveLength(1);
-      expectWarningLine(warnings, /raw model alias/i, /sonnet/i);
-      expectWarningLine(warnings, /raw model alias/i, /opus/i);
+      expectWarningLine(warnings, /raw-claude-alias/i, /sonnet/i);
+      expectWarningLine(warnings, /raw-claude-alias/i, /opus/i);
     });
   });
 
@@ -395,7 +395,7 @@ describe("loadAndValidateSkills", () => {
           strict: true,
         },
       }),
-    ).rejects.toThrow(/raw model alias/i);
+    ).rejects.toThrow(/strict-raw-claude-alias/i);
     await expect(
       loadAndValidateSkillsWithDiagnostics(skillsDir, {
         diagnostics: {
@@ -436,7 +436,7 @@ describe("loadAndValidateSkills", () => {
         },
       });
 
-      expectWarningLine(warnings, /raw configured model id/i, /gpt-5\.4-mini/i);
+      expectWarningLine(warnings, /raw-codex-model/i, /gpt-5\.4-mini/i);
     });
   });
 
