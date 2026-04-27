@@ -467,7 +467,37 @@ describe("loadAndValidateSkills", () => {
       });
 
       expectWarningLine(warnings, /raw-target-path/i, /\.claude\//i);
-      expectWarningLine(warnings, /raw-target-path/i, /~\/\.codex\//i);
+      expectWarningLine(warnings, /raw-target-path/i, /\.codex\//i);
+    });
+  });
+
+  it("warns for bare .codex path tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-bare-codex-path",
+      [
+        "---",
+        "name: raw-bare-codex-path",
+        "description: Detect generic Codex path drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Generated agents land under .codex/agents after sync.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /raw-bare-codex-path/i, /\.codex\//i);
     });
   });
 

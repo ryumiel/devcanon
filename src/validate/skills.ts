@@ -7,15 +7,15 @@ import {
   type ParsedFrontmatter,
   parseFrontmatter,
 } from "../render/frontmatter.js";
-import { collectProseSegments } from "../render/placeholders.js";
 import { UserError } from "../utils/errors.js";
 import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
+import { collectProseSegments } from "../utils/markdown-prose.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { getLogger } from "../utils/output.js";
 
 const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
 const RAW_CLAUDE_ALIASES = ["sonnet", "opus", "haiku"] as const;
-const TARGET_PATH_TOKENS = [".claude/", "~/.codex/"] as const;
+const TARGET_PATH_TOKENS = [".claude/", ".codex/"] as const;
 
 export interface SkillValidationDiagnosticsOptions {
   enabled?: boolean;
