@@ -73,20 +73,50 @@ function parseKeyValueOutput(stdout: string): Record<string, string> {
 }
 
 async function runSetup(
+  scriptPath: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<Record<string, string>> {
-  const repoRoot = process.cwd();
-  const scriptPath = path.join(
-    repoRoot,
-    "skills",
-    "issue-worktree-setup",
-    "scripts",
-    "setup-worktree.sh",
-  );
-
   const stdout = await runCommand("bash", [scriptPath], cwd, env);
   return parseKeyValueOutput(stdout);
+}
+
+async function resolveHelperScript(): Promise<string> {
+  const repoRoot = process.cwd();
+  return realpath(
+    path.join(
+      repoRoot,
+      "skills",
+      "issue-worktree-setup",
+      "scripts",
+      "setup-worktree.sh",
+    ),
+  );
+}
+
+async function createPublisherClone(rootDir: string): Promise<string> {
+  const publisherDir = path.join(rootDir, "publisher");
+  await runGit(
+    ["clone", path.join(rootDir, "origin.git"), publisherDir],
+    rootDir,
+  );
+  await runGit(["config", "user.name", "Publisher"], publisherDir);
+  await runGit(["config", "user.email", "publisher@example.com"], publisherDir);
+  return publisherDir;
+}
+
+async function createRemoteBaseRef(
+  publisherDir: string,
+  branchName: string,
+  fileName: string,
+  contents: string,
+): Promise<string> {
+  await runGit(["checkout", "-b", branchName, "origin/main"], publisherDir);
+  await writeFile(path.join(publisherDir, fileName), contents, "utf-8");
+  await runGit(["add", fileName], publisherDir);
+  await runGit(["commit", "-m", `chore: add ${branchName}`], publisherDir);
+  await runGit(["push", "-u", "origin", branchName], publisherDir);
+  return runGit(["rev-parse", "HEAD"], publisherDir);
 }
 
 describe("issue-worktree-setup helper", () => {
@@ -99,15 +129,26 @@ describe("issue-worktree-setup helper", () => {
     tempDirs.length = 0;
   });
 
-  it("creates a new worktree from the primary checkout and preserves spaces in the returned path", async () => {
+  it("creates a new worktree from a repo subdirectory and honors BASE_REF", async () => {
     const rootDir = path.join(os.tmpdir(), `am-worktree-space-${Date.now()}`);
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await resolveHelperScript();
+    const publisherDir = await createPublisherClone(rootDir);
+    const baseSha = await createRemoteBaseRef(
+      publisherDir,
+      "review-base",
+      "review-base.txt",
+      "review base\n",
+    );
+    const nestedDir = path.join(primaryDir, "nested", "deeper");
+    await mkdir(nestedDir, { recursive: true });
 
-    const result = await runSetup(primaryDir, {
+    const result = await runSetup(helperScript, nestedDir, {
       BRANCH_NAME: "feat/test-worktree-helper",
       WORKTREE_LEAF: "63-worktree helper",
+      BASE_REF: "origin/review-base",
     });
 
     const expectedPath = await realpath(
@@ -120,21 +161,31 @@ describe("issue-worktree-setup helper", () => {
     expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
       "feat/test-worktree-helper",
     );
+    expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(baseSha);
   });
 
-  it("reuses a clean managed main worktree by branching in place", async () => {
+  it("reuses a clean managed main worktree and fast-forwards to BASE_REF", async () => {
     const rootDir = path.join(os.tmpdir(), `am-worktree-reuse-${Date.now()}`);
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await resolveHelperScript();
+    const publisherDir = await createPublisherClone(rootDir);
 
     await runGit(["checkout", "-b", "chore/holder"], primaryDir);
     const managedPath = path.join(primaryDir, ".worktrees", "reusable");
     await runGit(["worktree", "add", managedPath, "main"], primaryDir);
+    const baseSha = await createRemoteBaseRef(
+      publisherDir,
+      "review-reuse-base",
+      "review-reuse-base.txt",
+      "reuse review base\n",
+    );
 
-    const result = await runSetup(managedPath, {
+    const result = await runSetup(helperScript, managedPath, {
       BRANCH_NAME: "feat/reused-worktree",
       WORKTREE_LEAF: "ignored-for-reuse",
+      BASE_REF: "origin/review-reuse-base",
     });
 
     expect(result.MODE).toBe("reuse");
@@ -144,6 +195,7 @@ describe("issue-worktree-setup helper", () => {
     expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
       "feat/reused-worktree",
     );
+    expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
   });
 
   it("refuses to create a nested worktree from a managed feature worktree", async () => {
@@ -151,6 +203,7 @@ describe("issue-worktree-setup helper", () => {
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await resolveHelperScript();
 
     const managedPath = path.join(primaryDir, ".worktrees", "feature-branch");
     await runGit(
@@ -158,7 +211,7 @@ describe("issue-worktree-setup helper", () => {
       primaryDir,
     );
 
-    const result = await runSetup(managedPath, {
+    const result = await runSetup(helperScript, managedPath, {
       BRANCH_NAME: "feat/nested-should-not-happen",
       WORKTREE_LEAF: "nested-should-not-happen",
     });
@@ -173,5 +226,21 @@ describe("issue-worktree-setup helper", () => {
         path.join(primaryDir, ".worktrees", "nested-should-not-happen"),
       ),
     ).toBe(false);
+  });
+
+  it("rejects unsafe worktree leaf values", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-unsafe-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await resolveHelperScript();
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/unsafe-leaf",
+        WORKTREE_LEAF: "../escape",
+      }),
+    ).rejects.toThrow(/Unsafe WORKTREE_LEAF/u);
+    expect(await pathExists(path.join(primaryDir, "escape"))).toBe(false);
   });
 });

@@ -72,11 +72,13 @@ Invoke the `issue-worktree-setup` skill. It owns environment detection and
 setup policy. Do NOT re-implement the worktree decision logic here.
 
 ```bash
+HELPER_SCRIPT="scripts/setup-worktree.sh"
+
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<N>-<slug>" \
   BASE_REF="origin/main" \
-  bash skills/issue-worktree-setup/scripts/setup-worktree.sh
+  bash "$HELPER_SCRIPT"
 )
 
 while IFS= read -r line; do
@@ -91,6 +93,10 @@ done <<EOF
 $WORKTREE_SETUP_OUTPUT
 EOF
 ```
+
+Resolve `scripts/setup-worktree.sh` from the `issue-worktree-setup` skill
+bundle. The repository working directory may be any subdirectory inside the
+target checkout.
 
 Handle the result:
 

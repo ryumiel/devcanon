@@ -27,6 +27,13 @@ CURRENT_BRANCH="$(git branch --show-current)"
 CURRENT_STATUS="$(git status --short)"
 MAIN_WORKTREE=""
 
+case "$WORKTREE_LEAF" in
+  "" | "." | /* | -* | *"/"* | *".."*)
+    echo "Unsafe WORKTREE_LEAF: ${WORKTREE_LEAF}" >&2
+    exit 1
+    ;;
+esac
+
 while IFS= read -r -d '' line; do
   case "$line" in
     worktree\ *)

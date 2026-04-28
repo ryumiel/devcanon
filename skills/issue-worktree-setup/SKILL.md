@@ -29,13 +29,18 @@ Invoke the helper through environment variables:
 Run:
 
 ```bash
+HELPER_SCRIPT="scripts/setup-worktree.sh"
+
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<worktree-leaf>" \
   BASE_REF="origin/main" \
-  bash skills/issue-worktree-setup/scripts/setup-worktree.sh
+  bash "$HELPER_SCRIPT"
 )
 ```
+
+Resolve `scripts/setup-worktree.sh` from the `issue-worktree-setup` skill
+bundle, not from the repository being primed.
 
 ## Output Contract
 
@@ -94,6 +99,9 @@ not create another worktree from inside that session.
 The helper preserves spaces in paths by parsing
 `git worktree list --porcelain -z`, quoting path variables, and returning the
 full absolute `WORKTREE_PATH`.
+
+`WORKTREE_LEAF` must stay a single leaf name. Do not pass `/`, `..`, absolute
+paths, or names beginning with `-`.
 
 ## Failure Model
 

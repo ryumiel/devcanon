@@ -136,6 +136,8 @@ Quick navigation index for the agents-manager repository.
 ## Source content
 
 - Where are shared skill source files? -> [`skills/`](skills/)
+- Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
+- Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
 - Where are agent role definitions? -> [`agents/`](agents/)
 - Where are generated preview outputs? -> [`generated/`](generated/)
 
