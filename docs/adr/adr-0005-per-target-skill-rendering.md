@@ -55,6 +55,7 @@ requires a new ADR.
   values inside `claude:` / `codex:` override blocks. Nested
   values (for example `codex.metadata.*`) pass through
   unchanged.
+
 ## Consequences
 
 - Skills become first-class rendered outputs. Install/sync
