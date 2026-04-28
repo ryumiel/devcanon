@@ -164,10 +164,12 @@ The synthetic example above shows the full shape. These shipped skills show
 when each block is actually useful:
 
 - `skills/github-issue-priming/SKILL.md` uses `claude.model` because its
-  workflow orchestrates gate, research, planning, and execution.
+  workflow orchestrates gate, research, planning, and execution. The same
+  pattern also appears in `skills/linear-issue-priming/SKILL.md`.
 - `skills/github-issue-priming/SKILL.md` and
-  `skills/linear-issue-priming/SKILL.md` use `codex.metadata.short-description`
-  plus `codex_sidecar.interface` for Codex discovery and UI treatment.
+  `skills/linear-issue-priming/SKILL.md` use
+  `codex.metadata.short-description` in rendered Codex frontmatter and
+  `codex_sidecar.interface` in the emitted Codex sidecar.
 - `skills/pr-review/SKILL.md` uses `codex_sidecar.interface` without a
   `codex:` block because it benefits from a Codex UI label/description without
   needing extra Codex frontmatter overrides.
