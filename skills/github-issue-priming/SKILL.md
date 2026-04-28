@@ -70,27 +70,48 @@ Derive the branch name from the issue: `<type>/<N>-<slug>` (e.g., `refactor/149-
 **Detect environment:**
 
 ```bash
-# Check whether the current checkout is already a non-primary worktree
+# Check whether the current checkout is already a clean, main-based
+# non-primary worktree that can safely be reused for this issue.
 CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
-MAIN_WORKTREE=$(git worktree list --porcelain | awk '/^worktree / { print $2; exit }')
-[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ] && echo "MANAGED_WORKTREE" || echo "LOCAL"
+MAIN_WORKTREE=$(git worktree list --porcelain | awk '/^worktree / { sub(/^worktree /, ""); print; exit }')
+CURRENT_BRANCH=$(git branch --show-current)
+CURRENT_STATUS=$(git status --short)
+if [ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]; then
+  if [ "$CURRENT_BRANCH" = "main" ] && [ -z "$CURRENT_STATUS" ]; then
+    echo "REUSE_WORKTREE"
+  else
+    echo "STOP_MANAGED_WORKTREE"
+  fi
+else
+  echo "NEW_WORKTREE"
+fi
 ```
 
-**If `MANAGED_WORKTREE` (session already started inside an isolated worktree):**
+**If `REUSE_WORKTREE` (session already started inside a reusable worktree):**
 
-The session is already in an isolated non-primary worktree. Do NOT invoke `using-git-worktrees` again — creating a nested worktree causes path confusion and edits landing in the wrong directory. Instead:
+The session is already in an isolated non-primary worktree, it is still based on local `main`, and it has no in-flight edits. Do NOT create another worktree from here — nested worktrees cause path confusion and edits landing in the wrong directory. Instead:
 
 1. Ensure the branch base is current: `git fetch origin && git merge origin/main --ff-only`
 2. Create a feature branch: `git checkout -b <branch-name>`
 3. Use the current working directory as the implementation workspace
 
-**If `LOCAL` (normal CLI session):**
+**If `STOP_MANAGED_WORKTREE` (already inside a managed worktree, but it is dirty or already on another branch):**
 
-Invoke `using-git-worktrees` to create a feature branch + worktree. The skill will use the project's existing `.worktrees/` directory.
+Do NOT create another worktree from inside an existing managed worktree. Finish, discard, or switch out of the current managed worktree first. Then restart priming from the primary checkout before creating a fresh worktree from `main`.
+
+**If `NEW_WORKTREE` (normal session from the primary checkout):**
+
+Create a fresh feature branch + worktree from updated `main` using plain Git. The skill will use the project's existing `.worktrees/` directory.
+
+```bash
+git fetch origin
+mkdir -p .worktrees
+git worktree add -b <branch-name> ".worktrees/<N>-<slug>" origin/main
+```
 
 **After worktree is ready:** All subsequent phases (gate, research, brainstorming, planning, implementation) operate from the worktree. Pass the worktree path to all dispatched subagents.
 
-**If brainstorming concludes "don't implement":** Clean up the worktree with `finishing-a-development-branch` (option: discard).
+**If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard).
 
 ## Phase 3: Complexity Gate
 
@@ -265,8 +286,8 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ### Creating nested worktree in an already-managed session
 
-- **Problem:** `using-git-worktrees` creates a worktree inside an existing managed worktree, causing double nesting and path confusion
-- **Fix:** Detect managed-worktree context by comparing the current worktree root to the primary checkout, then branch in place
+- **Problem:** Creating a fresh worktree from inside an existing managed worktree causes double nesting and path confusion
+- **Fix:** Detect managed-worktree context by comparing the current worktree root to the primary checkout. If already inside a non-primary worktree, either branch in place when safe or stop and return to the primary checkout before creating another worktree
 
 ### Running research in the main session
 

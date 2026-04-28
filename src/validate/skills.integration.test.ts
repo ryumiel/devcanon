@@ -566,6 +566,36 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("warns for ~/.agents install path tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-agents-home-path",
+      [
+        "---",
+        "name: raw-agents-home-path",
+        "description: Detect shared prose that hard-codes Codex skill home paths.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Codex installs shared skills under ~/.agents/skills after sync.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /raw-agents-home-path/i, /\.agents\//i);
+    });
+  });
+
   it("ignores flagged tokens inside fenced code blocks", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
