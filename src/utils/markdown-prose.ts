@@ -39,6 +39,11 @@ function isIndentedCodeLine(line: string): boolean {
   return /^( {4,}|\t)/.test(line);
 }
 
+function isListItemLine(line: string): boolean {
+  const trimmed = line.trim();
+  return /^([-+*])\s/.test(trimmed) || /^\d+[.)]\s/.test(trimmed);
+}
+
 function isParagraphLine(line: string): boolean {
   const trimmed = line.trim();
   if (trimmed.length === 0) return false;
@@ -58,6 +63,7 @@ export function visitMarkdownLines(
   let openFence: FenceState | null = null;
   let inIndentedCodeBlock = false;
   let afterParagraphLine = false;
+  let afterListItemLine = false;
 
   for (const line of lines) {
     const trimmed = line.trimStart();
@@ -66,6 +72,7 @@ export function visitMarkdownLines(
         if (line.trim().length === 0 || isIndentedCodeLine(line)) {
           visitor.onCodeLine?.(line);
           afterParagraphLine = false;
+          afterListItemLine = false;
           continue;
         }
 
@@ -77,18 +84,25 @@ export function visitMarkdownLines(
         openFence = opening;
         visitor.onFenceLine?.(line);
         afterParagraphLine = false;
+        afterListItemLine = false;
         continue;
       }
 
-      if (!afterParagraphLine && isIndentedCodeLine(line)) {
+      if (
+        !afterParagraphLine &&
+        !afterListItemLine &&
+        isIndentedCodeLine(line)
+      ) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
         afterParagraphLine = false;
+        afterListItemLine = false;
         continue;
       }
 
       visitor.onProseLine(line);
       afterParagraphLine = isParagraphLine(line);
+      afterListItemLine = isListItemLine(line);
       continue;
     }
 
@@ -99,11 +113,13 @@ export function visitMarkdownLines(
       openFence = null;
       visitor.onFenceLine?.(line);
       afterParagraphLine = false;
+      afterListItemLine = false;
       continue;
     }
 
     visitor.onCodeLine?.(line);
     afterParagraphLine = false;
+    afterListItemLine = false;
   }
 }
 

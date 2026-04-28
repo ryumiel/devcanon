@@ -680,4 +680,36 @@ describe("loadAndValidateSkills", () => {
       expect(warnings).toEqual([]);
     });
   });
+
+  it("treats indented list continuation lines as prose for drift diagnostics", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-continuation-prose-drift",
+      [
+        "---",
+        "name: list-continuation-prose-drift",
+        "description: Detect drift in list continuation prose.",
+        "---",
+        "",
+        "1. Item",
+        "    continuation with sonnet",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (_warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).rejects.toThrow(/drift-prone prose token "sonnet"/i);
+    });
+  });
 });

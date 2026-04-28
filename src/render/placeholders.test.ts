@@ -83,6 +83,16 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("after: haiku");
   });
 
+  it("treats indented list continuation lines as prose", () => {
+    const input = [
+      "1. Item",
+      "    continuation with {{model:standard}}",
+      "",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with sonnet");
+  });
+
   it("respects escape syntax", () => {
     const out = resolvePlaceholders(
       "literal \\{{model:deep}} here",
