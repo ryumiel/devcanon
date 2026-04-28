@@ -71,6 +71,21 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("and haiku after");
   });
 
+  it("leaves content inside a blockquoted fenced code block untouched", () => {
+    const input = [
+      "before: {{model:fast}}",
+      "> ```ts",
+      '> const model = "{{model:deep}}";',
+      "> ```",
+      "after: {{model:standard}}",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("before: haiku");
+    expect(out).toContain('> const model = "{{model:deep}}"');
+    expect(out).toContain("after: sonnet");
+  });
+
   it("leaves heading-adjacent indented code blocks untouched", () => {
     const input = [
       "# Example",
@@ -81,6 +96,21 @@ describe("resolvePlaceholders", () => {
     const out = resolvePlaceholders(input, "claude", TIERS);
     expect(out).toContain("    model: {{model:deep}}");
     expect(out).toContain("after: haiku");
+  });
+
+  it("leaves content inside a blockquoted indented code block untouched", () => {
+    const input = [
+      "before: {{model:fast}}",
+      "> # Example",
+      ">     preferred_model: {{model:deep}}",
+      "after: {{model:standard}}",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("before: haiku");
+    expect(out).toContain("> # Example");
+    expect(out).toContain(">     preferred_model: {{model:deep}}");
+    expect(out).toContain("after: sonnet");
   });
 
   it("treats indented list continuation lines as prose", () => {

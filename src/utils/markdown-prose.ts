@@ -68,6 +68,16 @@ function leadingIndentColumns(line: string): number {
   return measureColumns(indent);
 }
 
+function stripBlockquotePrefixes(line: string): string {
+  let rest = line;
+
+  while (true) {
+    const match = rest.match(/^( {0,3}> ?)/);
+    if (!match) return rest;
+    rest = rest.slice(match[0].length);
+  }
+}
+
 function listContextForLine(line: string): ListContext | null {
   const match = line.match(/^([ \t]*)([-+*]|\d+[.)])([ \t]+)/);
   if (!match) return null;
@@ -115,10 +125,14 @@ export function visitMarkdownLines(
   let listContext: ListContext | null = null;
 
   for (const line of lines) {
-    const trimmed = line.trimStart();
+    const normalizedLine = stripBlockquotePrefixes(line);
+    const trimmed = normalizedLine.trimStart();
     if (openFence === null) {
       if (inIndentedCodeBlock) {
-        if (line.trim().length === 0 || isIndentedCodeLine(line)) {
+        if (
+          normalizedLine.trim().length === 0 ||
+          isIndentedCodeLine(normalizedLine)
+        ) {
           visitor.onCodeLine?.(line);
           afterParagraphLine = false;
           continue;
@@ -135,7 +149,10 @@ export function visitMarkdownLines(
         continue;
       }
 
-      if (listContext !== null && isListIndentedCodeLine(line, listContext)) {
+      if (
+        listContext !== null &&
+        isListIndentedCodeLine(normalizedLine, listContext)
+      ) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
         afterParagraphLine = false;
@@ -145,7 +162,7 @@ export function visitMarkdownLines(
       if (
         !afterParagraphLine &&
         listContext === null &&
-        isIndentedCodeLine(line)
+        isIndentedCodeLine(normalizedLine)
       ) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
@@ -154,13 +171,13 @@ export function visitMarkdownLines(
       }
 
       visitor.onProseLine(line);
-      afterParagraphLine = isParagraphLine(line);
-      const nextListContext = listContextForLine(line);
+      afterParagraphLine = isParagraphLine(normalizedLine);
+      const nextListContext = listContextForLine(normalizedLine);
       if (nextListContext !== null) {
         listContext = nextListContext;
       } else if (
         listContext !== null &&
-        isWithinListContext(line, listContext)
+        isWithinListContext(normalizedLine, listContext)
       ) {
         // Keep the current list context active across blank lines and indented
         // continuation content so nested code can still be recognized
