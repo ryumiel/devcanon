@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelTiers } from "../config/schema.js";
-import { resolvePlaceholders } from "./placeholders.js";
+import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
 const TIERS: ModelTiers = {
   fast: { claude: "haiku", codex: "gpt-5.4-mini" },
@@ -9,6 +9,25 @@ const TIERS: ModelTiers = {
 };
 
 describe("resolvePlaceholders", () => {
+  it("iterates prose and fenced-code segments with fenced code immunity", () => {
+    const segments = collectProseSegments(
+      [
+        "Use opus here.",
+        "```ts",
+        'const model = "opus";',
+        "```",
+        "Use sonnet here.",
+        "",
+      ].join("\n"),
+    );
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toContain("Use opus here.");
+    expect(segments[1]).toContain("Use sonnet here.");
+    expect(segments.join("\n")).not.toContain('const model = "opus";');
+    expect(segments.join("\n")).not.toContain("```ts");
+  });
+
   it("substitutes a single tier for the claude target", () => {
     const out = resolvePlaceholders(
       "use {{model:deep}} for synthesis",
@@ -50,6 +69,114 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("use opus for synthesis");
     expect(out).toContain("example: {{model:deep}} stays literal");
     expect(out).toContain("and haiku after");
+  });
+
+  it("leaves content inside a blockquoted fenced code block untouched", () => {
+    const input = [
+      "before: {{model:fast}}",
+      "> ```ts",
+      '> const model = "{{model:deep}}";',
+      "> ```",
+      "after: {{model:standard}}",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("before: haiku");
+    expect(out).toContain('> const model = "{{model:deep}}"');
+    expect(out).toContain("after: sonnet");
+  });
+
+  it("leaves heading-adjacent indented code blocks untouched", () => {
+    const input = [
+      "# Example",
+      "    model: {{model:deep}}",
+      "",
+      "after: {{model:fast}}",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("    model: {{model:deep}}");
+    expect(out).toContain("after: haiku");
+  });
+
+  it("leaves content inside a blockquoted indented code block untouched", () => {
+    const input = [
+      "before: {{model:fast}}",
+      "> # Example",
+      ">     preferred_model: {{model:deep}}",
+      "after: {{model:standard}}",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("before: haiku");
+    expect(out).toContain("> # Example");
+    expect(out).toContain(">     preferred_model: {{model:deep}}");
+    expect(out).toContain("after: sonnet");
+  });
+
+  it("treats indented list continuation lines as prose", () => {
+    const input = [
+      "1. Item",
+      "    continuation with {{model:standard}}",
+      "",
+    ].join("\n");
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with sonnet");
+  });
+
+  it("leaves nested list indented code blocks untouched", () => {
+    const input = [
+      "- Item",
+      "      const bulletPreferred = {{model:standard}}",
+      "1. Ordered",
+      "       const orderedPreferred = {{model:deep}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("const bulletPreferred = {{model:standard}}");
+    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+  });
+
+  it("leaves nested list code blocks untouched when the list marker uses a tab separator", () => {
+    const input = [
+      "-\tItem",
+      "        const preferred = {{model:standard}}",
+      "1.\tOrdered",
+      "        const orderedPreferred = {{model:deep}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("const preferred = {{model:standard}}");
+    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+  });
+
+  it("keeps nested list code blocks after continuation prose untouched", () => {
+    const input = [
+      "- Item",
+      "    continuation with {{model:fast}}",
+      "",
+      "      const preferred = {{model:standard}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with haiku");
+    expect(out).toContain("const preferred = {{model:standard}}");
+  });
+
+  it("treats single-tab list continuations as prose before nested tab-indented code", () => {
+    const input = [
+      "- Item",
+      "\tcontinuation with {{model:fast}}",
+      "",
+      "\t\tconst preferred = {{model:standard}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with haiku");
+    expect(out).toContain("const preferred = {{model:standard}}");
   });
 
   it("respects escape syntax", () => {

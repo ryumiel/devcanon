@@ -6,12 +6,24 @@ import {
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
+import type { ModelTiers } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
+import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";
 
 describe("loadAndValidateSkills", () => {
   let tempDir: string;
   let skillsDir: string;
+  const loadAndValidateSkillsWithDiagnostics = loadAndValidateSkills as (
+    skillsDir: string,
+    options?: {
+      diagnostics?: {
+        enabled?: boolean;
+        strict?: boolean;
+        modelTiers?: ModelTiers;
+      };
+    },
+  ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -21,6 +33,54 @@ describe("loadAndValidateSkills", () => {
   afterEach(async () => {
     await cleanupTempDir(tempDir);
   });
+
+  function createRecordingLogger(): {
+    logger: Logger;
+    warnings: string[];
+  } {
+    const warnings: string[] = [];
+    return {
+      logger: {
+        error: () => {},
+        warn: (msg, ...args) => {
+          warnings.push(
+            [msg, ...args]
+              .map((value) =>
+                typeof value === "string" ? value : JSON.stringify(value),
+              )
+              .join(" "),
+          );
+        },
+        info: () => {},
+        verbose: () => {},
+        debug: () => {},
+        json: () => {},
+      },
+      warnings,
+    };
+  }
+
+  async function captureWarnings<T>(
+    callback: (warnings: string[]) => Promise<T>,
+  ): Promise<T> {
+    const { logger, warnings } = createRecordingLogger();
+    const priorLogger = getLogger();
+    setLogger(logger);
+
+    try {
+      return await callback(warnings);
+    } finally {
+      setLogger(priorLogger);
+    }
+  }
+
+  function expectWarningLine(warnings: string[], ...patterns: RegExp[]): void {
+    expect(
+      warnings.some((warning) =>
+        patterns.every((pattern) => pattern.test(warning)),
+      ),
+    ).toBe(true);
+  }
 
   it("returns empty array when skills directory does not exist", async () => {
     const result = await loadAndValidateSkills(skillsDir);
@@ -276,5 +336,533 @@ describe("loadAndValidateSkills", () => {
       /other-name/,
     );
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/my-dir/);
+  });
+
+  it("warns in non-strict validate mode on raw Claude aliases in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-claude-alias",
+      [
+        "---",
+        "name: raw-claude-alias",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Prefer sonnet for planning and opus for review.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(warnings, /raw-claude-alias/i, /sonnet/i);
+      expectWarningLine(warnings, /raw-claude-alias/i, /opus/i);
+    });
+  });
+
+  it("warns on drift-prone tokens in frontmatter description", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "description-drift",
+      [
+        "---",
+        "name: description-drift",
+        "description: Prefer sonnet when drafting shared instructions.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Body prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /description-drift/i, /sonnet/i);
+    });
+  });
+
+  it("fails in strict validate mode on raw Claude aliases in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-raw-claude-alias",
+      [
+        "---",
+        "name: strict-raw-claude-alias",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use haiku for lightweight scans.",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+        },
+      }),
+    ).rejects.toThrow(/strict-raw-claude-alias/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+        },
+      }),
+    ).rejects.toThrow(/haiku/i);
+  });
+
+  it("warns for configured Codex model ids in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-model",
+      [
+        "---",
+        "name: raw-codex-model",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Reach for gpt-5.4-mini when turnaround matters.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          modelTiers: {
+            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+            standard: { claude: "sonnet", codex: "gpt-5.4" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-codex-model/i, /gpt-5\.4-mini/i);
+    });
+  });
+
+  it("warns for sentence-final drift tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "sentence-final-drift",
+      [
+        "---",
+        "name: sentence-final-drift",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use sonnet. Reach for gpt-5.4-mini.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          modelTiers: {
+            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+            standard: { claude: "sonnet", codex: "gpt-5.4" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /sentence-final-drift/i, /sonnet/i);
+      expectWarningLine(warnings, /sentence-final-drift/i, /gpt-5\.4-mini/i);
+    });
+  });
+
+  it("warns for target-specific path tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-target-path",
+      [
+        "---",
+        "name: raw-target-path",
+        "description: Detect target-specific path drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Do not tell users to copy files into ~/.claude/skills or ~/.codex/agents.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /raw-target-path/i, /\.claude\//i);
+      expectWarningLine(warnings, /raw-target-path/i, /\.codex\//i);
+    });
+  });
+
+  it("warns for bare .codex path tokens in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-bare-codex-path",
+      [
+        "---",
+        "name: raw-bare-codex-path",
+        "description: Detect generic Codex path drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Generated agents land under .codex/agents after sync.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expectWarningLine(warnings, /raw-bare-codex-path/i, /\.codex\//i);
+    });
+  });
+
+  it("ignores flagged tokens inside fenced code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "fenced-code-immunity",
+      [
+        "---",
+        "name: fenced-code-immunity",
+        "description: Ignore literal tokens inside fences.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "```yaml",
+        "preferred_model: sonnet",
+        "backup_model: gpt-5.4",
+        "```",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("ignores flagged tokens inside blockquoted fenced code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "blockquote-fenced-code-immunity",
+      [
+        "---",
+        "name: blockquote-fenced-code-immunity",
+        "description: Ignore literal tokens inside blockquoted fences.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "> ```yaml",
+        "> preferred_model: sonnet",
+        "> backup_model: gpt-5.4",
+        "> ```",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("ignores flagged tokens inside indented code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "indented-code-immunity",
+      [
+        "---",
+        "name: indented-code-immunity",
+        "description: Ignore literal tokens inside indented code blocks.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "    preferred_model: sonnet",
+        "    backup_model: gpt-5.4",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("ignores flagged tokens inside blockquoted indented code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "blockquote-indented-code-immunity",
+      [
+        "---",
+        "name: blockquote-indented-code-immunity",
+        "description: Ignore literal tokens inside blockquoted indented code blocks.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "> # Example",
+        ">     preferred_model: sonnet",
+        ">     backup_model: gpt-5.4",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("ignores flagged tokens inside heading-adjacent indented code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "heading-adjacent-indented-code-immunity",
+      [
+        "---",
+        "name: heading-adjacent-indented-code-immunity",
+        "description: Ignore literal tokens inside heading-adjacent indented code blocks.",
+        "---",
+        "",
+        "# Example",
+        "    preferred_model: sonnet",
+        "    backup_model: gpt-5.4",
+        "",
+        "Outside prose stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("treats indented list continuation lines as prose for drift diagnostics", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-continuation-prose-drift",
+      [
+        "---",
+        "name: list-continuation-prose-drift",
+        "description: Detect drift in list continuation prose.",
+        "---",
+        "",
+        "1. Item",
+        "    continuation with sonnet",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (_warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).rejects.toThrow(/drift-prone prose token "sonnet"/i);
+    });
+  });
+
+  it("ignores nested list indented code blocks for drift diagnostics", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-indented-code-immunity",
+      [
+        "---",
+        "name: list-indented-code-immunity",
+        "description: Ignore drift tokens in list-nested code blocks.",
+        "---",
+        "",
+        "- Bullet",
+        "      bullet_model: sonnet",
+        "1. Ordered",
+        "       ordered_model: gpt-5.4-mini",
+        "-\tTabbed bullet",
+        "        tabbed_bullet_model: sonnet",
+        "1.\tTabbed ordered",
+        "        tabbed_ordered_model: gpt-5.4-mini",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("warns on list continuation prose while ignoring nested code that follows", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-continuation-prose",
+      [
+        "---",
+        "name: list-continuation-prose",
+        "description: Flag drift tokens in continuation prose while ignoring nested code.",
+        "---",
+        "",
+        "- Bullet",
+        "\tcontinuation with sonnet stays in prose.",
+        "",
+        "\t\tpreferred_model: haiku",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(warnings, /list-continuation-prose/i, /sonnet/i);
+      expect(warnings.some((warning) => /haiku/i.test(warning))).toBe(false);
+    });
   });
 });

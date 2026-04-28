@@ -206,7 +206,7 @@ gh run view <run-id> --log-failed
 
 ### 4b. Dispatch investigation agent
 
-Dispatch a **dedicated agent** (subagent_type: `general-purpose`) to investigate. The investigation agent:
+Dispatch a **dedicated investigation agent**. The investigation agent:
 
 1. Reads `.github/workflows/*.yml` to understand what CI runs and what commands to reproduce locally
 2. Reads the failed log output

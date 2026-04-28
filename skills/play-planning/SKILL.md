@@ -138,11 +138,11 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Plan Review
 
-After self-review, dispatch a dedicated opus subagent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
+After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
 
 **Subagent contract:**
 
-- **Model:** opus
+- **Model:** `{{model:deep}}`
 - **Input:** The full plan document + the original spec/design document
 - **Role:** Independent validation of plan completeness and spec alignment
 
@@ -152,7 +152,7 @@ After self-review, dispatch a dedicated opus subagent to validate plan-vs-spec a
 - No tasks that aren't justified by the spec (scope creep)
 - Task ordering respects dependencies
 - Verification commands exist and cover acceptance criteria
-- File paths reference real locations (the subagent can use Glob, Grep, Read to verify)
+- File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
 - No placeholder violations (catches what self-review missed)
 
 **Output:** PASS with confidence notes, or FAIL with specific gaps listed.
