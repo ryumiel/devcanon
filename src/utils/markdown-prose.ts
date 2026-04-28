@@ -3,6 +3,11 @@ interface FenceState {
   length: number;
 }
 
+interface ListContext {
+  contentIndent: number;
+  codeIndent: number;
+}
+
 interface MarkdownLineVisitor {
   onProseLine(line: string): void;
   onFenceLine?(line: string): void;
@@ -39,13 +44,53 @@ function isIndentedCodeLine(line: string): boolean {
   return /^( {4,}|\t)/.test(line);
 }
 
-function indentedSpaces(line: string): number {
-  return line.match(/^ +/)?.[0].length ?? 0;
+function advanceColumn(column: number, char: string): number {
+  if (char === "\t") {
+    const remainder = column % 4;
+    return column + (remainder === 0 ? 4 : 4 - remainder);
+  }
+
+  return column + 1;
 }
 
-function isListItemLine(line: string): boolean {
-  const trimmed = line.trim();
-  return /^([-+*])\s/.test(trimmed) || /^\d+[.)]\s/.test(trimmed);
+function measureColumns(text: string, startColumn = 0): number {
+  let column = startColumn;
+
+  for (const char of text) {
+    column = advanceColumn(column, char);
+  }
+
+  return column;
+}
+
+function leadingIndentColumns(line: string): number {
+  const indent = line.match(/^[ \t]*/)?.[0] ?? "";
+  return measureColumns(indent);
+}
+
+function listContextForLine(line: string): ListContext | null {
+  const match = line.match(/^([ \t]*)([-+*]|\d+[.)])([ \t]+)/);
+  if (!match) return null;
+
+  const markerStart = measureColumns(match[1]);
+  const markerEnd = markerStart + match[2].length;
+  const contentIndent = measureColumns(match[3], markerEnd);
+
+  return {
+    contentIndent,
+    codeIndent: contentIndent + 4,
+  };
+}
+
+function isWithinListContext(line: string, context: ListContext): boolean {
+  if (line.trim().length === 0) return true;
+  return leadingIndentColumns(line) >= context.contentIndent;
+}
+
+function isListIndentedCodeLine(line: string, context: ListContext): boolean {
+  return (
+    isIndentedCodeLine(line) && leadingIndentColumns(line) >= context.codeIndent
+  );
 }
 
 function isParagraphLine(line: string): boolean {
@@ -67,7 +112,7 @@ export function visitMarkdownLines(
   let openFence: FenceState | null = null;
   let inIndentedCodeBlock = false;
   let afterParagraphLine = false;
-  let afterListItemLine = false;
+  let listContext: ListContext | null = null;
 
   for (const line of lines) {
     const trimmed = line.trimStart();
@@ -76,7 +121,6 @@ export function visitMarkdownLines(
         if (line.trim().length === 0 || isIndentedCodeLine(line)) {
           visitor.onCodeLine?.(line);
           afterParagraphLine = false;
-          afterListItemLine = false;
           continue;
         }
 
@@ -88,37 +132,42 @@ export function visitMarkdownLines(
         openFence = opening;
         visitor.onFenceLine?.(line);
         afterParagraphLine = false;
-        afterListItemLine = false;
         continue;
       }
 
-      if (
-        afterListItemLine &&
-        isIndentedCodeLine(line) &&
-        indentedSpaces(line) >= 8
-      ) {
+      if (listContext !== null && isListIndentedCodeLine(line, listContext)) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
         afterParagraphLine = false;
-        afterListItemLine = false;
         continue;
       }
 
       if (
         !afterParagraphLine &&
-        !afterListItemLine &&
+        listContext === null &&
         isIndentedCodeLine(line)
       ) {
         inIndentedCodeBlock = true;
         visitor.onCodeLine?.(line);
         afterParagraphLine = false;
-        afterListItemLine = false;
         continue;
       }
 
       visitor.onProseLine(line);
       afterParagraphLine = isParagraphLine(line);
-      afterListItemLine = isListItemLine(line);
+      const nextListContext = listContextForLine(line);
+      if (nextListContext !== null) {
+        listContext = nextListContext;
+      } else if (
+        listContext !== null &&
+        isWithinListContext(line, listContext)
+      ) {
+        // Keep the current list context active across blank lines and indented
+        // continuation content so nested code can still be recognized
+        // relative to the list item's content column.
+      } else {
+        listContext = null;
+      }
       continue;
     }
 
@@ -129,13 +178,11 @@ export function visitMarkdownLines(
       openFence = null;
       visitor.onFenceLine?.(line);
       afterParagraphLine = false;
-      afterListItemLine = false;
       continue;
     }
 
     visitor.onCodeLine?.(line);
     afterParagraphLine = false;
-    afterListItemLine = false;
   }
 }
 

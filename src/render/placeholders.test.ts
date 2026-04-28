@@ -95,12 +95,57 @@ describe("resolvePlaceholders", () => {
 
   it("leaves nested list indented code blocks untouched", () => {
     const input = [
-      "1. Item",
-      "        const preferred = {{model:standard}}",
+      "- Item",
+      "      const bulletPreferred = {{model:standard}}",
+      "1. Ordered",
+      "       const orderedPreferred = {{model:deep}}",
       "",
     ].join("\n");
 
     const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("const bulletPreferred = {{model:standard}}");
+    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+  });
+
+  it("leaves nested list code blocks untouched when the list marker uses a tab separator", () => {
+    const input = [
+      "-\tItem",
+      "        const preferred = {{model:standard}}",
+      "1.\tOrdered",
+      "        const orderedPreferred = {{model:deep}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("const preferred = {{model:standard}}");
+    expect(out).toContain("const orderedPreferred = {{model:deep}}");
+  });
+
+  it("keeps nested list code blocks after continuation prose untouched", () => {
+    const input = [
+      "- Item",
+      "    continuation with {{model:fast}}",
+      "",
+      "      const preferred = {{model:standard}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with haiku");
+    expect(out).toContain("const preferred = {{model:standard}}");
+  });
+
+  it("treats single-tab list continuations as prose before nested tab-indented code", () => {
+    const input = [
+      "- Item",
+      "\tcontinuation with {{model:fast}}",
+      "",
+      "\t\tconst preferred = {{model:standard}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("continuation with haiku");
     expect(out).toContain("const preferred = {{model:standard}}");
   });
 

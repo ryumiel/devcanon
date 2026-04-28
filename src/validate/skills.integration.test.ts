@@ -724,9 +724,14 @@ describe("loadAndValidateSkills", () => {
         "description: Ignore drift tokens in list-nested code blocks.",
         "---",
         "",
-        "1. Example",
-        "        preferred_model: sonnet",
-        "        codex_model: gpt-5.4-mini",
+        "- Bullet",
+        "      bullet_model: sonnet",
+        "1. Ordered",
+        "       ordered_model: gpt-5.4-mini",
+        "-\tTabbed bullet",
+        "        tabbed_bullet_model: sonnet",
+        "1.\tTabbed ordered",
+        "        tabbed_ordered_model: gpt-5.4-mini",
         "",
       ].join("\n"),
     );
@@ -746,6 +751,39 @@ describe("loadAndValidateSkills", () => {
       ).resolves.toHaveLength(1);
 
       expect(warnings).toEqual([]);
+    });
+  });
+
+  it("warns on list continuation prose while ignoring nested code that follows", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-continuation-prose",
+      [
+        "---",
+        "name: list-continuation-prose",
+        "description: Flag drift tokens in continuation prose while ignoring nested code.",
+        "---",
+        "",
+        "- Bullet",
+        "\tcontinuation with sonnet stays in prose.",
+        "",
+        "\t\tpreferred_model: haiku",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(warnings, /list-continuation-prose/i, /sonnet/i);
+      expect(warnings.some((warning) => /haiku/i.test(warning))).toBe(false);
     });
   });
 });
