@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+require_env() {
+  local name="$1"
+
+  if [[ -z "${!name:-}" ]]; then
+    echo "Missing required environment variable: ${name}" >&2
+    exit 1
+  fi
+}
+
+emit_line() {
+  local key="$1"
+  local value="$2"
+
+  printf '%s=%s\n' "$key" "$value"
+}
+
+require_env "BRANCH_NAME"
+require_env "WORKTREE_LEAF"
+
+BASE_REF="${BASE_REF:-origin/main}"
+CURRENT_WORKTREE="$(git rev-parse --show-toplevel)"
+CURRENT_WORKTREE_REAL="$(cd "$CURRENT_WORKTREE" && pwd -P)"
+CURRENT_BRANCH="$(git branch --show-current)"
+CURRENT_STATUS="$(git status --short)"
+MAIN_WORKTREE=""
+
+case "$BRANCH_NAME" in
+  "" | -* | *$'\n'* | *$'\r'*)
+    echo "Unsafe BRANCH_NAME: ${BRANCH_NAME}" >&2
+    exit 1
+    ;;
+esac
+
+if ! git check-ref-format --branch "$BRANCH_NAME" >/dev/null 2>&1; then
+  echo "Invalid BRANCH_NAME: ${BRANCH_NAME}" >&2
+  exit 1
+fi
+
+case "$WORKTREE_LEAF" in
+  "" | "." | /* | -* | *"/"* | *".."* | *$'\n'* | *$'\r'*)
+    echo "Unsafe WORKTREE_LEAF: ${WORKTREE_LEAF}" >&2
+    exit 1
+    ;;
+esac
+
+case "$BASE_REF" in
+  "" | -* | *$'\n'* | *$'\r'*)
+    echo "Unsafe BASE_REF: ${BASE_REF}" >&2
+    exit 1
+    ;;
+esac
+
+while IFS= read -r -d '' line; do
+  case "$line" in
+    worktree\ *)
+      MAIN_WORKTREE="${line#worktree }"
+      break
+      ;;
+  esac
+done < <(git worktree list --porcelain -z)
+
+if [[ -z "$MAIN_WORKTREE" ]]; then
+  echo "Unable to determine the primary worktree." >&2
+  exit 1
+fi
+
+git fetch origin
+
+RESOLVED_BASE="$(git rev-parse --verify --quiet "${BASE_REF}^{commit}")"
+if [[ -z "$RESOLVED_BASE" ]]; then
+  echo "Unable to resolve BASE_REF to a commit: ${BASE_REF}" >&2
+  exit 1
+fi
+
+if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
+  if [[ "$CURRENT_BRANCH" == "main" && -z "$CURRENT_STATUS" ]]; then
+    if ! git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
+      emit_line "MODE" "stop"
+      emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
+      emit_line \
+        "MESSAGE" \
+        "Managed main worktree is ahead of BASE_REF; return to the primary checkout."
+      exit 0
+    fi
+
+    git merge --ff-only "$RESOLVED_BASE"
+    if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
+      echo "Managed main worktree did not fast-forward to BASE_REF." >&2
+      exit 1
+    fi
+    git checkout -b "$BRANCH_NAME"
+    emit_line "MODE" "reuse"
+    emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
+    emit_line "MESSAGE" "Reused clean managed worktree."
+    exit 0
+  fi
+
+  emit_line "MODE" "stop"
+  emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
+  emit_line \
+    "MESSAGE" \
+    "Return to the primary checkout before creating a fresh worktree."
+  exit 0
+fi
+
+WORKTREES_DIR="$CURRENT_WORKTREE/.worktrees"
+
+if [[ -L "$WORKTREES_DIR" ]]; then
+  echo ".worktrees must be a normal directory inside the primary checkout." >&2
+  exit 1
+fi
+
+mkdir -p "$WORKTREES_DIR"
+
+WORKTREES_DIR_REAL="$(cd "$WORKTREES_DIR" && pwd -P)"
+EXPECTED_WORKTREES_DIR_REAL="$CURRENT_WORKTREE_REAL/.worktrees"
+if [[ "$WORKTREES_DIR_REAL" != "$EXPECTED_WORKTREES_DIR_REAL" ]]; then
+  echo ".worktrees resolved outside the primary checkout." >&2
+  exit 1
+fi
+
+NEW_WORKTREE_PATH="$WORKTREES_DIR/$WORKTREE_LEAF"
+if [[ -L "$NEW_WORKTREE_PATH" || -e "$NEW_WORKTREE_PATH" ]]; then
+  echo "Target worktree path already exists: ${NEW_WORKTREE_PATH}" >&2
+  exit 1
+fi
+
+git worktree add -b "$BRANCH_NAME" "$NEW_WORKTREE_PATH" "$RESOLVED_BASE"
+
+emit_line "MODE" "new"
+emit_line "WORKTREE_PATH" "$NEW_WORKTREE_PATH"
+emit_line "MESSAGE" "Created new managed worktree."

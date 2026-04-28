@@ -1,6 +1,17 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeResolvedConfig } from "../__test-helpers__/fixtures.js";
+import {
+  canCreateSymlinks,
+  makeResolvedConfig,
+} from "../__test-helpers__/fixtures.js";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
@@ -20,6 +31,22 @@ function makeLoaded(source: SkillSource, body = "# body\n"): LoadedSkill {
     source,
     body,
     subdirs: [],
+  };
+}
+
+function makeLoadedWithDir(
+  source: SkillSource,
+  dirPath: string,
+  body = "# body\n",
+  subdirs: string[] = [],
+): LoadedSkill {
+  return {
+    name: source.name,
+    dirPath,
+    skillMdContent: "",
+    source,
+    body,
+    subdirs,
   };
 }
 
@@ -225,6 +252,96 @@ describe("renderSkillForTarget contentHash", () => {
 
     expect(baseCodex.contentHash).not.toBe(mutatedCodex.contentHash);
     expect(baseClaude.contentHash).toBe(mutatedClaude.contentHash);
+  });
+
+  it("changes when a mirrored scripts file changes", () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "am-skill-hash-"));
+    try {
+      const skillDir = path.join(tempDir, "skills", "issue-worktree-setup");
+      const scriptsDir = path.join(skillDir, "scripts");
+      mkdirSync(scriptsDir, { recursive: true });
+
+      const source: SkillSource = {
+        name: "issue-worktree-setup",
+        description: "d",
+      };
+      const config = makeResolvedConfig(tempDir);
+      config.modelTiers = TIERS;
+
+      writeFileSync(path.join(scriptsDir, "setup-worktree.sh"), "echo old\n");
+      const baseRendered = renderSkillForTarget(
+        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+        "claude",
+        config,
+      ).rendered;
+
+      writeFileSync(path.join(scriptsDir, "setup-worktree.sh"), "echo new\n");
+      const mutatedRendered = renderSkillForTarget(
+        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+        "claude",
+        config,
+      ).rendered;
+
+      expect(baseRendered.content).toBe(mutatedRendered.content);
+      expect(baseRendered.contentHash).not.toBe(mutatedRendered.contentHash);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("hashes mirrored symlinks by link target without traversing them", async () => {
+    if (!(await canCreateSymlinks())) return;
+
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "am-skill-symlink-"));
+    try {
+      const skillDir = path.join(tempDir, "skills", "issue-worktree-setup");
+      const scriptsDir = path.join(skillDir, "scripts");
+      const targetDirA = path.join(skillDir, "target-a");
+      const targetDirB = path.join(skillDir, "target-b");
+      const linkPath = path.join(scriptsDir, "tool-link");
+      mkdirSync(scriptsDir, { recursive: true });
+      mkdirSync(targetDirA, { recursive: true });
+      mkdirSync(targetDirB, { recursive: true });
+
+      const source: SkillSource = {
+        name: "issue-worktree-setup",
+        description: "d",
+      };
+      const config = makeResolvedConfig(tempDir);
+      config.modelTiers = TIERS;
+
+      writeFileSync(path.join(targetDirA, "payload.txt"), "alpha\n");
+      writeFileSync(path.join(targetDirB, "payload.txt"), "beta\n");
+      symlinkSync("../target-a", linkPath);
+
+      const baseRendered = renderSkillForTarget(
+        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+        "claude",
+        config,
+      ).rendered;
+
+      writeFileSync(path.join(targetDirA, "payload.txt"), "changed\n");
+      const unchangedTargetRendered = renderSkillForTarget(
+        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+        "claude",
+        config,
+      ).rendered;
+
+      rmSync(linkPath);
+      symlinkSync("../target-b", linkPath);
+      const retargetedRendered = renderSkillForTarget(
+        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+        "claude",
+        config,
+      ).rendered;
+
+      expect(baseRendered.contentHash).toBe(
+        unchangedTargetRendered.contentHash,
+      );
+      expect(baseRendered.contentHash).not.toBe(retargetedRendered.contentHash);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 
