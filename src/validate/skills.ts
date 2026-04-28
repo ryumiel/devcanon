@@ -15,7 +15,7 @@ import { getLogger } from "../utils/output.js";
 
 const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
 const RAW_CLAUDE_ALIASES = ["sonnet", "opus", "haiku"] as const;
-const TARGET_PATH_TOKENS = [".claude/", ".codex/"] as const;
+const TARGET_PATH_TOKENS = [".claude/", ".codex/", ".agents/"] as const;
 
 export interface SkillValidationDiagnosticsOptions {
   enabled?: boolean;

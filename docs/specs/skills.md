@@ -76,9 +76,10 @@ Only the `model:` namespace is permitted. Other namespaces
   rather than product-specific API spellings.
 
 In `validate`, the current drift diagnostics cover reasoning-tier
-references and target-specific home paths in shared prose. They
-are reported as warnings in normal mode and as validation
-failures in `validate --strict`.
+references and target-specific path segments in shared prose.
+Today that path check is token-based and flags `.claude/`,
+`.codex/`, and `.agents/`. Diagnostics are reported as warnings
+in normal mode and as validation failures in `validate --strict`.
 
 ---
 

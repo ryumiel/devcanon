@@ -70,23 +70,30 @@ Derive the branch name from the issue: `<type>/<N>-<slug>` (e.g., `refactor/149-
 **Detect environment:**
 
 ```bash
-# Check whether the current checkout is already a non-primary worktree
+# Check whether the current checkout is already a clean, main-based
+# non-primary worktree that can safely be reused for this issue.
 CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
 MAIN_WORKTREE=$(git worktree list --porcelain | awk '/^worktree / { print $2; exit }')
-[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ] && echo "MANAGED_WORKTREE" || echo "LOCAL"
+CURRENT_BRANCH=$(git branch --show-current)
+CURRENT_STATUS=$(git status --short)
+if [ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ] && [ "$CURRENT_BRANCH" = "main" ] && [ -z "$CURRENT_STATUS" ]; then
+  echo "REUSE_WORKTREE"
+else
+  echo "NEW_WORKTREE"
+fi
 ```
 
-**If `MANAGED_WORKTREE` (session already started inside an isolated worktree):**
+**If `REUSE_WORKTREE` (session already started inside a reusable worktree):**
 
-The session is already in an isolated non-primary worktree. Do NOT invoke `using-git-worktrees` again — creating a nested worktree causes path confusion and edits landing in the wrong directory. Instead:
+The session is already in an isolated non-primary worktree, it is still based on local `main`, and it has no in-flight edits. Do NOT invoke `using-git-worktrees` again — creating a nested worktree causes path confusion and edits landing in the wrong directory. Instead:
 
 1. Ensure the branch base is current: `git fetch origin && git merge origin/main --ff-only`
 2. Create a feature branch: `git checkout -b <branch-name>`
 3. Use the current working directory as the implementation workspace
 
-**If `LOCAL` (normal CLI session):**
+**If `NEW_WORKTREE` (normal session, dirty worktree, or the current worktree is already on another branch):**
 
-Invoke `using-git-worktrees` to create a feature branch + worktree. The skill will use the project's existing `.worktrees/` directory.
+Do not branch in place from unrelated feature history. Invoke `using-git-worktrees` to create a fresh feature branch + worktree from updated `main`. The skill will use the project's existing `.worktrees/` directory.
 
 **After worktree is ready:** All subsequent phases (gate, research, brainstorming, planning, implementation) operate from the worktree. Pass the worktree path to all dispatched subagents.
 
