@@ -712,4 +712,40 @@ describe("loadAndValidateSkills", () => {
       ).rejects.toThrow(/drift-prone prose token "sonnet"/i);
     });
   });
+
+  it("ignores nested list indented code blocks for drift diagnostics", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "list-indented-code-immunity",
+      [
+        "---",
+        "name: list-indented-code-immunity",
+        "description: Ignore drift tokens in list-nested code blocks.",
+        "---",
+        "",
+        "1. Example",
+        "        preferred_model: sonnet",
+        "        codex_model: gpt-5.4-mini",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            modelTiers: {
+              fast: { claude: "haiku", codex: "gpt-5.4-mini" },
+              standard: { claude: "sonnet", codex: "gpt-5.4" },
+            },
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(warnings).toEqual([]);
+    });
+  });
 });

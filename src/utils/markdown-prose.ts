@@ -39,6 +39,10 @@ function isIndentedCodeLine(line: string): boolean {
   return /^( {4,}|\t)/.test(line);
 }
 
+function indentedSpaces(line: string): number {
+  return line.match(/^ +/)?.[0].length ?? 0;
+}
+
 function isListItemLine(line: string): boolean {
   const trimmed = line.trim();
   return /^([-+*])\s/.test(trimmed) || /^\d+[.)]\s/.test(trimmed);
@@ -83,6 +87,18 @@ export function visitMarkdownLines(
       if (opening) {
         openFence = opening;
         visitor.onFenceLine?.(line);
+        afterParagraphLine = false;
+        afterListItemLine = false;
+        continue;
+      }
+
+      if (
+        afterListItemLine &&
+        isIndentedCodeLine(line) &&
+        indentedSpaces(line) >= 8
+      ) {
+        inIndentedCodeBlock = true;
+        visitor.onCodeLine?.(line);
         afterParagraphLine = false;
         afterListItemLine = false;
         continue;

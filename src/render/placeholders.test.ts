@@ -93,6 +93,17 @@ describe("resolvePlaceholders", () => {
     expect(out).toContain("continuation with sonnet");
   });
 
+  it("leaves nested list indented code blocks untouched", () => {
+    const input = [
+      "1. Item",
+      "        const preferred = {{model:standard}}",
+      "",
+    ].join("\n");
+
+    const out = resolvePlaceholders(input, "claude", TIERS);
+    expect(out).toContain("const preferred = {{model:standard}}");
+  });
+
   it("respects escape syntax", () => {
     const out = resolvePlaceholders(
       "literal \\{{model:deep}} here",
