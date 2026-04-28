@@ -65,6 +65,23 @@ Only the `model:` namespace is permitted. Other namespaces
 
 ---
 
+## Shared prose conventions
+
+- Use `{{model:fast}}`, `{{model:standard}}`, and
+  `{{model:deep}}` for reasoning-tier references in shared
+  skill bodies.
+- Prefer neutral worktree and path language in shared prose.
+  Avoid hard-coded product-specific home paths unless an example
+  must name both targets explicitly.
+- Describe delegation, review, and skill invocation by intent
+  rather than product-specific API spellings.
+
+In `validate`, drift against these shared-prose conventions is
+reported as warnings in normal mode and as validation failures in
+`validate --strict`.
+
+---
+
 ## Optional content
 
 A skill may also contain:
