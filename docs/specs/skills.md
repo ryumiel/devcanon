@@ -158,6 +158,46 @@ Use {{model:deep}} for synthesis, then {{model:fast}} for cleanup.
 
 ---
 
+## Shipped examples
+
+The synthetic example above shows the full shape. These shipped skills show
+when each block is actually useful:
+
+- `skills/github-issue-priming/SKILL.md` uses `claude.model` because its
+  workflow orchestrates gate, research, planning, and execution.
+- `skills/github-issue-priming/SKILL.md` and
+  `skills/linear-issue-priming/SKILL.md` use `codex.metadata.short-description`
+  plus `codex_sidecar.interface` for Codex discovery and UI treatment.
+- `skills/pr-review/SKILL.md` uses `codex_sidecar.interface` without a
+  `codex:` block because it benefits from a Codex UI label/description without
+  needing extra Codex frontmatter overrides.
+
+```yaml
+claude:
+  model: "{{model:deep}}"
+
+codex:
+  license: MIT
+  metadata:
+    short-description: Prime a GitHub issue into a research-backed implementation workflow
+
+codex_sidecar:
+  interface:
+    display_name: GitHub Issue Priming
+    short_description: Research and stage a GitHub issue for implementation
+    brand_color: "#24292f"
+```
+
+```yaml
+codex_sidecar:
+  interface:
+    display_name: PR Review
+    short_description: Run a multi-agent review of a GitHub pull request
+    brand_color: "#0969da"
+```
+
+---
+
 ## See also
 
 - [Agent source schema](agents.md) — agents reference skills

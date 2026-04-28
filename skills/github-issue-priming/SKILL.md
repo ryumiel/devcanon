@@ -1,6 +1,17 @@
 ---
 name: github-issue-priming
 description: Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a GitHub issue.
+claude:
+  model: "{{model:deep}}"
+codex:
+  license: MIT
+  metadata:
+    short-description: Prime a GitHub issue into a research-backed implementation workflow
+codex_sidecar:
+  interface:
+    display_name: GitHub Issue Priming
+    short_description: Research and stage a GitHub issue for implementation
+    brand_color: "#24292f"
 ---
 
 # GitHub Issue Priming
