@@ -22,7 +22,7 @@ Examples: `/linear-issue-priming ENG-123`, `/linear-issue-priming ENG-123 --auto
 ```dot
 digraph priming {
   rankdir=TB;
-  fetch [label="1. Fetch\nlinear-list skill"];
+  fetch [label="1. Fetch\nlinear-list"];
   worktree [label="2. Worktree\nIsolate before\nany file writes"];
   gate [label="3. Gate\nDedicated agent\nassesses complexity"];
   decide [label="Research?", shape=diamond];
@@ -51,10 +51,7 @@ digraph priming {
 
 Parse the argument — accept a `TEAM-NUMBER` identifier (e.g. `ENG-123`) or a full Linear URL.
 
-```
-Skill(skill: "linear-list", args: "<IDENTIFIER>")
-Skill(skill: "linear-comments", args: "<IDENTIFIER>")
-```
+Invoke `linear-list` and `linear-comments` for `<IDENTIFIER>`.
 
 Present a one-line summary to the user:
 
@@ -71,13 +68,15 @@ Derive the branch name from the Linear identifier: `<type>/<IDENTIFIER>-<slug>` 
 **Detect environment:**
 
 ```bash
-# Check if running inside a remote-control worktree
-pwd | grep -q '\.claude/worktrees/' && echo "REMOTE_WORKTREE" || echo "LOCAL"
+# Check whether the current checkout is already a non-primary worktree
+CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
+MAIN_WORKTREE=$(git worktree list --porcelain | awk '/^worktree / { print $2; exit }')
+[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ] && echo "MANAGED_WORKTREE" || echo "LOCAL"
 ```
 
-**If `REMOTE_WORKTREE` (session spawned by `claude remote-control --spawn worktree`):**
+**If `MANAGED_WORKTREE` (session already started inside an isolated worktree):**
 
-The session is already in an isolated worktree at `.claude/worktrees/<session>/`. Do NOT invoke `using-git-worktrees` — creating a nested worktree causes path confusion and edits landing in the wrong directory. Instead:
+The session is already in an isolated non-primary worktree. Do NOT invoke `using-git-worktrees` again — creating a nested worktree causes path confusion and edits landing in the wrong directory. Instead:
 
 1. Ensure the branch base is current: `git fetch origin && git merge origin/main --ff-only`
 2. Create a feature branch: `git checkout -b <branch-name>`
@@ -95,7 +94,7 @@ Invoke `using-git-worktrees` to create a feature branch + worktree. The skill wi
 
 The gate is **always evaluated** — it is not optional. Only the research phase (Phase 4) is conditional based on the gate's output.
 
-Dispatch a **dedicated agent** (subagent_type: `Explore`, model: `sonnet`) using the prompt template in `gate-agent-prompt.md`. The agent reads the issue description, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `sonnet` as the floor — escalate to `opus` for issues with ambiguous scope or multiple conflicting signals.
+Dispatch a **dedicated exploration agent** using the prompt template in `gate-agent-prompt.md`. The agent reads the issue description, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for issues with ambiguous scope or multiple conflicting signals.
 
 **Pass to the gate agent:**
 
@@ -126,7 +125,7 @@ Dispatch a **dedicated agent** (subagent_type: `Explore`, model: `sonnet`) using
 
 ## Phase 4: Research (Conditional)
 
-Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet`) using the prompt template in `research-agent-prompt.md`. Use `sonnet` as the floor — escalate to `opus` for cross-module or architecturally complex issues.
+Dispatch a **dedicated research agent** using the prompt template in `research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
 
 **Pass to the research agent:**
 
@@ -138,7 +137,7 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet
 
 1. Policy/guideline scanner
 2. Codebase pattern explorer
-3. External OSS precedent searcher (web search + Codex)
+3. External OSS precedent searcher (web search + code search)
 
 **Research agent returns:** A synthesized brief (500-1000 words) in the format:
 
@@ -166,11 +165,7 @@ Dispatch a **dedicated agent** (subagent_type: `general-purpose`, model: `sonnet
 
 ## Phase 5: Invoke Brainstorming
 
-Call the `Skill` tool to invoke the `play-brainstorm` skill with combined context:
-
-```
-Skill(skill: "play-brainstorm", args: "<composed args>")
-```
+Invoke the `play-brainstorm` skill with the combined context below.
 
 **Args format when research was done:**
 
@@ -222,11 +217,7 @@ Invoke `play-subagent-execution` to execute the plan. All subagent-driven-develo
 
 ### Phase 8: Branch Review
 
-Invoke the `branch-review` skill with `--fix` to review the implementation before creating a PR:
-
-```
-Skill(skill: "branch-review", args: "--fix")
-```
+Invoke `branch-review --fix` to review the implementation before creating a PR.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff main...HEAD`. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected for the PR description.
 
@@ -253,8 +244,8 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 | Phase            | What                                | Key constraint                                               |
 | ---------------- | ----------------------------------- | ------------------------------------------------------------ |
-| 1. Fetch         | `linear-list skill`                 | Stop if not found                                            |
-| 2. Worktree      | Isolate before file writes          | Detect remote-control vs local                               |
+| 1. Fetch         | `linear-list`                       | Stop if not found                                            |
+| 2. Worktree      | Isolate before file writes          | Detect managed worktree vs local                             |
 | 3. Gate          | Dedicated agent assesses complexity | Always evaluated; default to `RESEARCH_NEEDED` on failure    |
 | 4. Research      | Dedicated agent synthesizes brief   | Optional — only if gate says so                              |
 | 5. Brainstorm    | Invoke `play-brainstorm`            | Never skip, even for "simple" issues                         |
@@ -270,10 +261,10 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths
 - **Fix:** Worktree is created in Phase 2, before brainstorming writes any files
 
-### Creating nested worktree in remote-control session
+### Creating nested worktree in an already-managed session
 
-- **Problem:** `using-git-worktrees` creates a worktree inside `.claude/worktrees/<session>/`, causing double nesting and path confusion
-- **Fix:** Detect remote-control context with `pwd | grep '\.claude/worktrees/'` and branch in place
+- **Problem:** `using-git-worktrees` creates a worktree inside an existing managed worktree, causing double nesting and path confusion
+- **Fix:** Detect managed-worktree context by comparing the current worktree root to the primary checkout, then branch in place
 
 ### Running research in the main session
 
@@ -288,7 +279,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 ### Skipping the gate for "obvious" issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** Always run the gate — it's cheap (Explore agent, sonnet) and catches surprises
+- **Fix:** Always run the gate — it's cheap (exploration agent, `{{model:standard}}`) and catches surprises
 
 ## Red Flags — You Are Violating This Skill
 
@@ -298,7 +289,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - You dumped raw research output instead of passing the synthesized brief
 - You skipped brainstorming because "the issue is simple enough"
 - You wrote spec/design/plan files outside the worktree
-- You created a nested worktree inside a remote-control worktree
+- You created a nested worktree inside an already-managed worktree
 - You auto-merged a PR in `--auto` mode (the PR is the user's review gate)
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
 - You composed a PR title/description without reading the project's PR guideline first
@@ -322,15 +313,15 @@ These rules apply to any project using this skill. They override defaults from d
 
 ### Model selection
 
-Use `sonnet` as the floor for all agents that make judgment calls. Only haiku is acceptable for mechanical implementer tasks with fully-specified plans.
+Use `{{model:standard}}` as the floor for all agents that make judgment calls. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent                    | Minimum model | Escalate to opus when                          |
-| ------------------------ | ------------- | ---------------------------------------------- |
-| Gate (Phase 3)           | sonnet        | Ambiguous scope, multiple conflicting signals  |
-| Research (Phase 4)       | sonnet        | Cross-module or architecturally complex issues |
-| Spec compliance reviewer | sonnet        | Multi-file changes, complex requirements       |
-| Code quality reviewer    | sonnet        | Architectural or pattern-level concerns        |
-| PR review agents         | opus          | Always — final gate, highest cost of failure   |
+| Agent                    | Minimum model        | Escalate to `{{model:deep}}` when              |
+| ------------------------ | -------------------- | ---------------------------------------------- |
+| Gate (Phase 3)           | `{{model:standard}}` | Ambiguous scope, multiple conflicting signals  |
+| Research (Phase 4)       | `{{model:standard}}` | Cross-module or architecturally complex issues |
+| Spec compliance reviewer | `{{model:standard}}` | Multi-file changes, complex requirements       |
+| Code quality reviewer    | `{{model:standard}}` | Architectural or pattern-level concerns        |
+| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure   |
 
 ## What This Skill Does NOT Do
 

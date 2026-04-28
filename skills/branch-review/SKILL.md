@@ -52,7 +52,7 @@ Extract from the diff:
 
 ## Phase 2: Discover Guidelines
 
-Glob for review guidelines — read them, don't just list paths:
+Search the repository for review guidelines — read them, don't just list paths:
 
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
@@ -88,9 +88,9 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 4. Discovered guidelines — actual content, not file paths
 5. Output format — file, line, priority P0-P3, blocking/nit, code reference, recommendation
 
-All agents run in parallel with `run_in_background: true`.
+Run all agents in parallel.
 
-**Model selection:** Use `opus` for all review agents and the critic — same rationale as `pr-review`.
+**Model selection:** Use `{{model:deep}}` for all review agents and the critic — same rationale as `pr-review`.
 
 ## Phase 4: Verify
 

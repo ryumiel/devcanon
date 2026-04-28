@@ -28,3 +28,14 @@ platform:
 
 manifest:
   path: ~/.agents-manager/manifest.json
+
+modelTiers:
+  fast:
+    claude: claude-haiku-4
+    codex: gpt-5.4-mini
+  standard:
+    claude: claude-sonnet-4-7
+    codex: gpt-5.4
+  deep:
+    claude: claude-opus-4-7
+    codex: gpt-5.4

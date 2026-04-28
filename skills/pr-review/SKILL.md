@@ -42,7 +42,7 @@ Detect mode:
 
 ### Phase 2: Discover
 
-Glob for review guidelines — read them, don't just list paths:
+Search the repository for review guidelines — read them, don't just list paths:
 
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
@@ -90,9 +90,9 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 Compose PR-specific prompts referencing actual files and line counts. Generic prompts like "review this PR" are prohibited.
 
-All agents run in parallel with `run_in_background: true`.
+Run all agents in parallel.
 
-**Model selection:** Use `opus` for all review agents and the critic. PR review is the final quality gate — the cost of missing a real bug far outweighs the cost of a more capable model.
+**Model selection:** Use `{{model:deep}}` for all review agents and the critic. PR review is the final quality gate — the cost of missing a real bug far outweighs the cost of a more capable model.
 
 **Follow-up review scoping:**
 
