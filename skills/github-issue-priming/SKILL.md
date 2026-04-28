@@ -66,50 +66,41 @@ If the issue cannot be fetched (not found, `gh` not authenticated), stop and rep
 Set up an isolated workspace **immediately after fetching the issue**, before any file writes (specs, designs, plans). This ensures all artifacts live in the worktree from the start — no copying, no path confusion.
 
 Derive the branch name from the issue: `<type>/<N>-<slug>` (e.g., `refactor/149-patcher-operation-error`).
+Derive the worktree leaf from the issue: `<N>-<slug>`.
 
-**Detect environment:**
-
-```bash
-# Check whether the current checkout is already a clean, main-based
-# non-primary worktree that can safely be reused for this issue.
-CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
-MAIN_WORKTREE=$(git worktree list --porcelain | awk '/^worktree / { sub(/^worktree /, ""); print; exit }')
-CURRENT_BRANCH=$(git branch --show-current)
-CURRENT_STATUS=$(git status --short)
-if [ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]; then
-  if [ "$CURRENT_BRANCH" = "main" ] && [ -z "$CURRENT_STATUS" ]; then
-    echo "REUSE_WORKTREE"
-  else
-    echo "STOP_MANAGED_WORKTREE"
-  fi
-else
-  echo "NEW_WORKTREE"
-fi
-```
-
-**If `REUSE_WORKTREE` (session already started inside a reusable worktree):**
-
-The session is already in an isolated non-primary worktree, it is still based on local `main`, and it has no in-flight edits. Do NOT create another worktree from here — nested worktrees cause path confusion and edits landing in the wrong directory. Instead:
-
-1. Ensure the branch base is current: `git fetch origin && git merge origin/main --ff-only`
-2. Create a feature branch: `git checkout -b <branch-name>`
-3. Use the current working directory as the implementation workspace
-
-**If `STOP_MANAGED_WORKTREE` (already inside a managed worktree, but it is dirty or already on another branch):**
-
-Do NOT create another worktree from inside an existing managed worktree. Finish, discard, or switch out of the current managed worktree first. Then restart priming from the primary checkout before creating a fresh worktree from `main`.
-
-**If `NEW_WORKTREE` (normal session from the primary checkout):**
-
-Create a fresh feature branch + worktree from updated `main` using plain Git. The skill will use the project's existing `.worktrees/` directory.
+Invoke the `issue-worktree-setup` skill. It owns environment detection and
+setup policy. Do NOT re-implement the worktree decision logic here.
 
 ```bash
-git fetch origin
-mkdir -p .worktrees
-git worktree add -b <branch-name> ".worktrees/<N>-<slug>" origin/main
+WORKTREE_SETUP_OUTPUT=$(
+  BRANCH_NAME="<branch-name>" \
+  WORKTREE_LEAF="<N>-<slug>" \
+  BASE_REF="origin/main" \
+  bash skills/issue-worktree-setup/scripts/setup-worktree.sh
+)
+
+while IFS= read -r line; do
+  key=${line%%=*}
+  value=${line#*=}
+  case "$key" in
+    MODE) MODE=$value ;;
+    WORKTREE_PATH) WORKTREE_PATH=$value ;;
+    MESSAGE) MESSAGE=$value ;;
+  esac
+done <<EOF
+$WORKTREE_SETUP_OUTPUT
+EOF
 ```
 
-**After worktree is ready:** All subsequent phases (gate, research, brainstorming, planning, implementation) operate from the worktree. Pass the worktree path to all dispatched subagents.
+Handle the result:
+
+- If `MODE=stop`, surface `MESSAGE` and stop. The operator must return to the
+  primary checkout before retrying.
+- If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
+
+**After worktree is ready:** All subsequent phases (gate, research,
+brainstorming, planning, implementation) operate from `WORKTREE_PATH`. Pass
+that path to all dispatched subagents.
 
 **If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard).
 
@@ -287,7 +278,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 ### Creating nested worktree in an already-managed session
 
 - **Problem:** Creating a fresh worktree from inside an existing managed worktree causes double nesting and path confusion
-- **Fix:** Detect managed-worktree context by comparing the current worktree root to the primary checkout. If already inside a non-primary worktree, either branch in place when safe or stop and return to the primary checkout before creating another worktree
+- **Fix:** Invoke `issue-worktree-setup` and obey `MODE=stop`. If already inside a non-primary worktree, either branch in place when safe or stop and return to the primary checkout before creating another worktree
 
 ### Running research in the main session
 

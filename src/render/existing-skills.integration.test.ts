@@ -8,6 +8,7 @@ import { renderAll } from "./pipeline.js";
 
 const TOUCHED_SKILLS = new Set([
   "github-issue-priming",
+  "issue-worktree-setup",
   "linear-issue-priming",
   "pr-review",
   "branch-review",
