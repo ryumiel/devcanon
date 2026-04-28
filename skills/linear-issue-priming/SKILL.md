@@ -70,7 +70,8 @@ Invoke the `issue-worktree-setup` skill. It owns environment detection and
 setup policy. Do NOT re-implement the worktree decision logic here.
 
 ```bash
-HELPER_SCRIPT="scripts/setup-worktree.sh"
+ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
+HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
 
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
@@ -78,23 +79,14 @@ WORKTREE_SETUP_OUTPUT=$(
   BASE_REF="origin/main" \
   bash "$HELPER_SCRIPT"
 )
-
-while IFS= read -r line; do
-  key=${line%%=*}
-  value=${line#*=}
-  case "$key" in
-    MODE) MODE=$value ;;
-    WORKTREE_PATH) WORKTREE_PATH=$value ;;
-    MESSAGE) MESSAGE=$value ;;
-  esac
-done <<EOF
-$WORKTREE_SETUP_OUTPUT
-EOF
 ```
 
-Resolve `scripts/setup-worktree.sh` from the `issue-worktree-setup` skill
-bundle. The repository working directory may be any subdirectory inside the
-target checkout.
+Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed
+`issue-worktree-setup` skill bundle. The repository working directory may be
+any subdirectory inside the target checkout. Parse `WORKTREE_SETUP_OUTPUT`
+exactly as specified in the helper skill's output contract; do not
+whitespace-split it or assume the script lives under the target repo's own
+`scripts/` directory.
 
 Handle the result:
 

@@ -29,7 +29,8 @@ Invoke the helper through environment variables:
 Run:
 
 ```bash
-HELPER_SCRIPT="scripts/setup-worktree.sh"
+ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
+HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
 
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
@@ -39,8 +40,12 @@ WORKTREE_SETUP_OUTPUT=$(
 )
 ```
 
-Resolve `scripts/setup-worktree.sh` from the `issue-worktree-setup` skill
-bundle, not from the repository being primed.
+Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
+skill bundle, not to the repository being primed.
+
+Callers should only pass single-line values. `BRANCH_NAME` must be a valid Git
+branch name, `WORKTREE_LEAF` must be a single path leaf, and `BASE_REF` must
+resolve to a commit after `git fetch origin`.
 
 ## Output Contract
 
@@ -75,6 +80,7 @@ worktree that is:
 
 - on branch `main`
 - clean (`git status --short` is empty)
+- not ahead of `BASE_REF`
 
 The helper fetches `origin`, fast-forwards `main` to `BASE_REF`, creates the
 requested feature branch in place, and returns the current worktree path.
@@ -89,7 +95,7 @@ linked worktree from `BASE_REF`, and returns the new worktree path.
 ### `MODE=stop`
 
 Returned when the current session is already inside a managed worktree that is
-dirty or already on a feature branch.
+dirty, already on a feature branch, or locally ahead of `BASE_REF`.
 
 The helper performs no setup. The caller must surface `MESSAGE` and stop. Do
 not create another worktree from inside that session.
@@ -101,7 +107,14 @@ The helper preserves spaces in paths by parsing
 full absolute `WORKTREE_PATH`.
 
 `WORKTREE_LEAF` must stay a single leaf name. Do not pass `/`, `..`, absolute
-paths, or names beginning with `-`.
+paths, names beginning with `-`, or multiline values.
+
+The helper also requires `.worktrees/` to resolve to a normal directory inside
+the primary checkout. It rejects symlinks or any resolved path outside that
+checkout.
+
+The target leaf path must not already exist. The helper rejects pre-existing
+files, directories, or symlinks at `.worktrees/<leaf>`.
 
 ## Failure Model
 

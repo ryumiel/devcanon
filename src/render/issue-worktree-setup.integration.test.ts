@@ -1,9 +1,19 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeResolvedConfig } from "../__test-helpers__/fixtures.js";
+import { renderAll } from "./pipeline.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,6 +45,10 @@ async function runCommand(
 
 async function runGit(args: string[], cwd: string): Promise<string> {
   return runCommand("git", args, cwd);
+}
+
+function normalizeFsPath(value: string): string {
+  return path.normalize(value).replaceAll("\\", "/");
 }
 
 async function createOriginRepo(rootDir: string): Promise<{
@@ -81,16 +95,48 @@ async function runSetup(
   return parseKeyValueOutput(stdout);
 }
 
-async function resolveHelperScript(): Promise<string> {
+async function renderGeneratedHelperScript(rootDir: string): Promise<string> {
   const repoRoot = process.cwd();
-  return realpath(
-    path.join(
-      repoRoot,
-      "skills",
-      "issue-worktree-setup",
-      "scripts",
-      "setup-worktree.sh",
+  const skillDir = path.join(rootDir, "skills", "issue-worktree-setup");
+  const scriptsDir = path.join(skillDir, "scripts");
+  const sourceSkillDir = path.join(repoRoot, "skills", "issue-worktree-setup");
+
+  await mkdir(scriptsDir, { recursive: true });
+  await writeFile(
+    path.join(skillDir, "SKILL.md"),
+    await readFile(path.join(sourceSkillDir, "SKILL.md"), "utf-8"),
+    "utf-8",
+  );
+  await writeFile(
+    path.join(scriptsDir, "setup-worktree.sh"),
+    await readFile(
+      path.join(sourceSkillDir, "scripts", "setup-worktree.sh"),
+      "utf-8",
     ),
+    "utf-8",
+  );
+
+  const config = makeResolvedConfig(rootDir, {
+    library: {
+      skillsDir: path.join(rootDir, "skills"),
+      agentsDir: path.join(rootDir, "agents"),
+      generatedDir: path.join(rootDir, "generated"),
+    },
+  });
+  await mkdir(config.library.agentsDir, { recursive: true });
+
+  const result = await renderAll(config, true, false, "claude");
+  const renderedSkill = result.outputs.find(
+    (output) =>
+      output.type === "skill" && output.name === "issue-worktree-setup",
+  );
+
+  expect(renderedSkill).toBeTruthy();
+  if (!renderedSkill || renderedSkill.type !== "skill") {
+    throw new Error("Rendered helper skill was not produced.");
+  }
+  return realpath(
+    path.join(renderedSkill.generatedPath, "scripts", "setup-worktree.sh"),
   );
 }
 
@@ -129,12 +175,12 @@ describe("issue-worktree-setup helper", () => {
     tempDirs.length = 0;
   });
 
-  it("creates a new worktree from a repo subdirectory and honors BASE_REF", async () => {
+  it("creates a new worktree from a repo subdirectory via the generated skill bundle and honors BASE_REF", async () => {
     const rootDir = path.join(os.tmpdir(), `am-worktree-space-${Date.now()}`);
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
-    const helperScript = await resolveHelperScript();
+    const helperScript = await renderGeneratedHelperScript(rootDir);
     const publisherDir = await createPublisherClone(rootDir);
     const baseSha = await createRemoteBaseRef(
       publisherDir,
@@ -156,7 +202,9 @@ describe("issue-worktree-setup helper", () => {
     );
 
     expect(result.MODE).toBe("new");
-    expect(result.WORKTREE_PATH).toBe(expectedPath);
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(expectedPath),
+    );
     expect(await pathExists(expectedPath)).toBe(true);
     expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
       "feat/test-worktree-helper",
@@ -169,7 +217,7 @@ describe("issue-worktree-setup helper", () => {
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
-    const helperScript = await resolveHelperScript();
+    const helperScript = await renderGeneratedHelperScript(rootDir);
     const publisherDir = await createPublisherClone(rootDir);
 
     await runGit(["checkout", "-b", "chore/holder"], primaryDir);
@@ -191,11 +239,46 @@ describe("issue-worktree-setup helper", () => {
     expect(result.MODE).toBe("reuse");
     const managedRealPath = await realpath(managedPath);
 
-    expect(result.WORKTREE_PATH).toBe(managedRealPath);
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(managedRealPath),
+    );
     expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
       "feat/reused-worktree",
     );
     expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
+  });
+
+  it("stops when a managed main worktree is ahead of BASE_REF", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-ahead-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    await runGit(["checkout", "-b", "chore/holder"], primaryDir);
+    const managedPath = path.join(primaryDir, ".worktrees", "ahead");
+    await runGit(["worktree", "add", managedPath, "main"], primaryDir);
+    await writeFile(
+      path.join(managedPath, "local-only.txt"),
+      "local only\n",
+      "utf-8",
+    );
+    await runGit(["add", "local-only.txt"], managedPath);
+    await runGit(["commit", "-m", "chore: local only commit"], managedPath);
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/should-not-branch",
+      WORKTREE_LEAF: "ignored-for-reuse",
+    });
+
+    expect(result.MODE).toBe("stop");
+    expect(result.MESSAGE).toMatch(/ahead of BASE_REF/i);
+    expect(await runGit(["branch", "--show-current"], managedPath)).toBe(
+      "main",
+    );
+    await expect(
+      runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
+    ).rejects.toThrow();
   });
 
   it("refuses to create a nested worktree from a managed feature worktree", async () => {
@@ -203,7 +286,7 @@ describe("issue-worktree-setup helper", () => {
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
-    const helperScript = await resolveHelperScript();
+    const helperScript = await renderGeneratedHelperScript(rootDir);
 
     const managedPath = path.join(primaryDir, ".worktrees", "feature-branch");
     await runGit(
@@ -219,7 +302,9 @@ describe("issue-worktree-setup helper", () => {
     expect(result.MODE).toBe("stop");
     const managedRealPath = await realpath(managedPath);
 
-    expect(result.WORKTREE_PATH).toBe(managedRealPath);
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(managedRealPath),
+    );
     expect(result.MESSAGE).toMatch(/primary checkout/i);
     expect(
       await pathExists(
@@ -233,7 +318,7 @@ describe("issue-worktree-setup helper", () => {
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
-    const helperScript = await resolveHelperScript();
+    const helperScript = await renderGeneratedHelperScript(rootDir);
 
     await expect(
       runCommand("bash", [helperScript], primaryDir, {
@@ -241,6 +326,97 @@ describe("issue-worktree-setup helper", () => {
         WORKTREE_LEAF: "../escape",
       }),
     ).rejects.toThrow(/Unsafe WORKTREE_LEAF/u);
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/unsafe-leaf",
+        WORKTREE_LEAF: "leaf\nMODE=stop",
+      }),
+    ).rejects.toThrow(/Unsafe WORKTREE_LEAF/u);
     expect(await pathExists(path.join(primaryDir, "escape"))).toBe(false);
+  });
+
+  it("rejects unsafe BASE_REF values", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-baseref-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/bad-base-ref",
+        WORKTREE_LEAF: "bad-base-ref",
+        BASE_REF: "--help",
+      }),
+    ).rejects.toThrow(/Unsafe BASE_REF/u);
+  });
+
+  it("rejects invalid branch names", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-branch-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "--not-a-branch",
+        WORKTREE_LEAF: "bad-branch",
+      }),
+    ).rejects.toThrow(/Unsafe BRANCH_NAME/u);
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "bad branch name",
+        WORKTREE_LEAF: "bad-branch",
+      }),
+    ).rejects.toThrow(/Invalid BRANCH_NAME/u);
+  });
+
+  it("rejects a symlinked managed worktree root outside the primary checkout", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-symlink-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const escapedRoot = path.join(rootDir, "escaped-worktrees");
+
+    await mkdir(escapedRoot, { recursive: true });
+    await symlink(escapedRoot, path.join(primaryDir, ".worktrees"));
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/symlink-escape",
+        WORKTREE_LEAF: "symlink-escape",
+      }),
+    ).rejects.toThrow(/\.worktrees/u);
+    expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects a symlinked managed worktree leaf outside the primary checkout", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-leaf-symlink-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const escapedLeaf = path.join(rootDir, "escaped-leaf");
+    const worktreesDir = path.join(primaryDir, ".worktrees");
+    const symlinkLeaf = path.join(worktreesDir, "leaf-escape");
+
+    await mkdir(escapedLeaf, { recursive: true });
+    await mkdir(worktreesDir, { recursive: true });
+    await symlink(escapedLeaf, symlinkLeaf);
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/leaf-escape",
+        WORKTREE_LEAF: "leaf-escape",
+      }),
+    ).rejects.toThrow(/Target worktree path already exists/u);
+    expect(await pathExists(path.join(escapedLeaf, ".git"))).toBe(false);
   });
 });
