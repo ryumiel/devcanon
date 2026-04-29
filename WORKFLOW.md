@@ -27,7 +27,7 @@ This document is the procedural guide for contributing to the repository. For po
   - Expected behavior: what should happen instead
   - Acceptance criteria: observable conditions that mean "done"
   - Reproduction: the minimum safe summary or sanitized excerpt
-  - Environment and provenance: install mode, artifact path, revision, and `render` / `sync` reproduction state
+  - Environment and provenance: install mode, sanitized artifact path, revision, and `render` / `sync` reproduction state
   - Affected areas: which source-of-truth paths are involved (`skills/`, `docs/`, `src/`, and `agents/` when that directory exists in the checkout)
   - Dependencies or blockers: related issues and `blocked by` relationships
   - Notes: anything the implementer needs that does not fit above
@@ -37,8 +37,8 @@ This document is the procedural guide for contributing to the repository. For po
 ## Reporting Shared Skill or Agent Problems from Consumer Repos
 
 - If you discover a reusable shared-skill or shared-agent problem while working in another repository, do not edit managed installed copies under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md`; installed skills and agents are disposable managed outputs.
-- Draft an upstream issue for `agents-manager` first using `report-agents-manager-shared-issue`.
-- Use the local retest loop during upstream work: `pnpm run dev -- validate -> pnpm run dev -- render -> test in the consumer repo -> pnpm run dev -- sync` when the change is ready to install.
+- Draft an upstream issue for `agents-manager` in `ryumiel/agent-manager` first using `report-agents-manager-shared-issue`.
+- Use the local retest loop during upstream work: `pnpm run dev -- validate -> pnpm run dev -- render`; then test in the consumer repo for `symlink` installs, or run `pnpm run dev -- sync` before consumer-repo retesting for `copy` installs; finish with `pnpm run dev -- sync` when the managed install should be updated.
 - For the full playbook, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 
 ## Implementing

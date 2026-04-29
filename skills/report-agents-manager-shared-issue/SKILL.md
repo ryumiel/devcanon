@@ -22,6 +22,8 @@ Do not use this skill for project-local prompt tweaks, domain-specific wording, 
 
 Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `agents-manager` without leaking unsafe material.
 
+The upstream GitHub repository for issue search and posting is `ryumiel/agent-manager`.
+
 ## Interaction Rules
 
 - Ask one question at a time until the minimum payload is complete.
@@ -29,12 +31,13 @@ Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `
 - Never post an issue without showing the exact draft first and receiving explicit confirmation.
 - If the user declines posting, keep the exact draft available for manual reuse.
 - If posting fails, preserve the drafted title and body and explain what failed.
+- If GitHub access to `ryumiel/agent-manager` is unavailable, stop at `MODE=draft`.
 
 ## Minimum Payload
 
 Capture:
 
-- consumer repository or project
+- consumer repository or sanitized project descriptor
 - affected shared skill or shared agent, if one exists
 - target environment: `codex`, `claude`, or both
 - issue type: `bug`, `improvement`, `new skill`, or `new agent`
@@ -44,7 +47,7 @@ Capture:
 - optional verbatim prompt or transcript excerpt only after explicit safety confirmation
 - user impact or severity
 - install mode: `symlink`, `copy`, or `unknown`
-- observed artifact path, if known
+- sanitized artifact path, if known
 - `agents-manager` revision, branch, or version, if known
 - whether the problem still reproduces after `render`: `yes`, `no`, `not-tried`, or `unknown`
 - whether the problem still reproduces after `sync`: `yes`, `no`, `not-tried`, or `unknown`
@@ -60,12 +63,16 @@ incomplete issue draft and explicitly call out what is still missing.
 Before drafting the issue:
 
 - remove or replace secrets, internal URLs, customer identifiers, and proprietary code
+- replace private repository names, usernames, hostnames, and workstation-specific path segments when they are not already public
 - ask the user to confirm any verbatim excerpt is safe to publish
+- prefer repo-relative paths or placeholders over raw local absolute paths
 - if a safe verbatim excerpt is not possible, use a summary-only reproduction and say what was omitted
 
 ## Duplicate Check
 
-Before presenting a new draft, search open `agents-manager` issues for likely duplicates using the affected skill or agent name, summary, and key reproduction terms.
+Before presenting a new draft, search open `ryumiel/agent-manager` issues for likely duplicates using the affected skill or agent name plus sanitized summary and reproduction terms.
+
+Never use raw consumer repository names, usernames, hostnames, or local path fragments in duplicate-search queries.
 
 If a likely duplicate exists, offer three paths:
 
@@ -107,15 +114,16 @@ Recommend this local retest loop:
 
 1. `pnpm run dev -- validate`
 2. `pnpm run dev -- render`
-3. test again from the consumer repository
-4. `pnpm run dev -- sync` when the change is ready to install
+3. in `symlink` mode, test again from the consumer repository
+4. in `copy` mode, run `pnpm run dev -- sync` before retesting from the consumer repository
+5. run `pnpm run dev -- sync` when the change is ready to install and the managed outputs should be updated
 
 Install-mode note:
 
 - in `symlink` mode, `render` is usually enough for most iterations because
   installed outputs reflect generated outputs directly
-- in `copy` mode, rerun `sync` before retesting because installed outputs do
-  not refresh from `render` alone
+- in `copy` mode, installed outputs do not refresh from `render` alone, so run
+  `sync` before any consumer-repo retest
 
 ## Output Contract
 
