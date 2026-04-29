@@ -17,14 +17,23 @@ const TOUCHED_SKILLS = new Set([
   "pr-merge",
   "play-skill-authoring",
   "play-planning",
+  "report-agents-manager-shared-issue",
 ]);
 
-const PRIMING_SKILLS = [
-  "github-issue-priming",
-  "linear-issue-priming",
-] as const;
-
-const SIDECAR_SKILLS = [...PRIMING_SKILLS, "pr-review"] as const;
+const SKILLS_WITH_METADATA = {
+  claudeFrontmatter: ["github-issue-priming", "linear-issue-priming"] as const,
+  codexFrontmatter: [
+    "github-issue-priming",
+    "linear-issue-priming",
+    "report-agents-manager-shared-issue",
+  ] as const,
+  sidecar: [
+    "github-issue-priming",
+    "linear-issue-priming",
+    "pr-review",
+    "report-agents-manager-shared-issue",
+  ] as const,
+};
 
 const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
   "name",
@@ -116,19 +125,7 @@ describe("existing skills render cleanly", () => {
 
     const { outputs } = await renderAll(config, true);
 
-    for (const skillName of PRIMING_SKILLS) {
-      const claudeOutput = getSkillOutput(outputs, skillName, "claude");
-      const { frontmatter: claudeFrontmatter, body: claudeBody } =
-        parseFrontmatter(stripManagedHeader(claudeOutput.content));
-
-      expect(claudeFrontmatter).toMatchObject({
-        model: "claude-opus-4-7",
-      });
-      expect(claudeBody).not.toContain("{{model:");
-      expect(claudeFrontmatter).toMatchSnapshot(
-        `${skillName}-claude-frontmatter`,
-      );
-
+    for (const skillName of SKILLS_WITH_METADATA.codexFrontmatter) {
       const codexOutput = getSkillOutput(outputs, skillName, "codex");
       const { frontmatter: codexFrontmatter, body: codexBody } =
         parseFrontmatter(stripManagedHeader(codexOutput.content));
@@ -145,7 +142,21 @@ describe("existing skills render cleanly", () => {
       );
     }
 
-    for (const skillName of SIDECAR_SKILLS) {
+    for (const skillName of SKILLS_WITH_METADATA.claudeFrontmatter) {
+      const claudeOutput = getSkillOutput(outputs, skillName, "claude");
+      const { frontmatter: claudeFrontmatter, body: claudeBody } =
+        parseFrontmatter(stripManagedHeader(claudeOutput.content));
+
+      expect(claudeFrontmatter).toMatchObject({
+        model: "claude-opus-4-7",
+      });
+      expect(claudeBody).not.toContain("{{model:");
+      expect(claudeFrontmatter).toMatchSnapshot(
+        `${skillName}-claude-frontmatter`,
+      );
+    }
+
+    for (const skillName of SKILLS_WITH_METADATA.sidecar) {
       const sidecarPath = path.join(
         config.library.generatedDir,
         "codex",

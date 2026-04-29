@@ -67,3 +67,24 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   },
 }
 `;
+
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-agents-manager-shared-issue-codex-frontmatter 1`] = `
+{
+  "description": "Use when a reusable shared skill or shared agent problem is discovered in a consumer repository and should be drafted as an upstream agents-manager issue. Also use for requests for new shared skills or shared agents when the need is reusable across repositories.",
+  "license": "MIT",
+  "metadata": {
+    "short-description": "Draft an upstream shared-work issue for agents-manager from a consumer repository",
+  },
+  "name": "report-agents-manager-shared-issue",
+}
+`;
+
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-agents-manager-shared-issue-sidecar 1`] = `
+{
+  "interface": {
+    "brand_color": "#0f766e",
+    "display_name": "Report Shared Issue",
+    "short_description": "Draft and post reusable shared-work issues to agents-manager",
+  },
+}
+`;
