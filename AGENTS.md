@@ -200,6 +200,7 @@ For module responsibilities, dependency rules, and data flow, see
 | Platform and security               | [`docs/specs/platform.md`](docs/specs/platform.md)                                                         |
 | Testing requirements                | [`docs/specs/testing.md`](docs/specs/testing.md)                                                           |
 | When to create an agent vs. a skill | [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)                     |
+| Writing skills in this repo         | [`docs/guidelines/writing-skills.md`](docs/guidelines/writing-skills.md)                                   |
 | Contributing and commit policy      | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                       |
 | Decision matrix                     | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                                 |
 | Documentation standard              | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)                   |
