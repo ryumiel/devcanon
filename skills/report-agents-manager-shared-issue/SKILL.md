@@ -105,10 +105,10 @@ happens only in `agents-manager` source files.
 
 Recommend this local retest loop:
 
-1. `agents-manager validate`
-2. `agents-manager render`
+1. `pnpm run dev -- validate`
+2. `pnpm run dev -- render`
 3. test again from the consumer repository
-4. `agents-manager sync` when the change is ready to install
+4. `pnpm run dev -- sync` when the change is ready to install
 
 Install-mode note:
 

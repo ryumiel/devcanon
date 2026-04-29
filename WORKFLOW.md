@@ -36,9 +36,9 @@ This document is the procedural guide for contributing to the repository. For po
 
 ## Reporting Shared Skill or Agent Problems from Consumer Repos
 
-- If you discover a reusable shared-skill or shared-agent problem while working in another repository, do not edit the managed installed copy under `~/.agents/skills/` or `~/.claude/skills/`.
+- If you discover a reusable shared-skill or shared-agent problem while working in another repository, do not edit managed installed copies under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md`; installed skills and agents are disposable managed outputs.
 - Draft an upstream issue for `agents-manager` first using `report-agents-manager-shared-issue`.
-- Use the local retest loop during upstream work: `agents-manager validate -> agents-manager render -> test in the consumer repo -> agents-manager sync` when the change is ready to install.
+- Use the local retest loop during upstream work: `pnpm run dev -- validate -> pnpm run dev -- render -> test in the consumer repo -> pnpm run dev -- sync` when the change is ready to install.
 - For the full playbook, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 
 ## Implementing
