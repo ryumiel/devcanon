@@ -86,13 +86,11 @@ describe("renderCodexAgent", () => {
     expect(result.content).toMatchSnapshot();
   });
 
-  it("includes managed comment header", () => {
+  it("starts with TOML assignments (no managed header)", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     const content = result.content;
-    expect(content).toContain(
-      "# Managed by agents-manager. Do not edit directly.",
-    );
-    expect(content).toContain("# Source: agents/test-agent.yaml");
+    expect(content.startsWith("name = ")).toBe(true);
+    expect(content).not.toContain("Managed by agents-manager");
   });
 
   it("includes name, description, and sandbox_mode fields", () => {

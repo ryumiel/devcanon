@@ -42,10 +42,6 @@ const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
   ...CODEX_SKILL_OVERRIDE_FIELDS,
 ]);
 
-function stripManagedHeader(content: string): string {
-  return content.replace(/^(?:<!--[\s\S]*?-->\n*)+/u, "");
-}
-
 function getSkillOutput(
   outputs: Awaited<ReturnType<typeof renderAll>>["outputs"],
   name: string,
@@ -79,7 +75,7 @@ describe("existing skills render cleanly", () => {
     expect(skillOutputs).toHaveLength(skillDirs.length * 2);
 
     for (const output of skillOutputs) {
-      expect(output.content).toContain("<!-- Managed by agents-manager");
+      expect(output.content.startsWith("---\n")).toBe(true);
       expect(output.content).toContain(`name: ${output.name}`);
     }
   });
@@ -101,9 +97,7 @@ describe("existing skills render cleanly", () => {
     expect(codexOutputs).toHaveLength(TOUCHED_SKILLS.size);
 
     for (const output of codexOutputs) {
-      const { frontmatter, body } = parseFrontmatter(
-        stripManagedHeader(output.content),
-      );
+      const { frontmatter, body } = parseFrontmatter(output.content);
 
       expect(frontmatter.name).toBe(output.name);
       expect(frontmatter.description).toEqual(expect.any(String));
@@ -128,7 +122,7 @@ describe("existing skills render cleanly", () => {
     for (const skillName of SKILLS_WITH_METADATA.codexFrontmatter) {
       const codexOutput = getSkillOutput(outputs, skillName, "codex");
       const { frontmatter: codexFrontmatter, body: codexBody } =
-        parseFrontmatter(stripManagedHeader(codexOutput.content));
+        parseFrontmatter(codexOutput.content);
 
       expect(codexFrontmatter).toMatchObject({
         license: "MIT",
@@ -145,7 +139,7 @@ describe("existing skills render cleanly", () => {
     for (const skillName of SKILLS_WITH_METADATA.claudeFrontmatter) {
       const claudeOutput = getSkillOutput(outputs, skillName, "claude");
       const { frontmatter: claudeFrontmatter, body: claudeBody } =
-        parseFrontmatter(stripManagedHeader(claudeOutput.content));
+        parseFrontmatter(claudeOutput.content);
 
       expect(claudeFrontmatter).toMatchObject({
         model: "claude-opus-4-7",

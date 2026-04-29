@@ -134,7 +134,6 @@ agents-manager/
       errors.ts              # Error types
       fs.ts                  # Filesystem helpers
       hash.ts                # Content hashing
-      managed-header.ts      # Managed header generation/detection
       output.ts              # CLI output formatting
       paths.ts               # Path resolution and normalization
 

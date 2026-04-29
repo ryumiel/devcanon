@@ -6,7 +6,6 @@ import type {
   RenderedAgent,
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
-import { makeMdHeader } from "../utils/managed-header.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -68,11 +67,7 @@ export function renderClaudeAgent(
   skills: Map<string, LoadedSkill>,
   config: ResolvedConfig,
 ): RenderedAgent {
-  const sourcePath = `agents/${agent.name}.yaml`;
   const lines: string[] = [];
-
-  // Managed header
-  lines.push(makeMdHeader(sourcePath));
 
   // Frontmatter - explicit ordering for determinism
   lines.push("---");

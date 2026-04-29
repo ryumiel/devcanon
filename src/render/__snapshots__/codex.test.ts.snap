@@ -1,10 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`renderCodexAgent > renders a sample agent to Codex TOML format (snapshot) 1`] = `
-"# Managed by agents-manager. Do not edit directly.
-# Source: agents/test-agent.yaml
-
-name = "test-agent"
+"name = "test-agent"
 description = "A test agent for unit testing."
 sandbox_mode = "read-only"
 

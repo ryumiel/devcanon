@@ -17,12 +17,13 @@ function make(
 }
 
 describe("renderCodexSkill", () => {
-  it("emits a managed header and name/description frontmatter", () => {
+  it("emits name/description frontmatter starting at the first line", () => {
     const out = renderCodexSkill(
       make({ name: "x", description: "d" }, "# body\n"),
       TIERS,
     );
-    expect(out.skillMd.startsWith("<!-- Managed by agents-manager")).toBe(true);
+    expect(out.skillMd.startsWith("---\n")).toBe(true);
+    expect(out.skillMd).not.toContain("Managed by agents-manager");
     expect(out.skillMd).toContain("name: x");
     expect(out.skillMd).toContain("description: d");
     expect(out.sidecar).toBeNull();

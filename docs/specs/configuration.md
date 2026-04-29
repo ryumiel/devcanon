@@ -104,7 +104,7 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 - agent format: YAML
 - install mode: symlink by default
 - Windows fallback: copy
-- ownership: manifest plus generated header
+- ownership: manifest
 - overwrite policy: overwrite managed only
 - shared skill source, native generated agents
 

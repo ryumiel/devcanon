@@ -32,11 +32,6 @@ Each managed record should include:
 - content hash
 - timestamp
 
-### Header vs manifest
-
-Both managed headers and manifest should be used, but the manifest is
-authoritative.
-
 ---
 
 ## Sync Steps
