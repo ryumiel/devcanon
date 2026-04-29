@@ -79,7 +79,7 @@ describe("existing skills render cleanly", () => {
     expect(skillOutputs).toHaveLength(skillDirs.length * 2);
 
     for (const output of skillOutputs) {
-      expect(output.content).toContain("<!-- Managed by agents-manager");
+      expect(output.content.startsWith("---\n")).toBe(true);
       expect(output.content).toContain(`name: ${output.name}`);
     }
   });

@@ -6,7 +6,6 @@ import type {
   RenderedAgent,
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
-import { makeTomlHeader } from "../utils/managed-header.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -147,12 +146,7 @@ export function renderCodexAgent(
   skills: Map<string, LoadedSkill>,
   config: ResolvedConfig,
 ): RenderedAgent {
-  const sourcePath = `agents/${agent.name}.yaml`;
   const lines: string[] = [];
-
-  // Managed header
-  lines.push(makeTomlHeader(sourcePath));
-  lines.push("");
 
   // Required fields
   lines.push(`name = ${tomlQuote(agent.source.name)}`);

@@ -607,9 +607,9 @@ describe("renderAll", () => {
     const claudeContent = await readFile(claudePath, "utf-8");
     const codexContent = await readFile(codexPath, "utf-8");
 
-    expect(claudeContent).toContain("<!-- Managed by agents-manager");
+    expect(claudeContent.startsWith("---\n")).toBe(true);
     expect(claudeContent).toContain("name: my-skill");
-    expect(codexContent).toContain("<!-- Managed by agents-manager");
+    expect(codexContent.startsWith("---\n")).toBe(true);
     expect(codexContent).toContain("name: my-skill");
   });
 

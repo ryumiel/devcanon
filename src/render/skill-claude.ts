@@ -1,6 +1,5 @@
 import { stringify as yamlStringify } from "yaml";
 import type { ModelTiers } from "../config/schema.js";
-import { makeMdHeader } from "../utils/managed-header.js";
 import { resolvePlaceholders } from "./placeholders.js";
 import { SHARED_KEY_ORDER, type SkillInput } from "./skill-shared.js";
 
@@ -34,9 +33,8 @@ export function renderClaudeSkill(
     }
   }
 
-  const headerMd = makeMdHeader(`skills/${source.name}/SKILL.md`);
   const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
   const renderedBody = resolvePlaceholders(body, "claude", modelTiers);
 
-  return `${headerMd}\n---\n${yaml}---\n${renderedBody}`;
+  return `---\n${yaml}---\n${renderedBody}`;
 }

@@ -80,12 +80,10 @@ describe("renderClaudeAgent", () => {
     expect(result.content).toMatchSnapshot();
   });
 
-  it("includes managed header", () => {
+  it("starts with YAML frontmatter (no managed header)", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    expect(result.content).toContain(
-      "<!-- Managed by agents-manager. Do not edit directly. -->",
-    );
-    expect(result.content).toContain("<!-- Source: agents/test-agent.yaml -->");
+    expect(result.content.startsWith("---\n")).toBe(true);
+    expect(result.content).not.toContain("Managed by agents-manager");
   });
 
   it("includes frontmatter with name, description, tools, model", () => {

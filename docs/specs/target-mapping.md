@@ -54,24 +54,11 @@ Generated outputs are recreated from source on each render.
 
 ### Manual editing policy
 
-Generated outputs are not intended to be hand-edited.
-
-### Managed header
-
-Generated files should include a machine-readable managed header where format
-allows.
-
-Examples:
-
-- Markdown comment for Claude files
-- TOML comment for Codex files
-
-Example text:
-
-```text
-Managed by agents-manager. Do not edit directly.
-Source: agents/reviewer.yaml
-```
+Generated outputs are not intended to be hand-edited. Managed-state is tracked
+by the install manifest, so generated files do not embed an in-file managed
+header. (Earlier revisions of this spec required a markdown/TOML comment header
+on every output; that requirement was dropped because the comment broke
+frontmatter previews in Claude Code and was not consumed by Codex.)
 
 ### Normalization
 

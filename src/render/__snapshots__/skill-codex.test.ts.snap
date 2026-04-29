@@ -15,9 +15,7 @@ dependencies:
 `;
 
 exports[`renderCodexSkill > matches snapshot for a representative skill with sidecar > skillMd 1`] = `
-"<!-- Managed by agents-manager. Do not edit directly. -->
-<!-- Source: skills/snap-skill/SKILL.md -->
----
+"---
 name: snap-skill
 description: Snapshot fixture skill.
 allowed-tools: Bash Read

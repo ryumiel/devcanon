@@ -16,13 +16,13 @@ function make(
 }
 
 describe("renderClaudeSkill", () => {
-  it("emits a managed header and name/description frontmatter", () => {
+  it("emits name/description frontmatter starting at the first line", () => {
     const out = renderClaudeSkill(
       make({ name: "x", description: "d" }, "# body\n"),
       TIERS,
     );
-    expect(out.startsWith("<!-- Managed by agents-manager")).toBe(true);
-    expect(out).toContain("<!-- Source: skills/x/SKILL.md -->");
+    expect(out.startsWith("---\n")).toBe(true);
+    expect(out).not.toContain("Managed by agents-manager");
     expect(out).toContain("name: x");
     expect(out).toContain("description: d");
     expect(out).toContain("# body");
