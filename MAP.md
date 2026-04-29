@@ -50,6 +50,7 @@ Quick navigation index for the agents-manager repository.
 ## Guidelines and templates
 
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
 - Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where are the documentation checklists? -> [`docs/guidelines/documentation-checklists.md`](docs/guidelines/documentation-checklists.md)
 - Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
@@ -136,6 +137,7 @@ Quick navigation index for the agents-manager repository.
 ## Source content
 
 - Where are shared skill source files? -> [`skills/`](skills/)
+- Where is the shared issue reporting skill? -> [`skills/report-agents-manager-shared-issue/SKILL.md`](skills/report-agents-manager-shared-issue/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
 - Where are agent role definitions? -> [`agents/`](agents/)

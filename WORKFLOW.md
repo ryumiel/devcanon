@@ -4,14 +4,15 @@ This document is the procedural guide for contributing to the repository. For po
 
 ## Quick Reference Table
 
-| I want to...                 | Go to                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------ |
-| Pick my next task            | [Picking Work](#picking-work)                                                        |
-| Report a bug or propose work | [Creating an Issue](#creating-an-issue)                                              |
-| Implement a change           | [Implementing](#implementing)                                                        |
-| Open a pull request          | [Opening a PR](#opening-a-pr)                                                        |
-| Know what I can do freely    | [AGENTS.md § Decision Matrix](AGENTS.md#decision-matrix)                             |
-| Review code                  | [docs/guidelines/code-review-guideline.md](docs/guidelines/code-review-guideline.md) |
+| I want to...                                | Go to                                                                                                    |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Pick my next task                           | [Picking Work](#picking-work)                                                                            |
+| Report a bug or propose work                | [Creating an Issue](#creating-an-issue)                                                                  |
+| Report a shared-skill or shared-agent issue | [docs/guidelines/shared-skill-reporting-workflow.md](docs/guidelines/shared-skill-reporting-workflow.md) |
+| Implement a change                          | [Implementing](#implementing)                                                                            |
+| Open a pull request                         | [Opening a PR](#opening-a-pr)                                                                            |
+| Know what I can do freely                   | [AGENTS.md § Decision Matrix](AGENTS.md#decision-matrix)                                                 |
+| Review code                                 | [docs/guidelines/code-review-guideline.md](docs/guidelines/code-review-guideline.md)                     |
 
 ## Picking Work
 
@@ -24,10 +25,21 @@ This document is the procedural guide for contributing to the repository. For po
 - **Title**: Use a Conventional Commits-style prefix: `type(scope): short summary` or `type: short summary`
 - **Body structure**:
   - Problem statement: what is wrong or missing
+  - Expected behavior: what should happen instead
   - Acceptance criteria: observable conditions that mean "done"
-  - Affected modules: which directories under `src/` are involved
+  - Reproduction: the minimum safe summary or sanitized excerpt
+  - Environment and provenance: tool version, OS, and install mode if relevant
+  - Affected areas: source-of-truth paths involved (e.g. `src/`, `docs/`, `skills/`, `agents/`); if the exact area is unknown, say that explicitly
+  - Dependencies or blockers: related issues and `blocked by` relationships
+  - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set a `blocked by` relationship in GitHub
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
+
+### When the issue is about a shared skill or agent
+
+- Do not edit managed installed copies under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md` — these are disposable managed outputs.
+- Draft an upstream issue for `agents-manager` in `ryumiel/agent-manager` first using `report-agents-manager-shared-issue`.
+- For the full playbook including the local retest loop, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 
 ## Implementing
 
