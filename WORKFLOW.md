@@ -24,10 +24,22 @@ This document is the procedural guide for contributing to the repository. For po
 - **Title**: Use a Conventional Commits-style prefix: `type(scope): short summary` or `type: short summary`
 - **Body structure**:
   - Problem statement: what is wrong or missing
+  - Expected behavior: what should happen instead
   - Acceptance criteria: observable conditions that mean "done"
-  - Affected modules: which directories under `src/` are involved
+  - Reproduction: the minimum safe summary or sanitized excerpt
+  - Environment and provenance: install mode, artifact path, revision, and `render` / `sync` reproduction state
+  - Affected areas: which source-of-truth paths are involved (`skills/`, `docs/`, `src/`, and `agents/` when that directory exists in the checkout)
+  - Dependencies or blockers: related issues and `blocked by` relationships
+  - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set a `blocked by` relationship in GitHub
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
+
+## Reporting Shared Skill or Agent Problems from Consumer Repos
+
+- If you discover a reusable shared-skill or shared-agent problem while working in another repository, do not edit the managed installed copy under `~/.agents/skills/` or `~/.claude/skills/`.
+- Draft an upstream issue for `agents-manager` first using `report-agents-manager-shared-issue`.
+- Use the local retest loop during upstream work: `agents-manager validate -> agents-manager render -> test in the consumer repo -> agents-manager sync` when the change is ready to install.
+- For the full playbook, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 
 ## Implementing
 

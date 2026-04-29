@@ -184,31 +184,32 @@ For module responsibilities, dependency rules, and data flow, see
 
 ## Documentation
 
-| Topic                               | Location                                                                                     |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| Product specs                       | [`docs/specs/`](docs/specs/)                                                                 |
-| Core concepts and principles        | [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)                                 |
-| Architecture overview               | [`docs/arch/overview.md`](docs/arch/overview.md)                                             |
-| Architecture decisions              | [`docs/adr/`](docs/adr/)                                                                     |
-| Configuration format                | [`docs/specs/configuration.md`](docs/specs/configuration.md)                                 |
-| Skill specification                 | [`docs/specs/skills.md`](docs/specs/skills.md)                                               |
-| Agent source schema                 | [`docs/specs/agents.md`](docs/specs/agents.md)                                               |
-| Target mapping (Claude/Codex)       | [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)                               |
-| Install and sync policy             | [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)                           |
-| CLI command reference               | [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)                                   |
-| Error handling and logging          | [`docs/specs/error-handling.md`](docs/specs/error-handling.md)                               |
-| Platform and security               | [`docs/specs/platform.md`](docs/specs/platform.md)                                           |
-| Testing requirements                | [`docs/specs/testing.md`](docs/specs/testing.md)                                             |
-| When to create an agent vs. a skill | [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)       |
-| Contributing and commit policy      | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                         |
-| Decision matrix                     | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                   |
-| Documentation standard              | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)     |
-| Commit guideline                    | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                 |
-| PR guideline                        | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                         |
-| Code review guideline               | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)       |
-| Contributor workflow                | [`WORKFLOW.md`](WORKFLOW.md)                                                                 |
-| Project management model            | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md) |
-| Navigation index                    | [`MAP.md`](MAP.md)                                                                           |
+| Topic                               | Location                                                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Product specs                       | [`docs/specs/`](docs/specs/)                                                                               |
+| Core concepts and principles        | [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)                                               |
+| Architecture overview               | [`docs/arch/overview.md`](docs/arch/overview.md)                                                           |
+| Architecture decisions              | [`docs/adr/`](docs/adr/)                                                                                   |
+| Configuration format                | [`docs/specs/configuration.md`](docs/specs/configuration.md)                                               |
+| Skill specification                 | [`docs/specs/skills.md`](docs/specs/skills.md)                                                             |
+| Agent source schema                 | [`docs/specs/agents.md`](docs/specs/agents.md)                                                             |
+| Target mapping (Claude/Codex)       | [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)                                             |
+| Install and sync policy             | [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)                                         |
+| CLI command reference               | [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)                                                 |
+| Error handling and logging          | [`docs/specs/error-handling.md`](docs/specs/error-handling.md)                                             |
+| Platform and security               | [`docs/specs/platform.md`](docs/specs/platform.md)                                                         |
+| Testing requirements                | [`docs/specs/testing.md`](docs/specs/testing.md)                                                           |
+| When to create an agent vs. a skill | [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)                     |
+| Contributing and commit policy      | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                       |
+| Decision matrix                     | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                                 |
+| Documentation standard              | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)                   |
+| Shared skill reporting workflow     | [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md) |
+| Commit guideline                    | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                               |
+| PR guideline                        | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                                       |
+| Code review guideline               | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)                     |
+| Contributor workflow                | [`WORKFLOW.md`](WORKFLOW.md)                                                                               |
+| Project management model            | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)               |
+| Navigation index                    | [`MAP.md`](MAP.md)                                                                                         |
 
 ---
 
