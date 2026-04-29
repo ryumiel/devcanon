@@ -24,14 +24,40 @@ Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `
 
 The upstream GitHub repository for issue search and posting is `ryumiel/agent-manager`.
 
+## Scope: What to Describe
+
+<!-- Canonical safety rule. The playbook (docs/guidelines/shared-skill-reporting-workflow.md § 2) forwards here as the single source of truth. -->
+
+Describe only `agents-manager`-side facts in the issue body:
+
+- the affected shared skill or shared agent
+- the expected vs. observed _shared_ behavior — the part that would be wrong on any consumer repo
+- relevant `agents-manager` source-of-truth paths (`skills/`, `agents/`, `docs/`, `src/`)
+- render, install, or spec context
+
+Consumer-side context is allowed only when necessary for reproduction, and only as a sanitized category (e.g. "pnpm workspace with hoisted deps", "monorepo with two TS rootDirs") — never as identity.
+
+Categories describe shape (workspace layout, target type, install mode); they must not include org names, repo paths, hostnames, registry URLs, internal tool names, or specific tool versions unless the version is itself the bug.
+
+The following are never required and must not appear in the issue body or title:
+
+- consumer repo names, owners, orgs, or codenames
+- usernames, hostnames, ticket IDs
+- absolute paths like `/Users/...` or `/home/...`; use repo-relative paths or `<install-root>/...`
+- customer or end-user identifiers, names, emails, phone numbers
+- proprietary code, secrets, internal URLs
+- machine and network identifiers: IP addresses, MAC addresses, device IDs, internal hostnames embedded in stack frames or URLs
+- account, session, and credential identifiers: cloud account/project/tenant IDs (AWS, GCP, Azure), API tokens in URLs (`?token=...`), `Authorization: Bearer ...` values, session/request/trace/correlation IDs, JWT fragments, signed-URL signatures, DB connection strings
+
 ## Interaction Rules
 
 - Ask one question at a time until the minimum payload is complete.
 - Prefer summarized reproductions over verbatim transcript excerpts.
+- Before showing the final draft for confirmation, sweep the title, body, and labels one last time against the negative list under § Scope: What to Describe, and re-check any quoted material against § Redaction Gate.
 - Never post an issue without showing the exact draft first and receiving explicit confirmation.
 - If the user declines posting, keep the exact draft available for manual reuse.
 - If posting fails, preserve the drafted title and body and explain what failed.
-- If GitHub access to `ryumiel/agent-manager` is unavailable, stop at `MODE=draft`.
+- If GitHub access to `ryumiel/agent-manager` is unavailable, return `MODE=draft` and stop without attempting to post.
 
 ## Minimum Payload
 
@@ -55,18 +81,20 @@ Capture:
 - blocker issue IDs, if known
 - optional proposed direction
 
+This is the data to gather. The body shape it maps into is canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/agent-manager/blob/main/WORKFLOW.md#creating-an-issue).
+
 If the reporter cannot provide a complete reproduction, continue with an
 incomplete issue draft and explicitly call out what is still missing.
 
 ## Redaction Gate
 
-Before drafting the issue:
+The `Scope` rule above is the primary defense — if the body only describes `agents-manager`-side facts, most leak vectors do not apply. Before posting, sweep any quoted material for these specific risks:
 
-- remove or replace secrets, internal URLs, customer identifiers, and proprietary code
-- replace private repository names, usernames, hostnames, and workstation-specific path segments when they are not already public
-- ask the user to confirm any verbatim excerpt is safe to publish
-- prefer repo-relative paths or placeholders over raw local absolute paths
-- if a safe verbatim excerpt is not possible, use a summary-only reproduction and say what was omitted
+- stack traces and log lines: sanitize each frame or line individually — one frame can leak a path or hostname
+- transcript excerpts: prefer summary; use verbatim only after the _user_ has pasted or quoted the exact text themselves — a "yes" to an agent-proposed excerpt is not sufficient; re-confirm if the excerpt is edited after the user supplied it
+- error messages: strip env vars, request/trace/correlation IDs, internal URLs and hostnames, IP addresses, file paths, tokens (`Bearer …`, `?token=…`), cloud account/project/tenant IDs, customer/user IDs, and any embedded JSON keys ending in `_id`, `_token`, `_secret`, or `_key`; when in doubt, summarize the error class instead of quoting the message
+
+If a safe verbatim excerpt is not possible, use a summary-only reproduction and say what was omitted.
 
 ## Duplicate Check
 
@@ -89,23 +117,15 @@ Title:
 - `improvement` -> `feat(...)` when behavior changes are user-visible, `refactor(...)` when the work is internal cleanup; default label `enhancement`, optional `tech-debt` for structural cleanup
 - `new skill` -> `feat(skill): ...` with `enhancement`
 - `new agent` -> `feat(agent): ...` with `enhancement`
+- the `(scope)` slot must reference an upstream `agents-manager` component (`skill`, `agent`, `render`, `install`, `docs`, `cli`) — never a consumer repo, customer, codename, or ticket ID
 
-Body sections:
-
-1. Problem statement
-2. Expected behavior
-3. Acceptance criteria
-4. Reproduction
-5. Environment and provenance
-6. Affected areas
-7. Dependencies or blockers
-8. Notes
-
-`Affected areas` should name source-of-truth paths such as `skills/`, `agents/`, `docs/`, and `src/`. If the exact area is unknown, say that explicitly.
+Body sections: use the body shape canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/agent-manager/blob/main/WORKFLOW.md#creating-an-issue).
 
 If blocker issue IDs are known, apply the GitHub `blocked by` relationship after issue creation instead of only mentioning blockers in the body text.
 
 ## Upstream Fix Loop
+
+<!-- Mirrors docs/guidelines/shared-skill-reporting-workflow.md § Upstream Fix Loop in spirit; canonical retest steps live there. Update both together when the loop changes. -->
 
 When the discovery is confirmed to be reusable, tell the user that the fix
 happens only in `agents-manager` source files.
@@ -127,7 +147,7 @@ Install-mode note:
 
 ## Output Contract
 
-Use one of these explicit outcomes:
+At the end of every invocation, surface exactly one of these `MODE=...` tokens to the user, indicating outcome:
 
 - `MODE=local`
   - the issue is project-local
@@ -141,6 +161,7 @@ Use one of these explicit outcomes:
 - `MODE=draft`
   - show likely duplicates first when they exist
   - produce the exact title, body, and labels
+  - report the result of the § Interaction Rules sweep, calling out any categories that required active redaction
   - ask for confirmation before posting
 - `MODE=posted`
   - the issue was created successfully

@@ -204,7 +204,6 @@ For module responsibilities, dependency rules, and data flow, see
 | Decision matrix                     | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                                 |
 | Documentation standard              | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)                   |
 | Shared skill reporting workflow     | [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md) |
-| Shared issue reporting skill        | [`skills/report-agents-manager-shared-issue/SKILL.md`](skills/report-agents-manager-shared-issue/SKILL.md) |
 | Commit guideline                    | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                               |
 | PR guideline                        | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                                       |
 | Code review guideline               | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)                     |
