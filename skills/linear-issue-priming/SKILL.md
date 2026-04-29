@@ -1,6 +1,17 @@
 ---
 name: linear-issue-priming
 description: Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a Linear issue.
+claude:
+  model: "{{model:deep}}"
+codex:
+  license: MIT
+  metadata:
+    short-description: Prime a Linear issue into a research-backed implementation workflow
+codex_sidecar:
+  interface:
+    display_name: Linear Issue Priming
+    short_description: Research and stage a Linear issue for implementation
+    brand_color: "#5e6ad2"
 ---
 
 # Linear Issue Priming
