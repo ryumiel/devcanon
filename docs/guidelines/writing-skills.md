@@ -163,8 +163,8 @@ In addition, this repo expects:
       shared default is inadequate.
 - [ ] Both rendered targets diffed locally and read correctly.
 - [ ] `pnpm run dev -- validate --strict` passes.
-- [ ] Supporting files limited to `assets/`, `examples/`, `references/`,
-      or `scripts/`.
+- [ ] Any supporting files validate per
+      [`../specs/skills.md`](../specs/skills.md).
 - [ ] Snapshot tests for shipped skill metadata updated if affected.
 - [ ] [`MAP.md`](../../MAP.md) and [`AGENTS.md`](../../AGENTS.md) updated
       if a new skill or doc is introduced (per
