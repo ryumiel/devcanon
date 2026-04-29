@@ -121,23 +121,27 @@ describe("existing skills render cleanly", () => {
       const { frontmatter: claudeFrontmatter, body: claudeBody } =
         parseFrontmatter(stripManagedHeader(claudeOutput.content));
 
-      expect(claudeFrontmatter.model).toBe("claude-opus-4-7");
+      expect(claudeFrontmatter).toMatchObject({
+        model: "claude-opus-4-7",
+      });
       expect(claudeBody).not.toContain("{{model:");
-      expect(stripManagedHeader(claudeOutput.content)).toMatchSnapshot(
-        `${skillName}-claude`,
+      expect(claudeFrontmatter).toMatchSnapshot(
+        `${skillName}-claude-frontmatter`,
       );
 
       const codexOutput = getSkillOutput(outputs, skillName, "codex");
       const { frontmatter: codexFrontmatter, body: codexBody } =
         parseFrontmatter(stripManagedHeader(codexOutput.content));
 
-      expect(codexFrontmatter.license).toBe("MIT");
-      expect(codexFrontmatter.metadata).toMatchObject({
-        "short-description": expect.any(String),
+      expect(codexFrontmatter).toMatchObject({
+        license: "MIT",
+        metadata: {
+          "short-description": expect.any(String),
+        },
       });
       expect(codexBody).not.toContain("{{model:");
-      expect(stripManagedHeader(codexOutput.content)).toMatchSnapshot(
-        `${skillName}-codex`,
+      expect(codexFrontmatter).toMatchSnapshot(
+        `${skillName}-codex-frontmatter`,
       );
     }
 
@@ -163,7 +167,7 @@ describe("existing skills render cleanly", () => {
           brand_color: expect.any(String),
         },
       });
-      expect(sidecar).toMatchSnapshot(`${skillName}-sidecar`);
+      expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
   });
 });
