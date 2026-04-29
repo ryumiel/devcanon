@@ -570,7 +570,7 @@ describe("renderAll", () => {
     expect(await pathExists(staleClaudePath)).toBe(false);
   });
 
-  it("writes per-target SKILL.md with managed headers", async () => {
+  it("writes per-target SKILL.md without a managed header", async () => {
     await createSkillFixture(
       config.library.skillsDir,
       "my-skill",

@@ -24,8 +24,8 @@ src/
 ├─ render/     Deterministic rendering to Claude (.md) and Codex (.toml)
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
-└─ utils/      Filesystem helpers, path resolution, hashing, managed headers,
-               CLI output, naming validation
+└─ utils/      Filesystem helpers, path resolution, hashing, CLI output,
+               naming validation
 ```
 
 ### Dependency Direction
@@ -130,9 +130,6 @@ installed.
 
 Each manifest record includes: target, type (skill or agent), source path,
 generated path, installed path, install mode, content hash, and timestamp.
-
-Generated files include a machine-readable managed header (markdown comment or
-TOML comment) identifying the source.
 
 ---
 

@@ -55,10 +55,7 @@ Generated outputs are recreated from source on each render.
 ### Manual editing policy
 
 Generated outputs are not intended to be hand-edited. Managed-state is tracked
-by the install manifest, so generated files do not embed an in-file managed
-header. (Earlier revisions of this spec required a markdown/TOML comment header
-on every output; that requirement was dropped because the comment broke
-frontmatter previews in Claude Code and was not consumed by Codex.)
+by the install manifest; generated files do not embed a managed header.
 
 ### Normalization
 
