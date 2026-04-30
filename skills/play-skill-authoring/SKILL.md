@@ -189,7 +189,7 @@ description: Helps with documents.
 description: Race-condition fixes. Use when tests use setTimeout/sleep and are flaky.
 
 # ✅ What + when, third person
-description: Test-driven development discipline — write the test first, watch it fail, then write minimal code. Use when implementing any feature or bugfix, before writing implementation code.
+description: Test-driven development discipline for tests-before-implementation. Use when implementing any feature or bugfix, before writing implementation code.
 
 # ✅ What + when, problem-domain triggers
 description: Async test stabilization technique using condition-based waiting. Use when tests have race conditions, timing dependencies, or pass/fail inconsistently.
@@ -594,7 +594,7 @@ Make it easy for agents to self-check when rationalizing:
 Add to the `Use when…` clause: symptoms of when the rule is ABOUT to be violated. The capability half stays the same; the trigger half names the moments where discipline tends to slip.
 
 ```yaml
-description: Test-driven development discipline — write the test first, watch it fail, then write minimal code. Use when implementing any feature or bugfix, before writing implementation code.
+description: Test-driven development discipline for tests-before-implementation. Use when implementing any feature or bugfix, before writing implementation code.
 ```
 
 ## RED-GREEN-REFACTOR for Skills

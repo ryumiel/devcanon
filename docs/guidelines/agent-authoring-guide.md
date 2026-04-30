@@ -77,7 +77,7 @@ operational scope genuinely match the role's permissions and intent.
 
 ```yaml
 name: reviewer
-description: Use for focused code reviews that need a fixed review role, limited tools, and a narrow execution environment. Do not use for general coding work or broad orchestration.
+description: Focused code review role with limited tools and read-only access for correctness and regression checks. Use when a code review needs a fixed reviewer role with restricted access. Do not use for general coding work or broad orchestration.
 instructions: |
   Review for correctness and regressions.
   Report only concrete findings.
@@ -92,7 +92,7 @@ codex:
 
 ```yaml
 name: release-checker
-description: Use for release-specific validation when a stable release role is needed. Do not use for feature planning or general repository maintenance.
+description: Release validation role for surfacing blockers in a release candidate. Use when validating a release candidate before cut. Do not use for feature planning or general repository maintenance.
 instructions: |
   Verify the release candidate.
   Surface blocking issues first.
@@ -107,7 +107,7 @@ codex:
 
 ```yaml
 name: doc-curator
-description: Use for documentation review when the task needs a dedicated doc role with narrow access. Do not use when the work is better expressed as a reusable documentation skill.
+description: Documentation review role with narrow read-only access for clarity and consistency checks. Use when documentation needs a dedicated reviewer role. Do not use when the work is better expressed as a reusable documentation skill.
 instructions: |
   Check clarity and consistency.
   Keep recommendations minimal.
