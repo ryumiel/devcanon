@@ -14,14 +14,15 @@ export function resolveTierProfile<T extends ModelTierTarget>(
     );
   }
 
-  const entry = tiers[tier];
-  if (!entry) {
+  // Use Object.hasOwn so prototype-chain keys like "__proto__" do not
+  // resolve to Object.prototype and silently bypass the unknown-tier guard.
+  if (!Object.hasOwn(tiers, tier)) {
     throw new Error(
       `unknown model key "${tier}" — define it under modelTiers in config`,
     );
   }
 
-  return entry[target];
+  return tiers[tier][target];
 }
 
 export function resolveTierModel(

@@ -244,7 +244,9 @@ function validateAgentModelTierReference(
     return;
   }
 
-  if (!modelTiers[tier]) {
+  // Use Object.hasOwn so prototype-chain keys like "__proto__" do not
+  // resolve to Object.prototype and silently bypass this guard.
+  if (!Object.hasOwn(modelTiers, tier)) {
     errors.push(
       `Agent "${agentName}": ${fieldPath} references unknown model tier "${tier}".`,
     );

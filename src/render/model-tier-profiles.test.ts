@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ModelTiers } from "../config/schema.js";
-import { resolveTierModel, resolveTierProfile } from "./model-tier-profiles.js";
+import {
+  extractModelTierKey,
+  resolveTierModel,
+  resolveTierProfile,
+} from "./model-tier-profiles.js";
 
 const TIERS: ModelTiers = {
   standard: {
@@ -38,5 +42,38 @@ describe("model tier profiles", () => {
     expect(() => resolveTierProfile("fast", "claude", TIERS)).toThrow(
       /unknown model key "fast"/i,
     );
+  });
+
+  it("rejects prototype-chain keys like __proto__", () => {
+    expect(() => resolveTierProfile("__proto__", "claude", TIERS)).toThrow(
+      /unknown model key "__proto__"/i,
+    );
+  });
+
+  it("rejects prototype-chain keys like constructor", () => {
+    expect(() => resolveTierProfile("constructor", "claude", TIERS)).toThrow(
+      /unknown model key "constructor"/i,
+    );
+  });
+});
+
+describe("extractModelTierKey", () => {
+  it("returns the captured tier key for a well-formed placeholder", () => {
+    expect(extractModelTierKey("{{model:standard}}")).toBe("standard");
+    expect(extractModelTierKey("{{model:deep_v2}}")).toBe("deep_v2");
+  });
+
+  it("returns null for undefined input", () => {
+    expect(extractModelTierKey(undefined)).toBeNull();
+  });
+
+  it("returns null for literal model strings", () => {
+    expect(extractModelTierKey("claude-sonnet-4-7")).toBeNull();
+  });
+
+  it("returns null for malformed placeholders", () => {
+    expect(extractModelTierKey("{{model:foo-bar}}")).toBeNull();
+    expect(extractModelTierKey("prefix {{model:standard}}")).toBeNull();
+    expect(extractModelTierKey("{{model:}}")).toBeNull();
   });
 });

@@ -207,6 +207,26 @@ describe("loadAndValidateAgents", () => {
     });
   });
 
+  it("rejects prototype-chain tier names like __proto__", async () => {
+    const yaml = makeAgentYaml("tier-agent", {
+      claude: {
+        model: "{{model:__proto__}}",
+        tools: ["Read"],
+      },
+    });
+    await createAgentFixture(agentsDir, "tier-agent", yaml);
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, { modelTiers }),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain(
+        'unknown model tier "__proto__"',
+      );
+      return true;
+    });
+  });
+
   it("succeeds when agent references a valid skill", async () => {
     const skill: LoadedSkill = {
       name: "my-skill",

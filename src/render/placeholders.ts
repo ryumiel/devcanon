@@ -111,7 +111,10 @@ function substituteLine(
           context,
         );
       }
-      if (!glossary.model[value]) {
+      // Object.hasOwn guards against prototype-chain keys such as
+      // "constructor" resolving to Object.prototype and bypassing the
+      // unknown-key check.
+      if (!Object.hasOwn(glossary.model, value)) {
         throw renderError(
           `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
           context,
@@ -128,14 +131,13 @@ function substituteLine(
         context,
       );
     }
-    const entry = dict[value];
-    if (!entry) {
+    if (!Object.hasOwn(dict, value)) {
       throw renderError(
         `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
         context,
       );
     }
-    return entry[target];
+    return dict[value][target];
   });
 }
 
