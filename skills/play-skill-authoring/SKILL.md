@@ -100,7 +100,7 @@ skills/
 
 **Frontmatter (YAML):**
 
-- Authoritative schema for this repo: `docs/specs/skills.md` and `SkillSourceSchema` in `src/models/types.ts`. Frontmatter is `.strict()` — unknown top-level keys are rejected. The upstream [agentskills.io/specification](https://agentskills.io/specification) is supplementary; fields it lists that are not in `SkillSourceSchema` will fail validation here.
+- Authoritative schema for this repo: `docs/specs/skills.md` and `SkillSourceSchema` in `src/config/schema.ts`. Frontmatter is `.strict()` — unknown top-level keys are rejected. The upstream [agentskills.io/specification](https://agentskills.io/specification) is supplementary; fields it lists that are not in `SkillSourceSchema` will fail validation here.
 - Two required fields: `name` and `description`.
 - `name`: lowercase letters, digits, and hyphens only; ≤ 64 chars; matches `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`.
 - `description`: ≤ 1024 chars. Third-person, describes ONLY when to use (NOT what it does)
