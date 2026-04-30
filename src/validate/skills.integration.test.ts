@@ -982,17 +982,19 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
+    const diagnostics = {
+      enabled: true,
+      strict: true,
+      toolNames: {
+        "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+      },
+    };
     await expect(
-      loadAndValidateSkillsWithDiagnostics(skillsDir, {
-        diagnostics: {
-          enabled: true,
-          strict: true,
-          toolNames: {
-            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
-          },
-        },
-      }),
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
     ).rejects.toThrow(/strict-tool-drift/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/TodoWrite/);
   });
 
   it("fails in strict mode on configured file artifacts in prose", async () => {
@@ -1013,20 +1015,22 @@ describe("loadAndValidateSkills", () => {
       ].join("\n"),
     );
 
-    await expect(
-      loadAndValidateSkillsWithDiagnostics(skillsDir, {
-        diagnostics: {
-          enabled: true,
-          strict: true,
-          fileArtifacts: {
-            "project-instructions": {
-              claude: "CLAUDE.md",
-              codex: "AGENTS.md",
-            },
-          },
+    const diagnostics = {
+      enabled: true,
+      strict: true,
+      fileArtifacts: {
+        "project-instructions": {
+          claude: "CLAUDE.md",
+          codex: "AGENTS.md",
         },
-      }),
+      },
+    };
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
     ).rejects.toThrow(/strict-file-drift/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/CLAUDE\.md/);
   });
 
   it("warns on configured file artifacts in shared prose", async () => {
@@ -1138,6 +1142,93 @@ describe("loadAndValidateSkills", () => {
 
       // No drift warning should mention the fenced token.
       expect(warnings.filter((w) => /fenced-tool-token/i.test(w))).toEqual([]);
+    });
+  });
+
+  it("emits separate warnings when the same value is in toolNames and fileArtifacts", async () => {
+    // A glossary collision -- the same string registered as both a tool
+    // name and a file artifact -- must surface as one warning per
+    // namespace, not be deduped to a single entry.
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "glossary-collision",
+      [
+        "---",
+        "name: glossary-collision",
+        "description: Detect collision between tool and file glossaries.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Reference SHARED.md inline.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            shared: { claude: "SHARED.md", codex: "SHARED.md" },
+          },
+          fileArtifacts: {
+            shared: { claude: "SHARED.md", codex: "SHARED.md" },
+          },
+        },
+      });
+
+      const matched = warnings.filter((w) =>
+        /glossary-collision/i.test(w) ? /SHARED\.md/.test(w) : false,
+      );
+      expect(
+        matched.filter((w) => /\{\{tool:<key>\}\}/.test(w)).length,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        matched.filter((w) => /\{\{file:<key>\}\}/.test(w)).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("flags drift tokens at line start and adjacent to non-whitespace punctuation", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "boundary-drift",
+      [
+        "---",
+        "name: boundary-drift",
+        "description: Detect boundary cases for containsToken.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "TodoWrite is preferred; CLAUDE.md is the file.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /boundary-drift/i, /TodoWrite/);
+      expectWarningLine(warnings, /boundary-drift/i, /CLAUDE\.md/);
     });
   });
 });
