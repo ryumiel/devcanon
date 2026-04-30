@@ -1,5 +1,5 @@
 import { stringify as yamlStringify } from "yaml";
-import type { ModelTiers } from "../config/schema.js";
+import type { PlaceholderGlossary } from "./placeholders.js";
 import { resolvePlaceholders } from "./placeholders.js";
 import { SHARED_KEY_ORDER, type SkillInput } from "./skill-shared.js";
 
@@ -12,7 +12,7 @@ export interface RenderedCodexSkill {
 
 export function renderCodexSkill(
   input: SkillInput,
-  modelTiers: ModelTiers | undefined,
+  glossary: PlaceholderGlossary,
 ): RenderedCodexSkill {
   const { source, body } = input;
 
@@ -35,13 +35,13 @@ export function renderCodexSkill(
       const value = (source.codex as Record<string, unknown>)[key];
       frontmatter[key] =
         typeof value === "string"
-          ? resolvePlaceholders(value, "codex", modelTiers)
+          ? resolvePlaceholders(value, "codex", glossary)
           : value;
     }
   }
 
   const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
-  const renderedBody = resolvePlaceholders(body, "codex", modelTiers);
+  const renderedBody = resolvePlaceholders(body, "codex", glossary);
 
   const skillMd = `---\n${yaml}---\n${renderedBody}`;
 

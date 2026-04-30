@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { LoadedSkill, RenderedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
+import { buildGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 import { renderCodexSkill } from "./skill-codex.js";
 
@@ -29,11 +30,12 @@ export function renderSkillForTarget(
   );
   const extraFiles = new Map<string, string>();
 
+  const glossary = buildGlossary(config);
   let content: string;
   if (target === "claude") {
-    content = renderClaudeSkill(input, config.modelTiers);
+    content = renderClaudeSkill(input, glossary);
   } else {
-    const out = renderCodexSkill(input, config.modelTiers);
+    const out = renderCodexSkill(input, glossary);
     content = out.skillMd;
     if (out.sidecar !== null) {
       extraFiles.set(

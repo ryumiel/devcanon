@@ -1,5 +1,5 @@
 import { stringify as yamlStringify } from "yaml";
-import type { ModelTiers } from "../config/schema.js";
+import type { PlaceholderGlossary } from "./placeholders.js";
 import { resolvePlaceholders } from "./placeholders.js";
 import { SHARED_KEY_ORDER, type SkillInput } from "./skill-shared.js";
 
@@ -7,7 +7,7 @@ export type { SkillInput } from "./skill-shared.js";
 
 export function renderClaudeSkill(
   input: SkillInput,
-  modelTiers: ModelTiers | undefined,
+  glossary: PlaceholderGlossary,
 ): string {
   const { source, body } = input;
 
@@ -28,13 +28,13 @@ export function renderClaudeSkill(
       const value = (source.claude as Record<string, unknown>)[key];
       frontmatter[key] =
         typeof value === "string"
-          ? resolvePlaceholders(value, "claude", modelTiers)
+          ? resolvePlaceholders(value, "claude", glossary)
           : value;
     }
   }
 
   const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
-  const renderedBody = resolvePlaceholders(body, "claude", modelTiers);
+  const renderedBody = resolvePlaceholders(body, "claude", glossary);
 
   return `---\n${yaml}---\n${renderedBody}`;
 }

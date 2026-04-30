@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderCodexSkill } from "./skill-codex.js";
 
 const TIERS: ModelTiers = {
@@ -8,6 +9,8 @@ const TIERS: ModelTiers = {
   standard: { claude: "sonnet", codex: "gpt-5.4" },
   deep: { claude: "opus", codex: "gpt-5.4" },
 };
+
+const GLOSSARY: PlaceholderGlossary = { model: TIERS };
 
 function make(
   source: Partial<SkillSource> & Pick<SkillSource, "name" | "description">,
@@ -20,7 +23,7 @@ describe("renderCodexSkill", () => {
   it("emits name/description frontmatter starting at the first line", () => {
     const out = renderCodexSkill(
       make({ name: "x", description: "d" }, "# body\n"),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.skillMd.startsWith("---\n")).toBe(true);
     expect(out.skillMd).not.toContain("Managed by agents-manager");
@@ -41,7 +44,7 @@ describe("renderCodexSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.skillMd).toContain("license: MIT");
     expect(out.skillMd).toContain("metadata:\n  short-description: blurb");
@@ -63,7 +66,7 @@ describe("renderCodexSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.sidecar).not.toBeNull();
     const parsed = parseYaml(out.sidecar as string) as Record<string, unknown>;
@@ -81,7 +84,7 @@ describe("renderCodexSkill", () => {
         { name: "x", description: "d" },
         "use {{model:fast}} for cleanup.\n",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.skillMd).toContain("use gpt-5.4-mini for cleanup.");
   });
@@ -96,7 +99,7 @@ describe("renderCodexSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.skillMd).toContain("allowed-tools: Bash Read");
     expect(out.skillMd).not.toContain("- Bash");
@@ -126,7 +129,7 @@ describe("renderCodexSkill", () => {
         },
         "Use {{model:deep}} for synthesis.\n",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.skillMd).toMatchSnapshot("skillMd");
     expect(out.sidecar).toMatchSnapshot("sidecar");
