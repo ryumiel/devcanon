@@ -91,6 +91,8 @@ export async function loadConfig(
       "platform",
       "manifest",
       "modelTiers",
+      "toolNames",
+      "fileArtifacts",
     ]);
     for (const key of Object.keys(parsed)) {
       if (!knownKeys.has(key)) {
@@ -149,5 +151,7 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
       path: expandHome(config.manifest.path),
     },
     modelTiers: config.modelTiers,
+    toolNames: config.toolNames,
+    fileArtifacts: config.fileArtifacts,
   };
 }
