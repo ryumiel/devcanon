@@ -385,6 +385,208 @@ describe("ConfigSchema.modelTiers", () => {
       expect(messages).toMatch(/at least one tier/i);
     }
   });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: { claude: "c".repeat(300), codex: "gpt-5.4" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("ConfigSchema.toolNames", () => {
+  it("parses a valid toolNames glossary with kebab-case keys", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.toolNames?.["task-tracker"].claude).toBe("TodoWrite");
+      expect(result.data.toolNames?.["task-tracker"].codex).toBe("update_plan");
+    }
+  });
+
+  it("accepts config without toolNames", () => {
+    const result = ConfigSchema.safeParse({ version: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.toolNames).toBeUndefined();
+    }
+  });
+
+  it("rejects an empty toolNames object", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {},
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one entry/i);
+    }
+  });
+
+  it("rejects an entry missing the codex key", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: { "task-tracker": { claude: "TodoWrite" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-string value", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: { "task-tracker": { claude: 123, codex: "update_plan" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty-string value", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: { "task-tracker": { claude: "", codex: "update_plan" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects keys with uppercase letters", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        TaskTracker: { claude: "TodoWrite", codex: "update_plan" },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/lowercase, digits, hyphens/i);
+    }
+  });
+
+  it("rejects keys with underscores", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        task_tracker: { claude: "TodoWrite", codex: "update_plan" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects keys with a leading hyphen", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        "-task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        "task-tracker": {
+          claude: "T".repeat(300),
+          codex: "update_plan",
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("ConfigSchema.fileArtifacts", () => {
+  it("parses a valid fileArtifacts glossary with kebab-case keys", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {
+        "project-instructions": { claude: "CLAUDE.md", codex: "AGENTS.md" },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fileArtifacts?.["project-instructions"].claude).toBe(
+        "CLAUDE.md",
+      );
+      expect(result.data.fileArtifacts?.["project-instructions"].codex).toBe(
+        "AGENTS.md",
+      );
+    }
+  });
+
+  it("accepts config without fileArtifacts", () => {
+    const result = ConfigSchema.safeParse({ version: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fileArtifacts).toBeUndefined();
+    }
+  });
+
+  it("rejects an empty fileArtifacts object", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {},
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one entry/i);
+    }
+  });
+
+  it("rejects an entry missing the claude key", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: { "project-instructions": { codex: "AGENTS.md" } },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects keys with uppercase letters", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {
+        ProjectInstructions: { claude: "CLAUDE.md", codex: "AGENTS.md" },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/file artifact/i);
+    }
+  });
+
+  it("rejects keys with underscores", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {
+        project_instructions: { claude: "CLAUDE.md", codex: "AGENTS.md" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {
+        "project-instructions": {
+          claude: "C".repeat(300),
+          codex: "AGENTS.md",
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("SkillSourceSchema", () => {

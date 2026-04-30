@@ -108,38 +108,56 @@ codex_sidecar:
     brand_color: "#0969da"
 ```
 
-## 4. Model Placeholders
+## 4. Placeholders
 
-Use `{{model:fast}}`, `{{model:standard}}`, or `{{model:deep}}` for
-reasoning-tier references in the shared body. They resolve at render time
-against `modelTiers` in
-[`agents-manager.config.yaml`](../../agents-manager.config.yaml), so the
-same source produces target-specific model IDs.
+Three placeholder namespaces resolve at render time against
+glossaries in
+[`agents-manager.config.yaml`](../../agents-manager.config.yaml):
+
+- `{{model:fast}}`, `{{model:standard}}`, `{{model:deep}}` for
+  reasoning-tier references.
+- `{{tool:<key>}}` for tool names that differ across targets, e.g.
+  `{{tool:task-tracker}}` → `TodoWrite` (Claude) / `update_plan`
+  (Codex).
+- `{{file:<key>}}` for artifact files, e.g.
+  `{{file:project-instructions}}` → `CLAUDE.md` (Claude) /
+  `AGENTS.md` (Codex).
 
 Rules:
 
-- Only the `model:` namespace is permitted; other namespaces are
-  validation errors.
-- Escape with a leading backslash: `\{{model:deep}}`.
-- Placeholders inside fenced code blocks (backtick or tilde) are not
-  substituted.
-- Override-block top-level string values are substituted; nested values
-  (for example `codex.metadata.*`) pass through unchanged.
+- Only `model:`, `tool:`, and `file:` namespaces are permitted;
+  other namespaces are rejected at render time.
+- Escape with a leading backslash: `\{{tool:task-tracker}}`.
+- Placeholders inside fenced code blocks (backtick or tilde) are
+  not substituted.
+- Override-block top-level string values are substituted; nested
+  values (for example `codex.metadata.*`) pass through unchanged.
+
+Glossaries (`modelTiers`, `toolNames`, `fileArtifacts`) are
+config-driven. Adding a new key is a one-line edit to
+`agents-manager.config.yaml`.
 
 ## 5. Shared-Prose Conventions
 
-Shared body prose must read sensibly under both targets. Drift diagnostics
-flag target-specific tokens; current checks are token-based and cover
-`.claude/`, `.codex/`, and `.agents/`.
+Shared body prose must read sensibly under both targets.
 
-- Use `{{model:*}}` placeholders, not literal model IDs.
-- Use neutral worktree and path language. Avoid hard-coded
-  product-specific home paths.
-- Describe delegation, review, and skill invocation by intent, not by
-  target API spelling.
+1. Use placeholders (`{{model:*}}`, `{{tool:*}}`, `{{file:*}}`)
+   for target-specific names whenever a glossary entry exists or
+   can be added.
+2. Use intent-based language (e.g. "task tracker", "project
+   instructions file") when no concrete spelling adds value or
+   when the prose is conceptual rather than operational.
+3. Avoid hard-coded product-specific home paths.
 
-`pnpm run dev -- validate` reports drift as a warning. `validate --strict`
-treats it as a failure; run that before opening a PR.
+Drift diagnostics flag literal target-specific tokens (model IDs,
+tool names, artifact files, and target paths). Token sets for
+models, tools, and files are auto-derived from
+`agents-manager.config.yaml`; the path check covers `.claude/`,
+`.codex/`, and `.agents/`.
+
+`pnpm run dev -- validate` reports drift as a warning.
+`validate --strict` treats it as a failure; run that before
+opening a PR.
 
 ## 6. Testing
 

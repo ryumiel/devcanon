@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
+import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 
 const TIERS: ModelTiers = {
@@ -7,6 +8,8 @@ const TIERS: ModelTiers = {
   standard: { claude: "sonnet", codex: "gpt-5.4" },
   deep: { claude: "opus", codex: "gpt-5.4" },
 };
+
+const GLOSSARY: PlaceholderGlossary = { model: TIERS };
 
 function make(
   source: Partial<SkillSource> & Pick<SkillSource, "name" | "description">,
@@ -19,7 +22,7 @@ describe("renderClaudeSkill", () => {
   it("emits name/description frontmatter starting at the first line", () => {
     const out = renderClaudeSkill(
       make({ name: "x", description: "d" }, "# body\n"),
-      TIERS,
+      GLOSSARY,
     );
     expect(out.startsWith("---\n")).toBe(true);
     expect(out).not.toContain("Managed by agents-manager");
@@ -38,7 +41,7 @@ describe("renderClaudeSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out).toContain("allowed-tools: Bash Read");
   });
@@ -53,7 +56,7 @@ describe("renderClaudeSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out).toContain("allowed-tools: Bash Read");
     expect(out).not.toContain("- Bash");
@@ -71,7 +74,7 @@ describe("renderClaudeSkill", () => {
         },
         "",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out).toContain("model: opus");
     expect(out).toContain("effort: high");
@@ -91,7 +94,7 @@ describe("renderClaudeSkill", () => {
         },
         "use {{model:deep}} for synthesis.\n",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out).toContain("model: opus");
     expect(out).toContain("use opus for synthesis.");
@@ -114,7 +117,7 @@ describe("renderClaudeSkill", () => {
         },
         "Use {{model:deep}} for synthesis.\n",
       ),
-      TIERS,
+      GLOSSARY,
     );
     expect(out).toMatchSnapshot();
   });

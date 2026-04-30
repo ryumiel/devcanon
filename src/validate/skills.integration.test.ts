@@ -6,7 +6,7 @@ import {
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
-import type { ModelTiers } from "../config/schema.js";
+import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";
@@ -21,6 +21,8 @@ describe("loadAndValidateSkills", () => {
         enabled?: boolean;
         strict?: boolean;
         modelTiers?: ModelTiers;
+        toolNames?: ToolNames;
+        fileArtifacts?: FileArtifacts;
       };
     },
   ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
@@ -893,6 +895,340 @@ describe("loadAndValidateSkills", () => {
       expect(result).toHaveLength(1);
       expectWarningLine(warnings, /list-continuation-prose/i, /sonnet/i);
       expect(warnings.some((warning) => /haiku/i.test(warning))).toBe(false);
+    });
+  });
+
+  it("warns on configured tool names in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-tool-name",
+      [
+        "---",
+        "name: raw-tool-name",
+        "description: Detect tool drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use TodoWrite to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-tool-name/i, /TodoWrite/);
+    });
+  });
+
+  it("warns on Codex tool names in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-tool",
+      [
+        "---",
+        "name: raw-codex-tool",
+        "description: Detect codex tool drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use update_plan to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-codex-tool/i, /update_plan/);
+    });
+  });
+
+  it("fails in strict mode on configured tool names in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-tool-drift",
+      [
+        "---",
+        "name: strict-tool-drift",
+        "description: Detect tool drift in strict mode.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use TodoWrite to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    const diagnostics = {
+      enabled: true,
+      strict: true,
+      toolNames: {
+        "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+      },
+    };
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/strict-tool-drift/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/TodoWrite/);
+  });
+
+  it("fails in strict mode on configured file artifacts in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-file-drift",
+      [
+        "---",
+        "name: strict-file-drift",
+        "description: Detect file artifact drift in strict mode.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Edit CLAUDE.md to set rules.",
+        "",
+      ].join("\n"),
+    );
+
+    const diagnostics = {
+      enabled: true,
+      strict: true,
+      fileArtifacts: {
+        "project-instructions": {
+          claude: "CLAUDE.md",
+          codex: "AGENTS.md",
+        },
+      },
+    };
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/strict-file-drift/i);
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, { diagnostics }),
+    ).rejects.toThrow(/CLAUDE\.md/);
+  });
+
+  it("warns on configured file artifacts in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-file-artifact",
+      [
+        "---",
+        "name: raw-file-artifact",
+        "description: Detect file artifact drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Edit CLAUDE.md to set rules.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-file-artifact/i, /CLAUDE\.md/);
+    });
+  });
+
+  it("warns on Codex file artifacts in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-file-artifact",
+      [
+        "---",
+        "name: raw-codex-file-artifact",
+        "description: Detect codex file artifact drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Read AGENTS.md for the rules.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-codex-file-artifact/i, /AGENTS\.md/);
+    });
+  });
+
+  it("does not flag tool tokens inside fenced code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "fenced-tool-token",
+      [
+        "---",
+        "name: fenced-tool-token",
+        "description: Tokens in code stay literal.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Example syntax:",
+        "",
+        "```",
+        "TodoWrite(...)",
+        "```",
+        "",
+        "Body stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      // No drift warning should mention the fenced token.
+      expect(warnings.filter((w) => /fenced-tool-token/i.test(w))).toEqual([]);
+    });
+  });
+
+  it("emits separate warnings when the same value is in toolNames and fileArtifacts", async () => {
+    // A glossary collision -- the same string registered as both a tool
+    // name and a file artifact -- must surface as one warning per
+    // namespace, not be deduped to a single entry.
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "glossary-collision",
+      [
+        "---",
+        "name: glossary-collision",
+        "description: Detect collision between tool and file glossaries.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Reference SHARED.md inline.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            shared: { claude: "SHARED.md", codex: "SHARED.md" },
+          },
+          fileArtifacts: {
+            shared: { claude: "SHARED.md", codex: "SHARED.md" },
+          },
+        },
+      });
+
+      const matched = warnings.filter((w) =>
+        /glossary-collision/i.test(w) ? /SHARED\.md/.test(w) : false,
+      );
+      expect(
+        matched.filter((w) => /\{\{tool:<key>\}\}/.test(w)).length,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        matched.filter((w) => /\{\{file:<key>\}\}/.test(w)).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("flags drift tokens at line start and adjacent to non-whitespace punctuation", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "boundary-drift",
+      [
+        "---",
+        "name: boundary-drift",
+        "description: Detect boundary cases for containsToken.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "TodoWrite is preferred; CLAUDE.md is the file.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /boundary-drift/i, /TodoWrite/);
+      expectWarningLine(warnings, /boundary-drift/i, /CLAUDE\.md/);
     });
   });
 });

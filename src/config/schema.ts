@@ -21,16 +21,22 @@ const TargetConfigSchema = z.object({
   installMode: InstallModeSchema.optional(),
 });
 
-// --- Model tiers ---
-const ModelTierEntrySchema = z.object({
-  claude: z.string().min(1),
-  codex: z.string().min(1),
+// --- Target entries (shared shape for model/tool/file glossaries) ---
+// Values are bounded so that drift-detection regexes built from them stay
+// inside V8's RegExp-source size limit; a token over ~50 KB would otherwise
+// throw SyntaxError at `RegExp.test` time under the `u` flag.
+const TARGET_ENTRY_VALUE_MAX = 256;
+
+const TargetEntrySchema = z.object({
+  claude: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
 });
 
-const MODEL_TIER_KEY = /^\w+$/;
+export const MODEL_TIER_KEY = /^\w+$/;
+export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
 export const ModelTiersSchema = z
-  .record(z.string(), ModelTierEntrySchema)
+  .record(z.string(), TargetEntrySchema)
   .superRefine((tiers, ctx) => {
     if (Object.keys(tiers).length === 0) {
       ctx.addIssue({
@@ -51,6 +57,42 @@ export const ModelTiersSchema = z
   });
 
 export type ModelTiers = z.infer<typeof ModelTiersSchema>;
+
+function makePlaceholderGlossarySchema(
+  semanticName: "tool name" | "file artifact",
+  configKey: "toolNames" | "fileArtifacts",
+) {
+  return z.record(z.string(), TargetEntrySchema).superRefine((entries, ctx) => {
+    if (Object.keys(entries).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${configKey} must define at least one entry`,
+      });
+      return;
+    }
+    for (const key of Object.keys(entries)) {
+      if (!PLACEHOLDER_KEY.test(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${semanticName} "${key}" must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`,
+          path: [key],
+        });
+      }
+    }
+  });
+}
+
+export const ToolNamesSchema = makePlaceholderGlossarySchema(
+  "tool name",
+  "toolNames",
+);
+export const FileArtifactsSchema = makePlaceholderGlossarySchema(
+  "file artifact",
+  "fileArtifacts",
+);
+
+export type ToolNames = z.infer<typeof ToolNamesSchema>;
+export type FileArtifacts = z.infer<typeof FileArtifactsSchema>;
 
 // --- Main config ---
 export const ConfigSchema = z.object({
@@ -94,6 +136,8 @@ export const ConfigSchema = z.object({
     })
     .default({}),
   modelTiers: ModelTiersSchema.optional(),
+  toolNames: ToolNamesSchema.optional(),
+  fileArtifacts: FileArtifactsSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -122,6 +166,8 @@ export interface ResolvedConfig {
     path: string;
   };
   modelTiers?: ModelTiers;
+  toolNames?: ToolNames;
+  fileArtifacts?: FileArtifacts;
 }
 
 export interface ResolvedTargetConfig {

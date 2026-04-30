@@ -50,18 +50,34 @@ not inlined into the Codex `SKILL.md`. Supports `interface.*`,
 
 ## Placeholders
 
-`{{model:fast}}`, `{{model:standard}}`, `{{model:deep}}` resolve at
-render time against the `modelTiers` glossary in
-`agents-manager.config.yaml`. During the Claude render pass,
-`{{model:deep}}` resolves to `modelTiers.deep.claude`; during the
-Codex pass, to `modelTiers.deep.codex`. The same skill source
-therefore produces different model IDs in `generated/claude/...`
-and `generated/codex/...`. Escape with a leading backslash:
-`\{{model:deep}}`. Placeholders inside fenced code blocks
-(backtick or tilde) are not substituted.
+Three placeholder namespaces resolve at render time against
+glossaries in `agents-manager.config.yaml`:
 
-Only the `model:` namespace is permitted. Other namespaces
-(`path:`, `tool:`, etc.) are a validator error.
+- `{{model:<tier>}}` against `modelTiers` (e.g. `{{model:deep}}`).
+- `{{tool:<key>}}` against `toolNames` (e.g.
+  `{{tool:task-tracker}}`).
+- `{{file:<key>}}` against `fileArtifacts` (e.g.
+  `{{file:project-instructions}}`).
+
+All three share the same shape: each glossary entry is a
+`{claude, codex}` pair. During the Claude render pass, the entry's
+`claude` value is substituted; during the Codex pass, the `codex`
+value. The same skill source therefore produces different rendered
+strings in `generated/claude/...` and `generated/codex/...`.
+
+Escape with a leading backslash: `\{{model:deep}}`,
+`\{{tool:task-tracker}}`, `\{{file:project-instructions}}`.
+Placeholders inside fenced code blocks (backtick or tilde) are
+not substituted.
+
+Other namespaces are rejected at render time. The renderer also
+re-validates each captured key against the namespace's stricter
+config-time format -- the runtime regex `[\w-]+` is intentionally
+permissive for matching, but a key that does not match the
+namespace's contract (`^\w+$` for `model`, `^[a-z0-9][a-z0-9-]*$`
+for `tool` / `file`) raises an "invalid placeholder key" error
+before glossary lookup, so e.g. `{{tool:taskTracker}}` fails
+fast rather than appearing as an undefined entry.
 
 ---
 
@@ -70,14 +86,20 @@ Only the `model:` namespace is permitted. Other namespaces
 - Use `{{model:fast}}`, `{{model:standard}}`, and
   `{{model:deep}}` for reasoning-tier references in shared
   skill bodies.
+- Use `{{tool:<key>}}` and `{{file:<key>}}` for tool and
+  artifact names whose spelling differs across targets. Example:
+  `{{tool:task-tracker}}` instead of literal `TodoWrite`;
+  `{{file:project-instructions}}` instead of literal `CLAUDE.md`.
 - Prefer neutral worktree and path language in shared prose.
   Avoid hard-coded product-specific home paths.
 - Describe delegation, review, and skill invocation by intent
   rather than product-specific API spellings.
 
-In `validate`, the current drift diagnostics cover reasoning-tier
-references and target-specific path segments in shared prose.
-Today that path check is token-based and flags `.claude/`,
+In `validate`, drift diagnostics cover reasoning tiers, tool
+names, artifact files, and target-specific path segments in
+shared prose. The token list is auto-derived from `modelTiers`,
+`toolNames`, and `fileArtifacts`; new entries become drift tokens
+automatically. The path check additionally flags `.claude/`,
 `.codex/`, and `.agents/`. Diagnostics are reported as warnings
 in normal mode and as validation failures in `validate --strict`.
 
@@ -104,8 +126,14 @@ These subdirectories are mirrored per target into
 - Frontmatter must parse and match `SkillSourceSchema`.
 - Frontmatter `name` must equal the directory name.
 - Skill names must be unique.
-- Every `{{X:Y}}` placeholder must use `X = model` and `Y` must
-  be defined in `modelTiers`.
+- Every `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
+  `file`}, and `Y` must be defined in the corresponding glossary
+  (`modelTiers`, `toolNames`, or `fileArtifacts`).
+- Glossary key formats differ by namespace: `modelTiers` keys
+  match `^\w+$` (letters, digits, underscores; e.g.
+  `fast`, `standard`, `deep`); `toolNames` and `fileArtifacts`
+  keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
+  e.g. `task-tracker`, `project-instructions`).
 - Broken internal symlinks are errors.
 
 ---

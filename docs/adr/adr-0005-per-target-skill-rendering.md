@@ -41,8 +41,9 @@ Authors express divergence in three places:
    override blocks, resolved at render time against a `modelTiers`
    glossary in config.
 
-**Namespace scope-lock:** only `{{model:*}}` is permitted. Any
-other namespace is a validator error. Adding a new namespace
+**Namespace scope-lock:** only namespaces declared in
+`PlaceholderGlossary` (`model`, `tool`, `file`) are permitted; any
+other namespace is rejected at render time. Adding a new namespace
 requires a new ADR.
 
 **Substitution scope:**
@@ -64,8 +65,9 @@ requires a new ADR.
   generated directory on next `sync`; handled automatically.
 - A glossary in `agents-manager.config.yaml` maps tier names to
   target-native model IDs. Changing a tier is one config edit.
-- The placeholder system is intentionally minimal. No other
-  substitution namespaces. No body-level conditionals.
+- The placeholder system is intentionally minimal. New namespaces
+  are added only via the `PlaceholderGlossary` pattern under a new
+  ADR; body-level conditionals remain out of scope.
 
 ## Alternatives considered
 
@@ -81,6 +83,7 @@ requires a new ADR.
 
 ## See also
 
+- [ADR-0006](adr-0006-tool-and-file-placeholders.md) -- adds `{{tool:*}}` and `{{file:*}}` namespaces
 - [Skills](../specs/skills.md) -- skill authoring and frontmatter
 - [Configuration](../specs/configuration.md) -- `modelTiers` glossary
 - [`src/render/placeholders.ts`](../../src/render/placeholders.ts) -- `{{model:*}}` resolver

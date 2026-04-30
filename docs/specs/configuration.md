@@ -52,6 +52,16 @@ modelTiers:
   deep:
     claude: claude-opus-4-7
     codex: gpt-5.4
+
+toolNames:
+  task-tracker:
+    claude: TodoWrite
+    codex: update_plan
+
+fileArtifacts:
+  project-instructions:
+    claude: CLAUDE.md
+    codex: AGENTS.md
 ```
 
 ---
@@ -73,7 +83,8 @@ through the `{{model:<tier>}}` placeholder.
 
 - Tier keys must match `^\w+$` (letters, digits, underscores).
 - Each tier maps to a `{ claude: <model-id>, codex: <model-id> }` pair.
-- Both `claude` and `codex` model IDs are required, non-empty strings.
+- Both `claude` and `codex` model IDs are required, non-empty strings
+  capped at 256 characters.
 - During render, `{{model:<tier>}}` resolves to the model ID for the active
   target: `{{model:deep}}` becomes `modelTiers.deep.claude` for Claude output
   and `modelTiers.deep.codex` for Codex output.
@@ -82,6 +93,58 @@ through the `{{model:<tier>}}` placeholder.
 
 See [Skills](skills.md) for skill-frontmatter overrides that consume tier
 placeholders.
+
+---
+
+## toolNames
+
+Optional. Defines a glossary of tool-name aliases that skills can reference
+through the `{{tool:<key>}}` placeholder.
+
+- Keys must match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
+  e.g. `task-tracker`).
+- Each entry maps to a `{ claude: <tool-name>, codex: <tool-name> }` pair.
+- Both `claude` and `codex` values are required, non-empty strings.
+- During render, `{{tool:<key>}}` resolves to the tool name for the active
+  target: `{{tool:task-tracker}}` becomes `toolNames.task-tracker.claude`
+  for Claude output and `toolNames.task-tracker.codex` for Codex output.
+- An empty `toolNames: {}` is rejected; either omit the key entirely or
+  define at least one entry.
+- Each `claude` / `codex` value is a non-empty string capped at 256
+  characters.
+
+Drift validation auto-derives token warnings from configured values --
+literal mentions of e.g. `TodoWrite` in shared prose surface as warnings
+under `validate` and as errors under `validate --strict`. See
+[Skills](skills.md) for the full drift policy.
+
+---
+
+## fileArtifacts
+
+Optional. Defines a glossary of artifact-file aliases that skills can
+reference through the `{{file:<key>}}` placeholder.
+
+- Keys must match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
+  e.g. `project-instructions`).
+- Each entry maps to a `{ claude: <file-name>, codex: <file-name> }` pair.
+- Both `claude` and `codex` values are required, non-empty strings.
+- During render, `{{file:<key>}}` resolves to the artifact filename for
+  the active target: `{{file:project-instructions}}` becomes
+  `fileArtifacts.project-instructions.claude` for Claude output and
+  `fileArtifacts.project-instructions.codex` for Codex output.
+- An empty `fileArtifacts: {}` is rejected; either omit the key entirely or
+  define at least one entry.
+- Each `claude` / `codex` value is a non-empty string capped at 256
+  characters.
+
+Drift validation auto-derives token warnings from configured values --
+literal mentions of e.g. `CLAUDE.md` or `AGENTS.md` in shared prose
+surface as warnings under `validate` and as errors under
+`validate --strict`. See [Skills](skills.md) for the full drift policy.
+
+See [ADR-0006](../adr/adr-0006-tool-and-file-placeholders.md) for the
+decision record covering the `{{tool:*}}` and `{{file:*}}` namespaces.
 
 ---
 
