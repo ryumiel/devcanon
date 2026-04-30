@@ -87,13 +87,13 @@ mechanically validated.
 Within `claude`:
 
 - `model`
-- `effort`
+- `effort` (see `docs/specs/configuration.md` for allowed values)
 - `tools`
 
 Within `codex`:
 
 - `model`
-- `model_reasoning_effort`
+- `model_reasoning_effort` (see `docs/specs/configuration.md` for allowed values)
 - `sandbox_mode`
 - `nickname_candidates`
 - `approval_policy`

@@ -214,6 +214,38 @@ describe("loadConfig", () => {
     expect(result.modelTiers?.standard.codex.reasoning_effort).toBe("medium");
   });
 
+  it("warns about unknown nested model tier profile keys in non-strict mode", async () => {
+    const yaml = [
+      "version: 1",
+      "modelTiers:",
+      "  standard:",
+      "    claude:",
+      "      model: claude-sonnet-4-7",
+      "      effort: medium",
+      "      typo_field: true",
+      "    codex:",
+      "      model: gpt-5.4",
+      "      reasoning_effort: medium",
+      "    typo_target:",
+      "      model: unexpected",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+
+    const result = await loadConfig(configPath);
+
+    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-7");
+    expect(
+      logCtx.testLogger.warnings.some((warning) =>
+        warning.includes("modelTiers.standard.claude.typo_field"),
+      ),
+    ).toBe(true);
+    expect(
+      logCtx.testLogger.warnings.some((warning) =>
+        warning.includes("modelTiers.standard.typo_target"),
+      ),
+    ).toBe(true);
+  });
+
   it("rejects unknown nested model tier profile keys in strict mode", async () => {
     const yaml = [
       "version: 1",
@@ -232,6 +264,20 @@ describe("loadConfig", () => {
     ].join("\n");
     const configPath = await createConfigFile(tempDir, yaml);
 
-    await expect(loadConfig(configPath, true)).rejects.toThrow(UserError);
+    await expect(loadConfig(configPath, true)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "modelTiers.standard.claude.typo_field",
+        );
+        expect((err as UserError).message).toContain(
+          "modelTiers.standard.codex.typo_field",
+        );
+        expect((err as UserError).message).toContain(
+          "modelTiers.standard.typo_target",
+        );
+        return true;
+      },
+    );
   });
 });

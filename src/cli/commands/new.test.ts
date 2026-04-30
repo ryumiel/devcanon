@@ -8,7 +8,6 @@ import {
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import { loadConfig } from "../../config/load.js";
 import { renderAll } from "../../render/pipeline.js";
-import { UserError } from "../../utils/errors.js";
 import { readTextFile } from "../../utils/fs.js";
 import { newAgentAction } from "./new.js";
 
@@ -97,7 +96,7 @@ describe("newAgentAction", () => {
     expect(codexAgent?.content).toContain('model_reasoning_effort = "medium"');
   });
 
-  it("fails with targeted guidance when the standard tier is missing", async () => {
+  it("uses the first configured tier when standard is missing", async () => {
     const missingStandardConfigPath = await createConfigFile(
       tempDir,
       [
@@ -107,7 +106,7 @@ describe("newAgentAction", () => {
         "  agentsDir: ./agents",
         "  generatedDir: ./generated",
         "modelTiers:",
-        "  fast:",
+        "  default:",
         "    claude:",
         "      model: claude-haiku-4",
         "    codex:",
@@ -115,22 +114,59 @@ describe("newAgentAction", () => {
       ].join("\n"),
     );
 
-    await expect(
-      newAgentAction(
-        "reviewer",
-        {},
-        {
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
           parent: {
-            parent: {
-              opts: () => ({ config: missingStandardConfigPath }),
-            },
+            opts: () => ({ config: missingStandardConfigPath }),
           },
         },
-      ),
-    ).rejects.toSatisfy((err: unknown) => {
-      expect(err).toBeInstanceOf(UserError);
-      expect((err as UserError).message).toContain("modelTiers.standard");
-      return true;
-    });
+      },
+    );
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).toContain('model: "{{model:default}}"');
+  });
+
+  it("omits model scaffolding when no model tiers are configured", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: noTierConfigPath }),
+          },
+        },
+      },
+    );
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).not.toContain("{{model:");
+    expect(content).not.toContain("\n  model:");
+
+    const config = await loadConfig(noTierConfigPath);
+    const result = await renderAll(config, false);
+    const agentOutputs = result.outputs.filter(
+      (output) => output.type === "agent",
+    );
+    expect(agentOutputs).toHaveLength(2);
   });
 });

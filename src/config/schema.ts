@@ -32,28 +32,22 @@ const TargetEntrySchema = z.object({
   codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
 });
 
-const ClaudeModelTierProfileSchema = z
-  .object({
-    model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
-    effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
-  })
-  .strict();
+const ClaudeModelTierProfileSchema = z.object({
+  model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+});
 
-const CodexModelTierProfileSchema = z
-  .object({
-    model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
-    reasoning_effort: z
-      .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
-      .optional(),
-  })
-  .strict();
+const CodexModelTierProfileSchema = z.object({
+  model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  reasoning_effort: z
+    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
+    .optional(),
+});
 
-const ModelTierProfileSchema = z
-  .object({
-    claude: ClaudeModelTierProfileSchema,
-    codex: CodexModelTierProfileSchema,
-  })
-  .strict();
+const ModelTierProfileSchema = z.object({
+  claude: ClaudeModelTierProfileSchema,
+  codex: CodexModelTierProfileSchema,
+});
 
 export const MODEL_TIER_KEY = /^\w+$/;
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;

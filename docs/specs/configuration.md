@@ -96,8 +96,10 @@ through the `{{model:<tier>}}` placeholder.
   `{ claude: { model, effort? }, codex: { model, reasoning_effort? } }`.
 - Both `claude.model` and `codex.model` are required, non-empty strings capped
   at 256 characters.
-- `claude.effort` is optional.
-- `codex.reasoning_effort` is optional.
+- `claude.effort` is optional and must be one of `low`, `medium`, `high`,
+  `xhigh`, or `max`.
+- `codex.reasoning_effort` is optional and must be one of `none`, `minimal`,
+  `low`, `medium`, `high`, or `xhigh`.
 - In skill prose and skill-side overrides, `{{model:<tier>}}` resolves to the
   model ID for the active target: `{{model:deep}}` becomes
   `modelTiers.deep.claude.model` for Claude output and

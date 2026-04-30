@@ -184,6 +184,29 @@ describe("loadAndValidateAgents", () => {
     });
   });
 
+  it("rejects malformed agent model tier placeholders", async () => {
+    const yaml = makeAgentYaml("tier-agent", {
+      claude: {
+        model: "{{model:bad-tier}}",
+        tools: ["Read"],
+      },
+      codex: {
+        model: "{{model:bad-tier}}",
+        sandbox_mode: "read-only",
+      },
+    });
+    await createAgentFixture(agentsDir, "tier-agent", yaml);
+
+    await expect(
+      loadAndValidateAgents(agentsDir, noSkills, { modelTiers }),
+    ).rejects.toSatisfy((err: unknown) => {
+      expect(err).toBeInstanceOf(UserError);
+      expect((err as UserError).message).toContain("invalid model placeholder");
+      expect((err as UserError).message).toContain("claude.model");
+      return true;
+    });
+  });
+
   it("succeeds when agent references a valid skill", async () => {
     const skill: LoadedSkill = {
       name: "my-skill",

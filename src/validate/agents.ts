@@ -213,6 +213,7 @@ export async function loadAndValidateAgents(
 }
 
 const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
+const MODEL_TIER_PLACEHOLDER_PREFIX = "{{model:";
 
 function validateAgentModelTierReference(
   agentName: string,
@@ -223,8 +224,18 @@ function validateAgentModelTierReference(
 ): void {
   if (!value) return;
 
+  const looksLikeModelPlaceholder = value.includes(
+    MODEL_TIER_PLACEHOLDER_PREFIX,
+  );
+  if (!looksLikeModelPlaceholder) return;
+
   const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
-  if (!tier) return;
+  if (!tier) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} has invalid model placeholder syntax "${value}".`,
+    );
+    return;
+  }
 
   if (!modelTiers) {
     errors.push(

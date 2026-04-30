@@ -52,15 +52,23 @@ export async function newAgentAction(
     throw new UserError(`Agent "${name}" already exists at ${agentPath}`);
   }
 
-  if (!config.modelTiers?.standard) {
-    throw new UserError(
-      "Cannot scaffold an agent with `{{model:standard}}` because `modelTiers.standard` is not configured.",
-    );
-  }
+  const preferredTier =
+    config.modelTiers && Object.keys(config.modelTiers).length > 0
+      ? config.modelTiers.standard
+        ? "standard"
+        : Object.keys(config.modelTiers)[0]
+      : null;
+
+  const claudeModelLine = preferredTier
+    ? `  model: "{{model:${preferredTier}}}"\n`
+    : "";
+  const codexModelLine = preferredTier
+    ? `  model: "{{model:${preferredTier}}}"\n`
+    : "";
 
   await writeTextFile(
     agentPath,
-    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\n\nclaude:\n  model: "{{model:standard}}"\n  tools:\n    - Read\n    - Grep\n\ncodex:\n  model: "{{model:standard}}"\n  sandbox_mode: read-only\n`,
+    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\n\nclaude:\n${claudeModelLine}  tools:\n    - Read\n    - Grep\n\ncodex:\n${codexModelLine}  sandbox_mode: read-only\n`,
   );
 
   logger.info(`Created agent: ${agentPath}`);

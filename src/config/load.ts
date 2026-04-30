@@ -11,6 +11,25 @@ import {
   type ResolvedConfig,
 } from "./schema.js";
 
+const KNOWN_CONFIG_KEYS = new Set([
+  "version",
+  "library",
+  "targets",
+  "defaults",
+  "platform",
+  "manifest",
+  "modelTiers",
+  "toolNames",
+  "fileArtifacts",
+]);
+
+const KNOWN_MODEL_TIER_TARGET_KEYS = new Set(["claude", "codex"]);
+const KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS = new Set(["model", "effort"]);
+const KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS = new Set([
+  "model",
+  "reasoning_effort",
+]);
+
 export async function findConfigPath(explicitPath?: string): Promise<string> {
   if (explicitPath) {
     const resolved = path.resolve(explicitPath);
@@ -61,11 +80,22 @@ export async function loadConfig(
   }
 
   if (strict) {
-    // In strict mode, unknown fields cause errors
-    const result = ConfigSchema.strict().safeParse(parsed);
+    const result = ConfigSchema.safeParse(parsed);
+    const unknownFields = collectUnknownConfigFields(parsed);
     if (!result.success) {
       throw new UserError(
-        `Invalid config: ${result.error.issues.map((i) => i.message).join(", ")}`,
+        `Invalid config: ${[
+          ...result.error.issues.map((issue) => issue.message),
+          ...unknownFields.map((field) => `unknown config field "${field}"`),
+        ].join(", ")}`,
+        configPath,
+      );
+    }
+    if (unknownFields.length > 0) {
+      throw new UserError(
+        `Invalid config: ${unknownFields
+          .map((field) => `unknown config field "${field}"`)
+          .join(", ")}`,
         configPath,
       );
     }
@@ -81,29 +111,78 @@ export async function loadConfig(
     );
   }
 
-  // Detect unknown top-level keys
-  if (parsed && typeof parsed === "object") {
-    const knownKeys = new Set([
-      "version",
-      "library",
-      "targets",
-      "defaults",
-      "platform",
-      "manifest",
-      "modelTiers",
-      "toolNames",
-      "fileArtifacts",
-    ]);
-    for (const key of Object.keys(parsed)) {
-      if (!knownKeys.has(key)) {
-        getLogger().warn(
-          `Warning: unknown config field "${key}" in ${configPath}`,
-        );
+  for (const field of collectUnknownConfigFields(parsed)) {
+    getLogger().warn(
+      `Warning: unknown config field "${field}" in ${configPath}`,
+    );
+  }
+
+  return resolveConfig(result.data, configPath);
+}
+
+function collectUnknownConfigFields(parsed: unknown): string[] {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return [];
+  }
+
+  const parsedRecord = parsed as Record<string, unknown>;
+  const unknownFields = Object.keys(parsedRecord)
+    .filter((key) => !KNOWN_CONFIG_KEYS.has(key))
+    .map((key) => key);
+
+  const modelTiers = parsedRecord.modelTiers;
+  if (
+    !modelTiers ||
+    typeof modelTiers !== "object" ||
+    Array.isArray(modelTiers)
+  ) {
+    return unknownFields;
+  }
+
+  for (const [tierKey, tierValue] of Object.entries(modelTiers)) {
+    if (
+      !tierValue ||
+      typeof tierValue !== "object" ||
+      Array.isArray(tierValue)
+    ) {
+      continue;
+    }
+
+    const tierRecord = tierValue as Record<string, unknown>;
+    for (const key of Object.keys(tierRecord)) {
+      if (!KNOWN_MODEL_TIER_TARGET_KEYS.has(key)) {
+        unknownFields.push(`modelTiers.${tierKey}.${key}`);
+      }
+    }
+
+    const claudeProfile = tierRecord.claude;
+    if (
+      claudeProfile &&
+      typeof claudeProfile === "object" &&
+      !Array.isArray(claudeProfile)
+    ) {
+      for (const key of Object.keys(claudeProfile)) {
+        if (!KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS.has(key)) {
+          unknownFields.push(`modelTiers.${tierKey}.claude.${key}`);
+        }
+      }
+    }
+
+    const codexProfile = tierRecord.codex;
+    if (
+      codexProfile &&
+      typeof codexProfile === "object" &&
+      !Array.isArray(codexProfile)
+    ) {
+      for (const key of Object.keys(codexProfile)) {
+        if (!KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS.has(key)) {
+          unknownFields.push(`modelTiers.${tierKey}.codex.${key}`);
+        }
       }
     }
   }
 
-  return resolveConfig(result.data, configPath);
+  return unknownFields;
 }
 
 function resolveConfig(config: Config, configPath: string): ResolvedConfig {
