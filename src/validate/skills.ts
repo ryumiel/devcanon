@@ -204,25 +204,25 @@ function collectDriftDiagnostics(
 
   for (const token of modelTokens) {
     if (proseSegments.some((segment) => containsToken(segment, token))) {
-      found.set(`model:${token.toLowerCase()}`, { token, reason: "model" });
+      found.set(`model:${token}`, { token, reason: "model" });
     }
   }
 
   for (const token of toolTokens) {
     if (proseSegments.some((segment) => containsToken(segment, token))) {
-      found.set(`tool:${token.toLowerCase()}`, { token, reason: "tool" });
+      found.set(`tool:${token}`, { token, reason: "tool" });
     }
   }
 
   for (const token of fileTokens) {
     if (proseSegments.some((segment) => containsToken(segment, token))) {
-      found.set(`file:${token.toLowerCase()}`, { token, reason: "file" });
+      found.set(`file:${token}`, { token, reason: "file" });
     }
   }
 
   for (const token of TARGET_PATH_TOKENS) {
     if (proseSegments.some((segment) => segment.includes(token))) {
-      found.set(`path:${token.toLowerCase()}`, { token, reason: "path" });
+      found.set(`path:${token}`, { token, reason: "path" });
     }
   }
 
@@ -253,7 +253,11 @@ function formatDriftDiagnostic(
       return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{tool:<key>}} placeholders or target-neutral wording.`;
     case "file":
       return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{file:<key>}} placeholders or target-neutral wording.`;
-    default:
+    case "model":
       return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{model:<tier>}} placeholders or target-neutral wording.`;
+    default: {
+      const _exhaustive: never = diagnostic.reason;
+      throw new Error(`unhandled drift reason: ${String(_exhaustive)}`);
+    }
   }
 }
