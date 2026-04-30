@@ -999,6 +999,40 @@ describe("loadAndValidateSkills", () => {
     ).rejects.toThrow(/strict-tool-drift/i);
   });
 
+  it("fails in strict mode on configured file artifacts in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-file-drift",
+      [
+        "---",
+        "name: strict-file-drift",
+        "description: Detect file artifact drift in strict mode.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Edit CLAUDE.md to set rules.",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      }),
+    ).rejects.toThrow(/strict-file-drift/i);
+  });
+
   it("warns on configured file artifacts in shared prose", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
