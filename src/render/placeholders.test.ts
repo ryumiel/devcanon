@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ModelTiers } from "../config/schema.js";
+import type {
+  FileArtifacts,
+  ModelTiers,
+  ToolNames,
+} from "../config/schema.js";
 import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
 const TIERS: ModelTiers = {
@@ -7,6 +11,17 @@ const TIERS: ModelTiers = {
   standard: { claude: "sonnet", codex: "gpt-5.4" },
   deep: { claude: "opus", codex: "gpt-5.4" },
 };
+
+const TOOLS: ToolNames = {
+  "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+};
+
+const FILES: FileArtifacts = {
+  "project-instructions": { claude: "CLAUDE.md", codex: "AGENTS.md" },
+};
+
+const GLOSSARY = { model: TIERS, tool: TOOLS, file: FILES };
+const MODEL_ONLY = { model: TIERS };
 
 describe("resolvePlaceholders", () => {
   it("iterates prose and fenced-code segments with fenced code immunity", () => {
@@ -32,7 +47,7 @@ describe("resolvePlaceholders", () => {
     const out = resolvePlaceholders(
       "use {{model:deep}} for synthesis",
       "claude",
-      TIERS,
+      MODEL_ONLY,
     );
     expect(out).toBe("use opus for synthesis");
   });
@@ -41,7 +56,7 @@ describe("resolvePlaceholders", () => {
     const out = resolvePlaceholders(
       "use {{model:fast}} for cleanup",
       "codex",
-      TIERS,
+      MODEL_ONLY,
     );
     expect(out).toBe("use gpt-5.4-mini for cleanup");
   });
@@ -50,7 +65,7 @@ describe("resolvePlaceholders", () => {
     const out = resolvePlaceholders(
       "{{model:deep}} then {{model:fast}}",
       "claude",
-      TIERS,
+      MODEL_ONLY,
     );
     expect(out).toBe("opus then haiku");
   });
@@ -65,7 +80,7 @@ describe("resolvePlaceholders", () => {
       "",
       "and {{model:fast}} after.",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("use opus for synthesis");
     expect(out).toContain("example: {{model:deep}} stays literal");
     expect(out).toContain("and haiku after");
@@ -80,7 +95,7 @@ describe("resolvePlaceholders", () => {
       "after: {{model:standard}}",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("before: haiku");
     expect(out).toContain('> const model = "{{model:deep}}"');
     expect(out).toContain("after: sonnet");
@@ -93,7 +108,7 @@ describe("resolvePlaceholders", () => {
       "",
       "after: {{model:fast}}",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("    model: {{model:deep}}");
     expect(out).toContain("after: haiku");
   });
@@ -106,7 +121,7 @@ describe("resolvePlaceholders", () => {
       "after: {{model:standard}}",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("before: haiku");
     expect(out).toContain("> # Example");
     expect(out).toContain(">     preferred_model: {{model:deep}}");
@@ -119,7 +134,7 @@ describe("resolvePlaceholders", () => {
       "    continuation with {{model:standard}}",
       "",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("continuation with sonnet");
   });
 
@@ -132,7 +147,7 @@ describe("resolvePlaceholders", () => {
       "",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("const bulletPreferred = {{model:standard}}");
     expect(out).toContain("const orderedPreferred = {{model:deep}}");
   });
@@ -146,7 +161,7 @@ describe("resolvePlaceholders", () => {
       "",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("const preferred = {{model:standard}}");
     expect(out).toContain("const orderedPreferred = {{model:deep}}");
   });
@@ -160,7 +175,7 @@ describe("resolvePlaceholders", () => {
       "",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("continuation with haiku");
     expect(out).toContain("const preferred = {{model:standard}}");
   });
@@ -174,7 +189,7 @@ describe("resolvePlaceholders", () => {
       "",
     ].join("\n");
 
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("continuation with haiku");
     expect(out).toContain("const preferred = {{model:standard}}");
   });
@@ -183,34 +198,34 @@ describe("resolvePlaceholders", () => {
     const out = resolvePlaceholders(
       "literal \\{{model:deep}} here",
       "claude",
-      TIERS,
+      MODEL_ONLY,
     );
     expect(out).toBe("literal {{model:deep}} here");
   });
 
   it("throws on an unknown tier", () => {
     expect(() =>
-      resolvePlaceholders("{{model:ultra}}", "claude", TIERS),
-    ).toThrow(/unknown tier "ultra"/i);
+      resolvePlaceholders("{{model:ultra}}", "claude", MODEL_ONLY),
+    ).toThrow(/unknown model key "ultra"/i);
   });
 
   it("throws on an unknown namespace", () => {
     expect(() =>
-      resolvePlaceholders("{{path:skills_home}}", "claude", TIERS),
+      resolvePlaceholders("{{path:skills_home}}", "claude", GLOSSARY),
     ).toThrow(/unknown placeholder namespace "path"/i);
   });
 
   it("throws when modelTiers is undefined and a placeholder is present", () => {
     expect(() =>
-      resolvePlaceholders("{{model:deep}}", "claude", undefined),
+      resolvePlaceholders("{{model:deep}}", "claude", {}),
     ).toThrow(/modelTiers not configured/i);
   });
 
   it("is a no-op when there are no placeholders", () => {
-    expect(resolvePlaceholders("plain text", "claude", TIERS)).toBe(
+    expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
       "plain text",
     );
-    expect(resolvePlaceholders("plain text", "claude", undefined)).toBe(
+    expect(resolvePlaceholders("plain text", "claude", {})).toBe(
       "plain text",
     );
   });
@@ -224,7 +239,7 @@ describe("resolvePlaceholders", () => {
       "",
       "after: {{model:fast}}",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     // Inside the outer ``` fence, placeholders stay literal even past
     // the nested ```typescript line.
     expect(out).toContain('const model = "{{model:deep}}"');
@@ -242,7 +257,7 @@ describe("resolvePlaceholders", () => {
       "",
       "after: {{model:fast}}",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     // Inside the outer 4-backtick fence, placeholders must remain literal,
     // even past nested triple-backtick lines.
     expect(out).toContain("{{model:deep}}");
@@ -257,7 +272,7 @@ describe("resolvePlaceholders", () => {
       "",
       "after: {{model:fast}}",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("{{model:deep}}");
     expect(out).toContain("after: haiku");
   });
@@ -272,7 +287,7 @@ describe("resolvePlaceholders", () => {
       "",
       "after: {{model:fast}}",
     ].join("\n");
-    const out = resolvePlaceholders(input, "claude", TIERS);
+    const out = resolvePlaceholders(input, "claude", MODEL_ONLY);
     expect(out).toContain("{{model:deep}}");
     expect(out).toContain("after: haiku");
   });
@@ -281,7 +296,121 @@ describe("resolvePlaceholders", () => {
     // Two literal backslashes then a placeholder. The regex only captures
     // one backslash as the escape, so the outer backslash passes through
     // and the inner one marks the placeholder as literal.
-    const out = resolvePlaceholders("\\\\{{model:deep}}", "claude", TIERS);
+    const out = resolvePlaceholders("\\\\{{model:deep}}", "claude", MODEL_ONLY);
     expect(out).toBe("\\{{model:deep}}");
+  });
+
+  describe("tool: namespace", () => {
+    it("substitutes tool placeholder for the claude target", () => {
+      const out = resolvePlaceholders(
+        "Use the {{tool:task-tracker}} for tracking",
+        "claude",
+        GLOSSARY,
+      );
+      expect(out).toBe("Use the TodoWrite for tracking");
+    });
+
+    it("substitutes tool placeholder for the codex target", () => {
+      const out = resolvePlaceholders(
+        "Use the {{tool:task-tracker}} for tracking",
+        "codex",
+        GLOSSARY,
+      );
+      expect(out).toBe("Use the update_plan for tracking");
+    });
+
+    it("respects backslash escape on tool placeholders", () => {
+      const out = resolvePlaceholders(
+        "literal \\{{tool:task-tracker}} stays",
+        "claude",
+        GLOSSARY,
+      );
+      expect(out).toBe("literal {{tool:task-tracker}} stays");
+    });
+
+    it("leaves tool placeholders inside fenced code untouched", () => {
+      const input = [
+        "before {{tool:task-tracker}}",
+        "```",
+        "literal {{tool:task-tracker}}",
+        "```",
+        "after {{tool:task-tracker}}",
+      ].join("\n");
+      const out = resolvePlaceholders(input, "claude", GLOSSARY);
+      expect(out).toContain("before TodoWrite");
+      expect(out).toContain("literal {{tool:task-tracker}}");
+      expect(out).toContain("after TodoWrite");
+    });
+
+    it("throws on an unknown tool key", () => {
+      expect(() =>
+        resolvePlaceholders("{{tool:unknown}}", "claude", GLOSSARY),
+      ).toThrow(/unknown tool key "unknown"/i);
+    });
+
+    it("throws when toolNames is not configured", () => {
+      expect(() =>
+        resolvePlaceholders("{{tool:task-tracker}}", "claude", MODEL_ONLY),
+      ).toThrow(/toolNames not configured/i);
+    });
+  });
+
+  describe("file: namespace", () => {
+    it("substitutes file placeholder for the claude target", () => {
+      const out = resolvePlaceholders(
+        "Edit {{file:project-instructions}} for rules",
+        "claude",
+        GLOSSARY,
+      );
+      expect(out).toBe("Edit CLAUDE.md for rules");
+    });
+
+    it("substitutes file placeholder for the codex target", () => {
+      const out = resolvePlaceholders(
+        "Edit {{file:project-instructions}} for rules",
+        "codex",
+        GLOSSARY,
+      );
+      expect(out).toBe("Edit AGENTS.md for rules");
+    });
+
+    it("respects backslash escape on file placeholders", () => {
+      const out = resolvePlaceholders(
+        "literal \\{{file:project-instructions}} stays",
+        "claude",
+        GLOSSARY,
+      );
+      expect(out).toBe("literal {{file:project-instructions}} stays");
+    });
+
+    it("leaves file placeholders inside fenced code untouched", () => {
+      const input = [
+        "before {{file:project-instructions}}",
+        "```",
+        "literal {{file:project-instructions}}",
+        "```",
+        "after {{file:project-instructions}}",
+      ].join("\n");
+      const out = resolvePlaceholders(input, "claude", GLOSSARY);
+      expect(out).toContain("before CLAUDE.md");
+      expect(out).toContain("literal {{file:project-instructions}}");
+      expect(out).toContain("after CLAUDE.md");
+    });
+
+    it("throws on an unknown file key", () => {
+      expect(() =>
+        resolvePlaceholders("{{file:unknown}}", "claude", GLOSSARY),
+      ).toThrow(/unknown file key "unknown"/i);
+    });
+
+    it("throws when fileArtifacts is not configured", () => {
+      expect(() =>
+        resolvePlaceholders(
+          "{{file:project-instructions}}",
+          "claude",
+          MODEL_ONLY,
+        ),
+      ).toThrow(/fileArtifacts not configured/i);
+    });
   });
 });
