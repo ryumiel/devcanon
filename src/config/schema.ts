@@ -199,9 +199,9 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-export const CONFIG_TOP_LEVEL_KEYS = Object.keys(
-  ConfigSchema.shape,
-) as Array<keyof typeof ConfigSchema.shape>;
+export const CONFIG_TOP_LEVEL_KEYS = Object.keys(ConfigSchema.shape) as Array<
+  keyof typeof ConfigSchema.shape
+>;
 export const MODEL_TIER_PROFILE_TARGET_KEYS = Object.keys(
   ModelTierProfileSchema.shape,
 ) as Array<keyof typeof ModelTierProfileSchema.shape>;

@@ -260,7 +260,7 @@ describe("AgentSourceSchema", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,
       codex: {
-        model: `gpt-5.4${String.fromCharCode(0x0a)}` ,
+        model: `gpt-5.4${String.fromCharCode(0x0a)}`,
       },
     });
 
