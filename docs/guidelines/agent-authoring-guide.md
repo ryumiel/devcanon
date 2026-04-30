@@ -48,7 +48,25 @@ Avoid these cases:
   In v1, those expectations belong only in prose instructions, not in
   first-class source-schema fields.
 
-## 4. Example Agent Definitions
+## 4. Description Style
+
+The `description` decides when the agent gets selected. Same rule as skills —
+name **what** the role is for, then **when** to delegate, in third person — with
+one extra emphasis: agents benefit more from a `Do not use when…` clause,
+because role selection usually hinges on disambiguating against general work or
+sibling agents.
+
+```yaml
+description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue>.
+```
+
+The shipped examples in § 5 model this. For the full rule, red flags, and
+mechanical constraints, see
+[`../specs/skills.md`](../specs/skills.md) § Description style. The agent spec
+mirrors the same rule:
+[`../specs/agents.md`](../specs/agents.md) § Description style.
+
+## 5. Example Agent Definitions
 
 These examples stay inside the documented schema surface from
 `docs/specs/agents.md`. The instructions are intentionally short; reusable
@@ -101,7 +119,7 @@ codex:
   sandbox_mode: read-only
 ```
 
-## 5. Authoring Workflow in This Repo
+## 6. Authoring Workflow in This Repo
 
 1. Identify reusable knowledge first, and put workflow, checklist, and
    reference content in skills.
@@ -116,7 +134,7 @@ codex:
 6. Validate with `agents-manager validate`.
 7. Preview the generated output with `agents-manager render`.
 
-## 6. See Also
+## 7. See Also
 
 These docs remain authoritative for schema and command details:
 

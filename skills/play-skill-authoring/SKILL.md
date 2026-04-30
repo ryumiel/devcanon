@@ -104,16 +104,17 @@ skills/
 - Upstream [agentskills.io/specification](https://agentskills.io/specification) is supplementary; fields it lists that are not in `SkillSourceSchema` will fail validation here.
 - Two required fields: `name` and `description`.
 - `name`: lowercase letters, digits, and hyphens only; 2–64 chars (the regex's two boundary chars plus `{0,62}` middle); matches `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`.
-- `description`: ≤ 1024 chars; no `<` or `>`; third-person; describes ONLY when to use (NOT what it does)
-  - Start with "Use when..." to focus on triggering conditions
-  - Include specific symptoms, situations, and contexts
-  - **NEVER summarize the skill's process or workflow** (see SSO section for why)
-  - Keep under 500 characters if possible
+- `description`: ≤ 1024 chars; no `<` or `>`; third-person; names **what** the skill does and **when** to use it.
+  - Lead with the capability — a third-person declarative clause naming what the skill does.
+  - Follow with "Use when…" — concrete triggers, symptoms, artifacts, or user phrases.
+  - Do **not** encode procedural detail (step counts, ordered sequences, decision branches). That belongs in the body; see SSO section below for rationale.
+  - For sibling-prone skills, add "Do not use when…" or a contrastive cue.
+  - Keep under 500 chars if possible. Authoritative spec: `docs/specs/skills.md` § Description style.
 
 ```markdown
 ---
 name: skill-name-with-hyphens
-description: Use when [specific triggering conditions and symptoms]
+description: <Capability — what the skill does>. Use when <triggering conditions, symptoms, artifacts, or user phrases>.
 ---
 
 # Skill Name
@@ -157,59 +158,76 @@ Concrete results
 
 ### 1. Rich Description Field
 
-**Purpose:** The agent/runtime reads the description to decide which skills to load for a given task. Make it answer: "Should I read this skill right now?"
+**Purpose:** Both Claude and Codex pre-load the description into context and use it to decide whether to read the skill body for a given task. The description has to do two jobs at once: name the capability so it can be picked over siblings, and name the trigger so it fires at the right moment.
 
-**Format:** Start with "Use when..." to focus on triggering conditions
-
-**CRITICAL: Description = When to Use, NOT What the Skill Does**
-
-The description should ONLY describe triggering conditions. Do NOT summarize the skill's process or workflow in the description.
-
-**Why this matters:** Testing revealed that when a description summarizes the skill's workflow, the model may follow the description instead of reading the full skill content. A description saying "code review between tasks" caused the agent to do ONE review, even though the skill's flowchart clearly showed TWO reviews (spec compliance then code quality).
-
-When the description was changed to just "Use when executing implementation plans with independent tasks" (no workflow summary), the agent correctly read the flowchart and followed the two-stage review process.
-
-**The trap:** Descriptions that summarize workflow create a shortcut the model will take. The skill body becomes documentation it skips.
+**Format:** name **what** the skill does, then **when** to use it. Third person.
 
 ```yaml
-# ❌ BAD: Summarizes workflow - the model may follow this instead of reading skill
-description: Use when executing plans - dispatches subagent per task with code review between tasks
-
-# ❌ BAD: Too much process detail
-description: Use for TDD - write test first, watch it fail, write minimal code, refactor
-
-# ✅ GOOD: Just triggering conditions, no workflow summary
-description: Use when executing implementation plans with independent tasks in the current session
-
-# ✅ GOOD: Triggering conditions only
-description: Use when implementing any feature or bugfix, before writing implementation code
+description: <Capability — what the skill does>. Use when <triggering conditions, symptoms, artifacts, user phrases>.
 ```
 
-**Content:**
+**Why both halves:**
 
-- Use concrete triggers, symptoms, and situations that signal this skill applies
-- Describe the _problem_ (race conditions, inconsistent behavior) not _language-specific symptoms_ (setTimeout, sleep)
-- Keep triggers technology-agnostic unless the skill itself is technology-specific
-- If skill is technology-specific, make that explicit in the trigger
-- Write in third person (injected into system prompt)
-- **NEVER summarize the skill's process or workflow**
+- **What** disambiguates this skill from siblings with overlapping triggers. In a 100-skill catalog, "Use when reviewing code" matches three skills; "Multi-agent review of uncommitted local changes. Use when reviewing a branch before a PR…" matches one.
+- **When** ensures the skill fires at the right moment, with concrete user-visible symptoms (error messages, file extensions, phrases) rather than abstract notions.
+
+This matches what Anthropic's official skill-authoring guide and the `anthropics/skills` repo prescribe, and what Codex's `skill-creator` skill prescribes. The shared `description` is rendered into both targets — what+when is the only style safe across the pipeline.
+
+**Examples:**
 
 ```yaml
-# ❌ BAD: Too abstract, vague, doesn't include when to use
-description: For async testing
+# ❌ Trigger-only — omits the "what", can't disambiguate from sibling skills
+description: Use when implementing any feature or bugfix.
 
-# ❌ BAD: First person
-description: I can help you with async tests when they're flaky
+# ❌ First/second person
+description: I can help you with async tests when they're flaky.
 
-# ❌ BAD: Mentions technology but skill isn't specific to it
-description: Use when tests use setTimeout/sleep and are flaky
+# ❌ Vague — no concrete triggers
+description: Helps with documents.
 
-# ✅ GOOD: Starts with "Use when", describes problem, no workflow
-description: Use when tests have race conditions, timing dependencies, or pass/fail inconsistently
+# ❌ Technology-specific symptom for a non-technology-specific skill
+description: Race-condition fixes. Use when tests use setTimeout/sleep and are flaky.
 
-# ✅ GOOD: Technology-specific skill with explicit trigger
-description: Use when using React Router and handling authentication redirects
+# ✅ What + when, third person
+description: Test-driven development discipline — write the test first, watch it fail, then write minimal code. Use when implementing any feature or bugfix, before writing implementation code.
+
+# ✅ What + when, problem-domain triggers
+description: Async test stabilization technique using condition-based waiting. Use when tests have race conditions, timing dependencies, or pass/fail inconsistently.
+
+# ✅ Technology-specific skill with explicit trigger
+description: Authentication redirect handling for React Router. Use when working with React Router authentication flows or when redirects misbehave after login.
 ```
+
+#### Caveat: don't bake the procedure into the description
+
+The description must name capability and trigger. It must **not** summarize the _procedure_ — step counts, stage names, decision branches — because the model can read a procedural one-liner and skip the body that owns the actual logic.
+
+This is a typed risk, not a blanket ban: name what the skill is _for_, not how it works.
+
+```yaml
+# ❌ Procedural — encodes "two-stage review" into the description
+description: Dispatches a subagent per task with spec-then-quality review between tasks. Use when executing plans.
+
+# ✅ Capability + trigger; the procedure stays in the body
+description: Executes an implementation plan by dispatching a fresh subagent per independent task. Use when running a written plan whose tasks have no shared state.
+```
+
+**Red flag — rewrite if the description contains:**
+
+- A count: "two reviews", "three stages", "five steps".
+- An ordered sequence: "first… then…", "before X, after Y".
+- A branching word: "when X do Y, otherwise Z".
+- First or second person: "I", "you", "we".
+
+**Content rules:**
+
+- Third person — no "I", "you", "we".
+- Start the _what_ clause with a declarative verb ("Executes…", "Reviews…", "Generates…") — not "This skill…".
+- Lead the _when_ clause with "Use when…".
+- Use concrete, searchable triggers — error messages, file extensions, user phrases — not abstract categories.
+- Describe the _problem domain_ (race conditions, inconsistent behavior), not _language-specific symptoms_ (setTimeout, sleep), unless the skill itself is technology-specific.
+- For sibling-prone skills, add "Do not use when…" or a contrastive cue.
+- ≤ 500 chars when possible (1024 hard cap, no `<` / `>`).
 
 ### 2. Keyword Coverage
 
@@ -571,12 +589,12 @@ Make it easy for agents to self-check when rationalizing:
 **All of these mean: Delete code. Start over with TDD.**
 ```
 
-### Update CSO for Violation Symptoms
+### Update SSO for Violation Symptoms
 
-Add to description: symptoms of when you're ABOUT to violate the rule:
+Add to the `Use when…` clause: symptoms of when the rule is ABOUT to be violated. The capability half stays the same; the trigger half names the moments where discipline tends to slip.
 
 ```yaml
-description: use when implementing any feature or bugfix, before writing implementation code
+description: Test-driven development discipline — write the test first, watch it fail, then write minimal code. Use when implementing any feature or bugfix, before writing implementation code.
 ```
 
 ## RED-GREEN-REFACTOR for Skills
@@ -663,10 +681,14 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 **GREEN Phase - Write Minimal Skill:**
 
 - [ ] Name is lowercase letters, digits, and hyphens; 2–64 chars (regex in the Frontmatter section above)
-- [ ] YAML frontmatter with required `name` and `description` (description ≤ 1024 chars and cannot contain `<` or `>`; authoritative schema in `docs/specs/skills.md`)
-- [ ] Description starts with "Use when..." and includes specific triggers/symptoms
-- [ ] Description written in third person
-- [ ] Keywords throughout for search (errors, symptoms, tools)
+- [ ] YAML frontmatter with required `name` and `description` (authoritative schema in `docs/specs/skills.md`)
+- [ ] Description names **what** the skill does (third-person declarative clause: "Executes…", "Reviews…", "Generates…")
+- [ ] Description names **when** to use it ("Use when…" with concrete triggers — symptoms, artifacts, user phrases, error messages)
+- [ ] Description is third person — no "I", "you", "we"
+- [ ] Description does NOT encode procedural detail (no step counts, ordered sequences "first…then…", or decision branches)
+- [ ] Sibling-prone skill? Description includes "Do not use when…" or a contrastive cue against the nearest sibling
+- [ ] Description ≤ 500 chars (1024 hard cap), contains no `<` or `>`
+- [ ] Keywords throughout the body for search (errors, symptoms, tools)
 - [ ] Clear overview with core principle
 - [ ] Address specific baseline failures identified in RED
 - [ ] Code inline OR link to separate file

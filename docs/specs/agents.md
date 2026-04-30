@@ -12,7 +12,7 @@ YAML
 
 ```yaml
 name: reviewer
-description: Review code for correctness, regressions, and missing tests.
+description: Focused code review role for correctness, regressions, and missing tests. Use when reviewing implementation against a plan or before merging. Do not use for general coding work or broad orchestration.
 instructions: |
   Lead with concrete findings.
   Prefer correctness and regression issues over style comments.
@@ -50,6 +50,22 @@ codex:
 - `codex`
 - `tags`
 - `notes`
+
+### Description style
+
+The agent `description` is what both Claude and Codex use to decide when to
+delegate to the agent. Same shape as skills: name **what** the role is for,
+then **when** to delegate. Third person.
+
+```yaml
+description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue against sibling agents or general work>.
+```
+
+Agents benefit more than skills from a `Do not use when…` clause because role
+selection often hinges on disambiguation against general work or sibling
+agents. See the [authoring guide](../guidelines/agent-authoring-guide.md) for
+worked examples and [`skills.md` § Description style](skills.md#description-style)
+for the full rule, red flags, and mechanical constraints.
 
 ### Documented target-specific fields in v1
 
