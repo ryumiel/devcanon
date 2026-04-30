@@ -29,6 +29,13 @@ function collectUnknownFields(
     .map((key) => `${pathPrefix}${key}`);
 }
 
+function asPlainObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
 function formatZodIssue(issue: ZodIssue): string {
   if (issue.code === "invalid_union") {
     return issue.unionErrors
@@ -79,63 +86,40 @@ export async function loadAndValidateAgents(
     }
 
     // Check for unknown fields
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const parsedRecord = parsed as Record<string, unknown>;
+    const parsedRecord = asPlainObject(parsed);
+    if (parsedRecord) {
       const unknownFields = collectUnknownFields(
         parsedRecord,
         AGENT_SOURCE_FIELDS,
       );
 
-      if (
-        parsedRecord.claude &&
-        typeof parsedRecord.claude === "object" &&
-        !Array.isArray(parsedRecord.claude)
-      ) {
+      const claude = asPlainObject(parsedRecord.claude);
+      if (claude) {
         unknownFields.push(
-          ...collectUnknownFields(
-            parsedRecord.claude as Record<string, unknown>,
-            CLAUDE_TARGET_FIELDS,
-            "claude.",
-          ),
+          ...collectUnknownFields(claude, CLAUDE_TARGET_FIELDS, "claude."),
         );
       }
 
-      if (
-        parsedRecord.codex &&
-        typeof parsedRecord.codex === "object" &&
-        !Array.isArray(parsedRecord.codex)
-      ) {
+      const codex = asPlainObject(parsedRecord.codex);
+      if (codex) {
         unknownFields.push(
-          ...collectUnknownFields(
-            parsedRecord.codex as Record<string, unknown>,
-            CODEX_TARGET_FIELDS,
-            "codex.",
-          ),
+          ...collectUnknownFields(codex, CODEX_TARGET_FIELDS, "codex."),
         );
 
-        const approvalPolicy = (parsedRecord.codex as Record<string, unknown>)
-          .approval_policy;
-        if (
-          approvalPolicy &&
-          typeof approvalPolicy === "object" &&
-          !Array.isArray(approvalPolicy)
-        ) {
+        const approvalPolicy = asPlainObject(codex.approval_policy);
+        if (approvalPolicy) {
           unknownFields.push(
             ...collectUnknownFields(
-              approvalPolicy as Record<string, unknown>,
+              approvalPolicy,
               CODEX_APPROVAL_POLICY_FIELDS,
               "codex.approval_policy.",
             ),
           );
-          const granular = (approvalPolicy as Record<string, unknown>).granular;
-          if (
-            granular &&
-            typeof granular === "object" &&
-            !Array.isArray(granular)
-          ) {
+          const granular = asPlainObject(approvalPolicy.granular);
+          if (granular) {
             unknownFields.push(
               ...collectUnknownFields(
-                granular as Record<string, unknown>,
+                granular,
                 CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
                 "codex.approval_policy.granular.",
               ),
