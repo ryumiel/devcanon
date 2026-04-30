@@ -3,9 +3,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
+  createAgentFixture,
   createConfigFile,
   createSkillFixture,
   createTempDir,
+  makeAgentYaml,
 } from "../../__test-helpers__/fixtures.js";
 import { UserError } from "../../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../../utils/output.js";
@@ -33,14 +35,24 @@ describe("validateAction", () => {
         "  generatedDir: ./generated",
         "modelTiers:",
         "  fast:",
-        "    claude: claude-haiku-4",
-        "    codex: gpt-5.4-mini",
+        "    claude:",
+        "      model: claude-haiku-4",
+        "    codex:",
+        "      model: gpt-5.4-mini",
         "  standard:",
-        "    claude: claude-sonnet-4-7",
-        "    codex: gpt-5.4",
+        "    claude:",
+        "      model: claude-sonnet-4-7",
+        "      effort: medium",
+        "    codex:",
+        "      model: gpt-5.4",
+        "      reasoning_effort: medium",
         "  deep:",
-        "    claude: claude-opus-4-7",
-        "    codex: gpt-5.4",
+        "    claude:",
+        "      model: claude-opus-4-7",
+        "      effort: high",
+        "    codex:",
+        "      model: gpt-5.4",
+        "      reasoning_effort: high",
         "",
       ].join("\n"),
     );
@@ -179,5 +191,47 @@ describe("validateAction", () => {
 
       expect(warnings).toEqual([]);
     });
+  });
+
+  it("fails validate when an agent tier placeholder has no configured glossary", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    await createAgentFixture(
+      agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    await expect(
+      validateAction(
+        {},
+        {
+          parent: {
+            opts: () => ({
+              config: noTierConfigPath,
+              json: false,
+              strict: false,
+            }),
+          },
+        },
+      ),
+    ).rejects.toThrow(/modelTiers/i);
   });
 });

@@ -28,6 +28,27 @@ platform:
 
 manifest:
   path: ~/.agents-manager/manifest.json
+
+modelTiers:
+  fast:
+    claude:
+      model: claude-haiku-4
+    codex:
+      model: gpt-5.4-mini
+  standard:
+    claude:
+      model: claude-sonnet-4-7
+      effort: medium
+    codex:
+      model: gpt-5.4
+      reasoning_effort: medium
+  deep:
+    claude:
+      model: claude-opus-4-7
+      effort: high
+    codex:
+      model: gpt-5.4
+      reasoning_effort: high
 `;
 
 export const SAMPLE_SKILL_MD = `---
@@ -58,11 +79,12 @@ instructions: |
 skills: []
 
 claude:
-  model: sonnet
+  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
 
 codex:
+  model: "{{model:standard}}"
   sandbox_mode: read-only
 `;

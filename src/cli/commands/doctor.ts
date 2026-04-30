@@ -158,6 +158,7 @@ export async function doctorAction(
         const agents = await loadAndValidateAgents(
           config.library.agentsDir,
           skills,
+          { modelTiers: config.modelTiers },
         );
         results.push({
           name: "agents-valid",

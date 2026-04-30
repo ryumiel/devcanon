@@ -28,11 +28,10 @@ export async function renderAll(
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
   const skills = await loadAndValidateSkills(config.library.skillsDir);
-  const agents = await loadAndValidateAgents(
-    config.library.agentsDir,
-    skills,
+  const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-  );
+    modelTiers: config.modelTiers,
+  });
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 

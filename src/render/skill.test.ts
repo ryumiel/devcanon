@@ -18,9 +18,12 @@ import { sha256 } from "../utils/hash.js";
 import { buildSkillContentHash, renderSkillForTarget } from "./skill.js";
 
 const TIERS: ModelTiers = {
-  fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-  standard: { claude: "sonnet", codex: "gpt-5.4" },
-  deep: { claude: "opus", codex: "gpt-5.4" },
+  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
+  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
+  deep: {
+    claude: { model: "opus", effort: "high" },
+    codex: { model: "gpt-5.4", reasoning_effort: "high" },
+  },
 };
 
 function makeLoaded(source: SkillSource, body = "# body\n"): LoadedSkill {

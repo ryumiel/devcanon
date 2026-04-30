@@ -462,8 +462,14 @@ describe("loadAndValidateSkills", () => {
           enabled: true,
           strict: false,
           modelTiers: {
-            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-            standard: { claude: "sonnet", codex: "gpt-5.4" },
+            fast: {
+              claude: { model: "haiku" },
+              codex: { model: "gpt-5.4-mini" },
+            },
+            standard: {
+              claude: { model: "sonnet" },
+              codex: { model: "gpt-5.4" },
+            },
           },
         },
       });
@@ -496,8 +502,14 @@ describe("loadAndValidateSkills", () => {
           enabled: true,
           strict: false,
           modelTiers: {
-            fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-            standard: { claude: "sonnet", codex: "gpt-5.4" },
+            fast: {
+              claude: { model: "haiku" },
+              codex: { model: "gpt-5.4-mini" },
+            },
+            standard: {
+              claude: { model: "sonnet" },
+              codex: { model: "gpt-5.4" },
+            },
           },
         },
       });
@@ -628,7 +640,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -668,7 +683,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -706,7 +724,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -745,7 +766,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -782,7 +806,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -816,7 +843,10 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),
@@ -854,8 +884,14 @@ describe("loadAndValidateSkills", () => {
             enabled: true,
             strict: true,
             modelTiers: {
-              fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-              standard: { claude: "sonnet", codex: "gpt-5.4" },
+              fast: {
+                claude: { model: "haiku" },
+                codex: { model: "gpt-5.4-mini" },
+              },
+              standard: {
+                claude: { model: "sonnet" },
+                codex: { model: "gpt-5.4" },
+              },
             },
           },
         }),

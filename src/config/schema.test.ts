@@ -164,8 +164,10 @@ describe("AgentSourceSchema", () => {
       ]),
     );
     expect(AGENT_SOURCE_FIELDS).toHaveLength(8);
-    expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(new Set(["model", "tools"]));
-    expect(CLAUDE_TARGET_FIELDS).toHaveLength(2);
+    expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(
+      new Set(["model", "effort", "tools"]),
+    );
+    expect(CLAUDE_TARGET_FIELDS).toHaveLength(3);
     expect(new Set(CODEX_TARGET_FIELDS)).toEqual(
       new Set([
         "model",
@@ -382,15 +384,28 @@ describe("ConfigSchema.modelTiers", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       modelTiers: {
-        fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-        standard: { claude: "sonnet", codex: "gpt-5.4" },
-        deep: { claude: "opus", codex: "gpt-5.4" },
+        fast: {
+          claude: { model: "haiku" },
+          codex: { model: "gpt-5.4-mini" },
+        },
+        standard: {
+          claude: { model: "sonnet", effort: "medium" },
+          codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+        },
+        deep: {
+          claude: { model: "opus", effort: "high" },
+          codex: { model: "gpt-5.4", reasoning_effort: "high" },
+        },
       },
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.modelTiers?.deep.claude).toBe("opus");
-      expect(result.data.modelTiers?.fast.codex).toBe("gpt-5.4-mini");
+      expect(result.data.modelTiers?.deep.claude.model).toBe("opus");
+      expect(result.data.modelTiers?.deep.claude.effort).toBe("high");
+      expect(result.data.modelTiers?.fast.codex.model).toBe("gpt-5.4-mini");
+      expect(result.data.modelTiers?.standard.codex.reasoning_effort).toBe(
+        "medium",
+      );
     }
   });
 
@@ -405,7 +420,7 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects a tier missing the claude key", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { fast: { codex: "gpt-5.4-mini" } },
+      modelTiers: { fast: { codex: { model: "gpt-5.4-mini" } } },
     });
     expect(result.success).toBe(false);
   });
@@ -413,7 +428,9 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects a tier name that is not a string", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { deep: { claude: 123, codex: "gpt-5.4" } },
+      modelTiers: {
+        deep: { claude: { model: 123 }, codex: { model: "gpt-5.4" } },
+      },
     });
     expect(result.success).toBe(false);
   });
@@ -421,7 +438,12 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects tier names with hyphens", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { "gpt-fast": { claude: "haiku", codex: "gpt-5.4-mini" } },
+      modelTiers: {
+        "gpt-fast": {
+          claude: { model: "haiku" },
+          codex: { model: "gpt-5.4-mini" },
+        },
+      },
     });
     expect(result.success).toBe(false);
   });
@@ -442,7 +464,10 @@ describe("ConfigSchema.modelTiers", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       modelTiers: {
-        deep: { claude: "c".repeat(300), codex: "gpt-5.4" },
+        deep: {
+          claude: { model: "c".repeat(300) },
+          codex: { model: "gpt-5.4" },
+        },
       },
     });
     expect(result.success).toBe(false);

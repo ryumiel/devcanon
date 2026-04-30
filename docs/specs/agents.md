@@ -23,13 +23,14 @@ skills:
   - release-check
 
 claude:
-  model: sonnet
+  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
     - Bash
 
 codex:
+  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
@@ -86,6 +87,7 @@ mechanically validated.
 Within `claude`:
 
 - `model`
+- `effort`
 - `tools`
 
 Within `codex`:
@@ -99,6 +101,12 @@ Within `codex`:
 These are the repository's documented target-specific fields in v1. Do not use
 this spec to imply support for other target fields unless they are documented
 here.
+
+When an agent target uses `model: "{{model:<tier>}}"`, the renderer resolves
+that placeholder against `modelTiers.<tier>.<target>`. For Claude, the tier's
+`effort` is emitted unless the agent explicitly sets `claude.effort`. For
+Codex, the tier's `model_reasoning_effort` is emitted unless the agent
+explicitly sets `codex.model_reasoning_effort`.
 
 ---
 

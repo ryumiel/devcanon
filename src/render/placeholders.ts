@@ -7,6 +7,7 @@ import {
   type ToolNames,
 } from "../config/schema.js";
 import { visitMarkdownLines } from "../utils/markdown-prose.js";
+import { resolveTierModel } from "./model-tier-profiles.js";
 
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
@@ -102,6 +103,23 @@ function substituteLine(
         context,
       );
     }
+    if (namespace === "model") {
+      const configKey = NAMESPACE_CONFIG_KEY.model;
+      if (!glossary.model) {
+        throw renderError(
+          `${configKey} not configured — define ${configKey} in agents-manager.config.yaml`,
+          context,
+        );
+      }
+      if (!glossary.model[value]) {
+        throw renderError(
+          `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
+          context,
+        );
+      }
+      return resolveTierModel(value, target, glossary.model);
+    }
+
     const configKey = NAMESPACE_CONFIG_KEY[namespace];
     const dict = glossary[namespace];
     if (!dict) {

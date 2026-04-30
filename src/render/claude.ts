@@ -7,6 +7,10 @@ import type {
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import {
+  extractModelTierKey,
+  resolveTierProfile,
+} from "./model-tier-profiles.js";
+import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
   isHomogeneousScalarArray,
@@ -74,15 +78,26 @@ export function renderClaudeAgent(
   lines.push(`name: ${agent.source.name}`);
   lines.push(`description: ${JSON.stringify(agent.source.description)}`);
 
-  if (agent.source.claude?.tools?.length) {
-    lines.push(`tools: ${agent.source.claude.tools.join(", ")}`);
+  const claude = agent.source.claude;
+  const tierKey = extractModelTierKey(claude?.model);
+  const tierProfile = tierKey
+    ? resolveTierProfile(tierKey, "claude", config.modelTiers)
+    : null;
+
+  if (claude?.tools?.length) {
+    lines.push(`tools: ${claude.tools.join(", ")}`);
   }
-  if (agent.source.claude?.model) {
-    lines.push(`model: ${agent.source.claude.model}`);
+  const model = tierProfile?.model ?? claude?.model;
+  if (model) {
+    lines.push(`model: ${model}`);
+  }
+  const effort = claude?.effort ?? tierProfile?.effort;
+  if (effort) {
+    lines.push(`effort: ${effort}`);
   }
 
   for (const [key, value] of sortedUnknownEntries(
-    agent.source.claude as Record<string, unknown> | undefined,
+    claude as Record<string, unknown> | undefined,
     CLAUDE_TARGET_FIELDS,
   )) {
     const line = renderClaudePassthroughLine(key, value, agent.name);

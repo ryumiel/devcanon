@@ -52,9 +52,15 @@ export async function newAgentAction(
     throw new UserError(`Agent "${name}" already exists at ${agentPath}`);
   }
 
+  if (!config.modelTiers?.standard) {
+    throw new UserError(
+      "Cannot scaffold an agent with `{{model:standard}}` because `modelTiers.standard` is not configured.",
+    );
+  }
+
   await writeTextFile(
     agentPath,
-    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\n\nclaude:\n  model: sonnet\n  tools:\n    - Read\n    - Grep\n\ncodex:\n  sandbox_mode: read-only\n`,
+    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\n\nclaude:\n  model: "{{model:standard}}"\n  tools:\n    - Read\n    - Grep\n\ncodex:\n  model: "{{model:standard}}"\n  sandbox_mode: read-only\n`,
   );
 
   logger.info(`Created agent: ${agentPath}`);

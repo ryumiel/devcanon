@@ -6,7 +6,7 @@ Use this template when dispatching the complexity gate agent in Phase 3.
 Agent(
   description: "Assess issue complexity for research gate",
   subagent_type: "Explore",
-  model: "sonnet",
+  model: "{{model:standard}}",
   prompt: |
     You are assessing whether a Linear issue requires multi-agent research
     before design work begins. Read the issue and scan the repository for

@@ -192,4 +192,46 @@ describe("loadConfig", () => {
     expect(result.targets.claude.installMode).toBe("copy");
     expect(result.targets.codex.installMode).toBe("symlink");
   });
+
+  it("loads nested model tier profiles into resolved config", async () => {
+    const yaml = [
+      "version: 1",
+      "modelTiers:",
+      "  standard:",
+      "    claude:",
+      "      model: claude-sonnet-4-7",
+      "      effort: medium",
+      "    codex:",
+      "      model: gpt-5.4",
+      "      reasoning_effort: medium",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+    const result = await loadConfig(configPath);
+
+    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-7");
+    expect(result.modelTiers?.standard.claude.effort).toBe("medium");
+    expect(result.modelTiers?.standard.codex.model).toBe("gpt-5.4");
+    expect(result.modelTiers?.standard.codex.reasoning_effort).toBe("medium");
+  });
+
+  it("rejects unknown nested model tier profile keys in strict mode", async () => {
+    const yaml = [
+      "version: 1",
+      "modelTiers:",
+      "  standard:",
+      "    claude:",
+      "      model: claude-sonnet-4-7",
+      "      effort: medium",
+      "      typo_field: true",
+      "    codex:",
+      "      model: gpt-5.4",
+      "      reasoning_effort: medium",
+      "      typo_field: true",
+      "    typo_target:",
+      "      model: unexpected",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+
+    await expect(loadConfig(configPath, true)).rejects.toThrow(UserError);
+  });
 });

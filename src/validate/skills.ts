@@ -181,8 +181,8 @@ function collectDriftDiagnostics(
   const modelTokens = new Set<string>(RAW_CLAUDE_ALIASES);
   if (glossaries.modelTiers) {
     for (const tier of Object.values(glossaries.modelTiers)) {
-      modelTokens.add(tier.claude);
-      modelTokens.add(tier.codex);
+      modelTokens.add(tier.claude.model);
+      modelTokens.add(tier.codex.model);
     }
   }
 

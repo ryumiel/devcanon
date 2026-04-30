@@ -9,6 +9,7 @@ import {
   CODEX_APPROVAL_POLICY_FIELDS,
   CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
   CODEX_TARGET_FIELDS,
+  type ModelTiers,
 } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
@@ -43,8 +44,12 @@ function formatZodIssue(issue: ZodIssue): string {
 export async function loadAndValidateAgents(
   agentsDir: string,
   skills: LoadedSkill[],
-  strict = false,
+  options: boolean | { strict?: boolean; modelTiers?: ModelTiers } = false,
 ): Promise<LoadedAgent[]> {
+  const strict =
+    typeof options === "boolean" ? options : (options.strict ?? false);
+  const modelTiers =
+    typeof options === "boolean" ? undefined : options.modelTiers;
   if (!(await pathExists(agentsDir))) {
     return [];
   }
@@ -170,6 +175,21 @@ export async function loadAndValidateAgents(
       }
     }
 
+    validateAgentModelTierReference(
+      source.name,
+      "claude.model",
+      source.claude?.model,
+      modelTiers,
+      errors,
+    );
+    validateAgentModelTierReference(
+      source.name,
+      "codex.model",
+      source.codex?.model,
+      modelTiers,
+      errors,
+    );
+
     agents.push({ name: source.name, filePath, source });
   }
 
@@ -190,4 +210,32 @@ export async function loadAndValidateAgents(
   }
 
   return agents;
+}
+
+const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
+
+function validateAgentModelTierReference(
+  agentName: string,
+  fieldPath: "claude.model" | "codex.model",
+  value: string | undefined,
+  modelTiers: ModelTiers | undefined,
+  errors: string[],
+): void {
+  if (!value) return;
+
+  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
+  if (!tier) return;
+
+  if (!modelTiers) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} references model tier "${tier}" but modelTiers is not configured.`,
+    );
+    return;
+  }
+
+  if (!modelTiers[tier]) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} references unknown model tier "${tier}".`,
+    );
+  }
 }

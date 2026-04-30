@@ -5,9 +5,12 @@ import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderCodexSkill } from "./skill-codex.js";
 
 const TIERS: ModelTiers = {
-  fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-  standard: { claude: "sonnet", codex: "gpt-5.4" },
-  deep: { claude: "opus", codex: "gpt-5.4" },
+  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
+  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
+  deep: {
+    claude: { model: "opus", effort: "high" },
+    codex: { model: "gpt-5.4", reasoning_effort: "high" },
+  },
 };
 
 const GLOSSARY: PlaceholderGlossary = { model: TIERS };

@@ -7,6 +7,10 @@ import type {
 } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
 import {
+  extractModelTierKey,
+  resolveTierProfile,
+} from "./model-tier-profiles.js";
+import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
   isFiniteNumber,
@@ -155,11 +159,18 @@ export function renderCodexAgent(
   // Optional codex-specific fields
   const codex = agent.source.codex;
   if (codex) {
-    if (codex.model) lines.push(`model = ${tomlQuote(codex.model)}`);
-    if (codex.model_reasoning_effort)
-      lines.push(
-        `model_reasoning_effort = ${tomlQuote(codex.model_reasoning_effort)}`,
-      );
+    const tierKey = extractModelTierKey(codex.model);
+    const tierProfile = tierKey
+      ? resolveTierProfile(tierKey, "codex", config.modelTiers)
+      : null;
+
+    const model = tierProfile?.model ?? codex.model;
+    if (model) lines.push(`model = ${tomlQuote(model)}`);
+
+    const modelReasoningEffort =
+      codex.model_reasoning_effort ?? tierProfile?.reasoning_effort;
+    if (modelReasoningEffort)
+      lines.push(`model_reasoning_effort = ${tomlQuote(modelReasoningEffort)}`);
     if (codex.sandbox_mode)
       lines.push(`sandbox_mode = ${tomlQuote(codex.sandbox_mode)}`);
     if (codex.nickname_candidates?.length) {

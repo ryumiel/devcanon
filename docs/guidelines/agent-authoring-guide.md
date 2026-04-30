@@ -82,11 +82,12 @@ instructions: |
   Review for correctness and regressions.
   Report only concrete findings.
 claude:
-  model: sonnet
+  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
 codex:
+  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
@@ -97,11 +98,12 @@ instructions: |
   Verify the release candidate.
   Surface blocking issues first.
 claude:
-  model: sonnet
+  model: "{{model:standard}}"
   tools:
     - Read
     - Grep
 codex:
+  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
@@ -112,10 +114,11 @@ instructions: |
   Check clarity and consistency.
   Keep recommendations minimal.
 claude:
-  model: sonnet
+  model: "{{model:standard}}"
   tools:
     - Read
 codex:
+  model: "{{model:standard}}"
   sandbox_mode: read-only
 ```
 
