@@ -1,6 +1,6 @@
 ---
 name: branch-review
-description: Multi-agent code review of uncommitted changes on a local branch. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
+description: Multi-agent code review of a local branch's commits against a base ref. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
 ---
 
 # Branch Review
