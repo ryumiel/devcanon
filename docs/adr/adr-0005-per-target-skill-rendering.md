@@ -65,8 +65,9 @@ requires a new ADR.
   generated directory on next `sync`; handled automatically.
 - A glossary in `agents-manager.config.yaml` maps tier names to
   target-native model IDs. Changing a tier is one config edit.
-- The placeholder system is intentionally minimal. No other
-  substitution namespaces. No body-level conditionals.
+- The placeholder system is intentionally minimal. New namespaces
+  are added only via the `PlaceholderGlossary` pattern under a new
+  ADR; body-level conditionals remain out of scope.
 
 ## Alternatives considered
 
