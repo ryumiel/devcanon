@@ -241,6 +241,32 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects claude.model strings containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        model: `sonnet${String.fromCharCode(0x0a)}tools: Read`,
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects codex.model strings containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        model: `gpt-5.4${String.fromCharCode(0x0a)}` ,
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts granular codex approval policy objects", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,
@@ -467,6 +493,62 @@ describe("ConfigSchema.modelTiers", () => {
         deep: {
           claude: { model: "c".repeat(300) },
           codex: { model: "gpt-5.4" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects model strings containing a newline", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: {
+          claude: { model: `opus${String.fromCharCode(0x0a)}tools: Read` },
+          codex: { model: "gpt-5.4" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects model strings containing a NUL byte", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: {
+          claude: { model: "opus" },
+          codex: { model: `gpt-5.4${String.fromCharCode(0x00)}` },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid claude tier effort enum values", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        standard: {
+          claude: { model: "sonnet", effort: "turbo" },
+          codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid codex tier reasoning_effort enum values", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        standard: {
+          claude: { model: "sonnet" },
+          codex: { model: "gpt-5.4", reasoning_effort: "max" },
         },
       },
     });

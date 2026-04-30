@@ -27,18 +27,43 @@ const TargetConfigSchema = z.object({
 // throw SyntaxError at `RegExp.test` time under the `u` flag.
 const TARGET_ENTRY_VALUE_MAX = 256;
 
+// Reject C0 controls, DEL, and the Unicode line separators (NEL, LS, PS)
+// so that values interpolated into rendered YAML frontmatter or TOML keys
+// cannot break out of their field by inserting a new line.
+function isRenderSafeLine(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f) return false;
+    if (code === 0x7f) return false;
+    if (code === 0x85) return false;
+    if (code === 0x2028 || code === 0x2029) return false;
+  }
+  return true;
+}
+
+const RENDER_SAFE_LINE_MESSAGE =
+  "must not contain control characters or line breaks";
+
+function renderSafeString(min: number, max: number) {
+  return z
+    .string()
+    .min(min)
+    .max(max)
+    .refine(isRenderSafeLine, RENDER_SAFE_LINE_MESSAGE);
+}
+
 const TargetEntrySchema = z.object({
-  claude: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
-  codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  claude: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
+  codex: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
 });
 
 const ClaudeModelTierProfileSchema = z.object({
-  model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 });
 
 const CodexModelTierProfileSchema = z.object({
-  model: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
   reasoning_effort: z
     .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
     .optional(),
@@ -196,7 +221,7 @@ export interface ResolvedTargetConfig {
 
 // --- Agent source ---
 const ClaudeTargetShape = {
-  model: z.string().optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   tools: z.array(z.string()).optional(),
 };
@@ -261,7 +286,7 @@ const CodexApprovalPolicySchema = z.union([
 ]);
 
 const CodexTargetShape = {
-  model: z.string().optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
   model_reasoning_effort: z
     .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
     .optional(),
@@ -354,7 +379,7 @@ const AllowedToolsSchema = z.union([
 ]);
 
 const ClaudeSkillOverrideShape = {
-  model: z.string().optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   when_to_use: z.string().optional(),
   "argument-hint": z.string().optional(),
