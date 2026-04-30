@@ -48,6 +48,83 @@ not inlined into the Codex `SKILL.md`. Supports `interface.*`,
 
 ---
 
+## Description style
+
+The `description` field is what both Claude and Codex pre-load into
+context to decide whether a skill applies to the current task. The
+shared `description` is rendered identically into both targets, so
+it must satisfy both upstream conventions — which agree on the same
+shape:
+
+- Anthropic's official skill-authoring guide and `anthropics/skills`
+  repo prescribe **what + when**.
+- Codex's `skill-creator` skill prescribes the same: "Include both
+  what the Skill does and specific triggers/contexts for when to
+  use it."
+
+**Rule:** name the capability, then name the trigger. Third person.
+
+- **What** — a third-person declarative clause naming what the
+  skill does. The reader should know what kind of work the skill
+  is for from the first sentence.
+- **When** — explicit triggers led by "Use when…": situations,
+  artifacts, user phrases, error symptoms.
+- **Distinguishing detail** when sibling skills exist — add a
+  "Do not use when…" or contrastive cue. Distinct names alone
+  are not enough once the catalog grows.
+
+**Do not** encode procedural detail (step counts, ordered stage
+names, decision branches). The description is pre-loaded
+unconditionally; a procedural one-liner can substitute for the
+body and cause the model to skip nuance the body owns. Describe
+capability and trigger, not the process.
+
+### Examples
+
+```yaml
+# ❌ Trigger-only — omits the "what", can't disambiguate from siblings
+description: Use when reviewing code on a local branch before creating a PR.
+
+# ❌ Procedural summary — encodes the workflow into the description
+description: Reviews a branch by running spec-compliance review then code-quality review.
+
+# ✅ What + when, no procedure
+description: Multi-agent code review of uncommitted changes on a local branch. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
+```
+
+```yaml
+# ❌ Procedural summary
+description: Use when implementing — dispatches a subagent per task with two-stage review between tasks.
+
+# ✅ What + when
+description: Executes an implementation plan by dispatching a fresh subagent per independent task. Use when running a written plan whose tasks have no shared state.
+```
+
+### Red flags
+
+A description that contains any of these has leaked the procedure
+into the description and should be rewritten:
+
+- A count: "two reviews", "three stages", "five steps".
+- An ordered sequence: "first… then…", "before X, after Y".
+- A branching word: "when X do Y, otherwise Z".
+- First or second person: "I", "you", "we", "our".
+
+### Constraints (mechanical)
+
+These are enforced by `SkillSourceSchema` and surfaced by
+`agents-manager validate`:
+
+- `description` is required (non-empty).
+- ≤ 1024 chars (hard cap); aim for ≤ 500.
+- No `<` or `>`.
+
+The style rules above (third person, capability + trigger, no
+procedural detail) are not mechanically validated — see § Red flags
+for the rewrite triggers.
+
+---
+
 ## Placeholders
 
 Three placeholder namespaces resolve at render time against

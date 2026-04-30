@@ -108,7 +108,33 @@ codex_sidecar:
     brand_color: "#0969da"
 ```
 
-## 4. Placeholders
+## 4. Description Style
+
+The `description` field is what both Claude and Codex pre-load into context to
+decide whether a skill applies. The shared `description` is rendered identically
+into both targets, so it must satisfy both upstream conventions — which agree on
+the same shape.
+
+**Rule:** name the capability, then name the trigger. Third person.
+
+```yaml
+description: <Capability — what the skill does>. Use when <triggering conditions, symptoms, artifacts, or user phrases>.
+```
+
+- Lead with the capability — a third-person declarative clause naming what the
+  skill does (verb-first: "Executes…", "Reviews…", "Generates…").
+- Follow with `Use when…` — concrete triggers: situations, artifacts, user
+  phrases, error symptoms.
+- For sibling-prone skills, add `Do not use when…` or a contrastive cue.
+- Do **not** encode procedural detail — step counts, ordered sequences, or
+  decision branches. The description is pre-loaded unconditionally; a procedural
+  one-liner can substitute for the body and cause the model to skip nuance the
+  body owns.
+
+For the full rule, examples, red flags, and mechanical constraints, see
+[`../specs/skills.md`](../specs/skills.md) § Description style.
+
+## 5. Placeholders
 
 Three placeholder namespaces resolve at render time against
 glossaries in
@@ -137,7 +163,7 @@ Glossaries (`modelTiers`, `toolNames`, `fileArtifacts`) are
 config-driven. Adding a new key is a one-line edit to
 `agents-manager.config.yaml`.
 
-## 5. Shared-Prose Conventions
+## 6. Shared-Prose Conventions
 
 Shared body prose must read sensibly under both targets.
 
@@ -159,7 +185,7 @@ models, tools, and files are auto-derived from
 `validate --strict` treats it as a failure; run that before
 opening a PR.
 
-## 6. Testing
+## 7. Testing
 
 The general discipline lives in
 [`play-skill-authoring`](../../skills/play-skill-authoring/SKILL.md):
@@ -175,10 +201,13 @@ In addition, this repo expects:
 - Tests under `src/render/` that snapshot shipped skill metadata are
   updated in the same PR if the change affects them.
 
-## 7. PR Checklist for `skills/` Changes
+## 8. PR Checklist for `skills/` Changes
 
 - [ ] Frontmatter validates and uses an override block only when the
       shared default is inadequate.
+- [ ] `description` follows § 4 — names what the skill does and when to use it,
+      third person, no procedural detail (no step counts, ordered sequences, or
+      decision branches).
 - [ ] Both rendered targets diffed locally and read correctly.
 - [ ] `pnpm run dev -- validate --strict` passes.
 - [ ] Any supporting files validate per
@@ -191,7 +220,7 @@ In addition, this repo expects:
       items from
       [`documentation-checklists.md`](documentation-checklists.md).
 
-## 8. See Also
+## 9. See Also
 
 - [`../specs/skills.md`](../specs/skills.md) — frontmatter schema and
   validation rules

@@ -48,7 +48,25 @@ Avoid these cases:
   In v1, those expectations belong only in prose instructions, not in
   first-class source-schema fields.
 
-## 4. Example Agent Definitions
+## 4. Description Style
+
+The `description` decides when the agent gets selected. Same rule as skills —
+name **what** the role is for, then **when** to delegate, in third person — with
+one extra emphasis: agents benefit more from a `Do not use when…` clause,
+because role selection usually hinges on disambiguating against general work or
+sibling agents.
+
+```yaml
+description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue>.
+```
+
+The shipped examples in § 5 model this. For the full rule, red flags, and
+mechanical constraints, see
+[`../specs/skills.md`](../specs/skills.md) § Description style. The agent spec
+mirrors the same rule:
+[`../specs/agents.md`](../specs/agents.md) § Description style.
+
+## 5. Example Agent Definitions
 
 These examples stay inside the documented schema surface from
 `docs/specs/agents.md`. The instructions are intentionally short; reusable
@@ -59,7 +77,7 @@ operational scope genuinely match the role's permissions and intent.
 
 ```yaml
 name: reviewer
-description: Use for focused code reviews that need a fixed review role, limited tools, and a narrow execution environment. Do not use for general coding work or broad orchestration.
+description: Focused code review role with limited tools and read-only access for correctness and regression checks. Use when a code review needs a fixed reviewer role with restricted access. Do not use for general coding work or broad orchestration.
 instructions: |
   Review for correctness and regressions.
   Report only concrete findings.
@@ -74,7 +92,7 @@ codex:
 
 ```yaml
 name: release-checker
-description: Use for release-specific validation when a stable release role is needed. Do not use for feature planning or general repository maintenance.
+description: Release validation role for surfacing blockers in a release candidate. Use when validating a release candidate before cut. Do not use for feature planning or general repository maintenance.
 instructions: |
   Verify the release candidate.
   Surface blocking issues first.
@@ -89,7 +107,7 @@ codex:
 
 ```yaml
 name: doc-curator
-description: Use for documentation review when the task needs a dedicated doc role with narrow access. Do not use when the work is better expressed as a reusable documentation skill.
+description: Documentation review role with narrow read-only access for clarity and consistency checks. Use when documentation needs a dedicated reviewer role. Do not use when the work is better expressed as a reusable documentation skill.
 instructions: |
   Check clarity and consistency.
   Keep recommendations minimal.
@@ -101,7 +119,7 @@ codex:
   sandbox_mode: read-only
 ```
 
-## 5. Authoring Workflow in This Repo
+## 6. Authoring Workflow in This Repo
 
 1. Identify reusable knowledge first, and put workflow, checklist, and
    reference content in skills.
@@ -116,7 +134,7 @@ codex:
 6. Validate with `agents-manager validate`.
 7. Preview the generated output with `agents-manager render`.
 
-## 6. See Also
+## 7. See Also
 
 These docs remain authoritative for schema and command details:
 
