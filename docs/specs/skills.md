@@ -122,6 +122,11 @@ These subdirectories are mirrored per target into
 - Every `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
   `file`}, and `Y` must be defined in the corresponding glossary
   (`modelTiers`, `toolNames`, or `fileArtifacts`).
+- Glossary key formats differ by namespace: `modelTiers` keys
+  match `^\w+$` (letters, digits, underscores; e.g.
+  `fast`, `standard`, `deep`); `toolNames` and `fileArtifacts`
+  keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
+  e.g. `task-tracker`, `project-instructions`).
 - Broken internal symlinks are errors.
 
 ---
