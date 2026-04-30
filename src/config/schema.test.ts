@@ -134,6 +134,22 @@ describe("AgentSourceSchema", () => {
     }
   });
 
+  it("rejects a description containing only '<'", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "less than < only",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '>'", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "greater than > only",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("exposes the exact supported shared and target-specific field lists", () => {
     expect(new Set(AGENT_SOURCE_FIELDS)).toEqual(
       new Set([
@@ -705,6 +721,22 @@ describe("SkillSourceSchema", () => {
     const result = SkillSourceSchema.safeParse({
       name: "xy",
       description: "uses <tool> for things",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '<'", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "less than < only",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '>'", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "greater than > only",
     });
     expect(result.success).toBe(false);
   });
