@@ -704,4 +704,15 @@ describe("loadAndValidateAgents", () => {
       },
     );
   });
+
+  it("rejects a description containing angle brackets", async () => {
+    const yaml = makeAgentYaml("bad", {
+      description: "uses <tool>",
+    });
+    await createAgentFixture(agentsDir, "bad", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toThrow(
+      UserError,
+    );
+  });
 });
