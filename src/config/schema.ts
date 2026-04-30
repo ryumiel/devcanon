@@ -22,9 +22,14 @@ const TargetConfigSchema = z.object({
 });
 
 // --- Target entries (shared shape for model/tool/file glossaries) ---
+// Values are bounded so that drift-detection regexes built from them stay
+// inside V8's RegExp-source size limit; a token over ~50 KB would otherwise
+// throw SyntaxError at `RegExp.test` time under the `u` flag.
+const TARGET_ENTRY_VALUE_MAX = 256;
+
 const TargetEntrySchema = z.object({
-  claude: z.string().min(1),
-  codex: z.string().min(1),
+  claude: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
 });
 
 const MODEL_TIER_KEY = /^\w+$/;
@@ -55,8 +60,16 @@ export type ModelTiers = z.infer<typeof ModelTiersSchema>;
 
 function makePlaceholderGlossarySchema(
   semanticName: "tool name" | "file artifact",
+  configKey: "toolNames" | "fileArtifacts",
 ) {
   return z.record(z.string(), TargetEntrySchema).superRefine((entries, ctx) => {
+    if (Object.keys(entries).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${configKey} must define at least one entry`,
+      });
+      return;
+    }
     for (const key of Object.keys(entries)) {
       if (!PLACEHOLDER_KEY.test(key)) {
         ctx.addIssue({
@@ -69,9 +82,14 @@ function makePlaceholderGlossarySchema(
   });
 }
 
-export const ToolNamesSchema = makePlaceholderGlossarySchema("tool name");
-export const FileArtifactsSchema =
-  makePlaceholderGlossarySchema("file artifact");
+export const ToolNamesSchema = makePlaceholderGlossarySchema(
+  "tool name",
+  "toolNames",
+);
+export const FileArtifactsSchema = makePlaceholderGlossarySchema(
+  "file artifact",
+  "fileArtifacts",
+);
 
 export type ToolNames = z.infer<typeof ToolNamesSchema>;
 export type FileArtifacts = z.infer<typeof FileArtifactsSchema>;

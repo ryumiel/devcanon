@@ -385,6 +385,16 @@ describe("ConfigSchema.modelTiers", () => {
       expect(messages).toMatch(/at least one tier/i);
     }
   });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: { claude: "c".repeat(300), codex: "gpt-5.4" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("ConfigSchema.toolNames", () => {
@@ -410,12 +420,16 @@ describe("ConfigSchema.toolNames", () => {
     }
   });
 
-  it("accepts an empty toolNames object", () => {
+  it("rejects an empty toolNames object", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       toolNames: {},
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one entry/i);
+    }
   });
 
   it("rejects an entry missing the codex key", () => {
@@ -475,6 +489,19 @@ describe("ConfigSchema.toolNames", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      toolNames: {
+        "task-tracker": {
+          claude: "T".repeat(300),
+          codex: "update_plan",
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("ConfigSchema.fileArtifacts", () => {
@@ -504,12 +531,16 @@ describe("ConfigSchema.fileArtifacts", () => {
     }
   });
 
-  it("accepts an empty fileArtifacts object", () => {
+  it("rejects an empty fileArtifacts object", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       fileArtifacts: {},
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/at least one entry/i);
+    }
   });
 
   it("rejects an entry missing the claude key", () => {
@@ -539,6 +570,19 @@ describe("ConfigSchema.fileArtifacts", () => {
       version: 1,
       fileArtifacts: {
         project_instructions: { claude: "CLAUDE.md", codex: "AGENTS.md" },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects values exceeding the 256-character cap", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      fileArtifacts: {
+        "project-instructions": {
+          claude: "C".repeat(300),
+          codex: "AGENTS.md",
+        },
       },
     });
     expect(result.success).toBe(false);

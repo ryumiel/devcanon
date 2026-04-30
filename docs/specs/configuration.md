@@ -83,7 +83,8 @@ through the `{{model:<tier>}}` placeholder.
 
 - Tier keys must match `^\w+$` (letters, digits, underscores).
 - Each tier maps to a `{ claude: <model-id>, codex: <model-id> }` pair.
-- Both `claude` and `codex` model IDs are required, non-empty strings.
+- Both `claude` and `codex` model IDs are required, non-empty strings
+  capped at 256 characters.
 - During render, `{{model:<tier>}}` resolves to the model ID for the active
   target: `{{model:deep}}` becomes `modelTiers.deep.claude` for Claude output
   and `modelTiers.deep.codex` for Codex output.
@@ -107,8 +108,10 @@ through the `{{tool:<key>}}` placeholder.
 - During render, `{{tool:<key>}}` resolves to the tool name for the active
   target: `{{tool:task-tracker}}` becomes `toolNames.task-tracker.claude`
   for Claude output and `toolNames.task-tracker.codex` for Codex output.
-- An empty `toolNames: {}` is accepted; the placeholder resolver throws at
-  render time if any skill references a key that is not defined.
+- An empty `toolNames: {}` is rejected; either omit the key entirely or
+  define at least one entry.
+- Each `claude` / `codex` value is a non-empty string capped at 256
+  characters.
 
 Drift validation auto-derives token warnings from configured values --
 literal mentions of e.g. `TodoWrite` in shared prose surface as warnings
@@ -130,8 +133,10 @@ reference through the `{{file:<key>}}` placeholder.
   the active target: `{{file:project-instructions}}` becomes
   `fileArtifacts.project-instructions.claude` for Claude output and
   `fileArtifacts.project-instructions.codex` for Codex output.
-- An empty `fileArtifacts: {}` is accepted with the same render-time
-  behavior as `toolNames`.
+- An empty `fileArtifacts: {}` is rejected; either omit the key entirely or
+  define at least one entry.
+- Each `claude` / `codex` value is a non-empty string capped at 256
+  characters.
 
 Drift validation auto-derives token warnings from configured values --
 literal mentions of e.g. `CLAUDE.md` or `AGENTS.md` in shared prose
