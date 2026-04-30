@@ -103,7 +103,7 @@ skills/
 - Authoritative schema for this repo: `docs/specs/skills.md` and `SkillSourceSchema` in `src/config/schema.ts`. Frontmatter is `.strict()` — unknown top-level keys are rejected. The upstream [agentskills.io/specification](https://agentskills.io/specification) is supplementary; fields it lists that are not in `SkillSourceSchema` will fail validation here.
 - Two required fields: `name` and `description`.
 - `name`: lowercase letters, digits, and hyphens only; ≤ 64 chars; matches `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`.
-- `description`: ≤ 1024 chars. Third-person, describes ONLY when to use (NOT what it does)
+- `description`: ≤ 1024 chars; cannot contain `<` or `>`. Third-person, describes ONLY when to use (NOT what it does)
   - Start with "Use when..." to focus on triggering conditions
   - Include specific symptoms, situations, and contexts
   - **NEVER summarize the skill's process or workflow** (see SSO section for why)
@@ -662,7 +662,7 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 **GREEN Phase - Write Minimal Skill:**
 
 - [ ] Name matches `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$` (lowercase letters, digits, and hyphens; ≤ 64 chars)
-- [ ] YAML frontmatter with required `name` and `description` (description ≤ 1024 chars; authoritative schema in `docs/specs/skills.md`)
+- [ ] YAML frontmatter with required `name` and `description` (description ≤ 1024 chars and cannot contain `<` or `>`; authoritative schema in `docs/specs/skills.md`)
 - [ ] Description starts with "Use when..." and includes specific triggers/symptoms
 - [ ] Description written in third person
 - [ ] Keywords throughout for search (errors, symptoms, tools)
