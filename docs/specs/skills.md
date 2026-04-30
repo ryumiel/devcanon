@@ -112,10 +112,16 @@ into the description and should be rewritten:
 
 ### Constraints (mechanical)
 
-- `description` is required.
-- ≤ 1024 chars (hard cap from schema); aim for ≤ 500.
+These are enforced by `SkillSourceSchema` and surfaced by
+`agents-manager validate`:
+
+- `description` is required (non-empty).
+- ≤ 1024 chars (hard cap); aim for ≤ 500.
 - No `<` or `>`.
-- No first or second person.
+
+The style rules above (third person, capability + trigger, no
+procedural detail) are not mechanically validated — see § Red flags
+for the rewrite triggers.
 
 ---
 
