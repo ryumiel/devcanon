@@ -26,6 +26,8 @@ export async function validateAction(
       enabled: true,
       strict,
       modelTiers: config.modelTiers,
+      toolNames: config.toolNames,
+      fileArtifacts: config.fileArtifacts,
     },
   });
   logger.info(`Skills: ${skills.length} valid`);
