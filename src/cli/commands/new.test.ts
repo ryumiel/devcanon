@@ -132,6 +132,48 @@ describe("newAgentAction", () => {
     expect(content).toContain('model: "{{model:default}}"');
   });
 
+  it("uses the first inserted tier when multiple tiers exist without standard", async () => {
+    const multiTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+        "modelTiers:",
+        "  fast:",
+        "    claude:",
+        "      model: claude-haiku-4",
+        "    codex:",
+        "      model: gpt-5.4-mini",
+        "  deep:",
+        "    claude:",
+        "      model: claude-opus-4-7",
+        "    codex:",
+        "      model: gpt-5.4",
+      ].join("\n"),
+    );
+
+    await newAgentAction(
+      "reviewer",
+      {},
+      {
+        parent: {
+          parent: {
+            opts: () => ({ config: multiTierConfigPath }),
+          },
+        },
+      },
+    );
+
+    const content = await readTextFile(
+      path.join(tempDir, "agents", "reviewer.yaml"),
+    );
+    expect(content).toContain('model: "{{model:fast}}"');
+    expect(content).not.toContain('model: "{{model:deep}}"');
+  });
+
   it("omits model scaffolding when no model tiers are configured", async () => {
     const noTierConfigPath = await createConfigFile(
       tempDir,
