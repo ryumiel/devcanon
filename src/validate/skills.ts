@@ -1,7 +1,12 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { ZodIssue } from "zod";
-import { type ModelTiers, SkillSourceSchema } from "../config/schema.js";
+import {
+  type FileArtifacts,
+  type ModelTiers,
+  SkillSourceSchema,
+  type ToolNames,
+} from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import {
   type ParsedFrontmatter,
@@ -21,6 +26,8 @@ export interface SkillValidationDiagnosticsOptions {
   enabled?: boolean;
   strict?: boolean;
   modelTiers?: ModelTiers;
+  toolNames?: ToolNames;
+  fileArtifacts?: FileArtifacts;
 }
 
 interface LoadAndValidateSkillsOptions {
@@ -29,7 +36,7 @@ interface LoadAndValidateSkillsOptions {
 
 interface DriftDiagnostic {
   token: string;
-  reason: "model" | "path";
+  reason: "model" | "tool" | "file" | "path";
 }
 
 function formatZodIssue(issue: ZodIssue): string {
@@ -117,7 +124,11 @@ export async function loadAndValidateSkills(
     if (diagnostics?.enabled) {
       const driftDiagnostics = collectDriftDiagnostics(
         [result.data.description, parsed.body],
-        diagnostics.modelTiers,
+        {
+          modelTiers: diagnostics.modelTiers,
+          toolNames: diagnostics.toolNames,
+          fileArtifacts: diagnostics.fileArtifacts,
+        },
       );
 
       for (const diagnostic of driftDiagnostics) {
@@ -150,9 +161,15 @@ export async function loadAndValidateSkills(
   return skills;
 }
 
+interface DriftGlossaries {
+  modelTiers?: ModelTiers;
+  toolNames?: ToolNames;
+  fileArtifacts?: FileArtifacts;
+}
+
 function collectDriftDiagnostics(
   sharedProseInputs: readonly string[],
-  modelTiers: ModelTiers | undefined,
+  glossaries: DriftGlossaries,
 ): DriftDiagnostic[] {
   const proseSegments = sharedProseInputs.flatMap((input) =>
     collectProseSegments(input),
@@ -160,24 +177,52 @@ function collectDriftDiagnostics(
   if (proseSegments.length === 0) return [];
 
   const found = new Map<string, DriftDiagnostic>();
-  const modelTokens = new Set<string>(RAW_CLAUDE_ALIASES);
 
-  if (modelTiers) {
-    for (const tier of Object.values(modelTiers)) {
+  const modelTokens = new Set<string>(RAW_CLAUDE_ALIASES);
+  if (glossaries.modelTiers) {
+    for (const tier of Object.values(glossaries.modelTiers)) {
       modelTokens.add(tier.claude);
       modelTokens.add(tier.codex);
     }
   }
 
+  const toolTokens = new Set<string>();
+  if (glossaries.toolNames) {
+    for (const tool of Object.values(glossaries.toolNames)) {
+      toolTokens.add(tool.claude);
+      toolTokens.add(tool.codex);
+    }
+  }
+
+  const fileTokens = new Set<string>();
+  if (glossaries.fileArtifacts) {
+    for (const file of Object.values(glossaries.fileArtifacts)) {
+      fileTokens.add(file.claude);
+      fileTokens.add(file.codex);
+    }
+  }
+
   for (const token of modelTokens) {
     if (proseSegments.some((segment) => containsToken(segment, token))) {
-      found.set(token.toLowerCase(), { token, reason: "model" });
+      found.set(`model:${token.toLowerCase()}`, { token, reason: "model" });
+    }
+  }
+
+  for (const token of toolTokens) {
+    if (proseSegments.some((segment) => containsToken(segment, token))) {
+      found.set(`tool:${token.toLowerCase()}`, { token, reason: "tool" });
+    }
+  }
+
+  for (const token of fileTokens) {
+    if (proseSegments.some((segment) => containsToken(segment, token))) {
+      found.set(`file:${token.toLowerCase()}`, { token, reason: "file" });
     }
   }
 
   for (const token of TARGET_PATH_TOKENS) {
     if (proseSegments.some((segment) => segment.includes(token))) {
-      found.set(token.toLowerCase(), { token, reason: "path" });
+      found.set(`path:${token.toLowerCase()}`, { token, reason: "path" });
     }
   }
 
@@ -201,9 +246,14 @@ function formatDriftDiagnostic(
   skillName: string,
   diagnostic: DriftDiagnostic,
 ): string {
-  if (diagnostic.reason === "path") {
-    return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; avoid target-specific home paths in shared skill prose.`;
+  switch (diagnostic.reason) {
+    case "path":
+      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; avoid target-specific home paths in shared skill prose.`;
+    case "tool":
+      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{tool:<key>}} placeholders or target-neutral wording.`;
+    case "file":
+      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{file:<key>}} placeholders or target-neutral wording.`;
+    default:
+      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{model:<tier>}} placeholders or target-neutral wording.`;
   }
-
-  return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{model:<tier>}} placeholders or target-neutral wording.`;
 }

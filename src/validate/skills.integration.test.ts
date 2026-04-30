@@ -6,7 +6,11 @@ import {
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
-import type { ModelTiers } from "../config/schema.js";
+import type {
+  FileArtifacts,
+  ModelTiers,
+  ToolNames,
+} from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";
@@ -21,6 +25,8 @@ describe("loadAndValidateSkills", () => {
         enabled?: boolean;
         strict?: boolean;
         modelTiers?: ModelTiers;
+        toolNames?: ToolNames;
+        fileArtifacts?: FileArtifacts;
       };
     },
   ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
@@ -893,6 +899,215 @@ describe("loadAndValidateSkills", () => {
       expect(result).toHaveLength(1);
       expectWarningLine(warnings, /list-continuation-prose/i, /sonnet/i);
       expect(warnings.some((warning) => /haiku/i.test(warning))).toBe(false);
+    });
+  });
+
+  it("warns on configured tool names in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-tool-name",
+      [
+        "---",
+        "name: raw-tool-name",
+        "description: Detect tool drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use TodoWrite to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-tool-name/i, /TodoWrite/);
+    });
+  });
+
+  it("warns on Codex tool names in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-tool",
+      [
+        "---",
+        "name: raw-codex-tool",
+        "description: Detect codex tool drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use update_plan to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-codex-tool/i, /update_plan/);
+    });
+  });
+
+  it("fails in strict mode on configured tool names in prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-tool-drift",
+      [
+        "---",
+        "name: strict-tool-drift",
+        "description: Detect tool drift in strict mode.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use TodoWrite to track tasks.",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      }),
+    ).rejects.toThrow(/strict-tool-drift/i);
+  });
+
+  it("warns on configured file artifacts in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-file-artifact",
+      [
+        "---",
+        "name: raw-file-artifact",
+        "description: Detect file artifact drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Edit CLAUDE.md to set rules.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-file-artifact/i, /CLAUDE\.md/);
+    });
+  });
+
+  it("warns on Codex file artifacts in shared prose", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "raw-codex-file-artifact",
+      [
+        "---",
+        "name: raw-codex-file-artifact",
+        "description: Detect codex file artifact drift.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Read AGENTS.md for the rules.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          fileArtifacts: {
+            "project-instructions": {
+              claude: "CLAUDE.md",
+              codex: "AGENTS.md",
+            },
+          },
+        },
+      });
+
+      expectWarningLine(warnings, /raw-codex-file-artifact/i, /AGENTS\.md/);
+    });
+  });
+
+  it("does not flag tool tokens inside fenced code blocks", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "fenced-tool-token",
+      [
+        "---",
+        "name: fenced-tool-token",
+        "description: Tokens in code stay literal.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Example syntax:",
+        "",
+        "```",
+        "TodoWrite(...)",
+        "```",
+        "",
+        "Body stays neutral.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          toolNames: {
+            "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          },
+        },
+      });
+
+      // No drift warning should mention the fenced token.
+      expect(warnings.filter((w) => /fenced-tool-token/i.test(w))).toEqual([]);
     });
   });
 });
