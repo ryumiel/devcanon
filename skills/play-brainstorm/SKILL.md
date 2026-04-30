@@ -1,6 +1,6 @@
 ---
 name: play-brainstorm
-description: Use before any creative work - creating features, building components, adding functionality, or modifying behavior.
+description: Guides ideas into approved designs through clarifying dialogue and saves the result to `.ephemeral/`. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
 ---
 
 # Brainstorming Ideas Into Designs

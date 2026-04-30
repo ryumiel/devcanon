@@ -1,6 +1,6 @@
 ---
 name: play-debug
-description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
+description: Systematic root-cause debugging that blocks fixes until the cause is identified. Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes.
 ---
 
 # Systematic Debugging

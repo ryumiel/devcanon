@@ -1,6 +1,6 @@
 ---
 name: play-review-response
-description: Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation
+description: Verification-first response to code review feedback. Use when receiving code review feedback, especially if feedback seems unclear or technically questionable.
 ---
 
 # Code Review Reception

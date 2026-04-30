@@ -1,6 +1,6 @@
 ---
 name: issue-worktree-setup
-description: Use when a workflow needs to set up an issue worktree safely from either the primary checkout or a managed worktree.
+description: Provisions an isolated worktree for issue work as the single source of truth for worktree-setup policy across consumer skills. Use when a workflow needs an issue worktree from either the primary checkout or a managed worktree.
 ---
 
 # Issue Worktree Setup
