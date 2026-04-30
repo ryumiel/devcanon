@@ -128,6 +128,10 @@ describe("AgentSourceSchema", () => {
       description: "uses <tool> for things",
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain("description must not contain '<' or '>'");
+    }
   });
 
   it("exposes the exact supported shared and target-specific field lists", () => {

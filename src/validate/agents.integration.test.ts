@@ -711,8 +711,15 @@ describe("loadAndValidateAgents", () => {
     });
     await createAgentFixture(agentsDir, "bad", yaml);
 
-    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toThrow(
-      UserError,
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        const msg = (err as UserError).message;
+        expect(msg).toContain("bad.yaml");
+        expect(msg).toContain("description");
+        expect(msg).toContain("'<' or '>'");
+        return true;
+      },
     );
   });
 });
