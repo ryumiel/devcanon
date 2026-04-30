@@ -5,30 +5,26 @@ import { pathExists, readTextFile } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 import { expandHome, resolveFromBase } from "../utils/paths.js";
 import {
+  CLAUDE_MODEL_TIER_PROFILE_KEYS,
+  CODEX_MODEL_TIER_PROFILE_KEYS,
+  CONFIG_TOP_LEVEL_KEYS,
   type Config,
   ConfigSchema,
   type InstallMode,
+  MODEL_TIER_PROFILE_TARGET_KEYS,
   type ResolvedConfig,
 } from "./schema.js";
 
-const KNOWN_CONFIG_KEYS = new Set([
-  "version",
-  "library",
-  "targets",
-  "defaults",
-  "platform",
-  "manifest",
-  "modelTiers",
-  "toolNames",
-  "fileArtifacts",
-]);
-
-const KNOWN_MODEL_TIER_TARGET_KEYS = new Set(["claude", "codex"]);
-const KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS = new Set(["model", "effort"]);
-const KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS = new Set([
-  "model",
-  "reasoning_effort",
-]);
+const KNOWN_CONFIG_KEYS = new Set<string>(CONFIG_TOP_LEVEL_KEYS);
+const KNOWN_MODEL_TIER_TARGET_KEYS = new Set<string>(
+  MODEL_TIER_PROFILE_TARGET_KEYS,
+);
+const KNOWN_CLAUDE_MODEL_TIER_PROFILE_KEYS = new Set<string>(
+  CLAUDE_MODEL_TIER_PROFILE_KEYS,
+);
+const KNOWN_CODEX_MODEL_TIER_PROFILE_KEYS = new Set<string>(
+  CODEX_MODEL_TIER_PROFILE_KEYS,
+);
 
 export async function findConfigPath(explicitPath?: string): Promise<string> {
   if (explicitPath) {

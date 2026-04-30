@@ -52,6 +52,18 @@ function renderSafeString(min: number, max: number) {
     .refine(isRenderSafeLine, RENDER_SAFE_LINE_MESSAGE);
 }
 
+// Shared effort/reasoning enums, declared once so model-tier profiles,
+// agent target shapes, and skill overrides stay in lockstep.
+const ClaudeEffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
+const CodexReasoningEffortSchema = z.enum([
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+
 const TargetEntrySchema = z.object({
   claude: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
   codex: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
@@ -59,14 +71,12 @@ const TargetEntrySchema = z.object({
 
 const ClaudeModelTierProfileSchema = z.object({
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: ClaudeEffortSchema.optional(),
 });
 
 const CodexModelTierProfileSchema = z.object({
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
-  reasoning_effort: z
-    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
-    .optional(),
+  reasoning_effort: CodexReasoningEffortSchema.optional(),
 });
 
 const ModelTierProfileSchema = z.object({
@@ -184,6 +194,19 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+export const CONFIG_TOP_LEVEL_KEYS = Object.keys(
+  ConfigSchema.shape,
+) as Array<keyof typeof ConfigSchema.shape>;
+export const MODEL_TIER_PROFILE_TARGET_KEYS = Object.keys(
+  ModelTierProfileSchema.shape,
+) as Array<keyof typeof ModelTierProfileSchema.shape>;
+export const CLAUDE_MODEL_TIER_PROFILE_KEYS = Object.keys(
+  ClaudeModelTierProfileSchema.shape,
+) as Array<keyof typeof ClaudeModelTierProfileSchema.shape>;
+export const CODEX_MODEL_TIER_PROFILE_KEYS = Object.keys(
+  CodexModelTierProfileSchema.shape,
+) as Array<keyof typeof CodexModelTierProfileSchema.shape>;
+
 // --- Resolved config (all paths absolute) ---
 export interface ResolvedConfig {
   configDir: string;
@@ -222,7 +245,7 @@ export interface ResolvedTargetConfig {
 // --- Agent source ---
 const ClaudeTargetShape = {
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: ClaudeEffortSchema.optional(),
   tools: z.array(z.string()).optional(),
 };
 
@@ -287,9 +310,7 @@ const CodexApprovalPolicySchema = z.union([
 
 const CodexTargetShape = {
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
-  model_reasoning_effort: z
-    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
-    .optional(),
+  model_reasoning_effort: CodexReasoningEffortSchema.optional(),
   sandbox_mode: z
     .enum(["read-only", "workspace-write", "danger-full-access"])
     .optional(),
@@ -380,7 +401,7 @@ const AllowedToolsSchema = z.union([
 
 const ClaudeSkillOverrideShape = {
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: ClaudeEffortSchema.optional(),
   when_to_use: z.string().optional(),
   "argument-hint": z.string().optional(),
   arguments: z.union([z.string(), z.array(z.string())]).optional(),
