@@ -1,6 +1,6 @@
 ---
 name: play-subagent-execution
-description: Use when executing implementation plans with independent tasks in the current session
+description: Executes an implementation plan by dispatching a fresh subagent per independent task. Use when running a written plan whose tasks have no shared state. Do not use for ad-hoc parallel investigation — use play-agent-dispatch instead.
 ---
 
 # Subagent-Driven Development

@@ -1,6 +1,6 @@
 ---
 name: play-tdd
-description: Use when implementing any feature or bugfix, before writing implementation code
+description: Test-driven development discipline for tests-before-implementation. Use when implementing any feature or bugfix, before writing implementation code.
 ---
 
 # Test-Driven Development (TDD)

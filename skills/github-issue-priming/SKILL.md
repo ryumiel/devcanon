@@ -1,6 +1,6 @@
 ---
 name: github-issue-priming
-description: Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a GitHub issue.
+description: Primes a GitHub issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".
 claude:
   model: "{{model:deep}}"
 codex:

@@ -1,6 +1,6 @@
 ---
 name: pr-merge
-description: Use when a PR is ready to merge and CI must pass first, when asked to "merge this PR", "check CI and merge", or when finishing a development branch with option 2 (push and create PR) and the user wants automated merge after CI
+description: PR merge automation with CI polling and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
 ---
 
 # PR Merge

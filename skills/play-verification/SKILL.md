@@ -1,6 +1,6 @@
 ---
 name: play-verification
-description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+description: Evidence-backed completion gate that blocks unverified status claims. Use when about to claim work is complete, fixed, or passing, before committing or creating PRs.
 ---
 
 # Verification Before Completion

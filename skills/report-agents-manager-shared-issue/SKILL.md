@@ -1,6 +1,6 @@
 ---
 name: report-agents-manager-shared-issue
-description: Use when a reusable shared skill or shared agent problem is discovered in a consumer repository and should be drafted as an upstream agents-manager issue. Also use for requests for new shared skills or shared agents when the need is reusable across repositories.
+description: Drafts an upstream agents-manager issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.
 codex:
   license: MIT
   metadata:

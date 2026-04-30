@@ -1,6 +1,6 @@
 ---
 name: play-skill-authoring
-description: Use when creating new skills, editing existing skills, or verifying skills work before deployment
+description: TDD-style skill authoring with subagent pressure scenarios for baseline testing and loophole closure. Use when creating new skills, editing existing skills, or verifying skills work before deployment.
 ---
 
 # Writing Skills

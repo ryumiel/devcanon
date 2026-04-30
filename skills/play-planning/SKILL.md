@@ -1,6 +1,6 @@
 ---
 name: play-planning
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: Writes a comprehensive implementation plan as bite-sized tasks for an engineer with no codebase context, saved to `.ephemeral/`. Use when working from a spec or design for a multi-step task, before touching code. Do not use to brainstorm requirements — start with play-brainstorm.
 ---
 
 # Writing Plans

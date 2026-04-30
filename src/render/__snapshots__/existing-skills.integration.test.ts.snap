@@ -2,7 +2,7 @@
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > github-issue-priming-claude-frontmatter 1`] = `
 {
-  "description": "Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a GitHub issue.",
+  "description": "Primes a GitHub issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".",
   "model": "claude-opus-4-7",
   "name": "github-issue-priming",
 }
@@ -10,7 +10,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > github-issue-priming-codex-frontmatter 1`] = `
 {
-  "description": "Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a GitHub issue.",
+  "description": "Primes a GitHub issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".",
   "license": "MIT",
   "metadata": {
     "short-description": "Prime a GitHub issue into a research-backed implementation workflow",
@@ -31,7 +31,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > linear-issue-priming-claude-frontmatter 1`] = `
 {
-  "description": "Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a Linear issue.",
+  "description": "Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".",
   "model": "claude-opus-4-7",
   "name": "linear-issue-priming",
 }
@@ -39,7 +39,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > linear-issue-priming-codex-frontmatter 1`] = `
 {
-  "description": "Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue". Also use when asked to investigate, scope, or begin planning around a Linear issue.",
+  "description": "Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".",
   "license": "MIT",
   "metadata": {
     "short-description": "Prime a Linear issue into a research-backed implementation workflow",
@@ -70,7 +70,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-agents-manager-shared-issue-codex-frontmatter 1`] = `
 {
-  "description": "Use when a reusable shared skill or shared agent problem is discovered in a consumer repository and should be drafted as an upstream agents-manager issue. Also use for requests for new shared skills or shared agents when the need is reusable across repositories.",
+  "description": "Drafts an upstream agents-manager issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.",
   "license": "MIT",
   "metadata": {
     "short-description": "Draft an upstream shared-work issue for agents-manager from a consumer repository",

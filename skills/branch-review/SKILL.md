@@ -1,6 +1,6 @@
 ---
 name: branch-review
-description: Use when reviewing code on a local branch before creating a PR, or when you want multi-agent code review without a GitHub PR. Triggers on "review branch", "review before PR", "check my changes", "branch review".
+description: Multi-agent code review of a local branch's commits against a base ref. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
 ---
 
 # Branch Review
