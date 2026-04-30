@@ -70,7 +70,14 @@ Escape with a leading backslash: `\{{model:deep}}`,
 Placeholders inside fenced code blocks (backtick or tilde) are
 not substituted.
 
-Other namespaces are a validator error.
+Other namespaces are rejected at render time. The renderer also
+re-validates each captured key against the namespace's stricter
+config-time format -- the runtime regex `[\w-]+` is intentionally
+permissive for matching, but a key that does not match the
+namespace's contract (`^\w+$` for `model`, `^[a-z0-9][a-z0-9-]*$`
+for `tool` / `file`) raises an "invalid placeholder key" error
+before glossary lookup, so e.g. `{{tool:taskTracker}}` fails
+fast rather than appearing as an undefined entry.
 
 ---
 

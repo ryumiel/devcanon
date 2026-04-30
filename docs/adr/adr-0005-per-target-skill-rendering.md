@@ -43,7 +43,7 @@ Authors express divergence in three places:
 
 **Namespace scope-lock:** only namespaces declared in
 `PlaceholderGlossary` (`model`, `tool`, `file`) are permitted; any
-other namespace is a validator error. Adding a new namespace
+other namespace is rejected at render time. Adding a new namespace
 requires a new ADR.
 
 **Substitution scope:**

@@ -126,7 +126,7 @@ glossaries in
 Rules:
 
 - Only `model:`, `tool:`, and `file:` namespaces are permitted;
-  other namespaces are validation errors.
+  other namespaces are rejected at render time.
 - Escape with a leading backslash: `\{{tool:task-tracker}}`.
 - Placeholders inside fenced code blocks (backtick or tilde) are
   not substituted.
