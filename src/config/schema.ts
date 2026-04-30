@@ -56,19 +56,17 @@ export type ModelTiers = z.infer<typeof ModelTiersSchema>;
 function makePlaceholderGlossarySchema(
   semanticName: "tool name" | "file artifact",
 ) {
-  return z
-    .record(z.string(), TargetEntrySchema)
-    .superRefine((entries, ctx) => {
-      for (const key of Object.keys(entries)) {
-        if (!PLACEHOLDER_KEY.test(key)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${semanticName} "${key}" must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`,
-            path: [key],
-          });
-        }
+  return z.record(z.string(), TargetEntrySchema).superRefine((entries, ctx) => {
+    for (const key of Object.keys(entries)) {
+      if (!PLACEHOLDER_KEY.test(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${semanticName} "${key}" must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`,
+          path: [key],
+        });
       }
-    });
+    }
+  });
 }
 
 export const ToolNamesSchema = makePlaceholderGlossarySchema("tool name");

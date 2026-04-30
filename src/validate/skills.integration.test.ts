@@ -6,11 +6,7 @@ import {
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
-import type {
-  FileArtifacts,
-  ModelTiers,
-  ToolNames,
-} from "../config/schema.js";
+import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import { loadAndValidateSkills } from "./skills.js";

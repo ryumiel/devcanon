@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  FileArtifacts,
-  ModelTiers,
-  ToolNames,
-} from "../config/schema.js";
+import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
 import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
 const TIERS: ModelTiers = {
@@ -216,18 +212,16 @@ describe("resolvePlaceholders", () => {
   });
 
   it("throws when modelTiers is undefined and a placeholder is present", () => {
-    expect(() =>
-      resolvePlaceholders("{{model:deep}}", "claude", {}),
-    ).toThrow(/modelTiers not configured/i);
+    expect(() => resolvePlaceholders("{{model:deep}}", "claude", {})).toThrow(
+      /modelTiers not configured/i,
+    );
   });
 
   it("is a no-op when there are no placeholders", () => {
     expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
       "plain text",
     );
-    expect(resolvePlaceholders("plain text", "claude", {})).toBe(
-      "plain text",
-    );
+    expect(resolvePlaceholders("plain text", "claude", {})).toBe("plain text");
   });
 
   it("does not treat a language-tagged fence line as a closing fence", () => {
