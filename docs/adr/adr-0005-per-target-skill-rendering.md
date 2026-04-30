@@ -41,7 +41,8 @@ Authors express divergence in three places:
    override blocks, resolved at render time against a `modelTiers`
    glossary in config.
 
-**Namespace scope-lock:** only `{{model:*}}` is permitted. Any
+**Namespace scope-lock:** only namespaces declared in
+`PlaceholderGlossary` (`model`, `tool`, `file`) are permitted; any
 other namespace is a validator error. Adding a new namespace
 requires a new ADR.
 
@@ -81,6 +82,7 @@ requires a new ADR.
 
 ## See also
 
+- [ADR-0006](adr-0006-tool-and-file-placeholders.md) -- adds `{{tool:*}}` and `{{file:*}}` namespaces
 - [Skills](../specs/skills.md) -- skill authoring and frontmatter
 - [Configuration](../specs/configuration.md) -- `modelTiers` glossary
 - [`src/render/placeholders.ts`](../../src/render/placeholders.ts) -- `{{model:*}}` resolver
