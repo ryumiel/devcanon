@@ -89,7 +89,7 @@ description: Use when reviewing code on a local branch before creating a PR.
 description: Reviews a branch by running spec-compliance review then code-quality review.
 
 # ✅ What + when, no procedure
-description: Multi-agent code review of uncommitted changes on a local branch. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
+description: Multi-agent code review of a local branch's commits against a base ref. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
 ```
 
 ```yaml
