@@ -693,6 +693,14 @@ describe("SkillSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts a description at exactly 1024 chars", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d".repeat(1024),
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects a description containing angle brackets", () => {
     const result = SkillSourceSchema.safeParse({
       name: "xy",
