@@ -10,6 +10,7 @@ export function renderClaudeSkill(
   glossary: PlaceholderGlossary,
 ): string {
   const { source, body } = input;
+  const renderContext = { skillName: source.name, target: "claude" as const };
 
   const frontmatter: Record<string, unknown> = {};
   for (const key of SHARED_KEY_ORDER) {
@@ -28,13 +29,18 @@ export function renderClaudeSkill(
       const value = (source.claude as Record<string, unknown>)[key];
       frontmatter[key] =
         typeof value === "string"
-          ? resolvePlaceholders(value, "claude", glossary)
+          ? resolvePlaceholders(value, "claude", glossary, renderContext)
           : value;
     }
   }
 
   const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
-  const renderedBody = resolvePlaceholders(body, "claude", glossary);
+  const renderedBody = resolvePlaceholders(
+    body,
+    "claude",
+    glossary,
+    renderContext,
+  );
 
   return `---\n${yaml}---\n${renderedBody}`;
 }

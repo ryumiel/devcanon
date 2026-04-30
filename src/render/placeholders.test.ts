@@ -217,6 +217,27 @@ describe("resolvePlaceholders", () => {
     );
   });
 
+  it("rejects a tool key that violates the kebab-case format", () => {
+    expect(() =>
+      resolvePlaceholders("{{tool:taskTracker}}", "claude", GLOSSARY),
+    ).toThrow(/invalid tool placeholder key "taskTracker"/i);
+  });
+
+  it("rejects a file key with a leading hyphen", () => {
+    expect(() =>
+      resolvePlaceholders("{{file:-project}}", "claude", GLOSSARY),
+    ).toThrow(/invalid file placeholder key "-project"/i);
+  });
+
+  it("includes skill name and target in render error when context is provided", () => {
+    expect(() =>
+      resolvePlaceholders("{{tool:unknown}}", "claude", GLOSSARY, {
+        skillName: "my-skill",
+        target: "claude",
+      }),
+    ).toThrow(/Skill "my-skill" \(claude\): unknown tool key "unknown"/i);
+  });
+
   it("is a no-op when there are no placeholders", () => {
     expect(resolvePlaceholders("plain text", "claude", MODEL_ONLY)).toBe(
       "plain text",

@@ -15,6 +15,7 @@ export function renderCodexSkill(
   glossary: PlaceholderGlossary,
 ): RenderedCodexSkill {
   const { source, body } = input;
+  const renderContext = { skillName: source.name, target: "codex" as const };
 
   const frontmatter: Record<string, unknown> = {};
   for (const key of SHARED_KEY_ORDER) {
@@ -35,13 +36,18 @@ export function renderCodexSkill(
       const value = (source.codex as Record<string, unknown>)[key];
       frontmatter[key] =
         typeof value === "string"
-          ? resolvePlaceholders(value, "codex", glossary)
+          ? resolvePlaceholders(value, "codex", glossary, renderContext)
           : value;
     }
   }
 
   const yaml = yamlStringify(frontmatter, { lineWidth: 0 });
-  const renderedBody = resolvePlaceholders(body, "codex", glossary);
+  const renderedBody = resolvePlaceholders(
+    body,
+    "codex",
+    glossary,
+    renderContext,
+  );
 
   const skillMd = `---\n${yaml}---\n${renderedBody}`;
 

@@ -32,8 +32,8 @@ const TargetEntrySchema = z.object({
   codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
 });
 
-const MODEL_TIER_KEY = /^\w+$/;
-const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
+export const MODEL_TIER_KEY = /^\w+$/;
+export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
 export const ModelTiersSchema = z
   .record(z.string(), TargetEntrySchema)
