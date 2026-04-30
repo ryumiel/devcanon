@@ -21,16 +21,17 @@ const TargetConfigSchema = z.object({
   installMode: InstallModeSchema.optional(),
 });
 
-// --- Model tiers ---
-const ModelTierEntrySchema = z.object({
+// --- Target entries (shared shape for model/tool/file glossaries) ---
+const TargetEntrySchema = z.object({
   claude: z.string().min(1),
   codex: z.string().min(1),
 });
 
 const MODEL_TIER_KEY = /^\w+$/;
+const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
 export const ModelTiersSchema = z
-  .record(z.string(), ModelTierEntrySchema)
+  .record(z.string(), TargetEntrySchema)
   .superRefine((tiers, ctx) => {
     if (Object.keys(tiers).length === 0) {
       ctx.addIssue({
@@ -51,6 +52,31 @@ export const ModelTiersSchema = z
   });
 
 export type ModelTiers = z.infer<typeof ModelTiersSchema>;
+
+function makePlaceholderGlossarySchema(
+  semanticName: "tool name" | "file artifact",
+) {
+  return z
+    .record(z.string(), TargetEntrySchema)
+    .superRefine((entries, ctx) => {
+      for (const key of Object.keys(entries)) {
+        if (!PLACEHOLDER_KEY.test(key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${semanticName} "${key}" must match /^[a-z0-9][a-z0-9-]*$/ (lowercase, digits, hyphens)`,
+            path: [key],
+          });
+        }
+      }
+    });
+}
+
+export const ToolNamesSchema = makePlaceholderGlossarySchema("tool name");
+export const FileArtifactsSchema =
+  makePlaceholderGlossarySchema("file artifact");
+
+export type ToolNames = z.infer<typeof ToolNamesSchema>;
+export type FileArtifacts = z.infer<typeof FileArtifactsSchema>;
 
 // --- Main config ---
 export const ConfigSchema = z.object({
@@ -94,6 +120,8 @@ export const ConfigSchema = z.object({
     })
     .default({}),
   modelTiers: ModelTiersSchema.optional(),
+  toolNames: ToolNamesSchema.optional(),
+  fileArtifacts: FileArtifactsSchema.optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -122,6 +150,8 @@ export interface ResolvedConfig {
     path: string;
   };
   modelTiers?: ModelTiers;
+  toolNames?: ToolNames;
+  fileArtifacts?: FileArtifacts;
 }
 
 export interface ResolvedTargetConfig {
