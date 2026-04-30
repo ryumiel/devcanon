@@ -98,6 +98,58 @@ describe("AgentSourceSchema", () => {
     expect(result.skills).toEqual([]);
   });
 
+  it("rejects an empty description", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description over 1024 chars", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "d".repeat(1025),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a description at exactly 1024 chars", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "d".repeat(1024),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a description containing angle brackets", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "uses <tool> for things",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain("description must not contain '<' or '>'");
+    }
+  });
+
+  it("rejects a description containing only '<'", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "less than < only",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '>'", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      description: "greater than > only",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("exposes the exact supported shared and target-specific field lists", () => {
     expect(new Set(AGENT_SOURCE_FIELDS)).toEqual(
       new Set([
@@ -657,10 +709,34 @@ describe("SkillSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts a description at exactly 1024 chars", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "d".repeat(1024),
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects a description containing angle brackets", () => {
     const result = SkillSourceSchema.safeParse({
       name: "xy",
       description: "uses <tool> for things",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '<'", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "less than < only",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a description containing only '>'", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "xy",
+      description: "greater than > only",
     });
     expect(result.success).toBe(false);
   });

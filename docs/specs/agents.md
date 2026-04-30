@@ -35,21 +35,20 @@ codex:
 
 ---
 
-## Required fields
+## Shared keys
 
-- `name`
-- `description`
-- `instructions`
+| Key            | Type   | Required | Notes                                                                    |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------ |
+| `name`         | string | yes      | `^[a-z0-9][a-z0-9._-]*$` (filesystem-safe); must be unique across agents |
+| `description`  | string | yes      | ≤ 1024 chars, no `<` / `>`                                               |
+| `instructions` | string | yes      | Non-empty                                                                |
+| `skills`       | list   | no       | List of skill names (must exist in `skills/`); defaults to `[]`          |
+| `tags`         | list   | no       | Free-form tag strings                                                    |
+| `notes`        | string | no       | Free-form notes                                                          |
+
+The optional `claude:` and `codex:` blocks host per-target overrides — see § Documented target-specific fields in v1 below.
 
 ---
-
-## Optional fields
-
-- `skills`
-- `claude`
-- `codex`
-- `tags`
-- `notes`
 
 ### Description style
 
@@ -65,12 +64,22 @@ Agents benefit more than skills from a `Do not use when…` clause because role
 selection often hinges on disambiguation against general work or sibling
 agents.
 
-This is style guidance, not a validation rule. `AgentSourceSchema` only
-requires that `description` be non-empty; `agents-manager validate` will not
-flag a description that ignores the shape above. See the
-[authoring guide](../guidelines/agent-authoring-guide.md) for worked examples
-and [`skills.md` § Description style](skills.md#description-style) for the
-full rationale and red flags.
+The style above is a recommendation. See the
+[authoring guide](../guidelines/agent-authoring-guide.md) for worked
+examples and [`skills.md` § Description style](skills.md#description-style)
+for the full rationale and red flags.
+
+### Constraints (mechanical)
+
+These are enforced by `AgentSourceSchema` and surfaced by
+`agents-manager validate`:
+
+- `description` is required (non-empty).
+- ≤ 1024 chars (hard cap); aim for ≤ 500.
+- No `<` or `>`.
+
+The style rules above (third person, capability + trigger) are not
+mechanically validated.
 
 ### Documented target-specific fields in v1
 

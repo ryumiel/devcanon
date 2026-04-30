@@ -281,7 +281,13 @@ const AgentSourceShape = {
       FILESYSTEM_SAFE,
       "Must be filesystem-safe (lowercase, alphanumeric, hyphens, dots, underscores)",
     ),
-  description: z.string().min(1),
+  description: z
+    .string()
+    .min(1)
+    .max(1024)
+    .refine((v) => !/[<>]/.test(v), {
+      message: "description must not contain '<' or '>'",
+    }),
   instructions: z.string().min(1),
   skills: z.array(z.string()).default([]),
   claude: ClaudeTargetSchema.optional(),
