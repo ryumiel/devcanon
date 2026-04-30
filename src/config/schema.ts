@@ -87,6 +87,11 @@ const ModelTierProfileSchema = z.object({
 export const MODEL_TIER_KEY = /^\w+$/;
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
+// Placeholder syntax accepted in agent target `model` fields. The captured
+// group is the tier key, validated against MODEL_TIER_KEY at render time.
+export const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
+export const MODEL_TIER_PLACEHOLDER_PREFIX = "{{model:";
+
 export const ModelTiersSchema = z
   .record(z.string(), ModelTierProfileSchema)
   .superRefine((tiers, ctx) => {

@@ -1,6 +1,5 @@
-import type { ModelTiers } from "../config/schema.js";
+import { MODEL_TIER_PLACEHOLDER, type ModelTiers } from "../config/schema.js";
 
-const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
 type ModelTierTarget = "claude" | "codex";
 
 export function resolveTierProfile<T extends ModelTierTarget>(

@@ -1,10 +1,15 @@
 import path from "node:path";
-import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
+import {
+  CODEX_TARGET_FIELDS,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
+  type ResolvedConfig,
+} from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
   RenderedAgent,
 } from "../models/types.js";
+import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
 import {
   extractModelTierKey,
@@ -159,6 +164,17 @@ export function renderCodexAgent(
   // Optional codex-specific fields
   const codex = agent.source.codex;
   if (codex) {
+    // Defense in depth: validation usually rejects malformed placeholders
+    // earlier; refuse to emit a literal "{{model:...}}" if extraction fails.
+    if (
+      codex.model?.includes(MODEL_TIER_PLACEHOLDER_PREFIX) &&
+      extractModelTierKey(codex.model) === null
+    ) {
+      throw new UserError(
+        `Agent "${agent.name}": codex.model has invalid model placeholder syntax "${codex.model}".`,
+        agent.filePath,
+      );
+    }
     const tierKey = extractModelTierKey(codex.model);
     const tierProfile = tierKey
       ? resolveTierProfile(tierKey, "codex", config.modelTiers)

@@ -9,6 +9,8 @@ import {
   CODEX_APPROVAL_POLICY_FIELDS,
   CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
   CODEX_TARGET_FIELDS,
+  MODEL_TIER_PLACEHOLDER,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
   type ModelTiers,
 } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
@@ -211,9 +213,6 @@ export async function loadAndValidateAgents(
 
   return agents;
 }
-
-const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
-const MODEL_TIER_PLACEHOLDER_PREFIX = "{{model:";
 
 function validateAgentModelTierReference(
   agentName: string,

@@ -1,10 +1,15 @@
 import path from "node:path";
-import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
+import {
+  CLAUDE_TARGET_FIELDS,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
+  type ResolvedConfig,
+} from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
   RenderedAgent,
 } from "../models/types.js";
+import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
 import {
   extractModelTierKey,
@@ -79,6 +84,19 @@ export function renderClaudeAgent(
   lines.push(`description: ${JSON.stringify(agent.source.description)}`);
 
   const claude = agent.source.claude;
+  // If the model field looks like a tier placeholder but the strict
+  // anchored regex did not match (e.g. surrounding whitespace, hyphens),
+  // refuse to emit the literal placeholder string into rendered output.
+  // Validation usually catches this earlier; this is defense in depth.
+  if (
+    claude?.model?.includes(MODEL_TIER_PLACEHOLDER_PREFIX) &&
+    extractModelTierKey(claude.model) === null
+  ) {
+    throw new UserError(
+      `Agent "${agent.name}": claude.model has invalid model placeholder syntax "${claude.model}".`,
+      agent.filePath,
+    );
+  }
   const tierKey = extractModelTierKey(claude?.model);
   const tierProfile = tierKey
     ? resolveTierProfile(tierKey, "claude", config.modelTiers)

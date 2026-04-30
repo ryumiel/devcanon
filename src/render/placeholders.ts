@@ -7,7 +7,6 @@ import {
   type ToolNames,
 } from "../config/schema.js";
 import { visitMarkdownLines } from "../utils/markdown-prose.js";
-import { resolveTierModel } from "./model-tier-profiles.js";
 
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
@@ -103,26 +102,6 @@ function substituteLine(
         context,
       );
     }
-    if (namespace === "model") {
-      const configKey = NAMESPACE_CONFIG_KEY.model;
-      if (!glossary.model) {
-        throw renderError(
-          `${configKey} not configured — define ${configKey} in agents-manager.config.yaml`,
-          context,
-        );
-      }
-      // Object.hasOwn guards against prototype-chain keys such as
-      // "constructor" resolving to Object.prototype and bypassing the
-      // unknown-key check.
-      if (!Object.hasOwn(glossary.model, value)) {
-        throw renderError(
-          `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
-          context,
-        );
-      }
-      return resolveTierModel(value, target, glossary.model);
-    }
-
     const configKey = NAMESPACE_CONFIG_KEY[namespace];
     const dict = glossary[namespace];
     if (!dict) {
@@ -131,13 +110,19 @@ function substituteLine(
         context,
       );
     }
+    // Object.hasOwn guards against prototype-chain keys such as
+    // "constructor" resolving to Object.prototype and bypassing the
+    // unknown-key check.
     if (!Object.hasOwn(dict, value)) {
       throw renderError(
         `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
         context,
       );
     }
-    return dict[value][target];
+    if (namespace === "model") {
+      return (dict as ModelTiers)[value][target].model;
+    }
+    return (dict as ToolNames | FileArtifacts)[value][target];
   });
 }
 
