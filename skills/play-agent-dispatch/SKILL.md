@@ -69,13 +69,7 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-```typescript
-// In Claude Code / AI environment
-Task("Fix agent-tool-abort.test.ts failures");
-Task("Fix batch-completion-behavior.test.ts failures");
-Task("Fix tool-approval-race-conditions.test.ts failures");
-// All three run concurrently
-```
+Dispatch one specialist agent per failing test file in parallel. Each agent gets a focused scope (one test file or subsystem) and returns a summary of findings and fixes.
 
 ### 4. Review and Integrate
 
