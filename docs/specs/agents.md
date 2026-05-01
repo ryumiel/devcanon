@@ -8,6 +8,25 @@ YAML
 
 ---
 
+## When to use an agent source file
+
+Use an agent source file for a thin role wrapper that adds stable reusable role
+identity plus documented target-supported constraints.
+
+Valid reasons include dedicated:
+
+- model tier
+- effort level
+- tool access
+- sandbox mode
+- approval policy
+
+If the main reusable value is still workflow method, checklist content, or
+task-local prompt assembly, use a skill or keep the delegate as a prompt
+template instead.
+
+---
+
 ## Example
 
 ```yaml
@@ -101,6 +120,10 @@ Within `codex`:
 These are the repository's documented target-specific fields in v1. Do not use
 this spec to imply support for other target fields unless they are documented
 here.
+
+A dedicated model tier or effort level is a valid reason to define an agent
+when the role itself is stable and reusable. Those settings are part of the
+role boundary, not just render-time metadata.
 
 When an agent target uses `model: "{{model:<tier>}}"`, the renderer resolves
 that placeholder against `modelTiers.<tier>.<target>`. For Claude, the tier's

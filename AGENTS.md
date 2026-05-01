@@ -12,6 +12,10 @@ The tool is designed for **user-wide** setup, not repository-level setup.
 - **Agent roles** are defined once in neutral YAML and rendered into native target formats
 - **Generated outputs** are installed into the user's home directories via symlink or copy
 
+Agents are thin role wrappers. Prefer skills for reusable workflow method, and
+create an agent when stable delegate identity or target-supported constraints
+such as dedicated model/effort, tools, sandbox, or approval policy justify it.
+
 Source files are authoritative. Generated outputs are disposable.
 
 For product specs, see [`docs/specs/`](docs/specs/).

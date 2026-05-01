@@ -26,7 +26,8 @@ In this repository, create an agent only when one of these is true:
 
 - You need tool or sandbox restrictions that a skill cannot enforce.
 - You need a stable role identity with documented target-supported constraints,
-  such as model choice, tool access, or sandbox mode.
+  such as model tier, effort level, tool access, sandbox mode, or approval
+  policy.
 - You need a reusable specialist delegate, but the reusable operational
   knowledge still lives in skills.
 
@@ -48,7 +49,32 @@ Avoid these cases:
   In v1, those expectations belong only in prose instructions, not in
   first-class source-schema fields.
 
-## 4. Description Style
+## 4. Promoting Prompt Templates into Agents
+
+Some workflows in this repository use `*-prompt.md` files to assemble a
+delegate prompt at dispatch time. Do not convert those files into agents
+mechanically.
+
+Promote a prompt-template delegate into a source agent only when all of these
+are true:
+
+- The delegate represents a stable reusable role identity across sessions or
+  across multiple skills.
+- The delegate benefits from documented target-supported constraints such as
+  dedicated model tier, effort level, tool access, sandbox mode, or approval
+  policy.
+- The reusable operational method can remain in skills, with the resulting
+  agent staying a thin role wrapper.
+
+Keep a delegate as a prompt template when it is mostly:
+
+- workflow-local prompt assembly
+- phase-specific scaffolding
+- placeholder substitution for task-local context
+
+That keeps role identity in agents and workflow method in skills.
+
+## 5. Description Style
 
 The `description` decides when the agent gets selected. Same rule as skills —
 name **what** the role is for, then **when** to delegate, in third person — with
@@ -60,13 +86,13 @@ sibling agents.
 description: <Role — what the agent does>. Use when <delegation triggers>. Do not use when <contrastive cue>.
 ```
 
-The shipped examples in § 5 model this. For the full rule, red flags, and
+The shipped examples in § 6 model this. For the full rule, red flags, and
 mechanical constraints, see
 [`../specs/skills.md`](../specs/skills.md) § Description style. The agent spec
 mirrors the same rule:
 [`../specs/agents.md`](../specs/agents.md) § Description style.
 
-## 5. Example Agent Definitions
+## 6. Example Agent Definitions
 
 These examples stay inside the documented schema surface from
 `docs/specs/agents.md`. The instructions are intentionally short; reusable
@@ -122,22 +148,25 @@ codex:
   sandbox_mode: read-only
 ```
 
-## 6. Authoring Workflow in This Repo
+## 7. Authoring Workflow in This Repo
 
 1. Identify reusable knowledge first, and put workflow, checklist, and
    reference content in skills.
 2. Create the agent only if a thin role wrapper is still needed after that
    split.
-3. Keep `instructions` short and role-shaped, not checklist-shaped.
-4. Make the role contract explicit: what it owns, when it is used, what
+3. For delegates currently expressed as prompt templates, decide explicitly
+   whether they add stable role identity plus real target-supported
+   constraints, or whether they are still workflow-local scaffolding.
+4. Keep `instructions` short and role-shaped, not checklist-shaped.
+5. Make the role contract explicit: what it owns, when it is used, what
    context it receives, what it returns, and whether any coordination
    expectations need to be described in prose instructions.
-5. Start with least privilege: minimum tools, minimum sandbox, and no new
+6. Start with least privilege: minimum tools, minimum sandbox, and no new
    schema knobs for coordination behavior.
-6. Validate with `agents-manager validate`.
-7. Preview the generated output with `agents-manager render`.
+7. Validate with `agents-manager validate`.
+8. Preview the generated output with `agents-manager render`.
 
-## 7. See Also
+## 8. See Also
 
 These docs remain authoritative for schema and command details:
 
