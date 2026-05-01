@@ -205,7 +205,7 @@ describe("resolvePlaceholders", () => {
   it("throws on an unknown tier", () => {
     expect(() =>
       resolvePlaceholders("{{model:ultra}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model key "ultra"/i);
+    ).toThrow(/unknown model tier "ultra"/i);
   });
 
   // MODEL_TIER_KEY = /^\w+$/ accepts "__proto__" / "constructor" since both
@@ -218,13 +218,13 @@ describe("resolvePlaceholders", () => {
   it("throws on {{model:__proto__}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:__proto__}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model key "__proto__"/i);
+    ).toThrow(/unknown model tier "__proto__"/i);
   });
 
   it("throws on {{model:constructor}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:constructor}}", "claude", MODEL_ONLY),
-    ).toThrow(/unknown model key "constructor"/i);
+    ).toThrow(/unknown model tier "constructor"/i);
   });
 
   it("throws on {{tool:constructor}} rather than resolving via prototype chain", () => {

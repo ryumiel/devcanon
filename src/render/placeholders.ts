@@ -114,8 +114,9 @@ function substituteLine(
     // "constructor" resolving to Object.prototype and bypassing the
     // unknown-key check.
     if (!Object.hasOwn(dict, value)) {
+      const subject = namespace === "model" ? "model tier" : `${namespace} key`;
       throw renderError(
-        `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
+        `unknown ${subject} "${value}" — define it under ${configKey} in config`,
         context,
       );
     }

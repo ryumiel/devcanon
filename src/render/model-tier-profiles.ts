@@ -17,7 +17,7 @@ export function resolveTierProfile<T extends ModelTierTarget>(
   // resolve to Object.prototype and silently bypass the unknown-tier guard.
   if (!Object.hasOwn(tiers, tier)) {
     throw new Error(
-      `unknown model key "${tier}" — define it under modelTiers in config`,
+      `unknown model tier "${tier}" — define it under modelTiers in config`,
     );
   }
 
