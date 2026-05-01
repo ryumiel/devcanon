@@ -649,9 +649,18 @@ describe("renderAll", () => {
   it("substitutes {{model:*}} placeholders per target", async () => {
     const tieredConfig = makeResolvedConfig(tempDir);
     tieredConfig.modelTiers = {
-      fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-      standard: { claude: "sonnet", codex: "gpt-5.4" },
-      deep: { claude: "opus", codex: "gpt-5.4" },
+      fast: {
+        claude: { model: "haiku" },
+        codex: { model: "gpt-5.4-mini" },
+      },
+      standard: {
+        claude: { model: "sonnet", effort: "medium" },
+        codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+      },
+      deep: {
+        claude: { model: "opus", effort: "high" },
+        codex: { model: "gpt-5.4", reasoning_effort: "high" },
+      },
     };
 
     await createSkillFixture(
@@ -692,6 +701,57 @@ describe("renderAll", () => {
     );
     expect(claudeContent).toContain("use opus for synthesis");
     expect(codexContent).toContain("use gpt-5.4 for synthesis");
+  });
+
+  it("resolves tier placeholders in agent targets and hydrates target-native effort", async () => {
+    const tieredConfig = makeResolvedConfig(tempDir);
+    tieredConfig.modelTiers = {
+      standard: {
+        claude: { model: "claude-sonnet-4-7", effort: "medium" },
+        codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+      },
+    };
+
+    await createAgentFixture(
+      tieredConfig.library.agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read", "Grep"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    await renderAll(tieredConfig, true);
+
+    const claudeAgentContent = await readFile(
+      path.join(
+        tieredConfig.library.generatedDir,
+        "claude",
+        "agents",
+        "tier-agent.md",
+      ),
+      "utf-8",
+    );
+    const codexAgentContent = await readFile(
+      path.join(
+        tieredConfig.library.generatedDir,
+        "codex",
+        "agents",
+        "tier-agent.toml",
+      ),
+      "utf-8",
+    );
+
+    expect(claudeAgentContent).toContain("model: claude-sonnet-4-7");
+    expect(claudeAgentContent).toContain("effort: medium");
+    expect(codexAgentContent).toContain('model = "gpt-5.4"');
+    expect(codexAgentContent).toContain('model_reasoning_effort = "medium"');
   });
 
   it("mirrors known subdirs into each target's generated dir", async () => {

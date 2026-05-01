@@ -110,14 +110,19 @@ function substituteLine(
         context,
       );
     }
-    const entry = dict[value];
-    if (!entry) {
+    // Object.hasOwn guards against prototype-chain keys such as
+    // "constructor" resolving to Object.prototype and bypassing the
+    // unknown-key check.
+    if (!Object.hasOwn(dict, value)) {
       throw renderError(
         `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
         context,
       );
     }
-    return entry[target];
+    if (namespace === "model") {
+      return (dict as ModelTiers)[value][target].model;
+    }
+    return (dict as ToolNames | FileArtifacts)[value][target];
   });
 }
 

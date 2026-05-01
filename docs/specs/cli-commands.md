@@ -37,6 +37,12 @@ Create a new agent scaffold.
 agents-manager new agent reviewer
 ```
 
+Scaffold behavior:
+
+- uses `{{model:standard}}` when a `standard` tier exists
+- otherwise uses the first configured tier key
+- if no `modelTiers` are configured, omits target `model` fields
+
 ---
 
 ## `validate`

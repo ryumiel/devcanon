@@ -44,14 +44,24 @@ manifest:
 
 modelTiers:
   fast:
-    claude: claude-haiku-4
-    codex: gpt-5.4-mini
+    claude:
+      model: claude-haiku-4
+    codex:
+      model: gpt-5.4-mini
   standard:
-    claude: claude-sonnet-4-7
-    codex: gpt-5.4
+    claude:
+      model: claude-sonnet-4-7
+      effort: medium
+    codex:
+      model: gpt-5.4
+      reasoning_effort: medium
   deep:
-    claude: claude-opus-4-7
-    codex: gpt-5.4
+    claude:
+      model: claude-opus-4-7
+      effort: high
+    codex:
+      model: gpt-5.4
+      reasoning_effort: high
 
 toolNames:
   task-tracker:
@@ -82,12 +92,22 @@ Optional. Defines a glossary of model tier aliases that skills can reference
 through the `{{model:<tier>}}` placeholder.
 
 - Tier keys must match `^\w+$` (letters, digits, underscores).
-- Each tier maps to a `{ claude: <model-id>, codex: <model-id> }` pair.
-- Both `claude` and `codex` model IDs are required, non-empty strings
-  capped at 256 characters.
-- During render, `{{model:<tier>}}` resolves to the model ID for the active
-  target: `{{model:deep}}` becomes `modelTiers.deep.claude` for Claude output
-  and `modelTiers.deep.codex` for Codex output.
+- Each tier maps to a nested per-target profile:
+  `{ claude: { model, effort? }, codex: { model, reasoning_effort? } }`.
+- Both `claude.model` and `codex.model` are required, non-empty strings capped
+  at 256 characters.
+- `claude.effort` is optional and must be one of `low`, `medium`, `high`,
+  `xhigh`, or `max`.
+- `codex.reasoning_effort` is optional and must be one of `none`, `minimal`,
+  `low`, `medium`, `high`, or `xhigh`.
+- In skill prose and skill-side overrides, `{{model:<tier>}}` resolves to the
+  model ID for the active target: `{{model:deep}}` becomes
+  `modelTiers.deep.claude.model` for Claude output and
+  `modelTiers.deep.codex.model` for Codex output.
+- In agent target blocks, `model: "{{model:<tier>}}"` resolves against the full
+  target profile. Claude inherits `effort` from the tier unless the agent sets
+  `claude.effort`, and Codex inherits `model_reasoning_effort` unless the agent
+  sets `codex.model_reasoning_effort`.
 - An empty `modelTiers: {}` is rejected; either omit the key entirely or
   define at least one tier.
 

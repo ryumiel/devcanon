@@ -76,6 +76,16 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.agents-manager/manifest.json" },
+  modelTiers: {
+    standard: {
+      claude: { model: "claude-sonnet-4-7", effort: "medium" },
+      codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+    },
+    deep: {
+      claude: { model: "claude-opus-4-7", effort: "high" },
+      codex: { model: "gpt-5.4", reasoning_effort: "high" },
+    },
+  },
 } satisfies ResolvedConfig;
 
 const emptySkills = new Map<string, LoadedSkill>();
@@ -171,6 +181,45 @@ describe("renderCodexAgent", () => {
     const result = renderCodexAgent(stringApprovalAgent, emptySkills, config);
     const content = result.content;
     expect(content).toContain('approval_policy = "on-failure"');
+  });
+
+  it("resolves a tier placeholder to the target-native model and reasoning effort", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, {
+        model: "{{model:standard}}",
+      }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('model = "gpt-5.4"');
+    expect(result.content).toContain('model_reasoning_effort = "medium"');
+  });
+
+  it("prefers an explicit codex reasoning effort over the tier profile default", () => {
+    const result = renderCodexAgent(
+      withCodex(agent, {
+        model: "{{model:standard}}",
+        model_reasoning_effort: "high",
+      }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain('model = "gpt-5.4"');
+    expect(result.content).toContain('model_reasoning_effort = "high"');
+    expect(result.content).not.toContain('model_reasoning_effort = "medium"');
+  });
+
+  it("throws when codex.model contains the placeholder prefix but is not a valid placeholder", () => {
+    // Defense-in-depth: validation usually rejects this earlier, but the
+    // renderer must refuse to emit a literal "{{model:...}}" if a caller
+    // bypasses validation (e.g. a programmatic API consumer).
+    expect(() =>
+      renderCodexAgent(
+        withCodex(agent, { model: "  {{model:standard}}  " }),
+        emptySkills,
+        config,
+      ),
+    ).toThrow(/invalid model placeholder syntax/);
   });
 
   it("returns correct metadata fields", () => {

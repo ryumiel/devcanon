@@ -3,9 +3,12 @@ import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
 import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
 
 const TIERS: ModelTiers = {
-  fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-  standard: { claude: "sonnet", codex: "gpt-5.4" },
-  deep: { claude: "opus", codex: "gpt-5.4" },
+  fast: { claude: { model: "haiku" }, codex: { model: "gpt-5.4-mini" } },
+  standard: { claude: { model: "sonnet" }, codex: { model: "gpt-5.4" } },
+  deep: {
+    claude: { model: "opus", effort: "high" },
+    codex: { model: "gpt-5.4", reasoning_effort: "high" },
+  },
 };
 
 const TOOLS: ToolNames = {
@@ -203,6 +206,37 @@ describe("resolvePlaceholders", () => {
     expect(() =>
       resolvePlaceholders("{{model:ultra}}", "claude", MODEL_ONLY),
     ).toThrow(/unknown model key "ultra"/i);
+  });
+
+  // MODEL_TIER_KEY = /^\w+$/ accepts "__proto__" / "constructor" since both
+  // satisfy [A-Za-z0-9_]+; PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/ rejects
+  // "__proto__" at the regex (no underscore) but accepts "constructor". The
+  // Object.hasOwn guard at placeholders.ts:116 is the only line of defense
+  // for the post-regex case — assert it for each namespace so a regression
+  // to bracket-truthy lookup fails loud rather than resolving the inherited
+  // Object.prototype value.
+  it("throws on {{model:__proto__}} rather than resolving via prototype chain", () => {
+    expect(() =>
+      resolvePlaceholders("{{model:__proto__}}", "claude", MODEL_ONLY),
+    ).toThrow(/unknown model key "__proto__"/i);
+  });
+
+  it("throws on {{model:constructor}} rather than resolving via prototype chain", () => {
+    expect(() =>
+      resolvePlaceholders("{{model:constructor}}", "claude", MODEL_ONLY),
+    ).toThrow(/unknown model key "constructor"/i);
+  });
+
+  it("throws on {{tool:constructor}} rather than resolving via prototype chain", () => {
+    expect(() =>
+      resolvePlaceholders("{{tool:constructor}}", "claude", GLOSSARY),
+    ).toThrow(/unknown tool key "constructor"/i);
+  });
+
+  it("throws on {{file:constructor}} rather than resolving via prototype chain", () => {
+    expect(() =>
+      resolvePlaceholders("{{file:constructor}}", "claude", GLOSSARY),
+    ).toThrow(/unknown file key "constructor"/i);
   });
 
   it("throws on an unknown namespace", () => {

@@ -26,11 +26,10 @@ export async function listAction(
   );
 
   const skills = await loadAndValidateSkills(config.library.skillsDir);
-  const agents = await loadAndValidateAgents(
-    config.library.agentsDir,
-    skills,
+  const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-  );
+    modelTiers: config.modelTiers,
+  });
 
   if (skills.length > 0) {
     logger.info("Skills:");

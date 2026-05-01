@@ -70,6 +70,16 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.agents-manager/manifest.json" },
+  modelTiers: {
+    standard: {
+      claude: { model: "claude-sonnet-4-7", effort: "medium" },
+      codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+    },
+    deep: {
+      claude: { model: "claude-opus-4-7", effort: "high" },
+      codex: { model: "gpt-5.4", reasoning_effort: "high" },
+    },
+  },
 } satisfies ResolvedConfig;
 
 const emptySkills = new Map<string, LoadedSkill>();
@@ -96,16 +106,59 @@ describe("renderClaudeAgent", () => {
   });
 
   it("renders every supported claude target field", () => {
-    const result = renderClaudeAgent(agent, emptySkills, config);
+    const fullAgent = withClaude(agent, {
+      model: "claude-sonnet-4-7",
+      effort: "high",
+      tools: ["Read", "Grep", "Bash"],
+    });
+    const result = renderClaudeAgent(fullAgent, emptySkills, config);
     const content = result.content;
     const expectedFragments = {
-      model: "model: sonnet",
+      model: "model: claude-sonnet-4-7",
+      effort: "effort: high",
       tools: "tools: Read, Grep, Bash",
     } satisfies Record<(typeof CLAUDE_TARGET_FIELDS)[number], string>;
 
     for (const field of CLAUDE_TARGET_FIELDS) {
       expect(content).toContain(expectedFragments[field]);
     }
+  });
+
+  it("resolves a tier placeholder to the target-native model and effort", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, { model: "{{model:standard}}" }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("model: claude-sonnet-4-7");
+    expect(result.content).toContain("effort: medium");
+  });
+
+  it("prefers an explicit claude effort over the tier profile default", () => {
+    const result = renderClaudeAgent(
+      withClaude(agent, {
+        model: "{{model:standard}}",
+        effort: "high",
+      }),
+      emptySkills,
+      config,
+    );
+    expect(result.content).toContain("model: claude-sonnet-4-7");
+    expect(result.content).toContain("effort: high");
+    expect(result.content).not.toContain("effort: medium");
+  });
+
+  it("throws when claude.model contains the placeholder prefix but is not a valid placeholder", () => {
+    // Defense-in-depth: validation usually rejects this earlier, but the
+    // renderer must refuse to emit a literal "{{model:...}}" if a caller
+    // bypasses validation (e.g. a programmatic API consumer).
+    expect(() =>
+      renderClaudeAgent(
+        withClaude(agent, { model: "  {{model:standard}}  " }),
+        emptySkills,
+        config,
+      ),
+    ).toThrow(/invalid model placeholder syntax/);
   });
 
   it("emits instructions body directly without ## Instructions wrapper", () => {

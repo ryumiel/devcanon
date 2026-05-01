@@ -164,8 +164,10 @@ describe("AgentSourceSchema", () => {
       ]),
     );
     expect(AGENT_SOURCE_FIELDS).toHaveLength(8);
-    expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(new Set(["model", "tools"]));
-    expect(CLAUDE_TARGET_FIELDS).toHaveLength(2);
+    expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(
+      new Set(["model", "effort", "tools"]),
+    );
+    expect(CLAUDE_TARGET_FIELDS).toHaveLength(3);
     expect(new Set(CODEX_TARGET_FIELDS)).toEqual(
       new Set([
         "model",
@@ -237,6 +239,80 @@ describe("AgentSourceSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("rejects claude.model strings containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        model: `sonnet${String.fromCharCode(0x0a)}tools: Read`,
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects codex.model strings containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      codex: {
+        model: `gpt-5.4${String.fromCharCode(0x0a)}`,
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects claude.tools entries containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: [`Read${String.fromCharCode(0x0a)}model: pwned`, "Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects claude.tools entries containing a comma", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: ["Read, Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/','|comma/i);
+    }
+  });
+
+  it("rejects claude.tools entries containing '#' (silent YAML comment)", () => {
+    // Verified empirically: ["# bad", "Grep"] renders to
+    // `tools: # bad, Grep` and round-trips through YAML 1.2 as
+    // `{ tools: null }`, silently dropping every tool.
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: ["# bad", "Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/'#'|hash/i);
+    }
   });
 
   it("accepts granular codex approval policy objects", () => {
@@ -382,15 +458,28 @@ describe("ConfigSchema.modelTiers", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       modelTiers: {
-        fast: { claude: "haiku", codex: "gpt-5.4-mini" },
-        standard: { claude: "sonnet", codex: "gpt-5.4" },
-        deep: { claude: "opus", codex: "gpt-5.4" },
+        fast: {
+          claude: { model: "haiku" },
+          codex: { model: "gpt-5.4-mini" },
+        },
+        standard: {
+          claude: { model: "sonnet", effort: "medium" },
+          codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+        },
+        deep: {
+          claude: { model: "opus", effort: "high" },
+          codex: { model: "gpt-5.4", reasoning_effort: "high" },
+        },
       },
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.modelTiers?.deep.claude).toBe("opus");
-      expect(result.data.modelTiers?.fast.codex).toBe("gpt-5.4-mini");
+      expect(result.data.modelTiers?.deep.claude.model).toBe("opus");
+      expect(result.data.modelTiers?.deep.claude.effort).toBe("high");
+      expect(result.data.modelTiers?.fast.codex.model).toBe("gpt-5.4-mini");
+      expect(result.data.modelTiers?.standard.codex.reasoning_effort).toBe(
+        "medium",
+      );
     }
   });
 
@@ -405,7 +494,7 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects a tier missing the claude key", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { fast: { codex: "gpt-5.4-mini" } },
+      modelTiers: { fast: { codex: { model: "gpt-5.4-mini" } } },
     });
     expect(result.success).toBe(false);
   });
@@ -413,7 +502,9 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects a tier name that is not a string", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { deep: { claude: 123, codex: "gpt-5.4" } },
+      modelTiers: {
+        deep: { claude: { model: 123 }, codex: { model: "gpt-5.4" } },
+      },
     });
     expect(result.success).toBe(false);
   });
@@ -421,7 +512,12 @@ describe("ConfigSchema.modelTiers", () => {
   it("rejects tier names with hyphens", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
-      modelTiers: { "gpt-fast": { claude: "haiku", codex: "gpt-5.4-mini" } },
+      modelTiers: {
+        "gpt-fast": {
+          claude: { model: "haiku" },
+          codex: { model: "gpt-5.4-mini" },
+        },
+      },
     });
     expect(result.success).toBe(false);
   });
@@ -442,7 +538,143 @@ describe("ConfigSchema.modelTiers", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       modelTiers: {
-        deep: { claude: "c".repeat(300), codex: "gpt-5.4" },
+        deep: {
+          claude: { model: "c".repeat(300) },
+          codex: { model: "gpt-5.4" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects model strings containing a newline", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: {
+          claude: { model: `opus${String.fromCharCode(0x0a)}tools: Read` },
+          codex: { model: "gpt-5.4" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects model strings containing a NUL byte", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        deep: {
+          claude: { model: "opus" },
+          codex: { model: `gpt-5.4${String.fromCharCode(0x00)}` },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // Code points that YAML 1.1 / various downstream consumers treat as line
+  // terminators and that isRenderSafeLine explicitly blocks beyond plain LF.
+  // CR (0x0D) and VT (0x0B) are covered by the C0 control range (<= 0x1F);
+  // NEL / LS / PS need their own clauses. Each must round-trip through the
+  // schema as a rejection so a future refactor cannot silently drop them.
+  const LINE_BREAK_CODE_POINTS: ReadonlyArray<{ name: string; code: number }> =
+    [
+      { name: "CR (0x0D)", code: 0x0d },
+      { name: "VT (0x0B)", code: 0x0b },
+      { name: "NEL (U+0085)", code: 0x85 },
+      { name: "LS (U+2028)", code: 0x2028 },
+      { name: "PS (U+2029)", code: 0x2029 },
+    ];
+
+  for (const { name, code } of LINE_BREAK_CODE_POINTS) {
+    it(`rejects modelTiers.<tier>.claude.model containing ${name}`, () => {
+      const result = ConfigSchema.safeParse({
+        version: 1,
+        modelTiers: {
+          deep: {
+            claude: { model: `opus${String.fromCharCode(code)}injected` },
+            codex: { model: "gpt-5.4" },
+          },
+        },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
+    });
+  }
+});
+
+describe("AgentSourceSchema render-safe code-point coverage", () => {
+  const validAgent = {
+    name: "test-agent",
+    description: "Test agent for unit tests.",
+    instructions: "Do the thing.",
+    skills: [],
+  };
+
+  const LINE_BREAK_CODE_POINTS: ReadonlyArray<{ name: string; code: number }> =
+    [
+      { name: "CR (0x0D)", code: 0x0d },
+      { name: "VT (0x0B)", code: 0x0b },
+      { name: "NEL (U+0085)", code: 0x85 },
+      { name: "LS (U+2028)", code: 0x2028 },
+      { name: "PS (U+2029)", code: 0x2029 },
+    ];
+
+  for (const { name, code } of LINE_BREAK_CODE_POINTS) {
+    it(`rejects agent.claude.model containing ${name}`, () => {
+      const result = AgentSourceSchema.safeParse({
+        ...validAgent,
+        claude: { model: `sonnet${String.fromCharCode(code)}injected` },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
+    });
+
+    it(`rejects agent.codex.model containing ${name}`, () => {
+      const result = AgentSourceSchema.safeParse({
+        ...validAgent,
+        codex: { model: `gpt-5.4${String.fromCharCode(code)}injected` },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
+    });
+  }
+
+  it("rejects invalid claude tier effort enum values", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        standard: {
+          claude: { model: "sonnet", effort: "turbo" },
+          codex: { model: "gpt-5.4", reasoning_effort: "medium" },
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid codex tier reasoning_effort enum values", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        standard: {
+          claude: { model: "sonnet" },
+          codex: { model: "gpt-5.4", reasoning_effort: "max" },
+        },
       },
     });
     expect(result.success).toBe(false);

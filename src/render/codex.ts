@@ -1,11 +1,20 @@
 import path from "node:path";
-import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
+import {
+  CODEX_TARGET_FIELDS,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
+  type ResolvedConfig,
+} from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
   RenderedAgent,
 } from "../models/types.js";
+import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
+import {
+  extractModelTierKey,
+  resolveTierProfile,
+} from "./model-tier-profiles.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -155,11 +164,29 @@ export function renderCodexAgent(
   // Optional codex-specific fields
   const codex = agent.source.codex;
   if (codex) {
-    if (codex.model) lines.push(`model = ${tomlQuote(codex.model)}`);
-    if (codex.model_reasoning_effort)
-      lines.push(
-        `model_reasoning_effort = ${tomlQuote(codex.model_reasoning_effort)}`,
+    // Defense in depth: validation usually rejects malformed placeholders
+    // earlier; refuse to emit a literal "{{model:...}}" if extraction fails.
+    if (
+      codex.model?.includes(MODEL_TIER_PLACEHOLDER_PREFIX) &&
+      extractModelTierKey(codex.model) === null
+    ) {
+      throw new UserError(
+        `Agent "${agent.name}": codex.model has invalid model placeholder syntax "${codex.model}".`,
+        agent.filePath,
       );
+    }
+    const tierKey = extractModelTierKey(codex.model);
+    const tierProfile = tierKey
+      ? resolveTierProfile(tierKey, "codex", config.modelTiers)
+      : null;
+
+    const model = tierProfile?.model ?? codex.model;
+    if (model) lines.push(`model = ${tomlQuote(model)}`);
+
+    const modelReasoningEffort =
+      codex.model_reasoning_effort ?? tierProfile?.reasoning_effort;
+    if (modelReasoningEffort)
+      lines.push(`model_reasoning_effort = ${tomlQuote(modelReasoningEffort)}`);
     if (codex.sandbox_mode)
       lines.push(`sandbox_mode = ${tomlQuote(codex.sandbox_mode)}`);
     if (codex.nickname_candidates?.length) {

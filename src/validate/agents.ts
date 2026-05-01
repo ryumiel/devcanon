@@ -9,6 +9,9 @@ import {
   CODEX_APPROVAL_POLICY_FIELDS,
   CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
   CODEX_TARGET_FIELDS,
+  MODEL_TIER_PLACEHOLDER,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
+  type ModelTiers,
 } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
@@ -24,6 +27,13 @@ function collectUnknownFields(
   return Object.keys(value)
     .filter((key) => !known.has(key))
     .map((key) => `${pathPrefix}${key}`);
+}
+
+function asPlainObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
 }
 
 function formatZodIssue(issue: ZodIssue): string {
@@ -43,8 +53,12 @@ function formatZodIssue(issue: ZodIssue): string {
 export async function loadAndValidateAgents(
   agentsDir: string,
   skills: LoadedSkill[],
-  strict = false,
+  options: boolean | { strict?: boolean; modelTiers?: ModelTiers } = false,
 ): Promise<LoadedAgent[]> {
+  const strict =
+    typeof options === "boolean" ? options : (options.strict ?? false);
+  const modelTiers =
+    typeof options === "boolean" ? undefined : options.modelTiers;
   if (!(await pathExists(agentsDir))) {
     return [];
   }
@@ -72,63 +86,40 @@ export async function loadAndValidateAgents(
     }
 
     // Check for unknown fields
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const parsedRecord = parsed as Record<string, unknown>;
+    const parsedRecord = asPlainObject(parsed);
+    if (parsedRecord) {
       const unknownFields = collectUnknownFields(
         parsedRecord,
         AGENT_SOURCE_FIELDS,
       );
 
-      if (
-        parsedRecord.claude &&
-        typeof parsedRecord.claude === "object" &&
-        !Array.isArray(parsedRecord.claude)
-      ) {
+      const claude = asPlainObject(parsedRecord.claude);
+      if (claude) {
         unknownFields.push(
-          ...collectUnknownFields(
-            parsedRecord.claude as Record<string, unknown>,
-            CLAUDE_TARGET_FIELDS,
-            "claude.",
-          ),
+          ...collectUnknownFields(claude, CLAUDE_TARGET_FIELDS, "claude."),
         );
       }
 
-      if (
-        parsedRecord.codex &&
-        typeof parsedRecord.codex === "object" &&
-        !Array.isArray(parsedRecord.codex)
-      ) {
+      const codex = asPlainObject(parsedRecord.codex);
+      if (codex) {
         unknownFields.push(
-          ...collectUnknownFields(
-            parsedRecord.codex as Record<string, unknown>,
-            CODEX_TARGET_FIELDS,
-            "codex.",
-          ),
+          ...collectUnknownFields(codex, CODEX_TARGET_FIELDS, "codex."),
         );
 
-        const approvalPolicy = (parsedRecord.codex as Record<string, unknown>)
-          .approval_policy;
-        if (
-          approvalPolicy &&
-          typeof approvalPolicy === "object" &&
-          !Array.isArray(approvalPolicy)
-        ) {
+        const approvalPolicy = asPlainObject(codex.approval_policy);
+        if (approvalPolicy) {
           unknownFields.push(
             ...collectUnknownFields(
-              approvalPolicy as Record<string, unknown>,
+              approvalPolicy,
               CODEX_APPROVAL_POLICY_FIELDS,
               "codex.approval_policy.",
             ),
           );
-          const granular = (approvalPolicy as Record<string, unknown>).granular;
-          if (
-            granular &&
-            typeof granular === "object" &&
-            !Array.isArray(granular)
-          ) {
+          const granular = asPlainObject(approvalPolicy.granular);
+          if (granular) {
             unknownFields.push(
               ...collectUnknownFields(
-                granular as Record<string, unknown>,
+                granular,
                 CODEX_APPROVAL_POLICY_GRANULAR_FIELDS,
                 "codex.approval_policy.granular.",
               ),
@@ -170,6 +161,21 @@ export async function loadAndValidateAgents(
       }
     }
 
+    validateAgentModelTierReference(
+      source.name,
+      "claude.model",
+      source.claude?.model,
+      modelTiers,
+      errors,
+    );
+    validateAgentModelTierReference(
+      source.name,
+      "codex.model",
+      source.codex?.model,
+      modelTiers,
+      errors,
+    );
+
     agents.push({ name: source.name, filePath, source });
   }
 
@@ -190,4 +196,42 @@ export async function loadAndValidateAgents(
   }
 
   return agents;
+}
+
+function validateAgentModelTierReference(
+  agentName: string,
+  fieldPath: "claude.model" | "codex.model",
+  value: string | undefined,
+  modelTiers: ModelTiers | undefined,
+  errors: string[],
+): void {
+  if (!value) return;
+
+  const looksLikeModelPlaceholder = value.includes(
+    MODEL_TIER_PLACEHOLDER_PREFIX,
+  );
+  if (!looksLikeModelPlaceholder) return;
+
+  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
+  if (!tier) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} has invalid model placeholder syntax "${value}".`,
+    );
+    return;
+  }
+
+  if (!modelTiers) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} references model tier "${tier}" but modelTiers is not configured.`,
+    );
+    return;
+  }
+
+  // Use Object.hasOwn so prototype-chain keys like "__proto__" do not
+  // resolve to Object.prototype and silently bypass this guard.
+  if (!Object.hasOwn(modelTiers, tier)) {
+    errors.push(
+      `Agent "${agentName}": ${fieldPath} references unknown model tier "${tier}".`,
+    );
+  }
 }

@@ -27,16 +27,73 @@ const TargetConfigSchema = z.object({
 // throw SyntaxError at `RegExp.test` time under the `u` flag.
 const TARGET_ENTRY_VALUE_MAX = 256;
 
+// Reject C0 controls, DEL, and the Unicode line separators (NEL, LS, PS)
+// so that values interpolated into rendered YAML frontmatter or TOML keys
+// cannot break out of their field by inserting a new line.
+function isRenderSafeLine(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f) return false;
+    if (code === 0x7f) return false;
+    if (code === 0x85) return false;
+    if (code === 0x2028 || code === 0x2029) return false;
+  }
+  return true;
+}
+
+const RENDER_SAFE_LINE_MESSAGE =
+  "must not contain control characters or line breaks";
+
+function renderSafeString(min: number, max: number) {
+  return z
+    .string()
+    .min(min)
+    .max(max)
+    .refine(isRenderSafeLine, RENDER_SAFE_LINE_MESSAGE);
+}
+
+// Shared effort/reasoning enums, declared once so model-tier profiles,
+// agent target shapes, and skill overrides stay in lockstep.
+const ClaudeEffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
+const CodexReasoningEffortSchema = z.enum([
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+
 const TargetEntrySchema = z.object({
-  claude: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
-  codex: z.string().min(1).max(TARGET_ENTRY_VALUE_MAX),
+  claude: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
+  codex: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
+});
+
+const ClaudeModelTierProfileSchema = z.object({
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
+  effort: ClaudeEffortSchema.optional(),
+});
+
+const CodexModelTierProfileSchema = z.object({
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX),
+  reasoning_effort: CodexReasoningEffortSchema.optional(),
+});
+
+const ModelTierProfileSchema = z.object({
+  claude: ClaudeModelTierProfileSchema,
+  codex: CodexModelTierProfileSchema,
 });
 
 export const MODEL_TIER_KEY = /^\w+$/;
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
+// Placeholder syntax accepted in agent target `model` fields. The captured
+// group is the tier key, validated against MODEL_TIER_KEY at render time.
+export const MODEL_TIER_PLACEHOLDER = /^\{\{model:(\w+)\}\}$/;
+export const MODEL_TIER_PLACEHOLDER_PREFIX = "{{model:";
+
 export const ModelTiersSchema = z
-  .record(z.string(), TargetEntrySchema)
+  .record(z.string(), ModelTierProfileSchema)
   .superRefine((tiers, ctx) => {
     if (Object.keys(tiers).length === 0) {
       ctx.addIssue({
@@ -142,6 +199,19 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+export const CONFIG_TOP_LEVEL_KEYS = Object.keys(ConfigSchema.shape) as Array<
+  keyof typeof ConfigSchema.shape
+>;
+export const MODEL_TIER_PROFILE_TARGET_KEYS = Object.keys(
+  ModelTierProfileSchema.shape,
+) as Array<keyof typeof ModelTierProfileSchema.shape>;
+export const CLAUDE_MODEL_TIER_PROFILE_KEYS = Object.keys(
+  ClaudeModelTierProfileSchema.shape,
+) as Array<keyof typeof ClaudeModelTierProfileSchema.shape>;
+export const CODEX_MODEL_TIER_PROFILE_KEYS = Object.keys(
+  CodexModelTierProfileSchema.shape,
+) as Array<keyof typeof CodexModelTierProfileSchema.shape>;
+
 // --- Resolved config (all paths absolute) ---
 export interface ResolvedConfig {
   configDir: string;
@@ -178,9 +248,28 @@ export interface ResolvedTargetConfig {
 }
 
 // --- Agent source ---
+// Tool entries are emitted unquoted into the Claude YAML frontmatter as
+// `tools: A, B, C`. Each entry must reject:
+//   - control chars / line breaks (via renderSafeString) — else `\n`
+//     forges a new frontmatter key.
+//   - `,` — else one entry is split into two at the join.
+//   - `#` — else any `#` preceded by whitespace becomes a YAML comment
+//     that silently consumes the rest of the line (verified: an entry
+//     "# bad" renders to `tools: # bad, Grep` and round-trips to
+//     `tools: null` under YAML 1.2, dropping every tool).
+// Other YAML-meta chars (`:`, `[`, `{`, `*`, `&`, `|`, `>`) are deliberately
+// not blocked here — they produce loud parse errors downstream rather than
+// silent corruption, and rejecting them would over-constrain legitimate
+// names like `Bash(git status)`.
+const ClaudeToolNameSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX).refine(
+  (s) => !/[,#]/.test(s),
+  "tool name must not contain ',' or '#'",
+);
+
 const ClaudeTargetShape = {
-  model: z.string().optional(),
-  tools: z.array(z.string()).optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
+  effort: ClaudeEffortSchema.optional(),
+  tools: z.array(ClaudeToolNameSchema).optional(),
 };
 
 const NICKNAME_CANDIDATE = /^[A-Za-z0-9 _-]+$/;
@@ -243,10 +332,8 @@ const CodexApprovalPolicySchema = z.union([
 ]);
 
 const CodexTargetShape = {
-  model: z.string().optional(),
-  model_reasoning_effort: z
-    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
-    .optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
+  model_reasoning_effort: CodexReasoningEffortSchema.optional(),
   sandbox_mode: z
     .enum(["read-only", "workspace-write", "danger-full-access"])
     .optional(),
@@ -336,8 +423,8 @@ const AllowedToolsSchema = z.union([
 ]);
 
 const ClaudeSkillOverrideShape = {
-  model: z.string().optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
+  effort: ClaudeEffortSchema.optional(),
   when_to_use: z.string().optional(),
   "argument-hint": z.string().optional(),
   arguments: z.union([z.string(), z.array(z.string())]).optional(),

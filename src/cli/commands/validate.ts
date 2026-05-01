@@ -32,11 +32,10 @@ export async function validateAction(
   });
   logger.info(`Skills: ${skills.length} valid`);
 
-  const agents = await loadAndValidateAgents(
-    config.library.agentsDir,
-    skills,
+  const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
-  );
+    modelTiers: config.modelTiers,
+  });
   logger.info(`Agents: ${agents.length} valid`);
 
   logger.info("\nAll validations passed.");
