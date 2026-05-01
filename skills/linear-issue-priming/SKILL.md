@@ -124,7 +124,7 @@ that path to all dispatched subagents.
 
 The gate is **always evaluated** — it is not optional. Only the research phase (Phase 4) is conditional based on the gate's output.
 
-Dispatch a **dedicated exploration agent** using the prompt template in `gate-agent-prompt.md`. The agent reads the issue description, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for issues with ambiguous scope or multiple conflicting signals.
+Dispatch a **dedicated exploration agent** using the prompt template in `references/gate-agent-prompt.md`. The agent reads the issue description, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for issues with ambiguous scope or multiple conflicting signals.
 
 **Pass to the gate agent:**
 
@@ -155,7 +155,7 @@ Dispatch a **dedicated exploration agent** using the prompt template in `gate-ag
 
 ## Phase 4: Research (Conditional)
 
-Dispatch a **dedicated research agent** using the prompt template in `research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
+Dispatch a **dedicated research agent** using the prompt template in `references/research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
 
 **Pass to the research agent:**
 
