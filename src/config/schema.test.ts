@@ -267,6 +267,36 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects claude.tools entries containing a newline", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: [`Read${String.fromCharCode(0x0a)}model: pwned`, "Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/control characters or line breaks/i);
+    }
+  });
+
+  it("rejects claude.tools entries containing a comma", () => {
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: ["Read, Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/comma/i);
+    }
+  });
+
   it("accepts granular codex approval policy objects", () => {
     const result = AgentSourceSchema.safeParse({
       ...validAgent,

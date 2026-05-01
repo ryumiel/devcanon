@@ -248,10 +248,19 @@ export interface ResolvedTargetConfig {
 }
 
 // --- Agent source ---
+// Tool entries are emitted unquoted into the Claude YAML frontmatter as
+// `tools: A, B, C`, so each entry must reject control chars / line breaks
+// (else a `\n` would forge a new frontmatter key) and commas (else a `,`
+// would split one entry into two).
+const ClaudeToolNameSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX).refine(
+  (s) => !s.includes(","),
+  "tool name must not contain commas",
+);
+
 const ClaudeTargetShape = {
   model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
   effort: ClaudeEffortSchema.optional(),
-  tools: z.array(z.string()).optional(),
+  tools: z.array(ClaudeToolNameSchema).optional(),
 };
 
 const NICKNAME_CANDIDATE = /^[A-Za-z0-9 _-]+$/;
