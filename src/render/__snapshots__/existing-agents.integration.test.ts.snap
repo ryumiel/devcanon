@@ -47,8 +47,8 @@ Return one of: DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT.
 
 ## Skills
 
-- **play-tdd** (\`/Users/ryumiel/.claude/skills/play-tdd\`)
-- **play-verification** (\`/Users/ryumiel/.claude/skills/play-verification\`)
+- **play-tdd** (\`/test/claude/skills/play-tdd\`)
+- **play-verification** (\`/test/claude/skills/play-verification\`)
 "
 `;
 
@@ -68,8 +68,8 @@ Return one of: DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT.
 
 ## Skills
 
-- **play-tdd** (\`/Users/ryumiel/.agents/skills/play-tdd\`)
-- **play-verification** (\`/Users/ryumiel/.agents/skills/play-verification\`)
+- **play-tdd** (\`/test/codex/skills/play-tdd\`)
+- **play-verification** (\`/test/codex/skills/play-verification\`)
 """
 "
 `;

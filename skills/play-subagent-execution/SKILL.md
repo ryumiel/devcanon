@@ -103,7 +103,7 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 ## Handling Implementer Status
 
-Implementer subagents report one of four statuses. Handle each appropriately:
+The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 **DONE:** Proceed to spec compliance review.
 

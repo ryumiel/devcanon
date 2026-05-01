@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../config/load.js";
+import type { ResolvedConfig } from "../config/schema.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
@@ -10,12 +11,18 @@ const SHIPPED_AGENTS = [
   "code-quality-reviewer",
 ] as const;
 
+async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
+  const config = await loadConfig(
+    path.join(process.cwd(), "agents-manager.config.yaml"),
+  );
+  config.targets.claude.skillsHome = "/test/claude/skills";
+  config.targets.codex.skillsHome = "/test/codex/skills";
+  return config;
+}
+
 describe("shipped agents render cleanly", () => {
   it("renders every shipped agent to both targets", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
-    );
+    const config = await loadConfigWithFixedSkillsHome();
 
     const { outputs } = await renderAll(config, false);
     const agentOutputs = outputs.filter((o) => o.type === "agent");
@@ -27,10 +34,7 @@ describe("shipped agents render cleanly", () => {
   });
 
   it("resolves {{model:standard}} on both targets and snapshots output", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
-    );
+    const config = await loadConfigWithFixedSkillsHome();
 
     const { outputs } = await renderAll(config, false);
 
