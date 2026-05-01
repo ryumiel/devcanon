@@ -33,7 +33,7 @@ describe("listAction", () => {
         "modelTiers:",
         "  standard:",
         "    claude:",
-        "      model: claude-sonnet-4-7",
+        "      model: claude-sonnet-4-6",
         "      effort: medium",
         "    codex:",
         "      model: gpt-5.4",

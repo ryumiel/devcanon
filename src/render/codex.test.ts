@@ -78,7 +78,7 @@ const config = {
   manifest: { path: "~/.agents-manager/manifest.json" },
   modelTiers: {
     standard: {
-      claude: { model: "claude-sonnet-4-7", effort: "medium" },
+      claude: { model: "claude-sonnet-4-6", effort: "medium" },
       codex: { model: "gpt-5.4", reasoning_effort: "medium" },
     },
     deep: {

@@ -707,7 +707,7 @@ describe("renderAll", () => {
     const tieredConfig = makeResolvedConfig(tempDir);
     tieredConfig.modelTiers = {
       standard: {
-        claude: { model: "claude-sonnet-4-7", effort: "medium" },
+        claude: { model: "claude-sonnet-4-6", effort: "medium" },
         codex: { model: "gpt-5.4", reasoning_effort: "medium" },
       },
     };
@@ -748,7 +748,7 @@ describe("renderAll", () => {
       "utf-8",
     );
 
-    expect(claudeAgentContent).toContain("model: claude-sonnet-4-7");
+    expect(claudeAgentContent).toContain("model: claude-sonnet-4-6");
     expect(claudeAgentContent).toContain("effort: medium");
     expect(codexAgentContent).toContain('model = "gpt-5.4"');
     expect(codexAgentContent).toContain('model_reasoning_effort = "medium"');

@@ -45,12 +45,12 @@ manifest:
 modelTiers:
   fast:
     claude:
-      model: claude-haiku-4
+      model: claude-haiku-4-5
     codex:
       model: gpt-5.4-mini
   standard:
     claude:
-      model: claude-sonnet-4-7
+      model: claude-sonnet-4-6
       effort: medium
     codex:
       model: gpt-5.4

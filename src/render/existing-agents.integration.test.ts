@@ -54,7 +54,7 @@ describe("shipped agents render cleanly", () => {
       );
       expect(claudeFrontmatter).toMatchObject({
         name,
-        model: "claude-sonnet-4-7",
+        model: "claude-sonnet-4-6",
         effort: "medium",
       });
       expect(claudeOutput.content).not.toContain("{{model:");

@@ -36,12 +36,12 @@ describe("validateAction", () => {
         "modelTiers:",
         "  fast:",
         "    claude:",
-        "      model: claude-haiku-4",
+        "      model: claude-haiku-4-5",
         "    codex:",
         "      model: gpt-5.4-mini",
         "  standard:",
         "    claude:",
-        "      model: claude-sonnet-4-7",
+        "      model: claude-sonnet-4-6",
         "      effort: medium",
         "    codex:",
         "      model: gpt-5.4",
@@ -156,7 +156,7 @@ describe("validateAction", () => {
         warnings.some(
           (warning) =>
             /warn-skill/i.test(warning) &&
-            /sonnet|claude-sonnet-4-7/i.test(warning),
+            /sonnet|claude-sonnet-4-6/i.test(warning),
         ),
       ).toBe(true);
       expect(infos).toContain("Config: valid");
