@@ -111,7 +111,7 @@ Handle the result:
   or `GIT_WORK_TREE` env vars; calling `git worktree add` directly without
   the helper; cloning the repo elsewhere on disk to escape the gate; or any
   other path that reaches the same end state. If you find yourself
-  reasoning about *which* mechanism is "really" forbidden, you are
+  reasoning about _which_ mechanism is "really" forbidden, you are
   rationalizing — the outcome is the rule. The operator returns to primary
   explicitly and re-runs the skill from there.
 - If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
@@ -230,6 +230,8 @@ When `--auto` is set, the brainstorming skill still runs fully (exploration, opt
 - Do NOT ask the user to choose between options — pick the architecturally cleanest approach
 - Do NOT wait for user approval of the spec/design — proceed immediately
 - Do NOT ask clarifying questions — make reasonable assumptions and document them in the spec
+
+These bullets cover routine clarifications and tie-breakable choices. The exception below — genuine architectural ambiguity with no clean winner — is the one case where stopping `--auto` is required.
 
 If brainstorming surfaces a decision that is genuinely ambiguous (two equally valid approaches with different trade-offs), **stop `--auto` mode and ask the user**. Resume autonomous execution after their answer.
 
