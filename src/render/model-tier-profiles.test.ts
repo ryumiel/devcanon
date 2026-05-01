@@ -40,19 +40,19 @@ describe("model tier profiles", () => {
 
   it("throws on an unknown tier", () => {
     expect(() => resolveTierProfile("fast", "claude", TIERS)).toThrow(
-      /unknown model key "fast"/i,
+      /unknown model tier "fast"/i,
     );
   });
 
   it("rejects prototype-chain keys like __proto__", () => {
     expect(() => resolveTierProfile("__proto__", "claude", TIERS)).toThrow(
-      /unknown model key "__proto__"/i,
+      /unknown model tier "__proto__"/i,
     );
   });
 
   it("rejects prototype-chain keys like constructor", () => {
     expect(() => resolveTierProfile("constructor", "claude", TIERS)).toThrow(
-      /unknown model key "constructor"/i,
+      /unknown model tier "constructor"/i,
     );
   });
 });
