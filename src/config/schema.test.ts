@@ -635,6 +635,10 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
         claude: { model: `sonnet${String.fromCharCode(code)}injected` },
       });
       expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
     });
 
     it(`rejects agent.codex.model containing ${name}`, () => {
@@ -643,6 +647,10 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
         codex: { model: `gpt-5.4${String.fromCharCode(code)}injected` },
       });
       expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
     });
   }
 
