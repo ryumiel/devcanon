@@ -293,7 +293,25 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message).join(" ");
-      expect(messages).toMatch(/comma/i);
+      expect(messages).toMatch(/','|comma/i);
+    }
+  });
+
+  it("rejects claude.tools entries containing '#' (silent YAML comment)", () => {
+    // Verified empirically: ["# bad", "Grep"] renders to
+    // `tools: # bad, Grep` and round-trips through YAML 1.2 as
+    // `{ tools: null }`, silently dropping every tool.
+    const result = AgentSourceSchema.safeParse({
+      ...validAgent,
+      claude: {
+        tools: ["# bad", "Grep"],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message).join(" ");
+      expect(messages).toMatch(/'#'|hash/i);
     }
   });
 

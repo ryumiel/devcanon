@@ -249,12 +249,21 @@ export interface ResolvedTargetConfig {
 
 // --- Agent source ---
 // Tool entries are emitted unquoted into the Claude YAML frontmatter as
-// `tools: A, B, C`, so each entry must reject control chars / line breaks
-// (else a `\n` would forge a new frontmatter key) and commas (else a `,`
-// would split one entry into two).
+// `tools: A, B, C`. Each entry must reject:
+//   - control chars / line breaks (via renderSafeString) — else `\n`
+//     forges a new frontmatter key.
+//   - `,` — else one entry is split into two at the join.
+//   - `#` — else any `#` preceded by whitespace becomes a YAML comment
+//     that silently consumes the rest of the line (verified: an entry
+//     "# bad" renders to `tools: # bad, Grep` and round-trips to
+//     `tools: null` under YAML 1.2, dropping every tool).
+// Other YAML-meta chars (`:`, `[`, `{`, `*`, `&`, `|`, `>`) are deliberately
+// not blocked here — they produce loud parse errors downstream rather than
+// silent corruption, and rejecting them would over-constrain legitimate
+// names like `Bash(git status)`.
 const ClaudeToolNameSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX).refine(
-  (s) => !s.includes(","),
-  "tool name must not contain commas",
+  (s) => !/[,#]/.test(s),
+  "tool name must not contain ',' or '#'",
 );
 
 const ClaudeTargetShape = {
