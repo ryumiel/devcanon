@@ -19,7 +19,7 @@ Valid reasons include dedicated:
 - effort level
 - tool access
 - sandbox mode
-- approval policy
+- Codex approval policy (`codex.approval_policy`)
 
 If the main reusable value is still workflow method, checklist content, or
 task-local prompt assembly, use a skill or keep the delegate as a prompt

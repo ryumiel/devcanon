@@ -26,8 +26,8 @@ In this repository, create an agent only when one of these is true:
 
 - You need tool or sandbox restrictions that a skill cannot enforce.
 - You need a stable role identity with documented target-supported constraints,
-  such as model tier, effort level, tool access, sandbox mode, or approval
-  policy.
+  such as model tier, effort level, tool access, sandbox mode, or Codex
+  approval policy (`codex.approval_policy`).
 - You need a reusable specialist delegate, but the reusable operational
   knowledge still lives in skills.
 
@@ -61,8 +61,8 @@ are true:
 - The delegate represents a stable reusable role identity across sessions or
   across multiple skills.
 - The delegate benefits from documented target-supported constraints such as
-  dedicated model tier, effort level, tool access, sandbox mode, or approval
-  policy.
+  dedicated model tier, effort level, tool access, sandbox mode, or Codex
+  approval policy (`codex.approval_policy`).
 - The reusable operational method can remain in skills, with the resulting
   agent staying a thin role wrapper.
 

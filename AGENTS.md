@@ -14,7 +14,8 @@ The tool is designed for **user-wide** setup, not repository-level setup.
 
 Agents are thin role wrappers. Prefer skills for reusable workflow method, and
 create an agent when stable delegate identity or target-supported constraints
-such as dedicated model/effort, tools, sandbox, or approval policy justify it.
+such as dedicated model/effort, tools, sandbox, or Codex approval policy
+(`codex.approval_policy`) justify it.
 
 Source files are authoritative. Generated outputs are disposable.
 
