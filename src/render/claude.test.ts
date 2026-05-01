@@ -148,6 +148,19 @@ describe("renderClaudeAgent", () => {
     expect(result.content).not.toContain("effort: medium");
   });
 
+  it("throws when claude.model contains the placeholder prefix but is not a valid placeholder", () => {
+    // Defense-in-depth: validation usually rejects this earlier, but the
+    // renderer must refuse to emit a literal "{{model:...}}" if a caller
+    // bypasses validation (e.g. a programmatic API consumer).
+    expect(() =>
+      renderClaudeAgent(
+        withClaude(agent, { model: "  {{model:standard}}  " }),
+        emptySkills,
+        config,
+      ),
+    ).toThrow(/invalid model placeholder syntax/);
+  });
+
   it("emits instructions body directly without ## Instructions wrapper", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
     const content = result.content;

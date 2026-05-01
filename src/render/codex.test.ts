@@ -209,6 +209,19 @@ describe("renderCodexAgent", () => {
     expect(result.content).not.toContain('model_reasoning_effort = "medium"');
   });
 
+  it("throws when codex.model contains the placeholder prefix but is not a valid placeholder", () => {
+    // Defense-in-depth: validation usually rejects this earlier, but the
+    // renderer must refuse to emit a literal "{{model:...}}" if a caller
+    // bypasses validation (e.g. a programmatic API consumer).
+    expect(() =>
+      renderCodexAgent(
+        withCodex(agent, { model: "  {{model:standard}}  " }),
+        emptySkills,
+        config,
+      ),
+    ).toThrow(/invalid model placeholder syntax/);
+  });
+
   it("returns correct metadata fields", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     expect(result.target).toBe("codex");
