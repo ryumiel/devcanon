@@ -559,6 +559,75 @@ describe("ConfigSchema.modelTiers", () => {
     expect(result.success).toBe(false);
   });
 
+  // Code points that YAML 1.1 / various downstream consumers treat as line
+  // terminators and that isRenderSafeLine explicitly blocks beyond plain LF.
+  // CR (0x0D) and VT (0x0B) are covered by the C0 control range (<= 0x1F);
+  // NEL / LS / PS need their own clauses. Each must round-trip through the
+  // schema as a rejection so a future refactor cannot silently drop them.
+  const LINE_BREAK_CODE_POINTS: ReadonlyArray<{ name: string; code: number }> =
+    [
+      { name: "CR (0x0D)", code: 0x0d },
+      { name: "VT (0x0B)", code: 0x0b },
+      { name: "NEL (U+0085)", code: 0x85 },
+      { name: "LS (U+2028)", code: 0x2028 },
+      { name: "PS (U+2029)", code: 0x2029 },
+    ];
+
+  for (const { name, code } of LINE_BREAK_CODE_POINTS) {
+    it(`rejects modelTiers.<tier>.claude.model containing ${name}`, () => {
+      const result = ConfigSchema.safeParse({
+        version: 1,
+        modelTiers: {
+          deep: {
+            claude: { model: `opus${String.fromCharCode(code)}injected` },
+            codex: { model: "gpt-5.4" },
+          },
+        },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message).join(" ");
+        expect(messages).toMatch(/control characters or line breaks/i);
+      }
+    });
+  }
+});
+
+describe("AgentSourceSchema render-safe code-point coverage", () => {
+  const validAgent = {
+    name: "test-agent",
+    description: "Test agent for unit tests.",
+    instructions: "Do the thing.",
+    skills: [],
+  };
+
+  const LINE_BREAK_CODE_POINTS: ReadonlyArray<{ name: string; code: number }> =
+    [
+      { name: "CR (0x0D)", code: 0x0d },
+      { name: "VT (0x0B)", code: 0x0b },
+      { name: "NEL (U+0085)", code: 0x85 },
+      { name: "LS (U+2028)", code: 0x2028 },
+      { name: "PS (U+2029)", code: 0x2029 },
+    ];
+
+  for (const { name, code } of LINE_BREAK_CODE_POINTS) {
+    it(`rejects agent.claude.model containing ${name}`, () => {
+      const result = AgentSourceSchema.safeParse({
+        ...validAgent,
+        claude: { model: `sonnet${String.fromCharCode(code)}injected` },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it(`rejects agent.codex.model containing ${name}`, () => {
+      const result = AgentSourceSchema.safeParse({
+        ...validAgent,
+        codex: { model: `gpt-5.4${String.fromCharCode(code)}injected` },
+      });
+      expect(result.success).toBe(false);
+    });
+  }
+
   it("rejects invalid claude tier effort enum values", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
