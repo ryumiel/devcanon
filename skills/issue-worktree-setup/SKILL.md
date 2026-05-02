@@ -15,7 +15,7 @@ This helper is the single source of truth for:
 - deciding whether branching in place is safe
 - refusing nested worktree creation from dirty or already-branched managed
   worktrees
-- creating a fresh `.worktrees/...` checkout from `origin/main`
+- creating a fresh `.worktrees/...` checkout from the repository's default branch (resolved via `origin/HEAD`, falling back to `origin/main`)
 - returning the concrete worktree path for downstream phases
 
 ## Inputs
@@ -24,7 +24,7 @@ Invoke the helper through environment variables:
 
 - `BRANCH_NAME` (required)
 - `WORKTREE_LEAF` (required)
-- `BASE_REF` (optional, defaults to `origin/main`)
+- `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`)
 
 Run:
 
@@ -35,7 +35,6 @@ HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<worktree-leaf>" \
-  BASE_REF="origin/main" \
   bash "$HELPER_SCRIPT"
 )
 ```
@@ -78,11 +77,11 @@ EOF
 Returned when the current session is already inside a managed non-primary
 worktree that is:
 
-- on branch `main`
+- on the repository's default branch
 - clean (`git status --short` is empty)
 - not ahead of `BASE_REF`
 
-The helper fetches `origin`, fast-forwards `main` to `BASE_REF`, creates the
+The helper fetches `origin`, fast-forwards the default branch to `BASE_REF`, creates the
 requested feature branch in place, and returns the current worktree path.
 
 ### `MODE=new`

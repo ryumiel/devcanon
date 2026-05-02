@@ -26,7 +26,7 @@ digraph branch_review {
 
 | Arg      | Effect                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------- |
-| `<base>` | Base branch to diff against (default: `main`)                                                 |
+| `<base>` | Base branch to diff against (default: repository default branch, resolved via `origin/HEAD`)  |
 | `--fix`  | Auto-fix blocking findings instead of presenting them. Used by `github-issue-priming --auto`. |
 
 ## Phase 1: Gather
@@ -34,8 +34,13 @@ digraph branch_review {
 Detect the base branch and collect the diff:
 
 ```bash
-# Determine base (argument or default)
-BASE=${1:-main}
+# Determine base: explicit argument wins; otherwise resolve from origin/HEAD
+if [[ -n "${1:-}" ]]; then
+  BASE="$1"
+else
+  DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  BASE="${DEFAULT_BRANCH:-main}"
+fi
 
 # Get the diff and commit log
 git diff $BASE...HEAD

@@ -13,7 +13,8 @@ The `github-issue-priming --auto` workflow chains two reviewers on the same diff
    plan.
 2. `branch-review --fix` (Phase 8) runs a whole-branch review (correctness,
    data-safety, dynamic language/architecture/docs agents, and a critic
-   verification pass) on `git diff main...HEAD`.
+   verification pass) on `git diff <base>...HEAD` where `<base>` is the
+   repository's default branch.
 
 For single-task plans -- the common case via `github-issue-priming` -- both
 reviewers cover the same diff. They use different model floors

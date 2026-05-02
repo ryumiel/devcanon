@@ -41,11 +41,13 @@ Stop. Don't proceed to Step 2.
 ### Step 2: Determine Base Branch
 
 ```bash
-# Try common base branches
-git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
+# Resolve the default branch from the remote, fall back to main
+DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
+git merge-base HEAD "$DEFAULT_BRANCH"
 ```
 
-Or ask: "This branch split from main - is that correct?"
+Or ask: "This branch split from `<DEFAULT_BRANCH>` - is that correct?"
 
 ### Step 3: Present Options
 
