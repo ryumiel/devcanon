@@ -35,7 +35,7 @@ digraph when_to_use {
 
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
+- Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review (see ADR-0007)
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
