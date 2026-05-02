@@ -146,12 +146,13 @@ BRANCH=$(gh pr view <N> --json headRefName --jq '.headRefName')
 # Safety guard: never clean up the base branch
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
   echo "Refusing to clean up base branch '$BRANCH'"
-  return 0
+  exit 0
 fi
 
 MAIN_WORKTREE=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
 WORKTREE_PATH=$(git worktree list --porcelain \
-  | awk '/^worktree / {p=$2} /^branch refs\/heads\/'"$BRANCH"'$/ {print p}')
+  | awk -v branch="refs/heads/$BRANCH" \
+        '/^worktree / {p=$2} $1 == "branch" && $2 == branch {print p}')
 ```
 
 `WORKTREE_PATH` is empty when no worktree holds the merged branch (e.g., the
