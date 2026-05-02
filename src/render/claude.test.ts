@@ -72,7 +72,7 @@ const config = {
   manifest: { path: "~/.agents-manager/manifest.json" },
   modelTiers: {
     standard: {
-      claude: { model: "claude-sonnet-4-7", effort: "medium" },
+      claude: { model: "claude-sonnet-4-6", effort: "medium" },
       codex: { model: "gpt-5.4", reasoning_effort: "medium" },
     },
     deep: {
@@ -107,14 +107,14 @@ describe("renderClaudeAgent", () => {
 
   it("renders every supported claude target field", () => {
     const fullAgent = withClaude(agent, {
-      model: "claude-sonnet-4-7",
+      model: "claude-sonnet-4-6",
       effort: "high",
       tools: ["Read", "Grep", "Bash"],
     });
     const result = renderClaudeAgent(fullAgent, emptySkills, config);
     const content = result.content;
     const expectedFragments = {
-      model: "model: claude-sonnet-4-7",
+      model: "model: claude-sonnet-4-6",
       effort: "effort: high",
       tools: "tools: Read, Grep, Bash",
     } satisfies Record<(typeof CLAUDE_TARGET_FIELDS)[number], string>;
@@ -130,7 +130,7 @@ describe("renderClaudeAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("model: claude-sonnet-4-7");
+    expect(result.content).toContain("model: claude-sonnet-4-6");
     expect(result.content).toContain("effort: medium");
   });
 
@@ -143,7 +143,7 @@ describe("renderClaudeAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("model: claude-sonnet-4-7");
+    expect(result.content).toContain("model: claude-sonnet-4-6");
     expect(result.content).toContain("effort: high");
     expect(result.content).not.toContain("effort: medium");
   });

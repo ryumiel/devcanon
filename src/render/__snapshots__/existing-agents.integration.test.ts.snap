@@ -5,7 +5,7 @@ exports[`shipped agents render cleanly > resolves {{model:standard}} on both tar
 name: code-quality-reviewer
 description: "Read-only code-quality review role for a single task's implementation, surfacing correctness, regression, missing-test, and unit-decomposition findings. Use when a controller needs a code-quality pass on a single task's implementation. Do not use for spec-conformance checks, design review, or broad branch review."
 tools: Read, Grep
-model: claude-sonnet-4-7
+model: claude-sonnet-4-6
 effort: medium
 ---
 
@@ -35,7 +35,7 @@ exports[`shipped agents render cleanly > resolves {{model:standard}} on both tar
 name: implementer
 description: "Single-task implementation role with workspace-write access. Use when delegating one fully-specified, planned task to an isolated subagent. Do not use for cross-task coordination, planning, or open-ended investigation."
 tools: Read, Edit, Write, Bash, Grep
-model: claude-sonnet-4-7
+model: claude-sonnet-4-6
 effort: medium
 ---
 
@@ -79,7 +79,7 @@ exports[`shipped agents render cleanly > resolves {{model:standard}} on both tar
 name: spec-compliance-reviewer
 description: "Read-only spec-conformance review role that compares a single task's implementation against its spec to surface missing or extra work. Use when a controller needs independent verification that a task's implementation matches its spec. Do not use for code-quality, design, or plan review."
 tools: Read, Grep
-model: claude-sonnet-4-7
+model: claude-sonnet-4-6
 effort: medium
 ---
 

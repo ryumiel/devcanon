@@ -29,7 +29,7 @@ describe("newAgentAction", () => {
         "modelTiers:",
         "  standard:",
         "    claude:",
-        "      model: claude-sonnet-4-7",
+        "      model: claude-sonnet-4-6",
         "      effort: medium",
         "    codex:",
         "      model: gpt-5.4",
@@ -90,7 +90,7 @@ describe("newAgentAction", () => {
       (output) => output.type === "agent" && output.target === "codex",
     );
 
-    expect(claudeAgent?.content).toContain("model: claude-sonnet-4-7");
+    expect(claudeAgent?.content).toContain("model: claude-sonnet-4-6");
     expect(claudeAgent?.content).toContain("effort: medium");
     expect(codexAgent?.content).toContain('model = "gpt-5.4"');
     expect(codexAgent?.content).toContain('model_reasoning_effort = "medium"');
@@ -108,7 +108,7 @@ describe("newAgentAction", () => {
         "modelTiers:",
         "  default:",
         "    claude:",
-        "      model: claude-haiku-4",
+        "      model: claude-haiku-4-5",
         "    codex:",
         "      model: gpt-5.4-mini",
       ].join("\n"),
@@ -144,7 +144,7 @@ describe("newAgentAction", () => {
         "modelTiers:",
         "  fast:",
         "    claude:",
-        "      model: claude-haiku-4",
+        "      model: claude-haiku-4-5",
         "    codex:",
         "      model: gpt-5.4-mini",
         "  deep:",

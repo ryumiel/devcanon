@@ -8,7 +8,7 @@ import {
 
 const TIERS: ModelTiers = {
   standard: {
-    claude: { model: "claude-sonnet-4-7", effort: "medium" },
+    claude: { model: "claude-sonnet-4-6", effort: "medium" },
     codex: { model: "gpt-5.4", reasoning_effort: "medium" },
   },
   deep: {
@@ -20,7 +20,7 @@ const TIERS: ModelTiers = {
 describe("model tier profiles", () => {
   it("resolves the concrete model string for a target", () => {
     expect(resolveTierModel("standard", "claude", TIERS)).toBe(
-      "claude-sonnet-4-7",
+      "claude-sonnet-4-6",
     );
     expect(resolveTierModel("deep", "codex", TIERS)).toBe("gpt-5.4");
   });
@@ -68,7 +68,7 @@ describe("extractModelTierKey", () => {
   });
 
   it("returns null for literal model strings", () => {
-    expect(extractModelTierKey("claude-sonnet-4-7")).toBeNull();
+    expect(extractModelTierKey("claude-sonnet-4-6")).toBeNull();
   });
 
   it("returns null for malformed placeholders", () => {

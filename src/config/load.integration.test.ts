@@ -199,7 +199,7 @@ describe("loadConfig", () => {
       "modelTiers:",
       "  standard:",
       "    claude:",
-      "      model: claude-sonnet-4-7",
+      "      model: claude-sonnet-4-6",
       "      effort: medium",
       "    codex:",
       "      model: gpt-5.4",
@@ -208,7 +208,7 @@ describe("loadConfig", () => {
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
-    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-7");
+    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-6");
     expect(result.modelTiers?.standard.claude.effort).toBe("medium");
     expect(result.modelTiers?.standard.codex.model).toBe("gpt-5.4");
     expect(result.modelTiers?.standard.codex.reasoning_effort).toBe("medium");
@@ -220,7 +220,7 @@ describe("loadConfig", () => {
       "modelTiers:",
       "  standard:",
       "    claude:",
-      "      model: claude-sonnet-4-7",
+      "      model: claude-sonnet-4-6",
       "      effort: medium",
       "      typo_field: true",
       "    codex:",
@@ -233,7 +233,7 @@ describe("loadConfig", () => {
 
     const result = await loadConfig(configPath);
 
-    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-7");
+    expect(result.modelTiers?.standard.claude.model).toBe("claude-sonnet-4-6");
     expect(
       logCtx.testLogger.warnings.some((warning) =>
         warning.includes("modelTiers.standard.claude.typo_field"),
@@ -252,7 +252,7 @@ describe("loadConfig", () => {
       "modelTiers:",
       "  standard:",
       "    claude:",
-      "      model: claude-sonnet-4-7",
+      "      model: claude-sonnet-4-6",
       "      effort: medium",
       "      typo_field: true",
       "    codex:",
