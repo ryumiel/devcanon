@@ -122,6 +122,25 @@ export async function loadAndValidateSkills(
     }
 
     if (diagnostics?.enabled) {
+      const childEntries = await readdir(dirPath, { withFileTypes: true });
+      for (const child of childEntries) {
+        if (child.name.startsWith(".")) continue;
+        if (child.isDirectory()) continue;
+        if (child.name === "SKILL.md") continue;
+        const message =
+          `Skill "${name}": stray top-level file "${child.name}" — only ` +
+          `SKILL.md and the assets/, examples/, references/, scripts/ ` +
+          `subdirs are installed. Move it under one of those subdirs ` +
+          `(typically references/).`;
+        if (diagnostics.strict) {
+          errors.push(message);
+        } else {
+          getLogger().warn(message);
+        }
+      }
+    }
+
+    if (diagnostics?.enabled) {
       const driftDiagnostics = collectDriftDiagnostics(
         [result.data.description, parsed.body],
         {
