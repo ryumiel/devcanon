@@ -33,17 +33,18 @@ the task completes (its scope is out of this ADR, see Consequences). When
 invoked downstream by `github-issue-priming --auto`, `branch-review` then
 performs whole-diff review on top of that.
 
-For plans with **two or more** tasks, the existing per-task two-stage review
-is preserved unchanged. Multi-task plans benefit uniquely from per-task
-spec-compliance checking (catching drift before the next task uses the wrong
-foundation), and that value is not replicated by an end-of-branch review.
-The per-task spec-compliance and code-quality reviewers run at
-`{{model:deep}}` (raised from `{{model:standard}}` to match the downstream
-`branch-review` / `pr-review` floor), closing the per-task coverage gap
-surfaced in PR #106 / issue #99. The same `code-quality-reviewer` agent is
-also invoked at the end of `play-subagent-execution` for the whole
-implementation regardless of plan size, so the floor raise applies to that
-dispatch too — see Consequences for the cost rationale.
+For plans with **two or more** tasks, the per-task two-stage review
+(spec-compliance, then code-quality) continues to run. Multi-task plans
+benefit uniquely from per-task spec-compliance checking (catching drift
+before the next task uses the wrong foundation), and that value is not
+replicated by an end-of-branch review. The pipeline structure is unchanged;
+the per-task reviewers' model tier is raised from `{{model:standard}}` to
+`{{model:deep}}` to match the downstream `branch-review` / `pr-review`
+floor, closing the per-task coverage gap surfaced in PR #106 / issue #99.
+The same `code-quality-reviewer` agent is also invoked at the end of
+`play-subagent-execution` for the whole implementation regardless of plan
+size, so the floor raise applies to that dispatch too — see Consequences
+for the cost rationale.
 
 This change is internal to `play-subagent-execution`. The
 `github-issue-priming --auto` Phase 7 → Phase 8 call sequence is unchanged.

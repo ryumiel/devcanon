@@ -44,6 +44,10 @@ describe("shipped agents render cleanly", () => {
       "code-quality-reviewer",
     ] as const;
 
+    expect([...STANDARD_AGENTS, ...DEEP_AGENTS].sort()).toEqual(
+      [...SHIPPED_AGENTS].sort(),
+    );
+
     for (const name of STANDARD_AGENTS) {
       const claudeOutput = outputs.find(
         (o) => o.type === "agent" && o.target === "claude" && o.name === name,
