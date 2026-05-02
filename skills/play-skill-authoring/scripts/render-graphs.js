@@ -87,14 +87,14 @@ function main() {
   const skillDirArg = args.find(a => !a.startsWith('--'));
 
   if (!skillDirArg) {
-    console.error('Usage: render-graphs.js <skill-directory> [--combine]');
+    console.error('Usage: scripts/render-graphs.js <skill-directory> [--combine]');
     console.error('');
     console.error('Options:');
     console.error('  --combine    Combine all diagrams into one SVG');
     console.error('');
     console.error('Example:');
-    console.error('  ./render-graphs.js ../subagent-driven-development');
-    console.error('  ./render-graphs.js ../subagent-driven-development --combine');
+    console.error('  ./scripts/render-graphs.js ../subagent-driven-development');
+    console.error('  ./scripts/render-graphs.js ../subagent-driven-development --combine');
     process.exit(1);
   }
 
