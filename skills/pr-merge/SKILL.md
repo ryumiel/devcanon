@@ -142,6 +142,7 @@ After successful merge, clean up local branches and worktrees.
 
 ```bash
 BRANCH=$(gh pr view <N> --json headRefName --jq '.headRefName')
+BASE=$(gh pr view <N> --json baseRefName --jq '.baseRefName')
 MAIN_WORKTREE=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
 WORKTREE_PATH=$(git worktree list --porcelain | awk -v branch="refs/heads/$BRANCH" '
   /^worktree / { sub(/^worktree /, ""); p=$0; next }
@@ -149,7 +150,7 @@ WORKTREE_PATH=$(git worktree list --porcelain | awk -v branch="refs/heads/$BRANC
 ')
 ```
 
-**Guard:** Never run cleanup on the base branch. If `$BRANCH` is `main` or `master` (or empty, meaning `gh pr view` failed), stop here — there is nothing to clean up.
+**Guard:** Never run cleanup on the base branch. If `$BRANCH` is empty (`gh pr view` failed) or equals `$BASE` (the PR's own base — e.g., `main`, `master`, `develop`), stop here — there is nothing to clean up.
 
 `WORKTREE_PATH` is empty when no worktree holds the merged branch on a
 named ref — for example, the PR was developed on a single checkout, or
@@ -170,12 +171,15 @@ if [ -n "$WORKTREE_PATH" ] && [ "$WORKTREE_PATH" != "$MAIN_WORKTREE" ]; then
   git worktree remove --force "$WORKTREE_PATH"
 fi
 
-# Pull and branch deletion must run on main, not in some other worktree
-# the operator happens to be sitting in. Switch explicitly.
+# Pull and branch deletion must run on the base branch in the main
+# worktree, not in some other worktree (or some other branch the main
+# worktree happens to have checked out). Switch explicitly.
 cd "$MAIN_WORKTREE"
+git checkout "$BASE"
 
-# Sync main so HEAD contains the squash commit before deleting the branch.
-# Order matters: branch -d before pull would emit
+# Sync the base branch so HEAD contains the squash commit before
+# deleting the feature branch. Order matters: branch -d before pull
+# would emit
 #   "branch X has been merged to refs/remotes/origin/X, but not yet
 #    merged to HEAD"
 git pull --ff-only
@@ -264,20 +268,20 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                | Action                                                                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                  |
-| PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                               |
-| No PR guideline found    | Skip validation, proceed to CI                                                                                                                    |
-| CI pending               | Poll every 3 min (configurable)                                                                                                                   |
-| CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                  |
-| Post-merge cleanup       | If a non-main worktree holds the branch: `git worktree remove --force` → `cd` to main → `pull --ff-only` → `branch -d`; otherwise skip the remove |
-| CI fails (1st time)      | Investigate → fix if in scope → push → re-poll                                                                                                    |
-| CI fails (2nd time)      | Report and stop                                                                                                                                   |
-| Out-of-scope failure     | Report and stop immediately                                                                                                                       |
-| CI not done after 30 min | Report and stop                                                                                                                                   |
-| Merge conflicts          | Report to user — requires manual resolution                                                                                                       |
-| Missing review approvals | Report which reviews are missing                                                                                                                  |
+| Situation                | Action                                                                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                                                       |
+| PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                                                                    |
+| No PR guideline found    | Skip validation, proceed to CI                                                                                                                                                         |
+| CI pending               | Poll every 3 min (configurable)                                                                                                                                                        |
+| CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                       |
+| Post-merge cleanup       | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → `branch -d`; otherwise skip the remove |
+| CI fails (1st time)      | Investigate → fix if in scope → push → re-poll                                                                                                                                         |
+| CI fails (2nd time)      | Report and stop                                                                                                                                                                        |
+| Out-of-scope failure     | Report and stop immediately                                                                                                                                                            |
+| CI not done after 30 min | Report and stop                                                                                                                                                                        |
+| Merge conflicts          | Report to user — requires manual resolution                                                                                                                                            |
+| Missing review approvals | Report which reviews are missing                                                                                                                                                       |
 
 ## Common Mistakes
 
