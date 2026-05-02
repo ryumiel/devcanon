@@ -1228,32 +1228,6 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
-  describe("stray top-level files", () => {
-    it("warns on a stray top-level file in non-strict validate mode", async () => {
-      await mkdir(skillsDir, { recursive: true });
-      const skillDir = await createSkillFixture(skillsDir, "stray-warn");
-      await writeFile(
-        path.join(skillDir, "gate-agent-prompt.md"),
-        "# stray\n",
-        "utf-8",
-      );
-
-      await captureWarnings(async (warnings) => {
-        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
-          diagnostics: { enabled: true, strict: false },
-        });
-
-        expect(result).toHaveLength(1);
-        expectWarningLine(
-          warnings,
-          /stray-warn/,
-          /gate-agent-prompt\.md/,
-          /references\//,
-        );
-      });
-    });
-  });
-
   it("flags drift tokens at line start and adjacent to non-whitespace punctuation", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(
@@ -1291,6 +1265,32 @@ describe("loadAndValidateSkills", () => {
 
       expectWarningLine(warnings, /boundary-drift/i, /TodoWrite/);
       expectWarningLine(warnings, /boundary-drift/i, /CLAUDE\.md/);
+    });
+  });
+
+  describe("stray top-level files", () => {
+    it("warns on a stray top-level file in non-strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-warn");
+      await writeFile(
+        path.join(skillDir, "gate-agent-prompt.md"),
+        "# stray\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expectWarningLine(
+          warnings,
+          /stray-warn/,
+          /gate-agent-prompt\.md/,
+          /references\//,
+        );
+      });
     });
   });
 });
