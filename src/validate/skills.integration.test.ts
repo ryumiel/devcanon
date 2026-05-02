@@ -1267,4 +1267,155 @@ describe("loadAndValidateSkills", () => {
       expectWarningLine(warnings, /boundary-drift/i, /CLAUDE\.md/);
     });
   });
+
+  describe("stray top-level files", () => {
+    it("warns on a stray top-level file in non-strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-warn");
+      await writeFile(
+        path.join(skillDir, "gate-agent-prompt.md"),
+        "# stray\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expectWarningLine(
+          warnings,
+          /stray-warn/,
+          /gate-agent-prompt\.md/,
+          /references\//,
+        );
+      });
+    });
+
+    it("fails on a stray top-level file in strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-strict");
+      await writeFile(path.join(skillDir, "stray.md"), "# stray\n", "utf-8");
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(UserError);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/stray-strict/);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/stray\.md/);
+    });
+
+    it("does not flag hidden files at the skill root", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "hidden-allowed");
+      await writeFile(path.join(skillDir, ".DS_Store"), "", "utf-8");
+      await writeFile(path.join(skillDir, ".gitkeep"), "", "utf-8");
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /hidden-allowed/.test(w))).toBe(false);
+      });
+    });
+
+    it("does not flag a skill that contains only SKILL.md", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      await createSkillFixture(skillsDir, "bare-skill");
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /bare-skill/.test(w))).toBe(false);
+      });
+    });
+
+    it("does not flag files inside the four mirrored subdirs", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "subdir-files-ok",
+        undefined,
+        ["assets", "examples", "references", "scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "references", "prompt.md"),
+        "# prompt\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "run.sh"),
+        "#!/bin/sh\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "assets", "logo.txt"),
+        "logo\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "examples", "ex.md"),
+        "# ex\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /subdir-files-ok/.test(w))).toBe(false);
+      });
+    });
+
+    it("does not run when diagnostics are disabled", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "no-diagnostics");
+      await writeFile(path.join(skillDir, "stray.md"), "# stray\n", "utf-8");
+
+      await captureWarnings(async (warnings) => {
+        // No `diagnostics` option at all — same call shape as render/sync use.
+        const result = await loadAndValidateSkills(skillsDir);
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /no-diagnostics/.test(w))).toBe(false);
+      });
+    });
+
+    it("does not flag stray top-level directories", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-dir");
+      await mkdir(path.join(skillDir, "prompts"), { recursive: true });
+      await writeFile(
+        path.join(skillDir, "prompts", "draft.md"),
+        "# draft\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /stray-dir/.test(w))).toBe(false);
+      });
+    });
+  });
 });

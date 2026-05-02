@@ -33,7 +33,9 @@ local loop is:
 1. Scaffold: `pnpm run dev -- new skill <name>`.
 2. Edit `skills/<name>/SKILL.md`, plus optional `assets/`, `examples/`,
    `references/`, or `scripts/` subdirectories. These mirror per target
-   into `generated/<target>/skills/<name>/` as-is.
+   into `generated/<target>/skills/<name>/` as-is. Anything else at the
+   skill root (other than hidden files) is flagged by `validate`; move
+   supporting material under `references/`.
 3. Validate: `pnpm run dev -- validate`. Use `validate --strict` to
    promote shared-prose drift warnings (see § 5) into errors before
    committing.
