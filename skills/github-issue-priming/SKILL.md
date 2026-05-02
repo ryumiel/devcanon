@@ -253,7 +253,7 @@ Invoke `play-planning` using the spec produced in Phase 5. Do not wait for user 
 
 ### Phase 7: Implement
 
-Invoke `play-subagent-execution` to execute the plan. All subagent-driven-development rules apply (fresh subagent per task, two-stage review, spec compliance then code quality).
+Invoke `play-subagent-execution` to execute the plan. All subagent-driven-development rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 8 branch-review, see ADR-0007).
 
 ### Phase 8: Branch Review
 

@@ -5,11 +5,11 @@ description: Executes an implementation plan by dispatching a fresh subagent per
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching fresh subagent per task, with two-stage review after each (spec compliance review first, then code quality review) -- except when the plan has exactly one task, in which case the per-task two-stage review is skipped (see ADR-0007).
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
 
 ## When to Use
 
@@ -35,7 +35,7 @@ digraph when_to_use {
 
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
+- Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review (see ADR-0007)
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -60,16 +60,20 @@ digraph process {
     }
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
+    "Plan has exactly one task?" [shape=diamond];
     "More tasks remain?" [shape=diamond];
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
+    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
+    "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no"];
+    "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes (skip per-task review)"];
     "Dispatch the implementer agent (references/implementer-prompt.md)" -> "Implementer agent asks questions?";
     "Implementer agent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
     "Implementer agent asks questions?" -> "Implementer agent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)";
+    "Implementer agent implements, tests, commits, self-reviews" -> "Mark task complete in TodoWrite" [label="single-task plan"];
+    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="multi-task plan"];
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
     "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="re-review"];
@@ -101,13 +105,23 @@ Use the least powerful model that can handle each role to conserve cost and incr
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
 
+## Single-Task Plans
+
+When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is out of ADR-0007). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
+
+For plans with two or more tasks, the per-task two-stage review runs unchanged.
+
+If you invoke this skill **directly** (not via `--auto`) on a single-task plan, no whole-diff review runs after the final code-quality reviewer — run `branch-review` yourself before opening a PR if you want that coverage.
+
+See [ADR-0007](../../docs/adr/adr-0007-review-pipeline-delineation.md) for the rationale, the rejected alternatives (Options B and C from issue #108), and the trade-off accepted for manual (non-`--auto`) single-task invocations.
+
 ## Handling Implementer Status
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
-**DONE:** Proceed to spec compliance review.
+**DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see ADR-0007 / Single-Task Plans).
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then proceed to spec compliance review; for single-task plans (see ADR-0007), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next step (spec review for multi-task, mark complete for single-task).
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
@@ -127,6 +141,8 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
 ## Example Workflow
+
+The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" above), so the per-task flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -227,7 +243,7 @@ Done!
 **Quality gates:**
 
 - Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
+- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on the final code-quality reviewer plus downstream `branch-review` (see ADR-0007)
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
@@ -244,17 +260,20 @@ Done!
 **Never:**
 
 - Start implementation on main/master branch without explicit user consent
-- Skip reviews (spec compliance OR code quality)
+- Skip reviews when the plan has 2+ tasks (single-task plans skip per-task review by design — see ADR-0007)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
+- Move to next task while either review has open issues
+
+**Never (when per-task reviewers run — multi-task plans only):**
+
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
 
 **If subagent asks questions:**
 
