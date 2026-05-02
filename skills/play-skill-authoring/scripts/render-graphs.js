@@ -4,8 +4,8 @@
  * Render graphviz diagrams from a skill's SKILL.md to SVG files.
  *
  * Usage:
- *   ./render-graphs.js <skill-directory>           # Render each diagram separately
- *   ./render-graphs.js <skill-directory> --combine # Combine all into one diagram
+ *   ./scripts/render-graphs.js <skill-directory>           # Render each diagram separately
+ *   ./scripts/render-graphs.js <skill-directory> --combine # Combine all into one diagram
  *
  * Extracts all ```dot blocks from SKILL.md and renders to SVG.
  * Useful for helping the user visualize the process flows.
