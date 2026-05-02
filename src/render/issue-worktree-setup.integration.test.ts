@@ -53,7 +53,7 @@ function normalizeFsPath(value: string): string {
 
 async function createOriginRepo(
   rootDir: string,
-  defaultBranch: string = "main",
+  defaultBranch = "main",
 ): Promise<{
   primaryDir: string;
 }> {
@@ -61,7 +61,10 @@ async function createOriginRepo(
   const primaryDir = path.join(rootDir, "Primary Repo With Spaces");
 
   await mkdir(rootDir, { recursive: true });
-  await runGit(["init", "--bare", `--initial-branch=${defaultBranch}`, originDir], rootDir);
+  await runGit(
+    ["init", "--bare", `--initial-branch=${defaultBranch}`, originDir],
+    rootDir,
+  );
   await runGit(["clone", originDir, primaryDir], rootDir);
   await runGit(["config", "user.name", "Test User"], primaryDir);
   await runGit(["config", "user.email", "test@example.com"], primaryDir);
