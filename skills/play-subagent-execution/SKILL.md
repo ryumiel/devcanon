@@ -9,7 +9,7 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
 
 ## When to Use
 
@@ -117,9 +117,9 @@ See [ADR-0007](../../docs/adr/adr-0007-review-pipeline-delineation.md) for the r
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
-**DONE:** Proceed to spec compliance review.
+**DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see ADR-0007 / Single-Task Plans).
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then proceed to spec compliance review; for single-task plans (see ADR-0007), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next step (spec review for multi-task, mark complete for single-task).
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
