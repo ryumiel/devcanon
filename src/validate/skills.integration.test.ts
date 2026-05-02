@@ -1292,5 +1292,31 @@ describe("loadAndValidateSkills", () => {
         );
       });
     });
+
+    it("fails on a stray top-level file in strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-strict");
+      await writeFile(
+        path.join(skillDir, "stray.md"),
+        "# stray\n",
+        "utf-8",
+      );
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(UserError);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/stray-strict/);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/stray\.md/);
+    });
   });
 });
