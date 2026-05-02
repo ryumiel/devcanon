@@ -107,9 +107,11 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 ## Single-Task Plans
 
-When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate; review across the whole change is performed by the downstream `branch-review` invocation when called by `github-issue-priming --auto`.
+When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is out of ADR-0007). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
 
 For plans with two or more tasks, the per-task two-stage review runs unchanged.
+
+If you invoke this skill **directly** (not via `--auto`) on a single-task plan, no whole-diff review runs after the final code-quality reviewer — run `branch-review` yourself before opening a PR if you want that coverage.
 
 See [ADR-0007](../../docs/adr/adr-0007-review-pipeline-delineation.md) for the rationale, the rejected alternatives (Options B and C from issue #108), and the trade-off accepted for manual (non-`--auto`) single-task invocations.
 
@@ -139,6 +141,8 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
 ## Example Workflow
+
+The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" above), so the per-task flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
@@ -239,7 +243,7 @@ Done!
 **Quality gates:**
 
 - Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
+- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on the final code-quality reviewer plus downstream `branch-review` (see ADR-0007)
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
@@ -262,11 +266,14 @@ Done!
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
+- Move to next task while either review has open issues
+
+**Never (when per-task reviewers run — multi-task plans only):**
+
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
 
 **If subagent asks questions:**
 

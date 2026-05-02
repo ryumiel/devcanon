@@ -27,8 +27,11 @@ verdicts.
 
 When `play-subagent-execution` extracts a plan with exactly **one** task,
 skip both per-task reviewers (spec-compliance and code-quality) for that
-task. The implementer agent still runs and self-reviews; `branch-review`
-remains the sole external review gate when invoked downstream.
+task. The implementer agent still runs and self-reviews. The skill's
+existing final whole-implementation code-quality reviewer still runs after
+the task completes (its scope is out of this ADR, see Consequences). When
+invoked downstream by `github-issue-priming --auto`, `branch-review` then
+performs whole-diff review on top of that.
 
 For plans with **two or more** tasks, the existing per-task two-stage review
 is preserved unchanged. Multi-task plans benefit uniquely from per-task
