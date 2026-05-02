@@ -363,15 +363,15 @@ These rules apply to any project using this skill. They override defaults from d
 
 ### Model selection
 
-Use `{{model:standard}}` as the floor for all agents that make judgment calls. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
+Use `{{model:standard}}` as the floor for agents that make judgment calls during exploration and planning. Reviewer roles run at `{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor — the authoritative defaults are pinned in `agents/spec-compliance-reviewer.yaml` and `agents/code-quality-reviewer.yaml`; the rows below mirror those for reader convenience and are not enforced by this skill. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent                    | Minimum model        | Escalate to `{{model:deep}}` when              |
-| ------------------------ | -------------------- | ---------------------------------------------- |
-| Gate (Phase 3)           | `{{model:standard}}` | Ambiguous scope, multiple conflicting signals  |
-| Research (Phase 4)       | `{{model:standard}}` | Cross-module or architecturally complex issues |
-| Spec compliance reviewer | `{{model:standard}}` | Multi-file changes, complex requirements       |
-| Code quality reviewer    | `{{model:standard}}` | Architectural or pattern-level concerns        |
-| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure   |
+| Agent                    | Minimum model        | Notes                                                                                                                                |
+| ------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Gate (Phase 3)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous scope or multiple conflicting signals                                                     |
+| Research (Phase 4)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module or architecturally complex issues                                                      |
+| Spec compliance reviewer | `{{model:deep}}`     | Raised from `{{model:standard}}`; per-task dispatch on multi-task plans only (single-task skip per ADR-0007); no whole-impl. variant |
+| Code quality reviewer    | `{{model:deep}}`     | Raised from `{{model:standard}}`. Per-task review: multi-task plans only (ADR-0007). Whole-implementation review: every plan         |
+| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure                                                                                         |
 
 ## What This Skill Does NOT Do
 

@@ -6,10 +6,10 @@ instructions: |
   Distinguish Critical, Important, and Minor issues in your report.
 skills: []
 claude:
-  model: "{{model:standard}}"
+  model: "{{model:deep}}"
   tools:
     - Read
     - Grep
 codex:
-  model: "{{model:standard}}"
+  model: "{{model:deep}}"
   sandbox_mode: read-only
