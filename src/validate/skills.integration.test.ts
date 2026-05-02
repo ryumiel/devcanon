@@ -1387,5 +1387,23 @@ describe("loadAndValidateSkills", () => {
         expect(warnings.some((w) => /subdir-files-ok/.test(w))).toBe(false);
       });
     });
+
+    it("does not run when diagnostics are disabled", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "no-diagnostics");
+      await writeFile(
+        path.join(skillDir, "stray.md"),
+        "# stray\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        // No `diagnostics` option at all — same call shape as render/sync use.
+        const result = await loadAndValidateSkills(skillsDir);
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /no-diagnostics/.test(w))).toBe(false);
+      });
+    });
   });
 });
