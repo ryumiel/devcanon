@@ -51,30 +51,9 @@ function normalizeFsPath(value: string): string {
   return path.normalize(value).replaceAll("\\", "/");
 }
 
-async function createOriginRepo(rootDir: string): Promise<{
-  primaryDir: string;
-}> {
-  const originDir = path.join(rootDir, "origin.git");
-  const primaryDir = path.join(rootDir, "Primary Repo With Spaces");
-
-  await mkdir(rootDir, { recursive: true });
-  await runGit(["init", "--bare", originDir], rootDir);
-  await runGit(["clone", originDir, primaryDir], rootDir);
-  await runGit(["config", "user.name", "Test User"], primaryDir);
-  await runGit(["config", "user.email", "test@example.com"], primaryDir);
-  await writeFile(path.join(primaryDir, "README.md"), "# temp repo\n", "utf-8");
-  await runGit(["add", "README.md"], primaryDir);
-  await runGit(["commit", "-m", "chore: initial commit"], primaryDir);
-  await runGit(["branch", "-M", "main"], primaryDir);
-  await runGit(["push", "-u", "origin", "main"], primaryDir);
-  await runGit(["remote", "set-head", "origin", "--auto"], primaryDir);
-
-  return { primaryDir };
-}
-
-async function createOriginRepoWithDefault(
+async function createOriginRepo(
   rootDir: string,
-  defaultBranch: string,
+  defaultBranch: string = "main",
 ): Promise<{
   primaryDir: string;
 }> {
@@ -423,7 +402,7 @@ describe("issue-worktree-setup helper", () => {
     const rootDir = path.join(os.tmpdir(), `am-worktree-derive-${Date.now()}`);
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
-    const { primaryDir } = await createOriginRepoWithDefault(rootDir, "develop");
+    const { primaryDir } = await createOriginRepo(rootDir, "develop");
     const helperScript = await renderGeneratedHelperScript(rootDir);
     const developSha = await runGit(["rev-parse", "HEAD"], primaryDir);
 
