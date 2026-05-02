@@ -5,7 +5,7 @@ description: Executes an implementation plan by dispatching a fresh subagent per
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching fresh subagent per task, with two-stage review after each (spec compliance review first, then code quality review) -- except when the plan has exactly one task, in which case the per-task two-stage review is skipped (see ADR-0007).
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
@@ -60,16 +60,20 @@ digraph process {
     }
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
+    "Plan has exactly one task?" [shape=diamond];
     "More tasks remain?" [shape=diamond];
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
+    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
+    "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no"];
+    "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes (skip per-task review)"];
     "Dispatch the implementer agent (references/implementer-prompt.md)" -> "Implementer agent asks questions?";
     "Implementer agent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
     "Implementer agent asks questions?" -> "Implementer agent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)";
+    "Implementer agent implements, tests, commits, self-reviews" -> "Mark task complete in TodoWrite" [label="single-task plan"];
+    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="multi-task plan"];
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
     "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="re-review"];
@@ -100,6 +104,14 @@ Use the least powerful model that can handle each role to conserve cost and incr
 - Touches 1-2 files with a complete spec → cheap model
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
+
+## Single-Task Plans
+
+When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate; review across the whole change is performed by the downstream `branch-review` invocation when called by `github-issue-priming --auto`.
+
+For plans with two or more tasks, the per-task two-stage review runs unchanged.
+
+See [ADR-0007](../../docs/adr/adr-0007-review-pipeline-delineation.md) for the rationale, the rejected alternatives (Options B and C from issue #108), and the trade-off accepted for manual (non-`--auto`) single-task invocations.
 
 ## Handling Implementer Status
 
@@ -244,7 +256,7 @@ Done!
 **Never:**
 
 - Start implementation on main/master branch without explicit user consent
-- Skip reviews (spec compliance OR code quality)
+- Skip reviews when the plan has 2+ tasks (single-task plans skip per-task review by design — see ADR-0007)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
