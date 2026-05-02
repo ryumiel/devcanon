@@ -87,7 +87,7 @@ function main() {
   const skillDirArg = args.find(a => !a.startsWith('--'));
 
   if (!skillDirArg) {
-    console.error('Usage: scripts/render-graphs.js <skill-directory> [--combine]');
+    console.error('Usage: ./scripts/render-graphs.js <skill-directory> [--combine]');
     console.error('');
     console.error('Options:');
     console.error('  --combine    Combine all diagrams into one SVG');
