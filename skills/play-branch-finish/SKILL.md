@@ -47,7 +47,7 @@ DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
 git merge-base HEAD "$DEFAULT_BRANCH"
 ```
 
-Or ask: "This branch split from `<DEFAULT_BRANCH>` - is that correct?"
+Or ask: "This branch split from the default branch - is that correct?"
 
 ### Step 3: Present Options
 
