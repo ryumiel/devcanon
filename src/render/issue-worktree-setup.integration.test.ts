@@ -67,6 +67,31 @@ async function createOriginRepo(rootDir: string): Promise<{
   await runGit(["commit", "-m", "chore: initial commit"], primaryDir);
   await runGit(["branch", "-M", "main"], primaryDir);
   await runGit(["push", "-u", "origin", "main"], primaryDir);
+  await runGit(["remote", "set-head", "origin", "--auto"], primaryDir);
+
+  return { primaryDir };
+}
+
+async function createOriginRepoWithDefault(
+  rootDir: string,
+  defaultBranch: string,
+): Promise<{
+  primaryDir: string;
+}> {
+  const originDir = path.join(rootDir, "origin.git");
+  const primaryDir = path.join(rootDir, "Primary Repo With Spaces");
+
+  await mkdir(rootDir, { recursive: true });
+  await runGit(["init", "--bare", `--initial-branch=${defaultBranch}`, originDir], rootDir);
+  await runGit(["clone", originDir, primaryDir], rootDir);
+  await runGit(["config", "user.name", "Test User"], primaryDir);
+  await runGit(["config", "user.email", "test@example.com"], primaryDir);
+  await writeFile(path.join(primaryDir, "README.md"), "# temp repo\n", "utf-8");
+  await runGit(["add", "README.md"], primaryDir);
+  await runGit(["commit", "-m", "chore: initial commit"], primaryDir);
+  await runGit(["branch", "-M", defaultBranch], primaryDir);
+  await runGit(["push", "-u", "origin", defaultBranch], primaryDir);
+  await runGit(["remote", "set-head", "origin", "--auto"], primaryDir);
 
   return { primaryDir };
 }
@@ -392,6 +417,34 @@ describe("issue-worktree-setup helper", () => {
     expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
       false,
     );
+  });
+
+  it("derives BASE_REF default from origin/HEAD when unset on a non-main repo", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-derive-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepoWithDefault(rootDir, "develop");
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const developSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+
+    const result = await runSetup(helperScript, primaryDir, {
+      BRANCH_NAME: "feat/derive-base",
+      WORKTREE_LEAF: "derive-base",
+      // BASE_REF intentionally unset — exercises derivation path.
+    });
+
+    const expectedPath = await realpath(
+      path.join(primaryDir, ".worktrees", "derive-base"),
+    );
+
+    expect(result.MODE).toBe("new");
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(expectedPath),
+    );
+    expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
+      "feat/derive-base",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(developSha);
   });
 
   it("rejects a symlinked managed worktree leaf outside the primary checkout", async () => {
