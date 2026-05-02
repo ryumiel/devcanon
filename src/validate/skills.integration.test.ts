@@ -1318,5 +1318,23 @@ describe("loadAndValidateSkills", () => {
         }),
       ).rejects.toThrow(/stray\.md/);
     });
+
+    it("does not flag hidden files at the skill root", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "hidden-allowed");
+      await writeFile(path.join(skillDir, ".DS_Store"), "", "utf-8");
+      await writeFile(path.join(skillDir, ".gitkeep"), "", "utf-8");
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(
+          warnings.some((w) => /hidden-allowed/.test(w) && /stray/.test(w)),
+        ).toBe(false);
+      });
+    });
   });
 });
