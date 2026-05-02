@@ -33,12 +33,18 @@ describe("shipped agents render cleanly", () => {
     }
   });
 
-  it("resolves {{model:standard}} on both targets and snapshots output", async () => {
+  it("resolves model tiers on both targets and snapshots output", async () => {
     const config = await loadConfigWithFixedSkillsHome();
 
     const { outputs } = await renderAll(config, false);
 
-    for (const name of SHIPPED_AGENTS) {
+    const STANDARD_AGENTS = ["implementer"] as const;
+    const DEEP_AGENTS = [
+      "spec-compliance-reviewer",
+      "code-quality-reviewer",
+    ] as const;
+
+    for (const name of STANDARD_AGENTS) {
       const claudeOutput = outputs.find(
         (o) => o.type === "agent" && o.target === "claude" && o.name === name,
       );
@@ -65,6 +71,35 @@ describe("shipped agents render cleanly", () => {
       expect(codexOutput.content).toContain(
         'model_reasoning_effort = "medium"',
       );
+      expect(codexOutput.content).not.toContain("{{model:");
+      expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
+    }
+
+    for (const name of DEEP_AGENTS) {
+      const claudeOutput = outputs.find(
+        (o) => o.type === "agent" && o.target === "claude" && o.name === name,
+      );
+      const codexOutput = outputs.find(
+        (o) => o.type === "agent" && o.target === "codex" && o.name === name,
+      );
+      if (!claudeOutput || !codexOutput) {
+        throw new Error(`Missing rendered output for shipped agent ${name}`);
+      }
+
+      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
+        claudeOutput.content,
+      );
+      expect(claudeFrontmatter).toMatchObject({
+        name,
+        model: "claude-opus-4-7",
+        effort: "high",
+      });
+      expect(claudeOutput.content).not.toContain("{{model:");
+      expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
+
+      expect(codexOutput.content).toContain(`name = "${name}"`);
+      expect(codexOutput.content).toContain('model = "gpt-5.4"');
+      expect(codexOutput.content).toContain('model_reasoning_effort = "high"');
       expect(codexOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
     }

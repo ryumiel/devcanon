@@ -363,15 +363,15 @@ These rules apply to any project using this skill. They override defaults from d
 
 ### Model selection
 
-Use `{{model:standard}}` as the floor for all agents that make judgment calls. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
+Use `{{model:standard}}` as the floor for agents that make judgment calls during exploration and planning. Reviewer roles run at `{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent                    | Minimum model        | Escalate to `{{model:deep}}` when              |
-| ------------------------ | -------------------- | ---------------------------------------------- |
-| Gate (Phase 3)           | `{{model:standard}}` | Ambiguous scope, multiple conflicting signals  |
-| Research (Phase 4)       | `{{model:standard}}` | Cross-module or architecturally complex issues |
-| Spec compliance reviewer | `{{model:standard}}` | Multi-file changes, complex requirements       |
-| Code quality reviewer    | `{{model:standard}}` | Architectural or pattern-level concerns        |
-| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure   |
+| Agent                    | Minimum model        | Notes                                                                                    |
+| ------------------------ | -------------------- | ---------------------------------------------------------------------------------------- |
+| Gate (Phase 3)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous scope or multiple conflicting signals         |
+| Research (Phase 4)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module or architecturally complex issues          |
+| Spec compliance reviewer | `{{model:deep}}`     | Skipped entirely for single-task plans (ADR-0007); applies to multi-task per-task review |
+| Code quality reviewer    | `{{model:deep}}`     | Skipped entirely for single-task plans (ADR-0007); applies to multi-task per-task review |
+| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure                                             |
 
 ## What This Skill Does NOT Do
 

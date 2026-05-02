@@ -41,6 +41,13 @@ foundation), and that value is not replicated by an end-of-branch review.
 This change is internal to `play-subagent-execution`. The
 `github-issue-priming --auto` Phase 7 → Phase 8 call sequence is unchanged.
 
+For multi-task plans (N≥2), the per-task spec-compliance and code-quality
+reviewers run at `{{model:deep}}` (raised from `{{model:standard}}` to match
+the downstream `branch-review` / `pr-review` floor). This closes the
+per-task coverage gap surfaced in PR #106 / issue #99. This only affects
+multi-task plans; single-task plans skip per-task review entirely under this
+ADR, so the floor change has no effect there.
+
 ## Consequences
 
 - For the common single-task path through `github-issue-priming --auto`, the
@@ -63,6 +70,12 @@ This change is internal to `play-subagent-execution`. The
   forbids skipping when the plan has 2+ tasks.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
+- Per-task reviewer cost increases for multi-task plans (Sonnet → Opus on
+  Claude, medium → high reasoning on Codex). The cost is bounded by N
+  (number of tasks) × 2 reviewers; multi-task plans are the less common
+  path. The increased cost is justified by the same rationale as
+  `pr-review` and `branch-review`: missing a real bug far outweighs the
+  model cost.
 
 ## Alternatives considered
 
@@ -72,10 +85,14 @@ This change is internal to `play-subagent-execution`. The
   redundancy still runs, and the design carries a new failure mode (drift
   between the two reviewers' finding schemas).
 - **Option C -- raise per-task reviewer floor to `{{model:deep}}`.** Run
-  both pipelines at the same model floor so they agree. Rejected because it
-  fixes the disagreement symptom but leaves the duplication intact -- both
-  pipelines still review the same code, at the most expensive floor. The
-  structural problem (two reviewers, same diff) is unaddressed.
+  both pipelines at the same model floor so they agree. Rejected as a
+  complete solution to the single-task case: it fixes the disagreement
+  symptom but leaves the duplication intact -- for N=1, both pipelines still
+  review the same code, just at a higher floor, and the structural problem
+  (two reviewers, same diff) is unaddressed. For multi-task plans the
+  duplication argument does not apply (per-task and branch-review cover
+  different scopes), so the per-task floor was raised to `{{model:deep}}`
+  in a follow-up to close the coverage gap there -- see Decision.
 - **Variant -- also drop multi-task per-task code-quality review.** Keep the
   per-task spec reviewer for N>1 plans, drop the per-task code-quality
   reviewer entirely. Rejected as undeclared scope expansion beyond what
