@@ -195,8 +195,9 @@ These subdirectories are mirrored per target into
 `generated/<target>/skills/<name>/` as-is.
 
 Only `SKILL.md` and these four subdirs are part of the installed bundle —
-any other top-level file is flagged by `validate` (and rejected under
-`validate --strict`). Hidden files (e.g. `.DS_Store`) are ignored.
+any other top-level _file_ is flagged by `validate` (and rejected under
+`validate --strict`). Hidden files (e.g. `.DS_Store`) are ignored. Stray
+top-level subdirectories are not flagged.
 
 ---
 
@@ -216,6 +217,10 @@ any other top-level file is flagged by `validate` (and rejected under
   keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
   e.g. `task-tracker`, `project-instructions`).
 - Broken internal symlinks are errors.
+- Top-level entries other than `SKILL.md` and the four optional subdirs
+  (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
+  files emit warnings (errors under `--strict`); hidden files and stray
+  subdirectories are not flagged.
 
 ---
 

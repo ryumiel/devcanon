@@ -1397,5 +1397,25 @@ describe("loadAndValidateSkills", () => {
         expect(warnings.some((w) => /no-diagnostics/.test(w))).toBe(false);
       });
     });
+
+    it("does not flag stray top-level directories", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "stray-dir");
+      await mkdir(path.join(skillDir, "prompts"), { recursive: true });
+      await writeFile(
+        path.join(skillDir, "prompts", "draft.md"),
+        "# draft\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /stray-dir/.test(w))).toBe(false);
+      });
+    });
   });
 });

@@ -56,6 +56,9 @@ agents-manager validate
 Current behavior:
 
 - skill drift diagnostics are emitted as warnings in normal mode
+- stray top-level files inside skill folders are flagged with the same
+  warn/strict promotion behavior; hidden files and stray subdirectories
+  are not flagged
 - `validate --strict` promotes those warnings to validation failures
 - the current skill drift checks cover reasoning-tier tokens and
   target-specific path segments in shared prose
