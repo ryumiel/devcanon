@@ -21,7 +21,20 @@ emit_line() {
 require_env "BRANCH_NAME"
 require_env "WORKTREE_LEAF"
 
-BASE_REF="${BASE_REF:-origin/main}"
+DEFAULT_BRANCH=""
+if symbolic_ref="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; then
+  DEFAULT_BRANCH="${symbolic_ref#origin/}"
+fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+  for fallback in main master; do
+    if git show-ref --verify --quiet "refs/remotes/origin/${fallback}"; then
+      DEFAULT_BRANCH="$fallback"
+      break
+    fi
+  done
+fi
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+BASE_REF="${BASE_REF:-origin/${DEFAULT_BRANCH}}"
 CURRENT_WORKTREE="$(git rev-parse --show-toplevel)"
 CURRENT_WORKTREE_REAL="$(cd "$CURRENT_WORKTREE" && pwd -P)"
 CURRENT_BRANCH="$(git branch --show-current)"
@@ -77,19 +90,19 @@ if [[ -z "$RESOLVED_BASE" ]]; then
 fi
 
 if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
-  if [[ "$CURRENT_BRANCH" == "main" && -z "$CURRENT_STATUS" ]]; then
+  if [[ "$CURRENT_BRANCH" == "$DEFAULT_BRANCH" && -z "$CURRENT_STATUS" ]]; then
     if ! git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
       emit_line "MODE" "stop"
       emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
       emit_line \
         "MESSAGE" \
-        "Managed main worktree is ahead of BASE_REF; return to the primary checkout."
+        "Managed default-branch worktree is ahead of BASE_REF; return to the primary checkout."
       exit 0
     fi
 
     git merge --ff-only "$RESOLVED_BASE"
     if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
-      echo "Managed main worktree did not fast-forward to BASE_REF." >&2
+      echo "Managed default-branch worktree did not fast-forward to BASE_REF." >&2
       exit 1
     fi
     git checkout -b "$BRANCH_NAME"

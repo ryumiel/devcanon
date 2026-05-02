@@ -51,22 +51,29 @@ function normalizeFsPath(value: string): string {
   return path.normalize(value).replaceAll("\\", "/");
 }
 
-async function createOriginRepo(rootDir: string): Promise<{
+async function createOriginRepo(
+  rootDir: string,
+  defaultBranch = "main",
+): Promise<{
   primaryDir: string;
 }> {
   const originDir = path.join(rootDir, "origin.git");
   const primaryDir = path.join(rootDir, "Primary Repo With Spaces");
 
   await mkdir(rootDir, { recursive: true });
-  await runGit(["init", "--bare", originDir], rootDir);
+  await runGit(
+    ["init", "--bare", `--initial-branch=${defaultBranch}`, originDir],
+    rootDir,
+  );
   await runGit(["clone", originDir, primaryDir], rootDir);
   await runGit(["config", "user.name", "Test User"], primaryDir);
   await runGit(["config", "user.email", "test@example.com"], primaryDir);
   await writeFile(path.join(primaryDir, "README.md"), "# temp repo\n", "utf-8");
   await runGit(["add", "README.md"], primaryDir);
   await runGit(["commit", "-m", "chore: initial commit"], primaryDir);
-  await runGit(["branch", "-M", "main"], primaryDir);
-  await runGit(["push", "-u", "origin", "main"], primaryDir);
+  await runGit(["branch", "-M", defaultBranch], primaryDir);
+  await runGit(["push", "-u", "origin", defaultBranch], primaryDir);
+  await runGit(["remote", "set-head", "origin", "--auto"], primaryDir);
 
   return { primaryDir };
 }
@@ -156,8 +163,12 @@ async function createRemoteBaseRef(
   branchName: string,
   fileName: string,
   contents: string,
+  baseBranch = "main",
 ): Promise<string> {
-  await runGit(["checkout", "-b", branchName, "origin/main"], publisherDir);
+  await runGit(
+    ["checkout", "-b", branchName, `origin/${baseBranch}`],
+    publisherDir,
+  );
   await writeFile(path.join(publisherDir, fileName), contents, "utf-8");
   await runGit(["add", fileName], publisherDir);
   await runGit(["commit", "-m", `chore: add ${branchName}`], publisherDir);
@@ -392,6 +403,132 @@ describe("issue-worktree-setup helper", () => {
     expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
       false,
     );
+  });
+
+  it("derives BASE_REF default from origin/HEAD when unset on a non-main repo", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-derive-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir, "develop");
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const developSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+
+    // BASE_REF intentionally unset to exercise the origin/HEAD derivation path.
+    const result = await runSetup(helperScript, primaryDir, {
+      BRANCH_NAME: "feat/derive-base",
+      WORKTREE_LEAF: "derive-base",
+    });
+
+    const expectedPath = await realpath(
+      path.join(primaryDir, ".worktrees", "derive-base"),
+    );
+
+    expect(result.MODE).toBe("new");
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(expectedPath),
+    );
+    expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
+      "feat/derive-base",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(developSha);
+  });
+
+  it("reuses a clean managed default-branch worktree on a non-main repo", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-reuse-develop-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir, "develop");
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const publisherDir = await createPublisherClone(rootDir);
+
+    await runGit(["checkout", "-b", "chore/holder"], primaryDir);
+    const managedPath = path.join(primaryDir, ".worktrees", "reusable-develop");
+    await runGit(["worktree", "add", managedPath, "develop"], primaryDir);
+    const baseSha = await createRemoteBaseRef(
+      publisherDir,
+      "review-reuse-develop",
+      "review-reuse-develop.txt",
+      "reuse develop base\n",
+      "develop",
+    );
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/reused-develop-worktree",
+      WORKTREE_LEAF: "ignored-for-reuse",
+      BASE_REF: "origin/review-reuse-develop",
+    });
+
+    expect(result.MODE).toBe("reuse");
+    const managedRealPath = await realpath(managedPath);
+
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(managedRealPath),
+    );
+    expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
+      "feat/reused-develop-worktree",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
+  });
+
+  it("falls back to origin/main when origin/HEAD is unset", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-fallback-main-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    await runGit(["update-ref", "-d", "refs/remotes/origin/HEAD"], primaryDir);
+    const mainSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+
+    // BASE_REF intentionally unset; origin/HEAD removed to force fallback.
+    const result = await runSetup(helperScript, primaryDir, {
+      BRANCH_NAME: "feat/fallback-main",
+      WORKTREE_LEAF: "fallback-main",
+    });
+
+    const expectedPath = await realpath(
+      path.join(primaryDir, ".worktrees", "fallback-main"),
+    );
+
+    expect(result.MODE).toBe("new");
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(expectedPath),
+    );
+    expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(mainSha);
+  });
+
+  it("falls back to origin/master when origin/HEAD is unset and only master exists", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-fallback-master-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir, "master");
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    await runGit(["update-ref", "-d", "refs/remotes/origin/HEAD"], primaryDir);
+    const masterSha = await runGit(["rev-parse", "HEAD"], primaryDir);
+
+    // BASE_REF intentionally unset; origin/HEAD removed to force fallback.
+    const result = await runSetup(helperScript, primaryDir, {
+      BRANCH_NAME: "feat/fallback-master",
+      WORKTREE_LEAF: "fallback-master",
+    });
+
+    const expectedPath = await realpath(
+      path.join(primaryDir, ".worktrees", "fallback-master"),
+    );
+
+    expect(result.MODE).toBe("new");
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(expectedPath),
+    );
+    expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(masterSha);
   });
 
   it("rejects a symlinked managed worktree leaf outside the primary checkout", async () => {

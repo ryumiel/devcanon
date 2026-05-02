@@ -87,7 +87,6 @@ HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<IDENTIFIER>-<slug>" \
-  BASE_REF="origin/main" \
   bash "$HELPER_SCRIPT"
 )
 ```
@@ -257,7 +256,7 @@ Invoke `play-subagent-execution` to execute the plan. All subagent-driven-develo
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 
-This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff main...HEAD`. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected for the PR description.
+This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected for the PR description.
 
 If a blocking finding requires design changes, **stop `--auto` and report to the user**.
 
