@@ -1331,9 +1331,7 @@ describe("loadAndValidateSkills", () => {
         });
 
         expect(result).toHaveLength(1);
-        expect(
-          warnings.some((w) => /hidden-allowed/.test(w) && /stray/.test(w)),
-        ).toBe(false);
+        expect(warnings.some((w) => /hidden-allowed/.test(w))).toBe(false);
       });
     });
   });
