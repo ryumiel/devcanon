@@ -163,7 +163,9 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`.
+
+Otherwise, offer execution choice:
 
 **"Plan complete and saved to `.ephemeral/<filename>.md`. Two execution options:**
 
