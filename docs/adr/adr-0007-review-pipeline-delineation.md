@@ -37,16 +37,16 @@ For plans with **two or more** tasks, the existing per-task two-stage review
 is preserved unchanged. Multi-task plans benefit uniquely from per-task
 spec-compliance checking (catching drift before the next task uses the wrong
 foundation), and that value is not replicated by an end-of-branch review.
+The per-task spec-compliance and code-quality reviewers run at
+`{{model:deep}}` (raised from `{{model:standard}}` to match the downstream
+`branch-review` / `pr-review` floor), closing the per-task coverage gap
+surfaced in PR #106 / issue #99. The same `code-quality-reviewer` agent is
+also invoked at the end of `play-subagent-execution` for the whole
+implementation regardless of plan size, so the floor raise applies to that
+dispatch too — see Consequences for the cost rationale.
 
 This change is internal to `play-subagent-execution`. The
 `github-issue-priming --auto` Phase 7 → Phase 8 call sequence is unchanged.
-
-For multi-task plans (N≥2), the per-task spec-compliance and code-quality
-reviewers run at `{{model:deep}}` (raised from `{{model:standard}}` to match
-the downstream `branch-review` / `pr-review` floor). This closes the
-per-task coverage gap surfaced in PR #106 / issue #99. This only affects
-multi-task plans; single-task plans skip per-task review entirely under this
-ADR, so the floor change has no effect there.
 
 ## Consequences
 
@@ -70,12 +70,15 @@ ADR, so the floor change has no effect there.
   forbids skipping when the plan has 2+ tasks.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
-- Per-task reviewer cost increases for multi-task plans (Sonnet → Opus on
-  Claude, medium → high reasoning on Codex). The cost is bounded by N
-  (number of tasks) × 2 reviewers; multi-task plans are the less common
-  path. The increased cost is justified by the same rationale as
-  `pr-review` and `branch-review`: missing a real bug far outweighs the
-  model cost.
+- Reviewer cost increases. For multi-task plans the per-task reviewers
+  (spec-compliance and code-quality) run at `{{model:deep}}` instead of
+  `{{model:standard}}`, bounded by N (number of tasks) × 2 reviewers.
+  Additionally, the final whole-implementation code-quality reviewer at the
+  end of `play-subagent-execution` (still out of scope for this ADR) shares
+  the `code-quality-reviewer` agent and therefore also runs at
+  `{{model:deep}}` on every plan, including single-task plans. The increased
+  cost is justified by the same rationale as `pr-review` and `branch-review`:
+  missing a real bug far outweighs the model cost.
 
 ## Alternatives considered
 
@@ -92,7 +95,7 @@ ADR, so the floor change has no effect there.
   (two reviewers, same diff) is unaddressed. For multi-task plans the
   duplication argument does not apply (per-task and branch-review cover
   different scopes), so the per-task floor was raised to `{{model:deep}}`
-  in a follow-up to close the coverage gap there -- see Decision.
+  for them in this ADR (issue #110) -- see Decision.
 - **Variant -- also drop multi-task per-task code-quality review.** Keep the
   per-task spec reviewer for N>1 plans, drop the per-task code-quality
   reviewer entirely. Rejected as undeclared scope expansion beyond what
