@@ -155,7 +155,7 @@ WORKTREE_PATH=$(git worktree list --porcelain | awk -v branch="refs/heads/$BRANC
 `WORKTREE_PATH` is empty when no worktree holds the merged branch on a
 named ref — for example, the PR was developed on a single checkout, or
 the worktree is in a detached-HEAD state. The procedure below treats
-that as "nothing to remove" and proceeds to `pull` + `branch -d`
+that as "nothing to remove" and proceeds to `pull` + `branch -D`
 directly. Detached-HEAD worktrees on the merged commit must be removed
 manually with `git worktree remove`.
 
@@ -176,25 +176,38 @@ fi
 # worktree happens to have checked out). Switch explicitly.
 cd "$MAIN_WORKTREE"
 git checkout "$BASE"
-
-# Sync the base branch so HEAD contains the squash commit before
-# deleting the feature branch. Order matters: branch -d before pull
-# would emit
-#   "branch X has been merged to refs/remotes/origin/X, but not yet
-#    merged to HEAD"
 git pull --ff-only
-git branch -d "$BRANCH" || true
+
+# Safety gate: only force-delete the local branch when BOTH
+#   (a) GitHub reports the PR as MERGED, and
+#   (b) the local branch tip matches the PR's head commit
+#       (no unpushed local commits that would be lost).
+# `branch -d`'s history-walk is a poor proxy on squash-merges (HEAD never
+# contains the feature tip's original SHA after squash, so -d falls back to
+# the remote-tracking ref and emits a misleading "merged to origin but not
+# HEAD" warning). The two-part check below silences that warning while
+# still refusing to discard unpublished work.
+STATE=$(gh pr view <N> --json state --jq '.state')
+PR_HEAD=$(gh pr view <N> --json headRefOid --jq '.headRefOid')
+LOCAL_TIP=$(git rev-parse "$BRANCH")
+if [ "$STATE" != "MERGED" ]; then
+  echo "Skipping local branch deletion: PR <N> is in state '$STATE', not MERGED" >&2
+elif [ "$LOCAL_TIP" != "$PR_HEAD" ]; then
+  echo "Skipping local branch deletion: $BRANCH ($LOCAL_TIP) differs from PR head ($PR_HEAD); unpushed work would be lost" >&2
+else
+  git branch -D "$BRANCH"
+fi
 ```
 
 ### Key invariants
 
-| Rule                                              | Why                                                             |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| Use `git worktree remove`, not `prune` + `rm -rf` | `prune` only cleans missing worktrees; one `remove` does it all |
-| `cd` out of the worktree if your CWD is inside it | Cannot remove the worktree that holds your CWD                  |
-| `git pull --ff-only` before `git branch -d`       | HEAD must contain the squash commit, otherwise `-d` warns       |
-| `branch -d` not `-D`                              | Refuses to delete unmerged branches as a safety net             |
-| `--ff-only` pull                                  | Fails loudly if main diverged — no silent merge commits         |
+| Rule                                                       | Why                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Use `git worktree remove`, not `prune` + `rm -rf`          | `prune` only cleans missing worktrees; one `remove` does it all                         |
+| `cd` out of the worktree if your CWD is inside it          | Cannot remove the worktree that holds your CWD                                          |
+| `git pull --ff-only` on the base branch                    | Updates local `main` to include the squash commit (hygiene; not a safety gate)          |
+| Verify `MERGED` AND local tip = PR head before `branch -D` | GitHub state confirms the merge; tip-equality refuses to discard unpushed local commits |
+| `--ff-only` pull                                           | Fails loudly if main diverged — no silent merge commits                                 |
 
 Report the merge to the user with the PR URL. Done.
 
@@ -268,20 +281,20 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                | Action                                                                                                                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                                                       |
-| PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                                                                    |
-| No PR guideline found    | Skip validation, proceed to CI                                                                                                                                                         |
-| CI pending               | Poll every 3 min (configurable)                                                                                                                                                        |
-| CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                       |
-| Post-merge cleanup       | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → `branch -d`; otherwise skip the remove |
-| CI fails (1st time)      | Investigate → fix if in scope → push → re-poll                                                                                                                                         |
-| CI fails (2nd time)      | Report and stop                                                                                                                                                                        |
-| Out-of-scope failure     | Report and stop immediately                                                                                                                                                            |
-| CI not done after 30 min | Report and stop                                                                                                                                                                        |
-| Merge conflicts          | Report to user — requires manual resolution                                                                                                                                            |
-| Missing review approvals | Report which reviews are missing                                                                                                                                                       |
+| Situation                | Action                                                                                                                                                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
+| PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                                                                                                              |
+| No PR guideline found    | Skip validation, proceed to CI                                                                                                                                                                                                   |
+| CI pending               | Poll every 3 min (configurable)                                                                                                                                                                                                  |
+| CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
+| Post-merge cleanup       | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → verify `MERGED` and local tip = PR head → `branch -D`; otherwise skip the remove |
+| CI fails (1st time)      | Investigate → fix if in scope → push → re-poll                                                                                                                                                                                   |
+| CI fails (2nd time)      | Report and stop                                                                                                                                                                                                                  |
+| Out-of-scope failure     | Report and stop immediately                                                                                                                                                                                                      |
+| CI not done after 30 min | Report and stop                                                                                                                                                                                                                  |
+| Merge conflicts          | Report to user — requires manual resolution                                                                                                                                                                                      |
+| Missing review approvals | Report which reviews are missing                                                                                                                                                                                                 |
 
 ## Common Mistakes
 
@@ -311,7 +324,7 @@ Always reproduce the failing CI steps locally (derived from workflow files) befo
 
 ### Skipping post-merge cleanup
 
-After merge, always clean up the local branch and worktree. Leftover worktrees accumulate and cause branch name conflicts on future work. Use `git worktree remove --force <path>`, not `rm -rf` — `remove` releases the worktree-to-branch lock so `git branch -d` can succeed afterward.
+After merge, always clean up the local branch and worktree. Leftover worktrees accumulate and cause branch name conflicts on future work. Use `git worktree remove --force <path>`, not `rm -rf` — `remove` releases the worktree-to-branch lock so `git branch -D` can succeed afterward.
 
 ### Deleting main/master branch
 
