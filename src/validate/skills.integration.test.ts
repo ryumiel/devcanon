@@ -1334,5 +1334,58 @@ describe("loadAndValidateSkills", () => {
         expect(warnings.some((w) => /hidden-allowed/.test(w))).toBe(false);
       });
     });
+
+    it("does not flag a skill that contains only SKILL.md", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      await createSkillFixture(skillsDir, "bare-skill");
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /bare-skill/.test(w))).toBe(false);
+      });
+    });
+
+    it("does not flag files inside the four mirrored subdirs", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "subdir-files-ok",
+        undefined,
+        ["assets", "examples", "references", "scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "references", "prompt.md"),
+        "# prompt\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "run.sh"),
+        "#!/bin/sh\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "assets", "logo.txt"),
+        "logo\n",
+        "utf-8",
+      );
+      await writeFile(
+        path.join(skillDir, "examples", "ex.md"),
+        "# ex\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings.some((w) => /subdir-files-ok/.test(w))).toBe(false);
+      });
+    });
   });
 });
