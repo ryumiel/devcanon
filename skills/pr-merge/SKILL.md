@@ -142,18 +142,14 @@ After successful merge, clean up local branches and worktrees.
 
 ```bash
 BRANCH=$(gh pr view <N> --json headRefName --jq '.headRefName')
-
-# Safety guard: never clean up the base branch
-if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
-  echo "Refusing to clean up base branch '$BRANCH'"
-  exit 0
-fi
-
 MAIN_WORKTREE=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
-WORKTREE_PATH=$(git worktree list --porcelain \
-  | awk -v branch="refs/heads/$BRANCH" \
-        '/^worktree / {p=$2} $1 == "branch" && $2 == branch {print p}')
+WORKTREE_PATH=$(git worktree list --porcelain | awk -v branch="refs/heads/$BRANCH" '
+  /^worktree / { sub(/^worktree /, ""); p=$0; next }
+  $1 == "branch" && $2 == branch { print p; exit }
+')
 ```
+
+**Guard:** Never run cleanup on the base branch. If `$BRANCH` is `main` or `master` (or empty, meaning `gh pr view` failed), stop here — there is nothing to clean up.
 
 `WORKTREE_PATH` is empty when no worktree holds the merged branch (e.g., the
 PR was developed on a single checkout). The procedure below treats that as
@@ -170,6 +166,10 @@ if [ -n "$WORKTREE_PATH" ] && [ "$WORKTREE_PATH" != "$MAIN_WORKTREE" ]; then
   [ "$(pwd)" = "$WORKTREE_PATH" ] && cd "$MAIN_WORKTREE"
   git worktree remove --force "$WORKTREE_PATH"
 fi
+
+# Pull and branch deletion must run on main, not in some other worktree
+# the operator happens to be sitting in. Switch explicitly.
+cd "$MAIN_WORKTREE"
 
 # Sync main so HEAD contains the squash commit before deleting the branch.
 # Order matters: branch -d before pull would emit
