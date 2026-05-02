@@ -194,6 +194,10 @@ A skill may also contain:
 These subdirectories are mirrored per target into
 `generated/<target>/skills/<name>/` as-is.
 
+Only `SKILL.md` and these four subdirs are part of the installed bundle —
+any other top-level file is flagged by `validate` (and rejected under
+`validate --strict`). Hidden files (e.g. `.DS_Store`) are ignored.
+
 ---
 
 ## Validation rules
