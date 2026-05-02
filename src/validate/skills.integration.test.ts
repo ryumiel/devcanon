@@ -1296,11 +1296,7 @@ describe("loadAndValidateSkills", () => {
     it("fails on a stray top-level file in strict validate mode", async () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "stray-strict");
-      await writeFile(
-        path.join(skillDir, "stray.md"),
-        "# stray\n",
-        "utf-8",
-      );
+      await writeFile(path.join(skillDir, "stray.md"), "# stray\n", "utf-8");
 
       await expect(
         loadAndValidateSkillsWithDiagnostics(skillsDir, {
@@ -1391,11 +1387,7 @@ describe("loadAndValidateSkills", () => {
     it("does not run when diagnostics are disabled", async () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "no-diagnostics");
-      await writeFile(
-        path.join(skillDir, "stray.md"),
-        "# stray\n",
-        "utf-8",
-      );
+      await writeFile(path.join(skillDir, "stray.md"), "# stray\n", "utf-8");
 
       await captureWarnings(async (warnings) => {
         // No `diagnostics` option at all — same call shape as render/sync use.

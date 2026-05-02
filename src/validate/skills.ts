@@ -149,10 +149,7 @@ export async function loadAndValidateSkills(
         // Stray top-level directories are intentionally out of scope (#98).
         if (child.isDirectory()) continue;
         if (child.name === "SKILL.md") continue;
-        const message =
-          `Skill "${name}": stray top-level file "${child.name}" — only ` +
-          `SKILL.md and the ${allowedList} subdirs are installed. Move it ` +
-          `under one of those subdirs (typically references/).`;
+        const message = `Skill "${name}": stray top-level file "${child.name}" — only SKILL.md and the ${allowedList} subdirs are installed. Move it under one of those subdirs (typically references/).`;
         if (diagnostics.strict) {
           errors.push(message);
         } else {
