@@ -46,14 +46,14 @@ digraph process {
 
     subgraph cluster_per_task {
         label="Per Task";
-        "Dispatch the implementer agent (./implementer-prompt.md)" [shape=box];
+        "Dispatch the implementer agent (./references/implementer-prompt.md)" [shape=box];
         "Implementer agent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer agent implements, tests, commits, self-reviews" [shape=box];
-        "Dispatch the spec-compliance-reviewer agent (./spec-reviewer-prompt.md)" [shape=box];
+        "Dispatch the spec-compliance-reviewer agent (./references/spec-reviewer-prompt.md)" [shape=box];
         "Spec-compliance-reviewer agent confirms code matches spec?" [shape=diamond];
         "Implementer agent fixes spec gaps" [shape=box];
-        "Dispatch the code-quality-reviewer agent (./code-quality-reviewer-prompt.md)" [shape=box];
+        "Dispatch the code-quality-reviewer agent (./references/code-quality-reviewer-prompt.md)" [shape=box];
         "Code-quality-reviewer agent approves?" [shape=diamond];
         "Implementer agent fixes quality issues" [shape=box];
         "Mark task complete in TodoWrite" [shape=box];
@@ -64,22 +64,22 @@ digraph process {
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch the implementer agent (./implementer-prompt.md)";
-    "Dispatch the implementer agent (./implementer-prompt.md)" -> "Implementer agent asks questions?";
+    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch the implementer agent (./references/implementer-prompt.md)";
+    "Dispatch the implementer agent (./references/implementer-prompt.md)" -> "Implementer agent asks questions?";
     "Implementer agent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch the implementer agent (./implementer-prompt.md)";
+    "Answer questions, provide context" -> "Dispatch the implementer agent (./references/implementer-prompt.md)";
     "Implementer agent asks questions?" -> "Implementer agent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (./spec-reviewer-prompt.md)";
-    "Dispatch the spec-compliance-reviewer agent (./spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
+    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (./references/spec-reviewer-prompt.md)";
+    "Dispatch the spec-compliance-reviewer agent (./references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
-    "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (./spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch the code-quality-reviewer agent (./code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
+    "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (./references/spec-reviewer-prompt.md)" [label="re-review"];
+    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (./references/code-quality-reviewer-prompt.md)" [label="yes"];
+    "Dispatch the code-quality-reviewer agent (./references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
     "Code-quality-reviewer agent approves?" -> "Implementer agent fixes quality issues" [label="no"];
-    "Implementer agent fixes quality issues" -> "Dispatch the code-quality-reviewer agent (./code-quality-reviewer-prompt.md)" [label="re-review"];
+    "Implementer agent fixes quality issues" -> "Dispatch the code-quality-reviewer agent (./references/code-quality-reviewer-prompt.md)" [label="re-review"];
     "Code-quality-reviewer agent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch the implementer agent (./implementer-prompt.md)" [label="yes"];
+    "More tasks remain?" -> "Dispatch the implementer agent (./references/implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch the code-quality-reviewer agent for entire implementation" [label="no"];
     "Dispatch the code-quality-reviewer agent for entire implementation" -> "Use play-branch-finish";
 }
@@ -122,9 +122,9 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` — dispatch-time prompt for the `implementer` agent
-- `./spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
-- `./code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
+- `./references/implementer-prompt.md` — dispatch-time prompt for the `implementer` agent
+- `./references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
+- `./references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
 ## Example Workflow
 
