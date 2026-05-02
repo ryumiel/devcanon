@@ -25,6 +25,14 @@ DEFAULT_BRANCH=""
 if symbolic_ref="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; then
   DEFAULT_BRANCH="${symbolic_ref#origin/}"
 fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+  for fallback in main master; do
+    if git show-ref --verify --quiet "refs/remotes/origin/${fallback}"; then
+      DEFAULT_BRANCH="$fallback"
+      break
+    fi
+  done
+fi
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 BASE_REF="${BASE_REF:-origin/${DEFAULT_BRANCH}}"
 CURRENT_WORKTREE="$(git rev-parse --show-toplevel)"

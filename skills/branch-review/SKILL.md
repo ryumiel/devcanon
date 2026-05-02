@@ -24,28 +24,34 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg      | Effect                                                                                        |
-| -------- | --------------------------------------------------------------------------------------------- |
-| `<base>` | Base branch to diff against (default: repository default branch, resolved via `origin/HEAD`)  |
-| `--fix`  | Auto-fix blocking findings instead of presenting them. Used by `github-issue-priming --auto`. |
+| Arg      | Effect                                                                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `<base>` | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`) |
+| `--fix`  | Auto-fix blocking findings instead of presenting them. Used by `github-issue-priming --auto`.                                            |
 
 ## Phase 1: Gather
 
 Detect the base branch and collect the diff:
 
 ```bash
-# Determine base: explicit argument wins; otherwise resolve from origin/HEAD
+# Determine base: explicit argument wins; otherwise resolve from origin/HEAD,
+# falling back to main then master if origin/HEAD is unset.
 if [[ -n "${1:-}" ]]; then
   BASE="$1"
+elif symbolic_ref=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); then
+  BASE="${symbolic_ref#origin/}"
+elif git show-ref --verify --quiet refs/remotes/origin/main; then
+  BASE=main
+elif git show-ref --verify --quiet refs/remotes/origin/master; then
+  BASE=master
 else
-  DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-  BASE="${DEFAULT_BRANCH:-main}"
+  BASE=main
 fi
 
 # Get the diff and commit log
-git diff $BASE...HEAD
-git log $BASE...HEAD --oneline
-git diff $BASE...HEAD --stat
+git diff "$BASE"...HEAD
+git log "$BASE"...HEAD --oneline
+git diff "$BASE"...HEAD --stat
 ```
 
 If the diff is empty, report "no changes to review" and stop.
