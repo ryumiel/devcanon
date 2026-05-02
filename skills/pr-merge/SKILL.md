@@ -185,11 +185,11 @@ git pull --ff-only
 # squash, so -d falls back to the remote-tracking ref and emits a misleading
 # "merged to origin but not HEAD" warning).
 STATE=$(gh pr view <N> --json state --jq '.state')
-if [ "$STATE" != "MERGED" ]; then
-  echo "Refusing to delete $BRANCH: PR <N> is in state $STATE, not MERGED" >&2
-  exit 1
+if [ "$STATE" = "MERGED" ]; then
+  git branch -D "$BRANCH"
+else
+  echo "Skipping local branch deletion: PR <N> is in state '$STATE', not MERGED" >&2
 fi
-git branch -D "$BRANCH"
 ```
 
 ### Key invariants
@@ -198,7 +198,7 @@ git branch -D "$BRANCH"
 | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Use `git worktree remove`, not `prune` + `rm -rf`   | `prune` only cleans missing worktrees; one `remove` does it all                     |
 | `cd` out of the worktree if your CWD is inside it   | Cannot remove the worktree that holds your CWD                                      |
-| `git pull --ff-only` before `git branch -D`         | Keeps `main` current with the squash commit before cleanup                          |
+| `git pull --ff-only` on the base branch             | Updates local `main` to include the squash commit (hygiene; not a safety gate)      |
 | Verify `MERGED` via `gh pr view` before `branch -D` | GitHub state is the source of truth; `-d`'s history-walk warns spuriously on squash |
 | `--ff-only` pull                                    | Fails loudly if main diverged — no silent merge commits                             |
 
