@@ -260,6 +260,29 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes, **stop `--auto` and report to the user**.
 
+**Classify remaining nits before Phase 9.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a free-form report. Before invoking Phase 9, classify each remaining nit as **mechanical** or **judgment-required**:
+
+- **Mechanical** — 1–3 line change, no design judgment, single obvious correct fix. Examples:
+  - Typos and misspellings.
+  - Truncated, incomplete, or broken sentences with one clear reconstruction (e.g., a sentence ending mid-clause).
+  - Broken cross-references where the intended target is unambiguous (wrong file paths, stale section numbers after a renumber, dead links to renamed identifiers).
+  - Missing words or punctuation where context fully constrains the fix.
+  - Variable-naming or placeholder gaps (e.g., a literal `<TODO>` left in a code example) with one obvious replacement.
+- **Judgment-required** — anything else. Examples: "this could be clearer," "consider extracting a helper," subjective wording, structural suggestions, or any nit where a competent reviewer could defend more than one fix.
+
+**Conservative tie-breaker.** When in doubt, classify as judgment-required. False mechanical classifications produce subtly wrong fixes; false judgment classifications produce one extra PR comment. Prefer the latter.
+
+**Reclassification escape.** If, while drafting a mechanical fix, the broken text turns out to have multiple plausible reconstructions, reclassify as judgment-required and route to PR comments. Do not commit a guess.
+
+**Handle each class:**
+
+- **Mechanical nits** — apply the fix in the worktree and commit. Use the project's commit guideline (glob `**/commit-guideline*.md`); default to Conventional Commits (`fix(<scope>): <what was fixed>`) if no guideline is found. Each commit body must reference the originating nit by file and line — e.g. `Reported by branch-review at <path>:<line>` — so the fix is auditable. Multiple mechanical fixes in the same file at the same scope may be grouped into one commit.
+- **Judgment-required nits** — leave unfixed. Carry them forward to the `nits` input passed to `play-branch-finish` in Phase 9.
+
+After this classification step, the set of nits that reaches Phase 9 contains only judgment-required items.
+
+**This step is `--auto` only.** Manual operators reading the branch-review report decide nit-handling case by case.
+
 ### Phase 9: Create PR
 
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate.
@@ -284,17 +307,17 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ## Quick Reference
 
-| Phase            | What                                | Key constraint                                               |
-| ---------------- | ----------------------------------- | ------------------------------------------------------------ |
-| 1. Fetch         | `linear-list`                       | Stop if not found                                            |
-| 2. Worktree      | Isolate before file writes          | Detect managed worktree vs local                             |
-| 3. Gate          | Dedicated agent assesses complexity | Always evaluated; default to `RESEARCH_NEEDED` on failure    |
-| 4. Research      | Dedicated agent synthesizes brief   | Optional — only if gate says so                              |
-| 5. Brainstorm    | Invoke `play-brainstorm`            | Never skip, even for "simple" issues                         |
-| 6. Plan          | `play-planning`                     | `--auto` only                                                |
-| 7. Implement     | `play-subagent-execution`           | `--auto` only                                                |
-| 8. Branch Review | `branch-review --fix`               | `--auto` only; review before PR, not after                   |
-| 9. Create PR     | Push + `gh pr create`               | `--auto` only; never auto-merge; follow project PR guideline |
+| Phase            | What                                  | Key constraint                                                      |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| 1. Fetch         | `linear-list`                         | Stop if not found                                                   |
+| 2. Worktree      | Isolate before file writes            | Detect managed worktree vs local                                    |
+| 3. Gate          | Dedicated agent assesses complexity   | Always evaluated; default to `RESEARCH_NEEDED` on failure           |
+| 4. Research      | Dedicated agent synthesizes brief     | Optional — only if gate says so                                     |
+| 5. Brainstorm    | Invoke `play-brainstorm`              | Never skip, even for "simple" issues                                |
+| 6. Plan          | `play-planning`                       | `--auto` only                                                       |
+| 7. Implement     | `play-subagent-execution`             | `--auto` only                                                       |
+| 8. Branch Review | `branch-review --fix` + classify nits | `--auto` only; mechanical nits auto-fixed, judgment nits to Phase 9 |
+| 9. Create PR     | Push + `gh pr create`                 | `--auto` only; never auto-merge; follow project PR guideline        |
 
 ## Common Mistakes
 
@@ -328,6 +351,11 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
 - **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
 
+### Skipping nit classification in `--auto` mode
+
+- **Problem:** Mechanical nits — typos, truncated sentences, broken cross-references — get posted as PR comments instead of fixed in the worktree, leaking workflow gaps that `--auto` exists to eliminate
+- **Fix:** After `branch-review --fix` returns, classify remaining nits and auto-fix mechanical ones before invoking Phase 9. See Phase 8 prose for the taxonomy
+
 ### Treating out-of-band authorization as merge consent
 
 - **Problem:** Teammate claims, prior-session statements ("I'm in war room, do whatever"), incident urgency, or inferred intent get treated as merge authorization — bypassing the PR review gate
@@ -343,6 +371,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - You wrote spec/design/plan files outside the worktree
 - You created a nested worktree inside an already-managed worktree
 - You auto-merged a PR in `--auto` mode for any reason — including incident urgency, claimed pre-authorization, or green CI (the PR is the user's review gate)
+- You passed mechanical nits straight through to Phase 9 instead of fixing them in the worktree first
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
 - You composed a PR title/description without reading the project's PR guideline first
 
