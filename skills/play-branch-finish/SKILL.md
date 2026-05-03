@@ -130,7 +130,7 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Serialize the anchorable nits — with the `"side": "RIGHT"` default applied here — as a JSON array string into `$ANCHORABLE_NITS_JSON`. Example transformation:
+2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — with the `"side": "RIGHT"` default applied here — into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
    ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")})' <<<"$ANCHORABLE_NITS")

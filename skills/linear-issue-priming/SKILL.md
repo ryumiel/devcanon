@@ -280,6 +280,8 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, include the remaining nits from Phase 8 in the `nits` input (JSON array of `{path, line, body}` items, optional `side` and `start_line`). If there are no remaining nits, omit the field. `play-branch-finish` handles posting them via `gh api .../reviews`.
 
+`branch-review --fix` reports its remaining nits in free-form prose, not JSON. Translate that report into the `{path, line, body}` array shape before invoking `play-branch-finish` — the receiving skill does not parse free-form review output.
+
 ## Quick Reference
 
 | Phase            | What                                | Key constraint                                               |
