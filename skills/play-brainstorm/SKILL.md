@@ -64,6 +64,7 @@ digraph brainstorming {
 **Understanding the idea:**
 
 - Check out the current project state first (files, docs, recent commits)
+- **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single design, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own design → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
@@ -125,6 +126,13 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 - Invoke the play-planning skill to create a detailed implementation plan
 - Do NOT invoke any other skill. play-planning is the next step.
+
+## Common Mistakes
+
+### Designing around an unverified premise
+
+- **Problem:** A brief asserts X causes Y; the brainstorm accepts the claim and the design lands a fix that targets the wrong cause. Downstream review agents anchor on the same premise and miss it too — by the time the misaim surfaces (often post-merge), the work is sunk.
+- **Fix:** Spend 30 seconds reproducing or tracing the claim before designing around it (see `references/verifying-causal-claims.md`). If you can't trace it, name it as an open question and ask the user — don't silently accept it.
 
 ## Key Principles
 
