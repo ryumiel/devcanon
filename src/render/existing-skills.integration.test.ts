@@ -34,6 +34,7 @@ const SKILLS_WITH_METADATA = {
     "pr-review",
     "report-agents-manager-shared-issue",
   ] as const,
+  policySidecar: ["issue-priming-workflow"] as const,
 };
 
 const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
@@ -173,6 +174,28 @@ describe("existing skills render cleanly", () => {
           brand_color: expect.any(String),
         },
       });
+      expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
+    }
+
+    for (const skillName of SKILLS_WITH_METADATA.policySidecar) {
+      const sidecarPath = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        skillName,
+        "agents",
+        "openai.yaml",
+      );
+
+      expect(await pathExists(sidecarPath)).toBe(true);
+
+      const sidecar = await readFile(sidecarPath, "utf-8");
+      const parsed = parseYaml(sidecar) as Record<string, unknown>;
+
+      expect(parsed).toMatchObject({
+        policy: { allow_implicit_invocation: false },
+      });
+      expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
   });
