@@ -102,14 +102,25 @@ The content-vs-diff check is bounded to the PR's own commits (`gh pr view <N> --
 
 ### Fix violations
 
-If any violations are found, rewrite the title and/or description to comply, then apply:
+If any of the four checks flag a violation, rewrite the title and/or description to comply, then apply:
 
 ```bash
 gh pr edit <N> --title "<fixed title>"
 gh pr edit <N> --body "<fixed body>"
 ```
 
-Use the PR diff (`gh pr diff <N>`) and commit history (`gh pr view <N> --json commits`) to produce an accurate description that follows the guideline's template.
+Use the diff file list (`gh pr diff <N> --name-only`) and commit headlines + bodies (`gh pr view <N> --json commits`) — already fetched in the previous subsection — as the ground truth for what the PR actually contains. A regenerated description follows the guideline's template, including all required sections.
+
+**When the content-vs-diff check is the trigger:** regenerate only the affected sections (typically Summary, Changes, sometimes Impact); preserve Why, Testing, and Related Issues verbatim unless the format check also flagged them. A single `gh pr edit --body` call applies the combined regeneration when both format and content violations are detected — no need for two trips.
+
+**Anti-pattern guardrails still apply during regeneration**, even though commit data is now in scope:
+
+- No commit SHAs in the regenerated body. The git history covers that.
+- No "originally / now" or "we tried X then Y" chronology. The PR is the durable record of what merges, not the path that got there.
+- No file-by-file changelog. Group changes by subsystem and behavior, not by which commit introduced them.
+- Do not paste commit messages verbatim — synthesize behavior changes across the commit log.
+
+These anti-patterns are codified in `docs/guidelines/pr-guideline.md` §3; this skill enforces them at the point where commit data could otherwise leak into the body.
 
 **Do not skip validation because the description "looks close enough."** The guideline exists for a reason — enforce it exactly.
 
