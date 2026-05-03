@@ -41,7 +41,18 @@ git branch -d tmp-feature   # → error: the branch 'tmp-feature' is not fully m
 
 **What the verified design would have looked like:**
 
-The fix should have either accepted the warning as informative (it is — the local branch tip really isn't in HEAD's history), or used `git branch -D` after confirming the remote merge via `gh pr view --json state,mergeCommit`. Pull ordering wasn't the lever in the squash-merge path that issue #99 exercised; the divergent SHA is.
+The fix should have either accepted the warning as informative (it is — the local branch tip really isn't in HEAD's history), or force-deleted the local branch only after confirming **both** that the PR is in `MERGED` state **and** that the local branch tip equals the PR's head commit. The repo's own `pr-merge` skill encodes that two-part check — `state` alone is not enough, because the local branch may have unpushed commits that `git branch -D` would silently discard:
+
+```bash
+STATE=$(gh pr view <N> --json state --jq '.state')
+PR_HEAD=$(gh pr view <N> --json headRefOid --jq '.headRefOid')
+LOCAL_TIP=$(git rev-parse "$BRANCH")
+if [ "$STATE" = "MERGED" ] && [ "$LOCAL_TIP" = "$PR_HEAD" ]; then
+  git branch -D "$BRANCH"
+fi
+```
+
+Pull ordering wasn't the lever in the squash-merge path that issue #99 exercised; the divergent SHA is.
 
 ## How to verify, by claim shape
 
