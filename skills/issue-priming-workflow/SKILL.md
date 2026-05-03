@@ -79,8 +79,7 @@ digraph priming {
 
 Set up an isolated workspace **immediately after fetching the issue**, before any file writes (specs, designs, plans). This ensures all artifacts live in the worktree from the start — no copying, no path confusion.
 
-Derive the branch name from the identifier: `<type>/<ID>-<slug>` (e.g., `refactor/ENG-123-auth-middleware-token-format`).
-Derive the worktree leaf from the identifier: `<ID>-<slug>`.
+Use the `branch-name` and `worktree-leaf` values from the payload — the entrypoint has already derived them from the source-specific identifier.
 
 Invoke the `issue-worktree-setup` skill. It owns environment detection and
 setup policy. Do NOT re-implement the worktree decision logic here.
@@ -90,8 +89,8 @@ ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
 HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
 
 WORKTREE_SETUP_OUTPUT=$(
-  BRANCH_NAME="<branch-name>" \
-  WORKTREE_LEAF="<ID>-<slug>" \
+  BRANCH_NAME="<payload.branch-name>" \
+  WORKTREE_LEAF="<payload.worktree-leaf>" \
   bash "$HELPER_SCRIPT"
 )
 ```
@@ -176,7 +175,7 @@ Dispatch a **dedicated research agent** using the prompt template in `references
 **Research agent returns:** A synthesized brief (500-1000 words) in the format:
 
 ```markdown
-## Issue Brief: <ID> — <title>
+## Issue Brief: <ID> — <TITLE>
 
 ### Policy Constraints
 
@@ -204,7 +203,7 @@ Invoke the `play-brainstorm` skill with the combined context below.
 **Args format when research was done:**
 
 ```
-Resolve {{Linear|GitHub}} issue <ID>: <title>
+Resolve {{Linear|GitHub}} issue <ID>: <TITLE>
 
 ## Issue Body
 <verbatim payload.body>
@@ -216,7 +215,7 @@ Resolve {{Linear|GitHub}} issue <ID>: <title>
 **Args format when research was skipped:**
 
 ```
-Resolve {{Linear|GitHub}} issue <ID>: <title>
+Resolve {{Linear|GitHub}} issue <ID>: <TITLE>
 
 ## Issue Body
 <verbatim payload.body>
