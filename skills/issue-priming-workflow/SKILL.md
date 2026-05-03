@@ -46,6 +46,10 @@ Field semantics:
 
 `payload.body` carries either Linear `.description` text or GitHub `.body` text — this skill treats them identically.
 
+`payload.branch-name` and `payload.worktree-leaf` are pre-sanitized by the entrypoint into git-safe form (no `#`, no special characters): GitHub passes the integer issue number (e.g., `149`); Linear passes the raw identifier (e.g., `ENG-123`). They are NOT the same as `payload.identifier`, which retains the source-native shape (`#149` for GitHub, `ENG-123` for Linear).
+
+The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
+
 ## Workflow
 
 ```dot
