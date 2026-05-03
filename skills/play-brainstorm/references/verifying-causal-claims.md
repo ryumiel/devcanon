@@ -34,7 +34,7 @@ git checkout -q main
 git merge --squash tmp-feature && git commit -qm "squash"
 git rev-parse tmp-feature   # feature tip SHA — let's call it X
 git rev-parse HEAD          # squash commit SHA — different from X
-git branch -d tmp-feature   # → error: "branch 'tmp-feature' is not fully merged"
+git branch -d tmp-feature   # → error: the branch 'tmp-feature' is not fully merged
                             # Pull ordering doesn't change this: the feature
                             # tip is not in HEAD's history, period.
 ```
