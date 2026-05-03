@@ -264,7 +264,7 @@ If a blocking finding requires design changes, **stop `--auto` and report to the
 
 **Classify remaining nits before Phase 9.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a free-form report. Before invoking Phase 9, classify each remaining nit as **mechanical** or **judgment-required**:
 
-- **Mechanical** — 1–3 line change, no design judgment, single obvious correct fix. Examples:
+- **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
   - Typos and misspellings.
   - Truncated, incomplete, or broken sentences with one clear reconstruction (e.g., a sentence ending mid-clause).
   - Broken cross-references where the intended target is unambiguous (wrong file paths, stale section numbers after a renumber, dead links to renamed identifiers).
@@ -278,7 +278,9 @@ If a blocking finding requires design changes, **stop `--auto` and report to the
 
 **Handle each class:**
 
-- **Mechanical nits** — apply the fix in the worktree and commit. Use the project's commit guideline (glob `**/commit-guideline*.md`); default to Conventional Commits (`fix(<scope>): <what was fixed>`) if no guideline is found. Each commit body must reference the originating nit by file and line — e.g. `Reported by branch-review at <path>:<line>` — so the fix is auditable. Multiple mechanical fixes in the same file at the same scope may be grouped into one commit.
+- **Mechanical nits** — apply the fix in the worktree and commit. Use the project's commit guideline (glob `**/commit-guideline*.md`, `**/commit-*.md`, `CONTRIBUTING.md`); default to Conventional Commits (`fix(<scope>): <what was fixed>`) if no guideline is found.
+  - **Back-reference (required).** Each commit body must include the literal footer line `Reported by branch-review at <path>:<line>` for every nit the commit addresses, so the audit trail is unambiguous.
+  - **Grouping.** Multiple mechanical fixes in the same file at the same scope may be grouped into one commit. When grouping, include one back-reference line per nit, each on its own line in the commit body.
 - **Judgment-required nits** — leave unfixed. Carry them forward to the `nits` input passed to `play-branch-finish` in Phase 9.
 
 After this classification step, the set of nits that reaches Phase 9 contains only judgment-required items.
@@ -309,17 +311,17 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ## Quick Reference
 
-| Phase            | What                                  | Key constraint                                                      |
-| ---------------- | ------------------------------------- | ------------------------------------------------------------------- |
-| 1. Fetch         | `gh issue view <N>`                   | Stop if not found                                                   |
-| 2. Worktree      | Isolate before file writes            | Detect managed worktree vs local                                    |
-| 3. Gate          | Dedicated agent assesses complexity   | Always evaluated; default to `RESEARCH_NEEDED` on failure           |
-| 4. Research      | Dedicated agent synthesizes brief     | Optional — only if gate says so                                     |
-| 5. Brainstorm    | Invoke `play-brainstorm`              | Never skip, even for "simple" issues                                |
-| 6. Plan          | `play-planning`                       | `--auto` only                                                       |
-| 7. Implement     | `play-subagent-execution`             | `--auto` only                                                       |
-| 8. Branch Review | `branch-review --fix` + classify nits | `--auto` only; mechanical nits auto-fixed, judgment nits to Phase 9 |
-| 9. Create PR     | Push + `gh pr create`                 | `--auto` only; never auto-merge; follow project PR guideline        |
+| Phase            | What                                  | Key constraint                                                               |
+| ---------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| 1. Fetch         | `gh issue view <N>`                   | Stop if not found                                                            |
+| 2. Worktree      | Isolate before file writes            | Detect managed worktree vs local                                             |
+| 3. Gate          | Dedicated agent assesses complexity   | Always evaluated; default to `RESEARCH_NEEDED` on failure                    |
+| 4. Research      | Dedicated agent synthesizes brief     | Optional — only if gate says so                                              |
+| 5. Brainstorm    | Invoke `play-brainstorm`              | Never skip, even for "simple" issues                                         |
+| 6. Plan          | `play-planning`                       | `--auto` only                                                                |
+| 7. Implement     | `play-subagent-execution`             | `--auto` only                                                                |
+| 8. Branch Review | `branch-review --fix` + classify nits | `--auto` only; mechanical nits auto-fixed, judgment-required nits to Phase 9 |
+| 9. Create PR     | Push + `gh pr create`                 | `--auto` only; never auto-merge; follow project PR guideline                 |
 
 ## Common Mistakes
 
