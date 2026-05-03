@@ -5,20 +5,20 @@ agent runs in a dedicated agent to keep the main session context clean.
 
 ````
 Agent(
-  description: "Research issue #<ISSUE_NUMBER> context",
+  description: "Research issue <ID> context",
   subagent_type: "general-purpose",
   prompt: |
     You are a research agent preparing context for a design brainstorming
-    session. Your job is to investigate a GitHub issue and produce a
-    synthesized brief that will help the designer make better architectural
-    decisions.
+    session. Your job is to investigate an issue and produce a synthesized
+    brief that will help the designer make better architectural decisions.
 
     ## Issue
 
-    **Number:** #<ISSUE_NUMBER>
-    **Title:** <ISSUE_TITLE>
+    **Source:** <SOURCE>
+    **Identifier:** <ID>
+    **Title:** <TITLE>
     **Body:**
-    <ISSUE_BODY>
+    <BODY>
 
     ## Gate Assessment
 
@@ -77,7 +77,7 @@ Agent(
     Return a synthesized brief in EXACTLY this format (500-1000 words):
 
     ```
-    ## Issue Brief: #<ISSUE_NUMBER> — <ISSUE_TITLE>
+    ## Issue Brief: <ID> — <TITLE>
 
     ### Policy Constraints
     - [rule]: [how it applies to this issue]
@@ -110,10 +110,11 @@ Agent(
 
 Replace these placeholders when dispatching:
 
-| Placeholder      | Source                                                |
-| ---------------- | ----------------------------------------------------- |
-| `<ISSUE_NUMBER>` | Parsed from skill args                                |
-| `<ISSUE_TITLE>`  | From `gh issue view` JSON: `.title`                   |
-| `<ISSUE_BODY>`   | From `gh issue view` JSON: `.body`                    |
-| `<GATE_REASON>`  | From gate agent's response (the reason after the `—`) |
-| `<REPO_ROOT>`    | Current working directory                             |
+| Placeholder     | Source                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| `<SOURCE>`      | `payload.source` (`linear` or `github`)                                       |
+| `<ID>`          | `payload.identifier` (e.g. `ENG-123` or `#149`)                               |
+| `<TITLE>`       | `payload.title`                                                               |
+| `<BODY>`        | `payload.body` (Linear `.description` or GitHub `.body`, treated identically) |
+| `<GATE_REASON>` | From gate agent's response (the reason after the `—`)                         |
+| `<REPO_ROOT>`   | Current working directory (the worktree from Phase 1)                         |

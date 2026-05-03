@@ -8,15 +8,17 @@ Agent(
   subagent_type: "Explore",
   model: "{{model:standard}}",
   prompt: |
-    You are assessing whether a GitHub issue requires multi-agent research
+    You are assessing whether an issue requires multi-agent research
     before design work begins. Read the issue and scan the repository for
     existing architectural decisions.
 
     ## Issue
 
-    **Title:** <ISSUE_TITLE>
+    **Source:** <SOURCE>
+    **Identifier:** <ID>
+    **Title:** <TITLE>
     **Body:**
-    <ISSUE_BODY>
+    <BODY>
 
     ## Your Job
 
@@ -66,8 +68,10 @@ Agent(
 
 Replace these placeholders when dispatching:
 
-| Placeholder     | Source                              |
-| --------------- | ----------------------------------- |
-| `<ISSUE_TITLE>` | From `gh issue view` JSON: `.title` |
-| `<ISSUE_BODY>`  | From `gh issue view` JSON: `.body`  |
-| `<REPO_ROOT>`   | Current working directory           |
+| Placeholder   | Source                                                                        |
+| ------------- | ----------------------------------------------------------------------------- |
+| `<SOURCE>`    | `payload.source` (`linear` or `github`)                                       |
+| `<ID>`        | `payload.identifier` (e.g. `ENG-123` or `#149`)                               |
+| `<TITLE>`     | `payload.title`                                                               |
+| `<BODY>`      | `payload.body` (Linear `.description` or GitHub `.body`, treated identically) |
+| `<REPO_ROOT>` | Current working directory (the worktree from Phase 1)                         |

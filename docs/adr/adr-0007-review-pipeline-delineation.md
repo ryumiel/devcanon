@@ -6,15 +6,18 @@ Accepted
 
 ## Context
 
-The `github-issue-priming --auto` workflow chains two reviewers on the same diff:
+The `github-issue-priming --auto` workflow (and its sibling
+`linear-issue-priming --auto`) hands off to `issue-priming-workflow`, which
+chains two reviewers on the same diff:
 
-1. `play-subagent-execution` (Phase 7) runs a per-task two-stage review
-   (spec-compliance reviewer, then code-quality reviewer) on each task in the
-   plan.
-2. `branch-review --fix` (Phase 8) runs a whole-branch review (correctness,
-   data-safety, dynamic language/architecture/docs agents, and a critic
-   verification pass) on `git diff <base>...HEAD` where `<base>` is the
-   repository's default branch.
+1. `play-subagent-execution` (`issue-priming-workflow` Phase 6) runs a
+   per-task two-stage review (spec-compliance reviewer, then code-quality
+   reviewer) on each task in the plan.
+2. `branch-review --fix` (`issue-priming-workflow` Phase 7) runs a
+   whole-branch review (correctness, data-safety, dynamic
+   language/architecture/docs agents, and a critic verification pass) on
+   `git diff <base>...HEAD` where `<base>` is the repository's default
+   branch.
 
 For single-task plans -- the common case via `github-issue-priming` -- both
 reviewers cover the same diff. They use different model floors
@@ -48,7 +51,9 @@ size, so the floor raise applies to that dispatch too — see Consequences
 for the cost rationale.
 
 This change is internal to `play-subagent-execution`. The
-`github-issue-priming --auto` Phase 7 → Phase 8 call sequence is unchanged.
+`issue-priming-workflow` Phase 6 → Phase 7 call sequence (driven by
+`github-issue-priming --auto` and `linear-issue-priming --auto`) is
+unchanged.
 
 ## Consequences
 
