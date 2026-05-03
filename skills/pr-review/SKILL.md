@@ -165,13 +165,17 @@ Only after user approval:
 
 1. **Post review with inline comments** via the REST API. Each finding becomes a line-level comment on the diff:
 
+   `gh api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
+
    ```sh
    gh api repos/{owner}/{repo}/pulls/<N>/reviews \
      --method POST \
-     -f commit_id="<HEAD SHA>" \
-     -f body="<overall summary>" \
-     -f event="<APPROVE|REQUEST_CHANGES|COMMENT>" \
-     --input <(jq -n '{comments: $comments}' --argjson comments '<JSON array>')
+     --input <(jq -n \
+       --arg commit_id "<HEAD SHA>" \
+       --arg body "<overall summary>" \
+       --arg event "<APPROVE|REQUEST_CHANGES|COMMENT>" \
+       --argjson comments '<JSON array>' \
+       '{commit_id: $commit_id, body: $body, event: $event, comments: $comments}')
    ```
 
    Each comment object in the array:
@@ -219,16 +223,13 @@ Only after user approval:
 ```sh
 gh api repos/{owner}/{repo}/pulls/<N>/reviews \
   --method POST \
-  -f commit_id="$(gh pr view <N> --json headRefOid -q .headRefOid)" \
-  -f body="Summary" \
-  -f event="REQUEST_CHANGES" \
-  --input <(cat <<'EOF'
-{"comments":[
-  {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**P0 Blocking** — unchecked error\n\n**Recommendation:** propagate with `?`"},
-  {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**P2 Nit** — consider extracting helper"}
-]}
-EOF
-)
+  --input <(jq -n \
+    --arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)" \
+    --argjson comments '[
+      {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**P0 Blocking** — unchecked error\n\n**Recommendation:** propagate with `?`"},
+      {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**P2 Nit** — consider extracting helper"}
+    ]' \
+    '{commit_id: $commit_id, body: "Summary", event: "REQUEST_CHANGES", comments: $comments}')
 ```
 
 Use `line` (absolute file line in HEAD), not `position` (diff offset). `side` is `"RIGHT"` for PR head lines.
