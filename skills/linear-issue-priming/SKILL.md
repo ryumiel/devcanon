@@ -256,7 +256,7 @@ Invoke `play-subagent-execution` to execute the plan. All play-subagent-executio
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 
-This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected for the PR description.
+This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected and passed to `play-branch-finish` in Phase 9 for posting as PR review comments after PR creation, not in the description body.
 
 If a blocking finding requires design changes, **stop `--auto` and report to the user**.
 
@@ -275,7 +275,10 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - Linear issue reference (`Closes <IDENTIFIER>` with link to the Linear issue)
 - The design decisions made (especially any assumptions from Phase 5)
 - Summary of what was implemented
-- Remaining nits from Phase 8 (if any), so the user knows what to look at
+
+**Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 8 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits` input contract.
+
+**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, include the remaining nits from Phase 8 in the `nits` input (JSON array of `{path, line, body}` items, optional `side` and `start_line`). If there are no remaining nits, omit the field. `play-branch-finish` handles posting them via `gh api .../reviews`.
 
 ## Quick Reference
 
