@@ -142,6 +142,7 @@ Quick navigation index for the agents-manager repository.
 - Where is the shared issue reporting skill? -> [`skills/report-agents-manager-shared-issue/SKILL.md`](skills/report-agents-manager-shared-issue/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
+- Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where are agent role definitions? -> [`agents/`](agents/)
 - Where is the implementer agent role? -> [`agents/implementer.yaml`](agents/implementer.yaml)
 - Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)
