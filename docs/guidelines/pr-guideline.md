@@ -26,7 +26,24 @@
   - Manual testing performed (describe what was tested)
 - **Related Issues**: `Closes #N` or `Related to #N`
 
-## 3. Key Rules
+**Permitted exceptions to the items above** (forward-looking content, not logbook):
+
+- **Assumptions made in `--auto` mode** — design decisions the reviewer needs to see before approving.
+- **Blocking findings the auto-fix declined** — current state the reviewer needs to weigh, not historical chatter.
+
+## 3. Anti-Patterns
+
+The description body MUST NOT contain:
+
+- **Commit-SHA references or commit-by-commit changelogs.** Describe the final state, not the history.
+- **"Originally / now" or "we tried X, then Y" chronology.** The PR is the durable record of what merges, not the path that got there.
+- **"Notes from review" or review-history sections.** Review chatter is ephemeral; it does not belong in the permanent record.
+- **File-by-file changelogs that just restate the diff.** Group by behavior or subsystem, not by file.
+- **Diff restatement.** The description should be additive context — what `gh pr diff` already shows is not.
+
+Unaddressed review feedback belongs in PR review comments anchored to the relevant lines, not in the description body.
+
+## 4. Key Rules
 
 - One PR per issue (keep scope tight)
 - Explain rationale and impact, do not restate the diff
