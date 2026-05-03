@@ -20,11 +20,11 @@ Fetch a Linear issue, set up an isolated worktree, assess whether it needs multi
 
 ## Arguments
 
-| Arg                       | Effect                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<identifier>` or `<url>` | Issue to work on (required)                                                                                                                             |
-| `--research`              | Skip gate, go directly to research                                                                                                                      |
-| `--auto`                  | Autonomous mode: skip user review gates, pick the architecturally cleanest option, write plan, and execute via `subagent-driven-development` end-to-end |
+| Arg                       | Effect                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<identifier>` or `<url>` | Issue to work on (required)                                                                                                                         |
+| `--research`              | Skip gate, go directly to research                                                                                                                  |
+| `--auto`                  | Autonomous mode: skip user review gates, pick the architecturally cleanest option, write plan, and execute via `play-subagent-execution` end-to-end |
 
 Examples: `/linear-issue-priming ENG-123`, `/linear-issue-priming ENG-123 --auto`, `/linear-issue-priming --auto --research ENG-123`
 
@@ -41,7 +41,7 @@ digraph priming {
   brainstorm [label="5. Brainstorm\nInvoke skill with\nissue + brief"];
   auto_check [label="--auto?", shape=diamond];
   plan [label="6. Plan\nWrite implementation plan"];
-  implement [label="7. Implement\nsubagent-driven-development"];
+  implement [label="7. Implement\nplay-subagent-execution"];
   stop_interactive [label="STOP\nReturn to user"];
 
   fetch -> worktree -> gate -> decide;
@@ -250,7 +250,7 @@ Invoke `play-planning` using the spec produced in Phase 5. Do not wait for user 
 
 ### Phase 7: Implement
 
-Invoke `play-subagent-execution` to execute the plan. All subagent-driven-development rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 8 branch-review, see ADR-0007).
+Invoke `play-subagent-execution` to execute the plan. All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 8 branch-review, see ADR-0007).
 
 ### Phase 8: Branch Review
 
