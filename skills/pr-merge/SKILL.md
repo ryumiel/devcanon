@@ -77,19 +77,28 @@ Check whether the project has a PR guideline and validate the PR against it befo
 
 Search for `**/pr-guideline*.md` in the repository root. If no file is found, skip validation and proceed to Step 2.
 
-### Fetch current PR title and body
+### Fetch PR data
+
+Gather everything needed for both validation and any regeneration up-front, so the same data feeds both paths:
 
 ```bash
 gh pr view <N> --json title,body
+gh pr diff <N> --name-only
+gh pr view <N> --json commits --jq '.commits[] | {headline: .messageHeadline, body: .messageBody}'
 ```
+
+The file list and commit log are not used by the format check (title, required sections, anti-patterns), but the content-vs-diff check below depends on both — and the regeneration path was already pulling them from the same commands. Lifting them up here avoids re-fetching during fixes.
 
 ### Validate
 
-Read the guideline file and check:
+Read the guideline file and check four dimensions:
 
 1. **Title format** — does it match the format specified in the guideline? (e.g., Conventional Commits: `<type>(<scope>): <summary>`)
 2. **Required sections** — does the description contain all sections the guideline's template requires? Compare against the template headings (e.g., Summary, Why, Changes, Impact, Testing, Breaking Changes, Related Issues)
-3. **Anti-patterns** — does the description violate any explicit "do not" rules? (e.g., file-by-file changelogs)
+3. **Anti-patterns** — does the description violate any explicit "do not" rules? (e.g., file-by-file changelogs, commit-SHA references, "originally / now" chronology)
+4. **Content vs diff** — does the description's Changes / Summary still reflect what the commits actually changed? Best-effort, subsystem-level, not file-level. Flag if the description references subsystems or files the diff doesn't touch (stale claim), or omits subsystems the diff clearly modifies (under-disclosed change). Use the commit headlines + bodies from `gh pr view <N> --json commits` as the canonical statement of what each commit did, and the file list from `gh pr diff <N> --name-only` to identify subsystems.
+
+The content-vs-diff check is bounded to the PR's own commits (`gh pr view <N> --json commits` returns only the PR's commits) and is intentionally subsystem-level: per `docs/guidelines/pr-guideline.md` §2, descriptions group by subsystem (`render`, `install`, `validate`, etc.), not by file. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files. A description that promises behavior changes the diff does not contain — or omits a subsystem the diff plainly touches — fails.
 
 ### Fix violations
 
