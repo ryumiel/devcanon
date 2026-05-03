@@ -39,7 +39,7 @@ The description body MUST NOT contain:
 - **"Originally / now" or "we tried X, then Y" chronology.** The PR is the durable record of what merges, not the path that got there.
 - **"Notes from review" or review-history sections.** Review chatter is ephemeral; it does not belong in the permanent record.
 - **File-by-file changelogs that just restate the diff.** Group by behavior or subsystem, not by file.
-- **Diff restatement.** The description should be additive context — what `gh pr diff` already shows is not.
+- **Diff restatement.** The description should add context beyond what `gh pr diff` already shows, not re-narrate it.
 
 Unaddressed review feedback belongs in PR review comments anchored to the relevant lines, not in the description body.
 
