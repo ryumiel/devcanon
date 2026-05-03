@@ -53,6 +53,37 @@ Task tool (general-purpose):
     - Did they solve the wrong problem?
     - Did they implement the right feature but wrong way?
 
+    **Within-document identifier drift (when changes include `*.md` files):**
+
+    Scope: this check runs only on multi-task plans, where this template is
+    dispatched per task (per ADR-0007). For single-task plans, equivalent
+    coverage lives in `branch-review`'s Docs agent under the same name.
+
+    Apply the check only to `*.md` files the implementer's report identifies
+    as changed for this task — you are already reading those files to verify
+    spec compliance, so this adds no extra scope. Do not scan unchanged
+    `*.md` files; cross-document checks are out of scope here and live in
+    `branch-review`'s Docs agent (Sub-check B).
+
+    - Does prose backtick an identifier that the adjacent code block does not use?
+      Example: prose says `git worktree prune` but the code block runs
+      `git worktree remove`.
+    - Does a code block use an identifier the surrounding prose names differently?
+    - Treat any mismatch as a P1 finding — narration that contradicts the code it
+      narrates is almost always a bug or staleness.
+    - The code block is canonical: recommend rewriting prose to match. If the
+      code block itself looks wrong, flag it as a separate finding for human
+      judgment rather than auto-aligning.
+
+    Illustrative scenario (within-document identifier drift, pattern from PR #106):
+    a single Markdown file's prose narrates "the procedure runs
+    `git worktree prune`" while the adjacent fenced code block invokes
+    `git worktree remove <path>`. The code was updated across review rounds;
+    the prose was not. The reviewer should report:
+    ❌ Issues found: <file>:<line> — prose names `git worktree prune` but the
+    adjacent code block invokes `git worktree remove`. Code is canonical;
+    rewrite prose to match. P1.
+
     **Verify by reading code, not by trusting report.**
 
     Report:
