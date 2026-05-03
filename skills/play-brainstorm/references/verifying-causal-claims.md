@@ -25,17 +25,23 @@ Even if the claim sounds obvious, run the check. Briefs are written by humans wh
 GitHub squash-merge creates a _new commit_ on the base branch with a different SHA than the feature branch tip. `git branch -d`'s "merged" check compares HEAD ancestry against the branch tip. After a squash-merge, the feature tip is _never_ an ancestor of HEAD, regardless of pull ordering. Reproduce locally:
 
 ```bash
-git checkout -b tmp-feature
-echo x > /tmp/x && git add /tmp/x && git commit -m "x"
-git checkout main
-git merge --squash tmp-feature && git commit -m "squash"
-git branch -d tmp-feature
-# → still warns, even though no pull happened (no remote involved)
+mkdir -p /tmp/squash-demo && cd /tmp/squash-demo
+git init -q -b main
+echo a > a && git add a && git commit -qm "a"
+git checkout -qb tmp-feature
+echo b > b && git add b && git commit -qm "b"
+git checkout -q main
+git merge --squash tmp-feature && git commit -qm "squash"
+git rev-parse tmp-feature   # feature tip SHA — let's call it X
+git rev-parse HEAD          # squash commit SHA — different from X
+git branch -d tmp-feature   # → error: "branch 'tmp-feature' is not fully merged"
+                            # Pull ordering doesn't change this: the feature
+                            # tip is not in HEAD's history, period.
 ```
 
 **What the verified design would have looked like:**
 
-The fix should have either accepted the warning as informative (it is — the local branch tip really isn't in HEAD's history), or used `git branch -D` after confirming the remote merge via `gh pr view --json state,mergeCommit`. Pull ordering was never the lever.
+The fix should have either accepted the warning as informative (it is — the local branch tip really isn't in HEAD's history), or used `git branch -D` after confirming the remote merge via `gh pr view --json state,mergeCommit`. Pull ordering wasn't the lever in the squash-merge path that issue #99 exercised; the divergent SHA is.
 
 ## How to verify, by claim shape
 
