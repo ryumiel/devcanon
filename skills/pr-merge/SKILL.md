@@ -77,30 +77,51 @@ Check whether the project has a PR guideline and validate the PR against it befo
 
 Search for `**/pr-guideline*.md` in the repository root. If no file is found, skip validation and proceed to Step 2.
 
-### Fetch current PR title and body
+### Fetch PR data
+
+Gather everything needed for both validation and any regeneration up-front, so the same data feeds both paths:
 
 ```bash
 gh pr view <N> --json title,body
+gh pr diff <N> --name-only
+gh pr view <N> --json commits --jq '.commits[] | {headline: .messageHeadline, body: .messageBody}'
 ```
+
+The file list and commit log are not used by the format check (title, required sections, anti-patterns), but the content-vs-diff check below depends on both — and the regeneration path was already pulling them from the same commands. Lifting them up here avoids re-fetching during fixes.
 
 ### Validate
 
-Read the guideline file and check:
+Read the guideline file and check four dimensions:
 
 1. **Title format** — does it match the format specified in the guideline? (e.g., Conventional Commits: `<type>(<scope>): <summary>`)
 2. **Required sections** — does the description contain all sections the guideline's template requires? Compare against the template headings (e.g., Summary, Why, Changes, Impact, Testing, Breaking Changes, Related Issues)
-3. **Anti-patterns** — does the description violate any explicit "do not" rules? (e.g., file-by-file changelogs)
+3. **Anti-patterns** — does the description violate any explicit "do not" rules? (e.g., file-by-file changelogs, commit-SHA references, "originally / now" chronology)
+4. **Content vs diff** — does the description's Changes / Summary still reflect what the commits actually changed? Best-effort, subsystem-level, not file-level. Flag if the description references subsystems or files the diff doesn't touch (stale claim), or omits subsystems the diff clearly modifies (under-disclosed change). Use the commit headlines + bodies from `gh pr view <N> --json commits` as the canonical statement of what each commit did, and the file list from `gh pr diff <N> --name-only` to identify subsystems.
+
+The content-vs-diff check is bounded to the PR's own commits (`gh pr view <N> --json commits` returns only the PR's commits) and is intentionally subsystem-level: per `docs/guidelines/pr-guideline.md` §2, descriptions group by subsystem (`render`, `install`, `validate`, etc.), not by file. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files. A description that promises behavior changes the diff does not contain — or omits a subsystem the diff plainly touches — fails.
 
 ### Fix violations
 
-If any violations are found, rewrite the title and/or description to comply, then apply:
+If any of the four checks flag a violation, rewrite the title and/or description to comply, then apply:
 
 ```bash
-gh pr edit <N> --title "<fixed title>"
-gh pr edit <N> --body "<fixed body>"
+gh pr edit <N> --title "<fixed title>" --body "<fixed body>"
 ```
 
-Use the PR diff (`gh pr diff <N>`) and commit history (`gh pr view <N> --json commits`) to produce an accurate description that follows the guideline's template.
+Pass only the flags whose content actually changed — `gh pr edit` leaves omitted fields untouched, so a body-only fix should drop `--title` and a title-only fix should drop `--body`.
+
+Use the diff file list (`gh pr diff <N> --name-only`) and commit headlines + bodies (`gh pr view <N> --json commits`) — already fetched in the previous subsection — as the ground truth for what the PR actually contains. A regenerated description follows the guideline's template, including all required sections.
+
+**When the content-vs-diff check is the trigger:** regenerate only the affected sections (typically Summary, Changes, sometimes Impact); preserve Why, Testing, and Related Issues verbatim unless the format check also flagged them. A single `gh pr edit --body` call applies the combined regeneration when both format and content violations are detected — no need for two trips.
+
+**Anti-pattern guardrails still apply during regeneration**, even though commit data is now in scope:
+
+- No commit SHAs in the regenerated body. The git history covers that.
+- No "originally / now" or "we tried X then Y" chronology. The PR is the durable record of what merges, not the path that got there.
+- No file-by-file changelog. Group changes by subsystem and behavior, not by which commit introduced them.
+- Do not paste commit messages verbatim — synthesize behavior changes across the commit log.
+
+Bullets 1–3 are direct entries in `docs/guidelines/pr-guideline.md` §3. Bullet 4 is this skill's application of §3's "Diff restatement" rule to the regeneration step — when commit headlines and bodies are the source material, the synthesis-vs-paste discipline is what keeps the description from re-narrating the diff.
 
 **Do not skip validation because the description "looks close enough."** The guideline exists for a reason — enforce it exactly.
 
@@ -281,26 +302,35 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                | Action                                                                                                                                                                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
-| PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                                                                                                              |
-| No PR guideline found    | Skip validation, proceed to CI                                                                                                                                                                                                   |
-| CI pending               | Poll every 3 min (configurable)                                                                                                                                                                                                  |
-| CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
-| Post-merge cleanup       | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → verify `MERGED` and local tip = PR head → `branch -D`; otherwise skip the remove |
-| CI fails (1st time)      | Investigate → fix if in scope → push → re-poll                                                                                                                                                                                   |
-| CI fails (2nd time)      | Report and stop                                                                                                                                                                                                                  |
-| Out-of-scope failure     | Report and stop immediately                                                                                                                                                                                                      |
-| CI not done after 30 min | Report and stop                                                                                                                                                                                                                  |
-| Merge conflicts          | Report to user — requires manual resolution                                                                                                                                                                                      |
-| Missing review approvals | Report which reviews are missing                                                                                                                                                                                                 |
+| Situation                         | Action                                                                                                                                                                                                                           |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
+| PR guideline found                | Validate title + description, fix with `gh pr edit`                                                                                                                                                                              |
+| Description content stale vs diff | Regenerate Summary/Changes/Impact from commit log + diff name-only, apply with `gh pr edit --body` (single call covers combined fixes)                                                                                           |
+| No PR guideline found             | Skip validation, proceed to CI                                                                                                                                                                                                   |
+| CI pending                        | Poll every 3 min (configurable)                                                                                                                                                                                                  |
+| CI passes                         | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
+| Post-merge cleanup                | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → verify `MERGED` and local tip = PR head → `branch -D`; otherwise skip the remove |
+| CI fails (1st time)               | Investigate → fix if in scope → push → re-poll                                                                                                                                                                                   |
+| CI fails (2nd time)               | Report and stop                                                                                                                                                                                                                  |
+| Out-of-scope failure              | Report and stop immediately                                                                                                                                                                                                      |
+| CI not done after 30 min          | Report and stop                                                                                                                                                                                                                  |
+| Merge conflicts                   | Report to user — requires manual resolution                                                                                                                                                                                      |
+| Missing review approvals          | Report which reviews are missing                                                                                                                                                                                                 |
 
 ## Common Mistakes
 
 ### Skipping PR guideline validation
 
 The validation step exists because agents routinely create PRs with generic descriptions that don't follow project conventions. Do not skip it because "the description looks fine" — read the guideline and check systematically. If no guideline file is found, that's the only valid reason to skip.
+
+### Description content drifted from the diff
+
+Step 1b validates that the description still reflects the diff, not just that the headings are present. When branch-review or PR review adds commits after the description was written, the Changes / Summary sections often go stale — the headings stay valid but the content stops describing what actually merged.
+
+The skill regenerates the affected sections from the commit log + diff name-only before merging. The regeneration must still follow `docs/guidelines/pr-guideline.md` — no commit SHAs, no "originally / now" chronology, no file-by-file framing, no verbatim commit-message paste. Group by subsystem and behavior, not by which commit introduced the change.
+
+The check is best-effort and subsystem-level. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files; that is the guideline, not a gap.
 
 ### Hardcoding CI commands
 
