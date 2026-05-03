@@ -45,7 +45,7 @@ If the issue cannot be fetched (Linear skill unavailable, identifier not found),
 - **Branch name:** `<type>/<IDENTIFIER>-<title-slug>` (e.g. `refactor/ENG-123-auth-middleware-token-format`). `<type>` is the conventional-commit type that best matches the issue (`feat`, `fix`, `refactor`, `docs`, etc.).
 - **Worktree leaf:** `<IDENTIFIER>-<title-slug>` (e.g. `ENG-123-auth-middleware-token-format`).
 
-Slug rules: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars after the identifier.
+Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars. The `<IDENTIFIER>` prefix retains its original casing (e.g., `ENG-123`).
 
 ## Hand off to `issue-priming-workflow`
 

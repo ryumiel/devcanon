@@ -47,7 +47,7 @@ If the issue cannot be fetched (`gh` not authenticated, issue not found), stop a
 - **Branch name:** `<type>/<N>-<title-slug>` (e.g. `refactor/149-patcher-operation-error`). `<type>` is the conventional-commit type that best matches the issue (`feat`, `fix`, `refactor`, `docs`, etc.).
 - **Worktree leaf:** `<N>-<title-slug>` (e.g. `149-patcher-operation-error`).
 
-Slug rules: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars after the issue number.
+Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars.
 
 ## Hand off to `issue-priming-workflow`
 
