@@ -59,11 +59,13 @@ Invoke the `issue-priming-workflow` skill with the following normalized issue pa
 - **title**: <verbatim issue title, single line>
 - **body**: |
     <verbatim issue description, multi-line, indented>
-- **mode**: <interactive | auto>   ← derived from whether `--auto` was passed
-- **research**: <gated | forced>   ← derived from whether `--research` was passed
+- **mode**: <interactive | auto>
+- **research**: <gated | forced>
 - **branch-name**: <branch-name from above>
 - **worktree-leaf**: <worktree-leaf from above>
 ```
+
+The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
 
 The workflow handles every subsequent phase (worktree setup, gate, research, brainstorming, planning, implementation, branch review, PR creation). Do not duplicate workflow logic here.
 

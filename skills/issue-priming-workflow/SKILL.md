@@ -27,8 +27,8 @@ This skill is invoked with a normalized issue payload from one of the source ent
     <verbatim issue description/body, multi-line, indented>
 - **mode**: interactive | auto
 - **research**: gated | forced
-- **branch-name**: <type>/<id-slug>-<title-slug>
-- **worktree-leaf**: <id-slug>-<title-slug>
+- **branch-name**: <type>/<id>-<title-slug>
+- **worktree-leaf**: <id>-<title-slug>
 ```
 
 Field semantics:
