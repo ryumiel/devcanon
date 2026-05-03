@@ -177,15 +177,14 @@ If a blocking finding requires design changes **or requires editing files outsid
 
 ## Quick Reference
 
-| Situation                                                          | Action                                 |
-| ------------------------------------------------------------------ | -------------------------------------- |
-| Empty diff                                                         | Report "no changes", stop              |
-| No guidelines found                                                | Note in report, proceed                |
-| All clean                                                          | Report "no issues found"               |
-| Blocking findings + `--fix`                                        | Auto-fix, commit, report               |
-| Blocking finding needs design change                               | Stop, report to caller                 |
-| Nits + `--fix`                                                     | Leave for user, list in report         |
-| Cross-document drift (unchanged files contradict diff's direction) | Report as P1 blocking, do not auto-fix |
+| Situation                                                 | Action                         |
+| --------------------------------------------------------- | ------------------------------ |
+| Empty diff                                                | Report "no changes", stop      |
+| No guidelines found                                       | Note in report, proceed        |
+| All clean                                                 | Report "no issues found"       |
+| Blocking findings + `--fix`                               | Auto-fix, commit, report       |
+| Blocking finding needs design change or out-of-diff edits | Stop, report to caller         |
+| Nits + `--fix`                                            | Leave for user, list in report |
 
 ## Common Mistakes
 
