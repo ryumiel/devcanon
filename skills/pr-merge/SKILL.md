@@ -120,7 +120,7 @@ Use the diff file list (`gh pr diff <N> --name-only`) and commit headlines + bod
 - No file-by-file changelog. Group changes by subsystem and behavior, not by which commit introduced them.
 - Do not paste commit messages verbatim — synthesize behavior changes across the commit log.
 
-These anti-patterns are codified in `docs/guidelines/pr-guideline.md` §3; this skill enforces them at the point where commit data could otherwise leak into the body.
+Bullets 1–3 are direct entries in `docs/guidelines/pr-guideline.md` §3. Bullet 4 is this skill's application of §3's "Diff restatement" rule to the regeneration step — when commit headlines and bodies are the source material, the synthesis-vs-paste discipline is what keeps the description from re-narrating the diff.
 
 **Do not skip validation because the description "looks close enough."** The guideline exists for a reason — enforce it exactly.
 
