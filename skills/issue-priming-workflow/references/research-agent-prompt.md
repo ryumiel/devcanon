@@ -110,11 +110,11 @@ Agent(
 
 Replace these placeholders when dispatching:
 
-| Placeholder     | Source                                                                       |
-| --------------- | ---------------------------------------------------------------------------- |
-| `<SOURCE>`      | `payload.source` (`linear` or `github`)                                      |
-| `<ID>`          | `payload.identifier` (e.g. `ENG-123` or `#149`)                              |
-| `<TITLE>`       | `payload.title`                                                              |
+| Placeholder     | Source                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| `<SOURCE>`      | `payload.source` (`linear` or `github`)                                       |
+| `<ID>`          | `payload.identifier` (e.g. `ENG-123` or `#149`)                               |
+| `<TITLE>`       | `payload.title`                                                               |
 | `<BODY>`        | `payload.body` (Linear `.description` or GitHub `.body`, treated identically) |
 | `<GATE_REASON>` | From gate agent's response (the reason after the `—`)                         |
-| `<REPO_ROOT>`   | Current working directory (the worktree from Phase 1)                        |
+| `<REPO_ROOT>`   | Current working directory (the worktree from Phase 1)                         |

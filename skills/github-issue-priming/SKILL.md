@@ -73,10 +73,10 @@ The workflow handles every subsequent phase (worktree setup, gate, research, bra
 
 ## Error Handling
 
-| Scenario                       | Action                            |
-| ------------------------------ | --------------------------------- |
-| `gh` not authenticated         | Stop, suggest `! gh auth login`   |
-| Issue not found                | Stop, verify number/URL           |
-| Issue already closed           | Warn user, ask whether to proceed |
+| Scenario               | Action                            |
+| ---------------------- | --------------------------------- |
+| `gh` not authenticated | Stop, suggest `! gh auth login`   |
+| Issue not found        | Stop, verify number/URL           |
+| Issue already closed   | Warn user, ask whether to proceed |
 
 (Workflow-level errors — gate agent failures, research timeouts, missing `docs/adr/` — are handled inside `issue-priming-workflow`. See its Error Handling section.)

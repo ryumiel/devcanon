@@ -33,16 +33,16 @@ This skill is invoked with a normalized issue payload from one of the source ent
 
 Field semantics:
 
-| Field           | Used by                                                              |
-| --------------- | -------------------------------------------------------------------- |
-| `source`        | Phase 8 PR description "Closes" line wording                         |
-| `identifier`    | Agent prompts, brainstorm args, PR description                       |
-| `title`         | Agent prompts, brainstorm args                                       |
-| `body`          | Gate agent, research agent, brainstorm args                          |
-| `mode`          | Phase 4 stop-vs-continue, Phases 5–8 gating                          |
-| `research`      | Phase 2 gate-skip                                                    |
-| `branch-name`   | Phase 1 worktree setup                                               |
-| `worktree-leaf` | Phase 1 worktree setup                                               |
+| Field           | Used by                                        |
+| --------------- | ---------------------------------------------- |
+| `source`        | Phase 8 PR description "Closes" line wording   |
+| `identifier`    | Agent prompts, brainstorm args, PR description |
+| `title`         | Agent prompts, brainstorm args                 |
+| `body`          | Gate agent, research agent, brainstorm args    |
+| `mode`          | Phase 4 stop-vs-continue, Phases 5–8 gating    |
+| `research`      | Phase 2 gate-skip                              |
+| `branch-name`   | Phase 1 worktree setup                         |
+| `worktree-leaf` | Phase 1 worktree setup                         |
 
 `payload.body` carries either Linear `.description` text or GitHub `.body` text — this skill treats them identically.
 

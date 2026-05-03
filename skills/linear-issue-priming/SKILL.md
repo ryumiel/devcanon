@@ -78,10 +78,10 @@ The workflow handles every subsequent phase (worktree setup, gate, research, bra
 
 ## Error Handling
 
-| Scenario                       | Action                                                  |
-| ------------------------------ | ------------------------------------------------------- |
-| Linear skill not available     | Stop, suggest checking Linear plugin/MCP configuration  |
-| Identifier not found           | Stop, verify identifier/URL                             |
-| Issue already completed/closed | Warn user, ask whether to proceed                       |
+| Scenario                       | Action                                                 |
+| ------------------------------ | ------------------------------------------------------ |
+| Linear skill not available     | Stop, suggest checking Linear plugin/MCP configuration |
+| Identifier not found           | Stop, verify identifier/URL                            |
+| Issue already completed/closed | Warn user, ask whether to proceed                      |
 
 (Workflow-level errors — gate agent failures, research timeouts, missing `docs/adr/` — are handled inside `issue-priming-workflow`. See its Error Handling section.)
