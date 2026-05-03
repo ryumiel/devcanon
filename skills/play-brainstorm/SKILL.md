@@ -15,7 +15,7 @@ Do NOT invoke any implementation skill, write any code, scaffold any project, or
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it (and, in interactive mode, get user approval — see HARD-GATE above for `--auto` behavior).
 
 ## Checklist
 
@@ -30,6 +30,8 @@ You MUST create a task for each of these items and complete them in order:
 7. **User reviews written design** — ask user to review the design file before proceeding
 8. **Transition to implementation** — invoke play-planning skill to create implementation plan
 
+**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 4, and 7 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
+
 ## Process Flow
 
 ```dot
@@ -38,20 +40,26 @@ digraph brainstorming {
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
+    "Auto mode?" [shape=diamond];
     "User approves design?" [shape=diamond];
     "Write design doc" [shape=box];
     "Design self-review\n(fix inline)" [shape=box];
+    "Auto mode?\n(post-write)" [shape=diamond];
     "User reviews design?" [shape=diamond];
     "Invoke play-planning skill" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "Propose 2-3 approaches";
     "Propose 2-3 approaches" -> "Present design sections";
-    "Present design sections" -> "User approves design?";
+    "Present design sections" -> "Auto mode?";
+    "Auto mode?" -> "Write design doc" [label="yes (bypass approval)"];
+    "Auto mode?" -> "User approves design?" [label="no"];
     "User approves design?" -> "Present design sections" [label="no, revise"];
     "User approves design?" -> "Write design doc" [label="yes"];
     "Write design doc" -> "Design self-review\n(fix inline)";
-    "Design self-review\n(fix inline)" -> "User reviews design?";
+    "Design self-review\n(fix inline)" -> "Auto mode?\n(post-write)";
+    "Auto mode?\n(post-write)" -> "Invoke play-planning skill" [label="yes (bypass review)"];
+    "Auto mode?\n(post-write)" -> "User reviews design?" [label="no"];
     "User reviews design?" -> "Write design doc" [label="changes requested"];
     "User reviews design?" -> "Invoke play-planning skill" [label="approved"];
 }
@@ -121,6 +129,8 @@ After the design review loop passes, ask the user to review the written design b
 > "Design written to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
 
 Wait for the user's response. If they request changes, make them and re-run the design review loop. Only proceed once the user approves.
+
+**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. The design step itself — including the self-review loop above and writing to `.ephemeral/` — is never skipped; only the user-approval pause is bypassed.
 
 **Implementation:**
 
