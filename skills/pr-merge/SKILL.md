@@ -105,9 +105,10 @@ The content-vs-diff check is bounded to the PR's own commits (`gh pr view <N> --
 If any of the four checks flag a violation, rewrite the title and/or description to comply, then apply:
 
 ```bash
-gh pr edit <N> --title "<fixed title>"
-gh pr edit <N> --body "<fixed body>"
+gh pr edit <N> --title "<fixed title>" --body "<fixed body>"
 ```
+
+Pass only the flags whose content actually changed — `gh pr edit` leaves omitted fields untouched, so a body-only fix should drop `--title` and a title-only fix should drop `--body`.
 
 Use the diff file list (`gh pr diff <N> --name-only`) and commit headlines + bodies (`gh pr view <N> --json commits`) — already fetched in the previous subsection — as the ground truth for what the PR actually contains. A regenerated description follows the guideline's template, including all required sections.
 
