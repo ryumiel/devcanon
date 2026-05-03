@@ -125,7 +125,7 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **`--fix` behavior:** report-only. Do not auto-fix files outside the diff. These findings hit the Phase 5 out-of-diff stop rule and surface to the caller as judgment-required nits — they do not enter the auto-fix loop. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry.
 
-Illustrative scenario (pattern from PR #127): a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern and finds two unchanged sibling skill files still demonstrating it. Each occurrence is flagged P1, report-only — fixing them requires user judgment about which direction is canonical and edits files outside the diff.
+Illustrative scenario (pattern from PR #127): a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern and finds two unchanged sibling skill files still demonstrating it. Each occurrence is flagged as a judgment-required, report-only nit — fixing requires user judgment about which direction is canonical and edits to files outside the diff.
 
 ## Phase 4: Verify
 
