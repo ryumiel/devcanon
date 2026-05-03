@@ -6,6 +6,8 @@ Use this template when dispatching a design document reviewer subagent.
 
 **Dispatch after:** Design document is written to .ephemeral/
 
+**Promotion classification:** Workflow-local prompt template, kept as-is. Single call site within `play-brainstorm`; promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold).
+
 ```
 Task tool (general-purpose):
   description: "Review design document"
