@@ -107,7 +107,7 @@ Run all agents in parallel.
 
 The Correctness agent must perform two structured sub-checks in addition to its existing logic-bug / panic-discipline / error-propagation / API-contract review. Both fire only when the diff contains an external CLI / REST / system primitive invocation.
 
-**Sub-check 1 — Substitution audit.** Fires when the diff replaces one external invocation token with a sibling at the same call site (e.g., `git branch -d` → `git branch -D`, `fs.writeFileSync` → `fs.writeFile`, `gh pr review --body ...` → `gh api .../reviews --input ...`, `assert(x)` → `expect(x)`). "External invocation" means a CLI flag/subcommand swap, a method swap on an external SDK, a system primitive swap (`unlink` ↔ `rm -rf`), or a flag-set rearrangement on the same call.
+**Sub-check 1 — Substitution audit.** Fires when the diff replaces one external invocation token with a sibling at the same call site (e.g., `git branch -d` → `git branch -D`, `fs.writeFileSync` → `fs.writeFile`, `gh pr review --body ...` → `gh api .../reviews --input ...`). "External invocation" means a CLI flag/subcommand swap, a method swap on an external SDK, a system primitive swap (`unlink` ↔ `rm -rf`), or a flag-set rearrangement on the same call.
 
 Procedure:
 
@@ -118,7 +118,7 @@ Procedure:
 
 **Bounding rule:** apply only to _external_ invocations (CLIs, REST/HTTP APIs, OS primitives, third-party SDK calls). Do not apply to internal-code refactors (calling site changes from one repo function to another), to literal renames, or to mechanical formatting changes. The agent should self-check: "is the named primitive defined inside this repo, or by a tool whose semantics live elsewhere?"
 
-**`--fix` policy:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings route through the Phase 5 stop rule for blocking design changes; do not auto-fix.
+**Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as P0 blocking — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
 
 Worked example (real, PR #117): a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — P0 blocking, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs. (PR #117 landed exactly that fix after Copilot's inline review caught the regression.)
 
@@ -129,10 +129,11 @@ Procedure:
 1. Identify the tool and the specific invocation pattern (subcommand, flags, body shape, query params).
 2. Verify the invocation against documented behavior — the tool's `--help` output, official docs, or actual runtime behavior. Do **not** approve based on prior knowledge of flag interactions or default semantics.
 3. Flag any divergence: invocation that won't do what the surrounding code claims, silently-ignored arguments, defaults that change between adjacent flag combinations, etc.
+4. Tag any divergence as DOCUMENTED-BEHAVIOR MISMATCH; this is P0, blocking, unless the diff or surrounding spec explicitly waives the documented behavior with a rationale.
 
 **Bounding rule:** don't re-verify the tool's whole API surface — only the specific invocation pattern in the diff. Don't flag stable, widely-known stdlib behavior. The bar is "could a reasonable reviewer assume the wrong semantics here?" — if yes, verify.
 
-**`--fix` policy:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings route through the Phase 5 stop rule for blocking design changes, or to PR-comment nits per the standard `--fix` routing.
+**Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as P0 blocking — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (or are listed as nits per the standard `--fix` routing if non-blocking); in `pr-review`, they surface in the Phase 5 user-gate report.
 
 Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The Correctness agent reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — P0 blocking, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body. (PR #127's first "fix" rearranged flags but kept the broken pattern; the second review pass caught it. The audit should verify against `--help` rather than assume.)
 
