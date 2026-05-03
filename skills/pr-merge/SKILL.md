@@ -305,6 +305,7 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No PR number given       | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
 | PR guideline found       | Validate title + description, fix with `gh pr edit`                                                                                                                                                                              |
+| Description content stale vs diff | Regenerate Summary/Changes/Impact from commit log + diff name-only, apply with `gh pr edit --body` (single call covers combined fixes)                                                                                           |
 | No PR guideline found    | Skip validation, proceed to CI                                                                                                                                                                                                   |
 | CI pending               | Poll every 3 min (configurable)                                                                                                                                                                                                  |
 | CI passes                | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
@@ -321,6 +322,14 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 ### Skipping PR guideline validation
 
 The validation step exists because agents routinely create PRs with generic descriptions that don't follow project conventions. Do not skip it because "the description looks fine" — read the guideline and check systematically. If no guideline file is found, that's the only valid reason to skip.
+
+### Description content drifted from the diff
+
+Step 1b validates that the description still reflects the diff, not just that the headings are present. When branch-review or PR review adds commits after the description was written, the Changes / Summary sections often go stale — the headings stay valid but the content stops describing what actually merged.
+
+The skill regenerates the affected sections from the commit log + diff name-only before merging. The regeneration must still follow `docs/guidelines/pr-guideline.md` — no commit SHAs, no "originally / now" chronology, no file-by-file framing, no verbatim commit-message paste. Group by subsystem and behavior, not by which commit introduced the change.
+
+The check is best-effort and subsystem-level. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files; that is the guideline, not a gap.
 
 ### Hardcoding CI commands
 
