@@ -260,7 +260,7 @@ Invoke `branch-review --fix` to review the implementation before creating a PR.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected and passed to `play-branch-finish` in Phase 9 for posting as PR review comments after PR creation, not in the description body.
 
-If a blocking finding requires design changes, **stop `--auto` and report to the user**.
+If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
 **Classify remaining nits before Phase 9.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a free-form report. Before invoking Phase 9, classify each remaining nit as **mechanical** or **judgment-required**:
 
