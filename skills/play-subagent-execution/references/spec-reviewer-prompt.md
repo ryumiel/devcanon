@@ -94,15 +94,17 @@ Task tool (general-purpose):
     in `branch-review` and `pr-review` only — see those skills for
     Sub-check 2.
 
-    Apply the check only when the implementer's report identifies the task
-    as replacing an external CLI / REST / system primitive invocation with
-    a sibling at the same call site (e.g., `git branch -d` → `git branch -D`,
+    Apply the check whenever the task's diff replaces an external CLI /
+    REST / system primitive invocation token with a sibling at the same
+    call site (e.g., `git branch -d` → `git branch -D`,
     `fs.writeFileSync` → `fs.writeFile`, `gh pr review --body ...` →
-    `gh api .../reviews --input ...`). "External invocation" means a CLI
-    flag/subcommand swap, a method swap on an external SDK, a system
-    primitive swap, or a flag-set rearrangement on the same call. Do not
-    apply to internal-code refactors, literal renames, or mechanical
-    formatting changes.
+    `gh api .../reviews --input ...`). Detect substitutions by inspecting
+    the task's diff hunks directly — do not rely on the implementer's
+    report to flag the substitution, since they may have omitted it.
+    "External invocation" means a CLI flag/subcommand swap, a method swap
+    on an external SDK, a system primitive swap, or a flag-set
+    rearrangement on the same call. Do not apply to internal-code
+    refactors, literal renames, or mechanical formatting changes.
 
     Procedure:
 
