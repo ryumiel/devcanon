@@ -53,9 +53,22 @@ Task tool (general-purpose):
     - Did they solve the wrong problem?
     - Did they implement the right feature but wrong way?
 
+    **Documentation drift (when changes include `*.md` files):**
+    - Does prose backtick an identifier that the adjacent code block does not use?
+      Example: prose says `git worktree prune` but the code block runs
+      `git worktree remove`.
+    - Does a code block use an identifier the surrounding prose names differently?
+    - Treat any mismatch as a P1 finding — narration that contradicts the code it
+      narrates is almost always a bug or staleness.
+
     **Verify by reading code, not by trusting report.**
 
     Report:
     - ✅ Spec compliant (if everything matches after code inspection)
     - ❌ Issues found: [list specifically what's missing or extra, with file:line references]
+
+    Example finding (within-document identifier drift):
+      ❌ Issues found: skills/play-branch-finish/SKILL.md:142 — prose says "the
+      procedure runs `git worktree prune`" but the adjacent code block (line 145)
+      invokes `git worktree remove`. Pick one and align both. P1.
 ```

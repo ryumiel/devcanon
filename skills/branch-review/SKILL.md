@@ -82,14 +82,14 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 
 **Dynamic agents (by file types in diff):**
 
-| Trigger                                                                                                     | Agent                                                                                                |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `*.rs`                                                                                                      | Rust — clippy, unsafe, ECS, serde, WASM                                                              |
-| `*.ts` / `*.tsx`                                                                                            | TypeScript — types, React patterns, bridge sync                                                      |
-| `tests/` or `*_test.*`                                                                                      | Test — coverage, correctness, fixtures                                                               |
-| `docs/` or `*.md`                                                                                           | Docs — accuracy, staleness, contract alignment                                                       |
-| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, or 3+ modules            | Architecture — boundary violations, dependency justification, responsibility drift, contract changes |
-| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps  |
+| Trigger                                                                                                     | Agent                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `*.rs`                                                                                                      | Rust — clippy, unsafe, ECS, serde, WASM                                                               |
+| `*.ts` / `*.tsx`                                                                                            | TypeScript — types, React patterns, bridge sync                                                       |
+| `tests/` or `*_test.*`                                                                                      | Test — coverage, correctness, fixtures                                                                |
+| `docs/` or `*.md`                                                                                           | Docs — accuracy, staleness, contract alignment, identifier drift (within-document and cross-document) |
+| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, or 3+ modules            | Architecture — boundary violations, dependency justification, responsibility drift, contract changes  |
+| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps   |
 
 **Agent briefing — each prompt MUST include:**
 
@@ -102,6 +102,31 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 Run all agents in parallel.
 
 **Model selection:** Use `{{model:deep}}` for all review agents and the critic — same rationale as `pr-review`.
+
+**Docs agent identifier-drift checks:**
+
+The Docs agent must perform two consistency checks in addition to its existing accuracy / staleness / contract-alignment review:
+
+**Sub-check A — within-document drift.** For each changed `*.md` file:
+
+- Compare backticked identifiers in prose against identifiers used in adjacent fenced code blocks within the same file.
+- Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
+- Report as P1, blocking. Auto-fixable via `--fix`.
+
+Example finding (Sub-check A):
+
+> `skills/play-branch-finish/SKILL.md:142` — prose says "the procedure runs `git worktree prune`" but the adjacent code block at line 145 invokes `git worktree remove`. P1, blocking.
+
+**Sub-check B — cross-document pattern drift.** When the diff changes the documented direction of a pattern (e.g., adds prose saying "X is broken / use Y instead", or replaces an example of X with Y while declaring X non-canonical):
+
+- Grep the repository for unchanged occurrences of pattern X.
+- Flag any occurrence as P1: "unchanged file still demonstrates pattern X which this diff documents as broken / superseded".
+- **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
+- **`--fix` behavior:** report-only. Do not auto-fix files outside the diff. These findings require user judgment about whether the new direction is canonical or whether the unchanged file represents intentional asymmetry.
+
+Example finding (Sub-check B):
+
+> `skills/pr-review/SKILL.md:88, :104` — these examples invoke `gh api` with both `-f` flags and `--input`, the broken pattern that this diff (`skills/play-branch-finish/SKILL.md:202`) now documents as broken because `-f` becomes a URL query parameter when `--input` is supplied. Two unchanged occurrences contradict the new direction. P1, report-only — fix requires user judgment about which direction is canonical.
 
 ## Phase 4: Verify
 
@@ -149,18 +174,19 @@ After all blocking findings are fixed, report:
 - Remaining nits (left for user)
 - Any blocking findings that couldn't be fixed (requires design changes)
 
-If a blocking finding requires design changes, **stop and report** — don't attempt architectural fixes. A fix "requires design changes" if it changes a function's signature, alters control flow structure, touches more than one module, or needs context beyond the flagged lines to determine correctness.
+If a blocking finding requires design changes **or requires editing files outside the diff (e.g., Sub-check B cross-document drift)**, **stop and report** — don't attempt architectural fixes or corpus-wide edits. A fix triggers this stop rule if it changes a function's signature, alters control flow structure, touches more than one module, needs context beyond the flagged lines to determine correctness, or requires editing unchanged files.
 
 ## Quick Reference
 
-| Situation                            | Action                         |
-| ------------------------------------ | ------------------------------ |
-| Empty diff                           | Report "no changes", stop      |
-| No guidelines found                  | Note in report, proceed        |
-| All clean                            | Report "no issues found"       |
-| Blocking findings + `--fix`          | Auto-fix, commit, report       |
-| Blocking finding needs design change | Stop, report to caller         |
-| Nits + `--fix`                       | Leave for user, list in report |
+| Situation                                                          | Action                                 |
+| ------------------------------------------------------------------ | -------------------------------------- |
+| Empty diff                                                         | Report "no changes", stop              |
+| No guidelines found                                                | Note in report, proceed                |
+| All clean                                                          | Report "no issues found"               |
+| Blocking findings + `--fix`                                        | Auto-fix, commit, report               |
+| Blocking finding needs design change                               | Stop, report to caller                 |
+| Nits + `--fix`                                                     | Leave for user, list in report         |
+| Cross-document drift (unchanged files contradict diff's direction) | Report as P1 blocking, do not auto-fix |
 
 ## Common Mistakes
 
