@@ -59,6 +59,12 @@ Task tool (general-purpose):
     dispatched per task (per ADR-0007). For single-task plans, equivalent
     coverage lives in `branch-review`'s Docs agent under the same name.
 
+    Apply the check only to `*.md` files the implementer's report identifies
+    as changed for this task — you are already reading those files to verify
+    spec compliance, so this adds no extra scope. Do not scan unchanged
+    `*.md` files; cross-document checks are out of scope here and live in
+    `branch-review`'s Docs agent (Sub-check B).
+
     - Does prose backtick an identifier that the adjacent code block does not use?
       Example: prose says `git worktree prune` but the code block runs
       `git worktree remove`.

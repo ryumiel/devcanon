@@ -121,9 +121,9 @@ Illustrative scenario (pattern from PR #106): a single `.md` file describes a wo
 When the trigger fires:
 
 - Grep the repository for unchanged occurrences of pattern X.
-- Flag any occurrence as P1: "unchanged file still demonstrates pattern X which this diff documents as broken / superseded".
+- Flag any occurrence as a stop-and-report finding: "unchanged file still demonstrates pattern X which this diff documents as broken / superseded". Treat as judgment-required, not auto-fix-blocking.
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
-- **`--fix` behavior:** report-only. Do not auto-fix files outside the diff. These findings require user judgment about whether the new direction is canonical or whether the unchanged file represents intentional asymmetry.
+- **`--fix` behavior:** report-only. Do not auto-fix files outside the diff. These findings hit the Phase 5 out-of-diff stop rule and surface to the caller as judgment-required nits — they do not enter the auto-fix loop. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry.
 
 Illustrative scenario (pattern from PR #127): a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern and finds two unchanged sibling skill files still demonstrating it. Each occurrence is flagged P1, report-only — fixing them requires user judgment about which direction is canonical and edits files outside the diff.
 
