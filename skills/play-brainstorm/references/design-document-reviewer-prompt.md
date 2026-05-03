@@ -6,7 +6,7 @@ Use this template when dispatching a design document reviewer subagent.
 
 **Dispatch after:** Design document is written to .ephemeral/
 
-**Promotion classification:** Workflow-local prompt template, kept as-is. Single call site within `play-brainstorm`; promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold).
+**Promotion classification:** Workflow-local prompt template, currently unreferenced — `play-brainstorm/SKILL.md` runs the design self-review inline rather than dispatching this template (see #144 for the wire-or-delete follow-up). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — an orphan template is below the threshold by definition.
 
 ```
 Task tool (general-purpose):
