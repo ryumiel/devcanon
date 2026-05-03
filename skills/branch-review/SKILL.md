@@ -107,26 +107,24 @@ Run all agents in parallel.
 
 The Docs agent must perform two consistency checks in addition to its existing accuracy / staleness / contract-alignment review:
 
-**Sub-check A — within-document drift.** For each changed `*.md` file:
+**Sub-check A — within-document identifier drift.** For each changed `*.md` file:
 
 - Compare backticked identifiers in prose against identifiers used in adjacent fenced code blocks within the same file.
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as P1, blocking. Auto-fixable via `--fix`.
 
-Example finding (Sub-check A):
+Illustrative scenario (pattern from PR #106): a single `.md` file describes a worktree-cleanup procedure where the prose narrates "`git worktree prune` removes the directory" while the adjacent code block invokes `git worktree remove <path>`. The two identifiers diverged across review rounds — code was updated; prose was not. Sub-check A flags this as P1, blocking, with the recommendation "the code block is canonical; rewrite prose to match."
 
-> `skills/play-branch-finish/SKILL.md:142` — prose says "the procedure runs `git worktree prune`" but the adjacent code block at line 145 invokes `git worktree remove`. P1, blocking.
+**Sub-check B — cross-document identifier drift.** Fires only when the diff adds prose explicitly labeling a pattern as broken, deprecated, superseded, or wrong. A silent example-replacement (replacing X with Y without adding anti-pattern prose) does NOT trigger Sub-check B.
 
-**Sub-check B — cross-document pattern drift.** When the diff changes the documented direction of a pattern (e.g., adds prose saying "X is broken / use Y instead", or replaces an example of X with Y while declaring X non-canonical):
+When the trigger fires:
 
 - Grep the repository for unchanged occurrences of pattern X.
 - Flag any occurrence as P1: "unchanged file still demonstrates pattern X which this diff documents as broken / superseded".
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **`--fix` behavior:** report-only. Do not auto-fix files outside the diff. These findings require user judgment about whether the new direction is canonical or whether the unchanged file represents intentional asymmetry.
 
-Example finding (Sub-check B):
-
-> `skills/pr-review/SKILL.md:88, :104` — these examples invoke `gh api` with both `-f` flags and `--input`, the broken pattern that this diff (`skills/play-branch-finish/SKILL.md:202`) now documents as broken because `-f` becomes a URL query parameter when `--input` is supplied. Two unchanged occurrences contradict the new direction. P1, report-only — fix requires user judgment about which direction is canonical.
+Illustrative scenario (pattern from PR #127): a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern and finds two unchanged sibling skill files still demonstrating it. Each occurrence is flagged P1, report-only — fixing them requires user judgment about which direction is canonical and edits files outside the diff.
 
 ## Phase 4: Verify
 
