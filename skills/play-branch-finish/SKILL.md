@@ -99,6 +99,8 @@ Then: Cleanup worktree (Step 5)
 
 #### Option 2: Push and Create PR
 
+**Optional input — review nits.** Callers (e.g., `github-issue-priming` Phase 9, `linear-issue-priming` Phase 9) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
+
 ```bash
 # Push branch
 git push -u origin <feature-branch>
@@ -117,6 +119,30 @@ gh pr create --title "<title>" --body "$(cat <<'EOF'
 EOF
 )"
 ```
+
+**After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits` input was empty or omitted.
+
+1. Resolve the new PR number from the `gh pr create` output (or `gh pr view --json number`).
+2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff <N>`) and unanchorable.
+3. Post anchorable nits as a single review with `event: "COMMENT"`:
+
+   ```bash
+   gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+     --method POST \
+     -f event="COMMENT" \
+     -f body="branch-review nits — see inline comments" \
+     --input <(jq -n '{event: "COMMENT", comments: $c}' --argjson c "$ANCHORABLE_NITS_JSON")
+   ```
+
+   Each comment object: `{ "path": "<file>", "line": <int>, "side": "RIGHT", "body": "<text>" }`. Add `start_line` for ranges. This pattern matches `pr-review/SKILL.md` lines 168-205.
+
+4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean:
+
+   ```bash
+   gh pr review <N> --comment -b "<one nit per line, formatted as 'path:line — body'>"
+   ```
+
+5. If `gh api` posting fails after `gh pr create` succeeded, surface the error and the unposted nits to the user. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
 Then: Cleanup worktree (Step 5)
 
@@ -204,6 +230,11 @@ git worktree remove <worktree-path>
 - **Problem:** PR uses generic format instead of project's required template
 - **Fix:** Always glob for `**/pr-guideline*.md` before composing title/description
 
+**Putting branch-review nits in the description body**
+
+- **Problem:** Nits become locked into the durable description instead of being resolvable line-anchored review comments
+- **Fix:** When a caller passes a `nits` block, post via `gh api repos/.../pulls/<N>/reviews` with `event: "COMMENT"`. The description body stays free of review chatter
+
 ## Red Flags
 
 **Never:**
@@ -212,6 +243,7 @@ git worktree remove <worktree-path>
 - Merge without verifying tests on result
 - Delete work without confirmation
 - Force-push without explicit request
+- Embed branch-review nits in the PR description body when the caller passed them as an input
 
 **Always:**
 
