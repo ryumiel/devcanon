@@ -99,7 +99,7 @@ Then: Cleanup worktree (Step 5)
 
 #### Option 2: Push and Create PR
 
-**Optional input — review nits.** Callers (e.g., `github-issue-priming` Phase 9, `linear-issue-priming` Phase 9) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
+**Optional input — review nits.** Callers (e.g., `github-issue-priming` Phase 9, `linear-issue-priming` Phase 9) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller omits `side`, this skill applies the `"RIGHT"` default automatically — callers do not need to supply it. When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
 ```bash
 # Push branch
@@ -123,20 +123,21 @@ EOF
 **After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits` input was empty or omitted.
 
 1. Resolve the new PR number from the `gh pr create` output (or `gh pr view --json number`).
-2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff <N>`) and unanchorable.
+2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff <N>`) and unanchorable. Serialize the anchorable nits as a JSON array string into `$ANCHORABLE_NITS_JSON` for use in step 3.
 3. Post anchorable nits as a single review with `event: "COMMENT"`:
 
    ```bash
    gh api repos/{owner}/{repo}/pulls/<N>/reviews \
      --method POST \
+     -f commit_id="$(gh pr view <N> --json headRefOid --jq .headRefOid)" \
      -f event="COMMENT" \
      -f body="branch-review nits — see inline comments" \
-     --input <(jq -n '{event: "COMMENT", comments: $c}' --argjson c "$ANCHORABLE_NITS_JSON")
+     --input <(jq -n '{comments: $c}' --argjson c "$ANCHORABLE_NITS_JSON")
    ```
 
-   Each comment object: `{ "path": "<file>", "line": <int>, "side": "RIGHT", "body": "<text>" }`. Add `start_line` for ranges. This pattern matches `pr-review/SKILL.md` lines 168-205.
+   Each comment object: `{ "path": "<file>", "line": <int>, "side": "RIGHT", "body": "<text>" }`. Add `start_line` for ranges. This pattern matches the review-posting flow in `pr-review/SKILL.md` Phase 6 / Post.
 
-4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean:
+4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean. A top-level review comment is chosen over `gh pr comment` so all branch-review feedback lives in the Reviews tab.
 
    ```bash
    gh pr review <N> --comment -b "<one nit per line, formatted as 'path:line — body'>"
