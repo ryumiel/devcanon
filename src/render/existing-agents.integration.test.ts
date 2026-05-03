@@ -65,13 +65,13 @@ describe("shipped agents render cleanly", () => {
       expect(claudeFrontmatter).toMatchObject({
         name,
         model: "claude-sonnet-4-6",
-        effort: "medium",
+        effort: "high",
       });
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
 
       expect(codexOutput.content).toContain(`name = "${name}"`);
-      expect(codexOutput.content).toContain('model = "gpt-5.4"');
+      expect(codexOutput.content).toContain('model = "gpt-5.5"');
       expect(codexOutput.content).toContain(
         'model_reasoning_effort = "medium"',
       );
@@ -96,13 +96,13 @@ describe("shipped agents render cleanly", () => {
       expect(claudeFrontmatter).toMatchObject({
         name,
         model: "claude-opus-4-7",
-        effort: "high",
+        effort: "xhigh",
       });
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
 
       expect(codexOutput.content).toContain(`name = "${name}"`);
-      expect(codexOutput.content).toContain('model = "gpt-5.4"');
+      expect(codexOutput.content).toContain('model = "gpt-5.5"');
       expect(codexOutput.content).toContain('model_reasoning_effort = "high"');
       expect(codexOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
