@@ -172,7 +172,7 @@ After all blocking findings are fixed, report:
 
 - Number of blocking findings fixed
 - Remaining nits (left for user)
-- Any blocking findings that couldn't be fixed (requires design changes)
+- Any blocking findings that couldn't be fixed (requires design changes or files outside the diff)
 
 If a blocking finding requires design changes **or requires editing files outside the diff (e.g., Sub-check B cross-document drift)**, **stop and report** — don't attempt architectural fixes or corpus-wide edits. A fix triggers this stop rule if it changes a function's signature, alters control flow structure, touches more than one module, needs context beyond the flagged lines to determine correctness, or requires editing unchanged files.
 
