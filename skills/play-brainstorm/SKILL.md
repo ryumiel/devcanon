@@ -10,7 +10,7 @@ Help turn ideas into fully formed designs through natural collaborative dialogue
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval — but the design step itself is never skipped.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
