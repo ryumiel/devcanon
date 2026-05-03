@@ -29,6 +29,14 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 }
 `;
 
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-priming-workflow-sidecar 1`] = `
+{
+  "policy": {
+    "allow_implicit_invocation": false,
+  },
+}
+`;
+
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > linear-issue-priming-claude-frontmatter 1`] = `
 {
   "description": "Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".",
