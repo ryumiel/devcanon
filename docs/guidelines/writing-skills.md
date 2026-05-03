@@ -75,9 +75,12 @@ claude:
   model: "{{model:deep}}"
 ```
 
-Shipped example: `skills/github-issue-priming/SKILL.md` uses
+Shipped example: `skills/issue-priming-workflow/SKILL.md` uses
 `{{model:deep}}` because its workflow orchestrates gate, research,
-planning, and execution.
+planning, and execution. The `skills/github-issue-priming/SKILL.md` and
+`skills/linear-issue-priming/SKILL.md` entrypoints that hand off to it
+also pin `{{model:deep}}` so the source-specific fetch runs on the same
+tier.
 
 ### `codex:` for license and metadata
 

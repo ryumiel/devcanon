@@ -277,9 +277,12 @@ Use {{model:deep}} for synthesis, then {{model:fast}} for cleanup.
 The synthetic example above shows the full shape. These shipped skills show
 when each block is actually useful:
 
-- `skills/github-issue-priming/SKILL.md` uses `claude.model` because its
-  workflow orchestrates gate, research, planning, and execution. The same
-  pattern also appears in `skills/linear-issue-priming/SKILL.md`.
+- `skills/issue-priming-workflow/SKILL.md` uses `claude.model` because its
+  workflow orchestrates gate, research, planning, and execution. The
+  `skills/github-issue-priming/SKILL.md` and
+  `skills/linear-issue-priming/SKILL.md` entrypoints that hand off to it
+  also pin `claude.model` so the source-specific fetch and routing run on
+  the same tier.
 - `skills/github-issue-priming/SKILL.md` and
   `skills/linear-issue-priming/SKILL.md` use
   `codex.metadata.short-description` in rendered Codex frontmatter and
