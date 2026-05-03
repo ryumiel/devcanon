@@ -200,10 +200,12 @@ Dispatch a **dedicated research agent** using the prompt template in `references
 
 Invoke the `play-brainstorm` skill with the combined context below.
 
+`<source-noun>` below is `Linear` when `payload.source` is `linear` and `GitHub` when `payload.source` is `github`.
+
 **Args format when research was done:**
 
 ```
-Resolve {{Linear|GitHub}} issue <ID>: <TITLE>
+Resolve <source-noun> issue <ID>: <TITLE>
 
 ## Issue Body
 <verbatim payload.body>
@@ -215,7 +217,7 @@ Resolve {{Linear|GitHub}} issue <ID>: <TITLE>
 **Args format when research was skipped:**
 
 ```
-Resolve {{Linear|GitHub}} issue <ID>: <TITLE>
+Resolve <source-noun> issue <ID>: <TITLE>
 
 ## Issue Body
 <verbatim payload.body>
