@@ -112,6 +112,7 @@ The Docs agent must perform two consistency checks in addition to its existing a
 - Compare backticked identifiers in prose against identifiers used in adjacent fenced code blocks within the same file.
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as P1, blocking. Auto-fixable via `--fix`.
+- **Auto-fix rule:** the code block is canonical; rewrite prose to match. If the code block is itself wrong, reclassify as judgment-required and route to nits — do not auto-fix.
 
 Illustrative scenario (pattern from PR #106): a single `.md` file describes a worktree-cleanup procedure where the prose narrates "`git worktree prune` removes the directory" while the adjacent code block invokes `git worktree remove <path>`. The two identifiers diverged across review rounds — code was updated; prose was not. Sub-check A flags this as P1, blocking, with the recommendation "the code block is canonical; rewrite prose to match."
 
