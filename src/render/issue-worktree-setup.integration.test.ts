@@ -283,7 +283,7 @@ describe("issue-worktree-setup helper", () => {
     });
 
     expect(result.MODE).toBe("stop");
-    expect(result.MESSAGE).toMatch(/ahead of BASE_REF/i);
+    expect(result.MESSAGE).toMatch(/commits not in BASE_REF/i);
     expect(await runGit(["branch", "--show-current"], managedPath)).toBe(
       "main",
     );
@@ -494,7 +494,57 @@ describe("issue-worktree-setup helper", () => {
     });
 
     expect(result.MODE).toBe("stop");
-    expect(result.MESSAGE).toMatch(/ahead of BASE_REF/i);
+    expect(result.MESSAGE).toMatch(/commits not in BASE_REF/i);
+    expect(await runGit(["branch", "--show-current"], managedPath)).toBe(
+      "feat/existing",
+    );
+    await expect(
+      runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
+    ).rejects.toThrow();
+  });
+
+  it("stops when a managed feature-branch worktree has diverged from BASE_REF", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-feature-diverged-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const publisherDir = await createPublisherClone(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "feature-diverged");
+    await runGit(
+      ["worktree", "add", "-b", "feat/existing", managedPath, "origin/main"],
+      primaryDir,
+    );
+    // Commit on the feature branch — HEAD advances past the fork point.
+    await writeFile(
+      path.join(managedPath, "feature-work.txt"),
+      "feature side\n",
+      "utf-8",
+    );
+    await runGit(["add", "feature-work.txt"], managedPath);
+    await runGit(["commit", "-m", "feat: feature side"], managedPath);
+    // Advance origin past the fork point too — now neither is an ancestor.
+    await createRemoteBaseRef(
+      publisherDir,
+      "review-diverged-base",
+      "review-diverged-base.txt",
+      "diverged base\n",
+    );
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/should-not-branch",
+      WORKTREE_LEAF: "ignored-for-stop",
+      BASE_REF: "origin/review-diverged-base",
+    });
+
+    expect(result.MODE).toBe("stop");
+    // The "commits not in BASE_REF" wording must cover this divergence
+    // shape — earlier "ahead of" wording was misleading here.
+    expect(result.MESSAGE).toMatch(/commits not in BASE_REF/i);
     expect(await runGit(["branch", "--show-current"], managedPath)).toBe(
       "feat/existing",
     );

@@ -136,9 +136,12 @@ if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
       "MESSAGE" \
       "Managed worktree has uncommitted changes; return to the primary checkout."
   else
+    # The is-ancestor check returned 1 — HEAD is either strictly ahead of
+    # BASE_REF or has diverged from it. "Has commits not in BASE_REF"
+    # covers both shapes; "ahead of" alone would misdiagnose divergence.
     emit_line \
       "MESSAGE" \
-      "Managed worktree is ahead of BASE_REF; return to the primary checkout."
+      "Managed worktree has commits not in BASE_REF; return to the primary checkout."
   fi
   exit 0
 fi
