@@ -7,15 +7,21 @@ import {
   createTempDir,
   makeManifestJson,
 } from "../../__test-helpers__/fixtures.js";
+import {
+  type TestLoggerResult,
+  installTestLogger,
+} from "../../__test-helpers__/logger.js";
 import { UserError } from "../../utils/errors.js";
 import { pathExists } from "../../utils/fs.js";
-import { type Logger, getLogger, setLogger } from "../../utils/output.js";
 import { uninstallAction } from "./uninstall.js";
 
 describe("uninstallAction", () => {
   let tempDir: string;
   let configPath: string;
   let manifestPath: string;
+  let testLogger: TestLoggerResult;
+  let restoreLogger: () => void;
+  let priorExitCode: typeof process.exitCode;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -34,35 +40,18 @@ describe("uninstallAction", () => {
         `  path: ${manifestPath}`,
       ].join("\n"),
     );
+    const installed = installTestLogger();
+    testLogger = installed.testLogger;
+    restoreLogger = installed.restore;
+    priorExitCode = process.exitCode;
+    process.exitCode = undefined;
   });
 
   afterEach(async () => {
+    process.exitCode = priorExitCode;
+    restoreLogger();
     await cleanupTempDir(tempDir);
   });
-
-  function createRecordingLogger(): {
-    logger: Logger;
-    infos: string[];
-    errors: string[];
-    jsons: unknown[];
-  } {
-    const infos: string[] = [];
-    const errors: string[] = [];
-    const jsons: unknown[] = [];
-    return {
-      logger: {
-        error: (m) => errors.push(m),
-        warn: () => {},
-        info: (m) => infos.push(m),
-        verbose: () => {},
-        debug: () => {},
-        json: (d) => jsons.push(d),
-      },
-      infos,
-      errors,
-      jsons,
-    };
-  }
 
   it("throws UserError for invalid --target", async () => {
     await expect(
@@ -78,25 +67,104 @@ describe("uninstallAction", () => {
   });
 
   it("emits JSON result when --json is set against an empty manifest", async () => {
-    const { logger, jsons } = createRecordingLogger();
-    const prior = getLogger();
-    setLogger(logger);
-
-    try {
-      await uninstallAction(
-        {},
-        {
-          parent: {
-            opts: () => ({ config: configPath, strict: false, json: true }),
-          },
+    await uninstallAction(
+      {},
+      {
+        parent: {
+          opts: () => ({ config: configPath, strict: false, json: true }),
         },
-      );
-    } finally {
-      setLogger(prior);
-    }
+      },
+    );
 
-    expect(jsons).toHaveLength(1);
-    expect(jsons[0]).toEqual({ removed: 0, errors: [] });
+    expect(testLogger.jsons).toHaveLength(1);
+    expect(testLogger.jsons[0]).toEqual({ removed: 0, errors: [] });
+  });
+
+  it("emits JSON result with removed count when records exist", async () => {
+    const installedPath = path.join(
+      tempDir,
+      "home",
+      "claude",
+      "skills",
+      "skill-a",
+    );
+    await mkdir(installedPath, { recursive: true });
+    await writeFile(path.join(installedPath, "SKILL.md"), "content", "utf-8");
+
+    await writeFile(
+      manifestPath,
+      makeManifestJson([
+        {
+          target: "claude",
+          type: "skill",
+          sourcePath: "/x/skills/skill-a",
+          generatedPath: null,
+          installedPath,
+          installMode: "copy",
+          contentHash: "abc123",
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+      "utf-8",
+    );
+
+    await uninstallAction(
+      {},
+      {
+        parent: {
+          opts: () => ({ config: configPath, strict: false, json: true }),
+        },
+      },
+    );
+
+    expect(testLogger.jsons).toHaveLength(1);
+    expect(testLogger.jsons[0]).toEqual({ removed: 1, errors: [] });
+    expect(await pathExists(installedPath)).toBe(false);
+  });
+
+  it("logs 'Uninstall complete:' summary on a successful non-dry-run", async () => {
+    const installedPath = path.join(
+      tempDir,
+      "home",
+      "claude",
+      "skills",
+      "skill-a",
+    );
+    await mkdir(installedPath, { recursive: true });
+    await writeFile(path.join(installedPath, "SKILL.md"), "content", "utf-8");
+
+    await writeFile(
+      manifestPath,
+      makeManifestJson([
+        {
+          target: "claude",
+          type: "skill",
+          sourcePath: "/x/skills/skill-a",
+          generatedPath: null,
+          installedPath,
+          installMode: "copy",
+          contentHash: "abc123",
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+      "utf-8",
+    );
+
+    await uninstallAction(
+      {},
+      {
+        parent: {
+          opts: () => ({ config: configPath, strict: false, json: false }),
+        },
+      },
+    );
+
+    expect(
+      testLogger.infos.some((line) =>
+        line.startsWith("\nUninstall complete: 1 removed"),
+      ),
+    ).toBe(true);
+    expect(await pathExists(installedPath)).toBe(false);
   });
 
   it("skips summary line under --dry-run", async () => {
@@ -110,7 +178,6 @@ describe("uninstallAction", () => {
     await mkdir(installedPath, { recursive: true });
     await writeFile(path.join(installedPath, "SKILL.md"), "content", "utf-8");
 
-    const timestamp = new Date().toISOString();
     await writeFile(
       manifestPath,
       makeManifestJson([
@@ -122,40 +189,33 @@ describe("uninstallAction", () => {
           installedPath,
           installMode: "copy",
           contentHash: "abc123",
-          timestamp,
+          timestamp: new Date().toISOString(),
         },
       ]),
       "utf-8",
     );
 
-    const { logger, infos } = createRecordingLogger();
-    const prior = getLogger();
-    setLogger(logger);
-
-    try {
-      await uninstallAction(
-        { target: "claude", dryRun: true },
-        {
-          parent: {
-            opts: () => ({ config: configPath, strict: false, json: false }),
-          },
+    await uninstallAction(
+      { target: "claude", dryRun: true },
+      {
+        parent: {
+          opts: () => ({ config: configPath, strict: false, json: false }),
         },
-      );
-    } finally {
-      setLogger(prior);
-    }
-
-    expect(infos.some((line) => line.startsWith("Uninstall complete:"))).toBe(
-      false,
+      },
     );
+
+    expect(
+      testLogger.infos.some((line) => line.startsWith("\nUninstall complete:")),
+    ).toBe(false);
     expect(await pathExists(installedPath)).toBe(true);
   });
 
-  it.skipIf(process.platform === "win32")(
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "sets process.exitCode = 1 and logs each error when uninstall fails",
     async () => {
       // skill-a lives inside a chmod 0o555 parent so rm cannot unlink it;
       // this exercises the error accumulation and process.exitCode path.
+      // Skipped when running as root, since chmod does not block root unlinks.
       const lockedParent = path.join(
         tempDir,
         "home",
@@ -168,7 +228,6 @@ describe("uninstallAction", () => {
       await mkdir(installedPath, { recursive: true });
       await writeFile(path.join(installedPath, "SKILL.md"), "content", "utf-8");
 
-      const timestamp = new Date().toISOString();
       await writeFile(
         manifestPath,
         makeManifestJson([
@@ -180,20 +239,13 @@ describe("uninstallAction", () => {
             installedPath,
             installMode: "copy",
             contentHash: "abc123",
-            timestamp,
+            timestamp: new Date().toISOString(),
           },
         ]),
         "utf-8",
       );
 
       await chmod(lockedParent, 0o555);
-
-      const { logger, errors } = createRecordingLogger();
-      const prior = getLogger();
-      setLogger(logger);
-
-      const priorExitCode = process.exitCode;
-      process.exitCode = undefined;
 
       try {
         await uninstallAction(
@@ -206,13 +258,11 @@ describe("uninstallAction", () => {
         );
 
         expect(process.exitCode).toBe(1);
-        expect(errors.length).toBeGreaterThanOrEqual(1);
-        expect(errors.some((e) => /EACCES|EPERM|permission/i.test(e))).toBe(
-          true,
-        );
+        expect(testLogger.errors.length).toBeGreaterThanOrEqual(1);
+        expect(
+          testLogger.errors.some((e) => /EACCES|EPERM|permission/i.test(e)),
+        ).toBe(true);
       } finally {
-        setLogger(prior);
-        process.exitCode = priorExitCode;
         await chmod(lockedParent, 0o755).catch(() => {});
       }
     },

@@ -151,6 +151,15 @@ describe("uninstall", () => {
 
     await sync(config, { dryRun: false, force: false, strict: false });
 
+    const skillSourcePath = path.join(
+      config.library.skillsDir,
+      "greet",
+      "SKILL.md",
+    );
+    const agentSourcePath = path.join(config.library.agentsDir, "helper.yaml");
+    const skillSourceContent = await readFile(skillSourcePath, "utf-8");
+    const agentSourceContent = await readFile(agentSourcePath, "utf-8");
+
     const claudeAgentPath = path.join(
       config.targets.claude.agentsHome,
       "helper.md",
@@ -182,6 +191,10 @@ describe("uninstall", () => {
     // Codex paths still present
     expect(await pathExists(codexAgentPath)).toBe(true);
     expect(await pathExists(codexSkillPath)).toBe(true);
+
+    // AC4: source files unchanged after a target-scoped uninstall
+    expect(await readFile(skillSourcePath, "utf-8")).toBe(skillSourceContent);
+    expect(await readFile(agentSourcePath, "utf-8")).toBe(agentSourceContent);
 
     // Manifest contains only codex records
     const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
@@ -233,7 +246,7 @@ describe("uninstall", () => {
     expect(testLogger.infos).toContain("Nothing to remove.");
   });
 
-  it.skipIf(process.platform === "win32")(
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "continues past per-record failures and updates manifest with successful removals",
     async () => {
       const config = makeResolvedConfig(tempDir);
@@ -245,6 +258,7 @@ describe("uninstall", () => {
       // its parent without write permission on the parent, so the rm call
       // throws EACCES and our error path is exercised. skill-b lives at
       // the writable top of skillsHome and is removable normally.
+      // Skipped under root because chmod does not block root unlinks.
       const lockedParent = path.join(skillsHome, "_locked");
       await mkdir(lockedParent, { recursive: true });
       const skillAPath = path.join(lockedParent, "skill-a");
