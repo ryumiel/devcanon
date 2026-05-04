@@ -86,9 +86,9 @@ program
 // uninstall
 program
   .command("uninstall")
-  .description("Remove all outputs installed by sync")
-  .option("--target <target>", "Limit to a single target (claude|codex)")
-  .option("--dry-run", "Preview removals without writing")
+  .description("Remove managed outputs recorded in the manifest")
+  .option("--target <target>", "claude or codex")
+  .option("--dry-run", "show plan without executing")
   .action(uninstallAction);
 
 // diff
