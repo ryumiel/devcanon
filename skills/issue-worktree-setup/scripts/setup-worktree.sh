@@ -37,7 +37,6 @@ DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 BASE_REF="${BASE_REF:-origin/${DEFAULT_BRANCH}}"
 CURRENT_WORKTREE="$(git rev-parse --show-toplevel)"
 CURRENT_WORKTREE_REAL="$(cd "$CURRENT_WORKTREE" && pwd -P)"
-CURRENT_BRANCH="$(git branch --show-current)"
 CURRENT_STATUS="$(git status --short)"
 MAIN_WORKTREE=""
 
@@ -90,20 +89,14 @@ if [[ -z "$RESOLVED_BASE" ]]; then
 fi
 
 if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
-  if [[ "$CURRENT_BRANCH" == "$DEFAULT_BRANCH" && -z "$CURRENT_STATUS" ]]; then
-    if ! git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
-      emit_line "MODE" "stop"
-      emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
-      emit_line \
-        "MESSAGE" \
-        "Managed default-branch worktree is ahead of BASE_REF; return to the primary checkout."
-      exit 0
-    fi
-
-    git merge --ff-only "$RESOLVED_BASE"
+  if [[ -z "$CURRENT_STATUS" ]] \
+    && git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
     if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
-      echo "Managed default-branch worktree did not fast-forward to BASE_REF." >&2
-      exit 1
+      git merge --ff-only "$RESOLVED_BASE"
+      if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
+        echo "Managed worktree did not fast-forward to BASE_REF." >&2
+        exit 1
+      fi
     fi
     git checkout -b "$BRANCH_NAME"
     emit_line "MODE" "reuse"
@@ -114,9 +107,15 @@ if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
 
   emit_line "MODE" "stop"
   emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
-  emit_line \
-    "MESSAGE" \
-    "Return to the primary checkout before creating a fresh worktree."
+  if [[ -n "$CURRENT_STATUS" ]]; then
+    emit_line \
+      "MESSAGE" \
+      "Managed worktree has uncommitted changes; return to the primary checkout."
+  else
+    emit_line \
+      "MESSAGE" \
+      "Managed worktree is ahead of BASE_REF; return to the primary checkout."
+  fi
   exit 0
 fi
 

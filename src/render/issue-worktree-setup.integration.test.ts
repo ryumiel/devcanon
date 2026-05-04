@@ -292,8 +292,11 @@ describe("issue-worktree-setup helper", () => {
     ).rejects.toThrow();
   });
 
-  it("refuses to create a nested worktree from a managed feature worktree", async () => {
-    const rootDir = path.join(os.tmpdir(), `am-worktree-stop-${Date.now()}`);
+  it("reuses a clean managed feature-branch worktree at BASE_REF", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-reuse-feature-${Date.now()}`,
+    );
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
@@ -301,27 +304,101 @@ describe("issue-worktree-setup helper", () => {
 
     const managedPath = path.join(primaryDir, ".worktrees", "feature-branch");
     await runGit(
-      ["worktree", "add", "-b", "feat/existing", managedPath, "origin/main"],
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
       primaryDir,
     );
+    const baseSha = await runGit(["rev-parse", "origin/main"], primaryDir);
 
     const result = await runSetup(helperScript, managedPath, {
-      BRANCH_NAME: "feat/nested-should-not-happen",
-      WORKTREE_LEAF: "nested-should-not-happen",
+      BRANCH_NAME: "feat/reused-from-feature-branch",
+      WORKTREE_LEAF: "ignored-for-reuse",
     });
 
-    expect(result.MODE).toBe("stop");
+    expect(result.MODE).toBe("reuse");
     const managedRealPath = await realpath(managedPath);
 
     expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
       normalizeFsPath(managedRealPath),
     );
-    expect(result.MESSAGE).toMatch(/primary checkout/i);
+    expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
+      "feat/reused-from-feature-branch",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
+    // Previous branch ref is preserved (just no longer checked out).
     expect(
-      await pathExists(
-        path.join(primaryDir, ".worktrees", "nested-should-not-happen"),
+      await runGit(
+        ["rev-parse", "--verify", "claude/scratch"],
+        managedRealPath,
       ),
-    ).toBe(false);
+    ).toBe(baseSha);
+  });
+
+  it("stops when a managed feature-branch worktree is ahead of BASE_REF", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-feature-ahead-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "feature-ahead");
+    await runGit(
+      ["worktree", "add", "-b", "feat/existing", managedPath, "origin/main"],
+      primaryDir,
+    );
+    await writeFile(
+      path.join(managedPath, "feature-work.txt"),
+      "in-progress\n",
+      "utf-8",
+    );
+    await runGit(["add", "feature-work.txt"], managedPath);
+    await runGit(["commit", "-m", "feat: in-progress work"], managedPath);
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/should-not-branch",
+      WORKTREE_LEAF: "ignored-for-stop",
+    });
+
+    expect(result.MODE).toBe("stop");
+    expect(result.MESSAGE).toMatch(/ahead of BASE_REF/i);
+    expect(await runGit(["branch", "--show-current"], managedPath)).toBe(
+      "feat/existing",
+    );
+    await expect(
+      runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
+    ).rejects.toThrow();
+  });
+
+  it("stops when a managed worktree has uncommitted changes", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-dirty-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "dirty");
+    await runGit(
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
+      primaryDir,
+    );
+    await writeFile(
+      path.join(managedPath, "uncommitted.txt"),
+      "dirty\n",
+      "utf-8",
+    );
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/should-not-branch",
+      WORKTREE_LEAF: "ignored-for-stop",
+    });
+
+    expect(result.MODE).toBe("stop");
+    expect(result.MESSAGE).toMatch(/uncommitted changes/i);
+    await expect(
+      runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
+    ).rejects.toThrow();
   });
 
   it("rejects unsafe worktree leaf values", async () => {
