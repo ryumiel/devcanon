@@ -63,9 +63,9 @@ are true:
   sense outside the originating skill**.
 - The delegate benefits from documented target-supported constraints such as
   dedicated model tier, effort level, tool access, sandbox mode, or Codex
-  approval policy (`codex.approval_policy`). Constraint potential alone is
-  necessary but not sufficient — it sharpens an already-justified promotion,
-  it does not justify one.
+  approval policy (`codex.approval_policy`). Constraint potential is necessary
+  but not sufficient — it sharpens an already-justified promotion, it does not
+  justify one.
 - The reusable operational method can remain in skills, with the resulting
   agent staying a thin role wrapper.
 
