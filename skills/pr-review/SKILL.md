@@ -91,7 +91,7 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 3. Diff — full or incremental (see follow-up rules)
 4. Discovered guidelines — actual content, not file paths
 5. Prior review context (follow-up only) — threads, author replies
-6. Output format — file path (repo-relative), line number (in HEAD), priority P0-P3, blocking/nit, code reference, recommendation
+6. Output format — file path (repo-relative), line number (in HEAD), severity (`Blocking` or `Nit`), category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts`), code reference, recommendation
 
 Compose PR-specific prompts referencing actual files and line counts. Generic prompts like "review this PR" are prohibited.
 
@@ -110,13 +110,13 @@ Procedure:
 1. Identify the replaced primitive (old → new), citing the diff hunk.
 2. Enumerate every safety property, precondition check, or rejection mode the OLD primitive enforced. Pull from the tool's documented behavior (`--help` / official docs) when the property isn't obvious from the name alone.
 3. For each property, classify what the NEW code does: PRESERVES (same property holds), GUARDS (replaces with an equivalent runtime check), or SILENTLY DROPS (no equivalent guard, no waiver).
-4. A SILENTLY DROPS finding is P0, blocking, unless the diff or surrounding spec explicitly waives the property with a rationale.
+4. A SILENTLY DROPS finding is `Blocking`, category `Safety`, unless the diff or surrounding spec explicitly waives the property with a rationale.
 
 **Bounding rule:** apply only to _external_ invocations (CLIs, REST/HTTP APIs, OS primitives, third-party SDK calls). Do not apply to internal-code refactors (calling site changes from one repo function to another), to literal renames, or to mechanical formatting changes. The agent should self-check: "is the named primitive defined inside this repo, or by a tool whose semantics live elsewhere?"
 
-**Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as P0 blocking — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
+**Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as `Blocking`, category `Safety` — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
 
-Worked example (real, PR #117): a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — P0 blocking, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs. (PR #117 landed exactly that fix after Copilot's inline review caught the regression.)
+Worked example (real, PR #117): a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — `Blocking | Safety`, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs. (PR #117 landed exactly that fix after Copilot's inline review caught the regression.)
 
 **Sub-check 2 — Documented-behavior verification.** Fires when the diff adds a new external invocation, or modifies an existing one's flags / body shape / query parameters. Substitutions (Sub-check 1's trigger) are a subset; Sub-check 2 is the broader case. Examples in scope: any new `gh api` / `gh pr` invocation, any `git` invocation with a non-trivial flag combination, any new `fetch(` / `axios.` / HTTP-client call, any new child_process / subprocess invocation, any new file-system primitive (`fs.*`, `unlink`, etc.). Excluded: pure language-stdlib calls with stable, well-understood semantics (`Array.map`, `JSON.stringify`).
 
@@ -125,13 +125,13 @@ Procedure:
 1. Identify the tool and the specific invocation pattern (subcommand, flags, body shape, query params).
 2. Verify the invocation against documented behavior — the tool's `--help` output, official docs, or actual runtime behavior. Do **not** approve based on prior knowledge of flag interactions or default semantics.
 3. Flag any divergence: invocation that won't do what the surrounding code claims, silently-ignored arguments, defaults that change between adjacent flag combinations, etc.
-4. Tag any divergence as DOCUMENTED-BEHAVIOR MISMATCH; this is P0, blocking, unless the diff or surrounding spec explicitly waives the documented behavior with a rationale.
+4. Tag any divergence as DOCUMENTED-BEHAVIOR MISMATCH; this is `Blocking`, category `Contracts`, unless the diff or surrounding spec explicitly waives the documented behavior with a rationale.
 
 **Bounding rule:** don't re-verify the tool's whole API surface — only the specific invocation pattern in the diff. Don't flag stable, widely-known stdlib behavior. The bar is "could a reasonable reviewer assume the wrong semantics here?" — if yes, verify.
 
-**Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as P0 blocking — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
+**Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as `Blocking`, category `Contracts` — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
 
-Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The Correctness agent reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — P0 blocking, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body. (PR #127's first "fix" rearranged flags but kept the broken pattern; the second review pass caught it. The audit should verify against `--help` rather than assume.)
+Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The Correctness agent reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — `Blocking | Contracts`, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body. (PR #127's first "fix" rearranged flags but kept the broken pattern; the second review pass caught it. The audit should verify against `--help` rather than assume.)
 
 **Follow-up review scoping:**
 
@@ -159,7 +159,7 @@ Format each finding with evidence code:
 
 ```
 #### 1. <title>
-**<file>:<line> | P0 | Blocking | Critic: VALID**
+**<file>:<line> | Blocking | Safety | Critic: VALID**
 
 ` ` `<lang>
 // <file>:<start>-<end>
@@ -185,15 +185,16 @@ Include draft review body preview.
 
 **User actions:**
 
-| Action                      | Effect                                 |
-| --------------------------- | -------------------------------------- |
-| `post`                      | Post review + resolve approved threads |
-| `post as comment`           | Comment only, no verdict               |
-| `drop #N`                   | Remove finding                         |
-| `change #N to blocking/nit` | Reclassify                             |
-| `edit`                      | Revise draft text                      |
-| `skip threads`              | Post but don't resolve                 |
-| `abort`                     | Discard all, clean up                  |
+| Action                               | Effect                                 |
+| ------------------------------------ | -------------------------------------- |
+| `post`                               | Post review + resolve approved threads |
+| `post as comment`                    | Comment only, no verdict               |
+| `drop #N`                            | Remove finding                         |
+| `change #N severity to Blocking/Nit` | Reclassify severity                    |
+| `change #N category to Logic/...`    | Reclassify category                    |
+| `edit`                               | Revise draft text                      |
+| `skip threads`                       | Post but don't resolve                 |
+| `abort`                              | Discard all, clean up                  |
 
 ### Phase 6: Post
 
@@ -221,14 +222,14 @@ Only after user approval:
      "path": "relative/file.ts",
      "line": 42,
      "side": "RIGHT",
-     "body": "**P0 Blocking** ..."
+     "body": "**Blocking | Safety** ..."
    }
    ```
 
    - `path`: file path relative to repo root (from the diff)
    - `line`: the absolute line number in the HEAD version of the file
    - `side`: `"RIGHT"` for lines in the PR head (almost always what you want)
-   - `body`: finding text — include priority, blocking/nit tag, and recommendation
+   - `body`: finding text — include severity, category, and recommendation
 
    For multi-line comments spanning a range, add `start_line`:
 
@@ -262,8 +263,8 @@ gh api repos/{owner}/{repo}/pulls/<N>/reviews \
   --input <(jq -n \
     --arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)" \
     --argjson comments '[
-      {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**P0 Blocking** — unchecked error\n\n**Recommendation:** propagate with `?`"},
-      {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**P2 Nit** — consider extracting helper"}
+      {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**Blocking | Safety** — unchecked error\n\n**Recommendation:** propagate with `?`"},
+      {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**Nit | Maintainability** — consider extracting helper"}
     ]' \
     '{commit_id: $commit_id, body: "Summary", event: "REQUEST_CHANGES", comments: $comments}')
 ```
