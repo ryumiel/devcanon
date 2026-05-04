@@ -2,57 +2,99 @@
 
 ## 1. Scope
 
-This guideline applies to all code and documentation changes, and covers three review modes:
+This guideline applies to all code and documentation changes, and covers three
+review modes:
 
 - **Self-review**: Author checks their own code before opening a PR
-- **Agent-assisted review**: AI agents (Claude Code, Codex) review code using these priorities
-- **Peer review**: Human reviewers follow the same priorities when reviewing others' code
+- **Agent-assisted review**: AI agents (Claude Code, Codex) review code using
+  the same finding model as human reviewers
+- **Peer review**: Human reviewers follow the same finding model when reviewing
+  others' code
 
-## 2. Review Priorities
+## 2. Canonical Finding Model
 
-| Priority | Focus                    | Blocking? | What to check                                                                                                                                                                                                                                                                                                                                                                                 |
-| -------- | ------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P0**   | Correctness & safety     | Yes       | Logic bugs in validation, rendering, or install. Path traversal or symlink escape in `src/install/` and `src/utils/fs.ts`. Unhandled errors that silently corrupt output. File operations that write outside intended target directories. Zod schema mismatches between config parsing and runtime usage.                                                                                     |
-| **P1**   | Architectural boundaries | Yes       | Render module (`src/render/`) must not depend on install module (`src/install/`) or vice versa. Config schema changes in `src/config/schema.ts` must stay aligned with `docs/specs/configuration.md`. Target-specific logic (Claude vs Codex) must stay inside respective renderers, not leak into shared code. Skill and agent models must match the source schema defined in `docs/specs/`. |
-| **P2**   | Tests & verification     | Yes       | New logic has tests. Bug fixes include a regression test. All CI checks pass (`pnpm run check`). Snapshot tests updated when renderer output changes.                                                                                                                                                                                                                                         |
-| **P3**   | Maintainability          | Nit only  | Naming clarity. Nesting depth (3+ levels = signal). Dead code. Comments only where logic is non-obvious.                                                                                                                                                                                                                                                                                      |
+### Severity
+
+- **Blocking**: prevents approval or autonomous continuation until fixed,
+  waived with rationale, or explicitly reclassified
+- **Nit**: a real issue that should not block approval or autonomous
+  continuation
+
+Severity is the merge gate. Review skills, prompts, and human reviewers should
+all treat `Blocking` vs `Nit` as the primary decision boundary.
+
+### Categories
+
+- **Logic**: incorrect behavior, missing guards, wrong control flow, bad
+  assumptions, or behavior that fails the stated intent
+- **Safety**: security, data safety, path handling, injection, secrets, unsafe
+  destructive actions, and similar risk-bearing issues
+- **Architecture**: boundary violations, misplaced responsibilities, layering
+  breaks, dependency direction problems, or structural drift
+- **Tests**: missing coverage, incorrect tests, stale fixtures, or verification
+  gaps for changed behavior
+- **Maintainability**: readability, duplication, naming, extraction, local
+  structure, and similar clarity concerns unless elevated by severity
+- **Documentation**: prose accuracy, identifier drift in docs, operator
+  guidance, examples, and narrative text that misleads readers
+- **Contracts**: mismatches between code and enforced or declared interfaces,
+  including schemas, public APIs, specs, configuration contracts, and behavior
+  that contradicts the repo's authoritative contract sources
+
+Category does not determine whether a finding blocks. Any category can be
+either `Blocking` or `Nit`.
 
 ## 3. Review Workflow
 
-1. Read the PR description (or diff summary for self-review)
-2. Check CI status -- if red, fix before reviewing further
-3. Review in priority order: P0 -> P1 -> P2 -> P3
-4. For each finding, classify by priority level
-5. Stop detailed review if a P0 issue is found -- flag it immediately
-6. Prefix optional suggestions with `nit:`
+1. Read the PR description (or diff summary for self-review).
+2. Check CI status before detailed review.
+3. Present all `Blocking` findings before any `Nit` findings.
+4. Within each severity bucket, group findings by category.
+5. Within each category, present the strongest evidence first.
+6. Approve when only `Nit` findings remain.
 
-## 4. What Reviewers Should NOT Do
+## 4. Coupled Unchanged Code
+
+Reviewers may call out unchanged code only when the current diff makes that
+code technically incorrect, contractually inconsistent, or semantically
+misleading.
+
+- A newly preferred style or pattern by itself is not enough.
+- An imagined broader cleanup by itself is not enough.
+- The diff must explicitly create or reveal the contradiction.
+
+## 5. What Reviewers Should Not Do
 
 - Request style changes already enforced by Biome or Prettier
 - Block on hypothetical future requirements
-- Rewrite the PR in comments -- name the problem, suggest a direction
+- Rewrite the PR in comments; name the problem and suggest a direction
 - Request changes you would not actually reject the PR over
 - Hold approval waiting for nits to be addressed
 
-## 5. Self-Review Checklist
+## 6. Self-Review Checklist
 
 Before opening a PR, the author should verify:
 
 - [ ] `pnpm run check` passes locally
-- [ ] No P0 issues in changed files (scan for unsafe file operations, unvalidated paths, schema mismatches)
-- [ ] No P1 boundary violations (render ↔ install separation, config schema ↔ spec alignment)
+- [ ] No `Blocking` findings remain in changed files
+- [ ] Architecture, docs, and contract changes stay aligned where the diff
+      touches them
 - [ ] Tests exist for new behavior; bug fixes have regression tests
-- [ ] PR description follows the PR guideline (see `docs/guidelines/pr-guideline.md`)
+- [ ] PR description follows the PR guideline (see
+      `docs/guidelines/pr-guideline.md`)
 - [ ] CONTRIBUTING.md PR checklist answered (schema, snapshot, docs updates)
 
-## 6. Agent-Assisted Review
+## 7. Agent-Assisted Review
 
 When an AI agent reviews code, it must:
 
-- Follow the same P0-P3 priority order as human reviewers
-- Never approve its own authored code -- a separate review (human or different agent session) is required
+- Classify each finding with one severity (`Blocking` or `Nit`) and one
+  category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`,
+  `Documentation`, or `Contracts`)
+- Never approve its own authored code; a separate review (human or different
+  agent session) is required
 - Cite specific file paths and line numbers for each finding
-- Provide a concrete example or fix suggestion for P0/P1 findings
-- Classify each comment by priority level (e.g., `[P0]`, `[P1]`, `[nit]`)
+- Provide a concrete example or fix suggestion for blocking findings
 - Verify CI status rather than assuming correctness
-- Check the CONTRIBUTING.md PR checklist items that can be verified mechanically (schema alignment, snapshot freshness, MAP.md coverage)
+- Check the CONTRIBUTING.md PR checklist items that can be verified
+  mechanically (schema alignment, snapshot freshness, MAP.md coverage)
