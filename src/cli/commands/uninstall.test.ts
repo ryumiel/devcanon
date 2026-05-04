@@ -7,9 +7,9 @@ import {
   createTempDir,
   makeManifestJson,
 } from "../../__test-helpers__/fixtures.js";
+import { UserError } from "../../utils/errors.js";
 import { pathExists } from "../../utils/fs.js";
 import { type Logger, getLogger, setLogger } from "../../utils/output.js";
-import { UserError } from "../../utils/errors.js";
 import { uninstallAction } from "./uninstall.js";
 
 describe("uninstallAction", () => {
@@ -100,7 +100,13 @@ describe("uninstallAction", () => {
   });
 
   it("skips summary line under --dry-run", async () => {
-    const installedPath = path.join(tempDir, "home", "claude", "skills", "skill-a");
+    const installedPath = path.join(
+      tempDir,
+      "home",
+      "claude",
+      "skills",
+      "skill-a",
+    );
     await mkdir(installedPath, { recursive: true });
     await writeFile(path.join(installedPath, "SKILL.md"), "content", "utf-8");
 
@@ -139,7 +145,9 @@ describe("uninstallAction", () => {
       setLogger(prior);
     }
 
-    expect(infos.some((line) => line.startsWith("Uninstall complete:"))).toBe(false);
+    expect(infos.some((line) => line.startsWith("Uninstall complete:"))).toBe(
+      false,
+    );
     expect(await pathExists(installedPath)).toBe(true);
   });
 
@@ -148,7 +156,13 @@ describe("uninstallAction", () => {
     async () => {
       // skill-a lives inside a chmod 0o555 parent so rm cannot unlink it;
       // this exercises the error accumulation and process.exitCode path.
-      const lockedParent = path.join(tempDir, "home", "claude", "skills", "_locked");
+      const lockedParent = path.join(
+        tempDir,
+        "home",
+        "claude",
+        "skills",
+        "_locked",
+      );
       await mkdir(lockedParent, { recursive: true });
       const installedPath = path.join(lockedParent, "skill-a");
       await mkdir(installedPath, { recursive: true });
@@ -193,7 +207,9 @@ describe("uninstallAction", () => {
 
         expect(process.exitCode).toBe(1);
         expect(errors.length).toBeGreaterThanOrEqual(1);
-        expect(errors.some((e) => /EACCES|EPERM|permission/i.test(e))).toBe(true);
+        expect(errors.some((e) => /EACCES|EPERM|permission/i.test(e))).toBe(
+          true,
+        );
       } finally {
         setLogger(prior);
         process.exitCode = priorExitCode;

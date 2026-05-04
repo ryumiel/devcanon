@@ -10,7 +10,10 @@ import {
   makeManifestJson,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
-import { type TestLoggerResult, installTestLogger } from "../__test-helpers__/logger.js";
+import {
+  type TestLoggerResult,
+  installTestLogger,
+} from "../__test-helpers__/logger.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
@@ -160,10 +163,7 @@ describe("uninstall", () => {
       config.targets.claude.skillsHome,
       "greet",
     );
-    const codexSkillPath = path.join(
-      config.targets.codex.skillsHome,
-      "greet",
-    );
+    const codexSkillPath = path.join(config.targets.codex.skillsHome, "greet");
 
     expect(await pathExists(claudeAgentPath)).toBe(true);
     expect(await pathExists(codexAgentPath)).toBe(true);
@@ -184,9 +184,7 @@ describe("uninstall", () => {
     expect(await pathExists(codexSkillPath)).toBe(true);
 
     // Manifest contains only codex records
-    const manifest = JSON.parse(
-      await readFile(config.manifest.path, "utf-8"),
-    );
+    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
     expect(manifest.records.length).toBeGreaterThan(0);
     for (const record of manifest.records) {
       expect(record.target).toBe("codex");

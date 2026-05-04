@@ -75,9 +75,7 @@ export async function uninstall(
     const updated = updateManifest(manifest, [], removedPaths);
     await saveManifest(config.manifest.path, updated);
   } catch (err) {
-    result.errors.push(
-      `Failed to save manifest: ${(err as Error).message}`,
-    );
+    result.errors.push(`Failed to save manifest: ${(err as Error).message}`);
   }
 
   return result;
