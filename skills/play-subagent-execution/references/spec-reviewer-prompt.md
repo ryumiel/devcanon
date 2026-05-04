@@ -4,6 +4,8 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/spec-compliance-reviewer.yaml`](../../../agents/spec-compliance-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+
 ```
 Task tool (general-purpose):
   description: "Review spec compliance for Task N"

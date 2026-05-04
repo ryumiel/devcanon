@@ -6,6 +6,8 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Only dispatch after spec compliance review passes.**
 
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/code-quality-reviewer.yaml`](../../../agents/code-quality-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+
 ```
 Task tool (general-purpose):
   WHAT_WAS_IMPLEMENTED: [from implementer's report]

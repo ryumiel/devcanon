@@ -3,6 +3,8 @@
 Use this template when dispatching the research agent in Phase 3. The research
 agent runs in a dedicated agent to keep the main session context clean.
 
+**Promotion classification:** Workflow-local prompt template, single call site at `skills/issue-priming-workflow/SKILL.md` (Phase 3 dispatch). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — single-skill scaffolding is below the threshold.
+
 ````
 Agent(
   description: "Research issue <ID> context",
