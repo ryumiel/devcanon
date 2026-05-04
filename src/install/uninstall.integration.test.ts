@@ -293,6 +293,7 @@ describe("uninstall", () => {
         expect(result.removed).toBe(1);
         expect(result.errors.length).toBe(1);
         expect(result.errors[0]).toContain(skillAPath);
+        expect(result.errors[0]).toMatch(/EACCES|EPERM|permission/i);
 
         // skill-b was removed; skill-a still on disk under the locked parent
         expect(await pathExists(skillBPath)).toBe(false);
