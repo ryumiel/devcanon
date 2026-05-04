@@ -128,7 +128,7 @@ describe("uninstallAction", () => {
 
     try {
       await uninstallAction(
-        { target: "claude", dryRun: true, json: false },
+        { target: "claude", dryRun: true },
         {
           parent: {
             opts: () => ({ config: configPath, strict: false, json: false }),
@@ -183,7 +183,7 @@ describe("uninstallAction", () => {
 
       try {
         await uninstallAction(
-          { dryRun: false, json: false },
+          { dryRun: false },
           {
             parent: {
               opts: () => ({ config: configPath, strict: false, json: false }),
