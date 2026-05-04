@@ -266,7 +266,7 @@ Invoke `play-subagent-execution` to execute the plan. All play-subagent-executio
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 
-This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, blocking findings are auto-fixed and committed. Nits are collected and passed to `play-branch-finish` in Phase 8 for posting as PR review comments after PR creation, not in the description body.
+This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `Blocking` findings are auto-fixed and committed. `Nit` findings are collected and passed to `play-branch-finish` in Phase 8 for posting as PR review comments after PR creation, not in the description body.
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 

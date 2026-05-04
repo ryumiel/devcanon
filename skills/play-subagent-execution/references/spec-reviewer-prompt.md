@@ -71,8 +71,9 @@ Task tool (general-purpose):
       Example: prose says `git worktree prune` but the code block runs
       `git worktree remove`.
     - Does a code block use an identifier the surrounding prose names differently?
-    - Treat any mismatch as a P1 finding — narration that contradicts the code it
-      narrates is almost always a bug or staleness.
+    - Treat any mismatch as a `Blocking` finding in category `Documentation` —
+      narration that contradicts the code it narrates is almost always a bug
+      or staleness.
     - The code block is canonical: recommend rewriting prose to match. If the
       code block itself looks wrong, flag it as a separate finding for human
       judgment rather than auto-aligning.
@@ -84,7 +85,7 @@ Task tool (general-purpose):
     the prose was not. The reviewer should report:
     ❌ Issues found: <file>:<line> — prose names `git worktree prune` but the
     adjacent code block invokes `git worktree remove`. Code is canonical;
-    rewrite prose to match. P1.
+    rewrite prose to match. Blocking | Documentation.
 
     **Substitution audit (when changes include external CLI/API/system invocations):**
 
@@ -119,8 +120,9 @@ Task tool (general-purpose):
     3. For each property, classify what the NEW code does: PRESERVES,
        GUARDS (equivalent runtime check), or SILENTLY DROPS (no equivalent
        guard, no waiver).
-    4. A SILENTLY DROPS finding is P0, blocking, unless the diff or
-       surrounding spec explicitly waives the property with a rationale.
+    4. A SILENTLY DROPS finding is `Blocking`, category `Safety`, unless the
+       diff or surrounding spec explicitly waives the property with a
+       rationale.
 
     Illustrative scenario (substitution audit, pattern from PR #117):
     a task replaces `git branch -d` with `git branch -D` to silence a
@@ -132,7 +134,7 @@ Task tool (general-purpose):
     ❌ Issues found: <file>:<line> — `git branch -D` silently drops the
     unmerged-commit rejection that `-d` enforced. Add a tip-equality check
     (local tip == PR head OID) before `-D` runs, or restore `-d` and
-    handle its warning. P0 blocking.
+    handle its warning. Blocking | Safety.
 
     **Verify by reading code, not by trusting report.**
 
