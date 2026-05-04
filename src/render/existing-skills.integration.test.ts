@@ -22,7 +22,11 @@ const TOUCHED_SKILLS = new Set([
 ]);
 
 const SKILLS_WITH_METADATA = {
-  claudeFrontmatter: ["github-issue-priming", "linear-issue-priming"] as const,
+  claudeFrontmatter: [
+    "github-issue-priming",
+    "issue-priming-workflow",
+    "linear-issue-priming",
+  ] as const,
   codexFrontmatter: [
     "github-issue-priming",
     "linear-issue-priming",
