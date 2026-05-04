@@ -94,6 +94,34 @@ Supported options:
 
 ---
 
+## `uninstall`
+
+Remove managed outputs recorded in the install manifest.
+
+```bash
+agents-manager uninstall
+```
+
+Supported options:
+
+- `--target claude`
+- `--target codex`
+- `--dry-run`
+
+Behavior:
+
+- Manifest-driven: only paths recorded in `manifest.json` are removed.
+- Source files under `skills/` and `agents/` are never touched.
+- `--target` filters by Claude or Codex; default is all targets.
+- `--dry-run` previews the plan without filesystem or manifest writes.
+- An empty manifest (or empty filtered set) prints `Nothing to remove.`
+  and exits 0.
+- Per-record failures are accumulated; the run continues to subsequent
+  records and exits non-zero at the end if any failed. Successfully
+  removed records are still cleared from the manifest.
+
+---
+
 ## `diff`
 
 Show differences between generated outputs and installed outputs.

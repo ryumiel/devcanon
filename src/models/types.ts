@@ -63,6 +63,11 @@ export interface SyncOptions {
   strict: boolean;
 }
 
+export interface UninstallOptions {
+  target?: "claude" | "codex";
+  dryRun: boolean;
+}
+
 export type DiffStatus =
   | "added"
   | "removed"

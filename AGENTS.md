@@ -180,6 +180,7 @@ For module responsibilities, dependency rules, and data flow, see
 | `validate`         | Validate config, skills, and agents                      |
 | `render`           | Generate outputs into `generated/` without installing    |
 | `sync`             | Render and install managed outputs to target directories |
+| `uninstall`        | Remove managed outputs recorded in the manifest          |
 | `diff`             | Show differences between generated and installed outputs |
 | `doctor`           | Inspect environment health                               |
 | `list`             | List known skills and agents                             |

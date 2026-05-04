@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises";
 import path from "node:path";
 import type {
   InstallMode,
@@ -12,6 +11,7 @@ import { getLogger } from "../utils/output.js";
 import { copyDirectory, copyFile } from "./copy.js";
 import { loadManifest, saveManifest, updateManifest } from "./manifest.js";
 import { computePlan } from "./plan.js";
+import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 import { createSymlink } from "./symlink.js";
 
 export interface SyncResult {
@@ -187,8 +187,7 @@ async function executeAction(
       break;
     }
     case "remove": {
-      await rm(action.installedPath, { recursive: true, force: true });
-      logger.info(`  - ${action.target}/${action.type}/${action.name}`);
+      await executeRemove(action);
       break;
     }
     case "skip-up-to-date":
@@ -208,19 +207,21 @@ function printPlan(plan: PlanAction[]): void {
   const logger = getLogger();
   logger.info("Dry run — no changes will be made:\n");
   for (const action of plan) {
-    const prefix =
-      action.kind === "install"
-        ? "+"
-        : action.kind === "update"
-          ? "~"
-          : action.kind === "remove"
-            ? "-"
+    if (action.kind === "remove") {
+      logger.info(formatRemoveDryRunLine(action));
+    } else {
+      const prefix =
+        action.kind === "install"
+          ? "+"
+          : action.kind === "update"
+            ? "~"
             : action.kind === "skip-up-to-date"
               ? "="
               : "!";
-    logger.info(
-      `  ${prefix} [${action.kind}] ${action.target}/${action.type}/${action.name}`,
-    );
+      logger.info(
+        `  ${prefix} [${action.kind}] ${action.target}/${action.type}/${action.name}`,
+      );
+    }
     logger.verbose(`    ${action.reason}`);
   }
 }
