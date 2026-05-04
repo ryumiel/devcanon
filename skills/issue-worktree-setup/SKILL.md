@@ -75,14 +75,23 @@ EOF
 ### `MODE=reuse`
 
 Returned when the current session is already inside a managed non-primary
-worktree that is:
+worktree whose state has no work to preserve:
 
-- on the repository's default branch
 - clean (`git status --short` is empty)
-- not ahead of `BASE_REF`
+- `HEAD` is an ancestor of `BASE_REF` (no commits unique to the current branch)
 
-The helper fetches `origin`, fast-forwards the default branch to `BASE_REF`, creates the
-requested feature branch in place, and returns the current worktree path.
+The current branch name is irrelevant — a Claude Code- or Codex-spawned scratch
+worktree on `claude/<slug>` at `origin/main` is reused identically to a
+worktree that happens to be on the default branch. The helper fetches `origin`,
+creates the requested feature branch directly at `BASE_REF` via
+`git checkout -b BRANCH_NAME BASE_REF`, and returns the current worktree path.
+The previously checked-out branch ref (if any) is left at its original commit;
+only the checkout moves.
+
+If `BRANCH_NAME` already exists as a local branch, or if it would collide with
+an existing ref namespace (e.g. `feat` when `feat/foo` already exists), the
+helper refuses without mutating any ref — the atomic `git checkout -b` check
+catches both cases.
 
 ### `MODE=new`
 
@@ -94,7 +103,8 @@ linked worktree from `BASE_REF`, and returns the new worktree path.
 ### `MODE=stop`
 
 Returned when the current session is already inside a managed worktree that is
-dirty, already on a feature branch, or locally ahead of `BASE_REF`.
+either dirty or holds commits not in `BASE_REF` — i.e., reuse would risk losing
+in-progress work.
 
 The helper performs no setup. The caller must surface `MESSAGE` and stop. Do
 not create another worktree from inside that session.
