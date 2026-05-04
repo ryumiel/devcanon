@@ -99,16 +99,34 @@ if git show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
 fi
 
 if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
-  if [[ -z "$CURRENT_STATUS" ]] \
-    && git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
-    # Create the new branch directly at BASE_REF and switch. This is
-    # atomic: any namespace collision (exact or D/F) fails before the
-    # previously checked-out branch ref is touched.
-    git checkout -b "$BRANCH_NAME" "$RESOLVED_BASE"
-    emit_line "MODE" "reuse"
-    emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
-    emit_line "MESSAGE" "Reused clean managed worktree."
-    exit 0
+  if [[ -z "$CURRENT_STATUS" ]]; then
+    # `git merge-base --is-ancestor` exits 0 (ancestor), 1 (not ancestor),
+    # or >=2 (genuine error: bad ref, corrupt object, etc.). Capture the
+    # status so the >=2 case surfaces instead of being silently routed
+    # through the "ahead of BASE_REF" stop branch.
+    set +e
+    git merge-base --is-ancestor HEAD "$RESOLVED_BASE"
+    is_ancestor_status=$?
+    set -e
+    case "$is_ancestor_status" in
+      0)
+        # Create the new branch directly at BASE_REF and switch. This is
+        # atomic: any namespace collision (exact or D/F) fails before the
+        # previously checked-out branch ref is touched.
+        git checkout -b "$BRANCH_NAME" "$RESOLVED_BASE"
+        emit_line "MODE" "reuse"
+        emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
+        emit_line "MESSAGE" "Reused clean managed worktree."
+        exit 0
+        ;;
+      1)
+        # HEAD is ahead of or diverged from BASE_REF — fall through to stop.
+        ;;
+      *)
+        echo "git merge-base --is-ancestor failed unexpectedly (exit ${is_ancestor_status})" >&2
+        exit 1
+        ;;
+    esac
   fi
 
   emit_line "MODE" "stop"

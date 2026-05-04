@@ -503,14 +503,17 @@ describe("issue-worktree-setup helper", () => {
     ).rejects.toThrow();
   });
 
-  it("stops when a managed worktree has uncommitted changes", async () => {
-    const rootDir = path.join(os.tmpdir(), `am-worktree-dirty-${Date.now()}`);
+  it("stops when a managed worktree has untracked files", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-dirty-untracked-${Date.now()}`,
+    );
     await mkdir(rootDir, { recursive: true });
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
     const helperScript = await renderGeneratedHelperScript(rootDir);
 
-    const managedPath = path.join(primaryDir, ".worktrees", "dirty");
+    const managedPath = path.join(primaryDir, ".worktrees", "dirty-untracked");
     await runGit(
       ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
       primaryDir,
@@ -531,6 +534,78 @@ describe("issue-worktree-setup helper", () => {
     await expect(
       runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
     ).rejects.toThrow();
+  });
+
+  it("stops when a managed worktree has modified tracked files", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-dirty-modified-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "dirty-modified");
+    await runGit(
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
+      primaryDir,
+    );
+    // Modify the tracked README.md created by createOriginRepo, producing
+    // a ` M` entry in `git status --short` rather than an `??` entry.
+    await writeFile(
+      path.join(managedPath, "README.md"),
+      "# modified\n",
+      "utf-8",
+    );
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/should-not-branch",
+      WORKTREE_LEAF: "ignored-for-stop",
+    });
+
+    expect(result.MODE).toBe("stop");
+    expect(result.MESSAGE).toMatch(/uncommitted changes/i);
+    await expect(
+      runGit(["rev-parse", "--verify", "feat/should-not-branch"], managedPath),
+    ).rejects.toThrow();
+  });
+
+  it("reuses a clean managed worktree with a detached HEAD at BASE_REF", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-detached-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "detached");
+    // `worktree add --detach` creates a worktree without a branch ref:
+    // `git branch --show-current` returns empty, but HEAD is a valid commit.
+    await runGit(
+      ["worktree", "add", "--detach", managedPath, "origin/main"],
+      primaryDir,
+    );
+    expect(await runGit(["branch", "--show-current"], managedPath)).toBe("");
+    const baseSha = await runGit(["rev-parse", "origin/main"], primaryDir);
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/from-detached",
+      WORKTREE_LEAF: "ignored-for-reuse",
+    });
+
+    expect(result.MODE).toBe("reuse");
+    const managedRealPath = await realpath(managedPath);
+
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(managedRealPath),
+    );
+    expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
+      "feat/from-detached",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
   });
 
   it("rejects unsafe worktree leaf values", async () => {
