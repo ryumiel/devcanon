@@ -86,6 +86,34 @@ If multiple targets are requested and one fails:
 
 ---
 
+## Uninstall
+
+`agents-manager uninstall` removes managed outputs recorded in the
+manifest. The command is symmetric to `sync` for tool retirement and
+target wipes.
+
+Behavior:
+
+- The manifest is the only source of truth for what gets removed.
+  Source files under `skills/` and `agents/` are never touched.
+- Records are filtered by `--target` when provided; otherwise all
+  records are processed.
+- `--dry-run` previews the plan without modifying the filesystem or
+  manifest.
+- Per-record I/O failures are accumulated in the result's `errors[]`
+  array; the loop continues. The manifest is still updated with the
+  records that were successfully removed.
+- An empty manifest (or empty target-filtered set) is a no-op that
+  prints `Nothing to remove.` and exits 0.
+- After a full uninstall the manifest file remains in place with
+  `records: []`. It is not deleted.
+
+The `cleanManagedOutputs` config flag does not affect `uninstall` —
+that flag gates _implicit_ cleanup during sync; uninstall is always
+explicit.
+
+---
+
 ## See also
 
 - [Configuration](configuration.md) -- install mode and overwrite policy defaults
