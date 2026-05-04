@@ -333,6 +333,93 @@ describe("issue-worktree-setup helper", () => {
     ).toBe(baseSha);
   });
 
+  it("reuses a clean managed feature-branch worktree and fast-forwards to BASE_REF", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-reuse-feature-ff-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const publisherDir = await createPublisherClone(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "feature-ff");
+    await runGit(
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
+      primaryDir,
+    );
+    const baseSha = await createRemoteBaseRef(
+      publisherDir,
+      "review-feature-ff-base",
+      "review-feature-ff-base.txt",
+      "feature ff base\n",
+    );
+
+    const result = await runSetup(helperScript, managedPath, {
+      BRANCH_NAME: "feat/reused-feature-ff",
+      WORKTREE_LEAF: "ignored-for-reuse",
+      BASE_REF: "origin/review-feature-ff-base",
+    });
+
+    expect(result.MODE).toBe("reuse");
+    const managedRealPath = await realpath(managedPath);
+
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(managedRealPath),
+    );
+    expect(await runGit(["branch", "--show-current"], managedRealPath)).toBe(
+      "feat/reused-feature-ff",
+    );
+    expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
+    // The previously checked-out branch was fast-forwarded to BASE_REF
+    // by the merge before the new checkout switched away.
+    expect(
+      await runGit(
+        ["rev-parse", "--verify", "claude/scratch"],
+        managedRealPath,
+      ),
+    ).toBe(baseSha);
+  });
+
+  it("refuses up-front when BRANCH_NAME already exists, leaving the worktree untouched", async () => {
+    const rootDir = path.join(os.tmpdir(), `am-worktree-collide-${Date.now()}`);
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const publisherDir = await createPublisherClone(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "collide");
+    await runGit(
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
+      primaryDir,
+    );
+    const scratchOrigSha = await runGit(["rev-parse", "HEAD"], managedPath);
+    await runGit(["branch", "feat/already-exists"], primaryDir);
+    // Advance origin so the helper would otherwise need to fast-forward.
+    await createRemoteBaseRef(
+      publisherDir,
+      "review-collide-base",
+      "review-collide-base.txt",
+      "collide base\n",
+    );
+
+    await expect(
+      runCommand("bash", [helperScript], managedPath, {
+        BRANCH_NAME: "feat/already-exists",
+        WORKTREE_LEAF: "ignored-for-collide",
+        BASE_REF: "origin/review-collide-base",
+      }),
+    ).rejects.toThrow(/already exists/i);
+
+    // The scratch branch ref must be unchanged — the destructive merge
+    // never ran because the pre-check refused up-front.
+    expect(
+      await runGit(["rev-parse", "--verify", "claude/scratch"], managedPath),
+    ).toBe(scratchOrigSha);
+  });
+
   it("stops when a managed feature-branch worktree is ahead of BASE_REF", async () => {
     const rootDir = path.join(
       os.tmpdir(),

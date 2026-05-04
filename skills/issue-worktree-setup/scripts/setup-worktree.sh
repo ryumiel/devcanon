@@ -88,6 +88,14 @@ if [[ -z "$RESOLVED_BASE" ]]; then
   exit 1
 fi
 
+# Refuse early if BRANCH_NAME already exists. A late failure during
+# `git checkout -b` (in the reuse path) would leave the previous branch
+# silently fast-forwarded by `git merge --ff-only`.
+if git show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
+  echo "Branch already exists: ${BRANCH_NAME}" >&2
+  exit 1
+fi
+
 if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
   if [[ -z "$CURRENT_STATUS" ]] \
     && git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then

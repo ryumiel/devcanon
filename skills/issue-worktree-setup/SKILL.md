@@ -84,8 +84,14 @@ The current branch name is irrelevant — a Claude Code- or Codex-spawned scratc
 worktree on `claude/<slug>` at `origin/main` is reused identically to a
 worktree that happens to be on the default branch. The helper fetches `origin`,
 fast-forwards to `BASE_REF` if HEAD is strictly behind, creates the requested
-feature branch in place, and returns the current worktree path. The previously
-checked-out branch ref (if any) is left intact; only the checkout moves.
+feature branch in place, and returns the current worktree path. The new branch
+is created at `BASE_REF`; if the previously checked-out branch was strictly
+behind `BASE_REF`, that branch ref is also fast-forwarded to `BASE_REF` as a
+side effect of the merge. No commits are lost.
+
+If `BRANCH_NAME` already exists as a local branch, the helper refuses
+up-front (exit non-zero, no mutation) so a later `git checkout -b` failure
+cannot leave the prior branch silently fast-forwarded.
 
 ### `MODE=new`
 
