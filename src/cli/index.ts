@@ -10,6 +10,7 @@ import { listAction } from "./commands/list.js";
 import { newAgentAction, newSkillAction } from "./commands/new.js";
 import { renderAction } from "./commands/render.js";
 import { syncAction } from "./commands/sync.js";
+import { uninstallAction } from "./commands/uninstall.js";
 import { validateAction } from "./commands/validate.js";
 
 const program = new Command();
@@ -81,6 +82,14 @@ program
   .option("--dry-run", "show plan without executing")
   .option("--force", "overwrite unmanaged files")
   .action(syncAction);
+
+// uninstall
+program
+  .command("uninstall")
+  .description("Remove all outputs installed by sync")
+  .option("--target <target>", "Limit to a single target (claude|codex)")
+  .option("--dry-run", "Preview removals without writing")
+  .action(uninstallAction);
 
 // diff
 program
