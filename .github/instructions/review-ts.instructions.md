@@ -25,7 +25,7 @@ When performing a code review on TypeScript files, apply these checks in additio
 - `Blocking | Contracts`: Config schema changes must be accompanied by
   `docs/specs/configuration.md` updates in the same PR
 - `Blocking | Documentation`: New CLI commands must be accompanied by AGENTS.md
-  command table updates
+  command table updates and `docs/specs/cli-commands.md` updates
 
 - `Blocking | Tests`: Renderer output changes require updated snapshot tests
 - `Blocking | Tests`: New validation rules require test cases for both valid
