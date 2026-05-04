@@ -2,6 +2,8 @@
 
 Use this template when dispatching the complexity gate agent in Phase 2.
 
+**Promotion classification:** Workflow-local prompt template, single call site at `skills/issue-priming-workflow/SKILL.md` (Phase 2 dispatch). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — single-skill scaffolding is below the threshold.
+
 ```
 Agent(
   description: "Assess issue complexity for research gate",
