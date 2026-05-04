@@ -88,9 +88,11 @@ if [[ -z "$RESOLVED_BASE" ]]; then
   exit 1
 fi
 
-# Refuse early if BRANCH_NAME already exists. A late failure during
-# `git checkout -b` (in the reuse path) would leave the previous branch
-# silently fast-forwarded by `git merge --ff-only`.
+# Refuse early on exact-name collision so the operator gets a friendly
+# message. The reuse path below also relies on `git checkout -b`'s atomic
+# namespace check (which catches D/F conflicts like BRANCH_NAME=feat when
+# feat/foo already exists) — that is the load-bearing safety check; this
+# pre-check just provides a clearer error in the common case.
 if git show-ref --verify --quiet "refs/heads/${BRANCH_NAME}"; then
   echo "Branch already exists: ${BRANCH_NAME}" >&2
   exit 1
@@ -99,14 +101,10 @@ fi
 if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
   if [[ -z "$CURRENT_STATUS" ]] \
     && git merge-base --is-ancestor HEAD "$RESOLVED_BASE"; then
-    if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
-      git merge --ff-only "$RESOLVED_BASE"
-      if [[ "$(git rev-parse HEAD)" != "$RESOLVED_BASE" ]]; then
-        echo "Managed worktree did not fast-forward to BASE_REF." >&2
-        exit 1
-      fi
-    fi
-    git checkout -b "$BRANCH_NAME"
+    # Create the new branch directly at BASE_REF and switch. This is
+    # atomic: any namespace collision (exact or D/F) fails before the
+    # previously checked-out branch ref is touched.
+    git checkout -b "$BRANCH_NAME" "$RESOLVED_BASE"
     emit_line "MODE" "reuse"
     emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
     emit_line "MESSAGE" "Reused clean managed worktree."

@@ -333,7 +333,7 @@ describe("issue-worktree-setup helper", () => {
     ).toBe(baseSha);
   });
 
-  it("reuses a clean managed feature-branch worktree and fast-forwards to BASE_REF", async () => {
+  it("reuses a clean managed feature-branch worktree when HEAD is strictly behind BASE_REF", async () => {
     const rootDir = path.join(
       os.tmpdir(),
       `am-worktree-reuse-feature-ff-${Date.now()}`,
@@ -349,12 +349,14 @@ describe("issue-worktree-setup helper", () => {
       ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
       primaryDir,
     );
+    const scratchOrigSha = await runGit(["rev-parse", "HEAD"], managedPath);
     const baseSha = await createRemoteBaseRef(
       publisherDir,
       "review-feature-ff-base",
       "review-feature-ff-base.txt",
       "feature ff base\n",
     );
+    expect(baseSha).not.toBe(scratchOrigSha);
 
     const result = await runSetup(helperScript, managedPath, {
       BRANCH_NAME: "feat/reused-feature-ff",
@@ -372,14 +374,57 @@ describe("issue-worktree-setup helper", () => {
       "feat/reused-feature-ff",
     );
     expect(await runGit(["rev-parse", "HEAD"], managedRealPath)).toBe(baseSha);
-    // The previously checked-out branch was fast-forwarded to BASE_REF
-    // by the merge before the new checkout switched away.
+    // The previously checked-out branch ref is left at its original commit;
+    // the helper creates the new branch directly at BASE_REF without
+    // mutating the prior ref.
     expect(
       await runGit(
         ["rev-parse", "--verify", "claude/scratch"],
         managedRealPath,
       ),
-    ).toBe(baseSha);
+    ).toBe(scratchOrigSha);
+  });
+
+  it("refuses on a D/F namespace collision without mutating the prior branch", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-df-collide-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const publisherDir = await createPublisherClone(rootDir);
+
+    const managedPath = path.join(primaryDir, ".worktrees", "df-collide");
+    await runGit(
+      ["worktree", "add", "-b", "claude/scratch", managedPath, "origin/main"],
+      primaryDir,
+    );
+    const scratchOrigSha = await runGit(["rev-parse", "HEAD"], managedPath);
+    // Pre-existing branch occupies the `feat/` namespace; passing
+    // BRANCH_NAME=feat would collide via D/F conflict, not exact match.
+    await runGit(["branch", "feat/foo"], primaryDir);
+    await createRemoteBaseRef(
+      publisherDir,
+      "review-df-collide-base",
+      "review-df-collide-base.txt",
+      "df collide base\n",
+    );
+
+    await expect(
+      runCommand("bash", [helperScript], managedPath, {
+        BRANCH_NAME: "feat",
+        WORKTREE_LEAF: "ignored-for-collide",
+        BASE_REF: "origin/review-df-collide-base",
+      }),
+    ).rejects.toThrow();
+
+    // The scratch branch ref must be unchanged — `git checkout -b`'s
+    // atomic namespace check refused before any ref mutation.
+    expect(
+      await runGit(["rev-parse", "--verify", "claude/scratch"], managedPath),
+    ).toBe(scratchOrigSha);
   });
 
   it("refuses up-front when BRANCH_NAME already exists, leaving the worktree untouched", async () => {
