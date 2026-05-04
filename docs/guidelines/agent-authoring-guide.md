@@ -58,13 +58,22 @@ mechanically.
 Promote a prompt-template delegate into a source agent only when all of these
 are true:
 
-- The delegate represents a stable reusable role identity across sessions or
-  across multiple skills.
+- The delegate represents a stable reusable role identity across sessions,
+  evidenced by **cross-skill reuse OR a role boundary that would still make
+  sense outside the originating skill**.
 - The delegate benefits from documented target-supported constraints such as
   dedicated model tier, effort level, tool access, sandbox mode, or Codex
-  approval policy (`codex.approval_policy`).
+  approval policy (`codex.approval_policy`). Constraint potential is necessary
+  but not sufficient — it sharpens an already-justified promotion, it does not
+  justify one.
 - The reusable operational method can remain in skills, with the resulting
   agent staying a thin role wrapper.
+
+**Operational threshold for reviewer-style delegates.** A reviewer-style
+prompt template should accumulate at least two independent call sites before
+promotion, unless there is already a hard target-native constraint win that
+justifies promotion on its own (for example, a read-only sandbox plus a fixed
+tool surface). Single-skill reviewer scaffolds stay as templates.
 
 Keep a delegate as a prompt template when it is mostly:
 

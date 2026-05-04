@@ -6,6 +6,8 @@ Use this template when dispatching a plan document reviewer subagent.
 
 **Dispatch after:** The complete plan is written.
 
+**Promotion classification:** Workflow-local prompt template, currently unreferenced — `play-planning/SKILL.md` describes the Plan Review subagent dispatch inline rather than referencing this template (see #144 for the wire-or-delete follow-up). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — an orphan template is below the threshold by definition.
+
 ```
 Task tool (general-purpose):
   description: "Review plan document"
