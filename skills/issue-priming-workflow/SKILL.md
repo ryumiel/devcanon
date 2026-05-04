@@ -3,7 +3,7 @@ name: issue-priming-workflow
 description: Continues a normalized issue-priming workflow into design and implementation readiness, with optional autonomous execution to a reviewable PR. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
 claude:
   model: "{{model:deep}}"
-  disable-model-invocation: true
+  user-invocable: false
 codex_sidecar:
   policy:
     allow_implicit_invocation: false
