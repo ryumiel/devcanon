@@ -1,9 +1,9 @@
-import { rm } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
 import { getLogger } from "../utils/output.js";
 import { loadManifest, saveManifest, updateManifest } from "./manifest.js";
+import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 
 export interface UninstallResult {
   removed: number;
@@ -47,9 +47,7 @@ export async function uninstall(
   if (options.dryRun) {
     logger.info("Dry run — no changes will be made:\n");
     for (const action of plan) {
-      logger.info(
-        `  - [${action.kind}] ${action.target}/${action.type}/${action.name}`,
-      );
+      logger.info(formatRemoveDryRunLine(action));
       logger.verbose(`    ${action.reason}`);
     }
     return result;
@@ -59,8 +57,7 @@ export async function uninstall(
   const removedPaths: string[] = [];
   for (const action of plan) {
     try {
-      await rm(action.installedPath, { recursive: true, force: true });
-      logger.info(`  - ${action.target}/${action.type}/${action.name}`);
+      await executeRemove(action);
       removedPaths.push(action.installedPath);
       result.removed += 1;
     } catch (err) {
