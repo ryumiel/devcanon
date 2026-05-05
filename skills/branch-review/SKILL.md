@@ -80,20 +80,28 @@ Re-emit `play-review`'s findings to the user in conversation. Preserve the forma
 
 **With `--fix` (autonomous mode, used by `github-issue-priming --auto`):**
 
-For each finding in `play-review`'s output:
+Iterate over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`). For each:
 
-1. **Skip if `Anchor: out-of-diff`.** Add to the remaining-nits report.
-2. **Skip if blocking and `Critic: INVALID` or `DOWNGRADE`.** The critic disagrees; do not auto-fix.
-3. **Skip if blocking and the fix triggers the design-change stop rule** (changes a function's signature, alters control flow structure, touches more than one module, needs context beyond the flagged lines). Add to the remaining-nits report.
-4. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit.
+1. **If the finding hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
+   - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
+   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the flagged lines.
+
+   Halting here is a contract with the caller: `github-issue-priming --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
+
+2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit.
+
+Skip blocking findings tagged `Critic: INVALID` or `DOWNGRADE` — the critic disagrees with the agent. Note them in the report but do not auto-fix and do not halt.
+
+Nit findings are never auto-fixed. Collect them for the report (including any with `Anchor: out-of-diff`).
 
 **Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`.
 
-After all eligible findings are processed, report:
+After processing — whether the loop completes or halts on the stop rule — report:
 
 - Number of blocking findings auto-fixed
-- Remaining nits (left for user) including `Anchor: out-of-diff` findings
-- Any blocking findings that hit the stop rule (design changes or out-of-diff)
+- Remaining nits (left for user), including `Anchor: out-of-diff` nits
+- The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
+- Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 
 ## Quick Reference
 
