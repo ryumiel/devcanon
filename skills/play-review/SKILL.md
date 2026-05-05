@@ -96,7 +96,7 @@ ADR-coverage sub-check uses as anchor data. **Always run against
 follow-up narrow mode). Rationale: ADR coverage is a PR-scope governance
 question, not a delta question.
 
-````bash
+```bash
 cd "$WORKING_DIRECTORY"
 # Architectural-knowledge files touched in the full PR
 ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
@@ -107,7 +107,61 @@ NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \
 # Existing ADRs modified in this diff
 MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
   | grep -E '^docs/adr/adr-[0-9]+' || true)
-````
+```
 
 This summary is passed to the Architecture agent's briefing in Phase 3
 as anchor data. No findings are emitted at this step.
+
+## Phase 3: Spawn agents
+
+**Core agents (always spawned):**
+
+| Agent       | Focus                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Correctness | Logic bugs, panic discipline, error propagation, API contracts, external-invocation audit (substitution + documented behavior) |
+| Data-safety | Secrets/credentials, injection (path traversal, SQL, XSS, command), PII in logs/errors, untrusted input                        |
+
+**Dynamic agents (by file types in the active diff or by `language_hints`):**
+
+| Trigger                                                                                                                                                             | Agent                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `*.rs`                                                                                                                                                              | Rust — clippy, unsafe, ECS, serde, WASM                                                                                    |
+| `*.ts` / `*.tsx`                                                                                                                                                    | TypeScript — types, React patterns, bridge sync                                                                            |
+| `tests/` or `*_test.*`                                                                                                                                              | Test — coverage, correctness, fixtures                                                                                     |
+| `docs/` or `*.md`                                                                                                                                                   | Docs — accuracy, staleness, contract alignment, identifier drift (within-document and cross-document)                      |
+| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage |
+| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs                                                         | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps                        |
+
+**Architecture-agent override (full-PR scope on follow-up narrow mode):**
+when `is_followup_narrow == true` and `ARCH_FILES` (from the Phase 2
+doc-impact summary) is non-empty, **always spawn the Architecture
+agent** even when the active diff alone would not trigger it. The
+agent's _active_ diff stays incremental (for code-review fidelity), but
+its briefing carries the full-PR doc-impact summary plus an explicit
+instruction: "the ADR-coverage sub-check applies to the full PR, not
+just the incremental diff."
+
+**Documentation-agent override (parallel to the Architecture override):**
+when `is_followup_narrow == true` and the doc-impact summary indicates
+user-facing changes elsewhere in the PR, the same override applies to
+the Documentation agent: always spawn it, briefing carries the full-PR
+doc-impact summary, active diff stays incremental.
+
+**Agent briefing — each prompt MUST include:**
+
+1. Role — one sentence
+2. Context — `working_directory`, `base_ref`, `head_sha`, changed files with +/- counts
+3. Active diff — the diff at `active_diff_range`
+4. Full-PR diff scope — equals active for branch-review; may be wider for pr-review follow-up narrow mode
+5. Discovered guidelines — actual content, not file paths
+6. Prior review context (when `prior_threads` provided) — threads, author replies
+7. Output format — file path (repo-relative), line number, severity (`Blocking` or `Nit`), category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts`), code reference, recommendation, anchor classification
+
+Compose review-specific prompts referencing actual files and line counts.
+Generic prompts like "review this diff" are prohibited.
+
+Run all agents in parallel.
+
+**Model selection:** Use `{{model:deep}}` for all review agents and the
+critic. Review is the final quality gate — the cost of missing a real
+bug far outweighs the cost of a more capable model.
