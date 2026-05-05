@@ -270,7 +270,7 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a structured `play-review/findings/v1` JSON block. Read `findings[]` from the **last fenced ```json block** in `branch-review --fix`'s output (see `skills/play-review/SKILL.md` § Output for the schema) — do not re-parse the human-readable markdown. For each finding object in the array, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a structured `play-review/findings/v1` JSON block. Read `findings[]` from the **last fenced `json` code block** in `branch-review --fix`'s output (see `skills/play-review/SKILL.md` § Output for the schema) — do not re-parse the human-readable markdown. For each finding object in the array, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields:
 
 - **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
   - Typos and misspellings.
