@@ -123,9 +123,14 @@ JSON block (the consumer contract):
    The schema does not include a `side` field — all current findings target the HEAD-side. Consumers that require it (e.g., the GitHub Reviews API via `play-branch-finish`) supply the default themselves.
 
    **Positional rules:**
-   - The JSON block is the **last fenced block** in the report.
+   - The schema block is the **last fenced `json` block** in the report.
    - Fence language tag is exactly `json`.
-   - Exactly one such fence per report.
+   - Exactly one **schema** block per report (identifiable by the
+     `"schema": "play-review/findings/v1"` top-level key). The report
+     MAY contain additional `json` fences when an evidence snippet is
+     itself a JSON file — consumers MUST identify the schema block by
+     the trailing-position rule above (or by the `schema` key when
+     parsing all `json` fences), not by counting `json` fences.
    - Empty findings still emit the block:
      `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
    - The markdown finding's evidence code is **not** included in the
