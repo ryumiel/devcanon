@@ -15,6 +15,7 @@ const TOUCHED_SKILLS = new Set([
   "linear-issue-priming",
   "pr-review",
   "branch-review",
+  "play-review",
   "pr-merge",
   "play-skill-authoring",
   "play-planning",
@@ -38,7 +39,7 @@ const SKILLS_WITH_METADATA = {
     "pr-review",
     "report-agents-manager-shared-issue",
   ] as const,
-  policySidecar: ["issue-priming-workflow"] as const,
+  policySidecar: ["issue-priming-workflow", "play-review"] as const,
 };
 
 const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
