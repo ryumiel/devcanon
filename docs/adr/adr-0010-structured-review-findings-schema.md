@@ -16,14 +16,21 @@ out one piece of follow-up work:
 > prose-to-JSON translation step in `issue-priming-workflow` Phase 7)
 > is filed as issue #158 and explicitly out of scope here.
 
-That cleanup is the subject of this ADR.
+That cleanup is the subject of this ADR. (ADR-0009's quote names
+"Phase 7" because that is where `branch-review --fix` runs; the actual
+translation prose lived in the Phase 7 → Phase 8 handoff, sitting in
+`issue-priming-workflow`'s Phase 8 "Create PR" section where the
+`{path, line, body}` array was assembled before `play-branch-finish`
+was invoked. The two phase numbers refer to the same handoff seen from
+the producer and consumer sides; this ADR uses "Phases 7-8 handoff"
+when the distinction matters.)
 
 The implicit prose-only output contract was brittle for downstream
 consumers. Two skills carried the translation burden:
 
-- `skills/issue-priming-workflow/SKILL.md` Phase 8 had to translate
-  `branch-review --fix`'s free-form prose into a `{path, line, body}`
-  array before invoking `play-branch-finish`.
+- `skills/issue-priming-workflow/SKILL.md` Phases 7-8 handoff had to
+  translate `branch-review --fix`'s free-form prose into a
+  `{path, line, body}` array before invoking `play-branch-finish`.
 - `skills/play-branch-finish/SKILL.md` explicitly disclaimed any prose
   parsing and pushed that responsibility back onto callers.
 
@@ -80,7 +87,7 @@ between consumer renderings.
   `branch-review` Phase 3 (no-`--fix` path) are unchanged. The JSON
   block ships alongside the prose for the next program in the pipeline.
 - The prose-to-JSON translation step is removed from
-  `issue-priming-workflow` Phase 8.
+  `issue-priming-workflow`'s Phases 7-8 handoff.
 - `play-branch-finish`'s "caller is responsible for translating"
   caveat is replaced with a schema-reference pointer.
 - `play-review`'s output grows by ~10 lines per finding (the JSON
@@ -103,7 +110,9 @@ between consumer renderings.
   comment string themselves). Rejected: leaves a small render step
   in every consumer and risks rendering drift across consumers. The
   pre-rendered shape lets `issue-priming-workflow` Phase 8 pass nits
-  through to `play-branch-finish` with zero rendering.
+  through to `play-branch-finish` with zero rendering. ("Phase 8" here
+  is the consumer side of the Phases 7-8 handoff — where
+  `play-branch-finish` is invoked.)
 
 ## Related
 
