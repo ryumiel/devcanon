@@ -74,3 +74,40 @@ The wrapper consumes this output and disposes per its surface (present
 in conversation, auto-fix mechanical findings, post inline comments to
 GitHub, etc.). This skill never touches GitHub, never auto-fixes, never
 creates or removes worktrees.
+
+## Phase 1: Discover Guidelines
+
+Search the repository (under `working_directory`) for review guidelines —
+read them, don't just list paths:
+
+- `**/code-review*.md`, `**/review-*.md` — review checklists
+- `**/error-handling*.md` — error discipline
+- `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
+- `AGENTS.md`, `CONTRIBUTING.md` — project conventions
+
+No guidelines found? Proceed with agents' built-in knowledge, note it in
+the report.
+
+## Phase 2: Doc-impact summary
+
+Compute a structured summary that the Architecture agent's AFDS v2
+ADR-coverage sub-check uses as anchor data. **Always run against
+`full_pr_diff_range`** even when `active_diff_range` is narrower (e.g.,
+follow-up narrow mode). Rationale: ADR coverage is a PR-scope governance
+question, not a delta question.
+
+````bash
+cd "$WORKING_DIRECTORY"
+# Architectural-knowledge files touched in the full PR
+ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
+  | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
+# New ADRs added in this diff
+NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+# Existing ADRs modified in this diff
+MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+````
+
+This summary is passed to the Architecture agent's briefing in Phase 3
+as anchor data. No findings are emitted at this step.
