@@ -82,6 +82,31 @@ planning, and execution. The `skills/github-issue-priming/SKILL.md` and
 also pin `{{model:deep}}` so the source-specific fetch runs on the same
 tier.
 
+#### `user-invocable: false` vs `disable-model-invocation: true`
+
+Both fields hide a skill from explicit invocation, but they differ in
+whether _other skills_ can still call it via the Skill tool. Pick the
+right one when authoring an internal skill that wrappers depend on.
+
+- **`claude.user-invocable: false`** — hides the skill from the
+  slash-command menu, but sibling skills can still invoke it through
+  the Skill tool. Description-based auto-routing still applies, so the
+  description should be written to discourage incidental matches. Use
+  this for shared internal procedures that other skills delegate to —
+  for example, `skills/play-review/SKILL.md`, called by both
+  `branch-review` and `pr-review`.
+- **`claude.disable-model-invocation: true`** — blocks _all_
+  Skill-tool invocations, including programmatic hand-offs from
+  sibling skills. Use this only when the skill must never be invoked
+  by the model, e.g., for tooling-only artifacts.
+
+The wrapper pattern (a public skill thin-delegating to a shared
+internal skill) requires `user-invocable: false`. Setting
+`disable-model-invocation: true` on a shared internal skill breaks
+the wrapper because the public wrappers can no longer call it. See
+[issue #149](https://github.com/ryumiel/agent-manager/issues/149)
+for the precedent and the symptom this trap produces.
+
 ### `codex:` for license and metadata
 
 Use to set Codex-specific frontmatter that ships in the rendered Codex
