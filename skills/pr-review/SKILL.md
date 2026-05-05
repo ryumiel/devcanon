@@ -45,12 +45,33 @@ Detect mode:
 - **Initial:** No prior review from current user on this PR.
 - **Follow-up:** Prior review exists. Find last reviewed commit from review's `commit_id`.
 
+**Doc-impact summary (mechanical, anchor data for the Architecture agent):**
+
+Run the following from the worktree created in Phase 3, **always against the full `base...HEAD` range** even in follow-up narrow mode. Rationale: ADR coverage is a PR-scope governance question, not a delta question. In follow-up mode this means computing two diffs — incremental for code review, full for doc-impact.
+
+```bash
+BASE_REF="<baseRefName from gh pr view>"
+HEAD_REF="<headRefName from gh pr view>"
+# Architectural-knowledge files touched in the full PR
+ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
+# New ADRs added in this PR
+NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+# Existing ADRs modified in this PR
+MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+```
+
+This summary is passed to the Architecture agent's briefing in Phase 3 as anchor data for its AFDS v2 ADR-coverage sub-check. No findings emitted at this step.
+
 ### Phase 2: Discover
 
 Search the repository for review guidelines — read them, don't just list paths:
 
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
+- `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
 - `AGENTS.md`, `CONTRIBUTING.md` — project conventions
 
 No guidelines found? Proceed with agents' built-in knowledge, note it in the report.
@@ -77,12 +98,14 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 **Dynamic agents (by file types in diff):**
 
-| Trigger                | Agent                                           |
-| ---------------------- | ----------------------------------------------- |
-| `*.rs`                 | Rust — clippy, unsafe, ECS, serde, WASM         |
-| `*.ts` / `*.tsx`       | TypeScript — types, React patterns, bridge sync |
-| `tests/` or `*_test.*` | Test — coverage, correctness, fixtures          |
-| `docs/` or `*.md`      | Docs — accuracy, staleness, contract alignment  |
+| Trigger                                                                                                                                                             | Agent                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `*.rs`                                                                                                                                                              | Rust — clippy, unsafe, ECS, serde, WASM                                                                                    |
+| `*.ts` / `*.tsx`                                                                                                                                                    | TypeScript — types, React patterns, bridge sync                                                                            |
+| `tests/` or `*_test.*`                                                                                                                                              | Test — coverage, correctness, fixtures                                                                                     |
+| `docs/` or `*.md`                                                                                                                                                   | Docs — accuracy, staleness, contract alignment                                                                             |
+| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage |
+| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs                                                         | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps                        |
 
 **Agent briefing — each prompt MUST include:**
 
@@ -98,6 +121,27 @@ Compose PR-specific prompts referencing actual files and line counts. Generic pr
 Run all agents in parallel.
 
 **Model selection:** Use `{{model:deep}}` for all review agents and the critic. PR review is the final quality gate — the cost of missing a real bug far outweighs the cost of a more capable model.
+
+**Architecture agent — AFDS v2 ADR-coverage sub-check:**
+
+When the Architecture agent fires, include the doc-impact summary from Phase 1 in its briefing and add this rubric to its prompt:
+
+> Evaluate whether the diff makes a _durable architectural decision_ per `docs/guidelines/documentation-standard.md` §3.5 (architecture decisions, technology adoption/removal, boundary changes, major tradeoffs/rejected alternatives).
+>
+> - Durable decision + new `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
+> - Durable decision + existing covering ADR modified: PASS, no finding.
+> - Durable decision + no new/modified ADR: `Blocking | Documentation` — _"diff makes durable decision X but lacks ADR coverage; create `docs/adr/adr-NNNN-<title>.md` per `docs/adr/adr-template.md`."_
+> - Implementation detail or refactor without durable decision: no finding.
+>
+> Apply the same judgment for `MAP.md` (per `documentation-standard.md` §5.2: "PR must update docs when it changes major file paths or directory layout") and `docs/arch/` (system shape changes).
+>
+> **Anchoring rule for missing-file findings (pr-review only):** Pr-review posts findings as inline comments that require `path` + `line`. For findings whose recommendation is to _create a new file_ (e.g., missing ADR), anchor the inline comment to the most architecturally-significant line in the diff, in this priority order:
+>
+> 1. `MAP.md` — last changed line (architectural index)
+> 2. `AGENTS.md` — last changed line
+> 3. The line of the most-modified file under `src/`, `agents/`, or `skills/`
+>
+> Begin the comment body with: _"Missing-file finding (no natural anchor — see body):"_ so the reader knows the comment refers to a file that should be created, not a flaw at the anchored line.
 
 **Correctness agent external-invocation audit:**
 
@@ -136,7 +180,7 @@ Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls
 **Follow-up review scoping:**
 
 - **Narrow changes:** Incremental diff (`last_reviewed..HEAD`) + prior thread verification.
-- **Broad changes — escalate to full `base...HEAD` diff when ANY of:** >5 files changed since last review, new public API functions/types introduced, or logic restructured beyond flagged lines. When in doubt, prefer full diff. Even on full diff, still verify prior comment threads.
+- **Broad changes — escalate to full `base...HEAD` diff when ANY of:** >5 files changed since last review, new public API functions/types introduced, logic restructured beyond flagged lines, or the increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, or `agents/**`. When in doubt, prefer full diff. Even on full diff, still verify prior comment threads.
 - **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), carry it forward into the new report as "still open" rather than silently dropping it.
 
 ### Phase 4: Verify
