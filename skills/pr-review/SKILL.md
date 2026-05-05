@@ -63,13 +63,14 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 **Worktree — always detached HEAD, from repo root:**
 
 ```sh
-git fetch origin <base-ref> <head-ref>
+git fetch origin <base-ref>
+git fetch origin <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
 
-Both refs are fetched: `<head-ref>` for the worktree, `<base-ref>` for the doc-impact summary diff below.
+Both refs are required: `<head-ref>` for the worktree, `<base-ref>` for the doc-impact summary diff below. They're fetched as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
 
-If the PR is from a fork and `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a worktree instead, or add the fork remote first.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — the doc-impact summary's diff below uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
@@ -77,17 +78,18 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 Run from the worktree created above, **always against the full `base...HEAD` range** even in follow-up narrow mode. Rationale: ADR coverage is a PR-scope governance question, not a delta question. In follow-up mode this means computing two diffs — incremental for code review, full for doc-impact.
 
+The diff uses `HEAD` (the worktree's checked-out tip) rather than `origin/$HEAD_REF` so it works for fork PRs too — `gh pr checkout --detach` populates `HEAD` but never creates `origin/<head-ref>`.
+
 ```bash
 BASE_REF="<baseRefName from gh pr view>"
-HEAD_REF="<headRefName from gh pr view>"
 # Architectural-knowledge files touched in the full PR
-ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...origin/$HEAD_REF" \
+ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...HEAD" \
   | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
 # New ADRs added in this PR
-NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...origin/$HEAD_REF" \
+NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...HEAD" \
   | grep -E '^docs/adr/adr-[0-9]+' || true)
 # Existing ADRs modified in this PR
-MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...origin/$HEAD_REF" \
+MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...HEAD" \
   | grep -E '^docs/adr/adr-[0-9]+' || true)
 ```
 
@@ -110,6 +112,8 @@ This summary is passed to the Architecture agent's briefing as anchor data for i
 | `docs/` or `*.md`                                                                                                                                                   | Docs — accuracy, staleness, contract alignment                                                                             |
 | `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage |
 | CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs                                                         | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps                        |
+
+**Architecture-agent override (PR-scope ADR coverage):** in follow-up narrow mode, the active diff is `last_reviewed..HEAD`, but the doc-impact summary above is computed against the full `base...HEAD`. If `ARCH_FILES` is non-empty, **always spawn the Architecture agent** even when the incremental diff alone would not trigger it. Otherwise an architectural change introduced in an earlier commit escapes the AFDS v2 ADR-coverage sub-check whenever follow-up commits touch only unrelated files. The Architecture agent's diff in this case is still the incremental diff (for code-review fidelity), but its briefing carries the full-PR doc-impact summary plus an explicit instruction: "the ADR-coverage sub-check applies to the full PR, not just the incremental diff." The same override applies to the Documentation agent when the doc-impact summary indicates user-facing changes elsewhere in the PR.
 
 **Agent briefing — each prompt MUST include:**
 
@@ -144,6 +148,8 @@ When the Architecture agent fires, include the doc-impact summary computed earli
 > 1. `MAP.md` — last changed line (architectural index)
 > 2. `AGENTS.md` — last changed line
 > 3. The line of the most-modified file under `src/`, `agents/`, or `skills/`
+> 4. The last changed line of any file in `ARCH_FILES` (covers PRs whose architectural surface is `docs/adr/**`, `docs/arch/**`, or `agents/**` only)
+> 5. The last changed line of the most-modified file in the diff (any file — covers PRs whose only changes are non-arch files like `package.json`, `Cargo.toml`, `tsconfig.json`, that nonetheless represent a durable architectural decision)
 >
 > Begin the comment body with: _"Missing-file finding (no natural anchor — see body):"_ so the reader knows the comment refers to a file that should be created, not a flaw at the anchored line.
 
