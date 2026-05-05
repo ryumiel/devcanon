@@ -44,8 +44,10 @@ rather than proceeding with defaults.
 
 ## Output
 
-A markdown document with two sections plus a trailing structured-finding
-JSON block (the consumer contract):
+A markdown document with two narrative sections (`## Findings` and the
+optional `## Carry-forward`) followed by a trailing structured-finding
+JSON block (the consumer contract). The three numbered items below
+correspond to those parts in order:
 
 1. `## Findings` — one entry per finding, with stable headers:
 
