@@ -130,10 +130,10 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — with the `"side": "RIGHT"` default applied here — into `$ANCHORABLE_NITS_JSON`:
+2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
-   ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")})' <<<"$ANCHORABLE_NITS")
+   ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
    ```
 
 3. Post anchorable nits as a single review with `event: "COMMENT"`. Skip this step entirely if `$ANCHORABLE_NITS_JSON` is empty or `[]` — posting an empty review is noise.
