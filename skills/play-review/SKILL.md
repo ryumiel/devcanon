@@ -289,3 +289,68 @@ When the trigger fires:
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
 Illustrative scenario (pattern adapted from PR #127, hypothetical): suppose a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern. Any unchanged sibling files still demonstrating it would each be flagged as a blocking, out-of-diff finding.
+
+## Phase 5: Critic verification
+
+Spawn a critic agent with all findings merged. The critic reads actual
+code in `working_directory` and tags each **blocking** finding:
+
+- **VALID** — holds up
+- **INVALID** — code doesn't match the claim
+- **DOWNGRADE** — valid but not blocking
+
+**Treat every concrete reference as a literal claim, not as illustrative
+rhetoric.** When a finding cites a specific `file:line`, identifier,
+function name, command, commit SHA, or PR number, verify it by opening
+the cited file (or running `git log` / `git show` / `gh pr view <N>`).
+Tag the finding INVALID if the cited artifact does not exist or does not
+contain the cited text. **Internal consistency is not evidence of
+literal intent.** Do not apply the inference "every occurrence of
+pattern X appears within this diff, therefore X is illustrative."
+Fabricated citations are usually internally consistent precisely because
+they were generated together; co-occurrence within a diff is the failure
+signature, not a downgrade signal.
+
+**Carry-forward (follow-up only):** when `prior_threads` is provided,
+cross-reference each prior blocking finding against the new code in
+`working_directory`. If the flagged code is unchanged, carry the finding
+forward in the `## Carry-forward` output section as "still open" rather
+than silently dropping it.
+
+Nits skip critic verification.
+
+**Model selection:** Use `{{model:deep}}` for the critic.
+
+## Hard Rules
+
+1. **Always spawn the Data-safety agent** regardless of file types.
+2. **Always include evidence code** (3-7 lines) in findings.
+3. **Cite specific lines.** No generic warnings without code references.
+4. **Verify every concrete reference in the critic phase.** No assumptions.
+5. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
+6. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
+7. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
+
+## Red Flags — You Are Violating This Skill
+
+- You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
+- You modified files in `working_directory` — this skill emits findings, not edits
+- You created or removed a worktree — the wrapper handles that
+- You skipped the Data-safety agent because "there's no security-relevant code"
+- You showed findings as a table with file:line but no code snippets
+- You used a generic agent prompt without diff-specific file references
+- You skipped the critic pass because "findings were straightforward"
+- You proceeded with default values when a required input was missing — escalate to the wrapper instead
+
+**All of these mean: STOP. Go back to the workflow.**
+
+## Error Handling
+
+| Scenario                             | Action                                                         |
+| ------------------------------------ | -------------------------------------------------------------- |
+| Required input missing               | Stop, report which input the wrapper failed to provide         |
+| `working_directory` empty or invalid | Stop, report                                                   |
+| Diff at `active_diff_range` is empty | Report "no changes to review", emit empty findings             |
+| No guidelines found                  | Note in the findings preamble, proceed with built-in knowledge |
+| Agent fails / times out              | Report partial results in findings; mark missing agents        |
+| Critic fails                         | Report findings without critic verdicts; mark them as such     |
