@@ -270,7 +270,7 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a free-form report. Before invoking Phase 8, classify each remaining nit as **mechanical** or **judgment-required**:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a structured `play-review/findings/v1` JSON block (the last fenced ```json block in its output; see `skills/play-review/SKILL.md` § Output). Read `findings[]` from that block — do not re-parse the human-readable markdown. For each finding in the array, classify it as **mechanical** or **judgment-required** using the structured `severity`, `category`, and `why` fields:
 
 - **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
   - Typos and misspellings.
@@ -315,7 +315,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, include the remaining nits from Phase 7 in the `nits` input (JSON array of `{path, line, body}` items, optional `side` and `start_line`). If there are no remaining nits, omit the field. `play-branch-finish` handles posting them via `gh api .../reviews`.
 
-`branch-review --fix` reports its remaining nits in free-form prose, not JSON. Translate that report into the `{path, line, body}` array shape before invoking `play-branch-finish` — the receiving skill does not parse free-form review output.
+The `nits` array passed to `play-branch-finish` is the judgment-required subset of `branch-review --fix`'s `play-review/findings/v1` JSON block `findings[]` (see `skills/play-review/SKILL.md` § Output). Pass the items through as-is — the schema is a strict superset of `play-branch-finish`'s expected `{path, line, body, side?, start_line?}` shape, so no translation is needed. Extra fields (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are ignored by `play-branch-finish` but harmless to include.
 
 ## Quick Reference
 
