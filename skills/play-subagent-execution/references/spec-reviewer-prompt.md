@@ -59,13 +59,13 @@ Task tool (general-purpose):
 
     Scope: this check runs only on multi-task plans, where this template is
     dispatched per task (per ADR-0007). For single-task plans, equivalent
-    coverage lives in `branch-review`'s Docs agent under the same name.
+    coverage lives in `play-review`'s Docs agent under the same name (invoked by both `branch-review` and `pr-review`).
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify
     spec compliance, so this adds no extra scope. Do not scan unchanged
     `*.md` files; cross-document checks are out of scope here and live in
-    `branch-review`'s Docs agent (Sub-check B).
+    `play-review`'s Docs agent (Sub-check B), invoked by both `branch-review` and `pr-review`.
 
     - Does prose backtick an identifier that the adjacent code block does not use?
       Example: prose says `git worktree prune` but the code block runs
@@ -91,10 +91,10 @@ Task tool (general-purpose):
 
     Scope: this check runs only on multi-task plans, where this template is
     dispatched per task (per ADR-0007). For single-task plans, equivalent
-    coverage lives in `branch-review`'s Correctness agent under the same
+    coverage lives in `play-review`'s Correctness agent under the same
     name. The broader documented-behavior verification (for new or modified
     invocations that aren't substitutions) is out of scope here and lives
-    in `branch-review` and `pr-review` only — see those skills for
+    in `play-review` only (invoked by both `branch-review` and `pr-review`) — see that skill for
     Sub-check 2.
 
     Apply the check whenever the task's diff replaces an external CLI /

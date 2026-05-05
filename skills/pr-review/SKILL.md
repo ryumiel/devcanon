@@ -11,8 +11,10 @@ codex_sidecar:
 # PR Review
 
 Multi-agent PR review with critic verification and user-gated posting.
+Wrapper around `play-review` for the GitHub-PR case.
 
-**Nothing touches GitHub without explicit user approval.** No posting reviews, no resolving threads, no approving — until the user says go.
+**Nothing touches GitHub without explicit user approval.** No posting
+reviews, no resolving threads, no approving — until the user says go.
 
 ## Workflow
 
@@ -20,19 +22,21 @@ Multi-agent PR review with critic verification and user-gated posting.
 digraph pr_review {
   rankdir=TB;
   gather [label="1. Gather\nPR metadata + comments + diff"];
-  discover [label="2. Discover\nGlob for review guidelines"];
-  review [label="3. Review\nSpawn agents in worktree"];
-  verify [label="4. Verify\nCritic checks blocking findings"];
+  worktree [label="2. Worktree\nfetch refs + create"];
+  ranges [label="3. Diff ranges\ninitial vs follow-up scope"];
+  delegate [label="4. Run play-review\n(shared review pipeline)"];
   present [label="5. Present\n(USER GATE)", shape=doublecircle];
   post [label="6. Post\nAfter user approval only"];
+  cleanup [label="7. Cleanup\nworktree remove"];
 
-  gather -> discover -> review -> verify -> present;
+  gather -> worktree -> ranges -> delegate -> present;
   present -> post [label="user approves"];
   present -> present [label="user edits"];
+  post -> cleanup;
 }
 ```
 
-### Phase 1: Gather
+## Phase 1: Gather
 
 Run in parallel:
 
@@ -42,25 +46,10 @@ Run in parallel:
 
 Detect mode:
 
-- **Initial:** No prior review from current user on this PR.
-- **Follow-up:** Prior review exists. Find last reviewed commit from review's `commit_id`.
+- **Initial:** No prior review from the current user on this PR.
+- **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
 
-The doc-impact summary used by the Architecture agent's AFDS v2 ADR-coverage sub-check is computed in Phase 3, after the worktree is created and both refs are fetched. See "Doc-impact summary" under Phase 3 below.
-
-### Phase 2: Discover
-
-Search the repository for review guidelines — read them, don't just list paths:
-
-- `**/code-review*.md`, `**/review-*.md` — review checklists
-- `**/error-handling*.md` — error discipline
-- `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
-- `AGENTS.md`, `CONTRIBUTING.md` — project conventions
-
-No guidelines found? Proceed with agents' built-in knowledge, note it in the report.
-
-### Phase 3: Review
-
-**Worktree — always detached HEAD, from repo root:**
+## Phase 2: Worktree setup
 
 ```sh
 git fetch origin <base-ref>
@@ -68,164 +57,73 @@ git fetch origin <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
 
-Both refs are required: `<head-ref>` for the worktree, `<base-ref>` for the doc-impact summary diff below. They're fetched as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
+Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — the doc-impact summary's diff below uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
-**Doc-impact summary (mechanical, anchor data for the Architecture agent):**
+`working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
 
-Run from the worktree created above, **always against the full `base...HEAD` range** even in follow-up narrow mode. Rationale: ADR coverage is a PR-scope governance question, not a delta question. In follow-up mode this means computing two diffs — incremental for code review, full for doc-impact.
+## Phase 3: Determine diff ranges
 
-The diff uses `HEAD` (the worktree's checked-out tip) rather than `origin/$HEAD_REF` so it works for fork PRs too — `gh pr checkout --detach` populates `HEAD` but never creates `origin/<head-ref>`.
+`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode.
 
-```bash
-BASE_REF="<baseRefName from gh pr view>"
-# Architectural-knowledge files touched in the full PR
-ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...HEAD" \
-  | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
-# New ADRs added in this PR
-NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...HEAD" \
-  | grep -E '^docs/adr/adr-[0-9]+' || true)
-# Existing ADRs modified in this PR
-MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...HEAD" \
-  | grep -E '^docs/adr/adr-[0-9]+' || true)
-```
+`active_diff_range` depends on mode:
 
-This summary is passed to the Architecture agent's briefing as anchor data for its AFDS v2 ADR-coverage sub-check. No findings emitted at this step.
+- **Initial:** `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
+- **Follow-up:** apply escalation rules to choose narrow vs full.
+  - **Narrow** (incremental): `active_diff_range = "<last_reviewed_sha>..HEAD"`; `is_followup_narrow = true`.
+  - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
 
-**Core agents (always spawned):**
+**Escalate to full when ANY of:**
 
-| Agent       | Focus                                                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Correctness | Logic bugs, panic discipline, error propagation, API contracts, external-invocation audit (substitution + documented behavior) |
-| Data-safety | Secrets/credentials, injection (path traversal, SQL, XSS, command), PII in logs/errors, untrusted input                        |
+- More than 5 files changed since the last review.
+- New public API functions / types introduced.
+- Logic restructured beyond flagged lines.
+- The increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, or `agents/**`.
+- When in doubt, prefer full diff. Even on full diff, still verify prior comment threads.
 
-**Dynamic agents (by file types in diff):**
+**Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
 
-| Trigger                                                                                                                                                             | Agent                                                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `*.rs`                                                                                                                                                              | Rust — clippy, unsafe, ECS, serde, WASM                                                                                    |
-| `*.ts` / `*.tsx`                                                                                                                                                    | TypeScript — types, React patterns, bridge sync                                                                            |
-| `tests/` or `*_test.*`                                                                                                                                              | Test — coverage, correctness, fixtures                                                                                     |
-| `docs/` or `*.md`                                                                                                                                                   | Docs — accuracy, staleness, contract alignment                                                                             |
-| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage |
-| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs                                                         | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps                        |
+## Phase 4: Run play-review
 
-**Architecture-agent override (PR-scope ADR coverage):** in follow-up narrow mode, the active diff is `last_reviewed..HEAD`, but the doc-impact summary above is computed against the full `base...HEAD`. If `ARCH_FILES` is non-empty, **always spawn the Architecture agent** even when the incremental diff alone would not trigger it. Otherwise an architectural change introduced in an earlier commit escapes the AFDS v2 ADR-coverage sub-check whenever follow-up commits touch only unrelated files. The Architecture agent's diff in this case is still the incremental diff (for code-review fidelity), but its briefing carries the full-PR doc-impact summary plus an explicit instruction: "the ADR-coverage sub-check applies to the full PR, not just the incremental diff." The same override applies to the Documentation agent when the doc-impact summary indicates user-facing changes elsewhere in the PR.
+Hand off to `play-review` with these inputs:
 
-**Agent briefing — each prompt MUST include:**
+- `working_directory` = absolute path to `.worktrees/pr-<N>-review`
+- `base_ref` = the PR's base ref name (e.g., `main`)
+- `active_diff_range` = computed in Phase 3
+- `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
+- `head_sha` = `git rev-parse HEAD` in the worktree
+- `mode` = `"github-post"`
+- `language_hints` = derived from the **active diff's** changed-files set (so follow-up narrow mode only spawns language agents matching the incremental diff; deriving from the full PR would re-run earlier-touched language agents on docs-only follow-ups, defeating the narrow-mode scoping)
+- `prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses (follow-up only)
+- `last_reviewed_sha` = set in Phase 1 (follow-up only)
+- `is_followup_narrow` = computed in Phase 3
 
-1. Role — one sentence
-2. PR context — title, summary, changed files with +/- counts
-3. Diff — full or incremental (see follow-up rules)
-4. Discovered guidelines — actual content, not file paths
-5. Prior review context (follow-up only) — threads, author replies
-6. Output format — file path (repo-relative), line number (in HEAD), severity (`Blocking` or `Nit`), category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts`), code reference, recommendation
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections.
 
-Compose PR-specific prompts referencing actual files and line counts. Generic prompts like "review this PR" are prohibited.
-
-Run all agents in parallel.
-
-**Model selection:** Use `{{model:deep}}` for all review agents and the critic. PR review is the final quality gate — the cost of missing a real bug far outweighs the cost of a more capable model.
-
-**Architecture agent — AFDS v2 ADR-coverage sub-check:**
-
-When the Architecture agent fires, include the doc-impact summary computed earlier in this phase in its briefing and add this rubric to its prompt:
-
-> Evaluate whether the diff makes a _durable architectural decision_ per `docs/guidelines/documentation-standard.md` §3.5 (architecture decisions, technology adoption/removal, boundary changes, major tradeoffs/rejected alternatives).
->
-> - Durable decision + new `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
-> - Durable decision + existing covering ADR modified: PASS, no finding.
-> - Durable decision + no new/modified ADR: `Blocking | Documentation` — _"diff makes durable decision X but lacks ADR coverage; create `docs/adr/adr-NNNN-<title>.md` per `docs/adr/adr-template.md`."_
-> - Implementation detail or refactor without durable decision: no finding.
->
-> Apply the same judgment for `MAP.md` (per `documentation-standard.md` §5.2: "PR must update docs when it changes major file paths or directory layout") and `docs/arch/` (system shape changes).
->
-> **Anchoring rule for missing-file findings (pr-review only):** Pr-review posts findings as inline comments that require `path` + `line`. For findings whose recommendation is to _create a new file_ (e.g., missing ADR), anchor the inline comment to the most architecturally-significant line in the diff, in this priority order:
->
-> 1. `MAP.md` — last changed line (architectural index)
-> 2. `AGENTS.md` — last changed line
-> 3. The line of the most-modified file under `src/`, `agents/`, or `skills/`
-> 4. The last changed line of any file in `ARCH_FILES` (covers PRs whose architectural surface is `docs/adr/**`, `docs/arch/**`, or `agents/**` only)
-> 5. The last changed line of the most-modified file in the diff (any file — covers PRs whose only changes are non-arch files like `package.json`, `Cargo.toml`, `tsconfig.json`, that nonetheless represent a durable architectural decision)
->
-> Begin the comment body with: _"Missing-file finding (no natural anchor — see body):"_ so the reader knows the comment refers to a file that should be created, not a flaw at the anchored line.
-
-**Correctness agent external-invocation audit:**
-
-The Correctness agent must perform two structured sub-checks in addition to its existing logic-bug / panic-discipline / error-propagation / API-contract review. Both fire only when the diff contains an external CLI / REST / system primitive invocation.
-
-**Sub-check 1 — Substitution audit.** Fires when the diff replaces one external invocation token with a sibling at the same call site (e.g., `git branch -d` → `git branch -D`, `fs.writeFileSync` → `fs.writeFile`, `gh pr review --body ...` → `gh api .../reviews --input ...`). "External invocation" means a CLI flag/subcommand swap, a method swap on an external SDK, a system primitive swap (`unlink` ↔ `rm -rf`), or a flag-set rearrangement on the same call.
-
-Procedure:
-
-1. Identify the replaced primitive (old → new), citing the diff hunk.
-2. Enumerate every safety property, precondition check, or rejection mode the OLD primitive enforced. Pull from the tool's documented behavior (`--help` / official docs) when the property isn't obvious from the name alone.
-3. For each property, classify what the NEW code does: PRESERVES (same property holds), GUARDS (replaces with an equivalent runtime check), or SILENTLY DROPS (no equivalent guard, no waiver).
-4. A SILENTLY DROPS finding is `Blocking`, category `Safety`, unless the diff or surrounding spec explicitly waives the property with a rationale.
-
-**Bounding rule:** apply only to _external_ invocations (CLIs, REST/HTTP APIs, OS primitives, third-party SDK calls). Do not apply to internal-code refactors (calling site changes from one repo function to another), to literal renames, or to mechanical formatting changes. The agent should self-check: "is the named primitive defined inside this repo, or by a tool whose semantics live elsewhere?"
-
-**Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as `Blocking`, category `Safety` — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
-
-Worked example (real, PR #117): a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — `Blocking | Safety`, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs. (PR #117 landed exactly that fix after Copilot's inline review caught the regression.)
-
-**Sub-check 2 — Documented-behavior verification.** Fires when the diff adds a new external invocation, or modifies an existing one's flags / body shape / query parameters. Substitutions (Sub-check 1's trigger) are a subset; Sub-check 2 is the broader case. Examples in scope: any new `gh api` / `gh pr` invocation, any `git` invocation with a non-trivial flag combination, any new `fetch(` / `axios.` / HTTP-client call, any new child_process / subprocess invocation, any new file-system primitive (`fs.*`, `unlink`, etc.). Excluded: pure language-stdlib calls with stable, well-understood semantics (`Array.map`, `JSON.stringify`).
-
-Procedure:
-
-1. Identify the tool and the specific invocation pattern (subcommand, flags, body shape, query params).
-2. Verify the invocation against documented behavior — the tool's `--help` output, official docs, or actual runtime behavior. Do **not** approve based on prior knowledge of flag interactions or default semantics.
-3. Flag any divergence: invocation that won't do what the surrounding code claims, silently-ignored arguments, defaults that change between adjacent flag combinations, etc.
-4. Tag any divergence as DOCUMENTED-BEHAVIOR MISMATCH; this is `Blocking`, category `Contracts`, unless the diff or surrounding spec explicitly waives the documented behavior with a rationale.
-
-**Bounding rule:** don't re-verify the tool's whole API surface — only the specific invocation pattern in the diff. Don't flag stable, widely-known stdlib behavior. The bar is "could a reasonable reviewer assume the wrong semantics here?" — if yes, verify.
-
-**Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as `Blocking`, category `Contracts` — in `branch-review --fix`, they hit the Phase 5 stop rule for blocking design changes (do not auto-fix); in `pr-review`, they surface in the Phase 5 user-gate report.
-
-Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The Correctness agent reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — `Blocking | Contracts`, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body. (PR #127's first "fix" rearranged flags but kept the broken pattern; the second review pass caught it. The audit should verify against `--help` rather than assume.)
-
-**Follow-up review scoping:**
-
-- **Narrow changes:** Incremental diff (`last_reviewed..HEAD`) + prior thread verification.
-- **Broad changes — escalate to full `base...HEAD` diff when ANY of:** >5 files changed since last review, new public API functions/types introduced, logic restructured beyond flagged lines, or the increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, or `agents/**`. When in doubt, prefer full diff. Even on full diff, still verify prior comment threads.
-- **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), carry it forward into the new report as "still open" rather than silently dropping it.
-
-### Phase 4: Verify
-
-Spawn critic agent with all findings merged. The critic reads actual code in the worktree and tags each **blocking** finding:
-
-- **VALID** — holds up
-- **INVALID** — code doesn't match the claim
-- **DOWNGRADE** — valid but not blocking
-
-**Treat every concrete reference as a literal claim, not as illustrative rhetoric.** When a finding cites a specific `file:line`, identifier, function name, command, commit SHA, or PR number, verify it by opening the cited file (or running `git log` / `git show` / `gh pr view <N>`). Tag the finding INVALID if the cited artifact does not exist or does not contain the cited text. **Internal consistency is not evidence of literal intent.** Do not apply the inference "every occurrence of pattern X appears within this PR's diff, therefore X is illustrative." Fabricated citations are usually internally consistent precisely because they were generated together; co-occurrence within a diff is the failure signature, not a downgrade signal.
-
-Nits skip critic verification.
-
-### Phase 5: Present (USER GATE)
+## Phase 5: Present (USER GATE)
 
 **STOP HERE. Present the report. Wait for user response.**
 
-Format each finding with evidence code:
+Format `play-review`'s findings in this shape (preserve the evidence code):
 
-```
+````
 #### 1. <title>
 **<file>:<line> | Blocking | Safety | Critic: VALID**
 
-` ` `<lang>
+```<lang>
 // <file>:<start>-<end>
 <3-7 lines of actual code>
-` ` `
+```
 
 <Why this is a problem>
 
 **Recommendation:** <concrete suggestion>
-```
+````
 
-For follow-up reviews, include thread resolution list:
+For follow-up reviews, include the thread resolution list:
 
 ```
 ### Previous Threads
@@ -235,7 +133,7 @@ For follow-up reviews, include thread resolution list:
 | 1 | entity.rs:153 | user | Resolve | Gate added at L439 |
 ```
 
-Include draft review body preview.
+Include a draft review body preview.
 
 **User actions:**
 
@@ -250,11 +148,14 @@ Include draft review body preview.
 | `skip threads`                       | Post but don't resolve                 |
 | `abort`                              | Discard all, clean up                  |
 
-### Phase 6: Post
+## Phase 6: Post
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Each finding becomes a line-level comment on the diff:
+1. **Post review with inline comments** via the REST API. Build the comments JSON from `play-review`'s findings, sorted by anchor:
+   - `Anchor: natural` → inline comment with `path` + `line` from the finding.
+   - `Anchor: missing-file` → inline comment at the line `play-review` anchored (per its priority list); body prefixed with _"Missing-file finding (no natural anchor — see body):"_.
+   - `Anchor: out-of-diff` → top-level review comment (single bucket; not inline). Use the same `gh api .../reviews` payload but include these in the `body` rather than the `comments` array.
 
    `gh api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
 
@@ -263,13 +164,13 @@ Only after user approval:
      --method POST \
      --input <(jq -n \
        --arg commit_id "<HEAD SHA>" \
-       --arg body "<overall summary>" \
+       --arg body "<overall summary; include out-of-diff findings here>" \
        --arg event "<APPROVE|REQUEST_CHANGES|COMMENT>" \
-       --argjson comments '<JSON array>' \
+       --argjson comments '<JSON array of inline comments>' \
        '{commit_id: $commit_id, body: $body, event: $event, comments: $comments}')
    ```
 
-   Each comment object in the array:
+   Each inline comment object:
 
    ```json
    {
@@ -279,11 +180,6 @@ Only after user approval:
      "body": "**Blocking | Safety** ..."
    }
    ```
-
-   - `path`: file path relative to repo root (from the diff)
-   - `line`: the absolute line number in the HEAD version of the file
-   - `side`: `"RIGHT"` for lines in the PR head (almost always what you want)
-   - `body`: finding text — include severity, category, and recommendation
 
    For multi-line comments spanning a range, add `start_line`:
 
@@ -297,15 +193,17 @@ Only after user approval:
    }
    ```
 
-   **Nits and blocking findings alike become inline comments.** The overall review `body` should contain only a brief summary (1-3 sentences) and the verdict rationale — not duplicate findings.
-
 2. Resolve threads via GraphQL:
+
    ```sh
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
+
 3. Verify each API response succeeded. Report failures, stop on error.
 
-**Always clean up:** `git worktree remove .worktrees/pr-<N>-review`
+## Phase 7: Cleanup
+
+**Always** (success or abort): `git worktree remove .worktrees/pr-<N>-review`
 
 ## GitHub API Reference
 
@@ -325,7 +223,7 @@ gh api repos/{owner}/{repo}/pulls/<N>/reviews \
 
 Use `line` (absolute file line in HEAD), not `position` (diff offset). `side` is `"RIGHT"` for PR head lines.
 
-**Reply to inline comment** (use correct endpoint):
+**Reply to inline comment** (use the correct endpoint):
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies -f body="<text>"
@@ -345,38 +243,45 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 ## Hard Rules
 
 1. **NEVER post, approve, or resolve without user approval at the Phase 5 gate.**
-2. **NEVER auto-approve.** Present verdict recommendation; user decides.
-3. **Always spawn data-safety agent** regardless of file types.
-4. **Always include evidence code** (3-7 lines) in findings.
-5. **Always clean up worktree** after post or abort.
-6. **Verify every GitHub API response.** Report non-2xx failures.
-7. **Cite specific lines.** No generic warnings without code references.
-8. **Never approve your own code.** If PR author = git user, warn and refuse approval.
+2. **NEVER auto-approve.** Present the verdict recommendation; user decides.
+3. **Always clean up the worktree** (Phase 7) after post or abort.
+4. **Verify every GitHub API response.** Report non-2xx failures.
+5. **Never approve your own code.** If PR author = git user, warn and refuse approval.
+6. **Always preserve `play-review`'s evidence code** (3-7 lines) when reformatting findings for the user gate.
 
 ## Red Flags — You Are Violating This Skill
 
 - You called `gh pr review` or `resolveReviewThread` before presenting findings to the user
 - You posted a review "since it looked clean" without the gate
-- You skipped the data-safety agent because "there's no security-relevant code"
+- You skipped delegating to `play-review` and tried to spawn agents yourself
 - You showed findings as a table with file:line but no code snippets
 - You resolved threads "since they were obviously addressed"
-- You used a generic agent prompt without PR-specific file references
-- You skipped the critic pass because "findings were straightforward"
 - You posted all findings in the review body instead of as inline comments on specific lines
 - You used `gh pr review --body` with findings instead of the reviews API with `comments` array
+- You posted `Anchor: out-of-diff` findings as inline comments with fabricated line numbers — they belong in the review body
 
 **All of these mean: STOP. You skipped the user gate or a required step. Go back.**
 
 ## Error Handling
 
-| Scenario                         | Action                                               |
-| -------------------------------- | ---------------------------------------------------- |
-| `gh` not authenticated           | Fail, suggest `gh auth login`                        |
-| PR not found                     | Fail, verify number/URL                              |
-| PR already merged/closed         | Warn user of state, ask whether to proceed           |
-| Fork PR (head ref not on origin) | Use `gh pr checkout <N> --detach` or add fork remote |
-| Worktree exists                  | Remove stale, recreate                               |
-| Agent fails/times out            | Report partial results                               |
-| API returns non-2xx              | Report failure, stop                                 |
-| No guidelines found              | Note in report, proceed                              |
-| Worktree cleanup fails           | Warn user, suggest manual `git worktree remove`      |
+| Scenario                              | Action                                               |
+| ------------------------------------- | ---------------------------------------------------- |
+| `gh` not authenticated                | Fail, suggest `gh auth login`                        |
+| PR not found                          | Fail, verify number/URL                              |
+| PR already merged/closed              | Warn user of state, ask whether to proceed           |
+| Fork PR (head ref not on origin)      | Use `gh pr checkout <N> --detach` or add fork remote |
+| Worktree exists                       | Remove stale, recreate                               |
+| `play-review` reports a missing input | Stop; this means the wrapper has a bug               |
+| API returns non-2xx                   | Report failure, stop                                 |
+| Worktree cleanup fails                | Warn user, suggest manual `git worktree remove`      |
+
+## Integration
+
+**Calls:**
+
+- `play-review` — shared review pipeline (this skill is a wrapper)
+
+**Complements:**
+
+- `branch-review` — for reviewing local diffs without a GitHub PR
+- `play-review-response` — guidance for responding to review feedback

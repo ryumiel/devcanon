@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Followed up by [ADR-0009](adr-0009-review-pipeline-consolidation.md), which closes the deferred wrapper-refactor cycle and the Sub-check B asymmetry called out in Consequences.
 
 ## Context
 
@@ -58,11 +58,12 @@ trigger-set expansion:
   and Documentation agents. This duplication is intentional and time-bound:
   it motivates the deferred wrapper-refactor cycle that will make pr-review
   a thin GitHub-fetch + GitHub-post wrapper around shared review core.
+  (Addressed by ADR-0009.)
 - The "Documentation impact" subsection in design docs becomes a structured
   hand-off contract between `play-brainstorm` and `play-planning`.
 - Sub-check B (cross-document identifier drift) asymmetry remains in
   pr-review; that is out of scope here and tracked under the wrapper-
-  refactor follow-up.
+  refactor follow-up. (Addressed by ADR-0009.)
 
 ## Alternatives considered
 
