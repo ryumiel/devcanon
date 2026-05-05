@@ -101,7 +101,7 @@ Then: Cleanup worktree (Step 5)
 
 **Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller omits `side`, this skill applies the `"RIGHT"` default automatically — callers do not need to supply it. When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
-`branch-review --fix` reports remaining nits in free-form prose, not JSON. The caller (the issuer skill) is responsible for translating that report into the JSON array shape this skill expects before invocation; this skill does not parse free-form review reports.
+The `nits` shape is a strict subset of the `play-review/findings/v1` JSON block (see `skills/play-review/SKILL.md` § Output): callers receive findings as that block's `findings[]` array — emitted as the last fenced `json` code block in `branch-review` and `pr-review` output — and pass the relevant subset directly, with no prose parsing required. The per-finding fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to pass through. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
 ```bash
 # Push branch
@@ -130,10 +130,10 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — with the `"side": "RIGHT"` default applied here — into `$ANCHORABLE_NITS_JSON`:
+2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
-   ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")})' <<<"$ANCHORABLE_NITS")
+   ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
    ```
 
 3. Post anchorable nits as a single review with `event: "COMMENT"`. Skip this step entirely if `$ANCHORABLE_NITS_JSON` is empty or `[]` — posting an empty review is noise.

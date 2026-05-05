@@ -44,7 +44,10 @@ rather than proceeding with defaults.
 
 ## Output
 
-A markdown document with two sections:
+A markdown document with two narrative sections (`## Findings` and the
+optional `## Carry-forward`) followed by a trailing structured-finding
+JSON block (the consumer contract). The three numbered items below
+correspond to those parts in order:
 
 1. `## Findings` — one entry per finding, with stable headers:
 
@@ -69,6 +72,72 @@ A markdown document with two sections:
    ````
 
 2. `## Carry-forward` (follow-up only) — prior threads still open after re-verification, in the same shape.
+
+3. **Structured-finding JSON block (consumer contract).** A single
+   fenced `json` code block, appended after the markdown sections, encoding
+   the same findings in machine-readable form. Schema name:
+   `play-review/findings/v1`. Defined as the authoritative output
+   contract for downstream consumers (`branch-review --fix`,
+   `pr-review` Phase 6, `play-branch-finish` nits input,
+   `issue-priming-workflow` Phase 7). See ADR-0010.
+
+   Shape:
+
+   ```json
+   {
+     "schema": "play-review/findings/v1",
+     "findings": [
+       {
+         "path": "skills/play-review/SKILL.md",
+         "line": 42,
+         "start_line": null,
+         "severity": "Blocking",
+         "category": "Safety",
+         "critic": "VALID",
+         "anchor": "natural",
+         "why": "<plain why-clause prose>",
+         "recommendation": "<concrete suggestion prose>",
+         "body": "**Blocking | Safety** — <why>\n\n**Recommendation:** <recommendation>"
+       }
+     ],
+     "carry_forward": []
+   }
+   ```
+
+   Per-field contract:
+
+   | Field            | Type                                                                                                                  | Notes                                                                                                                                                                                                                                                                                                                                                          |
+   | ---------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `schema`         | string literal `"play-review/findings/v1"`                                                                            | Pinned. Additive changes (new optional fields) stay on `v1`. Renames, removals, or type changes require a major bump (`v2`).                                                                                                                                                                                                                                   |
+   | `findings`       | array                                                                                                                 | One object per finding emitted in this report.                                                                                                                                                                                                                                                                                                                 |
+   | `carry_forward`  | array (same per-finding shape as `findings`)                                                                          | Follow-up `pr-review` only; otherwise the empty array `[]`.                                                                                                                                                                                                                                                                                                    |
+   | `path`           | string, repo-relative                                                                                                 | Same shape consumers (`play-branch-finish`, GitHub Reviews API) expect.                                                                                                                                                                                                                                                                                        |
+   | `line`           | integer, HEAD-side absolute line                                                                                      | Matches `play-branch-finish`'s `line` field and the GitHub Reviews API.                                                                                                                                                                                                                                                                                        |
+   | `start_line`     | integer or `null`                                                                                                     | `null` when single-line; integer for multi-line ranges (matches GitHub Reviews API).                                                                                                                                                                                                                                                                           |
+   | `severity`       | `"Blocking"` \| `"Nit"`                                                                                               | Verbatim from the markdown `Severity:` value.                                                                                                                                                                                                                                                                                                                  |
+   | `category`       | `"Logic"` \| `"Safety"` \| `"Architecture"` \| `"Tests"` \| `"Maintainability"` \| `"Documentation"` \| `"Contracts"` | Verbatim from the markdown `Category:` value.                                                                                                                                                                                                                                                                                                                  |
+   | `critic`         | `"VALID"` \| `"INVALID"` \| `"DOWNGRADE"` \| `null`                                                                   | `null` for nits — they skip critic verification (see Phase 5: "Nits skip critic verification."). This is the one field where the JSON value is not verbatim from the markdown: the markdown writes `Critic: (skipped — nit)`, the JSON writes `null`.                                                                                                          |
+   | `anchor`         | `"natural"` \| `"missing-file"` \| `"out-of-diff"`                                                                    | Verbatim from the markdown `Anchor:` value.                                                                                                                                                                                                                                                                                                                    |
+   | `why`            | string, plain text                                                                                                    | The why-clause from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                               |
+   | `recommendation` | string, plain text                                                                                                    | The concrete suggestion from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                      |
+   | `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through. |
+
+   The schema does not include a `side` field — all current findings target the HEAD-side. Consumers that require it (e.g., the GitHub Reviews API via `play-branch-finish`) supply the default themselves.
+
+   **Positional rules:**
+   - The schema block is the **last fenced `json` block** in the report.
+   - Fence language tag is exactly `json`.
+   - Exactly one **schema** block per report (identifiable by the
+     `"schema": "play-review/findings/v1"` top-level key). The report
+     MAY contain additional `json` fences when an evidence snippet is
+     itself a JSON file — consumers MUST identify the schema block by
+     the trailing-position rule above (or by the `schema` key when
+     parsing all `json` fences), not by counting `json` fences.
+   - Empty findings still emit the block:
+     `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
+   - The markdown finding's evidence code is **not** included in the
+     JSON. `path` + `line` (+ `start_line`) pin the location;
+     consumers re-read the file if they need the snippet.
 
 The wrapper consumes this output and disposes per its surface (present
 in conversation, auto-fix mechanical findings, post inline comments to
@@ -330,6 +399,7 @@ Nits skip critic verification.
 5. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
 6. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
 7. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
+8. **Always emit the structured-finding JSON block** as the last fenced block in the output, even when both `findings` and `carry_forward` are empty. The block is the consumer contract; consumers must never see an absent block.
 
 ## Red Flags — You Are Violating This Skill
 

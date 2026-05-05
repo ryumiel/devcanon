@@ -152,10 +152,10 @@ Include a draft review body preview.
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Build the comments JSON from `play-review`'s findings, sorted by anchor:
-   - `Anchor: natural` → inline comment with `path` + `line` from the finding.
-   - `Anchor: missing-file` → inline comment at the line `play-review` anchored (per its priority list); body prefixed with _"Missing-file finding (no natural anchor — see body):"_.
-   - `Anchor: out-of-diff` → top-level review comment (single bucket; not inline). Use the same `gh api .../reviews` payload but include these in the `body` rather than the `comments` array.
+1. **Post review with inline comments** via the REST API. Build the comments JSON from `play-review`'s **structured-finding JSON block** (the last fenced `json` code block in `play-review`'s output; `play-review/findings/v1` schema, see `skills/play-review/SKILL.md` § Output). Do **not** re-parse the human-readable markdown findings — read the JSON block directly. The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:
+   - `anchor: "natural"` → inline comment using the finding's `path` / `line` / `start_line`; `body` is the finding's pre-rendered `body` field.
+   - `anchor: "missing-file"` → inline comment using the finding's `path` / `line` / `start_line` — `play-review` has already resolved them per its priority list; do NOT re-run the priority resolution. Prefix the `body` with _"Missing-file finding (no natural anchor — see body):"_ before passing it through.
+   - `anchor: "out-of-diff"` → top-level review comment (single bucket; not inline). Concatenate each finding's pre-rendered `body` field into the review's overall `body`; do not put these in the `comments` array.
 
    `gh api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
 

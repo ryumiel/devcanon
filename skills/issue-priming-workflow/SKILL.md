@@ -270,7 +270,11 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns blocking findings as auto-fixed and remaining nits as a free-form report. Before invoking Phase 8, classify each remaining nit as **mechanical** or **judgment-required**:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and emits its remaining `findings[]` as a structured `play-review/findings/v1` JSON block. Read `findings[]` from the **last fenced `json` code block** in `branch-review --fix`'s output (see `skills/play-review/SKILL.md` § Output for the schema) — do not re-parse the human-readable markdown.
+
+**First, check severity.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer skipped (Safety / Contracts categories per the play-review hard rule, plus any blocker whose critic verdict was `INVALID` or `DOWNGRADE`, plus blockers requiring design changes or out-of-diff edits). If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user** — they need human attention, not classification as nits. Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`.
+
+For each `severity: "Nit"` finding object, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields:
 
 - **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
   - Typos and misspellings.
@@ -313,9 +317,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits` input contract.
 
-**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, include the remaining nits from Phase 7 in the `nits` input (JSON array of `{path, line, body}` items, optional `side` and `start_line`). If there are no remaining nits, omit the field. `play-branch-finish` handles posting them via `gh api .../reviews`.
-
-`branch-review --fix` reports its remaining nits in free-form prose, not JSON. Translate that report into the `{path, line, body}` array shape before invoking `play-branch-finish` — the receiving skill does not parse free-form review output.
+**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, pass the judgment-required subset of `branch-review --fix`'s `play-review/findings/v1` JSON block `findings[]` (see `skills/play-review/SKILL.md` § Output) as the `nits` input. Only items with `severity: "Nit"` are eligible — any `severity: "Blocking"` items must already have triggered a stop-`--auto` in Phase 7, so they never reach this step. The schema covers every required field of `play-branch-finish`'s `nits` contract (`path`, `line`, `body`); the optional `start_line` is also present, and the optional `side` defaults to `"RIGHT"` when absent (the schema does not emit it). No translation is needed — pass the items through as-is. Extra fields (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are ignored by `play-branch-finish` but harmless to include. If there are no judgment-required nits, omit the `nits` field entirely; `play-branch-finish` handles posting them via `gh api .../reviews`.
 
 ## Quick Reference
 
