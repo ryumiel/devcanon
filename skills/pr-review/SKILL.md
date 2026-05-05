@@ -152,10 +152,10 @@ Include a draft review body preview.
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Build the comments JSON from `play-review`'s findings, sorted by anchor:
-   - `Anchor: natural` → inline comment with `path` + `line` from the finding.
-   - `Anchor: missing-file` → inline comment at the line `play-review` anchored (per its priority list); body prefixed with _"Missing-file finding (no natural anchor — see body):"_.
-   - `Anchor: out-of-diff` → top-level review comment (single bucket; not inline). Use the same `gh api .../reviews` payload but include these in the `body` rather than the `comments` array.
+1. **Post review with inline comments** via the REST API. Build the comments JSON from `play-review`'s **structured-finding JSON block** (the last fenced ```json block in `play-review`'s output; `play-review/findings/v1` schema, see `skills/play-review/SKILL.md` § Output). Do **not** re-parse the human-readable markdown findings — read the JSON block directly. Partition `findings[]` by `anchor`:
+   - `anchor: "natural"` → inline comment with `path` + `line` (+ `start_line` if present) from the finding; `body` is the finding's pre-rendered `body` field.
+   - `anchor: "missing-file"` → inline comment at the line `play-review` anchored (per its priority list); body prefixed with _"Missing-file finding (no natural anchor — see body):"_.
+   - `anchor: "out-of-diff"` → top-level review comment (single bucket; not inline). Use the same `gh api .../reviews` payload but include these in the review's overall `body` rather than the `comments` array.
 
    `gh api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
 
