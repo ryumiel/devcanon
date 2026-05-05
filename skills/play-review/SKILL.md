@@ -120,6 +120,8 @@ JSON block (the consumer contract):
    | `recommendation` | string, plain text                                                                                                    | The concrete suggestion from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                      |
    | `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through. |
 
+   The schema does not include a `side` field — all current findings target the HEAD-side. Consumers that require it (e.g., the GitHub Reviews API via `play-branch-finish`) supply the default themselves.
+
    **Positional rules:**
    - The JSON block is the **last fenced block** in the report.
    - Fence language tag is exactly `json`.
