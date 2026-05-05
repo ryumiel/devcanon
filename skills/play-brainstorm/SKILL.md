@@ -72,6 +72,7 @@ digraph brainstorming {
 **Understanding the idea:**
 
 - Check out the current project state first (files, docs, recent commits)
+- Scan `docs/adr/` titles and `docs/arch/overview.md`. If a covering ADR exists for the domain this work touches, summarize it before proposing changes.
 - **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single design, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own design → plan → implementation cycle.
@@ -85,6 +86,7 @@ digraph brainstorming {
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
+- For each approach, note its **documentation impact** per AFDS v2: would it require a new ADR (architecture decisions, technology adoption/removal, boundary changes, major rejected alternatives — see `docs/guidelines/documentation-standard.md` §3.5), a `docs/arch/` update (system shape change), or a `MAP.md` update (file moves or new major path)? Approaches with no impact say so explicitly.
 
 **Presenting the design:**
 
@@ -121,6 +123,7 @@ After writing the design document, look at it with fresh eyes:
 3. **Scope check:** Is this focused enough for a single implementation plan, or does it need decomposition?
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
 5. **Example verification:** For any worked example, illustrative scenario, or reference _that purports to cite existing code, files, or history_ in the design that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking design proposals (new modules, paths, or APIs being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples.
+6. **Documentation impact:** If any approach was flagged ADR/arch/MAP-relevant during exploration, the chosen design must include a "Documentation impact" subsection naming each affected file. This subsection becomes the structured hand-off to `play-planning`, which generates corresponding documentation tasks. If no approach has documentation impact, omit the subsection.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
