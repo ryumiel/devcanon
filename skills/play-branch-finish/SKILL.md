@@ -101,7 +101,7 @@ Then: Cleanup worktree (Step 5)
 
 **Optional input — review nits.** Callers (e.g., `github-issue-priming` Phase 9, `linear-issue-priming` Phase 9) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller omits `side`, this skill applies the `"RIGHT"` default automatically — callers do not need to supply it. When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
-`branch-review --fix` reports remaining nits in free-form prose, not JSON. The caller (the issuer skill) is responsible for translating that report into the JSON array shape this skill expects before invocation; this skill does not parse free-form review reports.
+The `nits` shape is a strict subset of `play-review`'s `play-review/findings/v1` JSON block (see `skills/play-review/SKILL.md` § Output): callers receive findings as that block's `findings[]` array (e.g., from `branch-review --fix` or `pr-review`) and pass the relevant subset directly — no prose parsing. The extra fields on each finding (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`, `schema`) are ignored by this skill but harmless to pass through.
 
 ```bash
 # Push branch
