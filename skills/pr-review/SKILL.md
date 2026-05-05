@@ -96,7 +96,7 @@ Hand off to `play-review` with these inputs:
 - `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
-- `language_hints` = derived from the full PR's changed-files set
+- `language_hints` = derived from the **active diff's** changed-files set (so follow-up narrow mode only spawns language agents matching the incremental diff; deriving from the full PR would re-run earlier-touched language agents on docs-only follow-ups, defeating the narrow-mode scoping)
 - `prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses (follow-up only)
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
