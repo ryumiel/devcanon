@@ -45,25 +45,7 @@ Detect mode:
 - **Initial:** No prior review from current user on this PR.
 - **Follow-up:** Prior review exists. Find last reviewed commit from review's `commit_id`.
 
-**Doc-impact summary (mechanical, anchor data for the Architecture agent):**
-
-Run the following from the worktree created in Phase 3, **always against the full `base...HEAD` range** even in follow-up narrow mode. Rationale: ADR coverage is a PR-scope governance question, not a delta question. In follow-up mode this means computing two diffs — incremental for code review, full for doc-impact.
-
-```bash
-BASE_REF="<baseRefName from gh pr view>"
-HEAD_REF="<headRefName from gh pr view>"
-# Architectural-knowledge files touched in the full PR
-ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...origin/$HEAD_REF" \
-  | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
-# New ADRs added in this PR
-NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...origin/$HEAD_REF" \
-  | grep -E '^docs/adr/adr-[0-9]+' || true)
-# Existing ADRs modified in this PR
-MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...origin/$HEAD_REF" \
-  | grep -E '^docs/adr/adr-[0-9]+' || true)
-```
-
-This summary is passed to the Architecture agent's briefing in Phase 3 as anchor data for its AFDS v2 ADR-coverage sub-check. No findings emitted at this step.
+The doc-impact summary used by the Architecture agent's AFDS v2 ADR-coverage sub-check is computed in Phase 3, after the worktree is created and both refs are fetched. See "Doc-impact summary" under Phase 3 below.
 
 ### Phase 2: Discover
 
@@ -81,13 +63,35 @@ No guidelines found? Proceed with agents' built-in knowledge, note it in the rep
 **Worktree — always detached HEAD, from repo root:**
 
 ```sh
-git fetch origin <head-ref>
+git fetch origin <base-ref> <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
+
+Both refs are fetched: `<head-ref>` for the worktree, `<base-ref>` for the doc-impact summary diff below.
 
 If the PR is from a fork and `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a worktree instead, or add the fork remote first.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
+
+**Doc-impact summary (mechanical, anchor data for the Architecture agent):**
+
+Run from the worktree created above, **always against the full `base...HEAD` range** even in follow-up narrow mode. Rationale: ADR coverage is a PR-scope governance question, not a delta question. In follow-up mode this means computing two diffs — incremental for code review, full for doc-impact.
+
+```bash
+BASE_REF="<baseRefName from gh pr view>"
+HEAD_REF="<headRefName from gh pr view>"
+# Architectural-knowledge files touched in the full PR
+ARCH_FILES=$(git diff --name-only "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/)' || true)
+# New ADRs added in this PR
+NEW_ADRS=$(git diff --name-only --diff-filter=A "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+# Existing ADRs modified in this PR
+MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "origin/$BASE_REF...origin/$HEAD_REF" \
+  | grep -E '^docs/adr/adr-[0-9]+' || true)
+```
+
+This summary is passed to the Architecture agent's briefing as anchor data for its AFDS v2 ADR-coverage sub-check. No findings emitted at this step.
 
 **Core agents (always spawned):**
 
@@ -124,7 +128,7 @@ Run all agents in parallel.
 
 **Architecture agent — AFDS v2 ADR-coverage sub-check:**
 
-When the Architecture agent fires, include the doc-impact summary from Phase 1 in its briefing and add this rubric to its prompt:
+When the Architecture agent fires, include the doc-impact summary computed earlier in this phase in its briefing and add this rubric to its prompt:
 
 > Evaluate whether the diff makes a _durable architectural decision_ per `docs/guidelines/documentation-standard.md` §3.5 (architecture decisions, technology adoption/removal, boundary changes, major tradeoffs/rejected alternatives).
 >
