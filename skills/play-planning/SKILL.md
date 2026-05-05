@@ -136,6 +136,8 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **4. Example verification:** For any worked example, code snippet annotation, or scenario reference _that purports to cite existing code, files, or history_ in the plan that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking task definitions (new files in `Files: Create:` blocks, function names being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples. Note: this complements the existing Plan Review subagent, which independently checks that file paths in the plan reference real locations; this self-review item additionally verifies citations inside worked examples and prose.
 
+**5. Documentation tasks:** If the input design has a "Documentation impact" section, every listed file must have a corresponding task in the plan. New ADRs use `docs/adr/adr-template.md` as the source. If the design has no "Documentation impact" section, this check is a no-op.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
 ## Plan Review
@@ -156,6 +158,7 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - Verification commands exist and cover acceptance criteria
 - File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
 - No placeholder violations (catches what self-review missed)
+- Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
 
 **Output:** PASS with confidence notes, or FAIL with specific gaps listed.
 
