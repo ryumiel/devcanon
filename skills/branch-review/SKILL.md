@@ -78,7 +78,7 @@ Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown docume
 
 Re-emit `play-review`'s findings to the user in conversation. Preserve the format (file:line, severity, category, evidence code, recommendation). Findings tagged `Anchor: out-of-diff` are listed under "Out-of-diff findings" with a note that they require human judgment.
 
-After the human-readable findings, append `play-review`'s structured-finding JSON block verbatim as the last fenced block in the output. This is the `play-review/findings/v1` block defined in `skills/play-review/SKILL.md` § Output. The block is intended for downstream tools that wrap `branch-review`'s output; the user can ignore it.
+After the human-readable findings, append `play-review`'s structured-finding JSON block verbatim as the last fenced block in the output (no fixes have been applied on this path, so the block is unmodified from `play-review`'s output). This is the `play-review/findings/v1` block defined in `skills/play-review/SKILL.md` § Output. The block is intended for downstream tools that wrap `branch-review`'s output; the user can ignore it.
 
 **With `--fix` (autonomous mode, used by `github-issue-priming --auto`):**
 
@@ -105,7 +105,7 @@ After processing — whether the loop completes or halts on the stop rule — re
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 
-Then append a `play-review/findings/v1` JSON block as the last fenced block in the report (see `skills/play-review/SKILL.md` § Output). The block's `findings` array contains exactly the **remaining set**: every nit (regardless of anchor), plus any blocker that was skipped (`INVALID`/`DOWNGRADE`) or that triggered the halt. Auto-fixed blockers do NOT appear in the JSON block — they're already committed. If the remaining set is empty, still emit the block with `findings: []`. `issue-priming-workflow` Phase 7 reads this block to classify nits and feed `play-branch-finish`'s `nits` input.
+Then append a `play-review/findings/v1` JSON block as the last fenced block in the report (see `skills/play-review/SKILL.md` § Output). The block's `findings` array contains exactly the **remaining set**: every nit (regardless of anchor), plus any blocker that was skipped (`INVALID`/`DOWNGRADE`) or that triggered the halt. Auto-fixed blockers do NOT appear in the JSON block — they're already committed. If the remaining set is empty, still emit the canonical empty block (see `skills/play-review/SKILL.md` § Output positional rules) — never an absent block. `issue-priming-workflow` Phase 7 reads this block to classify nits and feed `play-branch-finish`'s `nits` input.
 
 ## Quick Reference
 
