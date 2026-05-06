@@ -18,10 +18,7 @@ Active diff: run `git diff <active_diff_range>` from <working_directory>.
 
 Sub-checks for this review:
 
-<role-specific sub-checks composed inline, each referencing actual files
-and line counts visible in the diff. Generic prompts like "review this
-diff" remain prohibited — the per-agent block must be specific to the
-diff under review.>
+<sub-checks>
 
 Emit findings using the output format defined in the shared review
 context.
@@ -41,3 +38,4 @@ context.
 
 - The shared-context file is written by Phase 2.5 of `skills/play-review/SKILL.md` before Phase 3 dispatch.
 - Per-agent role-specific sub-checks remain inline in the prompt — only the shared block is path-referenced.
+- The `<sub-checks>` block must compose role-specific sub-checks inline, each referencing actual files and line counts visible in the diff. Generic prompts like "review this diff" remain prohibited — the per-agent block must be specific to the diff under review.
