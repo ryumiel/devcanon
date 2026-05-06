@@ -228,6 +228,11 @@ See [`references/example-workflow.md`](references/example-workflow.md) for an en
 
 See [`references/advantages.md`](references/advantages.md) for the rationale (vs. manual execution, vs. executing plans inline, efficiency gains, quality gates, cost).
 
+## Hard Rules
+
+1. **Never start implementation on `main` / `master` without explicit user consent.** Skills invoked outside an authorized worktree or feature branch must surface and stop.
+2. **Never dispatch implementer subagents in parallel.** Implementations are serial — concurrent dispatch produces conflicts and race conditions.
+
 ## Red Flags
 
 See [`references/red-flags.md`](references/red-flags.md) for the full list (start-on-main, skipping reviews on multi-task plans, parallel implementer dispatch, ignoring subagent questions, skipping re-review).
