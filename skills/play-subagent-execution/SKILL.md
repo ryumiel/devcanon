@@ -105,6 +105,30 @@ Use the least powerful model that can handle each role to conserve cost and incr
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
 
+## Mechanical Task Hint
+
+A task whose entire deliverable is "reproduce this verbatim text into a file and commit" doesn't need the full implementer scaffolding (escalation prose, ask-if-unclear reminders, code-organization advice). Plans can mark such tasks with `**Mode:** mechanical` in the task header. When this hint is present, dispatch with [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md) instead of the default [`references/implementer-prompt.md`](references/implementer-prompt.md).
+
+The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly. Hint-only is the conservative choice: under-marking falls back to the full template (no harm), while a heuristic biases toward over-trimming (false positives strip needed scaffolding).
+
+When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
+
+**Verification baseline:** the lean template body is ~32 lines vs. the default's ~96-line body. To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare line counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
+
+## Mechanical Task Taxonomy
+
+Use the hint when the task fits one of these positive shapes:
+
+- **Verbatim file create.** Single-file create from content fully specified in the plan (e.g., adding an ADR file like [PR #163](https://github.com/ryumiel/agent-manager/pull/163), or a template/snippet file with content provided verbatim).
+- **Unambiguous identifier replacement.** Single-file rename where the plan provides exact before/after strings and there is only one correct substitution.
+
+Do **not** use the hint for these negative shapes — the default template applies:
+
+- **TDD step pair.** Any task with `Step 1: Write the failing test` and `Step 3: Write minimal implementation` — the implementer must write code that satisfies a test, which is judgment.
+- **Multi-file coordinated change.** Several files where the relationship between edits is non-trivial.
+- **New module or public interface.** Naming, boundary, or API decisions the implementer would need to make.
+- **Plans containing the words "design", "decide", or "choose."**
+
 ## Single-Task Plans
 
 When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is out of ADR-0007). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
@@ -136,7 +160,8 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 ## Prompt Templates
 
-- `references/implementer-prompt.md` — dispatch-time prompt for the `implementer` agent
+- `references/implementer-prompt.md` — default dispatch-time prompt for the `implementer` agent
+- `references/mechanical-implementer-prompt.md` — leaner variant for tasks marked `**Mode:** mechanical` (see "Mechanical Task Hint" above)
 - `references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
