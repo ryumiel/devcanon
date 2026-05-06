@@ -31,7 +31,7 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; the Snapshot Manifest step uses it to enumerate files changed during this task. (If `git rev-parse HEAD` fails because the branch has no commits yet, report BLOCKED — the snapshot contract requires a known base.)
+    1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; the Snapshot Manifest step uses it to enumerate files changed during this task. (If `git rev-parse HEAD` fails for any reason — empty branch, corrupted ref, non-git directory — report BLOCKED. The snapshot contract requires a known base.)
     2. Implement exactly what the task specifies
     3. Write tests (following TDD if task says to)
     4. Verify implementation works
@@ -133,7 +133,7 @@ Task tool (general-purpose):
        {
          "schema": "implementer/snapshot/v1",
          "task_id": "<task identifier from your task header>",
-         "head_sha": "<HEAD_SHA from step 1>",
+         "head_sha": "<HEAD_SHA from Snapshot Manifest § Step 1>",
          "files": [
            {
              "path": "<repo-relative path>",
@@ -148,11 +148,34 @@ Task tool (general-purpose):
        ```
 
        Build the envelope with a JSON-aware tool — do NOT hand-assemble
-       the `content` strings into a heredoc. Recommended: pipe each file
-       through `jq -Rs '.'` (or `python -c 'import json,sys; print(json.dumps(sys.stdin.read()))'`)
-       to produce a properly-escaped JSON string for the `content` field.
-       Hand-quoting verbatim file bytes will mis-escape `"`, `\`, and
-       newlines and silently corrupt the snapshot.
+       the `content` strings into a heredoc, and do NOT use `$(cat path)`
+       inside a `jq --arg` (command substitution strips trailing
+       newlines, so the content will not be byte-faithful). Use
+       `jq --rawfile` to read each file's bytes verbatim into the
+       `content` field. One canonical recipe for a single file:
+
+       ```bash
+       jq -n \
+         --arg schema "implementer/snapshot/v1" \
+         --arg task_id "<task identifier>" \
+         --arg head_sha "$HEAD_SHA" \
+         --arg path "<repo-relative-path>" \
+         --arg status "added" \
+         --argjson lines "$(wc -l < <path>)" \
+         --argjson bytes "$(wc -c < <path>)" \
+         --arg sha256 "$(shasum -a 256 <path> | awk '{print $1}')" \
+         --rawfile content <path> \
+         '{schema:$schema,task_id:$task_id,head_sha:$head_sha,
+           files:[{path:$path,status:$status,lines:$lines,bytes:$bytes,
+                   sha256:$sha256,content:$content}]}' \
+         > "$SNAPSHOT_FILE"
+       ```
+
+       Extend the `files:` array for multi-file commits. For files where
+       `content` is omitted, drop `--rawfile content` and emit
+       `skipped: $skipped` instead. Hand-quoting verbatim file bytes will
+       mis-escape `"`, `\`, and newlines and silently corrupt the
+       snapshot, so always go through a JSON-aware tool.
 
        Per-file rules (matches `docs/adr/adr-0014-implementer-done-snapshot-contract.md` head-of-branch contract):
        - Enumerate every file changed during this task (run
@@ -170,7 +193,10 @@ Task tool (general-purpose):
        - Detect binary via `git diff --numstat ${BASE_SHA}..HEAD` — a `-\t-\t<path>`
          row indicates binary; emit `"skipped": "binary"`.
 
-    6. Write the file using the `Write` tool (atomic replacement; do not append).
+    6. Persist the envelope to `$SNAPSHOT_FILE`. The Step 5 recipe already
+       redirects `jq` output to the path; if you assembled the JSON
+       another way, use the `Write` tool (atomic replacement; do not
+       append).
 
     7. Verify the write:
 
