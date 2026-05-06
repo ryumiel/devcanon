@@ -53,6 +53,11 @@ spec". Those are normal edits, not audits.
 `--diff` is the mode to use before opening a PR. `--full` is for periodic
 gardening passes.
 
+**`--diff` graceful degradation:** if the target standard does not name a
+same-PR update rule, Phase 6 is skipped and `--diff` collapses to phases
+1-5 + report. The report explicitly notes this so the user knows the
+run was not gated by same-PR coverage.
+
 ## Workflow
 
 ```dot
@@ -76,13 +81,17 @@ the user picks which findings to fix.
 
 ## Phase 1: Discover the standard
 
-Find the target repo's documentation standard. Search in this order:
+Find the target repo's documentation standard. Search in this order and
+**stop at the first match**:
 
 1. `docs/guidelines/documentation-standard.md`
 2. `docs/guidelines/documentation.md`
 3. `DOCUMENTATION.md` at repo root
 4. Any file in `docs/guidelines/` whose name contains `documentation` and
    `standard`
+
+If steps 1-3 all miss and step 4 returns more than one candidate, **ask
+the user which file is authoritative** — do not pick arbitrarily.
 
 If found: this file is authoritative. Read it fully. Note its section
 numbering scheme — findings cite sections from _this_ file, not a generic
@@ -103,26 +112,32 @@ exists to prevent.
 
 ## Phase 2: Mechanical findings
 
-Deterministic checks. Severity: `error`.
+Deterministic checks. Severity: `Blocking | Documentation`.
 
 - **Markdown lint / format**: run the repo's configured commands if they
   exist (e.g., `pnpm run lint:markdown`, `pnpm run format:markdown:check`).
   If the repo has no markdown linter configured, skip — do not impose one.
-- **Broken relative links**: for every `[text](path)` in tracked markdown,
-  resolve `path` relative to the file. Flag missing targets. Anchors
-  (`#section`) are checked when feasible but not required.
-  **Exclude links inside fenced code blocks** (triple-backtick or
-  triple-tilde) — those are illustrative, not navigational. Also exclude
-  inline-code spans (single backticks) and HTML comments.
+- **Broken relative links**: scope is **inline-style links only** —
+  `[text](path)` in tracked markdown. Resolve `path` relative to the file
+  and flag missing targets. Anchors (`#section`) are checked when feasible
+  but not required. **Exclude** links inside fenced code blocks
+  (triple-backtick or triple-tilde), inline-code spans (single backticks),
+  and HTML comments. **Out of scope** for this rule: reference-style
+  links (`[text][ref]` + `[ref]: path`), image links (`![alt](path)`),
+  and angle-bracket destinations (`[t](<path>)`). If the target repo
+  relies on these heavily, expand the rule explicitly rather than letting
+  silent false negatives accumulate.
 - **MAP.md entries resolve**: if the standard names a navigation index
   (commonly `MAP.md`), every link in it must resolve.
 - **Soft-constraint violations**: if the standard names size constraints
   (e.g., `AGENTS.md` ≤ N words, ≤ M sections), check them. Cite the section
   of the standard that defines the constraint.
-- **Filename anti-patterns**: flag filenames that match the standard's
-  "avoid" list verbatim. Common examples (only flag if the standard names
-  them): `final.md`, `*-v2.md`, `notes-v3.md`, `temp.md`, `misc.md`,
-  date-stamped names for enduring docs.
+- **Filename anti-patterns**: flag filenames that match the target
+  standard's "avoid" list verbatim. The kinds of names standards
+  typically forbid include: dated names for enduring docs,
+  version-marker suffixes (`v2`, `v3`, `final`), and vague labels
+  (`misc`, `temp`, `notes`) — but only flag the ones the standard
+  actually names.
 
 Do **not** invent filename rules the standard does not list.
 
@@ -130,7 +145,7 @@ Do **not** invent filename rules the standard does not list.
 
 Walk the standard's "where information belongs" / "boundary rules" section.
 For each boundary rule, sample the candidate docs and check whether
-content sits in the right place. Severity: `warn`.
+content sits in the right place. Severity: `Nit | Documentation`.
 
 Examples (only if the target standard endorses these splits):
 
@@ -148,7 +163,7 @@ violates. If you cannot cite, the finding is speculation — drop it.
 
 Walk the standard's "no duplicate sources of truth" / "single source of
 truth" list. Detect overlapping authority across the named locations.
-Severity: `warn`.
+Severity: `Nit | Documentation`.
 
 Use `grep` with semantically-significant phrases drawn from the standard's
 own boundary list. Do not flag legitimate cross-references — flag only
@@ -156,8 +171,8 @@ content that asserts authority from two places.
 
 ## Phase 5: Derivable-gap findings
 
-These are gaps that current artifacts in the repo make detectable. Severity:
-`info`.
+These are gaps that current artifacts in the repo make detectable.
+Severity: `Nit | Documentation`.
 
 | Gap type                     | Detection                                                                                                                                                                     |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -180,7 +195,7 @@ one-line description. The user decides whether and how to fill it.
 ## Phase 6: Same-PR coverage (`--diff` only)
 
 When invoked with `--diff <base>`, additionally enforce the standard's
-"same-PR update rule" (or equivalent). Severity: `error`.
+"same-PR update rule" (or equivalent). Severity: `Blocking | Documentation`.
 
 ```bash
 git diff --name-only "$BASE"...HEAD
@@ -204,6 +219,14 @@ the standard does not enforce same-PR updates, skip this phase.
 
 ## Phase 7: Report
 
+Severity follows the canonical Finding Model from the repo's
+code-review guideline: `Blocking` (mechanical violations and same-PR
+coverage failures — objectively wrong) and `Nit` (boundary,
+duplication, and derivable-gap findings — judgment calls the user
+decides). All categories are `Documentation`. The skill emits no
+custom severity tier — the canonical model is the one the rest of
+the review pipeline already speaks.
+
 Emit a single markdown report with this structure:
 
 ```markdown
@@ -213,15 +236,18 @@ Emit a single markdown report with this structure:
 **Standard:** <relative path to standard file>
 **Mode:** --full | --diff <base>
 
+[Notice line, only when applicable:]
+**Notice:** target standard does not name a same-PR update rule;
+Phase 6 was skipped. This run was not gated by same-PR coverage.
+
 ## Summary
 
-- N errors (mechanical / same-PR)
-- N warns (boundary / duplication)
-- N infos (derivable gaps)
+- N Blocking | Documentation (mechanical / same-PR coverage)
+- N Nit | Documentation (boundary / duplication / derivable gaps)
 
 ## Findings
 
-### error: <short title>
+### Blocking | Documentation: <short title>
 
 - **File:** `path:line` (when applicable)
 - **Standard:** § <section number / heading from the target's standard>
@@ -231,7 +257,7 @@ Emit a single markdown report with this structure:
 [... one block per finding ...]
 ```
 
-Order findings by severity (`error` → `warn` → `info`), then by file path.
+Order findings by severity (`Blocking` → `Nit`), then by file path.
 Each finding cites the section of the target's standard it violates.
 
 After the report, ask the user which findings to fix. Do not proceed to
@@ -293,8 +319,8 @@ This skill does **not**:
 - **Problem:** You found a section that reads poorly. You "garden" by
   rewriting it.
 - **Fix:** Mechanical fixes only. Awkward prose is not within scope.
-  Flag it as `info` if the standard names a writing-quality rule;
-  otherwise leave it alone.
+  Flag it as `Nit | Documentation` if the standard names a
+  writing-quality rule; otherwise leave it alone.
 
 ### Inventing filename rules
 
