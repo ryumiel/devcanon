@@ -98,6 +98,13 @@ teardown (consistent with ADR-0012 cleanup).
       "bytes": 5021,
       "sha256": "<hex>",
       "content": "<verbatim file content>"
+    },
+    {
+      "path": "docs/specs/old-spec.md",
+      "status": "deleted",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": ""
     }
   ]
 }
@@ -105,23 +112,27 @@ teardown (consistent with ADR-0012 cleanup).
 
 Per-field contract:
 
-| Field      | Type                                       | Notes                                                                                                                 |
-| ---------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                             |
-| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                              |
-| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                       |
-| `files`    | array                                      | One object per file the implementer created or modified for this task.                                                |
-| `path`     | string, repo-relative                      | Path of the modified file.                                                                                            |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status` letters mapped to words.                                                             |
-| `lines`    | integer                                    | Line count post-commit (`wc -l`). For deleted files, `0`.                                                             |
-| `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                                                       |
-| `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                                                   |
-| `content`  | string OR omitted                          | Verbatim post-commit file content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary. |
-| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                            |
+| Field      | Type                                       | Notes                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                                |
+| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                                 |
+| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                          |
+| `files`    | array                                      | One object per file the implementer created or modified for this task.                                                                                                                                   |
+| `path`     | string, repo-relative                      | Path of the modified file.                                                                                                                                                                               |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status` letters mapped to words: `A`→`added`, `M`→`modified`, `D`→`deleted`, `R`/`C`→`modified`.                                                                                |
+| `lines`    | integer                                    | Visible line count post-commit (`awk 'END{print NR}' <path>`). Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
+| `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                                                                                                                                          |
+| `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                                                                                                                                      |
+| `content`  | string OR omitted                          | Verbatim post-commit file content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                                    |
+| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                               |
 
 Mutual exclusion: exactly one of `content` or `skipped` is present
 per file, except when `status == "deleted"` (both omitted; the
 consumer infers `deleted` semantics from `status`).
+
+The `files` array MUST NOT be empty: a DONE report implies at least
+one commit landed between `BASE_SHA` and `HEAD`. If the implementer
+made no changes, it reports BLOCKED instead of writing a snapshot.
 
 Files reported by `git diff --numstat` as binary (`-\t-\t<path>`)
 emit `"skipped": "binary"`.
@@ -172,12 +183,21 @@ case "$SNAPSHOT_FILE" in
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; exit 1 ;;
 esac
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; exit 1; }
+[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; exit 1; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; exit 1; }
 ```
 
 This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the snapshot suffix.
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
+narrowed to the snapshot suffix. The symlink reject is added on top
+of the canonical guard because the consumer is read-only and never
+overwrites the file — the producer-side write path picks up the
+symlink check via its own guard.
+
+After parsing the JSON, the controller compares the snapshot's
+`head_sha` to its own view of the worktree (`git rev-parse HEAD`); a
+mismatch indicates an unexpected commit between DONE and consumption
+and routes the consumer to disk reads for that task.
 
 The controller MAY use snapshot `content` for:
 

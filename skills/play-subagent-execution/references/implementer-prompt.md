@@ -135,15 +135,26 @@ Task tool (general-purpose):
          "files": [
            {
              "path": "<repo-relative path>",
-             "status": "added | modified | deleted",
+             "status": "added",
              "lines": <integer>,
              "bytes": <integer>,
              "sha256": "<hex>",
              "content": "<verbatim post-commit content>"
+           },
+           {
+             "path": "<repo-relative path>",
+             "status": "deleted",
+             "lines": 0,
+             "bytes": 0,
+             "sha256": ""
            }
          ]
        }
        ```
+
+       Note that the `deleted` entry above carries neither `content` nor
+       `skipped` — the consumer infers deletion from `status`. See
+       per-file rules below.
 
        Build the envelope with a JSON-aware tool — do NOT hand-assemble
        the `content` strings into a heredoc, and do NOT use `$(cat path)`
@@ -159,7 +170,7 @@ Task tool (general-purpose):
          --arg head_sha "$HEAD_SHA" \
          --arg path "<repo-relative-path>" \
          --arg status "added" \
-         --argjson lines "$(wc -l < <path>)" \
+         --argjson lines "$(awk 'END{print NR}' <path>)" \
          --argjson bytes "$(wc -c < <path>)" \
          --arg sha256 "$(shasum -a 256 <path> | awk '{print $1}')" \
          --rawfile content <path> \
@@ -178,8 +189,13 @@ Task tool (general-purpose):
        Per-file rules:
        - Enumerate every file changed during this task (run
          `git diff --name-status ${BASE_SHA}..HEAD` and map letters: `A`→added,
-         `M`→modified, `D`→deleted; treat copies/renames as modified).
-       - `lines` = `wc -l < <path>` post-commit (or `0` for deleted).
+         `M`→modified, `D`→deleted; treat copies/renames (`R`/`C`) as modified).
+       - If `${BASE_SHA}..HEAD` is empty (no commits landed during this task),
+         the snapshot contract is undefined — report BLOCKED rather than
+         emitting a snapshot with an empty `files` array.
+       - `lines` = `awk 'END{print NR}' <path>` post-commit (or `0` for deleted).
+         This is the visible line count; it equals `wc -l` for newline-terminated
+         files and is one greater than `wc -l` for files without a trailing newline.
        - `bytes` = `wc -c < <path>` post-commit (or `0` for deleted).
        - `sha256` = `shasum -a 256 <path> | awk '{print $1}'` (or `""` for deleted).
        - `content` is included when `bytes <= 64000`, `status != "deleted"`,

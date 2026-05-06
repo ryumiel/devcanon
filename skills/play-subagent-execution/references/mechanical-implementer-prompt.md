@@ -56,17 +56,22 @@ Task tool (general-purpose):
        `{schema, task_id, head_sha, files: [{path, status, lines, bytes, sha256, content}]}`,
        where `task_id` is the identifier from your task header (e.g.
        `"Task 3"`). Per file: `status` ∈ {added, modified, deleted};
-       `lines` from `wc -l`; `bytes` from `wc -c`; `sha256` from
-       `shasum -a 256`; `content` is included when `bytes <= 64000`,
-       `status != "deleted"`, and the file is not binary. When `content`
-       is omitted on a non-deleted file, set `"skipped"` to `"size>64KB"`
-       or `"binary"` (drop `--rawfile content` from the jq command and
-       emit `skipped: $skipped` instead). Mutual exclusion: exactly one
-       of `content` / `skipped` per non-deleted file. Deleted files emit
+       `lines` from `awk 'END{print NR}' <path>` (visible line count;
+       equals `wc -l` for newline-terminated files, one greater for
+       files without a trailing newline); `bytes` from `wc -c`;
+       `sha256` from `shasum -a 256`; `content` is included when
+       `bytes <= 64000`, `status != "deleted"`, and the file is not
+       binary. When `content` is omitted on a non-deleted file, set
+       `"skipped"` to `"size>64KB"` or `"binary"` (drop
+       `--rawfile content` from the jq command and emit
+       `skipped: $skipped` instead). Mutual exclusion: exactly one of
+       `content` / `skipped` per non-deleted file. Deleted files emit
        neither field. Enumerate files with
        `git diff --name-status ${BASE_SHA}..HEAD` (letters: A→added,
        M→modified, D→deleted; treat R/C as modified); detect binary
-       via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows.
+       via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows. If
+       `${BASE_SHA}..HEAD` is empty, report BLOCKED rather than
+       writing a snapshot with an empty `files` array.
     6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
        tool if you assembled JSON another way; atomic replacement; do
        not append).

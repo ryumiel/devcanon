@@ -214,6 +214,7 @@ case "$SNAPSHOT_FILE" in
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; exit 1 ;;
 esac
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; exit 1; }
+[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; exit 1; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; exit 1; }
 ```
 
@@ -221,7 +222,25 @@ This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path,
 narrowed to the snapshot suffix. The canonical copy lives in
 `play-review/SKILL.md`; if that copy gains a step (e.g., a new
-pre-read check), update this skill to match.
+pre-read check), update this skill to match. The symlink reject is
+added on top of the canonical guard because the consumer is read-only
+and never overwrites the file — the producer-side guard already
+removes a stale symlink before its `Write`.
+
+After parsing the JSON, also compare the snapshot's `head_sha` to
+the controller's own view of the worktree:
+
+```bash
+CONTROLLER_HEAD_SHA=$(git rev-parse HEAD)
+[ "$CONTROLLER_HEAD_SHA" = "$SNAPSHOT_HEAD_SHA" ] || {
+  echo "snapshot head_sha mismatch: $SNAPSHOT_HEAD_SHA vs $CONTROLLER_HEAD_SHA" >&2
+  # fall back to disk reads for this task
+}
+```
+
+A mismatch is the trigger for the `head_sha`-mismatch row in the
+failure-mode table below; without this comparison, that row is
+unreachable.
 
 ### Use cases
 
