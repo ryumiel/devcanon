@@ -240,9 +240,10 @@ not a consumer contract.
 .ephemeral/<branch_slug>-<head_sha>-review-context.md
 ```
 
-`<branch_slug>` and `<head_sha>` are computed identically to the
-findings envelope — reuse the `BRANCH_SLUG` / `HEAD_SHA` values already
-derived in § Output.
+`<branch_slug>` is derived identically to the findings envelope —
+reuse the `BRANCH_SLUG` shell binding computed in § Output.
+`<head_sha>` is the `head_sha` skill input, validated per § Output's
+SHA-format constraint (`^[0-9a-f]{40}$`).
 
 ### Content
 
@@ -251,8 +252,7 @@ Compose the file with these sections, in order:
 1. **Header** — `working_directory`, `base_ref`, `head_sha`,
    `active_diff_range`, `full_pr_diff_range`, `mode`, `language_hints`
    as a key/value list.
-2. **Changed files (active diff)** — `git diff --name-status
-"$ACTIVE_DIFF_RANGE"` output, fenced.
+2. **Changed files (active diff)** — `git diff --name-status "$ACTIVE_DIFF_RANGE"` output, fenced.
 3. **Doc-impact summary** — the `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`
    lists from Phase 2 (always computed against `full_pr_diff_range`).
    Emit `(none)` per list when empty so layout is stable.
