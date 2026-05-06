@@ -27,7 +27,8 @@ weigh it against.
 
 ADR-0010's _Alternatives considered_ already considered and **rejected**
 a side-channel `.ephemeral/findings.json`, with this stated reason
-(ADR-0010 lines 106-108):
+(ADR-0010 § Alternatives considered, "Side-channel
+`.ephemeral/findings.json` file" entry):
 
 > Side-channel `.ephemeral/findings.json` file. Rejected:
 > violates `play-review`'s no-I/O boundary established by ADR-0009.
