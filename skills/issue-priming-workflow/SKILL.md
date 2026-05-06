@@ -77,7 +77,7 @@ Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup` skill
 
 Handle the result:
 
-- If `MODE=stop`, surface `MESSAGE` and stop the workflow. The forbidden outcome is **producing a worktree (or any equivalent checkout) for this issue from inside the current session — by any mechanism**. See [`references/worktree-forbidden-outcomes.md`](references/worktree-forbidden-outcomes.md) for the enumerated mechanisms and rationale. The operator returns to primary explicitly and re-runs the skill from there.
+- If `MODE=stop`, surface `MESSAGE` and stop the workflow. The forbidden outcome is **producing a worktree (or any equivalent checkout) for this issue from inside the current session** — by any mechanism. See [`references/worktree-forbidden-outcomes.md`](references/worktree-forbidden-outcomes.md) for the enumerated mechanisms and rationale. The operator returns to primary explicitly and re-runs the skill from there.
 - If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
 
 **After worktree is ready:** All subsequent phases operate from `WORKTREE_PATH`. Pass that path to all dispatched subagents.
