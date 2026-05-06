@@ -222,156 +222,15 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 ## Example Workflow
 
-The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" above), so the per-task flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`.
-
-```
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read plan file once: .ephemeral/feature-plan.md]
-[Extract all 5 tasks with full text and context]
-[Create TodoWrite with all tasks]
-
-Task 1: Hook installation script
-
-[Get Task 1 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/agent-hooks/)"
-
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
-
-[Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
-
-[Mark Task 1 complete]
-
-Task 2: Recovery modes
-
-[Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
-Implementer: [No questions, proceeds]
-Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ❌ Issues:
-  - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
-
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
-
-[Spec reviewer reviews again]
-Spec reviewer: ✅ Spec compliant now
-
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
-
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
-
-[Code reviewer reviews again]
-Code reviewer: ✅ Approved
-
-[Mark Task 2 complete]
-
-...
-
-[After all tasks]
-[Dispatch final code-reviewer]
-Final reviewer: All requirements met, ready to merge
-
-Done!
-```
+See [`references/example-workflow.md`](references/example-workflow.md) for an end-to-end illustration of the multi-task flow (controller plan extraction, per-task implementer dispatch, two-stage review, completion).
 
 ## Advantages
 
-**vs. Manual execution:**
-
-- Subagents follow TDD naturally
-- Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
-
-**vs. Executing Plans:**
-
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
-
-**Efficiency gains:**
-
-- No file reading overhead (controller provides full text)
-- Controller curates exactly what context is needed
-- Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
-
-**Quality gates:**
-
-- Self-review catches issues before handoff
-- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on the final code-quality reviewer plus downstream `branch-review` (see ADR-0007)
-- Review loops ensure fixes actually work
-- Spec compliance prevents over/under-building
-- Code quality ensures implementation is well-built
-
-**Cost:**
-
-- More subagent invocations (implementer + 2 reviewers per task)
-- Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations
-- But catches issues early (cheaper than debugging later)
+See [`references/advantages.md`](references/advantages.md) for the rationale (vs. manual execution, vs. executing plans inline, efficiency gains, quality gates, cost).
 
 ## Red Flags
 
-**Never:**
-
-- Start implementation on main/master branch without explicit user consent
-- Skip reviews when the plan has 2+ tasks (single-task plans skip per-task review by design — see ADR-0007)
-- Proceed with unfixed issues
-- Dispatch multiple implementation subagents in parallel (conflicts)
-- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see § Inputs); the per-task boundary is what stays inlined. See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
-- Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
-- Move to next task while either review has open issues
-
-**Never (when per-task reviewers run — multi-task plans only):**
-
-- Accept "close enough" on spec compliance (spec reviewer found issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is ✅** (wrong order)
-
-**If subagent asks questions:**
-
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
-
-**If reviewer finds issues:**
-
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
-- Repeat until approved
-- Don't skip the re-review
-
-**If subagent fails task:**
-
-- Dispatch fix subagent with specific instructions
-- Don't try to fix manually (context pollution)
+See [`references/red-flags.md`](references/red-flags.md) for the full list (start-on-main, skipping reviews on multi-task plans, parallel implementer dispatch, ignoring subagent questions, skipping re-review).
 
 ## Integration
 
