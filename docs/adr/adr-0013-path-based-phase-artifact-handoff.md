@@ -16,11 +16,12 @@ session tokens.
 
 The same shape exists upstream of `play-review` and is _not_ yet path-based:
 
-| Hop | Producer                       | Consumer                  | Today                                            |
-| --- | ------------------------------ | ------------------------- | ------------------------------------------------ |
-| A   | `research-agent` (via Phase 3) | `play-brainstorm`         | Brief inlined under `## Research Brief`          |
-| B   | `play-brainstorm`              | `play-planning`           | Design summary inlined into `play-planning` args |
-| C   | `play-planning`                | `play-subagent-execution` | Plan summary inlined into controller args        |
+| Hop | Producer                       | Consumer                                                                                           | Today                                            |
+| --- | ------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| A   | `research-agent` (via Phase 3) | `play-brainstorm`                                                                                  | Brief inlined under `## Research Brief`          |
+| B   | `play-brainstorm`              | `play-planning`                                                                                    | Design summary inlined into `play-planning` args |
+| C   | `play-planning`                | `play-subagent-execution`                                                                          | Plan summary inlined into controller args        |
+| D   | `play-review`                  | `branch-review --fix`, `play-branch-finish`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7 | Already path-based via ADR-0012 (#166)           |
 
 Each hop carries 2–5 KB of redundant content that the next phase could read
 from disk. The artifacts already exist on disk under `.ephemeral/` —
@@ -89,9 +90,12 @@ to a subagent.
 | Plan           | `.ephemeral/<YYYY-MM-DD>-<feature-name>-plan.md` |
 
 `<id>` is the slugged form of `payload.identifier` (`#167` → `167`,
-`ENG-123` → `eng-123`). `<topic>` and `<feature-name>` follow the existing
-`play-brainstorm` / `play-planning` conventions and are unchanged. The
-research-brief scheme matches the prescription in issue #167's body.
+`ENG-123` → `eng-123`); the slug rule is: strip leading `#`, lowercase,
+retain alphanumerics and hyphens, replace any other character with `-`.
+The authoritative slug computation lives in `skills/issue-priming-workflow/SKILL.md`
+Phase 3 (added by issue #167's implementation). `<topic>` and `<feature-name>`
+follow the existing `play-brainstorm` / `play-planning` conventions and are
+unchanged. The research-brief scheme matches the prescription in issue #167's body.
 
 The deterministic `<branch_slug>-<head_sha>` scheme used by `play-review`
 was considered for symmetry across all four producers and rejected: design
@@ -103,8 +107,10 @@ producer notice line, not by guessing a path, so mixed schemes inside
 ### Path-validation guard
 
 Every consumer that reads a path-referenced artifact MUST run a guard before
-opening the file. The guard inherits ADR-0012's structure, narrowed per
-consumer to its expected suffix:
+opening the file. The authoritative bash for the path-validation pattern lives
+in `skills/play-review/SKILL.md` § Output → Side-channel file → Path; the
+guard inherits that structure verbatim, narrowed per consumer to its expected
+suffix:
 
 ```bash
 # Generic shape (each consumer narrows the allow-list)
@@ -124,20 +130,22 @@ Per-consumer suffix specialization:
 - `issue-priming-workflow` validates each artifact at its capture point with
   the same per-suffix narrowing.
 
-The symlink guard ADR-0012 codifies for `play-review`'s findings file
-(`[ -L "$F" ] && rm "$F"` before `Write`) is reused unchanged by
+The symlink guard `[ -L "$F" ] && rm "$F"` (run before `Write`) — whose
+authoritative form lives in `skills/play-review/SKILL.md` § Output → Write
+rules and is required by ADR-0012 — is reused unchanged by
 `issue-priming-workflow` Phase 3 when it persists the research brief.
 
 ### Cleanup ownership
 
-Inherits ADR-0012 § Consequences verbatim: cleanup is implicit via worktree
+Inherits ADR-0012 § Consequences's policy: cleanup is implicit via worktree
 teardown. `play-branch-finish` Step 5 already removes the worktree under
 Options 1 (merge), 2 (PR), and 4 (discard); `.ephemeral/` is destroyed with
 it. No per-skill stale-artifact sweep is introduced. The
 `design.md` / `plan.md` precedents have never had a sweep; ADR-0012's
 findings-file decision did not introduce one; this ADR keeps the convention
 uniform. Edge cases (Option 3 "Keep As-Is", direct skill invocations outside
-a worktree) leave files in place. Operators may sweep manually:
+a worktree) leave files in place. Operators may sweep manually — extending
+the ADR-0012 sweep snippet with the three new markdown suffixes:
 
 ```bash
 rm -f .ephemeral/*-research.md .ephemeral/*-design.md .ephemeral/*-plan.md \
