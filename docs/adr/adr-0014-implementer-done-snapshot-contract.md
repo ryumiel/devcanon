@@ -89,7 +89,7 @@ teardown (consistent with ADR-0012 cleanup).
 {
   "schema": "implementer/snapshot/v1",
   "task_id": "Task 3",
-  "head_sha": "abc1234567890abc1234567890abc1234567890",
+  "head_sha": "0123456789abcdef0123456789abcdef01234567",
   "files": [
     {
       "path": "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
