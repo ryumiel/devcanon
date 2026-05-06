@@ -200,6 +200,50 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 
 **Architecture preference:** The research agent surfaces the architecturally cleaner option, not just the easiest one.
 
+**Persist the brief and emit the notice line.** After the agent returns:
+
+1. Compute the brief path: `.ephemeral/<YYYY-MM-DD>-<id>-research.md` where
+   `<YYYY-MM-DD>` is today's date and `<id>` is `payload.identifier` slugged
+   (`#167` → `167`, `ENG-123` → `eng-123`).
+2. Validate the path before writing (the same guard a downstream consumer
+   would apply, narrowed to the research-brief suffix):
+
+   ```bash
+   case "$RESEARCH_BRIEF_PATH" in
+     .ephemeral/*-research.md) ;;
+     *) echo "research brief path validation failed: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
+   esac
+   [ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
+   ```
+
+   This bash mirrors the authoritative path-validation guard in
+   `skills/play-review/SKILL.md` § Output → Side-channel file → Path
+   (required by ADR-0012), narrowed to the research-brief suffix. The
+   canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+   step (e.g., a new pre-read check), update this skill to match.
+
+3. Apply the symlink guard before the `Write` tool call (per
+   `skills/play-review/SKILL.md` § Output → Write rules — fork-PR working
+   trees may contain pre-staged symlinks):
+
+   ```bash
+   [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"
+   ```
+
+4. Write the brief verbatim to the path using the `Write` tool.
+5. Emit the literal line `Research brief written to <repo-relative-path>.`
+   to the conversation output. This is the consumer contract surface; do
+   not reword.
+6. Carry the path forward to Phase 4's args (no parsing required — the
+   path was computed in step 1 above and is already in hand). The full
+   synthesized brief is no longer threaded through; only the path
+   reference is. ("Capture" is reserved for the consumer pattern in
+   Phases 5 and 6, where the controller parses the path off a producer's
+   notice line; Phase 3 is the producer here.)
+
+See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)
+for the convention rationale and the producer notice-line contract.
+
 ## Phase 4: Invoke Brainstorming
 
 Invoke the `play-brainstorm` skill with the combined context below.
@@ -214,9 +258,17 @@ Resolve <source-noun> issue <ID>: <TITLE>
 ## Issue Body
 <verbatim payload.body>
 
-## Research Brief
-<brief from research agent>
+Research brief: <repo-relative-path captured from Phase 3's notice line>
 ```
+
+The `Research brief: <path>` line replaces the previous inline `## Research
+Brief\n<brief>` block. `play-brainstorm` validates the path and reads the
+brief from disk (see `skills/play-brainstorm/SKILL.md` § Inputs and
+[ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
+The `## Issue Body` block remains inline because the issue body is a single
+small artifact arriving from the entrypoint payload — it is not a multi-hop
+carry-forward, and re-writing it to a file would add a hop without saving
+content.
 
 **Args format when research was skipped:**
 
@@ -256,11 +308,65 @@ These phases run only when `--auto` is set. They chain automatically after brain
 
 ### Phase 5: Write Plan
 
-Invoke `play-planning` using the spec produced in Phase 4. Do not wait for user review of the plan — proceed directly to implementation.
+After `play-brainstorm` returns, capture the literal `Design written to <path>.` notice line it emitted. Validate the captured path:
+
+```bash
+case "$DESIGN_PATH" in
+  .ephemeral/*-design.md) ;;
+  *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
+esac
+[ "${DESIGN_PATH#*..}" = "$DESIGN_PATH" ] || { echo "path traversal: $DESIGN_PATH" >&2; exit 1; }
+[ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
+```
+
+This bash mirrors the authoritative path-validation guard in
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path
+(required by ADR-0012), narrowed to the design-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
+
+Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
+
+```
+Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
+
+`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan so the parent skill can invoke `play-subagent-execution`.
+
+Design: <repo-relative-path captured above>
+```
+
+Do not wait for user review of the plan — proceed directly to implementation. See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
 ### Phase 6: Implement
 
-Invoke `play-subagent-execution` to execute the plan. All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007).
+After `play-planning` returns, capture the literal `Plan written to <path>.` notice line it emitted. Validate the captured path:
+
+```bash
+case "$PLAN_PATH" in
+  .ephemeral/*-plan.md) ;;
+  *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
+esac
+[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
+[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
+```
+
+This bash mirrors the authoritative path-validation guard in
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path
+(required by ADR-0012), narrowed to the plan-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
+
+Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
+
+```
+Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
+
+`--auto` flow active (invoked by `issue-priming-workflow`). Run all per-task reviews per ADR-0007.
+
+Plan: <repo-relative-path captured above>
+```
+
+All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007). The per-task implementer subagent dispatch boundary still receives curated, inlined task text — `play-subagent-execution`'s controller extracts each task from the plan file before per-task dispatch (see `skills/play-subagent-execution/SKILL.md` § Inputs and § Red Flags). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
 ### Phase 7: Branch Review
 

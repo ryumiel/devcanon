@@ -13,7 +13,52 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`
+**Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`. After
+writing, emit the literal line `Plan written to <repo-relative-path>.` to
+the conversation. This is the contract surface `play-subagent-execution`
+reads (see [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
+
+## Inputs
+
+This skill accepts a design document in either of two shapes inside its
+invocation prose. Both shapes are recognized; if both are present, the path
+reference wins.
+
+### Path reference (preferred for controllers)
+
+A single literal line of the form:
+
+```
+Design: <repo-relative-path>
+```
+
+For example: `Design: .ephemeral/2026-05-06-167-design.md`.
+
+When this line is present, validate the path before reading:
+
+```bash
+case "$DESIGN_PATH" in
+  .ephemeral/*-design.md) ;;
+  *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
+esac
+[ "${DESIGN_PATH#*..}" = "$DESIGN_PATH" ] || { echo "path traversal: $DESIGN_PATH" >&2; exit 1; }
+[ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
+```
+
+This bash mirrors the authoritative path-validation guard in
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path
+(required by ADR-0012), narrowed to the design-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
+
+### Inline content (preserved for direct invocations)
+
+A `## Design` heading followed by content body, exactly as the existing
+convention. No path validation is required — content is consumed verbatim
+from the prose. Direct human invocations that have no upstream file use
+this shape.
+
+See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
 
 ## Scope Check
 
@@ -184,11 +229,11 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 
 **On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS proceeds automatically to execution. A FAIL after 2 rounds stops and reports to the user.
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS hands off to the parent skill (which invokes `play-subagent-execution` per the Execution Handoff section below); `play-planning` itself does not start execution. A FAIL after 2 rounds stops and reports to the user.
 
 ## Execution Handoff
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`.
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`. The parent skill receives the plan path from the `Plan written to <path>.` notice line emitted after the save and passes it to `play-subagent-execution` as `Plan: <path>` (see [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
 
 Otherwise, offer execution choice:
 
