@@ -6,8 +6,10 @@ Accepted
 
 ## Context
 
-`skills/play-review/SKILL.md` Phase 3 dispatches four reviewer roles as
-inline prompts on bare `general-purpose` agents:
+`skills/play-review/SKILL.md` Phase 3 dispatches several reviewer
+roles. This audit covers the four that the issue body for #143
+enumerated, all currently dispatched as inline prompts on bare
+`general-purpose` agents:
 
 1. **Correctness** — logic bugs, panic discipline, error propagation,
    API contracts, plus Sub-checks 1 (substitution audit) and 2
@@ -19,6 +21,12 @@ inline prompts on bare `general-purpose` agents:
 4. **Test-coverage** — coverage, correctness of tests, fixtures. Spawned
    when test paths appear in the active diff.
 
+The remaining Phase 3 agents — Docs, Architecture, and Documentation
+(see the dispatch table at `skills/play-review/SKILL.md` lines
+195-202) — are out of scope here. They are not classified by this
+audit; their classification is left to a separate pass if and when the
+question arises.
+
 ADR-0009 consolidated `branch-review` and `pr-review` into thin wrappers
 around `play-review`, which reduced the call-site count for any
 `play-review`-internal reviewer agent to one unique skill. That makes
@@ -26,7 +34,8 @@ the two-call-sites operational threshold from
 `docs/guidelines/agent-authoring-guide.md` §4 the load-bearing constraint
 for any of these four roles being promoted to source agents.
 
-The same guide also names a hard-constraint exception:
+The same guide states the operational threshold for reviewer-style
+delegates, including a hard-constraint exception:
 
 > A reviewer-style prompt template should accumulate at least two
 > independent call sites before promotion, unless there is already a
