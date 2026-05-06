@@ -85,9 +85,7 @@ Task tool (general-purpose):
 
     After committing and self-reviewing, write a side-channel snapshot
     manifest so the controller can verify your work and look up line
-    ranges without re-reading every file from disk. See
-    [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md)
-    for the contract.
+    ranges without re-reading every file from disk.
 
     1. Resolve the post-commit head SHA:
 
@@ -177,7 +175,7 @@ Task tool (general-purpose):
        mis-escape `"`, `\`, and newlines and silently corrupt the
        snapshot, so always go through a JSON-aware tool.
 
-       Per-file rules (matches `docs/adr/adr-0014-implementer-done-snapshot-contract.md` head-of-branch contract):
+       Per-file rules:
        - Enumerate every file changed during this task (run
          `git diff --name-status ${BASE_SHA}..HEAD` and map letters: `A`→added,
          `M`→modified, `D`→deleted; treat copies/renames as modified).

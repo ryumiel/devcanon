@@ -29,7 +29,7 @@ Task tool (general-purpose):
     - Take their word for what they implemented
     - Trust their claims about completeness
     - Accept their interpretation of requirements
-    - Consume any content snapshot the controller may hold (per [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md), snapshots are for the controller's bookkeeping only; you must read the file from disk to stay independent of the implementer's framing)
+    - Consume any content snapshot the controller may hold (snapshots are for the controller's bookkeeping only; you must read the file from disk to stay independent of the implementer's framing)
 
     **DO:**
     - Read the actual code they wrote

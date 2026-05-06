@@ -38,9 +38,7 @@ Task tool (general-purpose):
 
     After committing, write a side-channel snapshot manifest at
     `.ephemeral/<branch_slug>-<head_sha>-snapshot.json` so the
-    controller can verify your work without re-reading from disk. See
-    [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md)
-    for the contract.
+    controller can verify your work without re-reading from disk.
 
     1. `HEAD_SHA=$(git rev-parse HEAD)`.
     2. Compute `BRANCH_SLUG` using the canonical bash from
