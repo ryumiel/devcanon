@@ -422,7 +422,7 @@ Nits skip critic verification.
 ## Red Flags — You Are Violating This Skill
 
 - You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
-- You modified files in `working_directory` — this skill emits findings, not edits
+- You modified files in `working_directory` other than the `.ephemeral/` findings file (see § Output) — this skill emits findings, not edits
 - You created or removed a worktree — the wrapper handles that
 - You skipped the Data-safety agent because "there's no security-relevant code"
 - You showed findings as a table with file:line but no code snippets
