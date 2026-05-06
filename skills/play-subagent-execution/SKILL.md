@@ -333,7 +333,7 @@ The controller evaluates four conditions after plan extraction. **All must hold;
 | #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                      |
 | --- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Plan is single-task                           | Task count from plan extraction = 1                                                                                                                                                                                                                                                                                   |
-| 2   | Task content is fully specified verbatim      | Task header carries `**Mode:** mechanical` (see § Mechanical Task Hint above)                                                                                                                                                                                                                                         |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical` (covers both positive shapes from § Mechanical Task Hint above: verbatim file create, and unambiguous identifier replacement)                                                                                                                                              |
 | 3   | No clarifying questions could plausibly arise | Implicit: `play-planning`'s plan-review subagent (`{{model:deep}}`) returned PASS upstream. No new check is added — the existing PASS gate is the precondition. For direct invocations of this skill against a hand-written plan with no upstream PASS, treat this guardrail as PASS and rely on the remaining three. |
 | 4   | No tests need to be authored                  | Task body contains no TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                                                               |
 
@@ -352,11 +352,11 @@ There is no DONE-report step. The plan body is itself the snapshot — the contr
 
 ### Fallback
 
-If any guardrail fails, dispatch normally. The choice between `mechanical-implementer-prompt.md` and `implementer-prompt.md` is unchanged — it remains driven by `**Mode:** mechanical` in the task header. Specifically:
+If any guardrail fails, dispatch normally. Template choice is driven by `**Mode:** mechanical` in the task header — except when guardrail #4 fails (TDD step-pair present), in which case use `implementer-prompt.md` regardless of any `**Mode:** mechanical` hint, since TDD work needs the full prompt's judgment scaffolding (a mismarked plan with both `**Mode:** mechanical` and a TDD step-pair is the only case where this carve-out bites). Specifically:
 
 - Guardrail #1 fails (multi-task): standard multi-task flow with per-task two-stage review.
 - Guardrail #2 fails (no `**Mode:** mechanical`): single-task dispatched flow with `implementer-prompt.md` (per ADR-0007, no per-task review).
-- Guardrail #4 fails (TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`.
+- Guardrail #4 fails (TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
 
 ### Skip-Dispatch Examples
 

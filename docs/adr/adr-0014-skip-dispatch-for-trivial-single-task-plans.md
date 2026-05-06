@@ -36,7 +36,8 @@ than a runtime check):
 1. **Runtime guardrail.** The plan is single-task.
 2. **Runtime guardrail.** Task 1's header carries `**Mode:** mechanical`
    (existing author-hint per `play-subagent-execution` § Mechanical Task
-   Hint; signals that content is verbatim).
+   Hint; covers both positive shapes from that taxonomy — verbatim file
+   create and unambiguous identifier replacement).
 3. **Upstream precondition.** No clarifying questions could plausibly
    arise — implicit from `play-planning`'s plan-review subagent PASS
    upstream. The controller does not re-verify this at execution time;
@@ -48,9 +49,15 @@ than a runtime check):
    (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`).
 
 If any guardrail fails, the controller falls back to the existing
-dispatched-implementer flow. The choice between
-`mechanical-implementer-prompt.md` and `implementer-prompt.md` is unchanged
-— it remains driven by `**Mode:** mechanical` in the task header.
+dispatched-implementer flow. Template choice is driven by
+`**Mode:** mechanical` in the task header, with one carve-out: when
+guardrail #4 fails (TDD step-pair present), `implementer-prompt.md` is
+used regardless of any `**Mode:** mechanical` hint, since TDD work
+needs the full prompt's judgment scaffolding. The carve-out bites only
+on mismarked plans (a task carrying both `**Mode:** mechanical` and a
+TDD step-pair); the Mechanical Task Taxonomy already excludes TDD
+step-pairs from the mechanical positive shapes, so a correctly authored
+plan never reaches this branch.
 
 The skill's existing final whole-implementation code-quality reviewer
 (scope explicitly out of ADR-0007) still runs on every plan, including the
