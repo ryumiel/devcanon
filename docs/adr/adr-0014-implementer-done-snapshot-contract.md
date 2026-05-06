@@ -137,7 +137,11 @@ Snapshot written to <repo-relative-path>.
 
 The notice line is the controller's contract surface. The existing
 `Files changed` bullet stays — it is human-scannable and
-non-redundant with the structured notice.
+non-redundant with the structured notice. The implementer reports
+`BLOCKED` if the snapshot write fails — never emit the notice line
+for an absent file. The producer fails loud; the consumer's fallback
+(next subsection) covers downstream consumers that encounter a missing
+or corrupt snapshot.
 
 ### Size threshold (64 KB)
 

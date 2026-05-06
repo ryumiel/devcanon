@@ -31,13 +31,14 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work (see Committing section below)
-    5. Self-review (see below)
-    6. Write the snapshot manifest (see Snapshot Manifest section below)
-    7. Report back
+    1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; the Snapshot Manifest step uses it to enumerate files changed during this task. (If `git rev-parse HEAD` fails because the branch has no commits yet, report BLOCKED — the snapshot contract requires a known base.)
+    2. Implement exactly what the task specifies
+    3. Write tests (following TDD if task says to)
+    4. Verify implementation works
+    5. Commit your work (see Committing section below)
+    6. Self-review (see below)
+    7. Write the snapshot manifest (see Snapshot Manifest section below)
+    8. Report back
 
     Work from: [directory]
 
@@ -98,6 +99,8 @@ Task tool (general-purpose):
        `skills/play-review/SKILL.md` § Output → Side-channel file → Path
        (do not invent a new slug rule):
 
+       (canonical bash from `skills/play-review/SKILL.md` § Output → Side-channel file → Path; `-C "$WORKING_DIRECTORY"` is dropped because the implementer runs in cwd.)
+
        ```bash
        RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
        if [ "$RAW_BRANCH" = HEAD ]; then
@@ -144,9 +147,16 @@ Task tool (general-purpose):
        }
        ```
 
+       Build the envelope with a JSON-aware tool — do NOT hand-assemble
+       the `content` strings into a heredoc. Recommended: pipe each file
+       through `jq -Rs '.'` (or `python -c 'import json,sys; print(json.dumps(sys.stdin.read()))'`)
+       to produce a properly-escaped JSON string for the `content` field.
+       Hand-quoting verbatim file bytes will mis-escape `"`, `\`, and
+       newlines and silently corrupt the snapshot.
+
        Per-file rules (matches `docs/adr/adr-0014-implementer-done-snapshot-contract.md` head-of-branch contract):
-       - Enumerate every file changed in your commit (run
-         `git diff --name-status HEAD~..HEAD` and map letters: `A`→added,
+       - Enumerate every file changed during this task (run
+         `git diff --name-status ${BASE_SHA}..HEAD` and map letters: `A`→added,
          `M`→modified, `D`→deleted; treat copies/renames as modified).
        - `lines` = `wc -l < <path>` post-commit (or `0` for deleted).
        - `bytes` = `wc -c < <path>` post-commit (or `0` for deleted).
@@ -157,7 +167,7 @@ Task tool (general-purpose):
          to `"size>64KB"` or `"binary"`. Mutual exclusion: exactly one of
          `content` / `skipped` present per non-deleted file. Deleted files
          emit neither field.
-       - Detect binary via `git diff --numstat HEAD~..HEAD` — a `-\t-\t<path>`
+       - Detect binary via `git diff --numstat ${BASE_SHA}..HEAD` — a `-\t-\t<path>`
          row indicates binary; emit `"skipped": "binary"`.
 
     6. Write the file using the `Write` tool (atomic replacement; do not append).
@@ -169,7 +179,7 @@ Task tool (general-purpose):
        ```
 
     8. Note the path — you will reference it in the Report Format as
-       `Snapshot written to <SNAPSHOT_FILE>.` (one literal line, ending
+       `Snapshot written to <repo-relative-path>.` (one literal line, ending
        with a period; the controller parses this exact form).
 
     ## Before Reporting Back: Self-Review
