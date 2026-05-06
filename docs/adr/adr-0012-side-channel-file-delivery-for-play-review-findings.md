@@ -78,12 +78,17 @@ Path scheme:
 ```
 
 - `<head_sha>` — `play-review`'s required `head_sha` input. Full
-  40-character SHA, lowercased.
-- `<branch_slug>` — `git rev-parse --abbrev-ref HEAD` evaluated in
-  `working_directory`, with `/` → `-` substitution and any character
-  outside `[a-zA-Z0-9._-]` stripped. Detached-HEAD checkouts (e.g.,
-  `pr-review` fork PRs that use `gh pr checkout --detach`) use the
-  literal string `detached`.
+  40-character SHA, lowercased (regex `^[0-9a-f]{40}$`).
+- `<branch_slug>` — derived from the current branch with explicit
+  detached-HEAD detection, since `git rev-parse --abbrev-ref HEAD`
+  returns the literal string `HEAD` (not empty/error) on detached
+  checkouts (e.g., `pr-review` fork PRs that use
+  `gh pr checkout --detach`). The slug also substitutes `unnamed` for
+  shapes that would widen the path-interpretation surface (empty after
+  stripping, bare `.`/`..`, or starting with `-`/`.`). The authoritative
+  bash lives in `skills/play-review/SKILL.md` § Output → Side-channel
+  file → Path; consumers MUST also run the path-validation guard from
+  the same section before opening or overwriting the file.
 
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
@@ -141,6 +146,28 @@ Consumer responsibilities:
     the inconsistency.
 - Re-runs on the same branch + same SHA overwrite cleanly (deterministic
   path). Different SHAs produce different paths.
+- **Data residency.** Findings text (`why` / `recommendation` / `body`)
+  can quote source code from the diff under review — Safety-category
+  findings often do. Unlike the in-conversation markdown, which lives
+  only in session memory, the side-channel file persists on disk under
+  the default umask until the worktree is torn down. The file is
+  git-ignored (`.gitignore` `.ephemeral/`) so the content does not
+  reach the remote, but the on-disk substring remains discoverable to
+  anything with read access to the working tree. The pre-existing
+  guidance in `skills/play-review/SKILL.md` — never quote actual
+  secret values in finding text; describe them (e.g., "a 32-char API
+  key on line 42") instead — is restated here so this ADR does not
+  read as if disk-usage were the only risk.
+- **Fork-PR working trees are untrusted with respect to `.ephemeral/`
+  layout.** When `pr-review` runs against a fork PR via
+  `gh pr checkout --detach`, the checked-out tree may contain a
+  pre-staged symlink at `.ephemeral/<…>-findings.json`. Because the
+  `Write` tool follows symlinks, an unguarded write would land
+  attacker-chosen content at the link's target. `play-review`'s
+  Write rules (see `skills/play-review/SKILL.md` § Output) require a
+  symlink guard before writing; `branch-review --fix` and
+  `issue-priming-workflow` Phase 7 inherit the same requirement when
+  they overwrite or derive a sibling file.
 - ADR-0010's "no-I/O boundary" paraphrase is corrected here. The
   remaining wrapper-disposition boundary (no GitHub calls, no auto-fix,
   no worktree mutation) is unchanged and still authoritative for
