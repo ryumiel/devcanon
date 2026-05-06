@@ -364,13 +364,13 @@ These rules apply to any project using this skill. They override defaults from d
 
 Use `{{model:standard}}` as the floor for agents that make judgment calls during exploration and planning. Reviewer roles run at `{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor — the authoritative defaults are pinned in `agents/spec-compliance-reviewer.yaml` and `agents/code-quality-reviewer.yaml`; the rows below mirror those for reader convenience and are not enforced by this skill. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent                    | Minimum model        | Notes                                                          |
-| ------------------------ | -------------------- | -------------------------------------------------------------- |
+| Agent                    | Minimum model        | Notes                                                           |
+| ------------------------ | -------------------- | --------------------------------------------------------------- |
 | Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
 | Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
-| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; multi-task plans (ADR-0007)                     |
-| Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review            |
-| PR review agents         | `{{model:deep}}`     | Always — final gate                                            |
+| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; multi-task plans (ADR-0007)                      |
+| Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review             |
+| PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 
 ## What This Skill Does NOT Do
 
