@@ -44,7 +44,7 @@ rather than proceeding with defaults.
 
 ## Output
 
-This skill produces two artifacts per invocation:
+This skill produces three outputs per invocation: two artifacts (a markdown surface for operators and a structured file for consumers) plus a one-line notice that links them.
 
 1. **In-conversation markdown** — a `## Findings` section and (follow-up only) a `## Carry-forward` section, each entry shaped as below. Operators read this surface; downstream tools read the side-channel file (part 3).
 2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in part 3).
