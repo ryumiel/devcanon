@@ -9,6 +9,7 @@ const SHIPPED_AGENTS = [
   "implementer",
   "spec-compliance-reviewer",
   "code-quality-reviewer",
+  "research-agent",
 ] as const;
 
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
@@ -43,10 +44,11 @@ describe("shipped agents render cleanly", () => {
       "spec-compliance-reviewer",
       "code-quality-reviewer",
     ] as const;
+    const MODEL_UNSET_AGENTS = ["research-agent"] as const;
 
-    expect([...STANDARD_AGENTS, ...DEEP_AGENTS].sort()).toEqual(
-      [...SHIPPED_AGENTS].sort(),
-    );
+    expect(
+      [...STANDARD_AGENTS, ...DEEP_AGENTS, ...MODEL_UNSET_AGENTS].sort(),
+    ).toEqual([...SHIPPED_AGENTS].sort());
 
     for (const name of STANDARD_AGENTS) {
       const claudeOutput = outputs.find(
@@ -104,6 +106,34 @@ describe("shipped agents render cleanly", () => {
       expect(codexOutput.content).toContain(`name = "${name}"`);
       expect(codexOutput.content).toContain('model = "gpt-5.5"');
       expect(codexOutput.content).toContain('model_reasoning_effort = "high"');
+      expect(codexOutput.content).not.toContain("{{model:");
+      expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
+    }
+
+    for (const name of MODEL_UNSET_AGENTS) {
+      const claudeOutput = outputs.find(
+        (o) => o.type === "agent" && o.target === "claude" && o.name === name,
+      );
+      const codexOutput = outputs.find(
+        (o) => o.type === "agent" && o.target === "codex" && o.name === name,
+      );
+      if (!claudeOutput || !codexOutput) {
+        throw new Error(`Missing rendered output for shipped agent ${name}`);
+      }
+
+      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
+        claudeOutput.content,
+      );
+      expect(claudeFrontmatter).not.toHaveProperty("model");
+      expect(claudeFrontmatter).not.toHaveProperty("effort");
+      expect(claudeOutput.content).not.toContain("{{model:");
+      expect(claudeOutput.content).not.toMatch(/^model:/m);
+      expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
+
+      expect(codexOutput.content).toContain(`name = "${name}"`);
+      expect(codexOutput.content).toContain('sandbox_mode = "read-only"');
+      expect(codexOutput.content).not.toMatch(/^model = /m);
+      expect(codexOutput.content).not.toMatch(/^model_reasoning_effort = /m);
       expect(codexOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
     }

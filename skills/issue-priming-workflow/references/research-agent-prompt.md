@@ -1,14 +1,14 @@
 # Research Agent Prompt Template
 
-Use this template when dispatching the research agent in Phase 3. The research
-agent runs in a dedicated agent to keep the main session context clean.
+Use this template when dispatching the research agent in Phase 3. It runs in a
+dedicated agent context to keep the main session context clean.
 
-**Promotion classification:** Workflow-local prompt template, single call site at `skills/issue-priming-workflow/SKILL.md` (Phase 3 dispatch). Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold) — single-skill scaffolding is below the threshold.
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/research-agent.yaml`](../../../agents/research-agent.yaml) — referenced from `skills/issue-priming-workflow/SKILL.md` Phase 3 for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
 ````
 Agent(
   description: "Research issue <ID> context",
-  subagent_type: "general-purpose",
+  subagent_type: "research-agent",
   prompt: |
     You are a research agent preparing context for a design brainstorming
     session. Your job is to investigate an issue and produce a synthesized

@@ -162,7 +162,7 @@ Dispatch a **dedicated exploration agent** using the prompt template in `referen
 
 ## Phase 3: Research (Conditional)
 
-Dispatch a **dedicated research agent** using the prompt template in `references/research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
+Dispatch the **`research-agent`** agent using the prompt template in `references/research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
 
 **Pass to the research agent:**
 
