@@ -1,7 +1,7 @@
 # Research Agent Prompt Template
 
-Use this template when dispatching the research agent in Phase 3. The research
-agent runs in a dedicated agent to keep the main session context clean.
+Use this template when dispatching the research agent in Phase 3. It runs in a
+dedicated agent context to keep the main session context clean.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/research-agent.yaml`](../../../agents/research-agent.yaml) — referenced from `skills/issue-priming-workflow/SKILL.md` Phase 3 for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
