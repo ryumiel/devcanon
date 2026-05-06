@@ -9,6 +9,8 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
+
 ## Inputs
 
 This skill accepts a plan document in either of two shapes inside its
@@ -55,8 +57,6 @@ is consumed verbatim from the prose. Direct human invocations that paste a
 plan inline use this shape.
 
 See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
-
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
 
 ## When to Use
 
