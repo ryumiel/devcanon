@@ -106,6 +106,24 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+### Optional `**Mode:**` field
+
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and `**Files:**`. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md`](../play-subagent-execution/SKILL.md) § "Mechanical Task Taxonomy" — consult it before setting the hint.
+
+Example mechanical-task header:
+
+```markdown
+### Task N: Add ADR
+
+**Mode:** mechanical
+
+**Files:**
+
+- Create: `docs/adr/adr-NNNN-...md`
+```
+
+Omit the field for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without the field continue to dispatch with the full implementer template — the field is purely additive.
+
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
@@ -137,6 +155,8 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 **4. Example verification:** For any worked example, code snippet annotation, or scenario reference _that purports to cite existing code, files, or history_ in the plan that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking task definitions (new files in `Files: Create:` blocks, function names being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples. Note: this complements the existing Plan Review subagent, which independently checks that file paths in the plan reference real locations; this self-review item additionally verifies citations inside worked examples and prose.
 
 **5. Documentation tasks:** If the input design has a "Documentation impact" section, every listed file must have a corresponding task in the plan. New ADRs use `docs/adr/adr-template.md` as the source. If the design has no "Documentation impact" section, this check is a no-op.
+
+**6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md`](../play-subagent-execution/SKILL.md) § "Mechanical Task Taxonomy"), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
