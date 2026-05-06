@@ -45,8 +45,7 @@ than a runtime check):
    as satisfied and the remaining three runtime guardrails carry the
    load.
 4. **Runtime guardrail.** Task body contains no TDD step-pair markers
-   (`Step 1: Write the failing test` / `Step 3: Write minimal
-implementation`).
+   (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`).
 
 If any guardrail fails, the controller falls back to the existing
 dispatched-implementer flow. The choice between

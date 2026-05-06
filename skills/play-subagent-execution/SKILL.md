@@ -348,7 +348,7 @@ When all four guardrails hold:
 
 After step 4, the existing final whole-implementation code-quality reviewer dispatches as it does on the dispatched path — its scope remains out of ADR-0007 / ADR-0014.
 
-There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. (See #170 acceptance criteria for the documented exclusion.)
+There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. (See [ADR-0014](../../docs/adr/adr-0014-skip-dispatch-for-trivial-single-task-plans.md) § Consequences and the forward-looking #170 scope note for why no DONE-report contract exists on this path.)
 
 ### Fallback
 
@@ -410,7 +410,9 @@ test("rejects empty input", () => {
 });
 ```
 
-- [ ] **Step 2: Write minimal implementation**
+- [ ] **Step 2: Run test to verify it fails**
+
+- [ ] **Step 3: Write minimal implementation**
 
 ```typescript
 export function validate(input: string): void {
