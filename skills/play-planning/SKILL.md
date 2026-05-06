@@ -108,7 +108,7 @@ git commit -m "feat: add specific feature"
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and `**Files:**`. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md`](../play-subagent-execution/SKILL.md) § "Mechanical Task Taxonomy" — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and `**Files:**`. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
 
 Example mechanical-task header:
 
@@ -156,7 +156,7 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **5. Documentation tasks:** If the input design has a "Documentation impact" section, every listed file must have a corresponding task in the plan. New ADRs use `docs/adr/adr-template.md` as the source. If the design has no "Documentation impact" section, this check is a no-op.
 
-**6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md`](../play-subagent-execution/SKILL.md) § "Mechanical Task Taxonomy"), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
