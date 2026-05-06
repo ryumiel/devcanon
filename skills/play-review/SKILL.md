@@ -158,9 +158,7 @@ Per-field contract:
 | `recommendation` | string, plain text                                                                                                    | The concrete suggestion from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                      |
 | `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through. |
 
-The schema does not include a `side` field — all current findings target the HEAD-side. Consumers that require it (e.g., the GitHub Reviews API via `play-branch-finish`) supply the default themselves.
-
-The markdown finding's evidence code is **not** included in the JSON. `path` + `line` (+ `start_line`) pin the location; consumers re-read the file if they need the snippet.
+The schema omits a `side` field (all findings are HEAD-side; consumers default themselves) and the markdown finding's evidence code (consumers re-read the file using `path` + `line` + `start_line`).
 
 #### Write rules
 
@@ -179,13 +177,7 @@ Findings written to <repo-relative-path>.
 
 This is the only structured surface in conversation. Consumers parse the path off this line; `branch-review`, `pr-review`, and `issue-priming-workflow` all rely on its exact form. Do not reword it.
 
-The wrapper consumes this output and disposes per its surface (present
-in conversation, auto-fix mechanical findings, post inline comments to
-GitHub, etc.). This skill never touches GitHub, never auto-fixes, never
-creates or removes worktrees. Writing the findings envelope to the
-deterministic `.ephemeral/` path is part of this skill's output
-contract and does not violate the wrapper-disposition boundary — see
-[ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md).
+The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md).
 
 ## Phase 1: Discover Guidelines
 
@@ -297,22 +289,11 @@ Compose the file with these sections, in order:
 
 ### Why no consumer path-validation guard
 
-The findings file (§ Output) requires consumers to validate the parsed
-path because external skills open it. The shared review-context file is
-internal to `play-review`: only Phase 3 agents dispatched by this skill
-read it, and the path is computed and embedded in their prompts by this
-skill — never parsed off conversation prose by an external caller. No
-consumer-side validation is needed _as long as_ this file remains
-internal to `play-review`'s Phase 3 dispatch; the symlink guard at write
-time is sufficient under that invariant. If a future change exposes the
-shared review-context file to external readers, restore the validation
-guard described in § Output.
+See [`references/internal-rationale.md`](references/internal-rationale.md#why-no-consumer-path-validation-guard) for why this file has no consumer-side validation guard.
 
 ### Why no notice line
 
-The findings file emits `Findings written to <path>.` because external
-wrappers parse it. The shared review-context file has no external
-readers; documenting its existence in this section is enough.
+See [`references/internal-rationale.md`](references/internal-rationale.md#why-no-notice-line) for why this file emits no notice line.
 
 ## Phase 3: Spawn agents
 
@@ -437,7 +418,7 @@ Procedure:
 
 **Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as `Blocking`, category `Safety`. Wrappers' auto-fix paths (e.g., `branch-review --fix`) must NOT auto-fix Sub-check 1 findings.
 
-Worked example (real, PR #117): a diff replaces `git branch -d` with `git branch -D` to silence a spurious squash-merge warning. The OLD primitive's safety properties include rejecting deletion when the branch has unmerged commits relative to its upstream and HEAD. The NEW primitive (`-D`) accepts unconditionally, and the diff adds no surrounding guard. Verdict: SILENTLY DROPS the unmerged-commit rejection — `Blocking | Safety`, with the recommendation to add a tip-equality check (local tip == PR head OID) before `-D` runs.
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-1-substitution-audit--worked-example) for a worked example (PR #117 git branch -d → -D).
 
 ### Correctness agent — Sub-check 2: Documented-behavior verification
 
@@ -462,7 +443,7 @@ Procedure:
 
 **Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as `Blocking`, category `Contracts`. Wrappers' auto-fix paths must NOT auto-fix Sub-check 2 findings.
 
-Worked example (real, PR #127): a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The Correctness agent reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — `Blocking | Contracts`, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body.
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (PR #127 gh api -f vs --input).
 
 ### Docs agent — Sub-check A: Within-document identifier drift
 
@@ -472,7 +453,7 @@ For each changed `*.md` file in the active diff:
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as `Blocking`, category `Documentation`. Auto-fixable via wrapper `--fix` (the code block is canonical; rewrite prose to match). If the code block is itself wrong, reclassify as judgment-required and route to nits — do not auto-fix.
 
-Illustrative scenario (pattern from PR #106): a single `.md` file describes a worktree-cleanup procedure where the prose narrates "`git worktree prune` removes the directory" while the adjacent code block invokes `git worktree remove <path>`. The two identifiers diverged across review rounds — code was updated; prose was not. Sub-check A flags this as `Blocking | Documentation`, with the recommendation "the code block is canonical; rewrite prose to match."
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (PR #106 worktree-cleanup prose vs. code drift).
 
 ### Docs agent — Sub-check B: Cross-document identifier drift
 
@@ -492,7 +473,7 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
-Illustrative scenario (pattern adapted from PR #127, hypothetical): suppose a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern. Any unchanged sibling files still demonstrating it would each be flagged as a blocking, out-of-diff finding.
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, adapted from PR #127 gh api -f vs --input).
 
 ## Phase 5: Critic verification
 
@@ -503,17 +484,7 @@ code in `working_directory` and tags each **blocking** finding:
 - **INVALID** — code doesn't match the claim
 - **DOWNGRADE** — valid but not blocking
 
-**Treat every concrete reference as a literal claim, not as illustrative
-rhetoric.** When a finding cites a specific `file:line`, identifier,
-function name, command, commit SHA, or PR number, verify it by opening
-the cited file (or running `git log` / `git show` / `gh pr view <N>`).
-Tag the finding INVALID if the cited artifact does not exist or does not
-contain the cited text. **Internal consistency is not evidence of
-literal intent.** Do not apply the inference "every occurrence of
-pattern X appears within this diff, therefore X is illustrative."
-Fabricated citations are usually internally consistent precisely because
-they were generated together; co-occurrence within a diff is the failure
-signature, not a downgrade signal.
+**Treat every concrete reference as a literal claim, not as illustrative rhetoric.** Verify cited `file:line`, identifiers, commands, commit SHAs, and PR numbers by opening the cited artifact; tag the finding INVALID if the cited artifact does not exist or does not contain the cited text. See [`references/critic-rationale.md`](references/critic-rationale.md) for the full rationale, including why internal consistency is not evidence of literal intent.
 
 **Carry-forward (follow-up only):** when `prior_threads` is provided,
 cross-reference each prior blocking finding against the new code in
@@ -539,16 +510,7 @@ Nits skip critic verification.
 
 ## Red Flags — You Are Violating This Skill
 
-- You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
-- You modified files in `working_directory` other than the `.ephemeral/` findings file or shared review-context file (see § Output and Phase 2.5) — this skill emits findings, not edits
-- You created or removed a worktree — the wrapper handles that
-- You skipped the Data-safety agent because "there's no security-relevant code"
-- You showed findings as a table with file:line but no code snippets
-- You used a generic agent prompt without diff-specific file references
-- You skipped the critic pass because "findings were straightforward"
-- You proceeded with default values when a required input was missing — escalate to the wrapper instead
-
-**All of these mean: STOP. Go back to the workflow.**
+See [`references/red-flags.md`](references/red-flags.md) for behavioral signals that this skill is being violated.
 
 ## Error Handling
 
