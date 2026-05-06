@@ -269,7 +269,7 @@ Plan: <repo-relative-path captured above>
 
 All play-subagent-execution rules apply (fresh subagent per task, per-task two-stage review for multi-task plans; single-task plans skip per-task review, see ADR-0007). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path) and [ADR-0014](../../docs/adr/adr-0014-skip-dispatch-for-trivial-single-task-plans.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill, and the four guardrails (single-task, `**Mode:** mechanical`, plan-review PASS, no TDD step-pair) are evaluated by the skill's controller after plan extraction.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path) and [ADR-0014](../../docs/adr/adr-0014-skip-dispatch-for-trivial-single-task-plans.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Three runtime guardrails (single-task, `**Mode:** mechanical`, no TDD step-pair) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction.
 
 ### Phase 7: Branch Review
 

@@ -345,7 +345,8 @@ When all four guardrails hold:
 2. **Verify.** Run any verify command the plan task specifies. If the plan has no verify command, the verify step is a no-op — verbatim doc-only writes typically have nothing to run beyond whatever the project's pre-commit hook handles.
 3. **Commit.** Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
 4. **Mark task complete in TodoWrite.** Same as the dispatched path.
-5. **Final whole-implementation code-quality reviewer.** Runs unchanged (its scope remains out of ADR-0007 / ADR-0014).
+
+After step 4, the existing final whole-implementation code-quality reviewer dispatches as it does on the dispatched path — its scope remains out of ADR-0007 / ADR-0014.
 
 There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. (See #170 acceptance criteria for the documented exclusion.)
 
