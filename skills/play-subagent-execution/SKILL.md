@@ -315,6 +315,106 @@ contract because no implementer is dispatched and no DONE report
 exists; the plan body is itself the snapshot. Do not apply
 snapshot-parsing logic to the skip-dispatch path.
 
+## Skip-Dispatch Path
+
+For the single-task subset of plans that are also fully mechanical and verbatim, the implementer dispatch itself is skipped — the controller executes Write/Edit + verify + commit inline. This sits on top of the single-task review skip from ADR-0007 and is governed by [ADR-0014](../../docs/adr/adr-0014-skip-dispatch-for-trivial-single-task-plans.md).
+
+### Conditions
+
+The controller evaluates four conditions after plan extraction. **All must hold;** any miss falls back to the dispatched-implementer flow. Conditions #1, #2, and #4 are runtime guardrails the controller checks against the plan body; #3 is an upstream precondition that the controller does not re-check at execution time. See [ADR-0014](../../docs/adr/adr-0014-skip-dispatch-for-trivial-single-task-plans.md) for the framing rationale.
+
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                      |
+| --- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1                                                                                                                                                                                                                                                                                   |
+| 2   | Task content is fully specified verbatim      | Task header carries `**Mode:** mechanical` (see § Mechanical Task Hint above)                                                                                                                                                                                                                                         |
+| 3   | No clarifying questions could plausibly arise | Implicit: `play-planning`'s plan-review subagent (`{{model:deep}}`) returned PASS upstream. No new check is added — the existing PASS gate is the precondition. For direct invocations of this skill against a hand-written plan with no upstream PASS, treat this guardrail as PASS and rely on the remaining three. |
+| 4   | No tests need to be authored                  | Task body contains no TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                                                               |
+
+### Inline execution sequence
+
+When all four guardrails hold:
+
+1. **Write/Edit.** Apply the file change as the plan specifies. For verbatim file create (the canonical positive shape), this is a single `Write` call. For unambiguous identifier replacement, one or more `Edit` calls with exact before/after strings from the plan.
+2. **Verify.** Run any verify command the plan task specifies. If the plan has no verify command, the verify step is a no-op — verbatim doc-only writes typically have nothing to run beyond whatever the project's pre-commit hook handles.
+3. **Commit.** Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
+4. **Mark task complete in TodoWrite.** Same as the dispatched path.
+5. **Final whole-implementation code-quality reviewer.** Runs unchanged (its scope remains out of ADR-0007 / ADR-0014).
+
+There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. (See #170 acceptance criteria for the documented exclusion.)
+
+### Fallback
+
+If any guardrail fails, dispatch normally. The choice between `mechanical-implementer-prompt.md` and `implementer-prompt.md` is unchanged — it remains driven by `**Mode:** mechanical` in the task header. Specifically:
+
+- Guardrail #1 fails (multi-task): standard multi-task flow with per-task two-stage review.
+- Guardrail #2 fails (no `**Mode:** mechanical`): single-task dispatched flow with `implementer-prompt.md` (per ADR-0007, no per-task review).
+- Guardrail #4 fails (TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`.
+
+### Skip-Dispatch Examples
+
+The two fixtures below illustrate when the path fires and when it falls back. They are documentation, not executable tests.
+
+**Positive (skip-dispatch fires).** A single-task plan whose Task 1 header includes `**Mode:** mechanical` and whose body specifies a docs-only ADR file write with the full content inlined and no TDD step pairs:
+
+````markdown
+### Task 1: Add ADR-0042
+
+**Mode:** mechanical
+
+**Files:**
+
+- Create: `docs/adr/adr-0042-example-decision.md`
+
+- [ ] **Step 1: Write the ADR file**
+
+```markdown
+# ADR-0042: Example Decision
+
+... (full content) ...
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/adr/adr-0042-example-decision.md
+git commit -m "docs(adr): add ADR-0042 example decision"
+```
+````
+
+All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream PASS implicit; 4: no TDD markers). The controller writes the file, runs `git add` + `git commit`, and marks the task complete. No implementer subagent is dispatched. This is the [PR #163](https://github.com/ryumiel/agent-manager/pull/163) shape.
+
+**Negative (skip-dispatch falls back).** A single-task plan whose Task 1 lacks `**Mode:** mechanical` and includes a TDD step-pair:
+
+````markdown
+### Task 1: Add validation helper
+
+**Files:**
+
+- Create: `src/utils/validate.ts`
+- Test: `tests/utils/validate.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+import { validate } from "../../src/utils/validate";
+test("rejects empty input", () => {
+  expect(() => validate("")).toThrow();
+});
+```
+
+- [ ] **Step 2: Write minimal implementation**
+
+```typescript
+export function validate(input: string): void {
+  if (!input) throw new Error("empty input");
+}
+```
+````
+
+Guardrail #1 holds (single-task), but guardrail #2 fails (no `**Mode:** mechanical`) and guardrail #4 fails (TDD step-pair present). The controller falls back to dispatched mode, using `implementer-prompt.md` (no per-task review per ADR-0007).
+
+The two fixtures together lock the heuristic by showing both branches.
+
 ## Handling Implementer Status
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
