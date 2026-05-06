@@ -130,7 +130,7 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Read the envelope and partition. With `$NITS_FILE` set to the caller-supplied `nits_file` path, extract `findings[]` (e.g., `FINDINGS=$(jq -c '.findings' "$NITS_FILE")`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `gh pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset in `$UNANCHORABLE_LINES` (each element formatted as `path:line — body` for step 4). The partition itself is left to the caller — `gh pr diff` parsing varies by environment. Then serialize the anchorable subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
+2. Read the envelope and partition. With `$NITS_FILE` set to the caller-supplied `nits_file` path, extract `findings[]` (e.g., `FINDINGS=$(jq -c '.findings' "$NITS_FILE")`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `gh pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 materializes `$UNANCHORABLE_NITS` into the bash array `$UNANCHORABLE_LINES`). The partition itself is left to the caller — `gh pr diff` parsing varies by environment. Then serialize the anchorable subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
    ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
@@ -153,13 +153,17 @@ EOF
 
 4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean. A top-level review comment is chosen over `gh pr comment` so all branch-review feedback lives in the Reviews tab.
 
+   Materialize the unanchorable subset (held in `$UNANCHORABLE_NITS` from step 2) into the bash array `UNANCHORABLE_LINES`, one `path:line — body` element per entry:
+
+   ```bash
+   mapfile -t UNANCHORABLE_LINES < <(jq -r '.[] | "\(.path):\(.line) — \(.body)"' <<<"$UNANCHORABLE_NITS")
+   ```
+
    Nit bodies may contain backticks, `$`, and `"` — never inline them into a double-quoted `-b` argument, since the shell will expand command substitutions and variables before `gh` sees the body. Use `--body-file` instead so the body bytes pass through as a single argument unmolested:
 
    ```bash
    printf '%s\n' "${UNANCHORABLE_LINES[@]}" | gh pr review "$PR_NUMBER" --comment --body-file -
    ```
-
-   Each line in `UNANCHORABLE_LINES` should be formatted as `path:line — body`.
 
 5. If `gh api` posting fails after `gh pr create` succeeded, surface the error and the unposted nits to the user. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
