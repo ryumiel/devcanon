@@ -251,11 +251,16 @@ The controller MAY use `files[].content` from the snapshot for:
 - Line-range extraction for downstream review composition or commit
   bodies.
 
-For files where `content` is omitted, fall back to a disk read for
-that file only. Two cases trigger omission: `status == "deleted"`
-(both `content` and `skipped` are absent — infer from `status`), or
-the file emits `"skipped"` set to `"size>64KB"` or `"binary"`. Other
-files in the same snapshot remain usable.
+When `content` is omitted, the omission case dictates the fallback:
+
+- `status == "deleted"` (both `content` and `skipped` absent) — the
+  file no longer exists on disk, so there is nothing to read. Treat
+  `status` itself as authoritative; do not attempt a disk read.
+- `"skipped"` set to `"size>64KB"` or `"binary"` — the file exists
+  post-commit but the snapshot omitted its content. Fall back to a
+  disk read for that file only.
+
+Other files in the same snapshot remain usable in either case.
 
 ### Trust boundary (load-bearing)
 
@@ -284,14 +289,15 @@ rule.
 
 ### Failure modes
 
-| Scenario                                                              | Action                                                                                                                  |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Path validation fails                                                 | Surface failure; treat the implementer report as malformed and fall back to disk reads for all files this task touched. |
-| Snapshot file missing / unreadable after notice line                  | Same as above (the fail-loud guard prevents silent skew).                                                               |
-| JSON malformed                                                        | Same as above.                                                                                                          |
-| Implementer reports DONE without notice line                          | Backward-compat: fall back to disk reads. The controller does not enforce a notice line.                                |
-| Per-file `content` omitted (`status == "deleted"` or `"skipped"` set) | Read that file from disk; rest of files use snapshot content.                                                           |
-| `head_sha` in snapshot doesn't match controller's view                | Log and fall back to disk; signals an unexpected commit between DONE and consumption.                                   |
+| Scenario                                                           | Action                                                                                                                  |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to disk reads for all files this task touched. |
+| Snapshot file missing / unreadable after notice line               | Same as above (the fail-loud guard prevents silent skew).                                                               |
+| JSON malformed                                                     | Same as above.                                                                                                          |
+| Implementer reports DONE without notice line                       | Backward-compat: fall back to disk reads. The controller does not enforce a notice line.                                |
+| Per-file `content` omitted, `status == "deleted"`                  | File no longer exists on disk — treat `status` as authoritative, no disk read. Rest of files use snapshot content.      |
+| Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`) | Read that file from disk; rest of files use snapshot content.                                                           |
+| `head_sha` in snapshot doesn't match controller's view             | Log and fall back to disk; signals an unexpected commit between DONE and consumption.                                   |
 
 ### Skip-dispatch exclusion
 
