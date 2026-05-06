@@ -2,8 +2,6 @@
 
 Expanded list of what this skill does and does not do.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 ## Without `--auto`
 
 - Does not write code or create PRs.

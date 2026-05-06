@@ -1,7 +1,5 @@
 # Worktree forbidden outcomes — `issue-priming-workflow` Phase 1
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 When `issue-worktree-setup` returns `MODE=stop`, the workflow halts. The
 forbidden outcome is **producing a worktree (or any equivalent checkout) for
 this issue from inside the current session** — by any mechanism. That includes,

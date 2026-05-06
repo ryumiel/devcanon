@@ -2,8 +2,6 @@
 
 Behavioral signals that this skill is being violated.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 - You skipped the gate and went straight to brainstorming without assessing complexity
 - You ran the research agent in the main session instead of a dedicated agent
 - You started implementing before invoking brainstorming

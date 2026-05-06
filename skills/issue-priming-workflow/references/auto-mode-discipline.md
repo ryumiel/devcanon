@@ -4,8 +4,6 @@ Anti-rationalization prose for `--auto` mode. The rules these paragraphs defend
 live in `SKILL.md` (Phase 4 ambiguity stop, Phase 7 nit classification); this
 file expands the "don't talk yourself out of it" reasoning.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 ## Don't launder a coin-flip into a fait accompli
 
 **Don't launder a coin-flip into a fait accompli.** "Document the assumption in the spec and let the user override at PR review" sounds reasonable but is the same violation. Once a plan and implementation exist, the user reviewing the PR is anchoring against working code, not deciding fresh between options — that's a worse decision context, not a better one. A 30-second question now beats a re-implementation later.

@@ -3,8 +3,6 @@
 Failure modes the skill exists to prevent. Each entry restates a Hard Rule or
 procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 ## Writing specs to main workspace instead of worktree
 
 - **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths

@@ -3,8 +3,6 @@
 Visual illustration of the phase flow. The authoritative phase procedures
 are in `SKILL.md` § Phase 1–8.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 ```dot
 digraph priming {
   rankdir=TB;

@@ -5,8 +5,6 @@ Phase 7's classification rule routes Nit-severity findings into mechanical
 The rule itself stays in `SKILL.md`; this file expands the taxonomy with
 concrete examples.
 
-Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
-
 - **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
   - Typos and misspellings.
   - Truncated, incomplete, or broken sentences with one clear reconstruction (e.g., a sentence ending mid-clause).
