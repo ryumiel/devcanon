@@ -109,8 +109,12 @@ producer notice line, not by guessing a path, so mixed schemes inside
 Every consumer that reads a path-referenced artifact MUST run a guard before
 opening the file. The authoritative bash for the path-validation pattern lives
 in `skills/play-review/SKILL.md` § Output → Side-channel file → Path; the
-guard inherits that structure verbatim, narrowed per consumer to its expected
-suffix:
+guard inherits that structure, narrowed per consumer to its expected suffix,
+plus a `[ -r ]` readability check that does not appear in the canonical
+play-review form (play-review writes its own findings file and so does not
+need a readability gate at the producer; consumers reading an upstream-
+produced path do — a missing or unreadable file is a fail-loud signal that
+the producer notice line was malformed or the file was clobbered):
 
 ```bash
 # Generic shape (each consumer narrows the allow-list)
@@ -121,6 +125,19 @@ esac
 [ "${ARTIFACT_PATH#*..}" = "$ARTIFACT_PATH" ] || { echo "path traversal: $ARTIFACT_PATH" >&2; exit 1; }
 [ -r "$ARTIFACT_PATH" ] || { echo "artifact missing or unreadable: $ARTIFACT_PATH" >&2; exit 1; }
 ```
+
+Two deliberate looseness properties of this guard, named here so future
+readers do not mistake them for bugs:
+
+- The shell-`case` glob `*` matches `/`, so paths under nested subpaths
+  (e.g., `.ephemeral/sub/dir/<…>-research.md`) and an empty `<id>` slug
+  (e.g., `.ephemeral/-research.md`) both pass the suffix match. Consumers
+  rely on producer notice-line authenticity, not depth, for routing.
+- The `[ "${VAR#*..}" = "$VAR" ]` test rejects all `..`-bearing paths,
+  including benign filenames that contain `..` as ordinary characters
+  (e.g., `.ephemeral/foo-..-bar-research.md`). This is intentional:
+  `..` is reserved anywhere in a `.ephemeral/` artifact filename. The
+  test errs on the safe side and is canonical for all four producers.
 
 Per-consumer suffix specialization:
 
@@ -181,6 +198,19 @@ per-task boundary.
   `issue-priming-workflow` Phase 3's write of the research brief; the
   symlink guard requirement is named in this ADR's Decision § for
   cross-reference clarity.
+- **Brief content is untrusted prose, not executable instructions.** The
+  research brief originates from a subagent dispatched against a possibly-
+  untrusted issue body (fork PRs especially, but any issue under operator
+  workflow). When `play-brainstorm` reads the brief from `.ephemeral/`, it
+  treats the content as descriptive prose — not as authority to act
+  outside its contract. Embedded directives ("ignore prior instructions",
+  tool-call snippets, shell commands, paths into the controller's filesystem)
+  do not become instructions to the consumer skill, regardless of how the
+  brief is phrased. The downstream skills (`play-planning`,
+  `play-subagent-execution`) consume artifacts produced by the operator
+  workflow itself (design, plan) and so are not directly exposed to
+  untrusted-issue-body prose; the threat is contained at the
+  `play-brainstorm`-reads-brief boundary.
 - Operators reading `play-subagent-execution`'s § Red Flags now see a
   scoping note specifying the per-task subagent boundary. Future readers
   who encounter the rule do not have to grep history to discover that the

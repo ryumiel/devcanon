@@ -234,8 +234,12 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 5. Emit the literal line `Research brief written to <repo-relative-path>.`
    to the conversation output. This is the consumer contract surface; do
    not reword.
-6. Capture the path. The full synthesized brief is no longer threaded
-   through to Phase 4's args; only the path reference is.
+6. Carry the path forward to Phase 4's args (no parsing required — the
+   path was computed in step 1 above and is already in hand). The full
+   synthesized brief is no longer threaded through; only the path
+   reference is. ("Capture" is reserved for the consumer pattern in
+   Phases 5 and 6, where the controller parses the path off a producer's
+   notice line; Phase 3 is the producer here.)
 
 See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)
 for the convention rationale and the producer notice-line contract.
@@ -352,7 +356,17 @@ This bash mirrors the authoritative path-validation guard in
 canonical copy lives in `play-review/SKILL.md`; if that copy gains a
 step (e.g., a new pre-read check), update this skill to match.
 
-Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007). The per-task implementer subagent dispatch boundary still receives curated, inlined task text — `play-subagent-execution`'s controller extracts each task from the plan file before per-task dispatch (see `skills/play-subagent-execution/SKILL.md` § Inputs and § Red Flags). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
+Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
+
+```
+Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
+
+`--auto` flow active (invoked by `issue-priming-workflow`). Run all per-task reviews per ADR-0007.
+
+Plan: <repo-relative-path captured above>
+```
+
+All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007). The per-task implementer subagent dispatch boundary still receives curated, inlined task text — `play-subagent-execution`'s controller extracts each task from the plan file before per-task dispatch (see `skills/play-subagent-execution/SKILL.md` § Inputs and § Red Flags). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
 ### Phase 7: Branch Review
 

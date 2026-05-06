@@ -209,7 +209,7 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 
 **On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS proceeds automatically to execution. A FAIL after 2 rounds stops and reports to the user.
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS hands off to the parent skill (which invokes `play-subagent-execution` per the Execution Handoff section below); `play-planning` itself does not start execution. A FAIL after 2 rounds stops and reports to the user.
 
 ## Execution Handoff
 
