@@ -8,8 +8,10 @@ Accepted
 
 `skills/play-review/SKILL.md` Phase 3 dispatches several reviewer
 roles. This audit covers the four that the issue body for #143
-enumerated, all currently dispatched as inline prompts on bare
-`general-purpose` agents:
+enumerated, all currently dispatched as inline prompts with no
+promoted source-agent identity (`agents/<role>.yaml`) backing them —
+the role contract lives entirely in the per-invocation briefing prose
+inside `skills/play-review/SKILL.md` Phase 3:
 
 1. **Correctness** — logic bugs, panic discipline, error propagation,
    API contracts, plus Sub-checks 1 (substitution audit) and 2
