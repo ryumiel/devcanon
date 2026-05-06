@@ -88,10 +88,34 @@ The structured envelope is written to a deterministic file under `.ephemeral/`. 
 .ephemeral/<branch_slug>-<head_sha>-findings.json
 ```
 
-- `<head_sha>` — the required `head_sha` input. Full 40-character SHA, lowercased.
-- `<branch_slug>` — `git rev-parse --abbrev-ref HEAD` evaluated in `working_directory`, with `/` → `-` substitution and any character outside `[a-zA-Z0-9._-]` stripped. Detached-HEAD checkouts use the literal string `detached`.
+- `<head_sha>` — the required `head_sha` input. Full 40-character SHA, lowercased. MUST match the regex `^[0-9a-f]{40}$`.
+- `<branch_slug>` — derived from the current branch with the bash below. `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD` for detached-HEAD checkouts (e.g., `pr-review` fork PRs that use `gh pr checkout --detach`), so explicit detection is required:
 
-The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below.
+  ```bash
+  RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
+  if [ "$RAW_BRANCH" = HEAD ]; then
+    BRANCH_SLUG=detached
+  else
+    BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+    # Substitute `unnamed` for slugs that would widen the path-interpretation
+    # surface: empty after stripping, bare `.` / `..`, or starting with `-` or `.`.
+    case "$BRANCH_SLUG" in
+      ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+    esac
+  fi
+  ```
+
+The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation is a single guard:
+
+```bash
+case "$FINDINGS_FILE" in
+  .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
+  *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
+esac
+[ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+```
+
+Consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish`, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file.
 
 #### Envelope shape
 
@@ -143,6 +167,7 @@ The markdown finding's evidence code is **not** included in the JSON. `path` + `
 - Always write the envelope, even when both `findings` and `carry_forward` are empty. The canonical empty form is `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
 - Overwrite the file on each invocation (deterministic path; the previous content for the same branch + SHA is no longer authoritative).
 - Use the `Write` tool for atomic replacement. Do not append.
+- **Symlink guard.** `Write` follows symlinks, so a pre-existing symlink at the path (left over from a prior run, or pre-staged in a fork-PR's working tree under `pr-review`'s `gh pr checkout --detach`) would redirect the write to the link's target. Before writing, remove any symlink at the path: `[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`. Apply the same guard wherever `branch-review --fix` overwrites this file or `issue-priming-workflow` Phase 7 derives the sibling `-nits-pending.json` path.
 
 ### 4. One-line notice (consumer hook)
 
