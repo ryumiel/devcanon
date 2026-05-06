@@ -36,9 +36,11 @@ esac
 [ -r "$RESEARCH_BRIEF_PATH" ] || { echo "research brief missing or unreadable: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
 ```
 
-The guard inherits ADR-0012's structure (see
-`skills/play-review/SKILL.md` § Output → Path), narrowed to the
-research-brief suffix.
+This bash mirrors the authoritative path-validation guard in
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path
+(required by ADR-0012), narrowed to the research-brief suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
 
 ### Inline content (preserved for direct invocations)
 
