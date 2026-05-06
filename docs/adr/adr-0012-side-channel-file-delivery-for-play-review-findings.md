@@ -138,12 +138,17 @@ Consumer responsibilities:
   - Edge case: Option 3 (Keep As-Is) and direct
     `branch-review` / `pr-review` invocations outside a worktree leave
     the file in place. Files are git-ignored (`.gitignore`) and small
-    (~5KB each). Operators may `rm -f .ephemeral/*-findings.json
-.ephemeral/*-nits-pending.json` if accumulation matters in
-    long-lived worktrees. A sweep was considered and rejected — the
-    `.ephemeral/` precedent (`design.md`, `plan.md`) doesn't sweep
-    either, and there is no concrete failure scenario today motivating
-    the inconsistency.
+    (~5KB each). Operators may sweep manually if accumulation matters
+    in long-lived worktrees:
+
+    ```bash
+    rm -f .ephemeral/*-findings.json .ephemeral/*-nits-pending.json
+    ```
+
+    A sweep was considered and rejected — the `.ephemeral/` precedent
+    (`design.md`, `plan.md`) doesn't sweep either, and there is no
+    concrete failure scenario today motivating the inconsistency.
+
 - Re-runs on the same branch + same SHA overwrite cleanly (deterministic
   path). Different SHAs produce different paths.
 - **Data residency.** Findings text (`why` / `recommendation` / `body`)
