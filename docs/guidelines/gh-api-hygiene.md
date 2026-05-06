@@ -1,4 +1,4 @@
-# gh api Hygiene
+# gh api Hygiene Guideline
 
 ## 1. Scope
 
@@ -39,7 +39,7 @@ Worked examples in this repo:
 - [ ] When success is the only signal, prefer `--silent` over `--jq '.id' >/dev/null` — the intent is clearer and the command shorter.
 - [ ] Cross-link this guideline near the first `gh api` invocation in any new skill that uses raw `gh api`.
 
-A mechanical lint enforcing these rules is feasible (e.g., `grep -E 'gh api[^|]*POST'` plus `grep -E 'gh api graphql.*mutation'` against `skills/**/*.md`) but is currently out of scope; the guideline is enforced at review time.
+A mechanical lint enforcing these rules is feasible but is currently out of scope; the guideline is enforced at review time.
 
 ## 5. See Also
 
