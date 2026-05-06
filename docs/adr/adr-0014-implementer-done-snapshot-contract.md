@@ -60,7 +60,7 @@ introduced here must explicitly exclude #175.
 After the implementer commits its work, before reporting, it writes a
 side-channel snapshot manifest. The path:
 
-```
+```text
 .ephemeral/<branch_slug>-<head_sha>-snapshot.json
 ```
 
