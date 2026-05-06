@@ -97,9 +97,9 @@ Task tool (general-purpose):
 
     2. Resolve the branch slug using the canonical bash from
        `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-       (do not invent a new slug rule):
-
-       (canonical bash from `skills/play-review/SKILL.md` § Output → Side-channel file → Path; `-C "$WORKING_DIRECTORY"` is dropped because the implementer runs in cwd.)
+       (do not invent a new slug rule). `-C "$WORKING_DIRECTORY"` is
+       dropped from the canonical form because the implementer runs in
+       cwd.
 
        ```bash
        RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
