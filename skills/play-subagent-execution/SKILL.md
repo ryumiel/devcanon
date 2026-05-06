@@ -9,6 +9,53 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
+## Inputs
+
+This skill accepts a plan document in either of two shapes inside its
+invocation prose. Both shapes are recognized; if both are present, the path
+reference wins.
+
+### Path reference (preferred for controllers)
+
+A single literal line of the form:
+
+```
+Plan: <repo-relative-path>
+```
+
+For example: `Plan: .ephemeral/2026-05-06-167-plan.md`.
+
+When this line is present, the controller (the agent running this skill)
+validates the path before reading:
+
+```bash
+case "$PLAN_PATH" in
+  .ephemeral/*-plan.md) ;;
+  *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
+esac
+[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
+[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
+```
+
+This bash mirrors the authoritative path-validation guard in
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path
+(required by ADR-0012), narrowed to the plan-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
+
+The controller then reads the plan from the path and proceeds with task
+extraction. Per-task implementer subagents continue to receive curated,
+inlined task text — they do NOT receive the path. See § Red Flags below.
+
+### Inline content (preserved for direct invocations)
+
+A `## Plan` heading followed by content body, or an entire plan document
+pasted into the invocation prose. No path validation is required — content
+is consumed verbatim from the prose. Direct human invocations that paste a
+plan inline use this shape.
+
+See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
+
 **Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
 
 ## When to Use
@@ -59,13 +106,13 @@ digraph process {
         "Mark task complete in TodoWrite" [shape=box];
     }
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
+    "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "Plan has exactly one task?" [shape=diamond];
     "More tasks remain?" [shape=diamond];
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
+    "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
     "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no"];
     "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes (skip per-task review)"];
     "Dispatch the implementer agent (references/implementer-prompt.md)" -> "Implementer agent asks questions?";
@@ -263,7 +310,7 @@ Done!
 - Skip reviews when the plan has 2+ tasks (single-task plans skip per-task review by design — see ADR-0007)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
-- Make subagent read plan file (provide full text instead)
+- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see § Inputs); the per-task boundary is what stays inlined. See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while either review has open issues
