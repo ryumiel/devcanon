@@ -99,9 +99,9 @@ Then: Cleanup worktree (Step 5)
 
 #### Option 2: Push and Create PR
 
-**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits` block in the invocation args. Format: a JSON array where each item has `path` (string, repo-relative), `line` (integer, line in the HEAD version), and `body` (string). Optional fields: `side` (default `"RIGHT"`), `start_line` (for multi-line ranges). When the caller omits `side`, this skill applies the `"RIGHT"` default automatically — callers do not need to supply it. When the caller passes nits, this skill posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
+**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope (see `skills/play-review/SKILL.md` § Output for the schema; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). When `nits_file` is set, this skill reads the envelope, iterates `findings[]`, partitions anchorable from unanchorable, and posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
-The `nits` shape is a strict subset of the `play-review/findings/v1` JSON block (see `skills/play-review/SKILL.md` § Output): callers receive findings as that block's `findings[]` array — emitted as the last fenced `json` code block in `branch-review` and `pr-review` output — and pass the relevant subset directly, with no prose parsing required. The per-finding fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to pass through. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
+The file is a `play-review/findings/v1` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
 ```bash
 # Push branch
@@ -122,7 +122,7 @@ EOF
 )"
 ```
 
-**After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits` input was empty or omitted.
+**After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset or pointed to a missing file. If `nits_file` is set but the file's `findings[]` array is empty, also skip — posting an empty review is noise.
 
 1. Resolve the new PR number. The most robust form works regardless of whether `gh pr create`'s stdout was captured:
 
@@ -130,7 +130,7 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Partition the nits into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
+2. Read the envelope from `nits_file` and extract `findings[]` (e.g., `jq '.findings' "$NITS_FILE"`). Partition the entries into anchorable (file/line falls inside the PR diff's HEAD-side line ranges, derivable from `gh pr diff "$PR_NUMBER"`) and unanchorable. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS`. Then serialize that subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
    ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
@@ -252,7 +252,7 @@ git worktree remove <worktree-path>
 **Putting branch-review nits in the description body**
 
 - **Problem:** Nits become locked into the durable description instead of being resolvable line-anchored review comments
-- **Fix:** When a caller passes a `nits` block, post via `gh api repos/.../pulls/<N>/reviews` with `event: "COMMENT"`. The description body stays free of review chatter
+- **Fix:** When a caller passes a `nits_file` arg, post via `gh api repos/.../pulls/<N>/reviews` with `event: "COMMENT"`. The description body stays free of review chatter
 
 ## Red Flags
 
@@ -262,7 +262,7 @@ git worktree remove <worktree-path>
 - Merge without verifying tests on result
 - Delete work without confirmation
 - Force-push without explicit request
-- Embed branch-review nits in the PR description body when the caller passed them as an input
+- Embed branch-review nits in the PR description body when the caller passed `nits_file` as an input
 
 **Always:**
 
