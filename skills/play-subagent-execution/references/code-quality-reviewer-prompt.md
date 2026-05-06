@@ -17,6 +17,8 @@ Task tool (general-purpose):
   DESCRIPTION: [task summary]
 ```
 
+**Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — per [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md), snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
+
 **In addition to standard code quality concerns, the reviewer should check:**
 
 - Does each file have one clear responsibility with a well-defined interface?
