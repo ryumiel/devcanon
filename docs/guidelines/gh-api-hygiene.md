@@ -8,7 +8,7 @@ This guideline applies to every documented `gh api` invocation in `skills/` and 
 
 | Caller intent                              | Flag                                 | Example                                                                               |
 | ------------------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------- |
-| Use one or more fields from the response   | `--jq '<expr>'` (or short form `-q`) | `gh pr view <N> --json headRefOid --jq .headRefOid`                                   |
+| Use one or more fields from the response   | `--jq '<expr>'` (or short form `-q`) | `gh pr view <N> --json headRefOid --jq '.headRefOid'`                                 |
 | Only need to know the call succeeded       | `--silent`                           | `gh api repos/{owner}/{repo}/pulls/<N>/reviews --method POST --silent --input <(...)` |
 | Genuinely consume the full body downstream | bare `gh api` + inline annotation    | see § 3                                                                               |
 
