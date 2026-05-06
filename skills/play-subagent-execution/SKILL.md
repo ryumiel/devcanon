@@ -115,7 +115,7 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the lean template body is ~35 lines vs. the default's ~96-line body. To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare line counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
+**Verification baseline:** the lean template's fenced body is ~35 lines (lines 8-42 of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) vs. the default's ~115-line body (lines 8-120 of [`references/implementer-prompt.md`](references/implementer-prompt.md)). To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare line counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
 
 ## Mechanical Task Taxonomy
 
