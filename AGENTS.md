@@ -213,6 +213,7 @@ For module responsibilities, dependency rules, and data flow, see
 | Commit guideline                    | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                               |
 | PR guideline                        | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                                       |
 | Code review guideline               | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)                     |
+| gh api hygiene guideline            | [`docs/guidelines/gh-api-hygiene.md`](docs/guidelines/gh-api-hygiene.md)                                   |
 | Contributor workflow                | [`WORKFLOW.md`](WORKFLOW.md)                                                                               |
 | Project management model            | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)               |
 | Navigation index                    | [`MAP.md`](MAP.md)                                                                                         |

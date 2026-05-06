@@ -58,6 +58,7 @@ Quick navigation index for the agents-manager repository.
 - Where is the commit guideline? -> [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)
 - Where is the PR guideline? -> [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)
 - Where is the code review guideline? -> [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)
+- Where is the gh api hygiene guideline? -> [`docs/guidelines/gh-api-hygiene.md`](docs/guidelines/gh-api-hygiene.md)
 - Where is the project management model? -> [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Where are the Copilot review instructions? -> [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
 - Where are the TypeScript review instructions? -> [`.github/instructions/review-ts.instructions.md`](.github/instructions/review-ts.instructions.md)

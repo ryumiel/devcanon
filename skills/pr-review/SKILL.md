@@ -44,6 +44,9 @@ Run in parallel:
 - `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
+<!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
+<!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
+
 Detect mode:
 
 - **Initial:** No prior review from the current user on this PR.
@@ -162,6 +165,7 @@ Only after user approval:
    ```sh
    gh api repos/{owner}/{repo}/pulls/<N>/reviews \
      --method POST \
+     --silent \
      --input <(jq -n \
        --arg commit_id "<HEAD SHA>" \
        --arg body "<overall summary; include out-of-diff findings here>" \
@@ -196,7 +200,7 @@ Only after user approval:
 2. Resolve threads via GraphQL:
 
    ```sh
-   gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
+   gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
 3. Verify each API response succeeded. Report failures, stop on error.
@@ -207,11 +211,14 @@ Only after user approval:
 
 ## GitHub API Reference
 
+For the `gh api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
+
 **Create review with inline comments** (primary posting method):
 
 ```sh
 gh api repos/{owner}/{repo}/pulls/<N>/reviews \
   --method POST \
+  --jq '.id' \
   --input <(jq -n \
     --arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)" \
     --argjson comments '[
@@ -226,7 +233,7 @@ Use `line` (absolute file line in HEAD), not `position` (diff offset). `side` is
 **Reply to inline comment** (use the correct endpoint):
 
 ```sh
-gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies -f body="<text>"
+gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies --jq '.id' -f body="<text>"
 ```
 
 Verify the response includes the new comment ID. Do not assume success.
@@ -234,6 +241,8 @@ Verify the response includes the new comment ID. Do not assume success.
 **Fetch thread IDs for resolution:**
 
 ```sh
+# Bare body intentional: response is consumed for content-keyed thread-ID lookup
+# (resolveReviewThread mutation at the snippet above). See docs/guidelines/gh-api-hygiene.md § 3.
 gh api graphql -f query='{ repository(owner: "O", name: "R") {
   pullRequest(number: N) { reviewThreads(first: 50) { nodes {
     id isResolved comments(first: 5) { nodes { body author { login } path originalLine } }
