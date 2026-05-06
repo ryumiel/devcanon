@@ -4,7 +4,7 @@ Use this template when dispatching an implementer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-```
+````
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"
   prompt: |
@@ -36,7 +36,8 @@ Task tool (general-purpose):
     3. Verify implementation works
     4. Commit your work (see Committing section below)
     5. Self-review (see below)
-    6. Report back
+    6. Write the snapshot manifest (see Snapshot Manifest section below)
+    7. Report back
 
     Work from: [directory]
 
@@ -79,6 +80,98 @@ Task tool (general-purpose):
     If found, read it and follow its header format, type/scope rules, and body guidelines exactly.
     If no guideline is found, use Conventional Commits: `type(scope): subject` in imperative mood.
 
+    ## Snapshot Manifest
+
+    After committing and self-reviewing, write a side-channel snapshot
+    manifest so the controller can verify your work and look up line
+    ranges without re-reading every file from disk. See
+    [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md)
+    for the contract.
+
+    1. Resolve the post-commit head SHA:
+
+       ```bash
+       HEAD_SHA=$(git rev-parse HEAD)
+       ```
+
+    2. Resolve the branch slug using the canonical bash from
+       `skills/play-review/SKILL.md` § Output → Side-channel file → Path
+       (do not invent a new slug rule):
+
+       ```bash
+       RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+       if [ "$RAW_BRANCH" = HEAD ]; then
+         BRANCH_SLUG=detached
+       else
+         BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+         case "$BRANCH_SLUG" in
+           ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+         esac
+       fi
+       ```
+
+    3. Compute the path:
+
+       ```bash
+       SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
+       ```
+
+    4. Apply the symlink guard (per ADR-0012 fork-PR untrust note):
+
+       ```bash
+       [ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"
+       mkdir -p .ephemeral
+       ```
+
+    5. Build the JSON envelope conforming to schema
+       `implementer/snapshot/v1`:
+
+       ```json
+       {
+         "schema": "implementer/snapshot/v1",
+         "task_id": "<task identifier from your task header>",
+         "head_sha": "<HEAD_SHA from step 1>",
+         "files": [
+           {
+             "path": "<repo-relative path>",
+             "status": "added | modified | deleted",
+             "lines": <integer>,
+             "bytes": <integer>,
+             "sha256": "<hex>",
+             "content": "<verbatim post-commit content>"
+           }
+         ]
+       }
+       ```
+
+       Per-file rules (matches `docs/adr/adr-0014-implementer-done-snapshot-contract.md` head-of-branch contract):
+       - Enumerate every file changed in your commit (run
+         `git diff --name-status HEAD~..HEAD` and map letters: `A`→added,
+         `M`→modified, `D`→deleted; treat copies/renames as modified).
+       - `lines` = `wc -l < <path>` post-commit (or `0` for deleted).
+       - `bytes` = `wc -c < <path>` post-commit (or `0` for deleted).
+       - `sha256` = `shasum -a 256 <path> | awk '{print $1}'` (or `""` for deleted).
+       - `content` is included when `bytes <= 64000`, `status != "deleted"`,
+         and the file is not binary.
+       - When `content` is omitted on a non-deleted file, set `"skipped"`
+         to `"size>64KB"` or `"binary"`. Mutual exclusion: exactly one of
+         `content` / `skipped` present per non-deleted file. Deleted files
+         emit neither field.
+       - Detect binary via `git diff --numstat HEAD~..HEAD` — a `-\t-\t<path>`
+         row indicates binary; emit `"skipped": "binary"`.
+
+    6. Write the file using the `Write` tool (atomic replacement; do not append).
+
+    7. Verify the write:
+
+       ```bash
+       [ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
+       ```
+
+    8. Note the path — you will reference it in the Report Format as
+       `Snapshot written to <SNAPSHOT_FILE>.` (one literal line, ending
+       with a period; the controller parses this exact form).
+
     ## Before Reporting Back: Self-Review
 
     Review your work with fresh eyes. Ask yourself:
@@ -115,7 +208,20 @@ Task tool (general-purpose):
     - Self-review findings (if any)
     - Any issues or concerns
 
+    Then, on the final line of the report (DONE / DONE_WITH_CONCERNS only),
+    append exactly one literal line naming the snapshot manifest path:
+
+    ```
+    Snapshot written to <repo-relative-path>.
+    ```
+
+    The controller parses this literal line off the report. Do not reword,
+    do not wrap in backticks, do not omit the trailing period. If the
+    snapshot write failed (Snapshot Manifest § Step 7 returned non-zero),
+    report BLOCKED instead — never emit the notice line for an absent
+    file.
+
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
     information that wasn't provided. Never silently produce work you're unsure about.
-```
+````
