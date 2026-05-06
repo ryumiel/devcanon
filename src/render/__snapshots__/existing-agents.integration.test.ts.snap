@@ -74,6 +74,36 @@ Return one of: DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT.
 "
 `;
 
+exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > research-agent-claude 1`] = `
+"---
+name: research-agent
+description: "Multi-step investigation role that produces a synthesized issue brief from policy, codebase, and external sources. Use when a controller needs context for design brainstorming and the workflow has decided research is warranted. Do not use for implementation, code review, or single-source lookups."
+tools: Read, Grep, Bash, WebFetch, WebSearch, Agent
+---
+
+Investigate the issue across policy, codebase, and external precedent.
+Coordinate parallel sub-investigations when the workflow expects it; otherwise
+do the work directly with read-only tools.
+Synthesize findings into a single brief — do not dump raw output.
+Return the brief in the format the dispatching skill specifies.
+"
+`;
+
+exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > research-agent-codex 1`] = `
+"name = "research-agent"
+description = "Multi-step investigation role that produces a synthesized issue brief from policy, codebase, and external sources. Use when a controller needs context for design brainstorming and the workflow has decided research is warranted. Do not use for implementation, code review, or single-source lookups."
+sandbox_mode = "read-only"
+
+developer_instructions = """
+Investigate the issue across policy, codebase, and external precedent.
+Coordinate parallel sub-investigations when the workflow expects it; otherwise
+do the work directly with read-only tools.
+Synthesize findings into a single brief — do not dump raw output.
+Return the brief in the format the dispatching skill specifies.
+"""
+"
+`;
+
 exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > spec-compliance-reviewer-claude 1`] = `
 "---
 name: spec-compliance-reviewer
