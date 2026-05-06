@@ -89,6 +89,8 @@ digraph process {
 }
 ```
 
+> The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md`. See "Mechanical Task Hint" below.
+
 ## Model Selection
 
 Use the least powerful model that can handle each role to conserve cost and increase speed.
@@ -113,7 +115,7 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the lean template body is ~32 lines vs. the default's ~96-line body. To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare line counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
+**Verification baseline:** the lean template body is ~35 lines vs. the default's ~96-line body. To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare line counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
 
 ## Mechanical Task Taxonomy
 
