@@ -1,4 +1,4 @@
-# gh CLI Hygiene
+# gh api Hygiene
 
 ## 1. Scope
 
@@ -24,25 +24,25 @@ Bare `gh api` (no `--jq`, no `--silent`) is acceptable only when the caller genu
 - A content-keyed lookup walks a list and selects an item by inner field value.
 - The response feeds a fixture or test snapshot.
 
-When bare `gh api` is genuinely required, add an inline comment in the snippet that names what the caller does with the body and links back to this guideline. Without the annotation, reviewers will (correctly) flag the snippet under [`code-review-guideline.md`](code-review-guideline.md) § 2 Documentation.
+When bare `gh api` is genuinely required, add an inline comment in the snippet that names what the caller does with the body and links back to this guideline. Without the annotation, reviewers will (correctly) flag the snippet as a Documentation finding (see [`code-review-guideline.md`](code-review-guideline.md) § 2 Categories).
 
 Worked examples in this repo:
 
-- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) Phase 1 (lines 44-45) — the `gh api .../comments` and `.../reviews` reads feed Phase 4's `prior_threads` parsing on line 100. Multiple fields per entry are consumed.
-- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) `## GitHub API Reference` GraphQL query (around line 237) — fetches all review threads with their comments for content-keyed thread-ID lookup. The whole nested response is the data.
+- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) Phase 1 — the `gh api .../comments` and `.../reviews` reads feed Phase 4's `prior_threads` parsing. Multiple fields per entry are consumed.
+- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) `## GitHub API Reference` GraphQL thread-fetch query — returns every review thread with its comments for content-keyed thread-ID lookup. The whole nested response is the data.
 
 ## 4. Authoring Checklist for Skill Snippets
 
 - [ ] Every `gh api` POST or GraphQL mutation snippet uses `--jq` or `--silent`.
 - [ ] Every bare `gh api` call has an inline comment explaining body consumption and linking to this guideline.
 - [ ] Single-field reads use `--jq '.<field>'` (extract just the field), not bare `gh api`.
-- [ ] When success is the only signal, prefer `--silent` over `--jq '.id' >/dev/null` — the intent is clearer and the binary smaller.
+- [ ] When success is the only signal, prefer `--silent` over `--jq '.id' >/dev/null` — the intent is clearer and the command shorter.
 - [ ] Cross-link this guideline near the first `gh api` invocation in any new skill that uses raw `gh api`.
 
-A mechanical lint enforcing these rules is feasible (`grep -E 'gh api[^|]*POST'` against `skills/**/*.md`) but is currently out of scope; the guideline is enforced at review time.
+A mechanical lint enforcing these rules is feasible (e.g., `grep -E 'gh api[^|]*POST'` plus `grep -E 'gh api graphql.*mutation'` against `skills/**/*.md`) but is currently out of scope; the guideline is enforced at review time.
 
 ## 5. See Also
 
 - [`code-review-guideline.md`](code-review-guideline.md) — the Documentation finding category that covers stale or context-bloating example snippets.
-- [`../../skills/pr-merge/SKILL.md`](../../skills/pr-merge/SKILL.md) — exemplar implementation; every read uses `gh pr view --json X --jq Y`.
+- [`../../skills/pr-merge/SKILL.md`](../../skills/pr-merge/SKILL.md) — exemplar implementation; field-scoped reads with `gh pr view --json X --jq Y` are the canonical pattern.
 - [`pr-guideline.md`](pr-guideline.md) — related authoring style and PR description discipline.
