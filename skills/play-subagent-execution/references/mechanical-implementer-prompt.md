@@ -4,7 +4,7 @@ Use this template when dispatching an implementer subagent for a task whose task
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-```
+````
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"
   prompt: |
@@ -22,15 +22,53 @@ Task tool (general-purpose):
 
     ## Your Job
 
-    1. Implement what the task specifies (write/edit files exactly as the plan shows).
-    2. Verify the change (run any verify command from the plan).
-    3. Commit. Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
-    4. Self-review:
+    1. Capture the pre-task base SHA — `BASE_SHA=$(git rev-parse HEAD)`. If `git rev-parse HEAD` fails for any reason, report BLOCKED.
+    2. Implement what the task specifies (write/edit files exactly as the plan shows).
+    3. Verify the change (run any verify command from the plan).
+    4. Commit. Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
+    5. Self-review:
        - Did I match the spec verbatim (file paths, content, commit messages)?
        - If naming was up to me, are names clear and accurate?
        - If the task said to follow TDD, did I?
        Fix any issues before reporting.
-    5. Report back (see format below).
+    6. Write the snapshot manifest (see Snapshot Manifest section below).
+    7. Report back (see format below).
+
+    ## Snapshot Manifest
+
+    After committing, write a side-channel snapshot manifest at
+    `.ephemeral/<branch_slug>-<head_sha>-snapshot.json` so the
+    controller can verify your work without re-reading from disk. See
+    [ADR-0014](../../docs/adr/adr-0014-implementer-done-snapshot-contract.md)
+    for the contract.
+
+    1. `HEAD_SHA=$(git rev-parse HEAD)`.
+    2. Compute `BRANCH_SLUG` using the canonical bash from
+       `skills/play-review/SKILL.md` § Output → Side-channel file → Path
+       (handle detached HEAD as `detached`; sanitize with the `unnamed`
+       fallback for empty / `.` / `..` / leading `-` / leading `.`;
+       `-C "$WORKING_DIRECTORY"` is dropped because the implementer runs
+       in cwd).
+    3. `SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"`.
+    4. Symlink guard before writing: `[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"`. `mkdir -p .ephemeral`.
+    5. Build a JSON envelope conforming to schema `implementer/snapshot/v1`
+       using `jq -n --rawfile content <path> ...` (do NOT hand-quote file
+       bytes; do NOT use `$(cat path)` inside `--arg` — command
+       substitution strips trailing newlines). Envelope shape:
+       `{schema, task_id, head_sha, files: [{path, status, lines, bytes, sha256, content}]}`.
+       Per file: `status` ∈ {added, modified, deleted}; `lines` from
+       `wc -l`; `bytes` from `wc -c`; `sha256` from `shasum -a 256`;
+       `content` is included when `bytes <= 64000`, `status != "deleted"`,
+       and the file is not binary. When `content` is omitted on a
+       non-deleted file, set `"skipped"` to `"size>64KB"` or `"binary"`.
+       Mutual exclusion: exactly one of `content` / `skipped` per
+       non-deleted file. Deleted files emit neither field. Enumerate
+       files with `git diff --name-status ${BASE_SHA}..HEAD`; detect
+       binary via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows.
+    6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
+       tool if you assembled JSON another way; atomic replacement; do
+       not append).
+    7. Verify: `[ -s "$SNAPSHOT_FILE" ] || exit 1`.
 
     ## Report Format
 
@@ -39,5 +77,16 @@ Task tool (general-purpose):
     - What you verified
     - Files changed
 
+    On the final line of the report (DONE / DONE_WITH_CONCERNS only), append
+    exactly one literal line naming the snapshot manifest path:
+
+    ```
+    Snapshot written to <repo-relative-path>.
+    ```
+
+    The controller parses this literal line. Do not reword, do not wrap in
+    backticks, do not omit the trailing period. If the snapshot write failed,
+    report BLOCKED instead — never emit the notice line for an absent file.
+
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if information is missing.
-```
+````
