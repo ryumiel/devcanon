@@ -44,7 +44,7 @@ Run in parallel:
 - `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
-<!-- Bare body intentional: responses feed Phase 4 prior_threads parsing (line 100). -->
+<!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
 
 Detect mode:
