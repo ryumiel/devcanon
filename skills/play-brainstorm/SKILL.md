@@ -9,6 +9,46 @@ Help turn ideas into fully formed designs through natural collaborative dialogue
 
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
 
+## Inputs
+
+This skill accepts a research brief in either of two shapes inside its
+invocation prose. Both shapes are recognized; if both are present, the path
+reference wins.
+
+### Path reference (preferred for controllers)
+
+A single literal line of the form:
+
+```
+Research brief: <repo-relative-path>
+```
+
+For example: `Research brief: .ephemeral/2026-05-06-167-research.md`.
+
+When this line is present, validate the path before reading:
+
+```bash
+case "$RESEARCH_BRIEF_PATH" in
+  .ephemeral/*-research.md) ;;
+  *) echo "research brief path validation failed: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
+esac
+[ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
+[ -r "$RESEARCH_BRIEF_PATH" ] || { echo "research brief missing or unreadable: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
+```
+
+The guard inherits ADR-0012's structure (see
+`skills/play-review/SKILL.md` § Output → Path), narrowed to the
+research-brief suffix.
+
+### Inline content (preserved for direct invocations)
+
+A `## Research Brief` heading followed by content body, exactly as the
+existing convention. No path validation is required — content is consumed
+verbatim from the prose. Direct human invocations that have no upstream
+file use this shape.
+
+See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
+
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval — but the design step itself is never skipped.
 </HARD-GATE>
@@ -113,7 +153,8 @@ digraph brainstorming {
 
 **Save:**
 
-- Write the validated design to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
+- Write the validated design to `.ephemeral/YYYY-MM-DD-<topic>-design.md`.
+- After writing, emit the literal line `Design written to <repo-relative-path>.` to the conversation. This is the contract surface `play-planning` reads (see [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
 
 **Design Self-Review:**
 After writing the design document, look at it with fresh eyes:
@@ -138,7 +179,10 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 **Implementation:**
 
-- Invoke the play-planning skill to create a detailed implementation plan
+- Invoke the play-planning skill to create a detailed implementation plan.
+  Pass the design as a `Design: <path>` reference in the invocation prose
+  (the path you just emitted in the notice line above), not as inline
+  content. See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
 - Do NOT invoke any other skill. play-planning is the next step.
 
 ## Common Mistakes
