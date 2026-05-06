@@ -270,7 +270,7 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and emits its remaining `findings[]` as a structured `play-review/findings/v1` JSON block. Read `findings[]` from the **last fenced `json` code block** in `branch-review --fix`'s output (see `skills/play-review/SKILL.md` § Output for the schema) — do not re-parse the human-readable markdown.
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (see `skills/play-review/SKILL.md` § Output for the schema; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — and load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
 
 **First, check severity.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer skipped (Safety / Contracts categories per the play-review hard rule, plus any blocker whose critic verdict was `INVALID` or `DOWNGRADE`, plus blockers requiring design changes or out-of-diff edits). If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user** — they need human attention, not classification as nits. Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`.
 
@@ -293,7 +293,17 @@ For each `severity: "Nit"` finding object, classify it as **mechanical** or **ju
 - **Mechanical nits** — apply the fix in the worktree and commit. Use the project's commit guideline (glob `**/commit-guideline*.md`, `**/commit-*.md`, `CONTRIBUTING.md`); default to Conventional Commits (`fix(<scope>): <what was fixed>`) if no guideline is found.
   - **Back-reference (required).** Each commit body must include the literal footer line `Reported by branch-review at <path>:<line>` for every nit the commit addresses, so the audit trail is unambiguous.
   - **Grouping.** Multiple mechanical fixes in the same file at the same scope may be grouped into one commit. When grouping, include one back-reference line per nit, each on its own line in the commit body.
-- **Judgment-required nits** — leave unfixed. Carry them forward to the `nits` input passed to `play-branch-finish` in Phase 8.
+- **Judgment-required nits** — leave unfixed. After classification, write the judgment-required subset as a fresh `play-review/findings/v1` envelope (`{"schema": "play-review/findings/v1", "findings": [<judgment-required items>], "carry_forward": []}`) to a sibling file derived from `$FINDINGS_FILE` by replacing the `-findings.json` suffix with `-nits-pending.json` (i.e., `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`). Assert the suffix shape before substituting, so a malformed `$FINDINGS_FILE` does not silently produce a path with `-nits-pending.json` appended; remove any pre-existing symlink at the derived path before writing (per the symlink-guard rule in `skills/play-review/SKILL.md` § Output → Write rules):
+
+  ```bash
+  case "$FINDINGS_FILE" in
+    *-findings.json) NITS_PENDING_FILE="${FINDINGS_FILE%-findings.json}-nits-pending.json" ;;
+    *) echo "FINDINGS_FILE shape unexpected: $FINDINGS_FILE" >&2; exit 1 ;;
+  esac
+  [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"
+  ```
+
+  The Phase 8 step "Pass nits to `play-branch-finish`" passes `$NITS_PENDING_FILE` as `nits_file`. If the judgment-required set is empty, skip the file write — Phase 8 will omit `nits_file` entirely.
 
 After this classification step, the set of nits that reaches Phase 8 contains only judgment-required items.
 
@@ -315,9 +325,9 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 - The design decisions made (especially any assumptions from Phase 4)
 - Summary of what was implemented
 
-**Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits` input contract.
+**Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
 
-**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, pass the judgment-required subset of `branch-review --fix`'s `play-review/findings/v1` JSON block `findings[]` (see `skills/play-review/SKILL.md` § Output) as the `nits` input. Only items with `severity: "Nit"` are eligible — any `severity: "Blocking"` items must already have triggered a stop-`--auto` in Phase 7, so they never reach this step. The schema covers every required field of `play-branch-finish`'s `nits` contract (`path`, `line`, `body`); the optional `start_line` is also present, and the optional `side` defaults to `"RIGHT"` when absent (the schema does not emit it). No translation is needed — pass the items through as-is. Extra fields (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are ignored by `play-branch-finish` but harmless to include. If there are no judgment-required nits, omit the `nits` field entirely; `play-branch-finish` handles posting them via `gh api .../reviews`.
+**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema in `skills/play-review/SKILL.md` § Output; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). `play-branch-finish` posts every entry of `findings[]` in that file — anchorable items as inline review comments, unanchorable as a top-level review comment — applying `"side": "RIGHT"` defaults and dropping `start_line: null`. Only items with `severity: "Nit"` are eligible; any `severity: "Blocking"` items must already have triggered a stop-`--auto` in Phase 7, so they never reach this file. Extra fields (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are ignored by `play-branch-finish` but harmless to leave in the envelope. If Phase 7 produced no judgment-required nits and skipped the file write, omit the `nits_file` arg entirely; `play-branch-finish` handles the absence by skipping the post step.
 
 ## Quick Reference
 

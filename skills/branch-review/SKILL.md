@@ -70,7 +70,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `language_hints` = computed in Phase 1
 - `prior_threads` = (none); `last_reviewed_sha` = (none); `is_followup_narrow` = `false`
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section.
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
 ## Phase 3: Dispose
 
@@ -78,7 +78,7 @@ Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown docume
 
 Re-emit `play-review`'s findings to the user in conversation. Preserve the format (file:line, severity, category, evidence code, recommendation). Findings tagged `Anchor: out-of-diff` are listed under "Out-of-diff findings" with a note that they require human judgment.
 
-After the human-readable findings, append `play-review`'s structured-finding JSON block verbatim as the last fenced `json` block in the output (no fixes have been applied on this path, so the block is unmodified from `play-review`'s output). This is the `play-review/findings/v1` block defined in `skills/play-review/SKILL.md` § Output. The block is intended for downstream tools that wrap `branch-review`'s output; the user can ignore it. The schema block must remain the trailing `json` fence in the report — additional `json` fences earlier in the report (e.g., when an evidence snippet is itself a JSON file) are permitted, since consumers identify the schema block by trailing position or by the `"schema": "play-review/findings/v1"` key.
+After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output, transport in [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
 **With `--fix` (autonomous mode, used by `github-issue-priming --auto`):**
 
@@ -105,7 +105,9 @@ After processing — whether the loop completes or halts on the stop rule — re
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 
-Then append a `play-review/findings/v1` JSON block as the last fenced `json` block in the report (see `skills/play-review/SKILL.md` § Output). The block's `findings` array contains exactly the **remaining set**: every nit (regardless of anchor), plus any blocker that was skipped (`INVALID`/`DOWNGRADE`) or that triggered the halt. Auto-fixed blockers do NOT appear in the JSON block — they're already committed. If the remaining set is empty, still emit the canonical empty block (see `skills/play-review/SKILL.md` § Output positional rules) — never an absent block. `issue-priming-workflow` Phase 7 reads this block to classify nits and feed `play-branch-finish`'s `nits` input. Drop `play-review`'s original schema block before emitting the new one — the schema rule requires exactly one schema block per report (identified by trailing position or by the `"schema": "play-review/findings/v1"` key); evidence snippets that happen to be JSON may use `json` fences earlier in the report and do not count.
+Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Use the `Write` tool for atomic replacement (the symlink guard from `play-review`'s Write rules applies here too: `[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"` before writing). The remaining-set `findings[]` contains: every nit (regardless of anchor), plus any blocker that was skipped (`INVALID`/`DOWNGRADE`), plus the blocker that triggered the halt (if any). Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
+
+**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict subset of the pre-fix one: this skill only removes auto-fixed blockers from `findings[]`; it never adds new entries, never re-anchors lines, and never edits `body` / `why` / `recommendation` text. Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7) cannot tell from the file alone whether they are reading the pre-fix or post-`--fix` version — the order is workflow-determined (Phase 7 always runs after `branch-review --fix`). The schema does not carry a `source` discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Quick Reference
 
