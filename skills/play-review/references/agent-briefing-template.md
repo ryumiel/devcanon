@@ -7,7 +7,7 @@ Use this template when composing each Phase 3 reviewer's prompt in `skills/play-
 ## Required prompt structure
 
 ```
-Role: <one sentence — this agent's focus>
+Role: <role>
 
 Read the shared review context at <path-to-context-file> before reviewing.
 The file contains: working directory, refs, changed files (active diff),
@@ -29,16 +29,15 @@ context.
 
 ## Placeholder reference
 
-| Placeholder              | Source                                                        |
-| ------------------------ | ------------------------------------------------------------- |
-| `<one sentence>`         | Per-agent role description (Correctness, Data-safety, …)      |
-| `<path-to-context-file>` | `.ephemeral/<branch_slug>-<head_sha>-review-context.md`       |
-| `<active_diff_range>`    | `active_diff_range` skill input                               |
-| `<working_directory>`    | `working_directory` skill input                               |
-| Sub-checks               | Per-agent — diff-specific, referencing actual files and lines |
+| Placeholder              | Source                                                                 |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `<role>`                 | Per-agent role description, one sentence (Correctness, Data-safety, …) |
+| `<path-to-context-file>` | `.ephemeral/<branch_slug>-<head_sha>-review-context.md`                |
+| `<active_diff_range>`    | `active_diff_range` skill input                                        |
+| `<working_directory>`    | `working_directory` skill input                                        |
+| `<sub-checks>`           | Per-agent — diff-specific, referencing actual files and lines          |
 
 ## Notes
 
 - The shared-context file is written by Phase 2.5 of `skills/play-review/SKILL.md` before Phase 3 dispatch.
 - Per-agent role-specific sub-checks remain inline in the prompt — only the shared block is path-referenced.
-- Generic prompts (e.g., "review this diff") remain prohibited at the per-agent level.
