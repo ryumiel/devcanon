@@ -8,7 +8,7 @@ Behavioral signals that this skill is being violated.
 - Skip reviews when the plan has 2+ tasks (single-task plans skip per-task review by design — see ADR-0007)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
-- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see § Inputs); the per-task boundary is what stays inlined. See [ADR-0013](../../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
+- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. See [ADR-0013](../../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while either review has open issues
