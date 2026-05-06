@@ -232,7 +232,8 @@ deterministic ephemeral file and let each agent `Read` it. The path
 scheme parallels the findings envelope (see § Output) — see
 [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)
 for the substrate rationale; this file is internal phase scaffolding,
-not a consumer contract.
+not a consumer contract. The file lives under `.ephemeral/`
+(git-ignored, same residency as the findings envelope).
 
 ### Path
 
@@ -270,10 +271,12 @@ Compose the file with these sections, in order:
 ### Write rules
 
 - **Symlink guard before write.** `Write` follows symlinks; an attacker
-  pre-staging a link at the target would redirect the write. Reuse the
-  guard pattern from § Output:
+  pre-staging a link at the target would redirect the write (see § Output
+  for the fork-PR scenario this guard defends against). Reuse the guard
+  pattern from § Output:
 
   ```bash
+  HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"
   ```
@@ -299,8 +302,11 @@ path because external skills open it. The shared review-context file is
 internal to `play-review`: only Phase 3 agents dispatched by this skill
 read it, and the path is computed and embedded in their prompts by this
 skill — never parsed off conversation prose by an external caller. No
-consumer-side validation is needed; the symlink guard at write time is
-sufficient.
+consumer-side validation is needed _as long as_ this file remains
+internal to `play-review`'s Phase 3 dispatch; the symlink guard at write
+time is sufficient under that invariant. If a future change exposes the
+shared review-context file to external readers, restore the validation
+guard described in § Output.
 
 ### Why no notice line
 
@@ -528,7 +534,8 @@ Nits skip critic verification.
 5. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
 6. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
 7. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
-8. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line. **Always write the shared review-context file (Phase 2.5) before dispatching Phase 3 agents** — agents reference it by path. An absent or empty shared review-context file is a violation.
+8. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line.
+9. **Always write the shared review-context file (Phase 2.5) before dispatching Phase 3 agents** — agents reference it by path. An absent or empty shared review-context file is a violation.
 
 ## Red Flags — You Are Violating This Skill
 
