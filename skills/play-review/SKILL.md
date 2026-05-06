@@ -224,6 +224,96 @@ MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
 This summary is passed to the Architecture agent's briefing in Phase 3
 as anchor data. No findings are emitted at this step.
 
+## Phase 2.5: Compose shared review context
+
+Phase 3 dispatches multiple reviewer agents. Rather than re-paste the
+shared briefing material into every agent's prompt, write it once to a
+deterministic ephemeral file and let each agent `Read` it. The path
+scheme parallels the findings envelope (see § Output) — see
+[ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)
+for the substrate rationale; this file is internal phase scaffolding,
+not a consumer contract. The file lives under `.ephemeral/`
+(git-ignored, same residency as the findings envelope).
+
+### Path
+
+```
+.ephemeral/<branch_slug>-<head_sha>-review-context.md
+```
+
+`<branch_slug>` is derived identically to the findings envelope —
+reuse the `BRANCH_SLUG` shell binding computed in § Output.
+`<head_sha>` is the `head_sha` skill input, validated per § Output's
+SHA-format constraint (`^[0-9a-f]{40}$`).
+
+### Content
+
+Compose the file with these sections, in order:
+
+1. **Header** — `working_directory`, `base_ref`, `head_sha`,
+   `active_diff_range`, `full_pr_diff_range`, `mode`, `language_hints`
+   as a key/value list.
+2. **Changed files (active diff)** — `git diff --name-status "$ACTIVE_DIFF_RANGE"` output, fenced.
+3. **Doc-impact summary** — the `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`
+   lists from Phase 2 (always computed against `full_pr_diff_range`).
+   Emit `(none)` per list when empty so layout is stable.
+4. **Discovered guidelines** — for each guideline file matched by
+   Phase 1's globs, a `### <repo-relative-path>` heading followed by
+   the verbatim file contents. The "actual content, not file paths"
+   constraint is satisfied here, in the shared file, rather than per
+   agent.
+5. **Output format** — the same severity / category / anchor / evidence
+   spec every finding must conform to (see Phase 3 prose and
+   `## Output` § 1).
+6. **Prior review context** — emit only when `prior_threads` is
+   provided; the `prior_threads` array verbatim.
+
+### Write rules
+
+- **Symlink guard before write.** `Write` follows symlinks; an attacker
+  pre-staging a link at the target would redirect the write (see § Output
+  for the fork-PR scenario this guard defends against). Reuse the guard
+  pattern from § Output:
+
+  ```bash
+  HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
+  CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
+  [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"
+  ```
+
+- **Use the `Write` tool** for atomic replacement. Do not append.
+- **Existence check after write.**
+
+  ```bash
+  [ -s "$CONTEXT_FILE" ] || { echo "shared review-context write failed: $CONTEXT_FILE" >&2; exit 1; }
+  ```
+
+  A silent write failure would leave dispatched agents reading an
+  absent file and emitting findings without guideline awareness — fail
+  fast instead.
+
+- **Overwrite on each invocation.** Same `<branch_slug>` + `<head_sha>`
+  produces the same path; previous content is no longer authoritative.
+
+### Why no consumer path-validation guard
+
+The findings file (§ Output) requires consumers to validate the parsed
+path because external skills open it. The shared review-context file is
+internal to `play-review`: only Phase 3 agents dispatched by this skill
+read it, and the path is computed and embedded in their prompts by this
+skill — never parsed off conversation prose by an external caller. No
+consumer-side validation is needed _as long as_ this file remains
+internal to `play-review`'s Phase 3 dispatch; the symlink guard at write
+time is sufficient under that invariant. If a future change exposes the
+shared review-context file to external readers, restore the validation
+guard described in § Output.
+
+### Why no notice line
+
+The findings file emits `Findings written to <path>.` because external
+wrappers parse it. The shared review-context file has no external
+readers; documenting its existence in this section is enough.
+
 ## Phase 3: Spawn agents
 
 **Core agents (always spawned):**
@@ -261,16 +351,18 @@ doc-impact summary, active diff stays incremental.
 
 **Agent briefing — each prompt MUST include:**
 
-1. Role — one sentence
-2. Context — `working_directory`, `base_ref`, `head_sha`, changed files with +/- counts
-3. Active diff — the diff at `active_diff_range`
-4. Full-PR diff scope — equals active for branch-review; may be wider for pr-review follow-up narrow mode
-5. Discovered guidelines — actual content, not file paths
-6. Prior review context (when `prior_threads` provided) — threads, author replies
-7. Output format — file path (repo-relative), line number, severity (`Blocking` or `Nit`), category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or `Contracts`), code reference, recommendation, anchor classification
+1. Role — one sentence describing this agent's focus
+2. Shared review-context reference — instruct the agent to `Read` `.ephemeral/<branch_slug>-<head_sha>-review-context.md` (composed in Phase 2.5) before reviewing. The file carries header context, changed-file list, doc-impact summary, discovered guidelines, output format, and (when applicable) prior review threads.
+3. Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"` from `working_directory`
+4. Role-specific sub-checks — composed inline, referencing actual files and line counts visible in the diff
 
-Compose review-specific prompts referencing actual files and line counts.
-Generic prompts like "review this diff" are prohibited.
+The skeleton lives at [`skills/play-review/references/agent-briefing-template.md`](references/agent-briefing-template.md); follow it when adding a new dynamic agent.
+
+Per-agent role-specific sub-checks (item 4) must reference actual files
+and line counts from the diff. Generic prompts like "review this diff"
+are prohibited. The shared review-context block is path-referenced (see
+Phase 2.5) — that is the deliberate exception; each agent's role-specific
+block remains diff-specific.
 
 Run all agents in parallel.
 
@@ -443,11 +535,12 @@ Nits skip critic verification.
 6. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
 7. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
 8. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line.
+9. **Always write the shared review-context file (Phase 2.5) before dispatching Phase 3 agents** — agents reference it by path. An absent or empty shared review-context file is a violation.
 
 ## Red Flags — You Are Violating This Skill
 
 - You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
-- You modified files in `working_directory` other than the `.ephemeral/` findings file (see § Output) — this skill emits findings, not edits
+- You modified files in `working_directory` other than the `.ephemeral/` findings file or shared review-context file (see § Output and Phase 2.5) — this skill emits findings, not edits
 - You created or removed a worktree — the wrapper handles that
 - You skipped the Data-safety agent because "there's no security-relevant code"
 - You showed findings as a table with file:line but no code snippets
@@ -459,11 +552,12 @@ Nits skip critic verification.
 
 ## Error Handling
 
-| Scenario                             | Action                                                         |
-| ------------------------------------ | -------------------------------------------------------------- |
-| Required input missing               | Stop, report which input the wrapper failed to provide         |
-| `working_directory` empty or invalid | Stop, report                                                   |
-| Diff at `active_diff_range` is empty | Report "no changes to review", emit empty findings             |
-| No guidelines found                  | Note in the findings preamble, proceed with built-in knowledge |
-| Agent fails / times out              | Report partial results in findings; mark missing agents        |
-| Critic fails                         | Report findings without critic verdicts; mark them as such     |
+| Scenario                                                                              | Action                                                                                 |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Required input missing                                                                | Stop, report which input the wrapper failed to provide                                 |
+| `working_directory` empty or invalid                                                  | Stop, report                                                                           |
+| Diff at `active_diff_range` is empty                                                  | Report "no changes to review", emit empty findings                                     |
+| No guidelines found                                                                   | Note in the findings preamble, proceed with built-in knowledge                         |
+| Agent fails / times out                                                               | Report partial results in findings; mark missing agents                                |
+| Critic fails                                                                          | Report findings without critic verdicts; mark them as such                             |
+| Phase 2.5 shared review-context write fails (`[ -s "$CONTEXT_FILE" ]` exits non-zero) | Stop, report the path; do NOT dispatch Phase 3 agents — they would read an absent file |
