@@ -70,7 +70,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `language_hints` = computed in Phase 1
 - `prior_threads` = (none); `last_reviewed_sha` = (none); `is_followup_narrow` = `false`
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section.
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
 ## Phase 3: Dispose
 
