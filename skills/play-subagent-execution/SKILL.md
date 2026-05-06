@@ -114,7 +114,12 @@ digraph process {
 
     "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
     "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no"];
-    "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes (skip per-task review)"];
+    "Plan has exactly one task?" -> "Skip-dispatch guardrails all pass?" [label="yes (skip per-task review)"];
+    "Skip-dispatch guardrails all pass?" [shape=diamond];
+    "Skip-dispatch guardrails all pass?" -> "Controller executes Write/Edit + verify + commit inline" [label="yes"];
+    "Skip-dispatch guardrails all pass?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no (fallback)"];
+    "Controller executes Write/Edit + verify + commit inline" [shape=box];
+    "Controller executes Write/Edit + verify + commit inline" -> "Mark task complete in TodoWrite";
     "Dispatch the implementer agent (references/implementer-prompt.md)" -> "Implementer agent asks questions?";
     "Implementer agent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
@@ -137,6 +142,8 @@ digraph process {
 ```
 
 > The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md`. See "Mechanical Task Hint" below.
+>
+> When the plan has exactly one task and all four skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
 
 ## Model Selection
 
