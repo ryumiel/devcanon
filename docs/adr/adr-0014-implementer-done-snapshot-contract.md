@@ -119,7 +119,7 @@ Per-field contract:
 | `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                          |
 | `files`    | array                                      | One object per file the implementer created or modified for this task.                                                                                                                                   |
 | `path`     | string, repo-relative                      | Path of the modified file.                                                                                                                                                                               |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status` letters mapped to words: `A`→`added`, `M`→`modified`, `D`→`deleted`, `R`/`C`→`modified`.                                                                                |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status --no-renames` letters mapped to words: `A`→`added`, `M`→`modified`, `D`→`deleted`. `--no-renames` decomposes any rename into delete+add, so `R`/`C` never appear.        |
 | `lines`    | integer                                    | Visible line count post-commit (`awk 'END{print NR}' <path>`). Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
 | `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                                                                                                                                          |
 | `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                                                                                                                                      |
@@ -134,8 +134,10 @@ The `files` array MUST NOT be empty: a DONE report implies at least
 one commit landed between `BASE_SHA` and `HEAD`. If the implementer
 made no changes, it reports BLOCKED instead of writing a snapshot.
 
-Files reported by `git diff --numstat` as binary (`-\t-\t<path>`)
-emit `"skipped": "binary"`.
+Files reported by `git diff --numstat --no-renames` as binary
+(`-\t-\t<path>`) emit `"skipped": "binary"`. Deletion dominates binary
+detection: when `status == "deleted"`, the file emits neither `content`
+nor `skipped`, even if numstat reports the path as binary.
 
 ### Notice line
 

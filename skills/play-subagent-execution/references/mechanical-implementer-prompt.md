@@ -66,11 +66,14 @@ Task tool (general-purpose):
        `--rawfile content` from the jq command and emit
        `skipped: $skipped` instead). Mutual exclusion: exactly one of
        `content` / `skipped` per non-deleted file. Deleted files emit
-       neither field. Enumerate files with
-       `git diff --name-status ${BASE_SHA}..HEAD` (letters: A→added,
-       M→modified, D→deleted; treat R/C as modified); detect binary
-       via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows. If
-       `${BASE_SHA}..HEAD` is empty, report BLOCKED rather than
+       neither field. Deletion dominates binary detection: when
+       `status == "deleted"`, emit neither `content` nor `skipped`
+       even if numstat reports the path as binary. Enumerate files with
+       `git diff --name-status --no-renames ${BASE_SHA}..HEAD` (letters:
+       A→added, M→modified, D→deleted; `--no-renames` decomposes any
+       rename into delete+add); detect binary via
+       `git diff --numstat --no-renames ${BASE_SHA}..HEAD`'s `-\t-\t`
+       rows. If `${BASE_SHA}..HEAD` is empty, report BLOCKED rather than
        writing a snapshot with an empty `files` array.
     6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
        tool if you assembled JSON another way; atomic replacement; do

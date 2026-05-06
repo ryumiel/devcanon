@@ -117,7 +117,7 @@ Task tool (general-purpose):
        SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
        ```
 
-    4. Apply the symlink guard (per ADR-0012 fork-PR untrust note):
+    4. Apply the symlink guard (in case a fork-PR working tree pre-staged a symlink at this path):
 
        ```bash
        [ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"
@@ -188,8 +188,9 @@ Task tool (general-purpose):
 
        Per-file rules:
        - Enumerate every file changed during this task (run
-         `git diff --name-status ${BASE_SHA}..HEAD` and map letters: `A`→added,
-         `M`→modified, `D`→deleted; treat copies/renames (`R`/`C`) as modified).
+         `git diff --name-status --no-renames ${BASE_SHA}..HEAD` and map letters:
+         `A`→added, `M`→modified, `D`→deleted). `--no-renames` decomposes any
+         rename into a delete plus an add, so only `A`/`M`/`D` appear.
        - If `${BASE_SHA}..HEAD` is empty (no commits landed during this task),
          the snapshot contract is undefined — report BLOCKED rather than
          emitting a snapshot with an empty `files` array.
@@ -204,8 +205,11 @@ Task tool (general-purpose):
          to `"size>64KB"` or `"binary"`. Mutual exclusion: exactly one of
          `content` / `skipped` present per non-deleted file. Deleted files
          emit neither field.
-       - Detect binary via `git diff --numstat ${BASE_SHA}..HEAD` — a `-\t-\t<path>`
-         row indicates binary; emit `"skipped": "binary"`.
+       - Detect binary via `git diff --numstat --no-renames ${BASE_SHA}..HEAD` —
+         a `-\t-\t<path>` row indicates binary; emit `"skipped": "binary"`.
+       - Deletion dominates binary detection: when `status == "deleted"`,
+         emit neither `content` nor `skipped`, even if numstat reports the
+         path as binary.
 
     6. Persist the envelope to `$SNAPSHOT_FILE`. The Step 5 recipe already
        redirects `jq` output to the path; if you assembled the JSON
