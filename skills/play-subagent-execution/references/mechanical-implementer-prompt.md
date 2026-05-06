@@ -55,16 +55,20 @@ Task tool (general-purpose):
        using `jq -n --rawfile content <path> ...` (do NOT hand-quote file
        bytes; do NOT use `$(cat path)` inside `--arg` — command
        substitution strips trailing newlines). Envelope shape:
-       `{schema, task_id, head_sha, files: [{path, status, lines, bytes, sha256, content}]}`.
-       Per file: `status` ∈ {added, modified, deleted}; `lines` from
-       `wc -l`; `bytes` from `wc -c`; `sha256` from `shasum -a 256`;
-       `content` is included when `bytes <= 64000`, `status != "deleted"`,
-       and the file is not binary. When `content` is omitted on a
-       non-deleted file, set `"skipped"` to `"size>64KB"` or `"binary"`.
-       Mutual exclusion: exactly one of `content` / `skipped` per
-       non-deleted file. Deleted files emit neither field. Enumerate
-       files with `git diff --name-status ${BASE_SHA}..HEAD`; detect
-       binary via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows.
+       `{schema, task_id, head_sha, files: [{path, status, lines, bytes, sha256, content}]}`,
+       where `task_id` is the identifier from your task header (e.g.
+       `"Task 3"`). Per file: `status` ∈ {added, modified, deleted};
+       `lines` from `wc -l`; `bytes` from `wc -c`; `sha256` from
+       `shasum -a 256`; `content` is included when `bytes <= 64000`,
+       `status != "deleted"`, and the file is not binary. When `content`
+       is omitted on a non-deleted file, set `"skipped"` to `"size>64KB"`
+       or `"binary"` (drop `--rawfile content` from the jq command and
+       emit `skipped: $skipped` instead). Mutual exclusion: exactly one
+       of `content` / `skipped` per non-deleted file. Deleted files emit
+       neither field. Enumerate files with
+       `git diff --name-status ${BASE_SHA}..HEAD` (letters: A→added,
+       M→modified, D→deleted; treat R/C as modified); detect binary
+       via `git diff --numstat ${BASE_SHA}..HEAD`'s `-\t-\t` rows.
     6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
        tool if you assembled JSON another way; atomic replacement; do
        not append).
