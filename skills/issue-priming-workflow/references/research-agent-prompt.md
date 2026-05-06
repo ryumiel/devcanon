@@ -104,6 +104,13 @@ Agent(
     Do NOT dump raw findings. Synthesize. The brief must be useful to
     someone who has never seen the raw research.
 
+    Note: the dispatching workflow (issue-priming-workflow Phase 3)
+    persists this brief under `.ephemeral/` and emits the
+    `Research brief written to <path>.` notice line after you return.
+    You do NOT need to write the brief to disk yourself; return it in
+    the agent body using the format above. See ADR-0013 for the
+    convention.
+
     Work from: <REPO_ROOT>
 )
 ````
