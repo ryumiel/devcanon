@@ -105,19 +105,19 @@ teardown (consistent with ADR-0012 cleanup).
 
 Per-field contract:
 
-| Field      | Type                                       | Notes                                                                                         |
-| ---------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                     |
-| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.      |
-| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                               |
-| `files`    | array                                      | One object per file the implementer created or modified for this task.                        |
-| `path`     | string, repo-relative                      | Path of the modified file.                                                                    |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status` letters mapped to words.                                     |
-| `lines`    | integer                                    | Line count post-commit (`wc -l`). For deleted files, `0`.                                     |
-| `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                               |
-| `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                           |
-| `content`  | string OR omitted                          | Verbatim post-commit file content. Present iff `bytes <= 64_000` AND `status != "deleted"`.   |
-| `skipped`  | string OR omitted                          | When `content` is omitted, the reason (`"size>64KB"`, `"deleted"`, `"binary"`).               |
+| Field      | Type                                       | Notes                                                                                       |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                   |
+| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.    |
+| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                             |
+| `files`    | array                                      | One object per file the implementer created or modified for this task.                      |
+| `path`     | string, repo-relative                      | Path of the modified file.                                                                  |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status` letters mapped to words.                                   |
+| `lines`    | integer                                    | Line count post-commit (`wc -l`). For deleted files, `0`.                                   |
+| `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                             |
+| `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                         |
+| `content`  | string OR omitted                          | Verbatim post-commit file content. Present iff `bytes <= 64_000` AND `status != "deleted"`. |
+| `skipped`  | string OR omitted                          | When `content` is omitted, the reason (`"size>64KB"`, `"deleted"`, `"binary"`).             |
 
 Mutual exclusion: exactly one of `content` or `skipped` is present
 per file, except when `status == "deleted"` (both omitted; the
@@ -225,7 +225,7 @@ nit-fix path sees it.
 ### Skip-dispatch exclusion
 
 The contract scope is the **dispatched-implementer path only**. Issue
-#175 (skip-dispatch variant for trivial single-task plans) does not
+`#175` (skip-dispatch variant for trivial single-task plans) does not
 invoke this contract because no implementer is dispatched and no DONE
 report exists; the plan body is itself the snapshot. This is named
 in `play-subagent-execution/SKILL.md` controller prose so a reader
