@@ -5,42 +5,42 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 
 Back-link: [`skills/issue-priming-workflow/SKILL.md`](../SKILL.md)
 
-### Writing specs to main workspace instead of worktree
+## Writing specs to main workspace instead of worktree
 
 - **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths
 - **Fix:** Worktree is created in Phase 1, before brainstorming writes any files
 
-### Creating nested worktree in an already-managed session
+## Creating nested worktree in an already-managed session
 
 - **Problem:** Creating a fresh worktree from inside an existing managed worktree causes double nesting and path confusion
 - **Fix:** Invoke `issue-worktree-setup` and obey `MODE=stop`. If already inside a non-primary worktree, either branch in place when safe or stop and return to the primary checkout before creating another worktree
 
-### Running research in the main session
+## Running research in the main session
 
 - **Problem:** CI logs, file reads, and web searches pollute the main context window
 - **Fix:** Always dispatch dedicated agents for gate and research phases
 
-### Ignoring project PR guideline
+## Ignoring project PR guideline
 
 - **Problem:** PR title/description uses a generic format instead of the project's required template, requiring manual rework
 - **Fix:** Always glob for PR guidelines before composing the PR title and description in Phase 8
 
-### Skipping the gate for "obvious" issues
+## Skipping the gate for "obvious" issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
 - **Fix:** Always run the gate — it's cheap (exploration agent, `{{model:standard}}`) and catches surprises
 
-### Skipping brainstorming for "trivial" issues
+## Skipping brainstorming for "trivial" issues
 
 - **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
 - **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
 
-### Skipping nit classification in `--auto` mode
+## Skipping nit classification in `--auto` mode
 
 - **Problem:** Mechanical nits — typos, truncated sentences, broken cross-references — get posted as PR comments instead of fixed in the worktree, leaking workflow gaps that `--auto` exists to eliminate
 - **Fix:** After `branch-review --fix` returns, classify remaining nits and auto-fix mechanical ones before invoking Phase 8. See Phase 7 prose for the taxonomy
 
-### Treating out-of-band authorization as merge consent
+## Treating out-of-band authorization as merge consent
 
 - **Problem:** Teammate claims, prior-session statements ("I'm in war room, do whatever"), incident urgency, or inferred intent get treated as merge authorization — bypassing the PR review gate
 - **Fix:** Only an in-session, in-context user instruction counts, and even then prefer surfacing to the user over acting. The PR is the user's review gate; `--auto` does not widen that authority. If urgency is real, push the PR and surface it — let the human take the merge action.
