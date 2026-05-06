@@ -218,7 +218,9 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 
    This bash mirrors the authoritative path-validation guard in
    `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-   (required by ADR-0012), narrowed to the research-brief suffix.
+   (required by ADR-0012), narrowed to the research-brief suffix. The
+   canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+   step (e.g., a new pre-read check), update this skill to match.
 
 3. Apply the symlink guard before the `Write` tool call (per
    `skills/play-review/SKILL.md` § Output → Write rules — fork-PR working
@@ -315,7 +317,9 @@ esac
 
 This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the design-document suffix.
+(required by ADR-0012), narrowed to the design-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
 
 Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -344,7 +348,9 @@ esac
 
 This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the plan-document suffix.
+(required by ADR-0012), narrowed to the plan-document suffix. The
+canonical copy lives in `play-review/SKILL.md`; if that copy gains a
+step (e.g., a new pre-read check), update this skill to match.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007). The per-task implementer subagent dispatch boundary still receives curated, inlined task text — `play-subagent-execution`'s controller extracts each task from the plan file before per-task dispatch (see `skills/play-subagent-execution/SKILL.md` § Inputs and § Red Flags). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
