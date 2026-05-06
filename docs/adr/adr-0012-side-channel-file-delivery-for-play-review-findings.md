@@ -6,7 +6,9 @@ Accepted
 
 ## Context
 
-ADR-0010 introduced the `play-review/findings/v1` JSON schema and
+ADR-0010 introduced the `play-review/findings/v1` JSON schema (a
+top-level envelope with `schema`, `findings`, and `carry_forward`
+fields, defined in `skills/play-review/SKILL.md` § Output) and
 specified its transport: a trailing fenced `json` block appended to
 `play-review`'s conversation output. Wrappers (`branch-review`,
 `pr-review`) re-emit the same block on their surfaces;
@@ -15,11 +17,13 @@ specified its transport: a trailing fenced `json` block appended to
 classify nits. The same envelope traverses 4 conversation contexts
 per `--auto` run.
 
-In PR #163's run that propagation was a measurable share of total
-session tokens (~5KB × 4 hops). The cost evidence was not available
-when ADR-0010 was written; ADR-0010 acknowledged a "wrappers re-emit
-the block on their surfaces" cost in its Consequences but had no
-empirical baseline to weigh it against.
+In PR #163's run that propagation was observed to be a measurable
+share of total session tokens — on the order of 5KB per hop across
+4 hops, though the exact figure depends on finding count and run.
+The cost evidence was not available when ADR-0010 was written;
+ADR-0010 acknowledged a "wrappers re-emit the block on their
+surfaces" cost in its Consequences but had no empirical baseline to
+weigh it against.
 
 ADR-0010's _Alternatives considered_ already considered and **rejected**
 a side-channel `.ephemeral/findings.json`, with this stated reason
@@ -145,10 +149,6 @@ Consumer responsibilities:
   field shape it defines remain authoritative — only the transport
   paragraph (Decision § "Wrappers re-emit the block on their surfaces"
   and Positional rules) is overridden by this ADR.
-- This is the first supersession in `docs/adr/`. The pattern set
-  here — old ADR's Status updated to `Superseded by ADR-NNNN` plus a
-  short head note pointing forward, body retained as historical
-  record — should be followed for future supersessions.
 
 ## Alternatives considered
 
