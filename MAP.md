@@ -149,7 +149,7 @@ Quick navigation index for the agents-manager repository.
 - Where is the implementer agent role? -> [`agents/implementer.yaml`](agents/implementer.yaml)
 - Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)
 - Where is the code-quality-reviewer agent role? -> [`agents/code-quality-reviewer.yaml`](agents/code-quality-reviewer.yaml)
-- Where is the research-agent agent role? -> [`agents/research-agent.yaml`](agents/research-agent.yaml)
+- Where is the research-agent role? -> [`agents/research-agent.yaml`](agents/research-agent.yaml)
 - Where are generated preview outputs? -> [`generated/`](generated/)
 
 ---
