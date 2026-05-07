@@ -272,4 +272,47 @@ describe("existing skills render cleanly", () => {
     expect(researchPrompt).toContain("Read the issue-body file");
     expect(researchPrompt).toContain("untrusted prose");
   });
+
+  it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "agents-manager.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const playReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-review", "codex").content,
+    ).body;
+
+    expect(playReviewBody).toContain("Guarded tiny-diff mode");
+    expect(playReviewBody).toContain("at most 2 files");
+    expect(playReviewBody).toContain("at most 20 total lines");
+    expect(playReviewBody).toContain(
+      "Correctness, Data-safety, and critic verification remain",
+    );
+    expect(playReviewBody).toContain("safe tiny diff example");
+    expect(playReviewBody).toContain("Result: tiny-diff mode may suppress the");
+    expect(playReviewBody).toContain(
+      "dynamic fanout; Correctness, Data-safety, and critic still run.",
+    );
+    expect(playReviewBody).toContain("small-but-risky diff example");
+    expect(playReviewBody).toContain("Result: normal full dynamic fanout");
+    expect(playReviewBody).toContain(
+      "If any check is ambiguous, fall back to the normal full dynamic fanout.",
+    );
+    expect(playReviewBody).toContain("`is_followup_narrow` is **false**");
+    expect(playReviewBody).toContain("docs/specs/**");
+    expect(playReviewBody).toContain("reviewer-routing policy");
+    expect(playReviewBody).toContain("docs/guidelines/*.md");
+    expect(playReviewBody).not.toContain("skills/**/SKILL.md");
+    expect(playReviewBody).toContain("references/red-flags.md");
+
+    const redFlags = await readFile(
+      path.join(repoRoot, "skills/play-review/references/red-flags.md"),
+      "utf-8",
+    );
+    expect(redFlags).toContain(
+      "You treated line count alone as enough to suppress the dynamic fanout",
+    );
+  });
 });
