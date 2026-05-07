@@ -296,6 +296,66 @@ See [`references/internal-rationale.md`](references/internal-rationale.md#why-no
 
 See [`references/internal-rationale.md`](references/internal-rationale.md#why-no-notice-line) for why this file emits no notice line.
 
+## Phase 2.75: Guarded tiny-diff mode
+
+Before spawning dynamic agents, classify the active diff for a narrow
+tiny-diff exception. This exception narrows only the dynamic-agent
+fanout. **Correctness, Data-safety, and critic verification remain
+mandatory.**
+
+Tiny-diff mode activates only when **all** of these are true for
+`active_diff_range`:
+
+1. The active diff touches **at most 2 files**.
+2. The active diff changes **at most 20 total lines** (`added + removed`).
+3. Every touched path stays in the low-risk allowlist below.
+4. No high-risk disqualifier below is present.
+5. `is_followup_narrow` is **false**.
+
+If any check is ambiguous, fall back to the normal full dynamic fanout.
+False negatives are acceptable; false positives are not.
+
+**Low-risk allowlist (all touched files must qualify):**
+
+- `docs/guidelines/*.md` except `documentation-standard.md`,
+  `documentation-checklists.md`, `agent-authoring-guide.md`,
+  `writing-skills.md`, `pr-guideline.md`, and
+  `project-management-model.md`
+- `skills/**/references/red-flags.md`
+- `skills/**/references/common-mistakes.md`
+
+These files remain eligible only when the diff stays prose-only: no
+new or modified path-validation guards, shell-command examples,
+tool-invocation examples, or review hard-rule text.
+
+**High-risk disqualifiers (any one disables tiny-diff mode):**
+
+- file deletion, rename, mode change, or binary diff
+- any touched `AGENTS.md`, `CONTRIBUTING.md`, `MAP.md`,
+  `docs/adr/**`, `docs/arch/**`, or `docs/specs/**`
+- any touched source file, test file, manifest, schema, or config file
+- any diff that adds or changes shell commands, external-invocation
+  examples, path-validation guards, or critic / core-review rules
+- any diff that changes reviewer-routing policy such as tiny-diff
+  thresholds, allowlists, disqualifiers, the dynamic-agent trigger
+  table, or follow-up override behavior
+- any follow-up narrow diff (`is_followup_narrow == true`)
+
+When tiny-diff mode activates, suppress **all** dynamic agents from the
+Phase 3 table. When tiny-diff mode does **not** activate, use the normal
+Phase 3 dispatch table unchanged.
+
+**safe tiny diff example:** two wording-only edits in
+`docs/guidelines/code-review-guideline.md` and
+`skills/play-review/references/red-flags.md`, 8 lines changed total,
+no commands or guards touched. Result: tiny-diff mode may suppress the
+dynamic fanout; Correctness, Data-safety, and critic still run.
+
+**small-but-risky diff example:** a 6-line edit in
+`skills/play-review/SKILL.md` that changes a path-validation guard or a
+`gh` command example. Result: normal full dynamic fanout, because the
+line count is small but the change class is risky.
+
 ## Phase 3: Spawn agents
 
 **Core agents (always spawned):**
