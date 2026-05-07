@@ -96,6 +96,7 @@ WORKTREE_PATH=$(git rev-parse --show-toplevel)
 <test command> || {
   echo "Tests failing on merged result. Halting before cleanup."
   echo "Worktree preserved at $WORKTREE_PATH. Feature branch preserved at <feature-branch>."
+  echo "Base branch remains checked out at the failed merged result. Recover it manually before retrying."
   exit 1
 }
 
