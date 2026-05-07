@@ -11,7 +11,8 @@ effort: xhigh
 
 Review the diff for correctness, regressions, missing tests, and unit
 decomposition. Surface concrete findings only; do not rewrite.
-Distinguish Critical, Important, and Minor issues in your report.
+Classify each finding as Blocking (prevents approval until fixed) or
+Nit (real issue that does not block approval).
 "
 `;
 
@@ -25,7 +26,8 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review the diff for correctness, regressions, missing tests, and unit
 decomposition. Surface concrete findings only; do not rewrite.
-Distinguish Critical, Important, and Minor issues in your report.
+Classify each finding as Blocking (prevents approval until fixed) or
+Nit (real issue that does not block approval).
 """
 "
 `;
