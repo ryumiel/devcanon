@@ -160,7 +160,7 @@ fi
 WORKTREES_DIR="$CURRENT_WORKTREE/.worktrees"
 IGNORE_PROBE=".worktrees/.agents-manager-ignore-probe"
 
-if ! git check-ignore -q "$IGNORE_PROBE" 2>/dev/null; then
+if ! git -C "$CURRENT_WORKTREE" check-ignore -q "$IGNORE_PROBE" 2>/dev/null; then
   echo "'.worktrees/' is not ignored in this repo." >&2
   echo "Add '.worktrees/' to .gitignore and commit before re-running." >&2
   exit 1

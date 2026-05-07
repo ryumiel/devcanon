@@ -71,7 +71,7 @@ async function createOriginRepo(
   await writeFile(path.join(primaryDir, "README.md"), "# temp repo\n", "utf-8");
   await writeFile(
     path.join(primaryDir, ".gitignore"),
-    ".worktrees/\n",
+    "/.worktrees/\n",
     "utf-8",
   );
   await runGit(["add", "README.md", ".gitignore"], primaryDir);
