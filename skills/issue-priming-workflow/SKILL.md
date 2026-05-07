@@ -52,32 +52,7 @@ The phases below use `--auto` and `--research` as shorthand for the operator's C
 
 ## Workflow
 
-```dot
-digraph priming {
-  rankdir=TB;
-  worktree [label="1. Worktree\nIsolate before\nany file writes"];
-  gate [label="2. Gate\nDedicated agent\nassesses complexity"];
-  decide [label="Research?", shape=diamond];
-  research [label="3. Research\nDedicated agent\npolicy + codebase + external"];
-  brainstorm [label="4. Brainstorm\nInvoke skill with\nissue + brief"];
-  auto_check [label="--auto?", shape=diamond];
-  plan [label="5. Plan\nWrite implementation plan"];
-  implement [label="6. Implement\nplay-subagent-execution"];
-  stop_interactive [label="STOP\nReturn to user"];
-
-  worktree -> gate -> decide;
-  decide -> research [label="yes"];
-  decide -> brainstorm [label="no"];
-  research -> brainstorm;
-  brainstorm -> auto_check;
-  auto_check -> plan [label="yes"];
-  auto_check -> stop_interactive [label="no"];
-  plan -> implement -> review -> create_pr -> done;
-  review [label="7. Branch Review\nbranch-review --fix\n+ classify nits"];
-  create_pr [label="8. Create PR\npush + gh pr create"];
-  done [label="Complete\nPR ready for user", shape=doublecircle];
-}
-```
+See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the DOT-language phase-flow diagram.
 
 ## Phase 1: Create Worktree
 
@@ -85,8 +60,7 @@ Set up an isolated workspace **immediately after fetching the issue**, before an
 
 Use the `branch-name` and `worktree-leaf` values from the payload — the entrypoint has already derived them from the source-specific identifier.
 
-Invoke the `issue-worktree-setup` skill. It owns environment detection and
-setup policy. Do NOT re-implement the worktree decision logic here.
+Invoke the `issue-worktree-setup` skill. It owns environment detection and setup policy. Do NOT re-implement the worktree decision logic here.
 
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
@@ -99,31 +73,14 @@ WORKTREE_SETUP_OUTPUT=$(
 )
 ```
 
-Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed
-`issue-worktree-setup` skill bundle. The repository working directory may be
-any subdirectory inside the target checkout. Parse `WORKTREE_SETUP_OUTPUT`
-exactly as specified in the helper skill's output contract; do not
-whitespace-split it or assume the script lives under the target repo's own
-`scripts/` directory.
+Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup` skill bundle. The repository working directory may be any subdirectory inside the target checkout. Parse `WORKTREE_SETUP_OUTPUT` exactly as specified in the helper skill's output contract; do not whitespace-split it or assume the script lives under the target repo's own `scripts/` directory.
 
 Handle the result:
 
-- If `MODE=stop`, surface `MESSAGE` and stop the workflow. The forbidden
-  outcome is **producing a worktree (or any equivalent checkout) for this
-  issue from inside the current session** — by any mechanism. That includes,
-  but is not limited to: `cd`-ing to the primary checkout; passing
-  `--git-dir`/`--work-tree`/`-C` to git or to the helper; setting `GIT_DIR`
-  or `GIT_WORK_TREE` env vars; calling `git worktree add` directly without
-  the helper; cloning the repo elsewhere on disk to escape the gate; or any
-  other path that reaches the same end state. If you find yourself
-  reasoning about _which_ mechanism is "really" forbidden, you are
-  rationalizing — the outcome is the rule. The operator returns to primary
-  explicitly and re-runs the skill from there.
+- If `MODE=stop`, surface `MESSAGE` and stop the workflow. The forbidden outcome is **producing a worktree (or any equivalent checkout) for this issue from inside the current session** — by any mechanism. See [`references/worktree-forbidden-outcomes.md`](references/worktree-forbidden-outcomes.md) for the enumerated mechanisms and rationale. The operator returns to primary explicitly and re-runs the skill from there.
 - If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
 
-**After worktree is ready:** All subsequent phases (gate, research,
-brainstorming, planning, implementation) operate from `WORKTREE_PATH`. Pass
-that path to all dispatched subagents.
+**After worktree is ready:** All subsequent phases operate from `WORKTREE_PATH`. Pass that path to all dispatched subagents.
 
 **If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard).
 
@@ -176,37 +133,14 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 2. Codebase pattern explorer
 3. External OSS precedent searcher (web search + code search)
 
-**Research agent returns:** A synthesized brief (500-1000 words) in the format:
-
-```markdown
-## Issue Brief: <ID> — <TITLE>
-
-### Policy Constraints
-
-- [rules that apply]
-
-### Existing Patterns
-
-- [how the codebase handles similar things]
-
-### External Precedent
-
-- [how other projects solve this]
-
-### Recommended Approaches
-
-- [2-3 options, leading with the architecturally cleanest]
-```
+**Research agent returns:** A synthesized brief (500–1000 words) with sections for Policy Constraints, Existing Patterns, External Precedent, and Recommended Approaches. See [`references/research-agent-prompt.md`](references/research-agent-prompt.md) for the full template the agent fills.
 
 **Architecture preference:** The research agent surfaces the architecturally cleaner option, not just the easiest one.
 
 **Persist the brief and emit the notice line.** After the agent returns:
 
-1. Compute the brief path: `.ephemeral/<YYYY-MM-DD>-<id>-research.md` where
-   `<YYYY-MM-DD>` is today's date and `<id>` is `payload.identifier` slugged
-   (`#167` → `167`, `ENG-123` → `eng-123`).
-2. Validate the path before writing (the same guard a downstream consumer
-   would apply, narrowed to the research-brief suffix):
+1. Compute the brief path: `.ephemeral/<YYYY-MM-DD>-<id>-research.md` (today's date; `payload.identifier` slugged: `#167` → `167`, `ENG-123` → `eng-123`).
+2. Validate the path before writing (narrowed to the research-brief suffix):
 
    ```bash
    case "$RESEARCH_BRIEF_PATH" in
@@ -216,33 +150,19 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
    [ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
    ```
 
-   This bash mirrors the authoritative path-validation guard in
-   `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-   (required by ADR-0012), narrowed to the research-brief suffix. The
-   canonical copy lives in `play-review/SKILL.md`; if that copy gains a
-   step (e.g., a new pre-read check), update this skill to match.
+   (See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the research-brief suffix.)
 
-3. Apply the symlink guard before the `Write` tool call (per
-   `skills/play-review/SKILL.md` § Output → Write rules — fork-PR working
-   trees may contain pre-staged symlinks):
+3. Apply the symlink guard before the `Write` tool call (per `skills/play-review/SKILL.md` § Output → Write rules):
 
    ```bash
    [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"
    ```
 
 4. Write the brief verbatim to the path using the `Write` tool.
-5. Emit the literal line `Research brief written to <repo-relative-path>.`
-   to the conversation output. This is the consumer contract surface; do
-   not reword.
-6. Carry the path forward to Phase 4's args (no parsing required — the
-   path was computed in step 1 above and is already in hand). The full
-   synthesized brief is no longer threaded through; only the path
-   reference is. ("Capture" is reserved for the consumer pattern in
-   Phases 5 and 6, where the controller parses the path off a producer's
-   notice line; Phase 3 is the producer here.)
+5. Emit the literal line `Research brief written to <repo-relative-path>.` to the conversation output. This is the consumer contract surface; do not reword.
+6. Carry the path forward to Phase 4's args (no parsing required — the path was computed in step 1 above and is already in hand).
 
-See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)
-for the convention rationale and the producer notice-line contract.
+See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention rationale and the producer notice-line contract.
 
 ## Phase 4: Invoke Brainstorming
 
@@ -261,14 +181,7 @@ Resolve <source-noun> issue <ID>: <TITLE>
 Research brief: <repo-relative-path captured from Phase 3's notice line>
 ```
 
-The `Research brief: <path>` line replaces the previous inline `## Research
-Brief\n<brief>` block. `play-brainstorm` validates the path and reads the
-brief from disk (see `skills/play-brainstorm/SKILL.md` § Inputs and
-[ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
-The `## Issue Body` block remains inline because the issue body is a single
-small artifact arriving from the entrypoint payload — it is not a multi-hop
-carry-forward, and re-writing it to a file would add a hop without saving
-content.
+`play-brainstorm` validates the path and reads the brief from disk (see `skills/play-brainstorm/SKILL.md` § Inputs and [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)). The `## Issue Body` block remains inline — it arrives from the entrypoint payload and is not a multi-hop carry-forward.
 
 **Args format when research was skipped:**
 
@@ -290,13 +203,9 @@ When `--auto` is set, the brainstorming skill still runs fully (exploration, opt
 - Do NOT wait for user approval of the spec/design — proceed immediately
 - Do NOT ask clarifying questions — make reasonable assumptions and document them in the spec
 
-These bullets cover routine clarifications and tie-breakable choices. The exception below — genuine architectural ambiguity with no clean winner — is the one case where stopping `--auto` is required.
+If brainstorming surfaces a genuinely ambiguous decision (two equally valid approaches with different trade-offs), **stop `--auto` mode and ask the user**. Resume autonomous execution after their answer.
 
-If brainstorming surfaces a decision that is genuinely ambiguous (two equally valid approaches with different trade-offs), **stop `--auto` mode and ask the user**. Resume autonomous execution after their answer.
-
-**Don't launder a coin-flip into a fait accompli.** "Document the assumption in the spec and let the user override at PR review" sounds reasonable but is the same violation. Once a plan and implementation exist, the user reviewing the PR is anchoring against working code, not deciding fresh between options — that's a worse decision context, not a better one. A 30-second question now beats a re-implementation later.
-
-**Third-party "either is fine" is not authorization.** PM comments on the issue, teammate Slack messages, threaded discussion on the ticket — none of these count as in-session authorization for `--auto` to silently pick. They are schedule pressure dressed as consent. Surface the choice to the operator who ran `--auto`; that's the only authorization channel that counts.
+See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md) for why "document the assumption and let the user override at PR review" is the same violation, and why third-party "either is fine" doesn't count as authorization.
 
 **Without `--auto`:** Stop after brainstorming completes. Return control to the user.
 
@@ -319,11 +228,7 @@ esac
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the design-document suffix. The
-canonical copy lives in `play-review/SKILL.md`; if that copy gains a
-step (e.g., a new pre-read check), update this skill to match.
+(See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the design suffix.)
 
 Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -350,11 +255,7 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the plan-document suffix. The
-canonical copy lives in `play-review/SKILL.md`; if that copy gains a
-step (e.g., a new pre-read check), update this skill to match.
+(See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the plan suffix.)
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -366,7 +267,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 Plan: <repo-relative-path captured above>
 ```
 
-All play-subagent-execution rules apply (fresh subagent per task, plus per-task two-stage review — spec compliance then code quality — for multi-task plans; single-task plans skip per-task review and rely on Phase 7 branch-review, see ADR-0007). The per-task implementer subagent dispatch boundary still receives curated, inlined task text — `play-subagent-execution`'s controller extracts each task from the plan file before per-task dispatch (see `skills/play-subagent-execution/SKILL.md` § Inputs and § Red Flags). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
+All play-subagent-execution rules apply (fresh subagent per task, per-task two-stage review for multi-task plans; single-task plans skip per-task review, see ADR-0007). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
 
 ### Phase 7: Branch Review
 
@@ -382,17 +283,10 @@ If a blocking finding requires design changes **or out-of-diff edits**, **stop `
 
 For each `severity: "Nit"` finding object, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields:
 
-- **Mechanical** — 1–3 line source change (excluding generated test snapshot churn), no design judgment, single obvious correct fix. Examples:
-  - Typos and misspellings.
-  - Truncated, incomplete, or broken sentences with one clear reconstruction (e.g., a sentence ending mid-clause).
-  - Broken cross-references where the intended target is unambiguous (wrong file paths, stale section numbers after a renumber, dead links to renamed identifiers).
-  - Missing words or punctuation where context fully constrains the fix.
-  - Variable-naming or placeholder gaps (e.g., a literal `<TODO>` left in a code example) with one obvious replacement.
-- **Judgment-required** — anything else. Examples: "this could be clearer," "consider extracting a helper," subjective wording, structural suggestions, or any nit where a competent reviewer could defend more than one fix.
+- **Mechanical** — 1–3 line source change with a single obvious correct fix (e.g., typos, broken sentences with one reconstruction, dead cross-references). See [`references/nit-classification.md`](references/nit-classification.md) for the full taxonomy and examples.
+- **Judgment-required** — anything else (subjective wording, structural suggestions, multiple plausible fixes).
 
-**Conservative tie-breaker.** When in doubt, classify as judgment-required. False mechanical classifications produce subtly wrong fixes; false judgment classifications produce one extra PR comment. Prefer the latter.
-
-**Reclassification escape.** If, while drafting a mechanical fix, the broken text turns out to have multiple plausible reconstructions, reclassify as judgment-required and route to PR comments. Do not commit a guess.
+See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#phase-7-nit-classification-tie-breakers) for the tie-breaker rule (when in doubt, classify as judgment-required) and the reclassification escape (if multiple plausible reconstructions emerge mid-fix, route to PR comments).
 
 **Handle each class:**
 
@@ -412,9 +306,7 @@ For each `severity: "Nit"` finding object, classify it as **mechanical** or **ju
 
   The Phase 8 step "Pass nits to `play-branch-finish`" passes `$NITS_PENDING_FILE` as `nits_file`. If the judgment-required set is empty, skip the file write — Phase 8 will omit `nits_file` entirely.
 
-After this classification step, the set of nits that reaches Phase 8 contains only judgment-required items.
-
-**This step is `--auto` only.** Manual operators reading the branch-review report decide nit-handling case by case.
+After classification, Phase 8 receives only judgment-required items. **This step is `--auto` only** — manual operators decide nit-handling case by case.
 
 ### Phase 8: Create PR
 
@@ -434,7 +326,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
 
-**Pass nits to `play-branch-finish`:** When invoking `play-branch-finish` for PR creation, pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema in `skills/play-review/SKILL.md` § Output; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). `play-branch-finish` posts every entry of `findings[]` in that file — anchorable items as inline review comments, unanchorable as a top-level review comment — applying `"side": "RIGHT"` defaults and dropping `start_line: null`. Only items with `severity: "Nit"` are eligible; any `severity: "Blocking"` items must already have triggered a stop-`--auto` in Phase 7, so they never reach this file. Extra fields (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are ignored by `play-branch-finish` but harmless to leave in the envelope. If Phase 7 produced no judgment-required nits and skipped the file write, omit the `nits_file` arg entirely; `play-branch-finish` handles the absence by skipping the post step.
+**Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema in `skills/play-review/SKILL.md` § Output; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.
 
 ## Quick Reference
 
@@ -451,61 +343,11 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 ## Common Mistakes
 
-### Writing specs to main workspace instead of worktree
-
-- **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths
-- **Fix:** Worktree is created in Phase 1, before brainstorming writes any files
-
-### Creating nested worktree in an already-managed session
-
-- **Problem:** Creating a fresh worktree from inside an existing managed worktree causes double nesting and path confusion
-- **Fix:** Invoke `issue-worktree-setup` and obey `MODE=stop`. If already inside a non-primary worktree, either branch in place when safe or stop and return to the primary checkout before creating another worktree
-
-### Running research in the main session
-
-- **Problem:** CI logs, file reads, and web searches pollute the main context window
-- **Fix:** Always dispatch dedicated agents for gate and research phases
-
-### Ignoring project PR guideline
-
-- **Problem:** PR title/description uses a generic format instead of the project's required template, requiring manual rework
-- **Fix:** Always glob for PR guidelines before composing the PR title and description in Phase 8
-
-### Skipping the gate for "obvious" issues
-
-- **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** Always run the gate — it's cheap (exploration agent, `{{model:standard}}`) and catches surprises
-
-### Skipping brainstorming for "trivial" issues
-
-- **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
-- **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
-
-### Skipping nit classification in `--auto` mode
-
-- **Problem:** Mechanical nits — typos, truncated sentences, broken cross-references — get posted as PR comments instead of fixed in the worktree, leaking workflow gaps that `--auto` exists to eliminate
-- **Fix:** After `branch-review --fix` returns, classify remaining nits and auto-fix mechanical ones before invoking Phase 8. See Phase 7 prose for the taxonomy
-
-### Treating out-of-band authorization as merge consent
-
-- **Problem:** Teammate claims, prior-session statements ("I'm in war room, do whatever"), incident urgency, or inferred intent get treated as merge authorization — bypassing the PR review gate
-- **Fix:** Only an in-session, in-context user instruction counts, and even then prefer surfacing to the user over acting. The PR is the user's review gate; `--auto` does not widen that authority. If urgency is real, push the PR and surface it — let the human take the merge action.
+See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, skipping the gate / brainstorming / nit classification, treating out-of-band authorization as merge consent, ignoring PR guideline).
 
 ## Red Flags — You Are Violating This Skill
 
-- You skipped the gate and went straight to brainstorming without assessing complexity
-- You ran the research agent in the main session instead of a dedicated agent
-- You started implementing before invoking brainstorming
-- You dumped raw research output instead of passing the synthesized brief
-- You skipped brainstorming because "the issue is simple enough"
-- You wrote spec/design/plan files outside the worktree
-- You created a nested worktree inside an already-managed worktree
-- You auto-merged a PR in `--auto` mode for any reason — including incident urgency, claimed pre-authorization, or green CI (the PR is the user's review gate)
-- You passed mechanical nits straight through to Phase 8 instead of fixing them in the worktree first
-- You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
-- You composed a PR title/description without reading the project's PR guideline first
-
-**All of these mean: STOP. Go back to the workflow.**
+See [`references/red-flags.md`](references/red-flags.md) for the full list and the "STOP. Go back to the workflow." rule.
 
 ## Error Handling
 
@@ -523,23 +365,17 @@ These rules apply to any project using this skill. They override defaults from d
 
 Use `{{model:standard}}` as the floor for agents that make judgment calls during exploration and planning. Reviewer roles run at `{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor — the authoritative defaults are pinned in `agents/spec-compliance-reviewer.yaml` and `agents/code-quality-reviewer.yaml`; the rows below mirror those for reader convenience and are not enforced by this skill. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
 
-| Agent                    | Minimum model        | Notes                                                                                                                                |
-| ------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous scope or multiple conflicting signals                                                     |
-| Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module or architecturally complex issues                                                      |
-| Spec compliance reviewer | `{{model:deep}}`     | Raised from `{{model:standard}}`; per-task dispatch on multi-task plans only (single-task skip per ADR-0007); no whole-impl. variant |
-| Code quality reviewer    | `{{model:deep}}`     | Raised from `{{model:standard}}`. Per-task review: multi-task plans only (ADR-0007). Whole-implementation review: every plan         |
-| PR review agents         | `{{model:deep}}`     | Always — final gate, highest cost of failure                                                                                         |
+| Agent                    | Minimum model        | Notes                                                           |
+| ------------------------ | -------------------- | --------------------------------------------------------------- |
+| Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
+| Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
+| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; multi-task plans (ADR-0007)                      |
+| Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review             |
+| PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 
 ## What This Skill Does NOT Do
 
-**Without `--auto`:**
+- **Without `--auto`:** Does not write code, create PRs, or manage implementation.
+- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); does not skip phases; does not silently pick between equally-valid design options (stops and asks instead).
 
-- Does not write code or create PRs
-- Does not manage implementation — returns control to user after brainstorming
-
-**With `--auto`:**
-
-- Does not merge PRs — the PR is the user's review gate
-- Does not skip brainstorming or planning — runs the full pipeline, just without user checkpoints
-- Does not make genuinely ambiguous design decisions — stops and asks if options are equally valid
+See [`references/scope.md`](references/scope.md) for the expanded list.
