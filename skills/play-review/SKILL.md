@@ -80,7 +80,7 @@ Prior threads still open after re-verification, in the same shape as `## Finding
 
 ### 3. Side-channel file (consumer contract)
 
-The structured envelope is written to a deterministic file under `.ephemeral/`. Schema name: `play-review/findings/v1`. Defined as the authoritative output contract for downstream consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish` `nits_file`, `issue-priming-workflow` Phase 7). The schema lives next to this skill; the side-channel file (rather than an inline JSON fence in conversation) is the contract surface so consumers don't have to re-parse the human-readable findings.
+The structured envelope is written to a deterministic file under `.ephemeral/`. Schema name: `play-review/findings/v1`. Defined as the authoritative output contract for downstream consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish` `nits_file`, `issue-priming-workflow` Phase 7). The envelope shape and per-field contract are defined in the `#### Envelope shape` and `Per-field contract` subsections below; the side-channel file (rather than an inline JSON fence in conversation) is the contract surface so consumers don't have to re-parse the human-readable findings.
 
 #### Path
 

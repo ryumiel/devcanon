@@ -48,7 +48,7 @@ esac
 This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path,
 narrowed to the design-document suffix. The canonical copy lives in
-`play-review/SKILL.md`; if that copy gains a step (e.g., a new
+`skills/play-review/SKILL.md`; if that copy gains a step (e.g., a new
 pre-read check), update this skill to match.
 
 ### Inline content (preserved for direct invocations)
