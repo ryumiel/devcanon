@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { readdirSync, writeSync } from "node:fs";
 import path from "node:path";
 
 function getStagedFiles() {
@@ -31,16 +31,75 @@ function hasCaseMismatch(filePath) {
   return Boolean(actual && actual !== basename);
 }
 
-function runScript(name) {
+function pluralize(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function writeCapturedOutput(result) {
+  if (result.stdout) {
+    writeSync(process.stdout.fd, result.stdout);
+  }
+
+  if (result.stderr) {
+    writeSync(process.stderr.fd, result.stderr);
+  }
+}
+
+async function runScript(label, args, fileCount, verbose) {
+  const child = spawn("pnpm", ["run", ...args], {
+    shell: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  let error;
+
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr?.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  child.on("error", (childError) => {
+    error = childError;
+  });
+
+  const status = await new Promise((resolve) => {
+    child.on("close", (code) => {
+      resolve(code ?? 1);
+    });
+  });
+
+  const prefix = status === 0 ? "OK" : "FAIL";
+  console.log(`${prefix} ${label} (${pluralize(fileCount, "staged file")})`);
+
+  if (error) {
+    console.error(error.message);
+  }
+
+  if (verbose || status !== 0 || error) {
+    writeCapturedOutput({ stdout, stderr });
+  }
+
+  return status;
+}
+
+function runRepoScript(name) {
   const result = spawnSync("pnpm", ["run", name], { stdio: "inherit" });
   return result.status ?? 1;
 }
 
 const stagedFiles = getStagedFiles();
-const hasMarkdown = stagedFiles.some((file) => file.endsWith(".md"));
-const hasRepoCode = stagedFiles.some((file) =>
+const verbose = process.env.AGENTS_MANAGER_PRECOMMIT_VERBOSE === "1";
+const stagedMarkdownFiles = stagedFiles.filter((file) => file.endsWith(".md"));
+const stagedRepoCodeFiles = stagedFiles.filter((file) =>
   /\.(?:ts|c?js|json|jsonc|mjs)$/.test(file),
 );
+const hasMarkdown = stagedMarkdownFiles.length > 0;
+const hasRepoCode = stagedRepoCodeFiles.length > 0;
 
 let failed = false;
 
@@ -51,19 +110,35 @@ for (const file of stagedFiles) {
   }
 }
 
-if (hasRepoCode && runScript("format:check") !== 0) {
+if (hasRepoCode && runRepoScript("format:check") !== 0) {
   failed = true;
 }
 
-if (hasRepoCode && runScript("lint") !== 0) {
+if (hasRepoCode && runRepoScript("lint") !== 0) {
   failed = true;
 }
 
-if (hasMarkdown && runScript("format:markdown:check") !== 0) {
+if (
+  hasMarkdown &&
+  (await runScript(
+    "markdown format",
+    ["format:markdown:check", "--", ...stagedMarkdownFiles],
+    stagedMarkdownFiles.length,
+    verbose,
+  )) !== 0
+) {
   failed = true;
 }
 
-if (hasMarkdown && runScript("lint:markdown") !== 0) {
+if (
+  hasMarkdown &&
+  (await runScript(
+    "markdown lint",
+    ["lint:markdown", "--", ...stagedMarkdownFiles],
+    stagedMarkdownFiles.length,
+    verbose,
+  )) !== 0
+) {
   failed = true;
 }
 
