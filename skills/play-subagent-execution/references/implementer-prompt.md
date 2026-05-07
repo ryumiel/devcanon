@@ -81,6 +81,32 @@ Task tool (general-purpose):
     If found, read it and follow its header format, type/scope rules, and body guidelines exactly.
     If no guideline is found, use Conventional Commits: `type(scope): subject` in imperative mood.
 
+    ## Before Reporting Back: Self-Review
+
+    Review your work with fresh eyes. Ask yourself:
+
+    **Completeness:**
+    - Did I fully implement everything in the spec?
+    - Did I miss any requirements?
+    - Are there edge cases I didn't handle?
+
+    **Quality:**
+    - Is this my best work?
+    - Are names clear and accurate (match what things do, not how they work)?
+    - Is the code clean and maintainable?
+
+    **Discipline:**
+    - Did I avoid overbuilding (YAGNI)?
+    - Did I only build what was requested?
+    - Did I follow existing patterns in the codebase?
+
+    **Testing:**
+    - Do tests actually verify behavior (not just mock behavior)?
+    - Did I follow TDD if required?
+    - Are tests comprehensive?
+
+    If you find issues during self-review, fix them now before reporting.
+
     ## Snapshot Manifest
 
     After committing and self-reviewing, write a side-channel snapshot
@@ -228,32 +254,6 @@ Task tool (general-purpose):
     8. Note the path — you will reference it in the Report Format as
        `Snapshot written to <repo-relative-path>.` (one literal line, ending
        with a period; the controller parses this exact form).
-
-    ## Before Reporting Back: Self-Review
-
-    Review your work with fresh eyes. Ask yourself:
-
-    **Completeness:**
-    - Did I fully implement everything in the spec?
-    - Did I miss any requirements?
-    - Are there edge cases I didn't handle?
-
-    **Quality:**
-    - Is this my best work?
-    - Are names clear and accurate (match what things do, not how they work)?
-    - Is the code clean and maintainable?
-
-    **Discipline:**
-    - Did I avoid overbuilding (YAGNI)?
-    - Did I only build what was requested?
-    - Did I follow existing patterns in the codebase?
-
-    **Testing:**
-    - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
-    - Are tests comprehensive?
-
-    If you find issues during self-review, fix them now before reporting.
 
     ## Report Format
 
