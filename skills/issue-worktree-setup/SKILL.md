@@ -115,11 +115,20 @@ Returned when the current session is running from the primary checkout.
 The helper fetches `origin`, ensures `.worktrees/` exists, creates a fresh
 linked worktree from `BASE_REF`, and returns the new worktree path.
 
+Creating a fresh `.worktrees/...` checkout requires `.worktrees/` to be
+ignored in the host repo. The helper verifies this with a child-path probe
+before creating the directory.
+
 ### `MODE=stop`
 
 Returned when the current session is already inside a managed worktree that is
 either dirty or holds commits not in `BASE_REF` — i.e., reuse would risk losing
 in-progress work.
+
+`MODE=stop` is also returned when the helper is run from inside a Git
+submodule checkout. Submodule-scoped worktree setup is unsupported; the
+helper reports both the current submodule path and the superproject path so
+the operator can re-run from the correct checkout.
 
 The helper performs no setup. The caller must surface `MESSAGE` and stop. Do
 not create another worktree from inside that session.
@@ -137,6 +146,10 @@ The helper also requires `.worktrees/` to resolve to a normal directory inside
 the primary checkout. It rejects symlinks or any resolved path outside that
 checkout.
 
+Before creating `.worktrees/`, the helper also verifies that a synthetic child
+path under that directory is ignored by Git. This protects adopters from
+accidentally tracking fallback worktree contents.
+
 The target leaf path must not already exist. The helper rejects pre-existing
 files, directories, or symlinks at `.worktrees/<leaf>`.
 
@@ -144,6 +157,6 @@ files, directories, or symlinks at `.worktrees/<leaf>`.
 
 Policy refusals are reported as `MODE=stop`.
 
-Execution failures such as missing required inputs, failed `git fetch`, failed
-branch creation, or failed `git worktree add` exit non-zero and write a concise
-error to stderr.
+Execution failures such as missing required inputs, failed `git fetch`, missing
+`.worktrees/` ignore coverage, failed branch creation, or failed `git worktree
+add` exit non-zero and write a concise error to stderr.
