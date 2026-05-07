@@ -14,7 +14,7 @@ Look for these shapes in the brief:
 
 Even if the claim sounds obvious, run the check. Briefs are written by humans whose model of the system may be incomplete.
 
-## Worked example: PR #106 / issue #99
+## Worked example: a squash-merge / branch-cleanup investigation
 
 **The brief said:**
 
@@ -52,7 +52,7 @@ if [ "$STATE" = "MERGED" ] && [ "$LOCAL_TIP" = "$PR_HEAD" ]; then
 fi
 ```
 
-Pull ordering wasn't the lever in the squash-merge path that issue #99 exercised; the divergent SHA is.
+Pull ordering wasn't the lever in the squash-merge path that the bug report exercised; the divergent SHA is.
 
 ## How to verify, by claim shape
 

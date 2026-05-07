@@ -16,7 +16,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`. After
 writing, emit the literal line `Plan written to <repo-relative-path>.` to
 the conversation. This is the contract surface `play-subagent-execution`
-reads (see [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
+reads — do not reword it.
 
 ## Inputs
 
@@ -46,10 +46,10 @@ esac
 ```
 
 This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the design-document suffix. The
-canonical copy lives in `play-review/SKILL.md`; if that copy gains a
-step (e.g., a new pre-read check), update this skill to match.
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
+narrowed to the design-document suffix. The canonical copy lives in
+`play-review/SKILL.md`; if that copy gains a step (e.g., a new
+pre-read check), update this skill to match.
 
 ### Inline content (preserved for direct invocations)
 
@@ -58,7 +58,7 @@ convention. No path validation is required — content is consumed verbatim
 from the prose. Direct human invocations that have no upstream file use
 this shape.
 
-See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
+The path reference is consumed by the controller; the inline form is preserved for direct human invocations.
 
 ## Scope Check
 
@@ -233,7 +233,7 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 
 ## Execution Handoff
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`. The parent skill receives the plan path from the `Plan written to <path>.` notice line emitted after the save and passes it to `play-subagent-execution` as `Plan: <path>` (see [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)).
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`. The parent skill receives the plan path from the `Plan written to <path>.` notice line emitted after the save and passes it to `play-subagent-execution` as `Plan: <path>`.
 
 Otherwise, offer execution choice:
 
