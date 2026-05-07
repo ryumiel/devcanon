@@ -18,6 +18,21 @@ This helper is the single source of truth for:
 - creating a fresh `.worktrees/...` checkout from the repository's default branch (resolved via `origin/HEAD`, falling back to `origin/main`)
 - returning the concrete worktree path for downstream phases
 
+## Step 0: Prefer Native Worktree Tooling
+
+If the host environment already exposes native worktree lifecycle control, use
+that path before invoking the shell helper below. Examples include Claude Code
+`EnterWorktree`, Codex worktree control, or equivalent host-managed worktree
+commands.
+
+If native tooling provisions or adopts the requested checkout, do not invoke
+the shell helper below. Continue the caller workflow from that native-managed
+worktree, validate or populate `WORKTREE_PATH` using the same contract the
+helper returns, and stop here. Do not also run
+`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh`; the helper below is the
+fallback contract for environments that do not provide native worktree
+control.
+
 ## Inputs
 
 Invoke the helper through environment variables:
