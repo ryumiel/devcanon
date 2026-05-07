@@ -48,6 +48,14 @@ Avoid these cases:
 - Treating delegation or orchestration as a YAML field or schema control knob.
   In v1, those expectations belong only in prose instructions, not in
   first-class source-schema fields.
+- **Project-internal references in `instructions:` prose.** Agent
+  instructions render into user-wide installations and must read
+  coherently outside this repo. Avoid ADR numbers (`ADR-NNNN`),
+  GitHub issue/PR shorthand (`#NNN`), and `github.com/<owner>/<repo>`
+  links in the agent body. Use self-contained prose; if rationale
+  lives in an ADR, summarize the conclusion inline rather than
+  linking. The current `agents/` files already follow this — keep it
+  that way.
 
 ## 4. Promoting Prompt Templates into Agents
 

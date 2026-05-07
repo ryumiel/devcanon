@@ -204,6 +204,15 @@ Shared body prose must read sensibly under both targets.
    instructions file") when no concrete spelling adds value or
    when the prose is conceptual rather than operational.
 3. Avoid hard-coded product-specific home paths.
+4. Avoid project-internal references in shared body prose: ADR
+   numbers (`ADR-NNNN`), GitHub issue/PR shorthand (`#NNN`), and
+   `github.com/<owner>/<repo>` links. Skills render user-wide and
+   must read coherently outside this repo. Replace such references
+   with self-contained prose or within-skills cross-links. (ADR
+   files themselves are project documentation and may reference each
+   other freely. Absolute repo URLs may be retained when the skill's
+   purpose is to point external consumers at this repo — e.g., a
+   skill that helps users open issues against this repo.)
 
 Drift diagnostics flag literal target-specific tokens (model IDs,
 tool names, artifact files, and target paths). Token sets for
