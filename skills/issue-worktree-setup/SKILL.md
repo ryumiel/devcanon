@@ -25,10 +25,13 @@ that path before invoking the shell helper below. Examples include Claude Code
 `EnterWorktree`, Codex worktree control, or equivalent host-managed worktree
 commands.
 
-If native tooling provisions or adopts the requested checkout, continue the
-workflow from that worktree and stop here. Do not also run
-`scripts/setup-worktree.sh`; the helper below is the fallback contract for
-environments that do not provide native worktree control.
+If native tooling provisions or adopts the requested checkout, do not invoke
+the shell helper below. Continue the caller workflow from that native-managed
+worktree, validate or populate `WORKTREE_PATH` using the same contract the
+helper returns, and stop here. Do not also run
+`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh`; the helper below is the
+fallback contract for environments that do not provide native worktree
+control.
 
 ## Inputs
 
