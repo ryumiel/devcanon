@@ -88,6 +88,8 @@ Before opening a PR, the author should verify:
 
 When an AI agent reviews code, it must:
 
+- Lead with one or two short narrative sentences naming what the
+  implementation got right before the findings list
 - Classify each finding with one severity (`Blocking` or `Nit`) and one
   category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`,
   `Documentation`, or `Contracts`)

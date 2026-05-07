@@ -397,6 +397,11 @@ doc-impact summary, active diff stays incremental.
 2. Shared review-context reference — instruct the agent to `Read` `.ephemeral/<branch_slug>-<head_sha>-review-context.md` (composed in Phase 2.5) before reviewing. The file carries header context, changed-file list, doc-impact summary, discovered guidelines, output format, and (when applicable) prior review threads.
 3. Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"` from `working_directory`
 4. Role-specific sub-checks — composed inline, referencing actual files and line counts visible in the diff
+5. Strengths-first opening — instruct the agent to begin with one or two
+   short narrative sentences naming what the implementation got right
+   before the findings list. This is human-facing prose only; the
+   `play-review/findings/v1` envelope and `Findings written to <repo-relative-path>.`
+   notice line stay unchanged.
 
 The skeleton lives at [`skills/play-review/references/agent-briefing-template.md`](references/agent-briefing-template.md); follow it when adding a new dynamic agent.
 

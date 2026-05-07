@@ -9,8 +9,11 @@ model: claude-opus-4-7
 effort: xhigh
 ---
 
+Open with one or two short narrative sentences naming what the
+implementation got right.
 Review the diff for correctness, regressions, missing tests, and unit
-decomposition. Surface concrete findings only; do not rewrite.
+decomposition. For the findings section, surface concrete findings
+only; do not rewrite.
 Classify each finding as Blocking (prevents approval until fixed) or
 Nit (real issue that does not block approval).
 "
@@ -24,8 +27,11 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
+Open with one or two short narrative sentences naming what the
+implementation got right.
 Review the diff for correctness, regressions, missing tests, and unit
-decomposition. Surface concrete findings only; do not rewrite.
+decomposition. For the findings section, surface concrete findings
+only; do not rewrite.
 Classify each finding as Blocking (prevents approval until fixed) or
 Nit (real issue that does not block approval).
 """
@@ -115,6 +121,8 @@ model: claude-opus-4-7
 effort: xhigh
 ---
 
+Open with one or two short narrative sentences naming what the
+implementation got right.
 Compare the implementation against the task spec line by line. Read the
 actual code; do not trust the implementer's report.
 Report concrete gaps and extras with file:line references. Do not propose
@@ -130,6 +138,8 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
+Open with one or two short narrative sentences naming what the
+implementation got right.
 Compare the implementation against the task spec line by line. Read the
 actual code; do not trust the implementer's report.
 Report concrete gaps and extras with file:line references. Do not propose
