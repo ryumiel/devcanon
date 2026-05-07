@@ -49,9 +49,16 @@ Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alph
 
 ### Provision the worktree and persist the issue body
 
-Invoke the `issue-worktree-setup` helper immediately after deriving the
-branch/worktree names so the fetched issue description is written inside
-the correct checkout before handoff.
+Before invoking the shell helper, apply `issue-worktree-setup`'s
+Step 0 native-first policy. If the host exposes native worktree control,
+use that surface first to create or adopt the derived worktree, capture
+its absolute path in `WORKTREE_PATH`, and continue from the validation
+step below.
+
+Do not run both the native flow and the shell fallback. If native
+worktree control is unavailable, invoke the fallback helper so the
+fetched issue description is written inside the correct checkout before
+handoff.
 
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
@@ -64,8 +71,8 @@ WORKTREE_SETUP_OUTPUT=$(
 )
 ```
 
-Parse `WORKTREE_SETUP_OUTPUT` exactly per the helper skill's output
-contract.
+If you invoked the fallback helper, parse `WORKTREE_SETUP_OUTPUT`
+exactly per the helper skill's output contract.
 
 - If `MODE=stop`, surface `MESSAGE` and stop before any `.ephemeral/`
   write.
@@ -73,7 +80,8 @@ contract.
 - If the helper exits non-zero, stop immediately instead of attempting to
   parse partial output.
 
-Validate `WORKTREE_PATH` before any write:
+Once `WORKTREE_PATH` is available — either from native tooling or the
+fallback helper — validate it before any write:
 
 ```bash
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
@@ -121,7 +129,7 @@ Invoke the `issue-priming-workflow` skill with the following normalized issue pa
 - **identifier**: <IDENTIFIER>
 - **title**: <verbatim issue title, single line>
 - **issue-body-path**: .ephemeral/<YYYY-MM-DD>-<id>-issue-body.md
-- **worktree-path**: <absolute path returned by issue-worktree-setup>
+- **worktree-path**: <absolute worktree path selected above>
 - **mode**: <interactive | auto>
 - **research**: <gated | forced>
 ```
