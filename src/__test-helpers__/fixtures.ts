@@ -24,8 +24,16 @@ export async function createTempDir(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "am-test-"));
 }
 
+const cleanupRetries = process.platform === "win32" ? 5 : 0;
+const cleanupRetryDelayMs = 100;
+
 export async function cleanupTempDir(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true });
+  await rm(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: cleanupRetries,
+    retryDelay: cleanupRetryDelayMs,
+  });
 }
 
 export async function createSkillFixture(
