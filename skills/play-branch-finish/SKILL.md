@@ -78,6 +78,9 @@ Which option?
 
 #### Option 1: Merge Locally
 
+Tests must pass on the merged commit before deleting the feature branch or
+continuing to cleanup.
+
 ```bash
 # Switch to base branch
 git checkout <base-branch>
@@ -89,13 +92,19 @@ git pull
 git merge <feature-branch>
 
 # Verify tests on merged result
-<test command>
+WORKTREE_PATH=$(git rev-parse --show-toplevel)
+<test command> || {
+  echo "Tests failing on merged result. Halting before cleanup." >&2
+  echo "Worktree preserved at '$WORKTREE_PATH'. Feature branch preserved at <feature-branch>." >&2
+  echo "Base branch remains checked out at the failed merged result. Recover it manually before retrying." >&2
+  exit 1
+}
 
-# If tests pass
+# Only reached when tests pass on the merged commit
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
@@ -177,7 +186,7 @@ EOF
 
    Nit bodies may contain backticks, `$`, embedded newlines, and `"` — passing through `--body-file -` (rather than a `-b` argument) prevents the shell from expanding command substitutions or word-splitting before `gh` sees the bytes.
 
-5. If `gh api` posting fails after `gh pr create` succeeded, surface the error and the unposted nits to the user. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
+5. If `gh api` posting fails after `gh pr create` succeeded, surface the error and the unposted nits to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
 Then: Cleanup worktree (Step 5)
 
@@ -213,7 +222,13 @@ Then: Cleanup worktree (Step 5)
 
 ### Step 5: Cleanup Worktree
 
-**For Options 1, 2, 4:**
+**For Options 1, 2, 4 after their success-only cleanup points:**
+
+- Option 1 reaches Step 5 only after the merged-result test command passes.
+- Option 2 reaches Step 5 only after PR creation and any requested nit-posting
+  steps complete without error.
+- Option 4 reaches Step 5 only after discard is confirmed and branch deletion
+  succeeds.
 
 Use provenance-aware cleanup. [`skills/issue-worktree-setup/SKILL.md`](../issue-worktree-setup/SKILL.md)
 defines repo-managed issue worktrees as `<MAIN_ROOT>/.worktrees/<leaf>`.
