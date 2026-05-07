@@ -78,6 +78,9 @@ Which option?
 
 #### Option 1: Merge Locally
 
+Tests must pass on the merged commit before deleting the feature branch or
+continuing to cleanup.
+
 ```bash
 # Switch to base branch
 git checkout <base-branch>
@@ -89,13 +92,18 @@ git pull
 git merge <feature-branch>
 
 # Verify tests on merged result
-<test command>
+WORKTREE_PATH=$(git rev-parse --show-toplevel)
+<test command> || {
+  echo "Tests failing on merged result. Halting before cleanup."
+  echo "Worktree preserved at $WORKTREE_PATH. Feature branch preserved at <feature-branch>."
+  exit 1
+}
 
-# If tests pass
+# Only reached when tests pass on the merged commit
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
@@ -213,7 +221,10 @@ Then: Cleanup worktree (Step 5)
 
 ### Step 5: Cleanup Worktree
 
-**For Options 1, 2, 4:**
+**For Options 1, 2, 4 on their green paths:**
+
+For Option 1, Step 5 is only reachable after the merged-result test command
+passes.
 
 Use provenance-aware cleanup. [`skills/issue-worktree-setup/SKILL.md`](../issue-worktree-setup/SKILL.md)
 defines repo-managed issue worktrees as `<MAIN_ROOT>/.worktrees/<leaf>`.
