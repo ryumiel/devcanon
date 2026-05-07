@@ -75,7 +75,7 @@ unchanged.
 - The "Skip reviews (spec compliance OR code quality)" Red Flag in
   `play-subagent-execution` no longer flatly forbids skipping; it now
   forbids skipping when the plan has 2+ tasks.
-- ADR-0014 introduces a further optimization within the single-task path: when
+- ADR-0015 introduces a further optimization within the single-task path: when
   three runtime guardrails (single-task plan, `**Mode:** mechanical`, no TDD
   step-pair markers) plus one upstream precondition (`play-planning`'s
   plan-review PASS) all hold, the implementer dispatch itself is also skipped —

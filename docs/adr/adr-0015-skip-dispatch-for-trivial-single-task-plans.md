@@ -1,4 +1,4 @@
-# ADR-0014: Skip-Dispatch Path for Trivial Single-Task Plans
+# ADR-0015: Skip-Dispatch Path for Trivial Single-Task Plans
 
 ## Status
 
@@ -89,12 +89,11 @@ here.
   `**Mode:** mechanical` hint policy — under-marking is harmless,
   over-marking is plan-author responsibility, caught by `play-planning`'s
   plan-review subagent and by the final whole-implementation reviewer.
-- Issue #170 (snapshot contract for implementer DONE reports) does not
+- The implementer DONE-report snapshot contract (ADR-0014) does not
   apply on the skip-dispatch path: with no dispatched implementer, there
-  is no DONE-report boundary. The plan body is itself the snapshot. When
-  #170 lands, its scope is expected to exclude this path explicitly; if
-  it does not, this Consequences bullet is the canonical statement of the
-  exclusion.
+  is no DONE-report boundary. The plan body is itself the snapshot.
+  ADR-0014's `play-subagent-execution` § Implementer Snapshot Consumption
+  → Skip-dispatch exclusion subsection states this exclusion explicitly.
 - Future changes to either ADR-0007 or this ADR must update both per the
   ADR governance rule.
 
@@ -123,6 +122,5 @@ here.
 
 - Issue: #175
 - Companion issue (mechanical-implementer prompt variant): #168 (landed via PR #177)
-- Forward-looking interaction (DONE-report snapshot contract): #170 (not
-  yet landed)
+- Sibling ADR (DONE-report snapshot contract, scope-excludes this path): ADR-0014
 - Parent ADR (review-pipeline delineation): ADR-0007
