@@ -5,11 +5,11 @@ description: Executes an implementation plan by dispatching a fresh subagent per
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each (spec compliance review first, then code quality review) -- except when the plan has exactly one task, in which case the per-task two-stage review is skipped (see ADR-0007).
+Execute plan by dispatching fresh subagent per task, with two-stage review after each (spec compliance review first, then code quality review) -- except when the plan has exactly one task, in which case the per-task two-stage review is skipped.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review` (see ADR-0007).
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high quality, fast iteration. Single-task plans skip per-task review and rely on `branch-review`.
 
 ## Inputs
 
@@ -40,10 +40,10 @@ esac
 ```
 
 This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path
-(required by ADR-0012), narrowed to the plan-document suffix. The
-canonical copy lives in `play-review/SKILL.md`; if that copy gains a
-step (e.g., a new pre-read check), update this skill to match.
+`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
+narrowed to the plan-document suffix. The canonical copy lives in
+`play-review/SKILL.md`; if that copy gains a step (e.g., a new
+pre-read check), update this skill to match.
 
 The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,
@@ -56,7 +56,7 @@ pasted into the invocation prose. No path validation is required — content
 is consumed verbatim from the prose. Direct human invocations that paste a
 plan inline use this shape.
 
-See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md).
+The path reference is consumed by the controller; the inline form is preserved for direct human invocations that paste a plan into the prose.
 
 ## When to Use
 
@@ -82,7 +82,7 @@ digraph when_to_use {
 
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review (see ADR-0007)
+- Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -181,7 +181,7 @@ To confirm the optimization on a candidate task, render both prompts statically 
 
 Use the hint when the task fits one of these positive shapes:
 
-- **Verbatim file create.** Single-file create from content fully specified in the plan (e.g., adding an ADR file like [PR #163](https://github.com/ryumiel/agent-manager/pull/163), or a template/snippet file with content provided verbatim).
+- **Verbatim file create.** Single-file create from content fully specified in the plan (e.g., adding an ADR file when the plan inlines the full ADR body, or a template/snippet file with content provided verbatim).
 - **Unambiguous identifier replacement.** Single-file rename where the plan provides exact before/after strings and there is only one correct substitution.
 
 Do **not** use the hint for these negative shapes — the default template applies:
@@ -193,13 +193,13 @@ Do **not** use the hint for these negative shapes — the default template appli
 
 ## Single-Task Plans
 
-When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is out of ADR-0007). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
+When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is the whole implementation, not the per-task carve-out). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
 
 For plans with two or more tasks, the per-task two-stage review runs unchanged.
 
 If you invoke this skill **directly** (not via `--auto`) on a single-task plan, no whole-diff review runs after the final code-quality reviewer — run `branch-review` yourself before opening a PR if you want that coverage.
 
-See [ADR-0007](../../docs/adr/adr-0007-review-pipeline-delineation.md) for the rationale, the rejected alternatives (Options B and C from issue #108), and the trade-off accepted for manual (non-`--auto`) single-task invocations.
+The trade-off here: per-task review on a single task adds review overhead without catching regressions across tasks (there is only one), so the per-task review is skipped and `branch-review` (or its absence on direct manual invocations) becomes the gate. For manual single-task invocations, the user is the gate.
 
 ## Implementer Snapshot Consumption
 
@@ -429,9 +429,9 @@ The two fixtures together lock the heuristic by showing both branches.
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
-**DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see ADR-0007 / Single-Task Plans).
+**DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see § Single-Task Plans).
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then proceed to spec compliance review; for single-task plans (see ADR-0007), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next step (spec review for multi-task, mark complete for single-task).
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then proceed to spec compliance review; for single-task plans (see § Single-Task Plans), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next step (spec review for multi-task, mark complete for single-task).
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
