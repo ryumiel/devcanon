@@ -12,6 +12,8 @@ Behavioral signals that this skill is being violated.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while either review has open issues
+- Forward implementer-snapshot content into reviewer subagent prompts (the snapshot is for the controller's bookkeeping; reviewers read from disk to remain independent of the implementer's framing)
+- Use implementer-snapshot content as an Edit-tool anchor after subsequent commits (the snapshot becomes stale once a fixup or nit-fix lands; re-read from disk before editing)
 
 **Never (when per-task reviewers run — multi-task plans only):**
 
