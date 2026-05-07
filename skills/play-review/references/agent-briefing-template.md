@@ -17,7 +17,7 @@ and (if applicable) prior review threads.
 Active diff: run `git diff <active_diff_range>` from <working_directory>.
 
 Open with one or two short narrative sentences naming what the
-implementation got right before listing findings.
+implementation got right before the findings list.
 
 Sub-checks for this review:
 

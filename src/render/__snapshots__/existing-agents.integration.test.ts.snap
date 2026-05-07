@@ -12,7 +12,8 @@ effort: xhigh
 Open with one or two short narrative sentences naming what the
 implementation got right.
 Review the diff for correctness, regressions, missing tests, and unit
-decomposition. Surface concrete findings only; do not rewrite.
+decomposition. For the findings section, surface concrete findings
+only; do not rewrite.
 Classify each finding as Blocking (prevents approval until fixed) or
 Nit (real issue that does not block approval).
 "
@@ -29,7 +30,8 @@ developer_instructions = """
 Open with one or two short narrative sentences naming what the
 implementation got right.
 Review the diff for correctness, regressions, missing tests, and unit
-decomposition. Surface concrete findings only; do not rewrite.
+decomposition. For the findings section, surface concrete findings
+only; do not rewrite.
 Classify each finding as Blocking (prevents approval until fixed) or
 Nit (real issue that does not block approval).
 """
