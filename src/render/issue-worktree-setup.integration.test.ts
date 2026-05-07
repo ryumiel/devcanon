@@ -47,6 +47,10 @@ async function runGit(args: string[], cwd: string): Promise<string> {
   return runCommand("git", args, cwd);
 }
 
+async function runBashPwdP(cwd: string): Promise<string> {
+  return runCommand("bash", ["-lc", "pwd -P"], cwd);
+}
+
 function normalizeFsPath(value: string): string {
   return path.normalize(value).replaceAll("\\", "/");
 }
@@ -772,6 +776,8 @@ describe("issue-worktree-setup helper", () => {
     );
 
     const submodulePath = path.join(parentDir, "nested");
+    const expectedSubmodulePath = await runBashPwdP(submodulePath);
+    const expectedParentPath = await runBashPwdP(parentDir);
     const result = await runSetup(helperScript, submodulePath, {
       BRANCH_NAME: "feat/from-submodule",
       WORKTREE_LEAF: "from-submodule",
@@ -782,8 +788,8 @@ describe("issue-worktree-setup helper", () => {
       normalizeFsPath(await realpath(submodulePath)),
     );
     expect(result.MESSAGE).toMatch(/submodule/i);
-    expect(result.MESSAGE).toContain(await realpath(submodulePath));
-    expect(result.MESSAGE).toContain(await realpath(parentDir));
+    expect(result.MESSAGE).toContain(expectedSubmodulePath);
+    expect(result.MESSAGE).toContain(expectedParentPath);
   });
 
   it("fails when .worktrees is not ignored in the host repo", async () => {
