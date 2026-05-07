@@ -88,7 +88,10 @@ async function runScript(label, args, fileCount, verbose) {
 }
 
 function runRepoScript(name) {
-  const result = spawnSync("pnpm", ["run", name], { stdio: "inherit" });
+  const result = spawnSync("pnpm", ["run", name], {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
   return result.status ?? 1;
 }
 

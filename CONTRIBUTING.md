@@ -64,8 +64,12 @@ The shared `pre-commit` hook enforces the following quality gates on staged file
 - **Markdown linting** -- markdownlint on staged `.md` files
 
 `pnpm run check:staged` prints concise per-gate summaries by default. For full
-child-tool output while debugging, run
-`AGENTS_MANAGER_PRECOMMIT_VERBOSE=1 pnpm run check:staged`.
+child-tool output while debugging, use the command shape that matches your
+shell:
+
+- POSIX shells: `AGENTS_MANAGER_PRECOMMIT_VERBOSE=1 pnpm run check:staged`
+- PowerShell: `$env:AGENTS_MANAGER_PRECOMMIT_VERBOSE=1; pnpm run check:staged`
+- `cmd.exe`: `set AGENTS_MANAGER_PRECOMMIT_VERBOSE=1 && pnpm run check:staged`
 
 ## Pull Request Policy
 
