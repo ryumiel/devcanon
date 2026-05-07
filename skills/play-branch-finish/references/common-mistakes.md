@@ -14,8 +14,10 @@ Failure modes the skill exists to prevent.
 
 **Automatic worktree cleanup**
 
-- **Problem:** Remove worktree when might need it (Option 2, 3)
-- **Fix:** Only cleanup for Options 1 and 4
+- **Problem:** Remove a harness-managed worktree, remove from inside the
+  target worktree, or skip `git worktree prune`
+- **Fix:** Only auto-remove repo-managed `<MAIN_ROOT>/.worktrees/*`
+  worktrees, `cd` to `MAIN_ROOT` first, then run `git worktree prune`
 
 **No confirmation for discard**
 
