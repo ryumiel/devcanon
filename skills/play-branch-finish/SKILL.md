@@ -225,7 +225,10 @@ MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-tople
 
 case "$WORKTREE_PATH" in
   "$MAIN_ROOT"/.worktrees/*)
-    cd "$MAIN_ROOT"
+    cd "$MAIN_ROOT" || {
+      echo "Failed to leave target worktree: $MAIN_ROOT"
+      exit 1
+    }
     git worktree remove "$WORKTREE_PATH"
     git worktree prune
     ;;
