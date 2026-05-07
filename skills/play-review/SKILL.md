@@ -80,7 +80,7 @@ Prior threads still open after re-verification, in the same shape as `## Finding
 
 ### 3. Side-channel file (consumer contract)
 
-The structured envelope is written to a deterministic file under `.ephemeral/`. Schema name: `play-review/findings/v1`. Defined as the authoritative output contract for downstream consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish` `nits_file`, `issue-priming-workflow` Phase 7). See [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md) for the transport rationale; [ADR-0010](../../docs/adr/adr-0010-structured-review-findings-schema.md) defines the schema (superseded for transport only).
+The structured envelope is written to a deterministic file under `.ephemeral/`. Schema name: `play-review/findings/v1`. Defined as the authoritative output contract for downstream consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish` `nits_file`, `issue-priming-workflow` Phase 7). The envelope shape and per-field contract are defined in the `#### Envelope shape` and `Per-field contract` subsections below; the side-channel file (rather than an inline JSON fence in conversation) is the contract surface so consumers don't have to re-parse the human-readable findings.
 
 #### Path
 
@@ -177,7 +177,7 @@ Findings written to <repo-relative-path>.
 
 This is the only structured surface in conversation. Consumers parse the path off this line; `branch-review`, `pr-review`, and `issue-priming-workflow` all rely on its exact form. Do not reword it.
 
-The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md).
+The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract.
 
 ## Phase 1: Discover Guidelines
 
@@ -221,10 +221,11 @@ as anchor data. No findings are emitted at this step.
 Phase 3 dispatches multiple reviewer agents. Rather than re-paste the
 shared briefing material into every agent's prompt, write it once to a
 deterministic ephemeral file and let each agent `Read` it. The path
-scheme parallels the findings envelope (see § Output) — see
-[ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)
-for the substrate rationale; this file is internal phase scaffolding,
-not a consumer contract. The file lives under `.ephemeral/`
+scheme parallels the findings envelope (see § Output) and uses the
+same file-based substrate so that agents read content from disk
+rather than receiving large inline contexts; this file is internal
+phase scaffolding, not a consumer contract. The file lives under
+`.ephemeral/`
 (git-ignored, same residency as the findings envelope).
 
 ### Path
@@ -418,7 +419,7 @@ Procedure:
 
 **Disposition:** judgment-required. The fix for a lost safety property is a guard, which is design work — multiple reconstructions are usually possible. Findings surface as `Blocking`, category `Safety`. Wrappers' auto-fix paths (e.g., `branch-review --fix`) must NOT auto-fix Sub-check 1 findings.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-1-substitution-audit--worked-example) for a worked example (PR #117 git branch -d → -D).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-1-substitution-audit--worked-example) for a worked example (`git branch -d` → `-D`).
 
 ### Correctness agent — Sub-check 2: Documented-behavior verification
 
@@ -443,7 +444,7 @@ Procedure:
 
 **Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as `Blocking`, category `Contracts`. Wrappers' auto-fix paths must NOT auto-fix Sub-check 2 findings.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (PR #127 gh api -f vs --input).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (`gh api -f` vs `--input`).
 
 ### Docs agent — Sub-check A: Within-document identifier drift
 
@@ -453,7 +454,7 @@ For each changed `*.md` file in the active diff:
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as `Blocking`, category `Documentation`. Auto-fixable via wrapper `--fix` (the code block is canonical; rewrite prose to match). If the code block is itself wrong, reclassify as judgment-required and route to nits — do not auto-fix.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (PR #106 worktree-cleanup prose vs. code drift).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (worktree-cleanup prose vs. code drift).
 
 ### Docs agent — Sub-check B: Cross-document identifier drift
 
@@ -473,7 +474,7 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, adapted from PR #127 gh api -f vs --input).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
 
 ## Phase 5: Critic verification
 

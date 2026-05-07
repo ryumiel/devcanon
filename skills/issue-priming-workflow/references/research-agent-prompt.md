@@ -108,9 +108,9 @@ Agent(
     persists this brief under `.ephemeral/` and emits the
     `Research brief written to <repo-relative-path>.` notice line after you return.
     You do NOT need to write the brief to disk yourself; return it in
-    the agent body using the format above. See ADR-0013
-    (`../../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md`)
-    for the convention.
+    the agent body using the format above. The dispatching workflow
+    persists it and emits the producer notice line that downstream
+    consumers parse.
 
     Work from: <REPO_ROOT>
 )

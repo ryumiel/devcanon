@@ -162,8 +162,6 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 5. Emit the literal line `Research brief written to <repo-relative-path>.` to the conversation output. This is the consumer contract surface; do not reword.
 6. Carry the path forward to Phase 4's args (no parsing required — the path was computed in step 1 above and is already in hand).
 
-See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention rationale and the producer notice-line contract.
-
 ## Phase 4: Invoke Brainstorming
 
 Invoke the `play-brainstorm` skill with the combined context below.
@@ -181,7 +179,7 @@ Resolve <source-noun> issue <ID>: <TITLE>
 Research brief: <repo-relative-path captured from Phase 3's notice line>
 ```
 
-`play-brainstorm` validates the path and reads the brief from disk (see `skills/play-brainstorm/SKILL.md` § Inputs and [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md)). The `## Issue Body` block remains inline — it arrives from the entrypoint payload and is not a multi-hop carry-forward.
+`play-brainstorm` validates the path and reads the brief from disk (see `skills/play-brainstorm/SKILL.md` § Inputs). The `## Issue Body` block remains inline — it arrives from the entrypoint payload and is not a multi-hop carry-forward.
 
 **Args format when research was skipped:**
 
@@ -240,7 +238,7 @@ Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
 Design: <repo-relative-path captured above>
 ```
 
-Do not wait for user review of the plan — proceed directly to implementation. See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
+Do not wait for user review of the plan — proceed directly to implementation. The plan path is captured from the producer notice line emitted by `play-planning`.
 
 ### Phase 6: Implement
 
@@ -262,12 +260,12 @@ Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference
 ```
 Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
-`--auto` flow active (invoked by `issue-priming-workflow`). Run all per-task reviews per ADR-0007.
+`--auto` flow active (invoked by `issue-priming-workflow`). Run all per-task reviews for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
 Plan: <repo-relative-path captured above>
 ```
 
-All play-subagent-execution rules apply (fresh subagent per task, per-task two-stage review for multi-task plans; single-task plans skip per-task review, see ADR-0007). See [ADR-0013](../../docs/adr/adr-0013-path-based-phase-artifact-handoff.md) for the convention.
+All `play-subagent-execution` rules apply (fresh subagent per task, per-task two-stage review for multi-task plans; single-task plans skip per-task review).
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Three runtime guardrails (single-task, `**Mode:** mechanical`, no TDD step-pair) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction.
 
@@ -279,7 +277,7 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (see `skills/play-review/SKILL.md` § Output for the schema; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — and load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — and load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
 
 **First, check severity.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer skipped (Safety / Contracts categories per the play-review hard rule, plus any blocker whose critic verdict was `INVALID` or `DOWNGRADE`, plus blockers requiring design changes or out-of-diff edits). If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user** — they need human attention, not classification as nits. Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`.
 
@@ -328,7 +326,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
 
-**Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema in `skills/play-review/SKILL.md` § Output; transport per [ADR-0012](../../docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md)). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.
+**Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema and side-channel transport: `skills/play-review/SKILL.md` § Output). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.
 
 ## Quick Reference
 
@@ -371,7 +369,7 @@ Use `{{model:standard}}` as the floor for agents that make judgment calls during
 | ------------------------ | -------------------- | --------------------------------------------------------------- |
 | Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
 | Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
-| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; multi-task plans (ADR-0007)                      |
+| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; runs on multi-task plans                         |
 | Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review             |
 | PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 

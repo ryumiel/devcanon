@@ -38,7 +38,7 @@ gh issue view <N> --json title,body,labels,comments,assignees
 
 Present a one-line summary to the user:
 
-> Issue #153: refactor(kiki-dcs): replace DcsError::Io #[from] io::Error (tech-debt)
+> Issue 153: refactor(kiki-dcs): replace DcsError::Io #[from] io::Error (tech-debt)
 
 If the issue cannot be fetched (`gh` not authenticated, issue not found), stop and report the error.
 

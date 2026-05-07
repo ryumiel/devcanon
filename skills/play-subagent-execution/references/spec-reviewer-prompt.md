@@ -59,8 +59,9 @@ Task tool (general-purpose):
     **Within-document identifier drift (when changes include `*.md` files):**
 
     Scope: this check runs only on multi-task plans, where this template is
-    dispatched per task (per ADR-0007). For single-task plans, equivalent
-    coverage lives in `play-review`'s Docs agent under the same name (invoked by both `branch-review` and `pr-review`).
+    dispatched per task. For single-task plans, equivalent coverage lives
+    in `play-review`'s Docs agent under the same name (invoked by both
+    `branch-review` and `pr-review`).
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify
@@ -79,7 +80,7 @@ Task tool (general-purpose):
       code block itself looks wrong, flag it as a separate finding for human
       judgment rather than auto-aligning.
 
-    Illustrative scenario (within-document identifier drift, pattern from PR #106):
+    Illustrative scenario (within-document identifier drift):
     a single Markdown file's prose narrates "the procedure runs
     `git worktree prune`" while the adjacent fenced code block invokes
     `git worktree remove <path>`. The code was updated across review rounds;
@@ -91,12 +92,12 @@ Task tool (general-purpose):
     **Substitution audit (when changes include external CLI/API/system invocations):**
 
     Scope: this check runs only on multi-task plans, where this template is
-    dispatched per task (per ADR-0007). For single-task plans, equivalent
-    coverage lives in `play-review`'s Correctness agent under the same
-    name. The broader documented-behavior verification (for new or modified
-    invocations that aren't substitutions) is out of scope here and lives
-    in `play-review` only (invoked by both `branch-review` and `pr-review`) — see that skill for
-    Sub-check 2.
+    dispatched per task. For single-task plans, equivalent coverage lives
+    in `play-review`'s Correctness agent under the same name. The broader
+    documented-behavior verification (for new or modified invocations that
+    aren't substitutions) is out of scope here and lives in `play-review`
+    only (invoked by both `branch-review` and `pr-review`) — see that skill
+    for Sub-check 2.
 
     Apply the check whenever the task's diff replaces an external CLI /
     REST / system primitive invocation token with a sibling at the same
@@ -125,7 +126,7 @@ Task tool (general-purpose):
        diff or surrounding spec explicitly waives the property with a
        rationale.
 
-    Illustrative scenario (substitution audit, pattern from PR #117):
+    Illustrative scenario (substitution audit):
     a task replaces `git branch -d` with `git branch -D` to silence a
     spurious squash-merge warning. The OLD primitive's safety properties
     include rejecting deletion when the branch has unmerged commits
