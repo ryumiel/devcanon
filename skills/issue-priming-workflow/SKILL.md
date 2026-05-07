@@ -65,8 +65,14 @@ missing.
 
 ```bash
 WORKTREE_PATH="<payload.worktree-path>"
+[ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
+case "$WORKTREE_PATH" in
+  /*) ;;
+  *) echo "worktree path must be absolute: $WORKTREE_PATH" >&2; exit 1 ;;
+esac
 [ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
-cd "$WORKTREE_PATH"
+[ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
+cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
 
 ISSUE_BODY_PATH="<payload.issue-body-path>"
 case "$ISSUE_BODY_PATH" in

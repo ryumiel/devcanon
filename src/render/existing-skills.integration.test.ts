@@ -219,6 +219,7 @@ describe("existing skills render cleanly", () => {
     ).body;
     expect(githubPriming).toContain("issue-body-path");
     expect(githubPriming).toContain("worktree-path");
+    expect(githubPriming).toContain("worktree path must be absolute");
     expect(githubPriming).toContain(
       '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
     );
@@ -229,6 +230,7 @@ describe("existing skills render cleanly", () => {
     ).body;
     expect(linearPriming).toContain("issue-body-path");
     expect(linearPriming).toContain("worktree-path");
+    expect(linearPriming).toContain("worktree path must be absolute");
     expect(linearPriming).toContain(
       '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
     );
@@ -240,6 +242,7 @@ describe("existing skills render cleanly", () => {
     expect(workflowBody).toContain("Issue body:");
     expect(workflowBody).toContain("issue-body-path");
     expect(workflowBody).toContain("worktree-path");
+    expect(workflowBody).toContain('cd "$WORKTREE_PATH" ||');
 
     const brainstormBody = parseFrontmatter(
       getSkillOutput(outputs, "play-brainstorm", "codex").content,

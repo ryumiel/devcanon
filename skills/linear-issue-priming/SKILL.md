@@ -70,6 +70,20 @@ contract.
 - If `MODE=stop`, surface `MESSAGE` and stop before any `.ephemeral/`
   write.
 - If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
+- If the helper exits non-zero, stop immediately instead of attempting to
+  parse partial output.
+
+Validate `WORKTREE_PATH` before any write:
+
+```bash
+[ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
+case "$WORKTREE_PATH" in
+  /*) ;;
+  *) echo "worktree path must be absolute: $WORKTREE_PATH" >&2; exit 1 ;;
+esac
+[ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
+[ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
+```
 
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; slugged
