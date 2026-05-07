@@ -2,7 +2,7 @@
 
 Use this template when composing each Phase 3 reviewer's prompt in `skills/play-review/SKILL.md` Phase 3.
 
-**Promotion classification:** Skill-local prompt template, single call site at `skills/play-review/SKILL.md` Phase 3 dispatch. Promotion to a source agent is gated by [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4 (cross-skill reuse OR standalone-role boundary; two-call-sites operational threshold). Phase 3 reviewer roles are explicitly held inline per [ADR-0011](../../../docs/adr/adr-0011-reviewer-fanout-audit.md); the template stays here.
+**Promotion classification:** Skill-local prompt template, single call site at `skills/play-review/SKILL.md` Phase 3 dispatch. Promotion to a source agent is gated on cross-skill reuse OR a role boundary that would still make sense outside this skill, with a two-call-sites operational threshold for reviewer-style delegates. Phase 3 reviewer roles are explicitly held inline (a deliberate fanout-audit decision: keep reviewer scaffolding workflow-local rather than promote to first-class agents); the template stays here.
 
 ## Required prompt structure
 
