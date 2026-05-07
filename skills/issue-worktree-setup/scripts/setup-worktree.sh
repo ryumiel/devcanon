@@ -66,6 +66,17 @@ case "$BASE_REF" in
     ;;
 esac
 
+SUPERPROJECT="$(git rev-parse --show-superproject-working-tree 2>/dev/null || true)"
+if [[ -n "$SUPERPROJECT" ]]; then
+  SUPERPROJECT_REAL="$(cd "$SUPERPROJECT" && pwd -P)"
+  emit_line "MODE" "stop"
+  emit_line "WORKTREE_PATH" "$CURRENT_WORKTREE"
+  emit_line \
+    "MESSAGE" \
+    "Running issue-worktree-setup from inside submodule ${CURRENT_WORKTREE_REAL} is unsupported; re-run from superproject ${SUPERPROJECT_REAL}."
+  exit 0
+fi
+
 while IFS= read -r -d '' line; do
   case "$line" in
     worktree\ *)
@@ -147,6 +158,13 @@ if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
 fi
 
 WORKTREES_DIR="$CURRENT_WORKTREE/.worktrees"
+IGNORE_PROBE=".worktrees/.agents-manager-ignore-probe"
+
+if ! git check-ignore -q "$IGNORE_PROBE" 2>/dev/null; then
+  echo "'.worktrees/' is not ignored in this repo." >&2
+  echo "Add '.worktrees/' to .gitignore and commit before re-running." >&2
+  exit 1
+fi
 
 if [[ -L "$WORKTREES_DIR" ]]; then
   echo ".worktrees must be a normal directory inside the primary checkout." >&2

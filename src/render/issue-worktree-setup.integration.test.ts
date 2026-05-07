@@ -69,7 +69,12 @@ async function createOriginRepo(
   await runGit(["config", "user.name", "Test User"], primaryDir);
   await runGit(["config", "user.email", "test@example.com"], primaryDir);
   await writeFile(path.join(primaryDir, "README.md"), "# temp repo\n", "utf-8");
-  await runGit(["add", "README.md"], primaryDir);
+  await writeFile(
+    path.join(primaryDir, ".gitignore"),
+    ".worktrees/\n",
+    "utf-8",
+  );
+  await runGit(["add", "README.md", ".gitignore"], primaryDir);
   await runGit(["commit", "-m", "chore: initial commit"], primaryDir);
   await runGit(["branch", "-M", defaultBranch], primaryDir);
   await runGit(["push", "-u", "origin", defaultBranch], primaryDir);
@@ -737,6 +742,73 @@ describe("issue-worktree-setup helper", () => {
     expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
       false,
     );
+  });
+
+  it("stops when run from inside a submodule checkout", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-submodule-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+    const parentDir = path.join(rootDir, "parent");
+
+    await runGit(["init", "--initial-branch=main", parentDir], rootDir);
+    await runGit(["config", "user.name", "Test User"], parentDir);
+    await runGit(["config", "user.email", "test@example.com"], parentDir);
+    await runCommand(
+      "git",
+      [
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        path.join(rootDir, "origin.git"),
+        "nested",
+      ],
+      parentDir,
+    );
+
+    const submodulePath = path.join(parentDir, "nested");
+    const result = await runSetup(helperScript, submodulePath, {
+      BRANCH_NAME: "feat/from-submodule",
+      WORKTREE_LEAF: "from-submodule",
+    });
+
+    expect(result.MODE).toBe("stop");
+    expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+      normalizeFsPath(await realpath(submodulePath)),
+    );
+    expect(result.MESSAGE).toMatch(/submodule/i);
+    expect(result.MESSAGE).toContain(await realpath(submodulePath));
+    expect(result.MESSAGE).toContain(await realpath(parentDir));
+  });
+
+  it("fails when .worktrees is not ignored in the host repo", async () => {
+    const rootDir = path.join(
+      os.tmpdir(),
+      `am-worktree-missing-ignore-${Date.now()}`,
+    );
+    await mkdir(rootDir, { recursive: true });
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const helperScript = await renderGeneratedHelperScript(rootDir);
+
+    await writeFile(path.join(primaryDir, ".gitignore"), "", "utf-8");
+    await runGit(["add", ".gitignore"], primaryDir);
+    await runGit(["commit", "-m", "chore: drop worktree ignore"], primaryDir);
+
+    await expect(
+      runCommand("bash", [helperScript], primaryDir, {
+        BRANCH_NAME: "feat/missing-ignore",
+        WORKTREE_LEAF: "missing-ignore",
+      }),
+    ).rejects.toThrow(/\.gitignore|\.worktrees\//u);
+    expect(
+      await pathExists(path.join(primaryDir, ".worktrees", "missing-ignore")),
+    ).toBe(false);
   });
 
   it("derives BASE_REF default from origin/HEAD when unset on a non-main repo", async () => {
