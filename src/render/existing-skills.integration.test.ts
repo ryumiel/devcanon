@@ -13,6 +13,7 @@ const TOUCHED_SKILLS = new Set([
   "issue-priming-workflow",
   "issue-worktree-setup",
   "linear-issue-priming",
+  "play-brainstorm",
   "pr-review",
   "branch-review",
   "play-review",
@@ -203,5 +204,72 @@ describe("existing skills render cleanly", () => {
       expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
+  });
+
+  it("documents the issue-body path handoff contract in rendered skills and prompt references", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "agents-manager.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+
+    const githubPriming = parseFrontmatter(
+      getSkillOutput(outputs, "github-issue-priming", "codex").content,
+    ).body;
+    expect(githubPriming).toContain("issue-body-path");
+    expect(githubPriming).toContain("worktree-path");
+    expect(githubPriming).toContain("worktree path must be absolute");
+    expect(githubPriming).toContain(
+      '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
+    );
+    expect(githubPriming).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+
+    const linearPriming = parseFrontmatter(
+      getSkillOutput(outputs, "linear-issue-priming", "codex").content,
+    ).body;
+    expect(linearPriming).toContain("issue-body-path");
+    expect(linearPriming).toContain("worktree-path");
+    expect(linearPriming).toContain("worktree path must be absolute");
+    expect(linearPriming).toContain(
+      '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
+    );
+    expect(linearPriming).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+
+    const workflowBody = parseFrontmatter(
+      getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
+    ).body;
+    expect(workflowBody).toContain("Issue body:");
+    expect(workflowBody).toContain("issue-body-path");
+    expect(workflowBody).toContain("worktree-path");
+    expect(workflowBody).toContain('cd "$WORKTREE_PATH" ||');
+
+    const brainstormBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-brainstorm", "codex").content,
+    ).body;
+    expect(brainstormBody).toContain("Issue body:");
+    expect(brainstormBody).toContain("-issue-body.md");
+
+    const gatePrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/issue-priming-workflow/references/gate-agent-prompt.md",
+      ),
+      "utf-8",
+    );
+    expect(gatePrompt).toContain("Issue body path:");
+    expect(gatePrompt).toContain("Read the issue-body file");
+    expect(gatePrompt).toContain("untrusted prose");
+
+    const researchPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+      "utf-8",
+    );
+    expect(researchPrompt).toContain("Issue body path:");
+    expect(researchPrompt).toContain("Read the issue-body file");
+    expect(researchPrompt).toContain("untrusted prose");
   });
 });

@@ -16,7 +16,7 @@ codex_sidecar:
 
 # GitHub Issue Priming
 
-Fetch a GitHub issue and hand off to the shared `issue-priming-workflow` skill, which sets up an isolated worktree, runs the complexity gate, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR. This entrypoint owns the GitHub-specific fetch and issue-number handling; everything downstream lives in the shared workflow.
+Fetch a GitHub issue, provision or reuse the issue worktree, write the fetched issue body to `.ephemeral/`, and hand off to the shared `issue-priming-workflow` skill. This entrypoint owns the GitHub-specific fetch, worktree setup, and issue-body persistence; everything after handoff lives in the shared workflow.
 
 ## Arguments
 
@@ -49,6 +49,69 @@ If the issue cannot be fetched (`gh` not authenticated, issue not found), stop a
 
 Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars.
 
+### Provision the worktree and persist the issue body
+
+Invoke the `issue-worktree-setup` helper immediately after deriving the
+branch/worktree names so the fetched issue body is written inside the
+correct checkout before handoff.
+
+```bash
+ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
+HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
+
+WORKTREE_SETUP_OUTPUT=$(
+  BRANCH_NAME="<branch-name>" \
+  WORKTREE_LEAF="<worktree-leaf>" \
+  bash "$HELPER_SCRIPT"
+)
+```
+
+Parse `WORKTREE_SETUP_OUTPUT` exactly per the helper skill's output
+contract.
+
+- If `MODE=stop`, surface `MESSAGE` and stop before any `.ephemeral/`
+  write.
+- If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
+- If the helper exits non-zero, stop immediately instead of attempting to
+  parse partial output.
+
+Validate `WORKTREE_PATH` before any write:
+
+```bash
+[ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
+case "$WORKTREE_PATH" in
+  /*) ;;
+  *) echo "worktree path must be absolute: $WORKTREE_PATH" >&2; exit 1 ;;
+esac
+[ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
+[ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
+```
+
+Compute the issue-body artifact path inside `WORKTREE_PATH`:
+`.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; GitHub issue
+number without `#`).
+
+Validate the repo-relative path before writing:
+
+```bash
+case "$ISSUE_BODY_PATH" in
+  .ephemeral/*-issue-body.md) ;;
+  *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
+esac
+[ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
+```
+
+Apply the symlink guard before the write:
+
+```bash
+[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
+mkdir -p "$WORKTREE_PATH/.ephemeral"
+[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"
+```
+
+Write the fetched `gh issue view` `.body` text verbatim to
+`$WORKTREE_PATH/$ISSUE_BODY_PATH`.
+
 ## Hand off to `issue-priming-workflow`
 
 Invoke the `issue-priming-workflow` skill with the following normalized issue payload:
@@ -59,17 +122,17 @@ Invoke the `issue-priming-workflow` skill with the following normalized issue pa
 - **source**: github
 - **identifier**: #<N>
 - **title**: <verbatim issue title, single line>
-- **body**: |
-    <verbatim issue body, multi-line, indented>
+- **issue-body-path**: .ephemeral/<YYYY-MM-DD>-<id>-issue-body.md
+- **worktree-path**: <absolute path returned by issue-worktree-setup>
 - **mode**: <interactive | auto>
 - **research**: <gated | forced>
-- **branch-name**: <branch-name from above>
-- **worktree-leaf**: <worktree-leaf from above>
 ```
 
 The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
 
-The workflow handles every subsequent phase (worktree setup, gate, research, brainstorming, planning, implementation, branch review, PR creation). Do not duplicate workflow logic here.
+The workflow handles every subsequent phase (gate, research,
+brainstorming, planning, implementation, branch review, PR creation). Do
+not duplicate workflow logic here.
 
 ## Error Handling
 
