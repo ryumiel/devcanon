@@ -156,19 +156,19 @@ Task tool (general-purpose):
        ```json
        {
          "schema": "implementer/snapshot/v1",
-         "task_id": "<task identifier from your task header>",
-         "head_sha": "<HEAD_SHA from Snapshot Manifest § Step 1>",
+         "task_id": "Task 3",
+         "head_sha": "0123456789abcdef0123456789abcdef01234567",
          "files": [
            {
-             "path": "<repo-relative path>",
+             "path": "docs/adr/adr-0007-review-pipeline-delineation.md",
              "status": "added",
-             "lines": <integer>,
-             "bytes": <integer>,
+             "lines": 167,
+             "bytes": 5021,
              "sha256": "<hex>",
-             "content": "<verbatim post-commit content>"
+             "content": "<verbatim file content>"
            },
            {
-             "path": "<repo-relative path>",
+             "path": "docs/specs/old-spec.md",
              "status": "deleted",
              "lines": 0,
              "bytes": 0,
