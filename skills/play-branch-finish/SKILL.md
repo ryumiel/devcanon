@@ -215,16 +215,24 @@ Then: Cleanup worktree (Step 5)
 
 **For Options 1, 2, 4:**
 
-Check if in worktree:
+Use provenance-aware cleanup. [`skills/issue-worktree-setup/SKILL.md`](../issue-worktree-setup/SKILL.md)
+defines repo-managed issue worktrees as `<MAIN_ROOT>/.worktrees/<leaf>`.
+Only those worktrees are eligible for automatic removal here.
 
 ```bash
-git worktree list | grep $(git branch --show-current)
-```
+WORKTREE_PATH=$(git rev-parse --show-toplevel)
+MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 
-If yes:
-
-```bash
-git worktree remove <worktree-path>
+case "$WORKTREE_PATH" in
+  "$MAIN_ROOT"/.worktrees/*)
+    cd "$MAIN_ROOT"
+    git worktree remove "$WORKTREE_PATH"
+    git worktree prune
+    ;;
+  *)
+    echo "Worktree at $WORKTREE_PATH is harness-managed; leaving it in place."
+    ;;
+esac
 ```
 
 **For Option 3:** Keep worktree.
@@ -234,9 +242,12 @@ git worktree remove <worktree-path>
 | Option           | Merge | Push | Keep Worktree | Cleanup Branch |
 | ---------------- | ----- | ---- | ------------- | -------------- |
 | 1. Merge locally | ✓     | -    | -             | ✓              |
-| 2. Create PR     | -     | ✓    | ✓             | -              |
+| 2. Create PR     | -     | ✓    | conditional   | -              |
 | 3. Keep as-is    | -     | -    | ✓             | -              |
 | 4. Discard       | -     | -    | -             | ✓ (force)      |
+
+Option 2 removes repo-managed `.worktrees/*` checkouts and preserves
+harness-managed worktrees in place.
 
 ## Common Mistakes
 
