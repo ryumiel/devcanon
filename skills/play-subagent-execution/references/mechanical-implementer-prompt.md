@@ -76,8 +76,10 @@ Task tool (general-purpose):
        rows. If `${BASE_SHA}..HEAD` is empty, report BLOCKED rather than
        writing a snapshot with an empty `files` array.
     6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
-       tool if you assembled JSON another way; atomic replacement; do
-       not append).
+       tool if you assembled JSON another way). Do not append. Neither
+       option is truly atomic; Step 7's `-s` check is the integrity
+       gate that prevents a half-written file from reaching the
+       controller.
     7. Verify: `[ -s "$SNAPSHOT_FILE" ] || exit 1`.
 
     ## Report Format

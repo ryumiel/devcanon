@@ -162,11 +162,11 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the lean template's prompt body (the first fenced block of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) is ~35 lines vs. the default's ~115-line body (the first fenced block of [`references/implementer-prompt.md`](references/implementer-prompt.md)). Count the body of either template with:
+**Verification baseline:** the lean template's prompt body (the first fenced block of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) is ~95 lines vs. the default's ~275-line body (the first fenced block of [`references/implementer-prompt.md`](references/implementer-prompt.md)). The lean variant remains ~3× smaller despite both growing under the snapshot-manifest contract. Count the body of either template with:
 
-````bash
-awk '/^```$/{c++; next} c==1' references/<template>.md | wc -l
-````
+```bash
+awk '/^`{3,}$/{c++; next} c==1' references/<template>.md | wc -l
+```
 
 To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
 
@@ -209,23 +209,31 @@ Parse the path off the literal notice line, then run the canonical
 guard narrowed to the snapshot suffix:
 
 ```bash
+SNAPSHOT_OK=true
 case "$SNAPSHOT_FILE" in
   .ephemeral/*-snapshot.json) ;;
-  *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; exit 1 ;;
+  *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
-[ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; exit 1; }
-[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; exit 1; }
-[ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; exit 1; }
+[ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+# If $SNAPSHOT_OK == false, skip snapshot consumption for this task and
+# fall back to disk reads for every file the implementer reported as
+# changed. Do not abort the controller workflow — the snapshot is an
+# optimization, not a workflow gate.
 ```
 
 This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the snapshot suffix. The canonical copy lives in
-`play-review/SKILL.md`; if that copy gains a step (e.g., a new
-pre-read check), update this skill to match. The symlink reject is
-added on top of the canonical guard because the consumer is read-only
-and never overwrites the file — the producer-side guard already
-removes a stale symlink before its `Write`.
+narrowed to the snapshot suffix and adapted to log-and-fall-back
+disposition. The canonical guard hard-exits because `play-review` has
+no fallback path; the snapshot consumer always has disk reads
+available, so any validation failure here is non-fatal. If the
+canonical copy gains a step (e.g., a new pre-read check), update this
+skill to match the check while keeping the soft-skip disposition. The
+symlink reject is added on top of the canonical guard because the
+consumer is read-only and never overwrites the file — the producer-
+side guard already removes a stale symlink before its `Write`.
 
 After parsing the JSON, also compare the snapshot's `head_sha` to
 the controller's own view of the worktree:

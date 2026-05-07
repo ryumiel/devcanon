@@ -180,21 +180,27 @@ the report and validates the parsed path with the canonical guard
 narrowed to the `*-snapshot.json` suffix:
 
 ```bash
+SNAPSHOT_OK=true
 case "$SNAPSHOT_FILE" in
   .ephemeral/*-snapshot.json) ;;
-  *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; exit 1 ;;
+  *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
-[ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; exit 1; }
-[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; exit 1; }
-[ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; exit 1; }
+[ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+# Validation failure is non-fatal: the controller logs and falls back
+# to disk reads for every file in this task. The snapshot is an
+# optimization, not a workflow gate.
 ```
 
 This bash mirrors the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the snapshot suffix. The symlink reject is added on top
-of the canonical guard because the consumer is read-only and never
-overwrites the file — the producer-side write path picks up the
-symlink check via its own guard.
+narrowed to the snapshot suffix and adapted to log-and-fall-back
+disposition (the canonical guard hard-exits because `play-review` has
+no fallback; the snapshot consumer always has disk reads available).
+The symlink reject is added on top of the canonical guard because the
+consumer is read-only and never overwrites the file — the producer-
+side write path picks up the symlink check via its own guard.
 
 After parsing the JSON, the controller compares the snapshot's
 `head_sha` to its own view of the worktree (`git rev-parse HEAD`); a

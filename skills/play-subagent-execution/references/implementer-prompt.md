@@ -213,8 +213,11 @@ Task tool (general-purpose):
 
     6. Persist the envelope to `$SNAPSHOT_FILE`. The Step 5 recipe already
        redirects `jq` output to the path; if you assembled the JSON
-       another way, use the `Write` tool (atomic replacement; do not
-       append).
+       another way, use the `Write` tool. Do not append. Step 7's `-s`
+       check below guards against a half-written or empty file reaching
+       the controller; neither `>` redirection nor the `Write` tool
+       guarantees atomic replacement, so the post-write size check is the
+       integrity gate.
 
     7. Verify the write:
 
