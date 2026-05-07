@@ -162,8 +162,6 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 5. Emit the literal line `Research brief written to <repo-relative-path>.` to the conversation output. This is the consumer contract surface; do not reword.
 6. Carry the path forward to Phase 4's args (no parsing required — the path was computed in step 1 above and is already in hand).
 
-The notice line is the producer contract surface that downstream consumers parse — do not reword it.
-
 ## Phase 4: Invoke Brainstorming
 
 Invoke the `play-brainstorm` skill with the combined context below.
@@ -371,7 +369,7 @@ Use `{{model:standard}}` as the floor for agents that make judgment calls during
 | ------------------------ | -------------------- | --------------------------------------------------------------- |
 | Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
 | Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
-| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; multi-task plans                                 |
+| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; runs on multi-task plans                         |
 | Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review             |
 | PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 
