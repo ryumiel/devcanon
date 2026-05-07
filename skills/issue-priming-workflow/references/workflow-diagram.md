@@ -6,11 +6,11 @@ are in `SKILL.md` § Phase 1–8.
 ```dot
 digraph priming {
   rankdir=TB;
-  worktree [label="1. Worktree\nIsolate before\nany file writes"];
+  worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
   gate [label="2. Gate\nDedicated agent\nassesses complexity"];
   decide [label="Research?", shape=diamond];
   research [label="3. Research\nDedicated agent\npolicy + codebase + external"];
-  brainstorm [label="4. Brainstorm\nInvoke skill with\nissue + brief"];
+  brainstorm [label="4. Brainstorm\nInvoke skill with\nissue-body path + brief"];
   auto_check [label="--auto?", shape=diamond];
   plan [label="5. Plan\nWrite implementation plan"];
   implement [label="6. Implement\nplay-subagent-execution"];
