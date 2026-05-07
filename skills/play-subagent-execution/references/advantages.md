@@ -26,7 +26,7 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 **Quality gates:**
 
 - Self-review catches issues before handoff
-- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on the final code-quality reviewer plus downstream `branch-review`
+- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on either the final code-quality reviewer (direct/manual) or downstream `branch-review --fix` on the `issue-priming-workflow --auto` path
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built

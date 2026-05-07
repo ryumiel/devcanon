@@ -4,6 +4,14 @@
 
 Accepted
 
+## Note
+
+ADR-0016 later refines the `issue-priming-workflow --auto` single-task path
+described here. The per-task-review skip decision in this ADR remains
+authoritative, but statements below that the final whole-implementation
+reviewer always runs on that caller-scoped path should now be read together
+with ADR-0016.
+
 ## Context
 
 The `github-issue-priming --auto` workflow (and its sibling
@@ -31,11 +39,13 @@ verdicts.
 
 When `play-subagent-execution` extracts a plan with exactly **one** task,
 skip both per-task reviewers (spec-compliance and code-quality) for that
-task. The implementer agent still runs and self-reviews. The skill's
-existing final whole-implementation code-quality reviewer still runs after
-the task completes (its scope is out of this ADR, see Consequences). When
-invoked downstream by `github-issue-priming --auto`, `branch-review` then
-performs whole-diff review on top of that.
+task. The implementer agent still runs and self-reviews. At the time this
+ADR landed, the skill's final whole-implementation code-quality reviewer
+still ran after the task completed. ADR-0016 later narrowed the
+`issue-priming-workflow --auto` single-task path so that when downstream
+`branch-review --fix` is explicitly guaranteed, that final reviewer is
+skipped; outside that caller-scoped carve-out, the final reviewer still
+runs.
 
 For plans with **two or more** tasks, the per-task two-stage review
 (spec-compliance, then code-quality) continues to run. Multi-task plans
@@ -62,16 +72,13 @@ unchanged.
   cost drops and the contradictory-verdict risk between the two pipelines is
   removed.
 - The "final code-quality reviewer for entire implementation" step at the end
-  of `play-subagent-execution` is **out of scope for this ADR** and remains
-  unchanged. If that step should also be deduplicated against branch-review,
-  it requires a separate ADR.
-- When `play-subagent-execution` is invoked **outside** `--auto` on a
-  single-task plan (no downstream branch-review), the implementer's own
-  self-review is the only review before commit. This is an accepted
-  trade-off: manual single-task invocations are rare, the implementer
-  self-reviews, and the user can run `branch-review` directly. The
-  alternative -- detecting the caller at runtime -- is not supported by the
-  skill harness.
+  of `play-subagent-execution` was **out of scope for this ADR** at the time
+  it landed. ADR-0016 later narrows that step away only for the
+  `issue-priming-workflow --auto` single-task path.
+- When `play-subagent-execution` is invoked outside that caller-scoped
+  `--auto` path on a single-task plan, the final whole-implementation
+  reviewer remains the built-in review before commit, and operators may run
+  `branch-review` manually for additional whole-diff coverage.
 - The "Skip reviews (spec compliance OR code quality)" Red Flag in
   `play-subagent-execution` no longer flatly forbids skipping; it now
   forbids skipping when the plan has 2+ tasks.
@@ -79,19 +86,21 @@ unchanged.
   three runtime guardrails (single-task plan, `**Mode:** mechanical`, no TDD
   step-pair markers) plus one upstream precondition (`play-planning`'s
   plan-review PASS) all hold, the implementer dispatch itself is also skipped —
-  the controller executes Write/Edit + verify + commit inline. The final
-  whole-implementation code-quality reviewer remains out of scope for this ADR
-  and continues to run.
+  the controller executes Write/Edit + verify + commit inline. ADR-0016
+  later narrows the `issue-priming-workflow --auto` single-task subset of
+  that path further by skipping the final whole-implementation reviewer when
+  downstream `branch-review --fix` is guaranteed.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
 - Reviewer cost increases. For multi-task plans the per-task reviewers
   (spec-compliance and code-quality) run at `{{model:deep}}` instead of
   `{{model:standard}}`, bounded by N (number of tasks) × 2 reviewers.
   Additionally, the final whole-implementation code-quality reviewer at the
-  end of `play-subagent-execution` (still out of scope for this ADR) shares
-  the `code-quality-reviewer` agent and therefore also runs at
-  `{{model:deep}}` on every plan, including single-task plans. The increased
-  cost is justified by the same rationale as `pr-review` and `branch-review`:
+  end of `play-subagent-execution` shares the `code-quality-reviewer` agent
+  and therefore runs at `{{model:deep}}` on every path except the
+  caller-scoped single-task `issue-priming-workflow --auto` carve-out later
+  introduced by ADR-0016. The increased cost on the remaining paths is
+  justified by the same rationale as `pr-review` and `branch-review`:
   missing a real bug far outweighs the model cost.
 
 ## Alternatives considered
@@ -119,3 +128,4 @@ unchanged.
 
 - Issue: #108
 - Surfacing PR / post-mortem: #106 / #99
+- Follow-up refinement: ADR-0016

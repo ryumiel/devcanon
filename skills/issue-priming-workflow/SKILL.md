@@ -262,10 +262,16 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Run all per-task reviews for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
+Caller contract: this invocation comes from `issue-priming-workflow --auto`, and Phase 7 `branch-review --fix` is mandatory. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+
 Plan: <repo-relative-path captured above>
 ```
 
-All `play-subagent-execution` rules apply (fresh subagent per task, per-task two-stage review for multi-task plans; single-task plans skip per-task review).
+All `play-subagent-execution` rules apply (fresh subagent per task,
+per-task two-stage review for multi-task plans; single-task plans skip
+per-task review). The caller contract above activates its narrow
+single-task final-review carve-out because this workflow guarantees Phase 7
+`branch-review --fix`.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Three runtime guardrails (single-task, `**Mode:** mechanical`, no TDD step-pair) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction.
 
@@ -337,7 +343,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 | 3. Research      | Dedicated agent synthesizes brief     | Optional — only if gate says so                                              |
 | 4. Brainstorm    | Invoke `play-brainstorm`              | Never skip, even for "simple" issues                                         |
 | 5. Plan          | `play-planning`                       | `--auto` only                                                                |
-| 6. Implement     | `play-subagent-execution`             | `--auto` only                                                                |
+| 6. Implement     | `play-subagent-execution`             | `--auto` only; single-task path may return directly to Phase 7               |
 | 7. Branch Review | `branch-review --fix` + classify nits | `--auto` only; mechanical nits auto-fixed, judgment-required nits to Phase 8 |
 | 8. Create PR     | Push + `gh pr create`                 | `--auto` only; never auto-merge; follow project PR guideline                 |
 
