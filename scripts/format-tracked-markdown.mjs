@@ -18,8 +18,22 @@ function getTrackedMarkdownFiles() {
     .filter((file) => existsSync(file));
 }
 
+function getRequestedMarkdownFiles(args) {
+  const separatorIndex = args.indexOf("--");
+  const explicitFiles =
+    separatorIndex >= 0
+      ? args.slice(separatorIndex + 1)
+      : args.filter((arg) => !arg.startsWith("--"));
+
+  if (explicitFiles.length > 0) {
+    return explicitFiles.filter((file) => existsSync(file));
+  }
+
+  return getTrackedMarkdownFiles();
+}
+
 const mode = process.argv.includes("--write") ? "--write" : "--check";
-const files = getTrackedMarkdownFiles();
+const files = getRequestedMarkdownFiles(process.argv.slice(2));
 
 if (files.length === 0) {
   process.exit(0);
