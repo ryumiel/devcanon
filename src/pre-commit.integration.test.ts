@@ -99,7 +99,9 @@ async function createPnpmShim(
   invocationLogPath: string,
 ): Promise<string> {
   const shimDir = path.join(rootDir, "bin");
+  const shimScriptPath = path.join(shimDir, "pnpm-shim.cjs");
   const shimPath = path.join(shimDir, "pnpm");
+  const shimCmdPath = path.join(shimDir, "pnpm.cmd");
 
   await mkdir(shimDir, { recursive: true });
 
@@ -126,7 +128,17 @@ if (behavior.repeatStdoutChar && behavior.repeatStdoutCount) {
 process.exit(behavior.status);
 `;
 
-  await writeFile(shimPath, shimSource, "utf8");
+  await writeFile(shimScriptPath, shimSource, "utf8");
+  await writeFile(
+    shimPath,
+    '#!/bin/sh\nnode "$(dirname "$0")/pnpm-shim.cjs" "$@"\n',
+    "utf8",
+  );
+  await writeFile(
+    shimCmdPath,
+    '@echo off\r\nnode "%~dp0\\pnpm-shim.cjs" %*\r\n',
+    "utf8",
+  );
   await chmod(shimPath, 0o755);
 
   return shimDir;
@@ -179,7 +191,7 @@ async function runCheckStagedFixture(
     {
       ...process.env,
       ...options.env,
-      PATH: `${shimDir}:${process.env.PATH ?? ""}`,
+      PATH: `${shimDir}${path.delimiter}${process.env.PATH ?? ""}`,
       PNPM_BEHAVIORS_JSON: JSON.stringify(options.pnpmBehaviors ?? {}),
       PNPM_INVOCATION_LOG_PATH: invocationLogPath,
     },
@@ -219,7 +231,7 @@ async function runHelperScriptFixture(input: {
     rootDir,
     {
       ...process.env,
-      PATH: `${shimDir}:${process.env.PATH ?? ""}`,
+      PATH: `${shimDir}${path.delimiter}${process.env.PATH ?? ""}`,
       PNPM_INVOCATION_LOG_PATH: invocationLogPath,
       PNPM_BEHAVIORS_JSON: "{}",
     },
