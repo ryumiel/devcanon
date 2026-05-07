@@ -4,6 +4,14 @@
 
 Accepted
 
+## Note
+
+ADR-0016 later refines the `issue-priming-workflow --auto` single-task
+subset of the path described here. The skip-dispatch decision in this ADR
+remains authoritative, but statements below that the final
+whole-implementation reviewer runs on every plan should now be read together
+with ADR-0016.
+
 ## Context
 
 For single-task plans whose Task 1 is a verbatim file write — content fully
@@ -60,9 +68,11 @@ step-pairs from the mechanical positive shapes, so a correctly authored
 plan never reaches this branch.
 
 The skill's existing final whole-implementation code-quality reviewer
-(scope explicitly out of ADR-0007) still runs on every plan, including the
-skip-dispatch path. In `--auto` flows, downstream `branch-review` provides
-whole-diff coverage as it does today.
+(scope explicitly out of ADR-0007 at the time) still runs on the
+skip-dispatch path unless the caller-scoped ADR-0016 carve-out applies
+(`issue-priming-workflow --auto`, single-task plan, downstream
+`branch-review --fix` explicitly guaranteed). On that narrower path,
+`branch-review --fix` supplies the whole-diff gate.
 
 This is positioned as an internal optimization within Phase 6 of
 `issue-priming-workflow`, not a phase removal — Phase 6 still runs, Phase
@@ -88,7 +98,8 @@ here.
   needs judgment) bypass dispatch. Mitigation: same as the existing
   `**Mode:** mechanical` hint policy — under-marking is harmless,
   over-marking is plan-author responsibility, caught by `play-planning`'s
-  plan-review subagent and by the final whole-implementation reviewer.
+  plan-review subagent and by either the final whole-implementation
+  reviewer or downstream `branch-review --fix` on the ADR-0016 path.
 - The implementer DONE-report snapshot contract (ADR-0014) does not
   apply on the skip-dispatch path: with no dispatched implementer, there
   is no DONE-report boundary. The plan body is itself the snapshot.
@@ -124,3 +135,4 @@ here.
 - Companion issue (mechanical-implementer prompt variant): #168 (landed via PR #177)
 - Sibling ADR (DONE-report snapshot contract, scope-excludes this path): ADR-0014
 - Parent ADR (review-pipeline delineation): ADR-0007
+- Follow-up refinement: ADR-0016

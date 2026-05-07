@@ -109,7 +109,9 @@ digraph process {
     "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "Plan has exactly one task?" [shape=diamond];
     "More tasks remain?" [shape=diamond];
+    "Single-task caller-scoped final-review skip applies?" [shape=diamond];
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
+    "Return to caller (downstream branch-review --fix runs there)" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
@@ -136,7 +138,9 @@ digraph process {
     "Code-quality-reviewer agent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch the code-quality-reviewer agent for entire implementation" [label="no"];
+    "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
+    "Single-task caller-scoped final-review skip applies?" -> "Return to caller (downstream branch-review --fix runs there)" [label="yes"];
+    "Single-task caller-scoped final-review skip applies?" -> "Dispatch the code-quality-reviewer agent for entire implementation" [label="no"];
     "Dispatch the code-quality-reviewer agent for entire implementation" -> "Use play-branch-finish";
 }
 ```
@@ -193,13 +197,33 @@ Do **not** use the hint for these negative shapes — the default template appli
 
 ## Single-Task Plans
 
-When the plan extracted in the first step contains exactly **one** task, skip both per-task reviewers (spec-compliance and code-quality) for that task. The implementer's own self-review remains the immediate quality gate. The final whole-implementation code-quality reviewer at the end of this skill still runs (its scope is the whole implementation, not the per-task carve-out). When called by `github-issue-priming --auto`, the downstream `branch-review` invocation then performs whole-diff review on top of that.
+When the plan extracted in the first step contains exactly **one** task,
+skip both per-task reviewers (spec-compliance and code-quality) for that
+task. The implementer's own self-review remains the immediate quality gate.
+
+If the caller explicitly states that this invocation came from
+`issue-priming-workflow --auto` and guarantees downstream
+`branch-review --fix` as the mandatory next step, skip the final
+whole-implementation code-quality reviewer too and return directly to the
+caller after the single-task path completes.
+
+Otherwise, the final whole-implementation code-quality reviewer at the end
+of this skill still runs (its scope is the whole implementation, not the
+per-task carve-out).
 
 For plans with two or more tasks, the per-task two-stage review runs unchanged.
 
-If you invoke this skill **directly** (not via `--auto`) on a single-task plan, no whole-diff review runs after the final code-quality reviewer — run `branch-review` yourself before opening a PR if you want that coverage.
+If you invoke this skill **directly** (not via `--auto`) on a single-task
+plan, no whole-diff review runs after the final code-quality reviewer — run
+`branch-review` yourself before opening a PR if you want that coverage.
 
-The trade-off here: per-task review on a single task adds review overhead without catching regressions across tasks (there is only one), so the per-task review is skipped and `branch-review` (or its absence on direct manual invocations) becomes the gate. For manual single-task invocations, the user is the gate.
+The trade-off here: per-task review on a single task adds review overhead
+without catching regressions across tasks (there is only one), so the
+per-task review is skipped. On the `issue-priming-workflow --auto`
+single-task path, downstream `branch-review --fix` becomes the whole-diff
+gate; on direct/manual single-task invocations, the final
+whole-implementation reviewer remains the built-in gate and the user can
+still run `branch-review` manually.
 
 ## Implementer Snapshot Consumption
 
@@ -346,7 +370,11 @@ When all four guardrails hold:
 3. **Commit.** Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
 4. **Mark task complete in TodoWrite.** Same as the dispatched path.
 
-After step 4, the existing final whole-implementation code-quality reviewer dispatches as it does on the dispatched path — its scope is unchanged on this path.
+After step 4, if the caller explicitly guarantees that this single-task run
+came from `issue-priming-workflow --auto` and that downstream
+`branch-review --fix` is mandatory, return to the caller immediately.
+Otherwise, dispatch the existing final whole-implementation code-quality
+reviewer as it does on the dispatched path.
 
 There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. No DONE-report contract applies here because there is no dispatched implementer to report from.
 

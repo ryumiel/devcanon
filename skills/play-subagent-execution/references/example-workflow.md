@@ -3,7 +3,7 @@
 An end-to-end illustration of the multi-task subagent-driven flow. The procedure
 itself lives in `SKILL.md` § The Process; this file is illustrative.
 
-The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" in `SKILL.md`), so the per-task flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`.
+The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`. On the `issue-priming-workflow --auto` single-task path, the flow instead returns to the caller after task completion so Phase 7 `branch-review --fix` becomes the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
