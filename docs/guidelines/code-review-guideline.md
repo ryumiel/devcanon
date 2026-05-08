@@ -86,7 +86,7 @@ Before opening a PR, the author should verify:
 
 ## 7. Agent-Assisted Review
 
-When an AI agent reviews code, it must:
+Agent-assisted review follows this contract:
 
 - Lead with one or two short narrative sentences naming what the
   implementation got right before the findings list
@@ -100,3 +100,8 @@ When an AI agent reviews code, it must:
 - Verify CI status rather than assuming correctness
 - Check the CONTRIBUTING.md PR checklist items that can be verified
   mechanically (schema alignment, snapshot freshness, MAP.md coverage)
+- When dispatching a standalone reviewer agent, the caller must provide
+  explicit review scope as a `base..head` ref or unified diff; reviewers
+  must not be asked to discover the scope themselves
+- When dispatching `spec-compliance-reviewer`, the caller must also provide
+  the scoped requirements or task spec it should compare against
