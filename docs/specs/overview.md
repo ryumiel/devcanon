@@ -11,17 +11,16 @@ Install scope: User-wide only
 
 ## One-Sentence Definition
 
-DevCanon is a user-wide Node.js CLI that manages shared AI skills and
-generates native Claude Code and Codex agent files from a single source of
-truth.
+DevCanon is a user-wide Node.js CLI and source library for portable AFDS
+skills, thin agent roles, and generated Claude Code and Codex files.
 
 ---
 
 ## Product Goal
 
-Provide one maintainable source of truth for personal AI workflows across
-Claude Code and Codex without forcing the user to manually maintain multiple
-agent files.
+Provide one maintainable source of truth for portable AI-assisted development
+workflows across Claude Code and Codex, including AFDS skills, thin agent roles,
+and guidance for GitHub Issues-backed or Linear-backed project adoption.
 
 ---
 
@@ -40,6 +39,10 @@ The following are out of scope for v1:
 - inheritance between agents
 - editing generated outputs in place as source of truth
 - management of `~/.codex/config.toml`
+- automatic consumer-repository rewriting or migration
+- repository-level document management for consumer projects
+- forcing existing projects into one mandatory document template
+- duplicating live issue, PR, or agent run state in repository docs
 
 ---
 
@@ -54,6 +57,12 @@ and agents in one place.
 
 As a user, I want to scaffold a new skill so I can define a reusable workflow
 quickly.
+
+### Adopt AFDS in a project
+
+As a project maintainer, I want portable skills, thin agent roles, and setup
+guidance so I can adopt AFDS across Claude Code and Codex without making
+DevCanon manage my repository documents automatically.
 
 ### Create an agent role
 

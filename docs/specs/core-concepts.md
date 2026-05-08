@@ -57,6 +57,32 @@ Defines how managed outputs are installed:
 A generated file or installed skill directory that is owned and tracked by
 `devcanon`.
 
+### AFDS Project
+
+An **AFDS project** is a development project that uses agent-friendly durable
+docs, issue tracking, pull requests, and reusable skills as separate systems of
+record.
+
+DevCanon supports AFDS projects by providing portable skills, thin agent roles,
+and setup guidance. It does not automatically rewrite or manage consumer
+project repositories.
+
+### Roadmap Item
+
+A **roadmap item** is a durable, forward-looking outcome that is larger than a
+single pull request.
+
+Roadmap items live in `docs/roadmap/` when the direction needs to survive
+beyond the current issue or agent session. Live status, assignees, sub-issue
+lists, and PR state stay in GitHub Issues, Linear, or pull requests.
+
+### Guided Adoption
+
+**Guided adoption** means DevCanon gives projects reusable workflows,
+generated target-native files, and documentation patterns for adopting AFDS,
+while the consumer project remains responsible for its own repository docs and
+migration choices.
+
 ---
 
 ## Design Principles
@@ -83,3 +109,7 @@ A generated file or installed skill directory that is owned and tracked by
 
 7. **Cross-platform support**\
    Must work on macOS, Linux, and Windows.
+
+8. **Guided adoption**\
+   DevCanon helps projects adopt AFDS through portable skills, thin agent roles,
+   and setup guidance; it does not automatically manage consumer repositories.
