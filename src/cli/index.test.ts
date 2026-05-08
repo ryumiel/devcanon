@@ -11,6 +11,7 @@ describe("CLI entrypoint", () => {
       ["exec", "tsx", "src/cli/index.ts", "--help"],
       {
         cwd: process.cwd(),
+        shell: process.platform === "win32",
       },
     );
 
