@@ -43,7 +43,7 @@ The primary end-to-end workflow is:
 
 ```sh
 # Clone the repo
-git clone <repo-url>
+git clone <repo-url> devcanon
 cd devcanon
 
 # Install dependencies
