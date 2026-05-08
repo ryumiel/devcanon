@@ -27,7 +27,7 @@ platform:
   windowsSymlinkFallback: copy
 
 manifest:
-  path: ~/.agents-manager/manifest.json
+  path: ~/.devcanon/manifest.json
 
 modelTiers:
   fast:

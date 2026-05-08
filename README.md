@@ -1,4 +1,4 @@
-# agents-manager
+# DevCanon
 
 A user-wide Node.js CLI that manages shared AI skills and generates native
 Claude Code and Codex agent files from a single source of truth.
@@ -20,6 +20,22 @@ Source files are authoritative. Generated outputs are disposable.
 pnpm install
 pnpm run build
 pnpm run dev -- sync
+```
+
+## Breaking Rename From agents-manager
+
+DevCanon does not support legacy `agents-manager` CLI, config, env-var, or
+manifest names. Existing users must uninstall with the old CLI before
+installing DevCanon:
+
+```sh
+agents-manager uninstall
+```
+
+After installing DevCanon, use:
+
+```sh
+devcanon sync
 ```
 
 ## Documentation

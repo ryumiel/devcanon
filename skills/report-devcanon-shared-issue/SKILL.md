@@ -1,26 +1,26 @@
 ---
-name: report-agents-manager-shared-issue
-description: Drafts an upstream agents-manager issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.
+name: report-devcanon-shared-issue
+description: Drafts an upstream DevCanon issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.
 codex:
   license: MIT
   metadata:
-    short-description: Draft an upstream shared-work issue for agents-manager from a consumer repository
+    short-description: Draft an upstream shared-work issue for DevCanon from a consumer repository
 codex_sidecar:
   interface:
     display_name: Report Shared Issue
-    short_description: Draft and post reusable shared-work issues to agents-manager
+    short_description: Draft and post reusable shared-work issues to DevCanon
     brand_color: "#0f766e"
 ---
 
 # Report Shared Issue
 
-Use this skill when working in a consumer repository and you discover a reusable problem or gap in a shared `agents-manager` skill or shared `agents-manager` agent.
+Use this skill when working in a consumer repository and you discover a reusable problem or gap in a shared `DevCanon` skill or shared `DevCanon` agent.
 
 Do not use this skill for project-local prompt tweaks, domain-specific wording, or issues that would make the shared skill worse for general use.
 
 ## Goal
 
-Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `agents-manager` without leaking unsafe material.
+Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `DevCanon` without leaking unsafe material.
 
 The upstream GitHub repository for issue search and posting is `ryumiel/agent-manager`.
 
@@ -28,11 +28,11 @@ The upstream GitHub repository for issue search and posting is `ryumiel/agent-ma
 
 <!-- Canonical safety rule. The playbook (docs/guidelines/shared-skill-reporting-workflow.md § 2) forwards here as the single source of truth. -->
 
-Describe only `agents-manager`-side facts in the issue body:
+Describe only `DevCanon`-side facts in the issue body:
 
 - the affected shared skill or shared agent
 - the expected vs. observed _shared_ behavior — the part that would be wrong on any consumer repo
-- relevant `agents-manager` source-of-truth paths (`skills/`, `agents/`, `docs/`, `src/`)
+- relevant `DevCanon` source-of-truth paths (`skills/`, `agents/`, `docs/`, `src/`)
 - render, install, or spec context
 
 Consumer-side context is allowed only when necessary for reproduction, and only as a sanitized category (e.g. "pnpm workspace with hoisted deps", "monorepo with two TS rootDirs") — never as identity.
@@ -74,7 +74,7 @@ Capture:
 - user impact or severity
 - install mode: `symlink`, `copy`, or `unknown`
 - sanitized artifact path, if known
-- `agents-manager` revision, branch, or version, if known
+- `DevCanon` revision, branch, or version, if known
 - whether the problem still reproduces after `render`: `yes`, `no`, `not-tried`, or `unknown`
 - whether the problem still reproduces after `sync`: `yes`, `no`, `not-tried`, or `unknown`
 - redaction and safety status for any quoted material
@@ -88,7 +88,7 @@ incomplete issue draft and explicitly call out what is still missing.
 
 ## Redaction Gate
 
-The `Scope` rule above is the primary defense — if the body only describes `agents-manager`-side facts, most leak vectors do not apply. Before posting, sweep any quoted material for these specific risks:
+The `Scope` rule above is the primary defense — if the body only describes `DevCanon`-side facts, most leak vectors do not apply. Before posting, sweep any quoted material for these specific risks:
 
 - stack traces and log lines: sanitize each frame or line individually — one frame can leak a path or hostname
 - transcript excerpts: prefer summary; use verbatim only after the _user_ has pasted or quoted the exact text themselves — a "yes" to an agent-proposed excerpt is not sufficient; re-confirm if the excerpt is edited after the user supplied it
@@ -117,7 +117,7 @@ Title:
 - `improvement` -> `feat(...)` when behavior changes are user-visible, `refactor(...)` when the work is internal cleanup; default label `enhancement`, optional `tech-debt` for structural cleanup
 - `new skill` -> `feat(skill): ...` with `enhancement`
 - `new agent` -> `feat(agent): ...` with `enhancement`
-- the `(scope)` slot must reference an upstream `agents-manager` component (`skill`, `agent`, `render`, `install`, `docs`, `cli`) — never a consumer repo, customer, codename, or ticket ID
+- the `(scope)` slot must reference an upstream `DevCanon` component (`skill`, `agent`, `render`, `install`, `docs`, `cli`) — never a consumer repo, customer, codename, or ticket ID
 
 Body sections: use the body shape canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/agent-manager/blob/main/WORKFLOW.md#creating-an-issue).
 
@@ -128,7 +128,7 @@ If blocker issue IDs are known, apply the GitHub `blocked by` relationship after
 <!-- Mirrors docs/guidelines/shared-skill-reporting-workflow.md § Upstream Fix Loop in spirit; canonical retest steps live there. Update both together when the loop changes. -->
 
 When the discovery is confirmed to be reusable, tell the user that the fix
-happens only in `agents-manager` source files.
+happens only in `DevCanon` source files.
 
 Recommend this local retest loop:
 

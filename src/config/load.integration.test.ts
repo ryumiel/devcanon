@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -37,9 +38,9 @@ describe("findConfigPath", () => {
     });
   });
 
-  it("returns path from AGENTS_MANAGER_CONFIG env var when file exists", async () => {
+  it("returns path from DEVCANON_CONFIG env var when file exists", async () => {
     const configPath = await createConfigFile(tempDir);
-    vi.stubEnv("AGENTS_MANAGER_CONFIG", configPath);
+    vi.stubEnv("DEVCANON_CONFIG", configPath);
     try {
       const result = await findConfigPath();
       expect(result).toBe(path.resolve(configPath));
@@ -48,9 +49,9 @@ describe("findConfigPath", () => {
     }
   });
 
-  it("throws UserError with hint when AGENTS_MANAGER_CONFIG points to nonexistent file", async () => {
+  it("throws UserError with hint when DEVCANON_CONFIG points to nonexistent file", async () => {
     const missing = path.join(tempDir, "gone.yaml");
-    vi.stubEnv("AGENTS_MANAGER_CONFIG", missing);
+    vi.stubEnv("DEVCANON_CONFIG", missing);
     try {
       await expect(findConfigPath()).rejects.toSatisfy((err: unknown) => {
         expect(err).toBeInstanceOf(UserError);
@@ -59,6 +60,27 @@ describe("findConfigPath", () => {
         return true;
       });
     } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("does not use legacy AGENTS_MANAGER_CONFIG env var", async () => {
+    const configPath = path.join(tempDir, "agents-manager.config.yaml");
+    await writeFile(configPath, "version: 1\n", "utf8");
+    const previousCwd = process.cwd();
+    vi.stubEnv("AGENTS_MANAGER_CONFIG", configPath);
+    try {
+      process.chdir(tempDir);
+      await expect(findConfigPath()).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        const ue = err as UserError;
+        expect(ue.message).toBe(
+          "No devcanon.config.yaml found in current directory.",
+        );
+        return true;
+      });
+    } finally {
+      process.chdir(previousCwd);
       vi.unstubAllEnvs();
     }
   });

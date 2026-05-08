@@ -55,7 +55,7 @@ Defines how managed outputs are installed:
 ### Managed Output
 
 A generated file or installed skill directory that is owned and tracked by
-`agents-manager`.
+`devcanon`.
 
 ---
 

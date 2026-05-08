@@ -2,9 +2,27 @@
 
 ---
 
+## Breaking Rename From agents-manager
+
+DevCanon does not support legacy `agents-manager` CLI, config, env-var, or
+manifest names. Existing users must uninstall with the old CLI before
+installing DevCanon:
+
+```sh
+agents-manager uninstall
+```
+
+After installing DevCanon, use:
+
+```sh
+devcanon sync
+```
+
+---
+
 ## Ownership Model
 
-`agents-manager` owns only files and directories it installed as managed
+`devcanon` owns only files and directories it installed as managed
 outputs.
 
 ---
@@ -16,7 +34,7 @@ Manifest is authoritative for tracking installed outputs.
 Default path:
 
 ```text
-~/.agents-manager/manifest.json
+~/.devcanon/manifest.json
 ```
 
 ### Suggested manifest fields
@@ -88,7 +106,7 @@ If multiple targets are requested and one fails:
 
 ## Uninstall
 
-`agents-manager uninstall` removes managed outputs recorded in the
+`devcanon uninstall` removes managed outputs recorded in the
 manifest. The command is symmetric to `sync` for tool retirement and
 target wipes.
 

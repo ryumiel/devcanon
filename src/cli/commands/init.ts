@@ -4,6 +4,11 @@ import {
   SAMPLE_AGENT_YAML,
   SAMPLE_SKILL_MD,
 } from "../../config/defaults.js";
+import {
+  CLI_COMMAND,
+  CONFIG_FILE_NAME,
+  PRODUCT_NAME,
+} from "../../config/identity.js";
 import { UserError } from "../../utils/errors.js";
 import { ensureDir, pathExists, writeTextFile } from "../../utils/fs.js";
 import { getLogger } from "../../utils/output.js";
@@ -11,11 +16,11 @@ import { getLogger } from "../../utils/output.js";
 export async function initAction(): Promise<void> {
   const logger = getLogger();
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "agents-manager.config.yaml");
+  const configPath = path.join(cwd, CONFIG_FILE_NAME);
 
   if (await pathExists(configPath)) {
     throw new UserError(
-      "agents-manager.config.yaml already exists in this directory.",
+      `${CONFIG_FILE_NAME} already exists in this directory.`,
       configPath,
       "Remove it first or run from a different directory.",
     );
@@ -23,7 +28,7 @@ export async function initAction(): Promise<void> {
 
   // Create config
   await writeTextFile(configPath, DEFAULT_CONFIG_YAML);
-  logger.info("Created agents-manager.config.yaml");
+  logger.info(`Created ${CONFIG_FILE_NAME}`);
 
   // Create source directories
   await ensureDir(path.join(cwd, "skills"));
@@ -44,5 +49,7 @@ export async function initAction(): Promise<void> {
   );
   logger.info("Created sample agent: agents/example-agent.yaml");
 
-  logger.info("\nDone! Run 'agents-manager validate' to verify your setup.");
+  logger.info(
+    `\nDone! Run '${CLI_COMMAND} validate' to verify your ${PRODUCT_NAME} setup.`,
+  );
 }

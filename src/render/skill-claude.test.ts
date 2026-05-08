@@ -28,7 +28,7 @@ describe("renderClaudeSkill", () => {
       GLOSSARY,
     );
     expect(out.startsWith("---\n")).toBe(true);
-    expect(out).not.toContain("Managed by agents-manager");
+    expect(out).not.toContain("Managed by DevCanon");
     expect(out).toContain("name: x");
     expect(out).toContain("description: d");
     expect(out).toContain("# body");

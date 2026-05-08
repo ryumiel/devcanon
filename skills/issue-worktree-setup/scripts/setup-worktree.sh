@@ -158,7 +158,7 @@ if [[ "$CURRENT_WORKTREE" != "$MAIN_WORKTREE" ]]; then
 fi
 
 WORKTREES_DIR="$CURRENT_WORKTREE/.worktrees"
-IGNORE_PROBE=".worktrees/.agents-manager-ignore-probe"
+IGNORE_PROBE=".worktrees/.devcanon-ignore-probe"
 
 if ! git -C "$CURRENT_WORKTREE" check-ignore -q "$IGNORE_PROBE" 2>/dev/null; then
   echo "'.worktrees/' is not ignored in this repo." >&2

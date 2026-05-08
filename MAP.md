@@ -1,6 +1,6 @@
 # MAP -- Where is X?
 
-Quick navigation index for the agents-manager repository.
+Quick navigation index for the DevCanon repository.
 
 ---
 
@@ -35,7 +35,7 @@ Quick navigation index for the agents-manager repository.
 - Where is the TypeScript config? -> [`tsconfig.json`](tsconfig.json)
 - Where is the Biome config? -> [`biome.json`](biome.json)
 - Where is the Vitest config? -> [`vitest.config.ts`](vitest.config.ts)
-- Where is the CLI config (dogfooding)? -> [`agents-manager.config.yaml`](agents-manager.config.yaml)
+- Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
 
 ---
 
@@ -141,7 +141,7 @@ Quick navigation index for the agents-manager repository.
 ## Source content
 
 - Where are shared skill source files? -> [`skills/`](skills/)
-- Where is the shared issue reporting skill? -> [`skills/report-agents-manager-shared-issue/SKILL.md`](skills/report-agents-manager-shared-issue/SKILL.md)
+- Where is the shared issue reporting skill? -> [`skills/report-devcanon-shared-issue/SKILL.md`](skills/report-devcanon-shared-issue/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)

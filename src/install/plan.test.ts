@@ -30,7 +30,7 @@ function makeOutput(overrides: Partial<RenderedAgent> = {}): RenderedAgent {
 function makeManifest(records: Manifest["records"] = []): Manifest {
   return {
     version: 1,
-    managedBy: "agents-manager",
+    managedBy: "devcanon",
     lastSync: new Date().toISOString(),
     records,
   };

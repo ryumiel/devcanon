@@ -1,6 +1,6 @@
 # Architecture Overview
 
-`agents-manager` is a user-wide Node.js CLI that manages shared AI skills and
+DevCanon is a user-wide Node.js CLI that manages shared AI skills and
 generates native Claude Code and Codex agent files from a single source of
 truth.
 
@@ -52,7 +52,7 @@ The primary flow is the **sync pipeline**:
 
 ```
 Source files          Config
-(skills/, agents/)   (agents-manager.config.yaml)
+(skills/, agents/)   (devcanon.config.yaml)
        │                    │
        ▼                    ▼
    ┌────────────────────────────┐
@@ -103,7 +103,7 @@ A supported output environment. v1 supports `claude` and `codex`.
 ### Managed Output
 
 A generated file or installed skill directory that is owned and tracked by
-`agents-manager` via the manifest.
+`devcanon` via the manifest.
 
 ---
 
@@ -124,8 +124,8 @@ warning.
 
 ## Ownership and Manifest
 
-`agents-manager` owns only files it installed as managed outputs. The manifest
-(`~/.agents-manager/manifest.json`) is authoritative for tracking what was
+`devcanon` owns only files it installed as managed outputs. The manifest
+(`~/.devcanon/manifest.json`) is authoritative for tracking what was
 installed.
 
 Each manifest record includes: target, type (skill or agent), source path,

@@ -75,7 +75,7 @@ const config = {
     cleanManagedOutputs: true,
   },
   platform: { windowsSymlinkFallback: "copy" as const },
-  manifest: { path: "~/.agents-manager/manifest.json" },
+  manifest: { path: "~/.devcanon/manifest.json" },
   modelTiers: {
     standard: {
       claude: { model: "claude-sonnet-4-6", effort: "medium" },
@@ -100,7 +100,7 @@ describe("renderCodexAgent", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     const content = result.content;
     expect(content.startsWith("name = ")).toBe(true);
-    expect(content).not.toContain("Managed by agents-manager");
+    expect(content).not.toContain("Managed by DevCanon");
   });
 
   it("includes name, description, and sandbox_mode fields", () => {

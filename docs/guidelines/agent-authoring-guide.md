@@ -180,8 +180,8 @@ codex:
    expectations need to be described in prose instructions.
 6. Start with least privilege: minimum tools, minimum sandbox, and no new
    schema knobs for coordination behavior.
-7. Validate with `agents-manager validate`.
-8. Preview the generated output with `agents-manager render`.
+7. Validate with `devcanon validate`.
+8. Preview the generated output with `devcanon render`.
 
 ## 8. See Also
 

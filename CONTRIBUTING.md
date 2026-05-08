@@ -1,4 +1,4 @@
-# Contributing to agents-manager
+# Contributing to DevCanon
 
 `AGENTS.md` is the repository entry point. This file is the canonical home for
 commit policy, pull request policy, and shared hook usage.
@@ -67,9 +67,9 @@ The shared `pre-commit` hook enforces the following quality gates on staged file
 child-tool output while debugging, use the command shape that matches your
 shell:
 
-- POSIX shells: `AGENTS_MANAGER_PRECOMMIT_VERBOSE=1 pnpm run check:staged`
-- PowerShell: `$env:AGENTS_MANAGER_PRECOMMIT_VERBOSE=1; pnpm run check:staged`
-- `cmd.exe`: `set AGENTS_MANAGER_PRECOMMIT_VERBOSE=1 && pnpm run check:staged`
+- POSIX shells: `DEVCANON_PRECOMMIT_VERBOSE=1 pnpm run check:staged`
+- PowerShell: `$env:DEVCANON_PRECOMMIT_VERBOSE=1; pnpm run check:staged`
+- `cmd.exe`: `set DEVCANON_PRECOMMIT_VERBOSE=1 && pnpm run check:staged`
 
 ## Pull Request Policy
 
@@ -86,7 +86,7 @@ Every PR should answer:
 - **CLI commands added or changed?**
   - Update [AGENTS.md](AGENTS.md) command table.
 - **Config format changed?**
-  - Update `agents-manager.config.yaml` example in [docs/specs/configuration.md](docs/specs/configuration.md).
+  - Update `devcanon.config.yaml` example in [docs/specs/configuration.md](docs/specs/configuration.md).
 - **New major path or file added?**
   - Update [MAP.md](MAP.md).
 - **Root workflow changed?**

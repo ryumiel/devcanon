@@ -12,12 +12,12 @@ Companion guideline docs may expand an owning document, but they should link bac
 
 ## 2. Planning Vocabulary
 
-| Artifact             | Meaning                                                | System of record               | Example                                                  |
-| -------------------- | ------------------------------------------------------ | ------------------------------ | -------------------------------------------------------- |
-| **Spec**             | Durable statement of intended behavior and constraints | `docs/specs/`                  | "Config file must be named `agents-manager.config.yaml`" |
-| **Issue**            | One concrete problem or task to solve                  | GitHub Issues                  | "#5 -- diff command crashes on broken symlinks"          |
-| **Pull Request**     | Proposed repository change that ships a solution       | GitHub PRs                     | "fix(diff): handle broken symlinks at install paths"     |
-| **Agent-local plan** | Temporary execution steps for the current task         | Active session (not persisted) | "1. Read diff.ts, 2. Add symlink check, 3. Add test"     |
+| Artifact             | Meaning                                                | System of record               | Example                                              |
+| -------------------- | ------------------------------------------------------ | ------------------------------ | ---------------------------------------------------- |
+| **Spec**             | Durable statement of intended behavior and constraints | `docs/specs/`                  | "Config file must be named `devcanon.config.yaml`"   |
+| **Issue**            | One concrete problem or task to solve                  | GitHub Issues                  | "#5 -- diff command crashes on broken symlinks"      |
+| **Pull Request**     | Proposed repository change that ships a solution       | GitHub PRs                     | "fix(diff): handle broken symlinks at install paths" |
+| **Agent-local plan** | Temporary execution steps for the current task         | Active session (not persisted) | "1. Read diff.ts, 2. Add symlink check, 3. Add test" |
 
 ## 3. Ownership Table
 

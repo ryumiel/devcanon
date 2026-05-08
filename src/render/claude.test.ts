@@ -69,7 +69,7 @@ const config = {
     cleanManagedOutputs: true,
   },
   platform: { windowsSymlinkFallback: "copy" as const },
-  manifest: { path: "~/.agents-manager/manifest.json" },
+  manifest: { path: "~/.devcanon/manifest.json" },
   modelTiers: {
     standard: {
       claude: { model: "claude-sonnet-4-6", effort: "medium" },
@@ -93,7 +93,7 @@ describe("renderClaudeAgent", () => {
   it("starts with YAML frontmatter (no managed header)", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
     expect(result.content.startsWith("---\n")).toBe(true);
-    expect(result.content).not.toContain("Managed by agents-manager");
+    expect(result.content).not.toContain("Managed by DevCanon");
   });
 
   it("includes frontmatter with name, description, tools, model", () => {

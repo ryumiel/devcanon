@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { CLI_COMMAND } from "../config/identity.js";
 import { EnvironmentError, UserError } from "../utils/errors.js";
 import { type LogLevel, createLogger, setLogger } from "../utils/output.js";
 import { diffAction } from "./commands/diff.js";
@@ -16,7 +17,7 @@ import { validateAction } from "./commands/validate.js";
 const program = new Command();
 
 program
-  .name("agents-manager")
+  .name(CLI_COMMAND)
   .description(
     "Manage personal AI skills and generate native agent files for Claude Code and Codex.",
   )
@@ -41,7 +42,7 @@ program
 // init
 program
   .command("init")
-  .description("Initialize a new agents-manager library")
+  .description("Initialize a new DevCanon library")
   .action(initAction);
 
 // new skill / new agent

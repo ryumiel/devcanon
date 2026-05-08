@@ -168,7 +168,7 @@ For the full rule, examples, red flags, and mechanical constraints, see
 
 Three placeholder namespaces resolve at render time against
 glossaries in
-[`agents-manager.config.yaml`](../../agents-manager.config.yaml):
+[`devcanon.config.yaml`](../../devcanon.config.yaml):
 
 - `{{model:fast}}`, `{{model:standard}}`, `{{model:deep}}` for
   reasoning-tier references.
@@ -191,7 +191,7 @@ Rules:
 
 Glossaries (`modelTiers`, `toolNames`, `fileArtifacts`) are
 config-driven. Adding a new key is a one-line edit to
-`agents-manager.config.yaml`.
+`devcanon.config.yaml`.
 
 ## 6. Shared-Prose Conventions
 
@@ -217,7 +217,7 @@ Shared body prose must read sensibly under both targets.
 Drift diagnostics flag literal target-specific tokens (model IDs,
 tool names, artifact files, and target paths). Token sets for
 models, tools, and files are auto-derived from
-`agents-manager.config.yaml`; the path check covers `.claude/`,
+`devcanon.config.yaml`; the path check covers `.claude/`,
 `.codex/`, and `.agents/`.
 
 `pnpm run dev -- validate` reports drift as a warning.

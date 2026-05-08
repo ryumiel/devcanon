@@ -31,7 +31,7 @@ describe("manifest integration", () => {
       const result = await loadManifest(manifestPath);
 
       expect(result.version).toBe(1);
-      expect(result.managedBy).toBe("agents-manager");
+      expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
       expect(result.lastSync).toBeDefined();
     });
@@ -40,7 +40,7 @@ describe("manifest integration", () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const manifest = {
         version: 1,
-        managedBy: "agents-manager",
+        managedBy: "devcanon",
         lastSync: "2026-01-01T00:00:00.000Z",
         records: [
           {
@@ -60,7 +60,7 @@ describe("manifest integration", () => {
       const result = await loadManifest(manifestPath);
 
       expect(result.version).toBe(1);
-      expect(result.managedBy).toBe("agents-manager");
+      expect(result.managedBy).toBe("devcanon");
       expect(result.lastSync).toBe("2026-01-01T00:00:00.000Z");
       expect(result.records).toHaveLength(1);
       expect(result.records[0].target).toBe("claude");
@@ -76,7 +76,7 @@ describe("manifest integration", () => {
       const result = await loadManifest(manifestPath);
 
       expect(result.version).toBe(1);
-      expect(result.managedBy).toBe("agents-manager");
+      expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
 
       // Warning was logged
@@ -96,7 +96,7 @@ describe("manifest integration", () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const invalidSchema = {
         version: 2,
-        managedBy: "agents-manager",
+        managedBy: "devcanon",
         lastSync: "2026-01-01T00:00:00.000Z",
         records: [],
       };
@@ -106,7 +106,7 @@ describe("manifest integration", () => {
       const result = await loadManifest(manifestPath);
 
       expect(result.version).toBe(1);
-      expect(result.managedBy).toBe("agents-manager");
+      expect(result.managedBy).toBe("devcanon");
       expect(result.records).toEqual([]);
 
       // Warning was logged
@@ -142,7 +142,7 @@ describe("manifest integration", () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const manifest = {
         version: 1 as const,
-        managedBy: "agents-manager" as const,
+        managedBy: "devcanon" as const,
         lastSync: "2026-03-15T10:30:00.000Z",
         records: [
           {
@@ -172,7 +172,7 @@ describe("manifest integration", () => {
       const loaded = await loadManifest(manifestPath);
 
       expect(loaded.version).toBe(1);
-      expect(loaded.managedBy).toBe("agents-manager");
+      expect(loaded.managedBy).toBe("devcanon");
       expect(loaded.lastSync).toBe("2026-03-15T10:30:00.000Z");
       expect(loaded.records).toHaveLength(2);
       expect(loaded.records[0].target).toBe("claude");
@@ -189,7 +189,7 @@ describe("manifest integration", () => {
       const manifestPath = path.join(tempDir, "manifest.json");
       const first = {
         version: 1 as const,
-        managedBy: "agents-manager" as const,
+        managedBy: "devcanon" as const,
         lastSync: "2026-01-01T00:00:00.000Z",
         records: [
           {
@@ -206,7 +206,7 @@ describe("manifest integration", () => {
       };
       const second = {
         version: 1 as const,
-        managedBy: "agents-manager" as const,
+        managedBy: "devcanon" as const,
         lastSync: "2026-06-01T00:00:00.000Z",
         records: [
           {

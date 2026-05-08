@@ -29,7 +29,7 @@ describe("renderCodexSkill", () => {
       GLOSSARY,
     );
     expect(out.skillMd.startsWith("---\n")).toBe(true);
-    expect(out.skillMd).not.toContain("Managed by agents-manager");
+    expect(out.skillMd).not.toContain("Managed by DevCanon");
     expect(out.skillMd).toContain("name: x");
     expect(out.skillMd).toContain("description: d");
     expect(out.sidecar).toBeNull();

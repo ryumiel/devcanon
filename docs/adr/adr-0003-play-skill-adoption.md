@@ -12,7 +12,7 @@ coupled to the Superpowers plugin ecosystem with cross-references, visual
 companion features, and platform-specific notes for tools other than Claude
 Code and Codex.
 
-With `agents-manager` managing user-wide skills, the Superpowers plugin could
+With DevCanon managing user-wide skills, the Superpowers plugin could
 be replaced entirely by adopting these skills into the local library.
 
 ## Decision

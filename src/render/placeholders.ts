@@ -1,3 +1,4 @@
+import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
   type FileArtifacts,
   MODEL_TIER_KEY,
@@ -106,7 +107,7 @@ function substituteLine(
     const dict = glossary[namespace];
     if (!dict) {
       throw renderError(
-        `${configKey} not configured — define ${configKey} in agents-manager.config.yaml`,
+        `${configKey} not configured — define ${configKey} in ${CONFIG_FILE_NAME}`,
         context,
       );
     }

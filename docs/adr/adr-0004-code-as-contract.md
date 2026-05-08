@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 AFDS v2 recommends a `contracts/` directory with machine-readable schemas for
-cross-module interfaces. In `agents-manager`, the interfaces are:
+cross-module interfaces. In DevCanon, the interfaces are:
 
 - config file format (validated by Zod schema in `src/config/schema.ts`)
 - skill directory structure (validated in `src/validate/skills.ts`)

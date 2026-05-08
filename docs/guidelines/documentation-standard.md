@@ -1,7 +1,7 @@
 # Documentation Standard
 
 **Based on:** AFDS v2 (Agent-Friendly Documentation Standard)\
-**Scope:** agents-manager repository\
+**Scope:** DevCanon repository\
 **Goal:** Make repository knowledge discoverable, durable, low-rot, and legible
 to both humans and agents.
 

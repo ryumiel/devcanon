@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
+import { DEFAULT_MANIFEST_PATH, MANIFEST_MANAGED_BY } from "./identity.js";
 
 // --- Install mode ---
 export const InstallModeSchema = z.enum(["symlink", "copy"]);
@@ -189,7 +190,7 @@ export const ConfigSchema = z.object({
     .default({}),
   manifest: z
     .object({
-      path: z.string().default("~/.agents-manager/manifest.json"),
+      path: z.string().default(DEFAULT_MANIFEST_PATH),
     })
     .default({}),
   modelTiers: ModelTiersSchema.optional(),
@@ -407,7 +408,7 @@ export type ManagedRecord = z.infer<typeof ManagedRecordSchema>;
 
 export const ManifestSchema = z.object({
   version: z.literal(1),
-  managedBy: z.literal("agents-manager"),
+  managedBy: z.literal(MANIFEST_MANAGED_BY),
   lastSync: z.string(),
   records: z.array(ManagedRecordSchema),
 });

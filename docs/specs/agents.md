@@ -92,7 +92,7 @@ for the full rationale and red flags.
 ### Constraints (mechanical)
 
 These are enforced by `AgentSourceSchema` and surfaced by
-`agents-manager validate`:
+`devcanon validate`:
 
 - `description` is required (non-empty).
 - ≤ 1024 chars (hard cap); aim for ≤ 500.

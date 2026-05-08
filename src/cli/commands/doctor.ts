@@ -2,6 +2,7 @@ import { mkdtemp, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import pc from "picocolors";
+import { CLI_COMMAND } from "../../config/identity.js";
 import { findConfigPath, loadConfig } from "../../config/load.js";
 import { loadManifest } from "../../install/manifest.js";
 import { isWritable, pathExists } from "../../utils/fs.js";
@@ -44,7 +45,7 @@ export async function doctorAction(
     results.push({
       name: "config-found",
       status: "error",
-      message: "No config file found. Run 'agents-manager init'.",
+      message: `No config file found. Run '${CLI_COMMAND} init'.`,
     });
   }
 

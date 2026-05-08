@@ -14,7 +14,7 @@ const SHIPPED_AGENTS = [
 
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
   const config = await loadConfig(
-    path.join(process.cwd(), "agents-manager.config.yaml"),
+    path.join(process.cwd(), "devcanon.config.yaml"),
   );
   config.targets.claude.skillsHome = "/test/claude/skills";
   config.targets.codex.skillsHome = "/test/codex/skills";
