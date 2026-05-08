@@ -48,7 +48,9 @@ Task tool (general-purpose):
        `-C "$WORKING_DIRECTORY"` is dropped because the implementer runs
        in cwd).
     3. `SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"`.
-    4. Symlink guard before writing: `[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"`. `mkdir -p .ephemeral`.
+    4. Canonical `.ephemeral` write guard before writing:
+       `[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }`.
+       `mkdir -p .ephemeral`. `[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"`.
     5. Build a JSON envelope conforming to schema `implementer/snapshot/v1`
        using `jq -n --rawfile content <path> ...` (do NOT hand-quote file
        bytes; do NOT use `$(cat path)` inside `--arg` — command

@@ -166,11 +166,14 @@ Consumer responsibilities:
 - **Fork-PR working trees are untrusted with respect to `.ephemeral/`
   layout.** When `pr-review` runs against a fork PR via
   `gh pr checkout --detach`, the checked-out tree may contain a
-  pre-staged symlink at `.ephemeral/<…>-findings.json`. Because the
-  `Write` tool follows symlinks, an unguarded write would land
-  attacker-chosen content at the link's target. `play-review`'s
-  Write rules (see `skills/play-review/SKILL.md` § Output) require a
-  symlink guard before writing; `branch-review --fix` and
+  pre-staged symlink at `.ephemeral` itself or at
+  `.ephemeral/<…>-findings.json`. Because the `Write` tool follows
+  symlinks, an unguarded write would land attacker-chosen content at
+  the link's target. `play-review`'s Write rules (see
+  `skills/play-review/SKILL.md` § Output) now require a three-step
+  preflight before writing: reject a symlinked `.ephemeral`
+  directory, `mkdir -p .ephemeral`, then remove any symlink at the
+  target file path. `branch-review --fix` and
   `issue-priming-workflow` Phase 7 inherit the same requirement when
   they overwrite or derive a sibling file.
 - ADR-0010's "no-I/O boundary" paraphrase is corrected here. The

@@ -207,6 +207,16 @@ digraph brainstorming {
 **Save:**
 
 - Write the validated design to `.ephemeral/YYYY-MM-DD-<topic>-design.md`.
+- Before the `Write` tool call, compute the path and apply the canonical
+  `.ephemeral` write guard:
+
+  ```bash
+  DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"
+  ```
+
 - After writing, emit the literal line `Design written to <repo-relative-path>.` to the conversation. This is the contract surface `play-planning` reads — do not reword it.
 
 **Design Self-Review:**

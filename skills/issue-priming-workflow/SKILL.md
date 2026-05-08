@@ -164,6 +164,8 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 3. Apply the symlink guard before the `Write` tool call (per `skills/play-review/SKILL.md` § Output → Write rules):
 
    ```bash
+   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   mkdir -p .ephemeral
    [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"
    ```
 
@@ -315,6 +317,8 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#ph
     *-findings.json) NITS_PENDING_FILE="${FINDINGS_FILE%-findings.json}-nits-pending.json" ;;
     *) echo "FINDINGS_FILE shape unexpected: $FINDINGS_FILE" >&2; exit 1 ;;
   esac
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
   [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"
   ```
 

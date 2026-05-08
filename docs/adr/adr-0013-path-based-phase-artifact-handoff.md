@@ -147,10 +147,14 @@ Per-consumer suffix specialization:
 - `issue-priming-workflow` validates each artifact at its capture point with
   the same per-suffix narrowing.
 
-The symlink guard `[ -L "$F" ] && rm "$F"` (run before `Write`) — whose
-authoritative form lives in `skills/play-review/SKILL.md` § Output → Write
-rules and is required by ADR-0012 — is reused unchanged by
-`issue-priming-workflow` Phase 3 when it persists the research brief.
+The canonical `.ephemeral` write guard — reject a symlinked
+`.ephemeral` directory, `mkdir -p .ephemeral`, then remove any
+symlink at the target file path before `Write` — lives in
+`skills/play-review/SKILL.md` § Output → Write rules and is required
+by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
+three-step preflight when it persists the research brief, and the
+same canonical guard now also applies to the downstream `design.md`
+and `plan.md` producers.
 
 ### Cleanup ownership
 

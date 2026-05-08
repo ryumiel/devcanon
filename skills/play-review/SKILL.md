@@ -165,7 +165,21 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
 - Always write the envelope, even when both `findings` and `carry_forward` are empty. The canonical empty form is `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
 - Overwrite the file on each invocation (deterministic path; the previous content for the same branch + SHA is no longer authoritative).
 - Use the `Write` tool for atomic replacement. Do not append.
-- **Symlink guard.** `Write` follows symlinks, so a pre-existing symlink at the path (left over from a prior run, or pre-staged in a fork-PR's working tree under `pr-review`'s `gh pr checkout --detach`) would redirect the write to the link's target. Before writing, remove any symlink at the path: `[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`. Apply the same guard wherever `branch-review --fix` overwrites this file or `issue-priming-workflow` Phase 7 derives the sibling `-nits-pending.json` path.
+- **Symlink guard.** `Write` follows symlinks, so a hostile fork-PR working
+  tree can redirect the write either by pre-staging `.ephemeral` itself as a
+  symlink or by pre-staging a symlink at the target file path. Before writing,
+  reject a symlinked `.ephemeral` directory, ensure the directory exists, then
+  remove any symlink at the target path:
+
+  ```bash
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"
+  ```
+
+  Apply the same guard wherever `branch-review --fix` overwrites this file or
+  `issue-priming-workflow` Phase 7 derives the sibling
+  `-nits-pending.json` path.
 
 ### 4. One-line notice (consumer hook)
 
@@ -271,6 +285,8 @@ Compose the file with these sections, in order:
   ```bash
   HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"
   ```
 

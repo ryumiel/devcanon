@@ -301,9 +301,12 @@ reuse is opportunistic; the cost is one notice line and one
   (`.gitignore` `.ephemeral/`) and lives under default umask. Same
   guidance applies — never embed secret values verbatim; describe
   them.
-- **Fork-PR working trees.** Pre-staged symlinks at the snapshot
-  path could redirect a `Write`. The implementer applies the
-  ADR-0012 symlink guard (`[ -L "$F" ] && rm "$F"`) before writing.
+- **Fork-PR working trees.** Pre-staged symlinks at `.ephemeral`
+  itself or at the snapshot path could redirect a `Write`. The
+  implementer applies the ADR-0012 canonical `.ephemeral` write
+  guard before writing: reject a symlinked `.ephemeral` directory,
+  `mkdir -p .ephemeral`, then remove any symlink at the target
+  snapshot path.
 
 ## Alternatives considered
 

@@ -13,9 +13,19 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`. After
-writing, emit the literal line `Plan written to <repo-relative-path>.` to
-the conversation. This is the contract surface `play-subagent-execution`
+**Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`.
+Before the `Write` tool call, compute the path and apply the canonical
+`.ephemeral` write guard:
+
+```bash
+PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$PLAN_PATH" ] && rm "$PLAN_PATH"
+```
+
+After writing, emit the literal line `Plan written to <repo-relative-path>.`
+to the conversation. This is the contract surface `play-subagent-execution`
 reads — do not reword it.
 
 ## Inputs
