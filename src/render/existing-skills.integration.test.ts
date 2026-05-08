@@ -337,6 +337,47 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("reject a symlinked");
     expect(adr0013).toContain("`.ephemeral` directory");
     expect(adr0013).toContain("same canonical guard now also applies");
+
+    const implementerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/implementer-prompt.md",
+      ),
+      "utf-8",
+    );
+    expect(implementerPrompt).toContain(
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+    );
+    expect(implementerPrompt).toContain("mkdir -p .ephemeral");
+    expect(implementerPrompt).toContain(
+      '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
+    );
+
+    const mechanicalImplementerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+      ),
+      "utf-8",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+    );
+    expect(mechanicalImplementerPrompt).toContain("mkdir -p .ephemeral");
+    expect(mechanicalImplementerPrompt).toContain(
+      '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
+    );
+
+    const adr0014 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
+    expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
+    expect(adr0014).toContain("`mkdir -p .ephemeral`");
   });
 
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {

@@ -143,11 +143,14 @@ Task tool (general-purpose):
        SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
        ```
 
-    4. Apply the symlink guard (in case a fork-PR working tree pre-staged a symlink at this path):
+    4. Apply the canonical `.ephemeral` write guard (in case a fork-PR
+       working tree pre-staged `.ephemeral` itself or a symlink at this
+       path):
 
        ```bash
-       [ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"
+       [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
        mkdir -p .ephemeral
+       [ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"
        ```
 
     5. Build the JSON envelope conforming to schema
