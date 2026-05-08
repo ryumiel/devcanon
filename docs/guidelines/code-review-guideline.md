@@ -86,7 +86,7 @@ Before opening a PR, the author should verify:
 
 ## 7. Agent-Assisted Review
 
-When an AI agent reviews code, it must:
+Agent-assisted review follows this contract:
 
 - Lead with one or two short narrative sentences naming what the
   implementation got right before the findings list

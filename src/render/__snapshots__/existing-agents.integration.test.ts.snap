@@ -3,7 +3,7 @@
 exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > code-quality-reviewer-claude 1`] = `
 "---
 name: code-quality-reviewer
-description: "Read-only code-quality review role for a single task's implementation, surfacing correctness, regression, missing-test, and unit-decomposition findings. Use when a controller needs a code-quality pass on a single task's implementation and can provide the \`base..head\` ref or unified diff in the prompt. Do not use for spec-conformance checks, design review, or broad branch review."
+description: "Read-only code-quality review role for a single task's implementation, surfacing correctness, regression, missing-test, and unit-decomposition findings. Use when a controller needs a code-quality pass on a single task's implementation. Caller must provide the \`base..head\` ref or unified diff in the prompt. Do not use for spec-conformance checks, design review, or broad branch review."
 tools: Read, Grep
 model: claude-opus-4-7
 effort: xhigh
@@ -21,7 +21,7 @@ Nit (real issue that does not block approval).
 
 exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > code-quality-reviewer-codex 1`] = `
 "name = "code-quality-reviewer"
-description = "Read-only code-quality review role for a single task's implementation, surfacing correctness, regression, missing-test, and unit-decomposition findings. Use when a controller needs a code-quality pass on a single task's implementation and can provide the \`base..head\` ref or unified diff in the prompt. Do not use for spec-conformance checks, design review, or broad branch review."
+description = "Read-only code-quality review role for a single task's implementation, surfacing correctness, regression, missing-test, and unit-decomposition findings. Use when a controller needs a code-quality pass on a single task's implementation. Caller must provide the \`base..head\` ref or unified diff in the prompt. Do not use for spec-conformance checks, design review, or broad branch review."
 model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
@@ -115,7 +115,7 @@ Return the brief in the format the dispatching skill specifies.
 exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > spec-compliance-reviewer-claude 1`] = `
 "---
 name: spec-compliance-reviewer
-description: "Read-only spec-conformance review role that compares a single task's implementation against its spec to surface missing or extra work. Use when a controller needs independent verification that a task's implementation matches its spec and can provide the scoped requirements plus the \`base..head\` ref or unified diff in the prompt. Do not use for code-quality, design review, or plan review."
+description: "Read-only spec-conformance review role that compares a single task's implementation against its spec to surface missing or extra work. Use when a controller needs independent verification that a task's implementation matches its spec. Caller must provide the scoped requirements plus the \`base..head\` ref or unified diff in the prompt. Do not use for code-quality, design review, or plan review."
 tools: Read, Grep
 model: claude-opus-4-7
 effort: xhigh
@@ -132,7 +132,7 @@ fixes outside the scoped task.
 
 exports[`shipped agents render cleanly > resolves model tiers on both targets and snapshots output > spec-compliance-reviewer-codex 1`] = `
 "name = "spec-compliance-reviewer"
-description = "Read-only spec-conformance review role that compares a single task's implementation against its spec to surface missing or extra work. Use when a controller needs independent verification that a task's implementation matches its spec and can provide the scoped requirements plus the \`base..head\` ref or unified diff in the prompt. Do not use for code-quality, design review, or plan review."
+description = "Read-only spec-conformance review role that compares a single task's implementation against its spec to surface missing or extra work. Use when a controller needs independent verification that a task's implementation matches its spec. Caller must provide the scoped requirements plus the \`base..head\` ref or unified diff in the prompt. Do not use for code-quality, design review, or plan review."
 model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
