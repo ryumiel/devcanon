@@ -19,7 +19,7 @@ function makeRecord(overrides: Partial<ManagedRecord> = {}): ManagedRecord {
 function makeManifest(records: ManagedRecord[] = []): Manifest {
   return {
     version: 1,
-    managedBy: "agents-manager",
+    managedBy: "devcanon",
     lastSync: "2026-01-01T00:00:00.000Z",
     records,
   };
@@ -74,6 +74,6 @@ describe("updateManifest", () => {
     const result = updateManifest(existing, [], []);
 
     expect(result.version).toBe(1);
-    expect(result.managedBy).toBe("agents-manager");
+    expect(result.managedBy).toBe("devcanon");
   });
 });

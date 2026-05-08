@@ -1,5 +1,6 @@
 import { rename } from "node:fs/promises";
 import path from "node:path";
+import { MANIFEST_MANAGED_BY } from "../config/identity.js";
 import {
   type ManagedRecord,
   type Manifest,
@@ -16,7 +17,7 @@ import { getLogger } from "../utils/output.js";
 export function emptyManifest(): Manifest {
   return {
     version: 1,
-    managedBy: "agents-manager",
+    managedBy: MANIFEST_MANAGED_BY,
     lastSync: new Date().toISOString(),
     records: [],
   };
@@ -83,7 +84,7 @@ export function updateManifest(
 
   return {
     version: 1,
-    managedBy: "agents-manager",
+    managedBy: MANIFEST_MANAGED_BY,
     lastSync: new Date().toISOString(),
     records: Array.from(recordMap.values()),
   };

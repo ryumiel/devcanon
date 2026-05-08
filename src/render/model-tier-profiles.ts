@@ -1,3 +1,4 @@
+import { CONFIG_FILE_NAME } from "../config/identity.js";
 import { MODEL_TIER_PLACEHOLDER, type ModelTiers } from "../config/schema.js";
 
 type ModelTierTarget = "claude" | "codex";
@@ -9,7 +10,7 @@ export function resolveTierProfile<T extends ModelTierTarget>(
 ): ModelTiers[string][T] {
   if (!tiers) {
     throw new Error(
-      "modelTiers not configured — define modelTiers in agents-manager.config.yaml",
+      `modelTiers not configured — define modelTiers in ${CONFIG_FILE_NAME}`,
     );
   }
 

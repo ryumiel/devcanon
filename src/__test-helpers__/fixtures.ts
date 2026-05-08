@@ -89,7 +89,7 @@ export async function createConfigFile(
   const content =
     yamlContent ??
     "version: 1\nlibrary:\n  skillsDir: ./skills\n  agentsDir: ./agents\n  generatedDir: ./generated\n";
-  const configPath = path.join(dir, "agents-manager.config.yaml");
+  const configPath = path.join(dir, "devcanon.config.yaml");
   await writeFile(configPath, content, "utf-8");
   return configPath;
 }
@@ -155,7 +155,7 @@ export function makeManifestJson(
   return JSON.stringify(
     {
       version: 1,
-      managedBy: "agents-manager",
+      managedBy: "devcanon",
       lastSync: new Date().toISOString(),
       records,
     },

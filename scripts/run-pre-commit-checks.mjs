@@ -96,7 +96,8 @@ function runRepoScript(name) {
 }
 
 const stagedFiles = getStagedFiles();
-const verbose = process.env.AGENTS_MANAGER_PRECOMMIT_VERBOSE === "1";
+const PRECOMMIT_VERBOSE_ENV_VAR = "DEVCANON_PRECOMMIT_VERBOSE";
+const verbose = process.env[PRECOMMIT_VERBOSE_ENV_VAR] === "1";
 const stagedMarkdownFiles = stagedFiles.filter((file) => file.endsWith(".md"));
 const stagedRepoCodeFiles = stagedFiles.filter((file) =>
   /\.(?:ts|c?js|json|jsonc|mjs)$/.test(file),

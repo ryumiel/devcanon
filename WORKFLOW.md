@@ -38,7 +38,7 @@ This document is the procedural guide for contributing to the repository. For po
 ### When the issue is about a shared skill or agent
 
 - Do not edit managed installed copies under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md` — these are disposable managed outputs.
-- Draft an upstream issue for `agents-manager` in `ryumiel/agent-manager` first using `report-agents-manager-shared-issue`.
+- Draft an upstream issue for DevCanon in `ryumiel/agent-manager` first using `report-devcanon-shared-issue`.
 - For the full playbook including the local retest loop, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 
 ## Implementing

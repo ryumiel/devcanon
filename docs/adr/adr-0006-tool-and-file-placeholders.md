@@ -22,7 +22,7 @@ Extend the placeholder system with two new namespaces sharing the
 - `{{file:*}}` resolves against `fileArtifacts.<key>`.
 
 Both glossaries live alongside `modelTiers` in
-`agents-manager.config.yaml`. Resolution semantics (per-target pass,
+`devcanon.config.yaml`. Resolution semantics (per-target pass,
 backslash escape, fenced-code exemption) match ADR-0005 exactly. The
 resolver is reshaped to dispatch through a `PlaceholderGlossary` map so
 that adding a future namespace is a config + Zod schema change rather

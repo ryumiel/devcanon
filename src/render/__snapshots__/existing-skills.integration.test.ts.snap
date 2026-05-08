@@ -93,23 +93,23 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 }
 `;
 
-exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-agents-manager-shared-issue-codex-frontmatter 1`] = `
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-devcanon-shared-issue-codex-frontmatter 1`] = `
 {
-  "description": "Drafts an upstream agents-manager issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.",
+  "description": "Drafts an upstream DevCanon issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.",
   "license": "MIT",
   "metadata": {
-    "short-description": "Draft an upstream shared-work issue for agents-manager from a consumer repository",
+    "short-description": "Draft an upstream shared-work issue for DevCanon from a consumer repository",
   },
-  "name": "report-agents-manager-shared-issue",
+  "name": "report-devcanon-shared-issue",
 }
 `;
 
-exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-agents-manager-shared-issue-sidecar 1`] = `
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > report-devcanon-shared-issue-sidecar 1`] = `
 {
   "interface": {
     "brand_color": "#0f766e",
     "display_name": "Report Shared Issue",
-    "short_description": "Draft and post reusable shared-work issues to agents-manager",
+    "short_description": "Draft and post reusable shared-work issues to DevCanon",
   },
 }
 `;

@@ -302,7 +302,7 @@ describe("pre-commit markdown scripts", () => {
   it("replays successful tool chatter in verbose mode", async () => {
     const result = await runCheckStagedFixture({
       stagedFiles: ["docs/guide.md"],
-      env: { AGENTS_MANAGER_PRECOMMIT_VERBOSE: "1" },
+      env: { DEVCANON_PRECOMMIT_VERBOSE: "1" },
       pnpmBehaviors: {
         "run format:markdown:check -- docs/guide.md": {
           status: 0,
@@ -321,7 +321,7 @@ describe("pre-commit markdown scripts", () => {
   it("replays large verbose markdown output without truncating the child process", async () => {
     const result = await runCheckStagedFixture({
       stagedFiles: ["docs/guide.md"],
-      env: { AGENTS_MANAGER_PRECOMMIT_VERBOSE: "1" },
+      env: { DEVCANON_PRECOMMIT_VERBOSE: "1" },
       pnpmBehaviors: {
         "run format:markdown:check -- docs/guide.md": {
           status: 0,

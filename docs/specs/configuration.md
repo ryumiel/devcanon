@@ -4,7 +4,7 @@
 
 ## Config file name
 
-`agents-manager.config.yaml`
+`devcanon.config.yaml`
 
 ---
 
@@ -40,7 +40,7 @@ platform:
   windowsSymlinkFallback: copy
 
 manifest:
-  path: ~/.agents-manager/manifest.json
+  path: ~/.devcanon/manifest.json
 
 modelTiers:
   fast:

@@ -713,7 +713,7 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 
 **Deployment:**
 
-- [ ] Run `agents-manager validate` to verify skill structure
+- [ ] Run `devcanon validate` to verify skill structure
 - [ ] Commit skill to git and push to your fork (if configured)
 - [ ] Consider contributing back via PR (if broadly useful)
 

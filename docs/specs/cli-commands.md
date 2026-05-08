@@ -4,10 +4,10 @@
 
 ## `init`
 
-Initialize a new `agents-manager` library.
+Initialize a new `devcanon` library.
 
 ```bash
-agents-manager init
+devcanon init
 ```
 
 Creates:
@@ -24,7 +24,7 @@ Creates:
 Create a new skill scaffold.
 
 ```bash
-agents-manager new skill pr-review
+devcanon new skill pr-review
 ```
 
 ---
@@ -34,7 +34,7 @@ agents-manager new skill pr-review
 Create a new agent scaffold.
 
 ```bash
-agents-manager new agent reviewer
+devcanon new agent reviewer
 ```
 
 Scaffold behavior:
@@ -50,7 +50,7 @@ Scaffold behavior:
 Validate config, skills, and agents.
 
 ```bash
-agents-manager validate
+devcanon validate
 ```
 
 Current behavior:
@@ -70,7 +70,7 @@ Current behavior:
 Generate outputs into `generated/` without installing.
 
 ```bash
-agents-manager render
+devcanon render
 ```
 
 ---
@@ -80,7 +80,7 @@ agents-manager render
 Render and install managed outputs.
 
 ```bash
-agents-manager sync
+devcanon sync
 ```
 
 Supported options:
@@ -99,7 +99,7 @@ Supported options:
 Remove managed outputs recorded in the install manifest.
 
 ```bash
-agents-manager uninstall
+devcanon uninstall
 ```
 
 Supported options:
@@ -127,7 +127,7 @@ Behavior:
 Show differences between generated outputs and installed outputs.
 
 ```bash
-agents-manager diff
+devcanon diff
 ```
 
 Reports:
@@ -146,7 +146,7 @@ Diff output may be line-based for v1.
 Inspect environment health.
 
 ```bash
-agents-manager doctor
+devcanon doctor
 ```
 
 Checks:
@@ -166,5 +166,5 @@ Checks:
 List known skills and agents.
 
 ```bash
-agents-manager list
+devcanon list
 ```

@@ -11,7 +11,7 @@ Install scope: User-wide only
 
 ## One-Sentence Definition
 
-`agents-manager` is a user-wide Node.js CLI that manages shared AI skills and
+DevCanon is a user-wide Node.js CLI that manages shared AI skills and
 generates native Claude Code and Codex agent files from a single source of
 truth.
 
@@ -92,9 +92,9 @@ permissions, and symlink support are working.
 Recommended v1 layout:
 
 ```text
-agents-manager/
+devcanon/
 ├─ package.json
-├─ agents-manager.config.yaml
+├─ devcanon.config.yaml
 ├─ skills/
 │  ├─ pr-review/
 │  │  ├─ SKILL.md
@@ -156,4 +156,4 @@ Notes:
 
 - Codex shared skills are installed to `~/.agents/skills`.
 - Codex native custom agents are installed to `~/.codex/agents/`.
-- `agents-manager` does not manage `~/.codex/config.toml` in v1.
+- `devcanon` does not manage `~/.codex/config.toml` in v1.

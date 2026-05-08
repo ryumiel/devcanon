@@ -5,7 +5,7 @@
 ## Target Mapping Policy
 
 Because Claude and Codex do not use the same native agent format,
-`agents-manager` follows this rule:
+`devcanon` follows this rule:
 
 **Shared source defines the role intent. Target-specific blocks define native
 behavior. Unsupported target fields are ignored with warning.**

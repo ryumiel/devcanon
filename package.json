@@ -1,12 +1,12 @@
 {
-  "name": "agents-manager",
+  "name": "devcanon",
   "version": "0.1.0",
   "description": "User-wide CLI for managing shared AI skills and generating native Claude Code and Codex agent files from a single source of truth.",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "license": "MIT",
   "bin": {
-    "agents-manager": "./dist/cli/index.js"
+    "devcanon": "./dist/cli/index.js"
   },
   "files": ["dist"],
   "engines": {

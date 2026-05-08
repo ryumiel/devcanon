@@ -113,7 +113,7 @@ into the description and should be rewritten:
 ### Constraints (mechanical)
 
 These are enforced by `SkillSourceSchema` and surfaced by
-`agents-manager validate`:
+`devcanon validate`:
 
 - `description` is required (non-empty).
 - ≤ 1024 chars (hard cap); aim for ≤ 500.
@@ -128,7 +128,7 @@ for the rewrite triggers.
 ## Placeholders
 
 Three placeholder namespaces resolve at render time against
-glossaries in `agents-manager.config.yaml`:
+glossaries in `devcanon.config.yaml`:
 
 - `{{model:<tier>}}` against `modelTiers` (e.g. `{{model:deep}}`).
 - `{{tool:<key>}}` against `toolNames` (e.g.

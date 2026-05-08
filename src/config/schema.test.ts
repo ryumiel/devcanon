@@ -47,7 +47,7 @@ describe("ConfigSchema", () => {
 
     expect(result.platform.windowsSymlinkFallback).toBe("copy");
 
-    expect(result.manifest.path).toBe("~/.agents-manager/manifest.json");
+    expect(result.manifest.path).toBe("~/.devcanon/manifest.json");
   });
 });
 

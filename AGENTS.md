@@ -1,6 +1,6 @@
-# agents-manager -- Agent Entry Point
+# DevCanon -- Agent Entry Point
 
-`agents-manager` is a user-wide Node.js CLI that manages shared AI skills and generates native Claude Code and Codex agent files from a single source of truth.
+DevCanon is a user-wide Node.js CLI that manages shared AI skills and generates native Claude Code and Codex agent files from a single source of truth.
 
 ---
 
@@ -27,12 +27,12 @@ For product specs, see [`docs/specs/`](docs/specs/).
 
 The primary end-to-end workflow is:
 
-1. Initialize a library with `agents-manager init`.
-2. Create reusable skills under `skills/` with `agents-manager new skill <name>`.
-3. Define agent roles in `agents/` with `agents-manager new agent <name>`.
-4. Validate source files with `agents-manager validate`.
-5. Preview generated outputs with `agents-manager render`.
-6. Install to Claude Code and Codex home directories with `agents-manager sync`.
+1. Initialize a library with `devcanon init`.
+2. Create reusable skills under `skills/` with `devcanon new skill <name>`.
+3. Define agent roles in `agents/` with `devcanon new agent <name>`.
+4. Validate source files with `devcanon validate`.
+5. Preview generated outputs with `devcanon render`.
+6. Install to Claude Code and Codex home directories with `devcanon sync`.
 7. Iterate: update skills and agent roles in source, then re-sync to propagate changes.
 
 ---
@@ -43,8 +43,8 @@ The primary end-to-end workflow is:
 
 ```sh
 # Clone the repo
-git clone <repo-url>
-cd agents-manager
+git clone <repo-url> devcanon
+cd devcanon
 
 # Install dependencies
 pnpm install
@@ -97,11 +97,11 @@ pnpm run check
 ## Repository Structure
 
 ```
-agents-manager/
+devcanon/
   README.md                  # GitHub landing page
   package.json               # Project manifest
   tsconfig.json              # TypeScript config
-  agents-manager.config.yaml # CLI config (dogfooding)
+  devcanon.config.yaml       # CLI config (dogfooding)
   biome.json                 # Biome formatter/linter config
   vitest.config.ts           # Vitest test config
   .editorconfig              # Editor settings
@@ -174,7 +174,7 @@ For module responsibilities, dependency rules, and data flow, see
 
 | Command            | Description                                              |
 | ------------------ | -------------------------------------------------------- |
-| `init`             | Initialize a new agents-manager library                  |
+| `init`             | Initialize a new DevCanon library                        |
 | `new skill <name>` | Scaffold a new skill                                     |
 | `new agent <name>` | Scaffold a new agent role                                |
 | `validate`         | Validate config, skills, and agents                      |

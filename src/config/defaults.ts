@@ -1,3 +1,5 @@
+import { DEFAULT_MANIFEST_PATH } from "./identity.js";
+
 export const DEFAULT_CONFIG_YAML = `version: 1
 
 library:
@@ -27,7 +29,7 @@ platform:
   windowsSymlinkFallback: copy
 
 manifest:
-  path: ~/.agents-manager/manifest.json
+  path: ${DEFAULT_MANIFEST_PATH}
 
 modelTiers:
   fast:

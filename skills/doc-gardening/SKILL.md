@@ -299,8 +299,8 @@ This skill does **not**:
 
 ### Importing conventions from another repo
 
-- **Problem:** You audited `agents-manager` last week; now auditing
-  `shotloom`. You apply `agents-manager`'s "Not used" list (no
+- **Problem:** You audited `devcanon` last week; now auditing
+  `shotloom`. You apply `devcanon`'s "Not used" list (no
   `contracts/`, no `docs/ipc/`) to `shotloom`, which mandates both.
 - **Fix:** Re-read the target repo's own standard before each audit.
   Cite section numbers from _that_ file. Each repo's standard is

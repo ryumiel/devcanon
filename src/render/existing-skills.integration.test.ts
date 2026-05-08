@@ -20,7 +20,7 @@ const TOUCHED_SKILLS = new Set([
   "pr-merge",
   "play-skill-authoring",
   "play-planning",
-  "report-agents-manager-shared-issue",
+  "report-devcanon-shared-issue",
 ]);
 
 const SKILLS_WITH_METADATA = {
@@ -32,13 +32,13 @@ const SKILLS_WITH_METADATA = {
   codexFrontmatter: [
     "github-issue-priming",
     "linear-issue-priming",
-    "report-agents-manager-shared-issue",
+    "report-devcanon-shared-issue",
   ] as const,
   sidecar: [
     "github-issue-priming",
     "linear-issue-priming",
     "pr-review",
-    "report-agents-manager-shared-issue",
+    "report-devcanon-shared-issue",
   ] as const,
   policySidecar: ["issue-priming-workflow", "play-review"] as const,
 };
@@ -71,7 +71,7 @@ describe("existing skills render cleanly", () => {
   it("renders every shipped skill to both targets without error", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
+      path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const result = await renderAll(config, false);
@@ -91,7 +91,7 @@ describe("existing skills render cleanly", () => {
   it("renders the touched skills with Codex-valid frontmatter", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
+      path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, false);
@@ -122,7 +122,7 @@ describe("existing skills render cleanly", () => {
   it("renders shipped per-target metadata for the priming and review skills", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
+      path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, true);
@@ -209,7 +209,7 @@ describe("existing skills render cleanly", () => {
   it("documents the issue-body path handoff contract in rendered skills and prompt references", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
+      path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, false);
@@ -383,7 +383,7 @@ mkdir -p .ephemeral
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
-      path.join(repoRoot, "agents-manager.config.yaml"),
+      path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, false);

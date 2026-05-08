@@ -4,6 +4,7 @@ import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 import { expandHome, resolveFromBase } from "../utils/paths.js";
+import { CLI_COMMAND, CONFIG_ENV_VAR, CONFIG_FILE_NAME } from "./identity.js";
 import {
   CLAUDE_MODEL_TIER_PROFILE_KEYS,
   CODEX_MODEL_TIER_PROFILE_KEYS,
@@ -37,24 +38,24 @@ export async function findConfigPath(explicitPath?: string): Promise<string> {
     );
   }
 
-  const envPath = process.env.AGENTS_MANAGER_CONFIG;
+  const envPath = process.env[CONFIG_ENV_VAR];
   if (envPath) {
     const resolved = path.resolve(envPath);
     if (await pathExists(resolved)) return resolved;
     throw new UserError(
-      `Config file from AGENTS_MANAGER_CONFIG not found: ${envPath}`,
+      `Config file from ${CONFIG_ENV_VAR} not found: ${envPath}`,
       envPath,
       "Check the environment variable value.",
     );
   }
 
-  const cwdPath = path.resolve("agents-manager.config.yaml");
+  const cwdPath = path.resolve(CONFIG_FILE_NAME);
   if (await pathExists(cwdPath)) return cwdPath;
 
   throw new UserError(
-    "No agents-manager.config.yaml found in current directory.",
+    `No ${CONFIG_FILE_NAME} found in current directory.`,
     undefined,
-    'Run "agents-manager init" to create one.',
+    `Run "${CLI_COMMAND} init" to create one.`,
   );
 }
 
