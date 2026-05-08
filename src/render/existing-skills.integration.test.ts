@@ -243,12 +243,56 @@ describe("existing skills render cleanly", () => {
     expect(workflowBody).toContain("issue-body-path");
     expect(workflowBody).toContain("worktree-path");
     expect(workflowBody).toContain('cd "$WORKTREE_PATH" ||');
+    expect(workflowBody).toContain(`\
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   mkdir -p .ephemeral
+   [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"`);
+    expect(workflowBody).toContain(`\
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"`);
 
     const brainstormBody = parseFrontmatter(
       getSkillOutput(outputs, "play-brainstorm", "codex").content,
     ).body;
     expect(brainstormBody).toContain("Issue body:");
     expect(brainstormBody).toContain("-issue-body.md");
+    expect(brainstormBody).toContain(`\
+DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"`);
+
+    const playPlanningBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-planning", "codex").content,
+    ).body;
+    expect(playPlanningBody).toContain(`\
+PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$PLAN_PATH" ] && rm "$PLAN_PATH"`);
+
+    const playReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-review", "codex").content,
+    ).body;
+    expect(playReviewBody).toContain(`\
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
+    expect(playReviewBody).toContain(`\
+HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
+  CONTEXT_FILE=".ephemeral/\${BRANCH_SLUG}-\${HEAD_SHA}-review-context.md"
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"`);
+
+    const branchReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "branch-review", "codex").content,
+    ).body;
+    expect(branchReviewBody).toContain(`\
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
 
     const gatePrompt = await readFile(
       path.join(
@@ -271,6 +315,28 @@ describe("existing skills render cleanly", () => {
     expect(researchPrompt).toContain("Issue body path:");
     expect(researchPrompt).toContain("Read the issue-body file");
     expect(researchPrompt).toContain("untrusted prose");
+
+    const adr0012 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0012).toContain("pre-staged symlink at `.ephemeral` itself");
+    expect(adr0012).toContain("reject a symlinked `.ephemeral`");
+    expect(adr0012).toContain("`mkdir -p .ephemeral`");
+
+    const adr0013 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0013).toContain("reject a symlinked");
+    expect(adr0013).toContain("`.ephemeral` directory");
+    expect(adr0013).toContain("same canonical guard now also applies");
   });
 
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {
