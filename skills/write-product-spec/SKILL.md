@@ -101,7 +101,7 @@ Before finalizing, confirm:
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
 - The change does not implement or imply approval for
-  `spec-readiness-review`, `slice-issues`, `doc-impact-review`, or new agent wrappers.
+  `spec-readiness-review`, `slice-issues`, `doc-impact-review`, or new agent roles.
 
 ## Outputs
 

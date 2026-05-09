@@ -36,12 +36,12 @@ This document is the procedural guide for contributing to the repository. For po
   - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set the
   equivalent blocker relationship in the external issue tracker.
-- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping a durable artifact first and implementing an already-sliced issue.
+- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping an owning durable AFDS artifact first and implementing an already-sliced issue.
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
 
 ### When the issue is about a shared skill or agent
 
-- Do not edit managed installed copies under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md` — these are disposable managed outputs.
+- Do not edit installed managed outputs under `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/agents/*.toml`, or `~/.claude/agents/*.md` -- these are disposable outputs.
 - Draft an upstream issue for DevCanon in `ryumiel/agent-manager` first using `report-devcanon-shared-issue`.
 - For the full playbook including the local retest loop, see [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md).
 

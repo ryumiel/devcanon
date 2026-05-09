@@ -67,7 +67,7 @@ Local retest loop:
 2. `pnpm run dev -- render`
 3. in `symlink` mode, test again from the consumer repository
 4. in `copy` mode, run `pnpm run dev -- sync` before retesting from the consumer repository
-5. run `pnpm run dev -- sync` when the change is ready to install and the managed outputs should be updated
+5. run `pnpm run dev -- sync` when the change is ready to install and the installed managed outputs should be updated
 
 Install-mode note:
 

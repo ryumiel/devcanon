@@ -1,8 +1,11 @@
 # Portable AFDS Toolkit
 
 **Status:** Direction set\
-**Live planning:** [GitHub issue #217](https://github.com/ryumiel/devcanon/issues/217)\
-**Established by:** [GitHub issue #218](https://github.com/ryumiel/devcanon/issues/218)
+**Owning product requirements:** [Portable AFDS Toolkit product requirements](../product-requirements/portable-afds-toolkit.md)\
+**Live planning:** [GitHub issue #217](https://github.com/ryumiel/devcanon/issues/217)
+
+Live planning links are pointers to execution tracking only. This roadmap item
+and its linked product requirements own the durable direction.
 
 ## Summary
 
@@ -26,8 +29,8 @@ or Linear.
 
 The target output includes:
 
-- portable AFDS skills for shaping, issue priming, planning, review, and
-  documentation impact workflows
+- portable AFDS skills for shaping, issue-priming entrypoints, shared issue
+  workflow, planning, review, and documentation impact workflows
 - thin agent roles that provide stable delegate identities and target-supported
   controls
 - guidance for specs, roadmaps, workflows, issue slicing, PRs, review, and
@@ -40,7 +43,8 @@ The target output includes:
 - Preserve the user-wide DevCanon CLI and source-library model.
 - Support both GitHub Issues-backed and Linear-backed AFDS projects.
 - Keep skills as the primary reusable workflow unit.
-- Keep agents as thin wrappers for stable roles and target-specific controls.
+- Keep agent roles as thin role wrappers for stable roles and target-specific
+  controls.
 - Provide durable guidance that helps consumer projects adopt AFDS deliberately.
 
 ## Non-Goals
@@ -53,7 +57,8 @@ The target output includes:
 
 ## Related Docs
 
-- [Product overview](../specs/overview.md)
+- [Portable AFDS Toolkit product requirements](../product-requirements/portable-afds-toolkit.md)
+- [Behavior specs overview](../specs/overview.md)
 - [Core concepts and design principles](../specs/core-concepts.md)
 - [Documentation standard](../guidelines/documentation-standard.md)
 - [Project management model](../guidelines/project-management-model.md)

@@ -47,15 +47,19 @@ Supported in v1:
 
 ### Install Mode
 
-Defines how managed outputs are installed:
+Defines how installed managed outputs are written:
 
 - `symlink`
 - `copy`
 
-### Managed Output
+### Generated Output
 
-A generated file or installed skill directory that is owned and tracked by
-`devcanon`.
+A disposable render result under `generated/<target>/`.
+
+### Installed Managed Output
+
+A target-home file or directory installed by `devcanon sync` and tracked by the
+install manifest.
 
 ### AFDS Project
 
