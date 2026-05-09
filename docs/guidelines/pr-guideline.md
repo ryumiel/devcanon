@@ -40,11 +40,15 @@ or workflow impact:
 - typo fixes;
 - comment-only changes;
 - generated-output-only updates;
-- dependency metadata-only updates;
+- dependency metadata-only updates that are not dependency, security, or audit
+  remediation;
 - mechanical documentation maintenance.
 
 Even a minimal PR body must identify verification performed and use one related
 issue form: `Closes #N`, `Part of #N`, or `No issue: <reason>`.
+Dependency, security, or audit remediation must follow
+[dependency-audit-guideline.md](dependency-audit-guideline.md), including its
+evidence and lockfile-scope review expectations.
 
 ### Reviewer / Assignee Expectations
 

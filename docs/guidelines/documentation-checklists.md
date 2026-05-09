@@ -36,10 +36,13 @@ rationale in that doc; use this file for fast review and gardening lookup.
   outcome-level sequencing, not live issue or PR state.
 - Renderer output format changed: update snapshot tests in `src/render/`.
 - Durable design decision made: add or update an ADR in `docs/adr/`.
-- Accepted ADR body prose passes the rename-fragility litmus test.
-- Durable ADR body prose avoids tracker IDs, issue links, branch names, PR
-  numbers, task labels, and task history.
+- New or modified accepted ADR body prose passes the rename-fragility litmus
+  test.
+- New or modified durable ADR body prose avoids tracker IDs, issue links, branch
+  names, PR numbers, task labels, and task history.
 - Accepted ADR changes do not introduce `## Amendment` sections.
+- Pre-existing accepted ADR history that predates the current rule is gardened
+  only when related to the scoped change.
 - Stale ADR prose is deleted only after durable claims are relocated to the
   owning durable doc.
 - Structural debt discovered or resolved: update `docs/tech-debt/` (when it
