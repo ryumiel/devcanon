@@ -141,7 +141,7 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Validate `$ASSUMPTIONS_COMMENT_FILE`. With `$ASSUMPTIONS_COMMENT_FILE` set to the caller-supplied `assumptions_comment_file` path:
+2. Set `$ASSUMPTIONS_COMMENT_FILE` to the caller-supplied `assumptions_comment_file` path, then validate it:
 
    ```bash
    case "$ASSUMPTIONS_COMMENT_FILE" in
