@@ -153,6 +153,10 @@ Quick navigation index for the DevCanon repository.
 ## Source content
 
 - Where are shared skill source files? -> [`skills/`](skills/)
+- Where is the product requirements authoring skill? ->
+  [`skills/write-product-requirements/SKILL.md`](skills/write-product-requirements/SKILL.md)
+- Where is the behavior-spec authoring skill? ->
+  [`skills/write-product-spec/SKILL.md`](skills/write-product-spec/SKILL.md)
 - Where is the shared issue reporting skill? -> [`skills/report-devcanon-shared-issue/SKILL.md`](skills/report-devcanon-shared-issue/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)

@@ -1,6 +1,6 @@
 ---
 name: write-product-spec
-description: Behavior-spec authoring workflow for durable product and workflow behavior. Use when writing, creating, updating, drafting, reviewing, or shaping docs/specs content or behavior requirements. Do not use for routine execution work unless it reveals a durable behavior or policy gap.
+description: Behavior-spec authoring workflow for durable product and workflow behavior under docs/specs. Use when writing, creating, updating, drafting, reviewing, or shaping acceptance-ready behavior requirements. Do not use for broad product intent or PRDs; use write-product-requirements for docs/product-requirements work.
 ---
 
 # Write Product Spec
@@ -10,6 +10,10 @@ description: Behavior-spec authoring workflow for durable product and workflow b
 Create or update durable behavior specs under `docs/specs/`. A behavior spec
 owns intended behavior, requirements, boundaries, acceptance criteria,
 verification expectations, and agent-facing context.
+
+Broad product intent belongs to `write-product-requirements` and
+`docs/product-requirements/` before it is clear enough for acceptance-ready
+behavior specs.
 
 This skill is a narrow authoring workflow. It is not a general planning,
 architecture, roadmap, contract, issue-tracking, or documentation-gardening
@@ -28,6 +32,10 @@ expectations.
 Do not use for routine bug fixes, dependency audits, review-feedback patches,
 docs gardening, or behavior-preserving refactors unless the work reveals a
 durable behavior or policy gap that belongs in `docs/specs/`.
+
+Do not use for product intent that is not clear enough for acceptance-ready
+behavior; use `write-product-requirements` for `docs/product-requirements/`
+work instead.
 
 ## Inputs
 
@@ -50,6 +58,8 @@ to copy into the spec.
 2. Identify the owning spec path. The output is
    `docs/specs/<topic>.md`; never create root `SPEC.md`.
 3. Redirect wrong-profile content:
+   - Broad product intent and PRD content belong in
+     `docs/product-requirements/` via `write-product-requirements`.
    - Architecture shape, module boundaries, data flow, and dependency
      direction belong in `docs/arch/`.
    - Durable decisions, rationale, consequences, and major alternatives
@@ -91,6 +101,8 @@ materially improve the spec.
 Before finalizing, confirm:
 
 - The file is `docs/specs/<topic>.md`, not root `SPEC.md`.
+- The spec excludes broad product intent and PRD content; those belong in
+  `docs/product-requirements/`.
 - The spec excludes live issue status, assignees, PR lists, schedules,
   sub-issue inventories, branch names, and single-PR execution plans.
 - The spec links to contract authority rather than duplicating contract
