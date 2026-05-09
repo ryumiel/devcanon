@@ -1,10 +1,16 @@
 # DevCanon
 
-A user-wide Node.js CLI that manages shared AI skills and generates native
-Claude Code and Codex agent files from a single source of truth.
+A user-wide Node.js CLI and source library for portable AFDS skills, thin agent
+roles, and generated Claude Code and Codex files.
+
+DevCanon helps development projects run an AFDS-based product workflow across
+Claude Code and Codex while preserving one source of truth for reusable skills
+and agent roles.
 
 ## What It Does
 
+- **Portable AFDS toolkit** provides reusable skills, thin agent roles, and
+  supporting guidance for projects adopting AFDS with GitHub Issues or Linear.
 - **Skills** are reusable operational workflows (review checklists, debugging
   methodologies, planning frameworks) shared across AI tools.
 - **Agent roles** are defined once in neutral YAML and rendered into native
@@ -48,6 +54,7 @@ devcanon sync
 | Architecture     | [docs/arch/overview.md](docs/arch/overview.md) |
 | Contributing     | [CONTRIBUTING.md](CONTRIBUTING.md)             |
 | Decision records | [docs/adr/](docs/adr/)                         |
+| Roadmap          | [docs/roadmap/](docs/roadmap/)                 |
 
 ## Status
 

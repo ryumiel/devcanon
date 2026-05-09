@@ -16,6 +16,8 @@ Quick navigation index for the DevCanon repository.
 - Where are product specs? -> [`docs/specs/`](docs/specs/)
 - Where is the product overview? -> [`docs/specs/overview.md`](docs/specs/overview.md)
 - Where are core concepts and principles? -> [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)
+- Where is the roadmap? -> [`docs/roadmap/`](docs/roadmap/)
+- Where is the Portable AFDS Toolkit direction? -> [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
@@ -44,6 +46,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the system architecture overview? -> [`docs/arch/overview.md`](docs/arch/overview.md)
 - Where are architecture decision records? -> [`docs/adr/`](docs/adr/)
 - Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
+- Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---
 

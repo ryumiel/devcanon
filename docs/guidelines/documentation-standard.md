@@ -19,6 +19,7 @@ to both humans and agents.
    - System architecture -> `docs/arch/`
    - Decisions / rationale -> `docs/adr/`
    - Engineering guidelines -> `docs/guidelines/`
+   - Roadmap direction -> `docs/roadmap/` (when needed)
    - Tech debt register -> `docs/tech-debt/` (when needed)
 4. **Code-as-contract:** Zod schemas and TypeScript types are the authoritative
    interface definitions. A separate `contracts/` folder is not needed.
@@ -53,6 +54,8 @@ to both humans and agents.
 ### Optional
 
 - `README.md` -- GitHub landing page (not canonical for navigation)
+- `docs/roadmap/` -- durable forward-looking direction docs (create when
+  needed)
 
 ### Not used (and why)
 
@@ -60,7 +63,6 @@ to both humans and agents.
   and `src/models/types.ts`
 - `docs/ipc/` -- single CLI tool, no cross-service communication
 - `docs/harness/` -- no external harness
-- `docs/roadmap/` -- create only if forward-looking direction docs are needed
 - `docs/plans/` -- ephemeral; not part of steady-state documentation
 
 ---
@@ -158,7 +160,33 @@ Implementation architecture lives in `docs/arch/`.
 - code review priorities
 - documentation standard (this file)
 
-### 3.7 `docs/tech-debt/` (debt register)
+### 3.7 `docs/roadmap/` (roadmap direction)
+
+**Purpose:** Capture durable forward-looking product direction for outcomes
+larger than a single pull request.
+
+**Use for:**
+
+- target outcomes and why they matter
+- scope and non-goals for roadmap-scale work
+- outcome-level sequencing
+- validation targets
+- links to owning specs, architecture docs, guidelines, ADRs, and live planning
+  containers
+
+**Do not use for:**
+
+- live issue status
+- sub-issue inventories
+- pull request lists
+- assignees or scheduling state
+- agent run state
+- single-PR implementation plans
+
+**Rule:** Create this directory when durable forward-looking direction docs are
+needed. GitHub Issues or Linear remain the system of record for live work.
+
+### 3.8 `docs/tech-debt/` (debt register)
 
 **Purpose:** Track known structural debt that should survive beyond any one
 PR.
@@ -168,7 +196,7 @@ cleanup trigger, status.
 
 **Rule:** Create this directory when the first debt item is identified.
 
-### 3.8 `README.md` (optional landing page)
+### 3.9 `README.md` (optional landing page)
 
 **Purpose:** Give first-visit readers a short answer to what the project is,
 why it exists, and what to open next.
@@ -190,6 +218,7 @@ why it exists, and what to open next.
 - "What is the system shape?" -> `docs/arch/`
 - "Why did we choose this design?" -> `docs/adr/`
 - "What are the team/repo rules?" -> `docs/guidelines/`
+- "Where is durable roadmap direction?" -> `docs/roadmap/`
 - "What structural debt is known?" -> `docs/tech-debt/`
 - "What is the interface contract?" -> Zod schemas in source code
 - "How do I contribute?" -> `CONTRIBUTING.md`
@@ -209,6 +238,7 @@ If something is authoritative, it must live in exactly one place:
 - interfaces -> Zod schemas in source
 - architecture decisions -> `docs/adr/`
 - system architecture -> `docs/arch/`
+- roadmap direction -> `docs/roadmap/`
 
 ### 5.2 Same-PR update rules
 
@@ -242,6 +272,7 @@ maintenance in normal feature and refactor PRs:
 - keep `AGENTS.md` small and navigational
 - update `MAP.md` whenever files or directories move
 - add ADRs when durable decisions are made
+- update `docs/roadmap/` when durable product direction changes
 - update `docs/tech-debt/` when structural debt is discovered or resolved
 - remove or merge stale docs that no longer have clear ownership
 - keep examples, contracts, and tests aligned in the same PR

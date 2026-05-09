@@ -1,6 +1,7 @@
 # DevCanon -- Agent Entry Point
 
-DevCanon is a user-wide Node.js CLI that manages shared AI skills and generates native Claude Code and Codex agent files from a single source of truth.
+DevCanon is a user-wide Node.js CLI and source library for portable AFDS
+skills, thin agent roles, and generated Claude Code and Codex files.
 
 ---
 
@@ -11,6 +12,8 @@ The tool is designed for **user-wide** setup, not repository-level setup.
 - **Skills** are the primary reusable unit -- shared across Claude Code and Codex
 - **Agent roles** are defined once in neutral YAML and rendered into native target formats
 - **Generated outputs** are installed into the user's home directories via symlink or copy
+- **Portable AFDS toolkit guidance** helps projects adopt AFDS across GitHub
+  Issues or Linear while keeping adoption guided, not automatic.
 
 Agents are thin role wrappers. Prefer skills for reusable workflow method, and
 create an agent when stable delegate identity or target-supported constraints
@@ -216,6 +219,8 @@ For module responsibilities, dependency rules, and data flow, see
 | gh api hygiene guideline            | [`docs/guidelines/gh-api-hygiene.md`](docs/guidelines/gh-api-hygiene.md)                                   |
 | Contributor workflow                | [`WORKFLOW.md`](WORKFLOW.md)                                                                               |
 | Project management model            | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)               |
+| Roadmap direction                   | [`docs/roadmap/`](docs/roadmap/)                                                                           |
+| Portable AFDS Toolkit roadmap       | [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)                           |
 | Navigation index                    | [`MAP.md`](MAP.md)                                                                                         |
 
 ---
