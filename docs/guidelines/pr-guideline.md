@@ -38,8 +38,7 @@ or workflow impact:
 - typo fixes;
 - comment-only changes;
 - generated-output-only updates;
-- dependency metadata-only updates that are not dependency, security, or audit
-  remediation;
+- package metadata-only updates that are not security or audit remediation;
 - mechanical documentation maintenance.
 
 Even a minimal PR body must identify verification performed and use a supported

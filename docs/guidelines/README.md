@@ -18,8 +18,8 @@ active agent sessions for temporary execution detail.
   workflow, and self-review checklist.
 - [Commit Guideline](commit-guideline.md) - commit message format, body, and
   footer expectations.
-- [Dependency Audit Guideline](dependency-audit-guideline.md) - audit-fix PR,
-  `pnpm why`, override, exposure, and lockfile review expectations.
+- [Dependency Audit Guideline](dependency-audit-guideline.md) - audit-fix PRs,
+  `pnpm why`, overrides, exposure, and lockfile review expectations.
 - [Documentation Checklists](documentation-checklists.md) - fast documentation
   review, gardening, and validation checks.
 - [Documentation Standard](documentation-standard.md) - AFDS document profiles,
