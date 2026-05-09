@@ -30,10 +30,9 @@ chains two reviewers on the same diff:
 For single-task plans -- the common case via `github-issue-priming` -- both
 reviewers cover the same diff. They use different model floors
 (`{{model:standard}}` per-task vs `{{model:deep}}` for branch-review), so they
-can disagree. PR #106 (issue #99 post-mortem) is the surfacing example: the
-per-task review approved a change that branch-review then flagged with three
-blocking issues. The duplication burned tokens and produced contradictory
-verdicts.
+can disagree. The surfacing failure mode was a per-task review approving a
+change that branch-review later flagged with multiple blocking issues. The
+duplication burned tokens and produced contradictory verdicts.
 
 ## Decision
 
@@ -54,7 +53,8 @@ before the next task uses the wrong foundation), and that value is not
 replicated by an end-of-branch review. The pipeline structure is unchanged;
 the per-task reviewers' model tier is raised from `{{model:standard}}` to
 `{{model:deep}}` to match the downstream `branch-review` / `pr-review`
-floor, closing the per-task coverage gap surfaced in PR #106 / issue #99.
+floor, closing the per-task coverage gap surfaced by the contradictory-review
+failure mode.
 The same `code-quality-reviewer` agent is also invoked at the end of
 `play-subagent-execution` for the whole implementation regardless of plan
 size, so the floor raise applies to that dispatch too — see Consequences
@@ -118,14 +118,12 @@ unchanged.
   (two reviewers, same diff) is unaddressed. For multi-task plans the
   duplication argument does not apply (per-task and branch-review cover
   different scopes), so the per-task floor was raised to `{{model:deep}}`
-  for them in this ADR (issue #110) -- see Decision.
+  for them in this ADR -- see Decision.
 - **Variant -- also drop multi-task per-task code-quality review.** Keep the
   per-task spec reviewer for N>1 plans, drop the per-task code-quality
   reviewer entirely. Rejected as undeclared scope expansion beyond what
-  issue #108 asks ("pick A/B/C"); a future ADR can revisit if motivated.
+  the decision request covered; a future ADR can revisit if motivated.
 
 ## Related
 
-- Issue: #108
-- Surfacing PR / post-mortem: #106 / #99
 - Follow-up refinement: ADR-0016

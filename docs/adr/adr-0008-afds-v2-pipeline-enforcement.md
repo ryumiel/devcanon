@@ -55,15 +55,12 @@ trigger-set expansion:
   PRs (any diff touching architectural-knowledge files). Acceptable at
   current PR volume.
 - Pr-review and branch-review now duplicate review logic for Architecture
-  and Documentation agents. This duplication is intentional and time-bound:
-  it motivates the deferred wrapper-refactor cycle that will make pr-review
-  a thin GitHub-fetch + GitHub-post wrapper around shared review core.
-  (Addressed by ADR-0009.)
+  and Documentation agents. ADR-0009 later replaces that duplication with
+  a shared review core.
 - The "Documentation impact" subsection in design docs becomes a structured
   hand-off contract between `play-brainstorm` and `play-planning`.
 - Sub-check B (cross-document identifier drift) asymmetry remains in
-  pr-review; that is out of scope here and tracked under the wrapper-
-  refactor follow-up. (Addressed by ADR-0009.)
+  pr-review; ADR-0009 later resolves that asymmetry.
 
 ## Alternatives considered
 
@@ -79,8 +76,8 @@ trigger-set expansion:
 - **Wrapper refactor of pr-review now** — deduplicates by making pr-review a
   GitHub-fetch + GitHub-post wrapper around shared review core. Cleaner
   long-term architecture but doubles this proposal's risk and scope.
-  Deferred to a follow-up brainstorm cycle once the AFDS v2 enforcement is
-  in place; the duplication created here is the explicit motivator.
+  Rejected for this decision; ADR-0009 later takes that path after the
+  AFDS v2 enforcement model exists.
 - **Deterministic-finding gate** that emits a `Nit | Documentation` finding
   straight from a Phase 1 mechanical check — would either duplicate the LLM
   Architecture finding (false positives) or replace it (loses judgment).
@@ -88,4 +85,4 @@ trigger-set expansion:
   agent's briefing as anchor context, with no separate finding source.
 - **Pre-commit/CI mechanical gate** that fails on architectural diffs
   without ADRs — AFDS §5.4-aligned and worth doing, but a different surface
-  (hooks, CI config). Tracked as a separate work item.
+  (hooks, CI config).

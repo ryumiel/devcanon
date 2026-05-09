@@ -27,7 +27,7 @@ out one piece of follow-up work:
 > `pr-review`'s output remains free-form prose; consumer cleanup (a
 > structured-finding schema for `branch-review --fix` to drop the
 > prose-to-JSON translation step in `issue-priming-workflow` Phase 7)
-> is filed as issue #158 and explicitly out of scope here.
+> is explicitly out of scope here.
 
 That cleanup is the subject of this ADR. (ADR-0009's quote names
 "Phase 7" because that is where `branch-review --fix` runs; the actual
@@ -131,4 +131,3 @@ between consumer renderings.
 
 - ADR-0009: review-pipeline consolidation (deferred this cleanup as
   out-of-scope follow-up)
-- Issue #158: this work (consumer cleanup)

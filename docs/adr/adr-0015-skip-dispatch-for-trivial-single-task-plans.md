@@ -15,20 +15,18 @@ with ADR-0016.
 ## Context
 
 For single-task plans whose Task 1 is a verbatim file write — content fully
-specified in the plan body (e.g., adding an ADR file like PR #163) — the
-existing dispatched-implementer flow costs ~500 tokens of round-trip
-overhead per task (subagent spawn + DONE report) for what is effectively
-one `Write` tool call. Even the leaner `mechanical-implementer-prompt.md`
-template (~35-line prompt body, vs. ~115 lines for the default) cannot
+specified in the plan body (e.g., adding a fully written ADR file) — the
+existing dispatched-implementer flow costs round-trip overhead per task
+(subagent spawn + DONE report) for what is effectively one `Write` tool
+call. Even the leaner `mechanical-implementer-prompt.md` template cannot
 eliminate that round-trip cost; the dispatched subagent has no judgment to
 add when the controller already holds the verbatim content.
 
 ADR-0007 already established that single-task plans skip the per-task
 two-stage review. The dispatched implementer was kept because the existing
 pipeline required a self-review surface and a stable DONE-report contract.
-Issue #175 (companion to #168, which landed the mechanical-implementer
-prompt variant) proposes eliminating that final dispatch when the task is
-itself mechanical and fully specified in the plan body.
+The mechanical skip-dispatch decision eliminates that final dispatch when the
+task is itself mechanical and fully specified in the plan body.
 
 ## Decision
 
@@ -82,9 +80,9 @@ here.
 ## Consequences
 
 - For qualifying single-task plans, the implementer dispatch is eliminated.
-  Token cost drops by the ~500 tokens of round-trip overhead measured in
-  #175. Concentrated benefit on docs-heavy plans (skills, ADRs,
-  guidelines).
+  Token cost drops by the round-trip overhead of spawning and receiving a
+  DONE report from an implementer. The benefit concentrates on docs-heavy
+  plans (skills, ADRs, guidelines).
 - No new coupling is added. Guardrail #3 leans on the existing upstream
   `play-planning` plan-review PASS, but no new schema field is introduced.
   Guardrails #1, #2, and #4 read structural signals already present in
@@ -131,8 +129,6 @@ here.
 
 ## Related
 
-- Issue: #175
-- Companion issue (mechanical-implementer prompt variant): #168 (landed via PR #177)
 - Sibling ADR (DONE-report snapshot contract, scope-excludes this path): ADR-0014
 - Parent ADR (review-pipeline delineation): ADR-0007
 - Follow-up refinement: ADR-0016

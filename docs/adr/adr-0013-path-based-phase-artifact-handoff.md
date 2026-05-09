@@ -10,9 +10,8 @@ ADR-0012 ratified a side-channel file pattern for `play-review`'s findings:
 the producer skill writes a `play-review/findings/v1` envelope to
 `.ephemeral/<branch_slug>-<head_sha>-findings.json` and emits a single
 `Findings written to <path>.` notice line; consumers read the file off the
-path. The motivating evidence (PR #163-class session-cost) showed inline
-re-emission across consumer hops accounted for a measurable share of total
-session tokens.
+path. The motivating evidence showed inline re-emission across consumer hops
+accounted for a measurable share of total session tokens.
 
 The same shape exists upstream of `play-review` and is _not_ yet path-based:
 
@@ -21,7 +20,7 @@ The same shape exists upstream of `play-review` and is _not_ yet path-based:
 | A   | `research-agent` (via Phase 3) | `play-brainstorm`                                                                                  | Brief inlined under `## Research Brief`          |
 | B   | `play-brainstorm`              | `play-planning`                                                                                    | Design summary inlined into `play-planning` args |
 | C   | `play-planning`                | `play-subagent-execution`                                                                          | Plan summary inlined into controller args        |
-| D   | `play-review`                  | `branch-review --fix`, `play-branch-finish`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7 | Already path-based via ADR-0012 (#166)           |
+| D   | `play-review`                  | `branch-review --fix`, `play-branch-finish`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7 | Already path-based via ADR-0012                  |
 
 Each hop carries 2–5 KB of redundant content that the next phase could read
 from disk. The artifacts already exist on disk under `.ephemeral/` —
@@ -31,7 +30,7 @@ this asymmetry in its Consequences section: "`play-review` becomes
 consistent with `play-brainstorm` and `play-planning` in that it writes a
 single deterministically-named artifact under `.ephemeral/`. The
 phase-handoff substrate is now symmetric across the design / plan / review
-producers." Issue #167 closes the consumer-side gap.
+producers." This ADR closes the consumer-side gap.
 
 A separate consideration: `skills/play-subagent-execution/SKILL.md` § Red
 Flags previously listed `Make subagent read plan file (provide full text
@@ -93,9 +92,8 @@ to a subagent.
 `ENG-123` → `eng-123`); the slug rule is: strip leading `#`, lowercase,
 retain alphanumerics and hyphens, replace any other character with `-`.
 The authoritative slug computation lives in `skills/issue-priming-workflow/SKILL.md`
-Phase 3 (added by issue #167's implementation). `<topic>` and `<feature-name>`
-follow the existing `play-brainstorm` / `play-planning` conventions and are
-unchanged. The research-brief scheme matches the prescription in issue #167's body.
+Phase 3. `<topic>` and `<feature-name>` follow the existing
+`play-brainstorm` / `play-planning` conventions and are unchanged.
 
 The deterministic `<branch_slug>-<head_sha>` scheme used by `play-review`
 was considered for symmetry across all four producers and rejected: design
@@ -226,8 +224,8 @@ per-task boundary.
   reference shape; the inline `## <Artifact>` form is removed. Architecturally
   cleanest. Rejected: would break direct human invocations of
   `play-brainstorm` and `play-planning` (a user typing "Help me design X"
-  has no path to reference) and would violate issue #167's explicit
-  backward-compat acceptance criterion.
+  has no path to reference) and would break the backward-compat requirement
+  for direct invocations.
 - **Auto-detect inline-vs-path via heuristic** (e.g., "value starts with
   `.ephemeral/`"). Single arg; consumer sniffs whether the value is a path.
   Rejected: fragile (a research brief that happens to quote `.ephemeral/`
@@ -260,6 +258,3 @@ per-task boundary.
   `play-review/findings/v1` schema (transport superseded by ADR-0012).
 - [ADR-0012](adr-0012-side-channel-file-delivery-for-play-review-findings.md)
   — establishes the side-channel file pattern this ADR generalizes upstream.
-- Issue #164 — session-cost reduction parent.
-- Issue #166 — `play-review` findings side-channel transport.
-- Issue #167 — this work.

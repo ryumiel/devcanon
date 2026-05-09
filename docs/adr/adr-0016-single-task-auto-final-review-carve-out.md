@@ -20,7 +20,7 @@ means two whole-diff review stages still run back-to-back:
 1. `play-subagent-execution`'s final whole-implementation reviewer
 2. `branch-review --fix`
 
-Issue #199 narrows the question deliberately: keep multi-task review
+This decision narrows the question deliberately: keep multi-task review
 behavior unchanged, keep `branch-review --fix` mandatory, and only remove
 the redundant final-review step on the `issue-priming-workflow --auto`
 single-task path.
@@ -73,10 +73,9 @@ plan-shape branching is introduced.
 - **Broaden the skip to all single-task plans.** Rejected: direct/manual
   invocations would lose their only built-in whole-implementation reviewer.
 - **Keep the current overlap and clarify the prose only.** Rejected: does
-  not solve the redundant review cost issue raised in #199.
+  not solve the redundant review cost.
 
 ## Related
 
 - ADR-0007: review pipeline delineation between per-task and branch review
 - ADR-0015: skip-dispatch path for trivial single-task plans
-- Issue: #199
