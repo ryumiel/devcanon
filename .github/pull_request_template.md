@@ -35,7 +35,7 @@ None
 
 ## Related Issues
 
-<!-- Closes #N / Part of #N / No issue: <reason> -->
+<!-- Closes #N / Resolves #N / Part of #N / Linear issue key or link / No issue: <reason> -->
 
 ## Reviewer / Assignee Notes
 

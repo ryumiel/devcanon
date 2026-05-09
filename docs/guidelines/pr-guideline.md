@@ -27,8 +27,8 @@ qualifies for the minimal PR body exception below:
 - **Verification**: Concrete commands, manual checks, or review evidence.
 - **Breaking Changes**: `None` or the migration impact and required operator
   action.
-- **Related Issues**: One of `Closes #N`, `Part of #N`, or
-  `No issue: <reason>`.
+- **Related Issues**: Use `Closes #N`, `Resolves #N`, `Part of #N`, a Linear
+  issue key or link, or `No issue: <reason>`.
 - **Reviewer / Assignee Notes**: Author assignment and review-request
   expectations.
 
@@ -44,8 +44,9 @@ or workflow impact:
   remediation;
 - mechanical documentation maintenance.
 
-Even a minimal PR body must identify verification performed and use one related
-issue form: `Closes #N`, `Part of #N`, or `No issue: <reason>`.
+Even a minimal PR body must identify verification performed and use a supported
+related issue form: `Closes #N`, `Resolves #N`, `Part of #N`, a Linear issue key
+or link, or `No issue: <reason>`.
 Dependency, security, or audit remediation must follow
 [dependency-audit-guideline.md](dependency-audit-guideline.md), including its
 evidence and lockfile-scope review expectations.
