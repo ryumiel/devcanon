@@ -12,23 +12,60 @@
 
 ## 2. Description Structure
 
-- **Summary**: 1-3 bullet points describing main outcomes. Summarize by behavior or subsystem, NOT file-by-file.
-- **Why**: The problem this PR solves. What was broken, missing, or inadequate.
-- **Changes**: One bullet per major behavior change. Group by subsystem (`render`, `install`, `validate`, etc.), not by file. Do not duplicate the diff.
-- **Impact**: Four sub-items to evaluate:
-  - User-facing impact (CLI output, installed files, behavior changes)
-  - Schema impact (config format, skill/agent source format changes)
-  - Performance impact (if relevant)
-  - Breaking changes (list or "None")
-- **Testing**: Checklist of verification performed:
-  - `pnpm run check` passes
-  - Unit/integration tests added or updated
-  - Manual testing performed (describe what was tested)
-- **Related Issues**: `Closes #N` or `Related to #N`
+Expanded PR descriptions are the default. Use this structure unless the PR
+qualifies for the minimal PR body exception below:
 
-**Permitted exceptions to the items above** (forward-looking content, not logbook):
+- **Summary**: 1-3 outcome bullets. Summarize by behavior or subsystem, NOT
+  file-by-file.
+- **Why**: Why the change is needed. Explain what was broken, missing, risky, or
+  inadequate.
+- **Implementation Notes / Behavior Changes**: Major implementation notes or
+  observable behavior changes, grouped by subsystem (`render`, `install`,
+  `validate`, etc.). Do not duplicate the diff.
+- **Impact and Risk**: User-facing impact, schema impact, performance impact
+  when relevant, risk level, and mitigation.
+- **Verification**: Concrete commands, manual checks, or review evidence.
+- **Breaking Changes**: `None` or the migration impact and required operator
+  action.
+- **Related Issues**: Use `Closes #N`, `Resolves #N`, `Part of #N`, a Linear
+  issue key or link, or `No issue: <reason>`.
 
-- **Blocking findings the auto-fix declined** — current state the reviewer needs to weigh, not historical chatter.
+### Minimal PR Bodies
+
+A minimal PR body is allowed only for low-risk changes with no behavior, schema,
+or workflow impact:
+
+- typo fixes;
+- comment-only changes;
+- generated-output-only updates;
+- package metadata-only updates that are not security or audit remediation;
+- mechanical documentation maintenance.
+
+Even a minimal PR body must identify verification performed and use a supported
+related issue form: `Closes #N`, `Resolves #N`, `Part of #N`, a Linear issue key
+or link, or `No issue: <reason>`.
+Dependency, security, or audit remediation must follow
+[dependency-audit-guideline.md](dependency-audit-guideline.md), including its
+evidence and lockfile-scope review expectations.
+
+### Reviewer / Assignee Expectations
+
+- Assign yourself when you are actively responsible for carrying the PR through
+  review. Use the GitHub assignee field, not the PR description body.
+- Request review when the PR is ready for another person or agent to evaluate.
+  Use GitHub review requests, not the PR description body.
+- Leave assignees unset for drive-by, draft, or handoff PRs where ownership is
+  not yet claimed.
+- Put handoff notes or reviewer-specific context in PR comments unless the
+  information changes the durable rationale, impact, or verification for the
+  PR.
+
+### Breaking Changes
+
+- Use `!` in the PR title when the PR introduces a breaking change.
+- Describe migration impact and required operator action in the
+  `Breaking Changes` section.
+- If no breaking change exists, write `None`.
 
 ## 3. Anti-Patterns
 
@@ -46,5 +83,6 @@ Unaddressed review feedback belongs in PR review comments anchored to the releva
 
 - One PR per issue (keep scope tight)
 - Explain rationale and impact, do not restate the diff
-- Call out breaking changes explicitly in both title (`!`) and Impact section
+- Call out breaking changes explicitly in both title (`!`) and
+  `Breaking Changes` section
 - Answer the CONTRIBUTING.md PR checklist (schema, snapshots, docs)

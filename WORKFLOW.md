@@ -57,8 +57,10 @@ This document is the procedural guide for contributing to the repository. For po
 ## Opening a PR
 
 1. Title and description must follow the [PR Guideline](docs/guidelines/pr-guideline.md)
-2. Reference the external issue. For GitHub Issues, include `Closes #N` or
-   `Resolves #N`; for Linear, include the team issue key or link.
+2. Reference the external issue. For GitHub Issues, include `Closes #N`,
+   `Resolves #N`, or `Part of #N`; for Linear, include the team issue key or
+   link. Use `No issue: <reason>` only when the PR is intentionally not tied to
+   an external issue.
 3. Run the self-review checklist from the [code review guideline](docs/guidelines/code-review-guideline.md#6-self-review-checklist)
 4. Answer every item in the [CONTRIBUTING.md](CONTRIBUTING.md#pull-request-policy) PR policy checklist
 
