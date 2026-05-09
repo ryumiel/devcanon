@@ -20,7 +20,7 @@ issue-tracker options. GitHub pull requests remain the default PR system unless
 another PR provider is explicitly in scope.
 
 Reusable skill source belongs under `skills/`. Installed paths such as
-`~/.claude/skills/`, `~/.codex/skills/`, and generated target directories are
+`~/.claude/skills/`, `~/.agents/skills/`, and generated target directories are
 managed outputs, not source locations.
 
 ## 2. Two Primary Paths
