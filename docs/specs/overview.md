@@ -1,104 +1,66 @@
-# Product Overview
+# Behavior Specs Overview
 
-Version: 1.0\
-Status: Draft for implementation\
-Scope: v1\
+Scope: DevCanon behavior specs\
 Runtime: Node.js CLI\
 Targets: Claude Code, Codex\
-Install scope: User-wide only
+Install scope: User-wide only\
+Product requirements:\
+[Portable AFDS Toolkit](../product-requirements/portable-afds-toolkit.md)
 
 ---
 
-## One-Sentence Definition
+This file is the index and shared context for DevCanon behavior specs. Product
+intent, target users, goals, risks, and broad requirements belong in
+`docs/product-requirements/`. This overview summarizes behavior-spec scope,
+shared boundaries, and links to acceptance-ready specs.
 
-DevCanon is a user-wide Node.js CLI and source library for portable AFDS
-skills, thin agent roles, and generated Claude Code and Codex files.
+## Behavior Scope
 
----
+DevCanon is a user-wide Node.js CLI and source library for portable AFDS skills,
+thin agent roles, and generated Claude Code and Codex files.
 
-## Product Goal
+Behavior specs under this directory own exact intended behavior for:
 
-Provide one maintainable source of truth for portable AI-assisted development
-workflows across Claude Code and Codex, including AFDS skills, thin agent roles,
-and guidance for GitHub Issues-backed or Linear-backed project adoption.
+- CLI commands and command output;
+- configuration format and schema behavior;
+- skill and agent source formats;
+- target rendering for Claude Code and Codex;
+- install, sync, uninstall, and diff behavior;
+- platform, security, error handling, and testing requirements.
 
----
+## Shared Boundaries
 
-## Non-Goals
+These boundaries apply across DevCanon behavior specs:
 
-The following are out of scope for v1:
+- DevCanon is user-wide only.
+- Source artifacts under `skills/`, `agents/`, `docs/`, and `src/` are the
+  authoring surfaces.
+- Generated outputs under `generated/<target>/` are disposable render results.
+- Installed managed outputs are target-home files or directories installed by
+  `devcanon sync` and tracked by the install manifest.
+- DevCanon does not make generated or installed outputs authoritative source
+  files.
+- DevCanon does not manage consumer-repository docs as a repository-level
+  document manager.
+- DevCanon does not duplicate live issue state, PR state, or agent-run state in
+  repository docs.
 
-- repository-level management
-- GitHub Copilot support
-- management of `CLAUDE.md`
-- management of `AGENTS.md`
-- remote registries or skill marketplaces
-- watch mode
-- GUI or TUI
-- cloud sync
-- inheritance between agents
-- editing generated outputs in place as source of truth
-- management of `~/.codex/config.toml`
-- automatic consumer-repository rewriting or migration
-- repository-level document management for consumer projects
-- forcing existing projects into one mandatory document template
-- duplicating live issue, PR, or agent run state in repository docs
+## Behavior Spec Index
 
----
+- [Core concepts and principles](core-concepts.md)
+- [Configuration format](configuration.md)
+- [Skill specification](skills.md)
+- [Agent source schema](agents.md)
+- [Target mapping](target-mapping.md)
+- [Install and sync policy](install-and-sync.md)
+- [CLI command reference](cli-commands.md)
+- [Error handling and logging](error-handling.md)
+- [Platform and security](platform.md)
+- [Testing requirements](testing.md)
 
-## User Stories
+## Source Layout Context
 
-### Initialize a library
-
-As a user, I want to initialize a personal library so I can manage my skills
-and agents in one place.
-
-### Create a skill
-
-As a user, I want to scaffold a new skill so I can define a reusable workflow
-quickly.
-
-### Adopt AFDS in a project
-
-As a project maintainer, I want portable skills, thin agent roles, and setup
-guidance so I can adopt AFDS across Claude Code and Codex without making
-DevCanon manage my repository documents automatically.
-
-### Create an agent role
-
-As a user, I want to define an agent once and generate Claude and Codex
-wrappers from it.
-
-### Validate source files
-
-As a user, I want to validate my library before install so I can catch
-mistakes early.
-
-### Preview generated outputs
-
-As a user, I want to render generated files locally before syncing them into
-my home directories.
-
-### Install managed outputs
-
-As a user, I want to sync my source library into Claude and Codex user
-directories.
-
-### Inspect differences
-
-As a user, I want to see what changed between source-generated and installed
-outputs.
-
-### Diagnose environment problems
-
-As a user, I want a doctor command to tell me whether my system paths,
-permissions, and symlink support are working.
-
----
-
-## Source Layout
-
-Recommended v1 layout:
+Behavior specs use this layout as shared context for source and generated paths:
 
 ```text
 devcanon/
@@ -129,11 +91,9 @@ Notes:
 - `agents/` contains neutral agent role definitions in YAML.
 - `generated/` is a render preview/debug directory and is not authoritative.
 
----
+## Installed Target Layout Context
 
-## Installed Target Layout
-
-### Claude target
+### Claude Target
 
 ```text
 ~/.claude/
@@ -147,7 +107,7 @@ Notes:
 └─ debugger.md
 ```
 
-### Codex target
+### Codex Target
 
 ```text
 ~/.agents/

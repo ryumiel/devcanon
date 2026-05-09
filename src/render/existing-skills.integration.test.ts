@@ -408,7 +408,7 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("spec-readiness-review");
     expect(writeProductSpecBody).toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
-    expect(writeProductSpecBody).toContain("new agent wrappers");
+    expect(writeProductSpecBody).toContain("new agent roles");
   });
 
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {

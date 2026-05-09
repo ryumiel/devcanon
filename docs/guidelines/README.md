@@ -3,10 +3,11 @@
 Guideline docs own repeatable contributor, review, documentation, pull request,
 dependency-audit, skill, and agent procedures for DevCanon.
 
-They must not own product behavior specs, live issue status, PR review state,
-or agent-local execution logs. Use `docs/specs/` for durable behavior, the
-external issue tracker for live work, pull requests for review state, and
-active agent sessions for temporary execution detail.
+They must not own product requirements, product behavior specs, live issue
+status, PR review state, or agent-local execution logs. Use
+`docs/product-requirements/` for product intent, `docs/specs/` for durable
+behavior, the external issue tracker for live work, pull requests for review
+state, and active agent sessions for temporary execution detail.
 
 ## Guideline Index
 
@@ -29,7 +30,7 @@ active agent sessions for temporary execution detail.
 - [PR Guideline](pr-guideline.md) - pull request title, body, issue linkage,
   review, and breaking-change guidance.
 - [Project Management Model](project-management-model.md) - systems of record
-  for specs, issues, PRs, and agent-local plans.
+  for product requirements, behavior specs, issues, PRs, and agent-local plans.
 - [Shared Skill Reporting Workflow](shared-skill-reporting-workflow.md) - how
   to report reusable shared-skill or shared-agent needs upstream.
 - [Writing Skills](writing-skills.md) - source skill authoring and rendering

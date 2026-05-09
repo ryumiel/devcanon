@@ -13,8 +13,8 @@ focused on outcomes and ownership boundaries, not live execution state.
 - scope and non-goals for roadmap-scale work
 - durable sequencing at the outcome level
 - validation targets that show the outcome is real
-- links to the owning specs, architecture docs, guidelines, ADRs, and live
-  planning containers
+- links to product requirements, owning behavior specs, architecture docs,
+  guidelines, ADRs, and live planning containers
 
 ## What Roadmap Docs Must Not Contain
 

@@ -11,15 +11,16 @@ rationale in that doc; use this file for fast review and gardening lookup.
 - Docs or code moved, or a new major path added: update `MAP.md`.
 - New or substantially changed durable doc: identify the AFDS document profile
   and confirm the file lives in that profile's owning location.
-- Conditional profile path added (`contracts/`, `docs/harness/`,
-  `docs/knowledge/`, `docs/references/`, `docs/roadmap/`, `docs/tech-debt/`, or
-  module-local `README.md`): confirm the creation trigger in
+- Conditional profile path added (`contracts/`, `docs/product-requirements/`,
+  `docs/harness/`, `docs/knowledge/`, `docs/references/`, `docs/roadmap/`,
+  `docs/tech-debt/`, or module-local `README.md`): confirm the creation trigger in
   [documentation-standard.md](documentation-standard.md) is met.
-- Behavior-spec template applied: confirm the doc is a behavior or
-  product-domain spec, not an ADR, roadmap, guideline, reference, or module
+- Behavior-spec template applied: confirm the doc is a behavior spec, not a
+  product requirements document, ADR, roadmap, guideline, reference, or module
   breadcrumb.
-- Spec need checked: required, optional, or unnecessary. If unnecessary, record
-  a short "No spec needed: ..." reason from
+- Product-requirements or behavior-spec need checked: required, optional, or
+  unnecessary. If unnecessary, record a short "No product requirements or
+  behavior spec needed: ..." reason from
   [ai-assisted-product-workflow-guideline.md](ai-assisted-product-workflow-guideline.md).
 - Documentation impact gate passed: durable behavior, interfaces, commands,
   module boundaries, architecture, workflow, reusable agent procedure, and
@@ -61,8 +62,8 @@ rationale in that doc; use this file for fast review and gardening lookup.
   ephemeral files?
 - Do ADRs still capture durable decisions rather than live task history?
 - Before stale ADR prose is removed, have durable claims been moved to an owning
-  spec, architecture doc, guideline, or successor ADR?
-- Are behavior-spec structures limited to behavior/product-domain specs?
+  behavior spec, architecture doc, guideline, or successor ADR?
+- Are behavior-spec structures limited to behavior specs?
 - Are roadmap docs free of live issue status, assignees, PR inventories, and
   scheduling state?
 - Are conditional directories absent unless their trigger is real?

@@ -1,7 +1,8 @@
 # DevCanon -- Agent Entry Point
 
-DevCanon is a user-wide Node.js CLI and source library for portable AFDS
-skills, thin agent roles, and generated Claude Code and Codex files.
+DevCanon is a user-wide Node.js CLI and source library for portable
+Agent-Friendly Documentation Standard (AFDS) skills, thin agent roles, and
+generated Claude Code and Codex files.
 
 ---
 
@@ -22,7 +23,9 @@ such as dedicated model/effort, tools, sandbox, or Codex approval policy
 
 Source files are authoritative. Generated outputs are disposable.
 
-For product specs, see [`docs/specs/`](docs/specs/).
+For product requirements, see
+[`docs/product-requirements/`](docs/product-requirements/). For behavior specs,
+see [`docs/specs/`](docs/specs/).
 
 ---
 
@@ -152,11 +155,13 @@ devcanon/
     codex/agents/            # Generated Codex agent files (.toml)
 
   docs/
-    specs/                   # Product and domain specifications
+    product-requirements/    # Product intent before behavior specs
+    specs/                   # Behavior specifications
     arch/
       overview.md            # System architecture overview
     adr/                     # Architecture decision records
     guidelines/              # Engineering rules and norms
+    roadmap/                 # Durable roadmap direction
 
   scripts/
     hooks/                   # Shared git hooks
@@ -175,62 +180,43 @@ For module responsibilities, dependency rules, and data flow, see
 
 ## CLI Commands
 
-| Command            | Description                                              |
-| ------------------ | -------------------------------------------------------- |
-| `init`             | Initialize a new DevCanon library                        |
-| `new skill <name>` | Scaffold a new skill                                     |
-| `new agent <name>` | Scaffold a new agent role                                |
-| `validate`         | Validate config, skills, and agents                      |
-| `render`           | Generate outputs into `generated/` without installing    |
-| `sync`             | Render and install managed outputs to target directories |
-| `uninstall`        | Remove managed outputs recorded in the manifest          |
-| `diff`             | Show differences between generated and installed outputs |
-| `doctor`           | Inspect environment health                               |
-| `list`             | List known skills and agents                             |
+| Command            | Description                                               |
+| ------------------ | --------------------------------------------------------- |
+| `init`             | Initialize a new DevCanon library                         |
+| `new skill <name>` | Scaffold a new skill                                      |
+| `new agent <name>` | Scaffold a new agent role                                 |
+| `validate`         | Validate config, skills, and agents                       |
+| `render`           | Generate outputs into `generated/` without installing     |
+| `sync`             | Render and write installed managed outputs                |
+| `uninstall`        | Remove installed managed outputs recorded in the manifest |
+| `diff`             | Show differences between generated and installed outputs  |
+| `doctor`           | Inspect environment health                                |
+| `list`             | List known skills and agents                              |
 
 ---
 
 ## Documentation
 
-| Topic                               | Location                                                                                                                 |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Product specs                       | [`docs/specs/`](docs/specs/)                                                                                             |
-| Core concepts and principles        | [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)                                                             |
-| Architecture overview               | [`docs/arch/overview.md`](docs/arch/overview.md)                                                                         |
-| Architecture decisions              | [`docs/adr/`](docs/adr/)                                                                                                 |
-| Configuration format                | [`docs/specs/configuration.md`](docs/specs/configuration.md)                                                             |
-| Skill specification                 | [`docs/specs/skills.md`](docs/specs/skills.md)                                                                           |
-| Agent source schema                 | [`docs/specs/agents.md`](docs/specs/agents.md)                                                                           |
-| Target mapping (Claude/Codex)       | [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)                                                           |
-| Install and sync policy             | [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)                                                       |
-| CLI command reference               | [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)                                                               |
-| Error handling and logging          | [`docs/specs/error-handling.md`](docs/specs/error-handling.md)                                                           |
-| Platform and security               | [`docs/specs/platform.md`](docs/specs/platform.md)                                                                       |
-| Testing requirements                | [`docs/specs/testing.md`](docs/specs/testing.md)                                                                         |
-| When to create an agent vs. a skill | [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)                                   |
-| Writing skills in this repo         | [`docs/guidelines/writing-skills.md`](docs/guidelines/writing-skills.md)                                                 |
-| Contributing and commit policy      | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                                     |
-| Decision matrix                     | [`AGENTS.md`](AGENTS.md) § Decision Matrix                                                                               |
-| Documentation standard              | [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)                                 |
-| Shared skill reporting workflow     | [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)               |
-| Commit guideline                    | [`docs/guidelines/commit-guideline.md`](docs/guidelines/commit-guideline.md)                                             |
-| PR guideline                        | [`docs/guidelines/pr-guideline.md`](docs/guidelines/pr-guideline.md)                                                     |
-| Code review guideline               | [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)                                   |
-| gh api hygiene guideline            | [`docs/guidelines/gh-api-hygiene.md`](docs/guidelines/gh-api-hygiene.md)                                                 |
-| Contributor workflow                | [`WORKFLOW.md`](WORKFLOW.md)                                                                                             |
-| AI-assisted product workflow        | [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md) |
-| Project management model            | [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)                             |
-| Roadmap direction                   | [`docs/roadmap/`](docs/roadmap/)                                                                                         |
-| Portable AFDS Toolkit roadmap       | [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)                                         |
-| Navigation index                    | [`MAP.md`](MAP.md)                                                                                                       |
+Use [`MAP.md`](MAP.md) as the canonical navigation index. Key documentation
+entry points:
+
+- Product requirements: [`docs/product-requirements/`](docs/product-requirements/)
+- Behavior specs: [`docs/specs/`](docs/specs/)
+- Architecture overview: [`docs/arch/overview.md`](docs/arch/overview.md)
+- Documentation standard:
+  [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Project management model:
+  [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
+- Portable AFDS Toolkit roadmap:
+  [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
 
 ---
 
 ## Decision Matrix
 
-| **Do without asking:**                                                                                                                                                                                                                                                                                                        | **Ask first:**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | **Do not do:**                                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fix typos in code and documentation<br>Add or update tests for existing behavior<br>Update stale documentation (broken links, outdated examples)<br>Run the full validation suite (`pnpm run check`)<br>Create follow-up issues for problems found during work<br>Refactor code without changing behavior when scope is small | Change Zod schemas in `src/config/schema.ts` or `src/models/types.ts`<br>Add or remove npm dependencies<br>Move, rename, or delete source files<br>Modify CI workflows (`.github/workflows/`)<br>Modify git hooks (`scripts/hooks/`)<br>Change `docs/specs/`, `AGENTS.md`, or `CONTRIBUTING.md` (except in issues or PRs explicitly about process or docs policy)<br>Create new CLI commands<br>Change rendered output format (Claude `.md` or Codex `.toml`)<br>Modify install/sync behavior that writes to user home directories | Push directly to `main`<br>Merge your own PR without review<br>Skip or bypass pre-commit hooks (`--no-verify`)<br>Commit secrets, credentials, or tokens<br>Expand PR scope beyond the linked issue<br>Delete or overwrite the install manifest without backup<br>Force-push to shared branches |
+| **Do without asking:**                                                                                                                                                                                                                                                                                                        | **Ask first:**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | **Do not do:**                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fix typos in code and documentation<br>Add or update tests for existing behavior<br>Update stale documentation (broken links, outdated examples)<br>Run the full validation suite (`pnpm run check`)<br>Create follow-up issues for problems found during work<br>Refactor code without changing behavior when scope is small | Change Zod schemas in `src/config/schema.ts` or `src/models/types.ts`<br>Add or remove npm dependencies<br>Move, rename, or delete source files<br>Modify CI workflows (`.github/workflows/`)<br>Modify git hooks (`scripts/hooks/`)<br>Change `docs/product-requirements/`, `docs/specs/`, `AGENTS.md`, or `CONTRIBUTING.md` outside the owning scope of the current issue or PR. Same-PR updates required by the documentation impact gate do not require separate approval when they directly reflect the behavior, product intent, command, workflow, or ownership change being implemented.<br>Create new CLI commands<br>Change rendered output format (Claude `.md` or Codex `.toml`)<br>Modify install/sync behavior that writes to user home directories | Push directly to `main`<br>Merge your own PR without review<br>Skip or bypass pre-commit hooks (`--no-verify`)<br>Commit secrets, credentials, or tokens<br>Expand PR scope beyond the linked issue<br>Delete or overwrite the install manifest without backup<br>Force-push to shared branches |
 
 ---
 
@@ -238,4 +224,5 @@ For module responsibilities, dependency rules, and data flow, see
 
 - Navigation index: [`MAP.md`](MAP.md)
 - Contributing and commit policy: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Product specs: [`docs/specs/`](docs/specs/)
+- Product requirements: [`docs/product-requirements/`](docs/product-requirements/)
+- Behavior specs: [`docs/specs/`](docs/specs/)
