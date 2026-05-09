@@ -13,6 +13,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the contributing and commit policy? -> [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Where is the decision matrix? -> [`AGENTS.md`](AGENTS.md) § Decision Matrix
 - Where is the contributor workflow? -> [`WORKFLOW.md`](WORKFLOW.md)
+- Where is the AI-assisted product workflow guide? -> [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md)
 - Where are product specs? -> [`docs/specs/`](docs/specs/)
 - Where is the product overview? -> [`docs/specs/overview.md`](docs/specs/overview.md)
 - Where are core concepts and principles? -> [`docs/specs/core-concepts.md`](docs/specs/core-concepts.md)
@@ -56,6 +57,7 @@ Quick navigation index for the DevCanon repository.
 ## Guidelines and templates
 
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
+- Where is the AI-assisted product workflow guide? -> [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
 - Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where is policy for promoting prompt templates into agents? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
