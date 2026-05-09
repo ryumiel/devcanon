@@ -33,6 +33,7 @@ This document is the procedural guide for contributing to the repository. For po
   - Dependencies or blockers: related issues and `blocked by` relationships
   - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set a `blocked by` relationship in GitHub
+- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping a durable artifact first and implementing an already-sliced issue.
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
 
 ### When the issue is about a shared skill or agent
@@ -45,9 +46,10 @@ This document is the procedural guide for contributing to the repository. For po
 
 1. Branch from `main` using the branch naming convention from [CONTRIBUTING.md](CONTRIBUTING.md#branch-naming): `<type>/<scope>-<short-description>` or `<type>/<short-description>`
 2. Read the issue body and any linked docs before writing code
-3. Run local validation before committing: `pnpm run check`
-4. Commit using Conventional Commits (see [CONTRIBUTING.md § Commit Policy](CONTRIBUTING.md#commit-policy))
-5. Keep scope tight: one issue, one PR. Do not bundle unrelated changes.
+3. Confirm the workflow path and spec need using [docs/guidelines/ai-assisted-product-workflow-guideline.md](docs/guidelines/ai-assisted-product-workflow-guideline.md). If no spec is needed, record the reason in the PR checklist.
+4. Run local validation before committing: `pnpm run check`
+5. Commit using Conventional Commits (see [CONTRIBUTING.md § Commit Policy](CONTRIBUTING.md#commit-policy))
+6. Keep scope tight: one issue, one PR. Do not bundle unrelated changes.
 
 ## Opening a PR
 

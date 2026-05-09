@@ -52,6 +52,10 @@ Detailed companion guides may elaborate on commit, PR, or branch policy, but
 
 Start from the artifact that owns the current uncertainty.
 
+For the end-to-end operating guide that applies this model to AI-assisted
+workflow, issue slicing, implementation, PRs, and post-merge gardening, see
+[ai-assisted-product-workflow-guideline.md](ai-assisted-product-workflow-guideline.md).
+
 ### 4.1 Shape path
 
 Use shaping when the uncertainty is product/domain behavior, workflow policy,

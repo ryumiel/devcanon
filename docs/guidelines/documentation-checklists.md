@@ -18,6 +18,13 @@ rationale in that doc; use this file for fast review and gardening lookup.
 - Behavior-spec template applied: confirm the doc is a behavior or
   product-domain spec, not an ADR, roadmap, guideline, reference, or module
   breadcrumb.
+- Spec need checked: required, optional, or unnecessary. If unnecessary, record
+  a short "No spec needed: ..." reason from
+  [ai-assisted-product-workflow-guideline.md](ai-assisted-product-workflow-guideline.md).
+- Documentation impact gate passed: durable behavior, interfaces, commands,
+  module boundaries, architecture, workflow, reusable agent procedure, and
+  verification expectations either did not change or their owning artifact is
+  updated in the same PR.
 - Root entry or workflow changed: update `AGENTS.md` for entry-point guidance
   and `WORKFLOW.md` for procedural flow changes.
 - CLI command added or changed: update `AGENTS.md` command table and
