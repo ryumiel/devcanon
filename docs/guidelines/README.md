@@ -12,6 +12,9 @@ active agent sessions for temporary execution detail.
 
 - [Agent Authoring Guide](agent-authoring-guide.md) - when to create agent
   roles instead of skills, and how to promote prompt templates.
+- [AFDS Workflow Skill Map](afds-workflow-skill-map.md) - design map for
+  AFDS workflow skill entrypoints, classifications, and first implementation
+  scope.
 - [AI-Assisted Product Workflow Guideline](ai-assisted-product-workflow-guideline.md)
   - how DevCanon applies AFDS to product, documentation, issue, and PR work.
 - [Code Review Guideline](code-review-guideline.md) - review finding model,

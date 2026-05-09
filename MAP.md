@@ -57,6 +57,7 @@ Quick navigation index for the DevCanon repository.
 ## Guidelines and templates
 
 - Where is the guideline directory index? -> [`docs/guidelines/README.md`](docs/guidelines/README.md)
+- Where is the AFDS workflow skill map? -> [`docs/guidelines/afds-workflow-skill-map.md`](docs/guidelines/afds-workflow-skill-map.md)
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where is the AI-assisted product workflow guide? -> [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
