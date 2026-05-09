@@ -4,7 +4,7 @@ Scope: DevCanon behavior specs\
 Runtime: Node.js CLI\
 Targets: Claude Code, Codex\
 Install scope: User-wide only\
-Product requirements:
+Product requirements:\
 [Portable AFDS Toolkit](../product-requirements/portable-afds-toolkit.md)
 
 ---

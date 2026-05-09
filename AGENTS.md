@@ -187,7 +187,7 @@ For module responsibilities, dependency rules, and data flow, see
 | `new agent <name>` | Scaffold a new agent role                                 |
 | `validate`         | Validate config, skills, and agents                       |
 | `render`           | Generate outputs into `generated/` without installing     |
-| `sync`             | Render generated outputs and write installed outputs      |
+| `sync`             | Render and write installed managed outputs                |
 | `uninstall`        | Remove installed managed outputs recorded in the manifest |
 | `diff`             | Show differences between generated and installed outputs  |
 | `doctor`           | Inspect environment health                                |

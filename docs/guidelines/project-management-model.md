@@ -109,7 +109,7 @@ stable enough for a behavior spec or implementation slicing. It should identify
 the problem, users, product goals, target outcomes, assumptions, risks, open
 questions, and expected follow-up artifact.
 
-### 5.2 Behavior Spec Writing Issue
+### 5.2 Behavior-spec writing issue
 
 A behavior spec writing issue exists to shape exact durable behavior or policy
 after product intent is clear enough for acceptance-ready requirements. It
