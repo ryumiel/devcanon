@@ -36,6 +36,12 @@ rationale in that doc; use this file for fast review and gardening lookup.
   outcome-level sequencing, not live issue or PR state.
 - Renderer output format changed: update snapshot tests in `src/render/`.
 - Durable design decision made: add or update an ADR in `docs/adr/`.
+- Accepted ADR body prose passes the rename-fragility litmus test.
+- Durable ADR body prose avoids tracker IDs, issue links, branch names, PR
+  numbers, task labels, and task history.
+- Accepted ADR changes do not introduce `## Amendment` sections.
+- Stale ADR prose is deleted only after durable claims are relocated to the
+  owning durable doc.
 - Structural debt discovered or resolved: update `docs/tech-debt/` (when it
   exists).
 - Requirement references added: prefer stable requirement IDs, scenario IDs,
@@ -50,6 +56,9 @@ rationale in that doc; use this file for fast review and gardening lookup.
 - Does each active doc match one AFDS document profile?
 - Has durable content been merged into owned docs instead of parked in
   ephemeral files?
+- Do ADRs still capture durable decisions rather than live task history?
+- Before stale ADR prose is removed, have durable claims been moved to an owning
+  spec, architecture doc, guideline, or successor ADR?
 - Are behavior-spec structures limited to behavior/product-domain specs?
 - Are roadmap docs free of live issue status, assignees, PR inventories, and
   scheduling state?
