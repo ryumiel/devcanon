@@ -120,8 +120,7 @@ forms include:
 - `No spec needed: mechanical docs repair.`
 - `No spec needed: issue acceptance criteria are the execution contract.`
 - `No spec needed: bugfix restores behavior already covered by tests.`
-- `No spec needed: dependency remediation follows the audit finding and changes
-  no durable behavior.`
+- `No spec needed: dependency remediation follows the audit finding.`
 - `No spec needed: behavior-preserving refactor.`
 
 ## 4. Documentation Impact Gate
