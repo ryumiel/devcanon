@@ -149,6 +149,8 @@ EOF
      *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
    esac
    [ "${ASSUMPTIONS_COMMENT_FILE#*..}" = "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "path traversal: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   [ -L "$ASSUMPTIONS_COMMENT_FILE" ] && { echo "assumptions_comment_file must not be a symlink: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
    [ -r "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "assumptions_comment_file missing or unreadable: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
    ```
 
