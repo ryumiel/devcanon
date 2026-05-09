@@ -340,7 +340,7 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 - Issue reference: `Closes <ID>` (for `payload.source = github`) or `Closes <ID>` plus a link to the Linear issue (for `payload.source = linear`)
 - Summary of what was implemented
-- Durable rationale and impact required by the project PR guidelines, including relevant design decisions
+- Durable rationale and impact, including relevant design decisions
 
 **Description body invariant:** The description must contain only the items listed above. Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Auto-mode assumptions are routed through the assumptions comment path when needed. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
 
