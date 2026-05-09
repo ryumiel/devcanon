@@ -20,9 +20,9 @@ host target-specific overrides; the rest are shared.
 
 | Key             | Type           | Required | Notes                                           |
 | --------------- | -------------- | -------- | ----------------------------------------------- |
-| `name`          | string         | yes      | `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`, ≤ 64 chars |
+| `name`          | string         | yes      | `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`, 2-64 chars |
 | `description`   | string         | yes      | ≤ 1024 chars, no `<` / `>`                      |
-| `allowed-tools` | string or list | no       | Space-separated string or YAML list             |
+| `allowed-tools` | string or list | no       | Non-empty space-separated string or YAML list   |
 
 ### Optional per-target override blocks
 
@@ -45,6 +45,14 @@ the renderer emits it for the Codex target only as a separate YAML
 file at `generated/codex/skills/<name>/agents/openai.yaml`. It is
 not inlined into the Codex `SKILL.md`. Supports `interface.*`,
 `policy.*`, `dependencies.*`, each strict.
+
+Supported sidecar fields:
+
+| Block          | Fields                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| `interface`    | `display_name`, `short_description`, `icon_small`, `icon_large`, `brand_color`, `default_prompt` |
+| `policy`       | `allow_implicit_invocation`                                                                      |
+| `dependencies` | `tools`                                                                                          |
 
 ---
 
@@ -206,7 +214,8 @@ top-level subdirectories are not flagged.
 - Skill directory name must be filesystem-safe.
 - `SKILL.md` must exist.
 - Frontmatter must parse and match `SkillSourceSchema`.
-- Frontmatter `name` must equal the directory name.
+- Frontmatter `name` must match the stricter skill-name regex above and equal
+  the directory name.
 - Skill names must be unique.
 - Every `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
   `file`}, and `Y` must be defined in the corresponding glossary

@@ -24,16 +24,15 @@ typically re-reads the file(s) the implementer touched to:
 In multi-task plans (per-task reviewers active per ADR-0007), the
 controller's re-read pressure is highest because line ranges feed the
 spec-compliance and code-quality reviewer dispatches. Each re-read
-pulls full file content into the controller's context. The pattern was
-observed in PR #163's run: a 167-line ADR that the implementer wrote
-was re-read by the controller across the post-commit verification,
-review composition, and nit-fixing steps.
+pulls full file content into the controller's context. The observed
+failure mode was a medium-sized ADR being re-read across post-commit
+verification, review composition, and nit-fixing steps.
 
 A naive fix — embed the file content in the DONE report — collides
 with `skills/play-subagent-execution/references/spec-reviewer-prompt.md`
-§ "CRITICAL: Do Not Trust the Report" (lines 23-37 today), which
-mandates that reviewers read the actual code from disk and **NOT**
-trust any artifact the implementer hands over. The same rule covers
+§ "CRITICAL: Do Not Trust the Report", which mandates that reviewers
+read the actual code from disk and **NOT** trust any artifact the
+implementer hands over. The same rule covers
 `code-quality-reviewer-prompt.md`. A snapshot is exactly the kind of
 artifact that rule says to ignore — for reviewers.
 
@@ -47,11 +46,11 @@ The trust boundary distinguishes two read paths:
    disk. The whole point is independence from the implementer's
    framing.
 
-A separate concern: issue #168 (now reduced to a leaner prompt
-variant) and issue #175 (skip-dispatch path for trivial single-task
-plans) interact. #168 still dispatches an implementer; #175 does not
-— the plan body is itself the snapshot in that path. Any contract
-introduced here must explicitly exclude #175.
+A separate concern: the lean mechanical implementer path and the
+skip-dispatch path for trivial single-task plans interact. The lean
+mechanical path still dispatches an implementer; the skip-dispatch path
+does not — the plan body is itself the snapshot in that path. Any
+contract introduced here must explicitly exclude the skip-dispatch path.
 
 ## Decision
 
@@ -256,12 +255,12 @@ nit-fix path sees it.
 
 ### Skip-dispatch exclusion
 
-The contract scope is the **dispatched-implementer path only**. Issue
-`#175` (skip-dispatch variant for trivial single-task plans) does not
-invoke this contract because no implementer is dispatched and no DONE
-report exists; the plan body is itself the snapshot. This is named
-in `play-subagent-execution/SKILL.md` controller prose so a reader
-cannot confuse the two paths.
+The contract scope is the **dispatched-implementer path only**. The
+skip-dispatch variant for trivial single-task plans does not invoke this
+contract because no implementer is dispatched and no DONE report exists;
+the plan body is itself the snapshot. This is named in
+`play-subagent-execution/SKILL.md` controller prose so a reader cannot
+confuse the two paths.
 
 ### Single-task plan interaction
 
@@ -276,8 +275,7 @@ reuse is opportunistic; the cost is one notice line and one
 - Token cost on the implementer-DONE → controller hop drops by the
   size of any file the controller would otherwise re-read 1–3 times
   during post-DONE verification, line-range extraction, or
-  reviewer-dispatch composition. PR #163-class cost is recovered for
-  the dispatched-implementer path.
+  reviewer-dispatch composition.
 - The phase-handoff substrate gains a fifth deterministic
   `.ephemeral/` artifact (research, design, plan, findings,
   snapshot). Cleanup remains implicit via worktree teardown.
@@ -350,9 +348,3 @@ reuse is opportunistic; the cost is one notice line and one
 - [ADR-0013](adr-0013-path-based-phase-artifact-handoff.md) — the
   upstream symmetry argument for the substrate; the path-validation
   guard pattern; the untrusted-prose framing.
-- Issue #164 — session-cost reduction parent.
-- Issue #170 — this work.
-- Issue #168 — leaner mechanical-implementer prompt; still dispatches
-  an implementer, so this contract applies to it.
-- Issue #175 — skip-dispatch path; this contract explicitly does NOT
-  apply because no implementer is dispatched.

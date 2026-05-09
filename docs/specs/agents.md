@@ -121,6 +121,19 @@ These are the repository's documented target-specific fields in v1. Do not use
 this spec to imply support for other target fields unless they are documented
 here.
 
+Field constraints:
+
+- `sandbox_mode` is optional and must be one of `read-only`,
+  `workspace-write`, or `danger-full-access`.
+- `nickname_candidates` is optional. When present, it must be a non-empty list
+  of unique names after trimming whitespace. Names may contain only ASCII
+  letters, digits, spaces, hyphens, and underscores.
+- `approval_policy` is optional. It may be one of `untrusted`, `on-request`,
+  `on-failure`, or `never`, or an object with `granular`.
+- `approval_policy.granular` requires `mcp_elicitations`, `rules`, and
+  `sandbox_approval` booleans. It may also include `request_permissions` and
+  `skill_approval` booleans.
+
 A dedicated model tier or effort level is a valid reason to define an agent
 when the role itself is stable and reusable. Those settings are part of the
 role boundary, not just render-time metadata.

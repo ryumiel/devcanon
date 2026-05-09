@@ -10,8 +10,9 @@ ADR-0005 scope-locks placeholders to `{{model:*}}`. Shared skill prose
 referencing tool names (e.g. `TodoWrite`) and artifact files
 (e.g. `CLAUDE.md`) has only two options under that lock: hard-code the
 Claude name (loses Codex correctness) or neutralize entirely (loses
-action-ability — readers cannot grep or copy-paste). Issue #76 records
-the resulting drift violations in shared prose.
+action-ability — readers cannot grep or copy-paste). The resulting
+shared-prose drift showed that tool and artifact names needed the same
+per-target resolution model as model names.
 
 ## Decision
 
@@ -43,8 +44,8 @@ also adds `Foo` and `bar` to the drift token set without code changes.
   in `PlaceholderGlossary` are permitted; adding a new namespace still
   requires a new ADR.
 - Skill prose can replace `TodoWrite` / `CLAUDE.md` / `AGENTS.md` with
-  placeholders. Migration of existing prose is not in this ADR's scope —
-  that is a follow-up tracked in #75.
+  placeholders. Migration of existing prose is a separate cleanup from
+  this decision.
 
 ## Alternatives considered
 

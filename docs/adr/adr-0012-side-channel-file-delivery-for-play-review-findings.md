@@ -17,13 +17,12 @@ specified its transport: a trailing fenced `json` block appended to
 classify nits. The same envelope traverses 4 conversation contexts
 per `--auto` run.
 
-In PR #163's run that propagation was observed to be a measurable
-share of total session tokens — on the order of 5KB per hop across
-4 hops, though the exact figure depends on finding count and run.
-The cost evidence was not available when ADR-0010 was written;
-ADR-0010 acknowledged a "wrappers re-emit the block on their
-surfaces" cost in its Consequences but had no empirical baseline to
-weigh it against.
+That propagation was observed to be a measurable share of total session
+tokens — on the order of 5KB per hop across 4 hops, though the exact
+figure depends on finding count and run. The cost evidence was not
+available when ADR-0010 was written; ADR-0010 acknowledged a "wrappers
+re-emit the block on their surfaces" cost in its Consequences but had no
+empirical baseline to weigh it against.
 
 ADR-0010's _Alternatives considered_ already considered and **rejected**
 a side-channel `.ephemeral/findings.json`, with this stated reason
@@ -126,7 +125,7 @@ Consumer responsibilities:
 ## Consequences
 
 - Token cost on the 4 consumer hops collapses from ~5KB × 4 to one
-  notice line per hop. PR-#163-class cost is recovered.
+  notice line per hop.
 - `play-review` becomes consistent with `play-brainstorm` and
   `play-planning` in that it writes a single deterministically-named
   artifact under `.ephemeral/`. The phase-handoff substrate is now
@@ -197,8 +196,8 @@ Consumer responsibilities:
   severity / category).** Rejected: reintroduces the consumer-side
   redundancy ADR-0010 was originally trying to eliminate, and creates
   a second contract (the summary) to keep in sync with the schema.
-- **Keep ADR-0010's status quo.** Rejected: the cost evidence (PR #163)
-  is load-bearing once ADR-0010's "no-I/O boundary" is reckoned with
+- **Keep ADR-0010's status quo.** Rejected: the cost evidence is
+  load-bearing once ADR-0010's "no-I/O boundary" is reckoned with
   against ADR-0009's actual text. The prior rejection's framing
   overstated ADR-0009's constraint.
 - **Use `play-review`'s existing date-prefix naming convention
@@ -215,5 +214,3 @@ Consumer responsibilities:
   preserves)
 - ADR-0010: structured review-finding schema (superseded by this ADR
   for transport; schema name and field shape unchanged)
-- Issue #164: session-cost reduction parent
-- Issue #166: this work

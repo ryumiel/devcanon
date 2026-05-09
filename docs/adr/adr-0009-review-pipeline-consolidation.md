@@ -43,9 +43,9 @@ wrappers around it.
   family prefix per ADR-0003. Internal-only (`claude.user-invocable: false`,
   `codex_sidecar.policy.allow_implicit_invocation: false`); the description
   text gates the auto-routing soft path. The frontmatter pattern matches
-  `issue-priming-workflow` (see issue #149 for the rationale: not
-  `claude.disable-model-invocation: true`, which would block programmatic
-  invocation by sibling skills).
+  `issue-priming-workflow`: use `claude.user-invocable: false`, not
+  `claude.disable-model-invocation: true`, because sibling skills still need
+  programmatic invocation.
 - Owns guideline discovery (Phase 1), doc-impact summary computation
   (Phase 2), agent dispatch with core + dynamic agents and briefing
   template (Phase 3), all sub-checks (Phase 4), and critic verification
@@ -74,8 +74,7 @@ Documentation impact: ADR-0008 references this ADR as a follow-up;
 `MAP.md` adds a navigation entry for `play-review`;
 `docs/guidelines/writing-skills.md` §3.2 gains a callout disambiguating
 `claude.user-invocable: false` from `claude.disable-model-invocation: true`
-so the issue-#149 trap is documented next to the frontmatter authoring
-rules.
+so that frontmatter authoring rule lives next to the skill-writing guidance.
 
 ## Consequences
 
@@ -99,7 +98,7 @@ rules.
 - `pr-review`'s output remains free-form prose; consumer cleanup (a
   structured-finding schema for `branch-review --fix` to drop the
   prose-to-JSON translation step in `issue-priming-workflow` Phase 7)
-  is filed as issue #158 and explicitly out of scope here.
+  is explicitly out of scope here and handled by ADR-0010 / ADR-0012.
 
 ## Alternatives considered
 
@@ -113,12 +112,12 @@ rules.
 - **Approach 3 (shared procedure + consumer cleanup).** Approach 1 plus
   redefine `branch-review --fix`'s output to be structured. Rejected as
   scope creep — touches 4-5 skills instead of 3 and risks coupling this
-  refactor to an unrelated output-schema decision. Filed as issue #158
-  for follow-up after this refactor lands.
+  refactor to an unrelated output-schema decision. ADR-0010 / ADR-0012
+  handle that output-schema decision separately.
 - **Use `claude.disable-model-invocation: true` to gate `play-review`
-  from auto-trigger.** Rejected: per issue #149, that flag blocks all
-  Skill-tool invocation including programmatic hand-offs from sibling
-  skills, defeating the wrapper pattern. The correct gate is
+  from auto-trigger.** Rejected: that flag blocks all Skill-tool
+  invocation including programmatic hand-offs from sibling skills,
+  defeating the wrapper pattern. The correct gate is
   `claude.user-invocable: false` (hides from the slash-command menu but
   still allows wrappers to invoke via the Skill tool).
 
@@ -128,5 +127,4 @@ rules.
 - ADR-0007: review pipeline delineation (per-task vs branch review)
 - ADR-0008: AFDS v2 pipeline enforcement; deferred wrapper-refactor
   follow-up addressed here
-- Issue #149: `user-invocable` vs `disable-model-invocation` precedent
-- Issue #158: consumer cleanup follow-up (out of scope here)
+- ADR-0010 / ADR-0012: structured findings and side-channel transport

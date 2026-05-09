@@ -7,11 +7,11 @@ Accepted
 ## Context
 
 `skills/play-review/SKILL.md` Phase 3 dispatches several reviewer
-roles. This audit covers the four that the issue body for #143
-enumerated, all currently dispatched as inline prompts with no
-promoted source-agent identity (`agents/<role>.yaml`) backing them —
-the role contract lives entirely in the per-invocation briefing prose
-inside `skills/play-review/SKILL.md` Phase 3:
+roles. This audit covers the four reviewer roles that were dispatched
+as inline prompts with no promoted source-agent identity
+(`agents/<role>.yaml`) backing them — the role contract lives entirely
+in the per-invocation briefing prose inside `skills/play-review/SKILL.md`
+Phase 3:
 
 1. **Correctness** — logic bugs, panic discipline, error propagation,
    API contracts, plus Sub-checks 1 (substitution audit) and 2
@@ -24,10 +24,10 @@ inside `skills/play-review/SKILL.md` Phase 3:
    when test paths appear in the active diff.
 
 The remaining Phase 3 agents — Docs, Architecture, and Documentation
-(see the dispatch table at `skills/play-review/SKILL.md` lines
-195-202) — are out of scope here. They are not classified by this
-audit; their classification is left to a separate pass if and when the
-question arises.
+(see the dynamic-reviewer dispatch table in `skills/play-review/SKILL.md`)
+— are out of scope here. They are not classified by this audit; their
+classification is left to a separate pass if and when the question
+arises.
 
 ADR-0009 consolidated `branch-review` and `pr-review` into thin wrappers
 around `play-review`, which reduced the call-site count for any
@@ -44,11 +44,10 @@ delegates, including a hard-constraint exception:
 > hard target-native constraint win that justifies promotion on its own
 > (for example, a read-only sandbox plus a fixed tool surface).
 
-Wave 1 (#77), Wave 2 (#92, #142), and the recent `research-agent`
-promotion (#162) consolidated similar reviewer-style delegates into
-source agents where the role-identity bar was met. Issue #141 refined
-the policy text the audit cites. Issue #143 (this audit, Wave 3-bis)
-is the parallel pass over the four `play-review` Phase 3 roles.
+Earlier promotion passes and the `research-agent` promotion consolidated
+similar reviewer-style delegates into source agents where the
+role-identity bar was met. This audit applies the refined promotion
+policy to the four `play-review` Phase 3 roles.
 
 ## Decision
 
@@ -123,10 +122,9 @@ construction; there is no per-wrapper divergence to encode.
 ## Consequences
 
 - The single recommended promotion (`data-safety-reviewer`) is tracked
-  as a follow-up implementation issue, not part of this audit PR.
+  as a separate implementation pass, not part of this audit decision.
   Rationale: keeps the audit reviewable as a pure policy change and
-  matches the Wave 1 / Wave 2 cadence of separating the
-  classification PR from the promotion PR.
+  preserves the separation between classification and promotion.
 - The other three roles (`correctness-reviewer`,
   `language-idiomatic-reviewer`, `test-coverage-reviewer`) stay as
   inline briefing prose inside `skills/play-review/SKILL.md` Phase 3
@@ -172,7 +170,3 @@ construction; there is no per-wrapper divergence to encode.
   carve-out reason for not widening `code-quality-reviewer`)
 - ADR-0009 — review pipeline consolidation into shared `play-review`
   (the structural reason the call-site count is one)
-- Issue #141 — refined agent-promotion policy that this audit cites
-- Issue #90 — parent epic; outcome of this audit is reported back there
-- Issues #77, #92, #142, #162 — Wave 1 / Wave 2 / `research-agent`
-  promotion precedents whose lens this audit applies

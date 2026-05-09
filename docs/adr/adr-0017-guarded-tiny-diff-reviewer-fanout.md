@@ -14,11 +14,11 @@ docs or prompt diff could still trigger Architecture, Documentation,
 Docs, or language-specific reviewers solely because a path matched a
 trigger class.
 
-The optimization goal surfaced in issue #201 is intentionally narrow.
-Small diffs are not inherently safe. A one-line change can still alter a
-path-validation guard, an external invocation, or a review hard rule.
-Any efficiency carve-out therefore has to classify by both size and
-change type, and it must preserve the core review path.
+The optimization goal is intentionally narrow. Small diffs are not
+inherently safe. A one-line change can still alter a path-validation
+guard, an external invocation, or a review hard rule. Any efficiency
+carve-out therefore has to classify by both size and change type, and it
+must preserve the core review path.
 
 Three existing decisions constrain the shape of the solution:
 
