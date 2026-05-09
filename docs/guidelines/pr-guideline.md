@@ -28,7 +28,6 @@
 
 **Permitted exceptions to the items above** (forward-looking content, not logbook):
 
-- **Assumptions made in `--auto` mode** — design decisions the reviewer needs to see before approving.
 - **Blocking findings the auto-fix declined** — current state the reviewer needs to weigh, not historical chatter.
 
 ## 3. Anti-Patterns

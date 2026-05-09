@@ -339,10 +339,27 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 **Default PR description should include:**
 
 - Issue reference: `Closes <ID>` (for `payload.source = github`) or `Closes <ID>` plus a link to the Linear issue (for `payload.source = linear`)
-- The design decisions made (especially any assumptions from Phase 4)
 - Summary of what was implemented
+- Durable rationale and impact, including relevant design decisions
 
-**Description body invariant:** The description must contain only the items listed above. Do not embed unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
+**Description body invariant:** The description must contain only the items listed above. Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Auto-mode assumptions are routed through the assumptions comment path when needed. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
+
+**Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. The path must be a direct child of `.ephemeral/`; nested paths are rejected. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
+
+Before writing `.ephemeral/*-assumptions-comment.md`, validate and guard the path:
+
+```bash
+ASSUMPTIONS_COMMENT_FILE=".ephemeral/<identifier>-assumptions-comment.md"
+case "$ASSUMPTIONS_COMMENT_FILE" in
+  .ephemeral/*/*) echo "assumptions_comment_file must be a direct child of .ephemeral: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
+  .ephemeral/*-assumptions-comment.md) ;;
+  *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
+esac
+[ "${ASSUMPTIONS_COMMENT_FILE#*..}" = "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "path traversal: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$ASSUMPTIONS_COMMENT_FILE" ] && rm "$ASSUMPTIONS_COMMENT_FILE"
+```
 
 **Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema and side-channel transport: `skills/play-review/SKILL.md` § Output). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.
 
