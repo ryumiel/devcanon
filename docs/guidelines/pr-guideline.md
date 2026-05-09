@@ -29,8 +29,6 @@ qualifies for the minimal PR body exception below:
   action.
 - **Related Issues**: Use `Closes #N`, `Resolves #N`, `Part of #N`, a Linear
   issue key or link, or `No issue: <reason>`.
-- **Reviewer / Assignee Notes**: Author assignment and review-request
-  expectations.
 
 ### Minimal PR Bodies
 
@@ -54,10 +52,14 @@ evidence and lockfile-scope review expectations.
 ### Reviewer / Assignee Expectations
 
 - Assign yourself when you are actively responsible for carrying the PR through
-  review.
+  review. Use the GitHub assignee field, not the PR description body.
 - Request review when the PR is ready for another person or agent to evaluate.
+  Use GitHub review requests, not the PR description body.
 - Leave assignees unset for drive-by, draft, or handoff PRs where ownership is
   not yet claimed.
+- Put handoff notes or reviewer-specific context in PR comments unless the
+  information changes the durable rationale, impact, or verification for the
+  PR.
 
 ### Breaking Changes
 

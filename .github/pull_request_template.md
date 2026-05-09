@@ -36,7 +36,3 @@ None
 ## Related Issues
 
 <!-- Closes #N / Resolves #N / Part of #N / Linear issue key or link / No issue: <reason> -->
-
-## Reviewer / Assignee Notes
-
-<!-- Author assignment, review-request expectations, or handoff notes -->
