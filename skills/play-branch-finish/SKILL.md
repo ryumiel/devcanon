@@ -112,7 +112,7 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 The file is a `play-review/findings/v1` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
-**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
+**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
 
 ```bash
 # Push branch
@@ -145,6 +145,7 @@ EOF
 
    ```bash
    case "$ASSUMPTIONS_COMMENT_FILE" in
+     .ephemeral/*/*) echo "assumptions_comment_file must be a direct child of .ephemeral: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
      .ephemeral/*-assumptions-comment.md) ;;
      *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
    esac
@@ -159,6 +160,8 @@ EOF
    ```bash
    gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"
    ```
+
+4. If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting the assumptions manually.
 
 **After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset. A `nits_file` that is set but missing or unreadable is a contract failure (not a "no nits" signal) — surface the path and stop. If `nits_file` is set, points at a readable file, and the file's `findings[]` array is empty, also skip — posting an empty review is noise.
 
@@ -254,8 +257,8 @@ Then: Cleanup worktree (Step 5)
 **For Options 1, 2, 4 after their success-only cleanup points:**
 
 - Option 1 reaches Step 5 only after the merged-result test command passes.
-- Option 2 reaches Step 5 only after PR creation and any requested nit-posting
-  steps complete without error.
+- Option 2 reaches Step 5 only after PR creation and any requested
+  assumptions-comment or nit-posting steps complete without error.
 - Option 4 reaches Step 5 only after discard is confirmed and branch deletion
   succeeds.
 

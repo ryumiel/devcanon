@@ -344,13 +344,14 @@ Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and creat
 
 **Description body invariant:** The description must contain only the items listed above. Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Auto-mode assumptions are routed through the assumptions comment path when needed. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
 
-**Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
+**Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. The path must be a direct child of `.ephemeral/`; nested paths are rejected. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
 
 Before writing `.ephemeral/*-assumptions-comment.md`, validate and guard the path:
 
 ```bash
 ASSUMPTIONS_COMMENT_FILE=".ephemeral/<identifier>-assumptions-comment.md"
 case "$ASSUMPTIONS_COMMENT_FILE" in
+  .ephemeral/*/*) echo "assumptions_comment_file must be a direct child of .ephemeral: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
   .ephemeral/*-assumptions-comment.md) ;;
   *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
 esac
