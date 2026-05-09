@@ -21,6 +21,7 @@ const TOUCHED_SKILLS = new Set([
   "play-skill-authoring",
   "play-planning",
   "report-devcanon-shared-issue",
+  "write-product-spec",
 ]);
 
 const SKILLS_WITH_METADATA = {
@@ -378,6 +379,36 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
+  });
+
+  it("documents the write-product-spec behavior-spec boundaries", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const writeProductSpecBody = parseFrontmatter(
+      getSkillOutput(outputs, "write-product-spec", "codex").content,
+    ).body;
+
+    expect(writeProductSpecBody).toContain("docs/specs/<topic>.md");
+    expect(writeProductSpecBody).toContain("root `SPEC.md`");
+    expect(writeProductSpecBody).toContain("routine bug fixes");
+    expect(writeProductSpecBody).toContain("dependency audits");
+    expect(writeProductSpecBody).toContain("review-feedback patches");
+    expect(writeProductSpecBody).toContain("docs gardening");
+    expect(writeProductSpecBody).toContain("behavior-preserving refactors");
+    expect(writeProductSpecBody).toContain("live issue status");
+    expect(writeProductSpecBody).toContain("assignees");
+    expect(writeProductSpecBody).toContain("PR lists");
+    expect(writeProductSpecBody).toContain("single-PR execution plans");
+    expect(writeProductSpecBody).toContain("contract authority");
+    expect(writeProductSpecBody).toContain("source-owned schemas");
+    expect(writeProductSpecBody).toContain("spec-readiness-review");
+    expect(writeProductSpecBody).toContain("slice-issues");
+    expect(writeProductSpecBody).toContain("doc-impact-review");
+    expect(writeProductSpecBody).toContain("new agent wrappers");
   });
 
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {
