@@ -9,15 +9,30 @@ rationale in that doc; use this file for fast review and gardening lookup.
 - Zod schemas or types changed: update validation logic, related tests, and
   `docs/specs/` if the change affects user-facing format.
 - Docs or code moved, or a new major path added: update `MAP.md`.
+- New or substantially changed durable doc: identify the AFDS document profile
+  and confirm the file lives in that profile's owning location.
+- Conditional profile path added (`contracts/`, `docs/harness/`,
+  `docs/knowledge/`, `docs/references/`, `docs/roadmap/`, `docs/tech-debt/`, or
+  module-local `README.md`): confirm the creation trigger in
+  [documentation-standard.md](documentation-standard.md) is met.
+- Behavior-spec template applied: confirm the doc is a behavior or
+  product-domain spec, not an ADR, roadmap, guideline, reference, or module
+  breadcrumb.
 - Root entry or workflow changed: update `AGENTS.md` for entry-point guidance
   and `WORKFLOW.md` for procedural flow changes.
 - CLI command added or changed: update `AGENTS.md` command table and
   `docs/specs/cli-commands.md`.
 - Config format changed: update `docs/specs/configuration.md`.
+- Contract doc or artifact changed: confirm the ownership/deployment boundary
+  that makes it authoritative.
+- Roadmap doc changed: confirm it describes durable target output and
+  outcome-level sequencing, not live issue or PR state.
 - Renderer output format changed: update snapshot tests in `src/render/`.
 - Durable design decision made: add or update an ADR in `docs/adr/`.
 - Structural debt discovered or resolved: update `docs/tech-debt/` (when it
   exists).
+- Requirement references added: prefer stable requirement IDs, scenario IDs,
+  headings, or named anchors over line-number references.
 - Validation needed: run `pnpm run check` (format + lint + test).
 
 ## Gardening Review Checklist
@@ -25,8 +40,13 @@ rationale in that doc; use this file for fast review and gardening lookup.
 - Can a newcomer find `AGENTS.md`, `MAP.md`, and `docs/arch/overview.md`
   quickly?
 - Does every active doc have one clear owning location?
+- Does each active doc match one AFDS document profile?
 - Has durable content been merged into owned docs instead of parked in
   ephemeral files?
+- Are behavior-spec structures limited to behavior/product-domain specs?
+- Are roadmap docs free of live issue status, assignees, PR inventories, and
+  scheduling state?
+- Are conditional directories absent unless their trigger is real?
 - Have stale docs been deleted after useful content was extracted?
 - Is `AGENTS.md` still under ~900 words and scannable in under 2 minutes?
 - Does `MAP.md` cover all major files and directories?

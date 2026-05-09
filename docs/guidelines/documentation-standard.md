@@ -15,14 +15,17 @@ to both humans and agents.
 3. **One source of truth per concern:**
    - Agent entry point -> `AGENTS.md`
    - Navigation / file discovery -> `MAP.md`
-   - Product/domain specifications -> `docs/specs/`
+   - Behavior and product-domain specs -> `docs/specs/`
    - System architecture -> `docs/arch/`
    - Decisions / rationale -> `docs/adr/`
-   - Engineering guidelines -> `docs/guidelines/`
+   - Contributor policy, engineering guidelines, and workflows ->
+     `CONTRIBUTING.md`, `docs/guidelines/`, or `WORKFLOW.md`
    - Roadmap direction -> `docs/roadmap/` (when needed)
-   - Tech debt register -> `docs/tech-debt/` (when needed)
-4. **Code-as-contract:** Zod schemas and TypeScript types are the authoritative
-   interface definitions. A separate `contracts/` folder is not needed.
+   - Tech debt records -> `docs/tech-debt/` (when issue labels are
+     insufficient)
+4. **Code-as-contract by default:** source-owned Zod schemas and TypeScript
+   types are the authoritative interface definitions. A `contracts/` directory
+   is conditional, not mandatory.
 5. **Progressive disclosure:** agents start from `AGENTS.md`, then load deeper
    docs only when needed.
 6. **Docs close to change:** module-specific knowledge lives near the module
@@ -34,7 +37,88 @@ to both humans and agents.
 
 ---
 
-## 2) Repository layout
+## 2) AFDS document profiles
+
+Profiles define the ownership boundary for a durable document. They do not
+force every document into one template. New or substantially changed docs should
+align with their profile first; existing docs are gardened opportunistically.
+
+| Profile                    | Location                                             | Status                                    | Owns                                                                                                             | Must not own                                                                              | Creation trigger                                                                                               |
+| -------------------------- | ---------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Agent entry point          | `AGENTS.md`                                          | Mandatory baseline                        | Compact repo orientation, golden path, commands, structure, and decision matrix                                  | Exhaustive subsystem detail, troubleshooting, implementation notes, or historical plans   | Every AFDS repo has one root agent entry point                                                                 |
+| Navigation map             | `MAP.md`                                             | Mandatory baseline                        | Canonical path and index answers                                                                                 | Policy rationale, workflow state, or duplicate explanations                               | Every AFDS repo has one root navigation index                                                                  |
+| Behavior spec              | `docs/specs/`                                        | Mandatory baseline area                   | Durable behavior, requirements, boundaries, acceptance criteria, verification expectations, and agent context    | Implementation architecture, live issue status, or one-off execution plans                | Product/domain behavior needs durable ownership                                                                |
+| Contract registry/artifact | `contracts/`                                         | Conditional                               | Machine-readable or registry-style contract authority when the contract is artifact-owned or externally deployed | Duplicates of source-owned schemas, runtime-boundary diagrams, or prose-only requirements | A contract artifact owns the external/deployed interface, or a registry is needed to locate contract authority |
+| Architecture doc           | `docs/arch/`                                         | Mandatory baseline area                   | Current system shape, module boundaries, data/control flow, invariants, and dependency direction                 | Product requirements, decision history, or live planning                                  | System structure needs durable explanation                                                                     |
+| ADR                        | `docs/adr/`                                          | Recommended baseline when decisions exist | Durable decision, rationale, consequences, and considered alternatives                                           | Temporary notes, brainstorming with no decision, or duplicated specs                      | An architectural, boundary, technology, or major tradeoff decision is made                                     |
+| Roadmap item               | `docs/roadmap/`                                      | Conditional                               | Durable target output, scope, non-goals, outcome-level sequencing, and validation targets                        | Live issue status, sub-issue inventories, PR lists, assignees, or schedules               | Product direction is larger than one PR and needs durable framing                                              |
+| Tech-debt item             | `docs/tech-debt/`                                    | Conditional                               | Durable structural debt record, impact, cleanup trigger, and status when issue labels are insufficient           | Routine task tracking or transient cleanup notes                                          | Debt must survive beyond a single issue and cannot be tracked clearly by issue label alone                     |
+| Guideline/workflow         | `CONTRIBUTING.md`, `docs/guidelines/`, `WORKFLOW.md` | Mandatory baseline area                   | Repeatable procedure, contributor policy, decision flow, and repo norms                                          | Product behavior specs, live work state, or implementation logs                           | A procedure or policy should be reused across issues                                                           |
+| Harness boundary           | `docs/harness/`                                      | Conditional                               | Durable assumptions for external harnesses, fixtures, adapters, and validation environments                      | General architecture or live test-run output                                              | External harness behavior becomes a stable integration constraint                                              |
+| Knowledge/reference        | `docs/knowledge/`, `docs/references/`                | Conditional                               | Stable external-system facts, reference notes, and domain knowledge that support repo work                       | Ephemeral research dumps or copied source material without durable ownership              | External facts are reused often enough to merit curation                                                       |
+| Module breadcrumb          | Module-local `README.md`                             | Conditional                               | Local purpose, public entry points, invariants, and verification hints for a major module                        | Root navigation, global architecture, or details obvious from nearby code                 | A module's purpose or verification is not obvious from names and code structure                                |
+
+### 2.1 Baseline vs conditional profiles
+
+Mandatory baseline profiles are expected in every AFDS repo: `AGENTS.md`,
+`MAP.md`, `CONTRIBUTING.md`, `WORKFLOW.md`, `docs/specs/`, `docs/arch/`, and
+`docs/guidelines/`.
+
+`CONTRIBUTING.md` is the root contributor-policy instance of the
+guideline/workflow profile. Keep commit, PR, and branch policy canonical there;
+companion files in `docs/guidelines/` may elaborate but should link back instead
+of becoming competing policy owners.
+
+`docs/adr/` is a recommended baseline once durable decisions exist.
+
+Conditional profiles are created only when their trigger is real. Do not create
+empty `contracts/`, `docs/harness/`, `docs/knowledge/`, `docs/references/`,
+`docs/roadmap/`, or `docs/tech-debt/` directories just to satisfy the taxonomy.
+
+### 2.2 Behavior specs are not every doc
+
+Strict behavior-spec structure applies to behavior and product-domain specs
+only. A behavior spec should capture intended behavior, boundaries, acceptance
+criteria, verification, and agent context.
+
+Do not rewrite every file under `docs/specs/` or every AFDS document into one
+feature-spec template. Existing specs should be aligned with their approved
+profile when they are substantially changed; otherwise, garden them
+opportunistically.
+
+### 2.3 Contract authority
+
+Contract authority follows the ownership or deployment boundary, not the
+runtime boundary.
+
+Use source code as the contract when the source artifact owns and enforces the
+interface. In DevCanon today, config schemas, skill validation, agent
+validation, manifest handling, and domain types are source-owned contracts.
+
+Use `contracts/` only when one of these is true:
+
+- an external or generated artifact is the deployed contract;
+- consumers need a stable contract artifact outside the source module;
+- a registry is useful to answer where contract authority lives.
+
+Generated contract artifacts are acceptable when they are clearly derived from
+the source owner or explicitly own the external contract. Avoid maintaining a
+second hand-written contract that can drift from the artifact that actually
+owns enforcement.
+
+### 2.4 Roadmaps are target-output frames
+
+Roadmap docs describe durable target output and outcome-level sequencing. They
+are not issue trackers.
+
+Roadmap docs may link to owning specs, architecture docs, guidelines, ADRs, and
+live planning containers. They must not contain live issue status, sub-issue
+inventories, PR lists, assignees, schedules, agent run state, or single-PR
+implementation plans.
+
+---
+
+## 3) Repository layout
 
 ### Required
 
@@ -42,170 +126,30 @@ to both humans and agents.
 - `MAP.md` -- canonical navigation index
 - `CONTRIBUTING.md` -- commit, PR, and branch policies
 - `WORKFLOW.md` -- contributor procedural guide
-- `docs/specs/` -- product and domain specifications
+- `docs/specs/` -- behavior and product-domain specifications
 - `docs/arch/` -- system architecture
 - `docs/guidelines/` -- engineering rules and norms
 
-### Should have
+### Recommended
 
-- `docs/adr/` -- architecture decision records
-- `docs/tech-debt/` -- known debt and cleanup backlog (create when needed)
+- `docs/adr/` -- architecture decision records, once durable decisions exist
 
-### Optional
+### Conditional
 
-- `README.md` -- GitHub landing page (not canonical for navigation)
-- `docs/roadmap/` -- durable forward-looking direction docs (create when
-  needed)
+- `contracts/` -- artifact-owned contracts or contract-authority registry
+- `docs/roadmap/` -- durable forward-looking direction docs
+- `docs/tech-debt/` -- durable structural debt records
+- `docs/harness/` -- durable external harness assumptions
+- `docs/knowledge/` or `docs/references/` -- curated external-system facts
+- module-local `README.md` -- breadcrumbs for non-obvious major modules
 
-### Not used (and why)
+### Not used in current DevCanon
 
-- `contracts/` -- code-as-contract via Zod schemas in `src/config/schema.ts`
-  and `src/models/types.ts`
+- `contracts/` -- current contract authority is source-owned; see ADR-0004
 - `docs/ipc/` -- single CLI tool, no cross-service communication
 - `docs/harness/` -- no external harness
+- `docs/knowledge/` and `docs/references/` -- no curated external reference set
 - `docs/plans/` -- ephemeral; not part of steady-state documentation
-
----
-
-## 3) Document responsibilities
-
-### 3.1 `AGENTS.md` (root, canonical)
-
-**Purpose:** Let an agent or new engineer orient within minutes.
-
-**Must include:**
-
-- one-paragraph repo overview
-- golden path / end-to-end flow
-- minimum run / test / debug commands
-- top-level repo structure
-- links to `MAP.md` and key docs
-- decision matrix
-
-**Must not include:**
-
-- exhaustive subsystem detail
-- long troubleshooting sections
-- deep implementation notes
-- historical planning logs
-
-**Soft constraint:** scannable in under 2 minutes; roughly 400-900 words;
-5-8 top-level sections.
-
-### 3.2 `MAP.md` (root, canonical index)
-
-**Purpose:** Answer "Where do I find X?" reliably.
-
-**Format:** Map common questions to the single best file, folder, or entry
-point.
-
-**Rules:**
-
-- If files move, `MAP.md` must be updated in the same PR.
-- `MAP.md` is the canonical index.
-
-### 3.3 `docs/specs/` (product/domain specifications)
-
-**Purpose:** Capture durable product and domain behavior, requirements, and
-constraints.
-
-**Covers:** core concepts, user stories, configuration format, skill spec,
-agent source schema, CLI commands, error handling, platform requirements.
-
-**Rule:** Specs describe intended behavior, not implementation detail.
-Implementation architecture lives in `docs/arch/`.
-
-### 3.4 `docs/arch/` (system architecture)
-
-**Purpose:** Explain the current system-level architecture.
-
-**Should cover:**
-
-- major modules and responsibilities
-- data and control flow between modules
-- design principles and invariants
-- dependency direction rules
-- target mapping policy
-- failure and safety boundaries
-
-**Rule:** System-wide structure belongs here, not in `AGENTS.md` or
-`docs/specs/`.
-
-### 3.5 `docs/adr/` (decision records)
-
-**Purpose:** Preserve durable "why" for important choices.
-
-**Use for:**
-
-- architecture decisions
-- technology adoption/removal
-- boundary changes
-- major tradeoffs and rejected alternatives
-
-**Do not use for:**
-
-- temporary task notes
-- brainstorming with no decision outcome
-
-**Naming:** `adr-NNNN-short-title.md`
-
-### 3.6 `docs/guidelines/` (rules and norms)
-
-**Purpose:** Hold reusable engineering guidance too detailed for `AGENTS.md`.
-
-**Examples:**
-
-- commit conventions
-- PR policy
-- code review priorities
-- documentation standard (this file)
-
-### 3.7 `docs/roadmap/` (roadmap direction)
-
-**Purpose:** Capture durable forward-looking product direction for outcomes
-larger than a single pull request.
-
-**Use for:**
-
-- target outcomes and why they matter
-- scope and non-goals for roadmap-scale work
-- outcome-level sequencing
-- validation targets
-- links to owning specs, architecture docs, guidelines, ADRs, and live planning
-  containers
-
-**Do not use for:**
-
-- live issue status
-- sub-issue inventories
-- pull request lists
-- assignees or scheduling state
-- agent run state
-- single-PR implementation plans
-
-**Rule:** Create this directory when durable forward-looking direction docs are
-needed. GitHub Issues or Linear remain the system of record for live work.
-
-### 3.8 `docs/tech-debt/` (debt register)
-
-**Purpose:** Track known structural debt that should survive beyond any one
-PR.
-
-**Recommended fields:** title, affected module(s), impact, why it exists,
-cleanup trigger, status.
-
-**Rule:** Create this directory when the first debt item is identified.
-
-### 3.9 `README.md` (optional landing page)
-
-**Purpose:** Give first-visit readers a short answer to what the project is,
-why it exists, and what to open next.
-
-**Must not include:**
-
-- canonical navigation (that's `MAP.md`)
-- contributor workflow (that's `WORKFLOW.md`)
-- detailed architecture (that's `docs/arch/`)
 
 ---
 
@@ -217,12 +161,21 @@ why it exists, and what to open next.
 - "What should the product do?" -> `docs/specs/`
 - "What is the system shape?" -> `docs/arch/`
 - "Why did we choose this design?" -> `docs/adr/`
-- "What are the team/repo rules?" -> `docs/guidelines/`
-- "Where is durable roadmap direction?" -> `docs/roadmap/`
-- "What structural debt is known?" -> `docs/tech-debt/`
-- "What is the interface contract?" -> Zod schemas in source code
+- "What are the team/repo rules?" -> `CONTRIBUTING.md` and
+  `docs/guidelines/`
 - "How do I contribute?" -> `CONTRIBUTING.md`
 - "What is the contributor workflow?" -> `WORKFLOW.md`
+- "Where is durable roadmap direction?" -> `docs/roadmap/`
+- "What structural debt is known?" -> `docs/tech-debt/`
+- "What is the interface contract?" -> source-owned schemas/types or
+  `contracts/`, depending on the ownership/deployment boundary
+- "What external harness assumptions exist?" -> `docs/harness/`
+- "What stable external facts does this repo rely on?" -> `docs/knowledge/` or
+  `docs/references/`
+- "What does this non-obvious module own?" -> module-local `README.md`
+
+For issue/spec relationships and work-origin routing, use
+[project-management-model.md](project-management-model.md).
 
 ---
 
@@ -234,11 +187,14 @@ If something is authoritative, it must live in exactly one place:
 
 - agent entry point -> `AGENTS.md`
 - navigation index -> `MAP.md`
-- product specs -> `docs/specs/`
-- interfaces -> Zod schemas in source
+- behavior specs -> `docs/specs/`
+- source-owned interfaces -> Zod schemas and TypeScript types in source
+- artifact-owned contracts -> `contracts/`
 - architecture decisions -> `docs/adr/`
 - system architecture -> `docs/arch/`
 - roadmap direction -> `docs/roadmap/`
+- contributor policy -> `CONTRIBUTING.md`
+- reusable procedures and policies -> `docs/guidelines/` or `WORKFLOW.md`
 
 ### 5.2 Same-PR update rules
 
@@ -250,13 +206,26 @@ A PR must update docs when it changes:
 - externally visible behavior
 - run/test/debug procedures
 - CLI commands
+- contract ownership or deployed contract artifacts
+- durable roadmap direction, workflow policy, or structural debt status
 
-### 5.3 Review checklists
+### 5.3 Profile alignment
+
+When creating or substantially changing a durable doc:
+
+1. Identify the document profile.
+2. Confirm the file lives in that profile's owning location.
+3. Check whether `MAP.md` needs a navigation answer.
+4. Avoid duplicating another profile's authority.
+5. Prefer stable requirement IDs, scenario IDs, headings, or named anchors over
+   line-number references.
+
+### 5.4 Review checklists
 
 Use [documentation-checklists.md](documentation-checklists.md) for the quick
 review checklist and gardening checklist.
 
-### 5.4 Mechanical validation
+### 5.5 Mechanical validation
 
 Repositories should add automated checks where practical:
 
@@ -264,18 +233,22 @@ Repositories should add automated checks where practical:
 - markdown formatting (`pnpm run format:markdown:check`)
 - pre-commit hooks enforce formatting and linting on staged files
 
-### 5.5 Ongoing gardening
+### 5.6 Ongoing gardening
 
 After adoption, documentation should be maintained through continuous small
 maintenance in normal feature and refactor PRs:
 
 - keep `AGENTS.md` small and navigational
 - update `MAP.md` whenever files or directories move
-- add ADRs when durable decisions are made
+- add or update ADRs when durable decisions are made
 - update `docs/roadmap/` when durable product direction changes
-- update `docs/tech-debt/` when structural debt is discovered or resolved
+- update `docs/tech-debt/` when durable structural debt is discovered or
+  resolved and issue labels are insufficient
 - remove or merge stale docs that no longer have clear ownership
 - keep examples, contracts, and tests aligned in the same PR
+
+No big-bang migration is required. Existing docs should be gardened as they are
+touched for real work.
 
 ---
 
@@ -287,6 +260,7 @@ maintenance in normal feature and refactor PRs:
 4. Prefer narrow docs with clear ownership.
 5. Prefer durable decisions over transient chatter.
 6. Prefer documentation that helps verification, not just explanation.
+7. Prefer profile-specific structure over one mandatory template.
 
 ---
 
@@ -323,3 +297,4 @@ Use `adr-NNNN-short-title.md` with zero-padded sequence numbers.
 
 - ADR template: [adr-template.md in docs/adr/](../adr/adr-template.md)
 - Documentation checklists: [documentation-checklists.md](documentation-checklists.md)
+- Project management model: [project-management-model.md](project-management-model.md)
