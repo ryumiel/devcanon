@@ -112,6 +112,8 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 The file is a `play-review/findings/v1` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
+**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
+
 ```bash
 # Push branch
 git push -u origin <feature-branch>
@@ -130,6 +132,31 @@ gh pr create --title "<title>" --body "$(cat <<'EOF'
 EOF
 )"
 ```
+
+**After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
+
+1. Resolve the new PR number if needed:
+
+   ```bash
+   PR_NUMBER=$(gh pr view --json number --jq .number)
+   ```
+
+2. Validate `$ASSUMPTIONS_COMMENT_FILE`:
+
+   ```bash
+   case "$ASSUMPTIONS_COMMENT_FILE" in
+     .ephemeral/*-assumptions-comment.md) ;;
+     *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
+   esac
+   [ "${ASSUMPTIONS_COMMENT_FILE#*..}" = "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "path traversal: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+   [ -r "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "assumptions_comment_file missing or unreadable: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+   ```
+
+3. Post the comment:
+
+   ```bash
+   gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"
+   ```
 
 **After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset. A `nits_file` that is set but missing or unreadable is a contract failure (not a "no nits" signal) — surface the path and stop. If `nits_file` is set, points at a readable file, and the file's `findings[]` array is empty, also skip — posting an empty review is noise.
 
