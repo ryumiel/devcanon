@@ -26,11 +26,8 @@ Quick navigation index for the DevCanon repository.
 - Where are current issue/behavior-spec relationships and lightweight
   work-origin routing defined? ->
   [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
-- Where are exact Portable AFDS routing and evidence behavior planned to be
-  owned? ->
-  [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
-  § Planned Downstream Authority Handoffs, then future
-  `docs/specs/afds-workflow-routing.md`
+- Where is exact Portable AFDS routing and evidence behavior defined? ->
+  [`docs/specs/afds-workflow-routing.md`](docs/specs/afds-workflow-routing.md)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)

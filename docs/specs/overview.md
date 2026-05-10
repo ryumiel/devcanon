@@ -24,6 +24,7 @@ Behavior specs under this directory own exact intended behavior for:
 - CLI commands and command output;
 - configuration format and schema behavior;
 - skill and agent source formats;
+- Portable AFDS Toolkit lifecycle routing and evidence behavior;
 - target rendering for Claude Code and Codex;
 - install, sync, uninstall, and diff behavior;
 - platform, security, error handling, and testing requirements.
@@ -48,6 +49,7 @@ These boundaries apply across DevCanon behavior specs:
 ## Behavior Spec Index
 
 - [Core concepts and principles](core-concepts.md)
+- [AFDS workflow routing and evidence behavior](afds-workflow-routing.md)
 - [Configuration format](configuration.md)
 - [Skill specification](skills.md)
 - [Agent source schema](agents.md)

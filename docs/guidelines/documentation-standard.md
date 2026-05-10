@@ -224,9 +224,8 @@ evidence.
 
 For current issue/behavior-spec relationships and lightweight work-origin
 routing, use [project-management-model.md](project-management-model.md). For
-Portable AFDS Toolkit exact routing and evidence behavior, use the planned
-`docs/specs/afds-workflow-routing.md` owner named in the Portable AFDS Toolkit
-product requirements until that spec exists.
+Portable AFDS Toolkit exact routing and evidence behavior, use
+[`docs/specs/afds-workflow-routing.md`](../specs/afds-workflow-routing.md).
 
 ---
 

@@ -123,8 +123,9 @@ targets. Exact routing tables, evidence-pointer fields, acceptance-ready
 workflow behavior, and new workflow asset approvals belong in their owning
 specs, guidelines, source files, or follow-up issues.
 
-For first-slice derivation, deterministic routing and evidence behavior should
-be owned by the planned `docs/specs/afds-workflow-routing.md` behavior spec.
+For first-slice derivation, deterministic routing and evidence behavior are
+owned by
+[`docs/specs/afds-workflow-routing.md`](../specs/afds-workflow-routing.md).
 Reusable capability classification should be owned by the planned
 `docs/guidelines/afds-workflow-capability-governance.md` guideline. This
 roadmap only depends on those owners being available enough to pilot the slice;
