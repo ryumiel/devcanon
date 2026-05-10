@@ -76,13 +76,13 @@ devcanon/
 ├─ skills/
 │  ├─ pr-review/
 │  │  ├─ SKILL.md
-│  │  └─ examples/
-│  └─ implementation-plan/
+│  │  └─ ...
+│  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
-│  ├─ reviewer.yaml
-│  ├─ planner.yaml
-│  └─ debugger.yaml
+│  ├─ implementer.yaml
+│  ├─ research-agent.yaml
+│  └─ spec-compliance-reviewer.yaml
 ├─ generated/
 │  ├─ claude/
 │  │  └─ agents/
@@ -106,12 +106,12 @@ Notes:
 ~/.claude/
 └─ skills/
    ├─ pr-review/
-   └─ implementation-plan/
+   └─ write-product-spec/
 
 ~/.claude/agents/
-├─ reviewer.md
-├─ planner.md
-└─ debugger.md
+├─ implementer.md
+├─ research-agent.md
+└─ spec-compliance-reviewer.md
 ```
 
 ### Codex Target
@@ -120,12 +120,12 @@ Notes:
 ~/.agents/
 └─ skills/
    ├─ pr-review/
-   └─ implementation-plan/
+   └─ write-product-spec/
 
 ~/.codex/agents/
-├─ reviewer.toml
-├─ planner.toml
-└─ debugger.toml
+├─ implementer.toml
+├─ research-agent.toml
+└─ spec-compliance-reviewer.toml
 ```
 
 Notes:
