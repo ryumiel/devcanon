@@ -99,26 +99,30 @@ turning any one artifact into an everything document.
 
 Priority order for tradeoffs:
 
-1. AFDS project maintainer adoption.
-2. DevCanon source-authoring integrity.
-3. Agent ergonomics and automation convenience.
+1. Product Leader.
+2. Human Developer with Agent.
+3. DevCanon Contributor.
 
-### AFDS Project Maintainer
+### Product Leader
 
-A maintainer wants to adopt a repeatable AI-assisted development workflow in a
-project without rewriting the entire repository or binding the project to one
-AI coding tool.
+A product leader shapes product intent into durable requirements, behavior
+specs, and executable issues. They need product decisions, open questions,
+readiness criteria, and follow-up artifacts to stay clear and traceable as the
+work changes over time.
+
+### Human Developer with Agent
+
+A human developer works with AI agents to investigate, implement, review, and
+maintain product work. They need both human and agent participants to find the
+right knowledge, follow aligned workflows, and update the owning artifact when
+implementation changes understanding.
 
 ### DevCanon Contributor
 
-A contributor wants to add or refine skills, agents, validation, docs, or
-generated outputs while preserving DevCanon's source-first and skills-first
-model.
-
-### Agent Running DevCanon Workflows
-
-An agent needs clear durable context for where behavior, workflow policy, live
-issue state, review state, and temporary execution detail belong.
+A DevCanon contributor evolves the reusable toolkit itself. They need source
+skills, agent roles, docs, validation, and generated outputs to remain
+source-first, portable across target tools, and clear about when to update an
+existing asset instead of creating another workflow surface.
 
 ## Product Goals
 
