@@ -287,8 +287,9 @@ The Portable AFDS Toolkit should not:
 - make generated outputs authoritative source files;
 - duplicate live issue state, PR state, schedules, assignees, branch plans, or
   agent-local execution logs in durable docs;
-- approve creating, renaming, or changing workflow skills or agent roles
-  without an AFDS Workflow Capability Map decision;
+- approve future workflow skill or agent-role additions outside the
+  product-requirements authoring split without AFDS Workflow Capability Map
+  classification;
 - duplicate exact source-owned contract fields already owned by schemas, types,
   validators, renderers, installers, or focused behavior specs.
 
@@ -323,7 +324,10 @@ The Portable AFDS Toolkit should not:
 - `write-product-spec` is supplemented by `write-product-requirements` so
   product requirements and behavior specs have distinct source authoring
   workflows. `write-product-spec` remains the behavior-spec workflow unless a
-  later migration decision renames it.
+  later migration decision renames it. This is the bounded decision for the
+  product-requirements authoring gap identified by this PRD; broader AFDS
+  workflow skill or agent-role additions still require AFDS Workflow Capability
+  Map classification.
 
 ### Open Questions
 
