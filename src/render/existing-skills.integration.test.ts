@@ -21,6 +21,7 @@ const TOUCHED_SKILLS = new Set([
   "play-skill-authoring",
   "play-planning",
   "report-devcanon-shared-issue",
+  "write-product-requirements",
   "write-product-spec",
 ]);
 
@@ -409,6 +410,53 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
     expect(writeProductSpecBody).toContain("new agent roles");
+    expect(writeProductSpecBody).toContain("write-product-requirements");
+    expect(writeProductSpecBody).toContain("docs/product-requirements/");
+    expect(writeProductSpecBody).toContain("product intent");
+  });
+
+  it("documents the write-product-requirements PRD boundaries", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const writeProductRequirementsBody = parseFrontmatter(
+      getSkillOutput(outputs, "write-product-requirements", "codex").content,
+    ).body;
+
+    expect(writeProductRequirementsBody).toContain(
+      "docs/product-requirements/<topic>.md",
+    );
+    expect(writeProductRequirementsBody).toContain("profile gate");
+    expect(writeProductRequirementsBody).toContain("product intent");
+    expect(writeProductRequirementsBody).toContain("live issue state");
+    expect(writeProductRequirementsBody).toContain("PR state");
+    expect(writeProductRequirementsBody).toContain(
+      "agent-local execution detail",
+    );
+    expect(writeProductRequirementsBody).toContain("contract authority");
+    expect(writeProductRequirementsBody).toContain("link contract authority");
+    expect(writeProductRequirementsBody).toContain("source-owned schemas");
+    expect(writeProductRequirementsBody).toContain("readiness criteria");
+    expect(writeProductRequirementsBody).toContain(
+      "product validation criteria",
+    );
+    expect(writeProductRequirementsBody).toContain(
+      "expected follow-up artifact",
+    );
+    expect(writeProductRequirementsBody).toContain("non-goals");
+    expect(writeProductRequirementsBody).toContain("out-of-scope");
+    expect(writeProductRequirementsBody).toContain(
+      "immediate next owning artifact",
+    );
+    expect(writeProductRequirementsBody).toContain("Portable AFDS Toolkit PRD");
+    expect(writeProductRequirementsBody).toContain("root `PRD.md`");
+    expect(writeProductRequirementsBody).toContain("stable requirement IDs");
+    expect(writeProductRequirementsBody).toContain("line-number references");
+    expect(writeProductRequirementsBody).toContain("write-product-spec");
+    expect(writeProductRequirementsBody).toContain("docs/specs/<topic>.md");
   });
 
   it("documents the guarded tiny-diff fanout contract in rendered play-review output", async () => {
