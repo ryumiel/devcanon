@@ -14,6 +14,17 @@ This spec defines the exact behavior DevCanon's Portable AFDS Toolkit expects
 for routing work origins to the right system of record and for pointing to
 evidence without copying live state into repository docs.
 
+## Spec Profile
+
+This file is a behavior spec. A behavior spec owns exact intended behavior,
+requirements, boundaries, acceptance criteria, verification expectations, and
+agent-facing context for a product or workflow behavior that is stable enough to
+execute against.
+
+This spec is not a product requirements document, roadmap item, reusable
+procedure, implementation plan, live tracker, or review record. Those artifacts
+may link to this spec, but they remain separate systems of record.
+
 ## Scope
 
 This spec owns deterministic routing, minimum evidence pointers, ordinary

@@ -14,6 +14,11 @@ intent, target users, goals, risks, and broad requirements belong in
 `docs/product-requirements/`. This overview summarizes behavior-spec scope,
 shared boundaries, and links to acceptance-ready specs.
 
+A behavior spec is a durable repository artifact that owns exact intended
+behavior, requirements, boundaries, acceptance criteria, verification
+expectations, and agent-facing context for behavior stable enough to execute
+against.
+
 ## Behavior Scope
 
 DevCanon is a user-wide Node.js CLI and source library for portable AFDS skills,
