@@ -540,22 +540,11 @@ event narrative in repository documentation.
 - What pilot threshold proves that the toolkit reduces process overhead instead
   of adding another review ritual?
 
-## Follow-Up Artifact Routing
+## Expected Follow-Up Artifacts
 
 Stable requirements from this document can derive narrower owning artifacts.
-Follow-up work should be routed by ownership, not by convenience.
-
-- Changed product intent updates this PRD or a narrower PRD.
-- Exact intended behavior updates a behavior spec.
-- Reusable workflow policy updates guidance or a reusable workflow asset after
-  capability classification.
-- Durable architecture, decision, or roadmap changes update the owning
-  architecture doc, ADR, or roadmap artifact.
-- Executable work, blockers, assignments, and live status remain in GitHub
-  Issues or Linear.
-- Review, merge, and validation discussion remain in PRs, CI/check systems, Git
-  history, source tests, or linked evidence.
-- Temporary execution detail remains in agent-local artifacts.
+This PRD names likely follow-up artifact types without defining the reusable
+routing policy for all AFDS work.
 
 Immediate next artifact: a behavior spec for Portable AFDS Toolkit source
 artifacts, generated outputs, installed managed outputs, evidence-location
