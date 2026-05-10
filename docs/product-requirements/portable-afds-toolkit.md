@@ -356,31 +356,71 @@ follow-up work, deferring, or rejecting the proposal.
 
 ## Non-Functional Requirements
 
-### NFR-001: Low-Rot Documentation
+### NFR-001: Low Cognitive Overhead
 
-Product requirements should state product intent and requirements without
-copying detailed workflow procedure, behavior-spec content, exact interface
-contracts, or implementation details.
+A Human Developer with Agent should be able to enter investigation,
+implementation, review, or maintenance work and identify the relevant owning
+artifact, current task context, and next routing decision without reading
+unrelated workflow history or reconciling competing summaries.
 
-Durable documents should stay current through clear ownership and same-change
-maintenance rules, not by freezing requirements or duplicating status across
-systems of record.
+Toolkit guidance should favor short, scannable decision points over prose that
+requires humans or agents to infer hidden workflow state.
 
-### NFR-002: Agent Legibility
+### NFR-002: Human-Agent Legibility
 
-Product requirements should use stable headings and requirement IDs so agents
-can reference durable product intent without depending on line numbers.
+Durable toolkit artifacts should be readable, scannable, and citable by both
+humans and agents through stable headings, requirement IDs, named anchors,
+concise terms, explicit ownership cues, and links to owning artifacts.
 
-### NFR-003: Provider Portability
+References should remain useful across edits without relying on line numbers,
+private chat history, or agent-local memory.
 
-Product requirements should keep GitHub- and Linear-specific behavior isolated
-to the places where provider differences matter.
+### NFR-003: Deterministic Routing
 
-### NFR-004: Evaluability
+Given the same work origin and available evidence, different humans or agents
+should reach the same expected owner, route, or blocker unless the ambiguity is
+explicitly recorded.
 
-Toolkit guidance should make it possible for contributors and agents to explain
-why a workflow need belongs in an existing asset, a changed asset, a new asset,
-or no asset without depending on private chat history or agent-local notes.
+When routing cannot be determined, the toolkit should make the uncertainty
+visible instead of encouraging ad hoc placement in the most convenient
+artifact.
+
+### NFR-004: Portable Comprehension
+
+Provider-neutral and target-neutral guidance should remain understandable
+without requiring GitHub, Linear, Claude Code, or Codex-specific knowledge
+first.
+
+Provider-specific or target-specific details may exist, but they should not be
+required to understand the AFDS ownership model or decide where work belongs.
+
+### NFR-005: Freshness and Low Rot
+
+Durable artifacts should make stale, duplicated, displaced, or derived claims
+easy to notice and correct during normal work.
+
+Maintainers, humans, and agents should be able to tell which artifact must be
+updated when understanding changes without copying the same authoritative claim
+across multiple systems of record.
+
+### NFR-006: Traceable Auditability
+
+A later human or agent should be able to reconstruct why work was routed,
+changed, validated, deferred, accepted, or rejected from durable links and
+recorded evidence.
+
+The toolkit should not depend on private chat history, transient agent notes, or
+unlinked PR discussion as the only explanation for durable decisions.
+
+### NFR-007: Governed Evolvability
+
+The toolkit should absorb new AFDS workflow needs, issue-provider surfaces,
+target-tool surfaces, and reusable assets without uncontrolled surface growth
+or loss of source-first authority.
+
+New or changed workflow assets should preserve generated-output disposability
+and explicit classification against existing assets, non-goals, and follow-up
+artifact options.
 
 ## Boundaries and Non-Goals
 
