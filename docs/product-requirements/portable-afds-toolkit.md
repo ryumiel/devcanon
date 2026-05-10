@@ -169,6 +169,28 @@ DevCanon should help contributors evolve reusable AFDS support without
 duplicating workflow surfaces, creating unnecessary tool-specific assets, or
 making generated outputs authoritative.
 
+## Product Surface
+
+The Portable AFDS Toolkit should be visible to users through a small set of
+coherent surfaces:
+
+- documentation entry points that route users to AFDS adoption, artifact
+  ownership, and lifecycle-routing guidance;
+- reusable workflow assets that guide shaping, execution, review, verification,
+  gardening, and capability evaluation without naming repository-local history
+  documents as outputs;
+- neutral role definitions only when stable delegate identity or
+  target-supported constraints justify a role beyond reusable workflow
+  guidance;
+- generated Claude Code and Codex outputs produced from the same source
+  library;
+- GitHub Issues and Linear guidance that keeps live work state in the external
+  tracker;
+- validation and checking guidance that links to evidence in the owning system
+  instead of copying execution history into durable docs;
+- examples that show how Product Leaders and Human Developers with Agent move
+  from intent to execution without collapsing systems of record.
+
 ## Target Outcomes
 
 The Portable AFDS Toolkit should enable these outcomes:
@@ -218,6 +240,12 @@ evidence or temporary context.
 Discovery guidance should prefer stable headings, requirement IDs, named
 anchors, and links to owning artifacts over duplicated summaries.
 
+For a fresh Human Developer with Agent, the default start path should route from
+the project navigation entry point to the relevant durable AFDS artifact or
+source contract, then to the active issue, PR, or evidence system. If the owner
+or evidence location is unclear, the workflow should produce a named blocker
+instead of inventing a repository-local summary.
+
 ### FR-003: Lifecycle Routing
 
 The toolkit should route work based on how it starts:
@@ -234,6 +262,13 @@ The toolkit should route work based on how it starts:
 Routing should identify whether the next step is shaping an owning durable AFDS
 artifact, executing against an existing contract, updating source behavior,
 opening follow-up work, or recording that no durable artifact update is needed.
+
+Ordinary execution work should have a lightweight path. If work starts from an
+executable issue, review comment, failing test, or audit finding and does not
+change durable product intent, behavior, policy, architecture, contract
+ownership, or verification expectations, the toolkit should let humans and
+agents proceed without capability classification or new durable artifact
+creation.
 
 ### FR-004: Readiness Gates
 
@@ -291,6 +326,11 @@ Validation evidence should identify what was checked, which requirement or
 execution contract it supports, where the evidence lives, and what follow-up is
 required when validation is incomplete or fails.
 
+Minimum evidence pointers should identify the evidence system, a stable
+reference such as a PR note, issue comment, CI/check URL, source test reference,
+or test command, the checked requirement or execution contract, the result
+state, and any named blocker when evidence is incomplete or inaccessible.
+
 ### FR-009: Follow-Up Artifact Lifecycle
 
 Follow-up artifacts created from shaping, implementation, review, validation,
@@ -298,7 +338,7 @@ or gardening should have an owning AFDS profile, a trigger, a decision state,
 and a resolution path.
 
 Resolution may be an owning artifact update, source change, implementation
-issue, validation note, deferral, rejection, or explicit non-goal.
+issue, linked validation evidence, deferral, rejection, or explicit non-goal.
 
 ### FR-010: Drift, Conflict, and Gardening
 
@@ -396,7 +436,7 @@ required to understand the AFDS ownership model or decide where work belongs.
 
 ### NFR-005: Freshness and Low Rot
 
-Durable artifacts should make stale, duplicated, displaced, or derived claims
+Durable artifacts should make stale, duplicated, misplaced, or derived claims
 easy to notice and correct during normal work.
 
 Maintainers, humans, and agents should be able to tell which artifact must be
@@ -436,9 +476,8 @@ The Portable AFDS Toolkit should not:
   postmortems, or validation summary narratives for issue, PR, CI, review, or
   incident history that is already owned by external trackers, PR systems,
   CI/check systems, Git history, or linked evidence;
-- approve future workflow additions outside the
-  product-requirements authoring split without AFDS Workflow Capability Map
-  classification;
+- approve future workflow additions without capability classification against
+  existing assets, source behavior, target entrypoints, and known non-goals;
 - duplicate exact source-owned contract fields already owned by schemas, types,
   validators, renderers, installers, or focused behavior specs.
 
@@ -494,9 +533,6 @@ event narrative in repository documentation.
 
 - What durable artifact should own the AFDS Workflow Capability Map: reusable
   workflow guidance, an ADR, or a focused behavior spec?
-- What minimum evidence pointer is required when validation is incomplete:
-  issue comment, PR note, CI/check link, source test reference, or named
-  blocker?
 - Which artifact owns the canonical routing table or decision tree that lets a
   fresh human or agent map work origin to owner, route, or blocker?
 - How should the toolkit handle private or inaccessible tracker, PR, or CI
@@ -523,7 +559,7 @@ Follow-up work should be routed by ownership, not by convenience.
 
 Immediate next artifact: a behavior spec for Portable AFDS Toolkit source
 artifacts, generated outputs, installed managed outputs, evidence-location
-rules, and systems-of-record boundaries.
+rules, ordinary execution fast-path behavior, and systems-of-record boundaries.
 
 Later follow-up artifacts may include:
 
@@ -563,9 +599,9 @@ These requirements are ready to drive one immediate next artifact when:
 - the new requirements path is discoverable from `MAP.md`.
 
 Not included in the first derivation: AFDS Workflow Capability Map decisions,
-additional new skill approval beyond the product-requirements authoring split,
-new agent-role approval, provider-specific issue workflow behavior, and any
-repo-local narrative artifact for validation, postmortem, or execution history.
+new workflow asset approval, new agent-role approval, provider-specific issue
+workflow behavior, and any repo-local narrative artifact for validation,
+postmortem, or execution history.
 
 ## Product Validation Gate
 
@@ -576,9 +612,16 @@ The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
   repository docs;
 - a fresh human and a fresh agent can start from the same work origin and reach
   the same owning artifact, route, evidence location, or named blocker;
+- fresh humans and agents can route representative seeded work origins through
+  the documented start path without reading unrelated workflow history or
+  creating a durable artifact unless a documented trigger fires;
 - each pilot can route execution-work setup, shared issue workflow,
   implementation planning, review, and completion verification while live work
   state remains in the external tracker;
+- ordinary execution-path work can proceed from an executable issue, review
+  comment, failing test, or audit finding without capability classification
+  when durable product intent, behavior, policy, architecture, contract
+  ownership, and verification expectations do not change;
 - Claude Code and Codex outputs are generated from the same source library and
   are usable by their target tools without manual rewriting;
 - contributors can identify whether a change belongs in product requirements, a
@@ -591,6 +634,8 @@ The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
 - pilots can resolve at least one stale, duplicated, or conflicting knowledge
   case by updating the owning artifact rather than copying the same truth into
   multiple locations;
+- pilots reduce or remove duplicated durable claims found during the pilot
+  instead of preserving them as parallel summaries;
 - at least one proposed workflow addition is evaluated through the AFDS
   Workflow Capability Map and results in an explicit update, creation,
   deferral, or rejection decision with evidence linked from the owning artifact;
