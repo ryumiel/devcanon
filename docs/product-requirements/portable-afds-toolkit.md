@@ -6,15 +6,26 @@ Scope: DevCanon Portable AFDS Toolkit
 
 ## Purpose
 
-DevCanon should define and distribute a portable AFDS system for software
-development: canonical documentation rules, workflow guidance, reusable skills,
-thin agent roles, and generated target-native files that help maintainers move
-work from unclear intent to reviewed implementation.
+DevCanon should provide a portable system for software development where AI
+agents and human developers can work from shared understanding, durable
+knowledge, and aligned workflows.
 
-The Portable AFDS Toolkit is the product surface that makes that possible
-across Claude Code and Codex without turning DevCanon into a repository-level
-document manager. It supports projects that use GitHub Issues or Linear as
-their external issue tracker while keeping adoption guided instead of automatic.
+The Portable AFDS Toolkit is the product surface that makes that possible by
+helping projects put the right knowledge in the right place: product intent in
+product requirements, exact behavior in behavior specs, reusable procedure in
+guidelines and skills, live work state in issue trackers, review state in PRs,
+and temporary execution detail in agent-local artifacts.
+
+The toolkit supports iterative development rather than a one-way waterfall.
+Product requirements, behavior specs, guidelines, issues, PRs, and source code
+may change as discovery and implementation reveal better information, but each
+change should update the owning artifact instead of copying stale summaries
+across multiple systems of record.
+
+The toolkit works across Claude Code and Codex without turning DevCanon into a
+repository-level document manager. It supports projects that use GitHub Issues
+or Linear as their external issue tracker while keeping adoption guided instead
+of automatic.
 
 This document captures product requirements for that toolkit. It is the
 discussion basis for later behavior spec and AFDS Workflow Capability Map
@@ -161,6 +172,9 @@ The Portable AFDS Toolkit should enable these outcomes:
   when to update a durable repository doc instead.
 - Agents can route work through shape-path or execution-path workflows without
   treating issues, PRs, or `.ephemeral/` files as durable authority.
+- Teams can revise product requirements, behavior specs, workflow guidance,
+  issues, PRs, and source code as they learn, while preserving one owning
+  system of record per concern.
 - Future AFDS workflow proposals can be evaluated against existing skills, agent
   roles, docs, and source behavior before new entrypoints are approved.
 
@@ -259,6 +273,20 @@ A workflow proposal should identify whether the need is best handled by:
 
 This requirement does not approve any named new skill, agent role, or command.
 
+### FR-009: Iterative Artifact Maintenance
+
+The toolkit should support iterative development in which product requirements,
+behavior specs, workflow guidance, issues, PRs, and source code can change as
+new information emerges.
+
+Iteration should update the artifact that owns the changed truth. It should not
+copy stale summaries across product requirements, behavior specs, guidelines,
+issues, PRs, source files, generated outputs, or agent-local artifacts.
+
+When implementation changes product intent, behavior, policy, architecture,
+contract ownership, or verification expectations, the same PR should update the
+owning durable artifact or name the unresolved decision that blocks that update.
+
 ## Non-Functional Requirements
 
 ### NFR-001: Low-Rot Documentation
@@ -266,6 +294,10 @@ This requirement does not approve any named new skill, agent role, or command.
 Product requirements should state product intent and requirements without
 copying detailed workflow procedure, behavior-spec content, exact interface
 contracts, or implementation details.
+
+Durable documents should stay current through clear ownership and same-change
+maintenance rules, not by freezing requirements or duplicating status across
+systems of record.
 
 ### NFR-002: Agent Legibility
 
