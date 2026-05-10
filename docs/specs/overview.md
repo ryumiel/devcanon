@@ -80,6 +80,7 @@ devcanon/
 │  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
+│  ├─ code-quality-reviewer.yaml
 │  ├─ implementer.yaml
 │  ├─ research-agent.yaml
 │  └─ spec-compliance-reviewer.yaml
@@ -109,6 +110,7 @@ Notes:
    └─ write-product-spec/
 
 ~/.claude/agents/
+├─ code-quality-reviewer.md
 ├─ implementer.md
 ├─ research-agent.md
 └─ spec-compliance-reviewer.md
@@ -123,6 +125,7 @@ Notes:
    └─ write-product-spec/
 
 ~/.codex/agents/
+├─ code-quality-reviewer.toml
 ├─ implementer.toml
 ├─ research-agent.toml
 └─ spec-compliance-reviewer.toml

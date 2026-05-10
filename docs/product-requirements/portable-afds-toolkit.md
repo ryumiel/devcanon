@@ -536,13 +536,12 @@ event narrative in repository documentation.
 
 ## Downstream Authority Handoffs
 
-- `docs/specs/afds-workflow-routing.md` should own the canonical routing table
-  or decision tree that lets a fresh human or agent map work origin to owner,
+- `docs/specs/afds-workflow-routing.md` owns the canonical routing table or
+  decision tree that lets a fresh human or agent map work origin to owner,
   route, evidence location, durable-update trigger, or blocker.
-- `docs/specs/afds-workflow-routing.md` should also own exact evidence pointer
-  behavior, including how the toolkit handles private or inaccessible tracker,
-  PR, or CI evidence without copying that evidence into repository
-  documentation.
+- `docs/specs/afds-workflow-routing.md` owns exact evidence pointer behavior,
+  including how the toolkit handles private or inaccessible tracker, PR, or CI
+  evidence without copying that evidence into repository documentation.
 - `docs/guidelines/afds-workflow-capability-governance.md` should own the
   reusable capability-classification procedure for deciding whether a workflow
   need should be handled by updating an existing asset, creating a new skill,
