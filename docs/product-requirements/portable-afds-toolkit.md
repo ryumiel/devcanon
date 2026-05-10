@@ -446,126 +446,175 @@ Durable lessons or changed requirements from reviews, incidents, validation, or
 postmortems should update the owning AFDS artifact instead of preserving the
 event narrative in repository documentation.
 
-## Assumptions, Risks, and Open Questions
+## Assumptions and Dependencies
 
-### Assumptions
-
-- AFDS projects benefit from separating product requirements, behavior specs,
-  roadmap direction, guidelines, issues, PRs, and agent-local plans.
-- GitHub Issues and Linear remain the first supported external issue trackers.
+- AFDS adoption succeeds only when each kind of knowledge has one clear owning
+  system of record.
+- Product requirements, behavior specs, guidelines, issues, PRs, source
+  contracts, generated outputs, installed outputs, and agent-local artifacts
+  each own different lifecycle concerns.
+- GitHub Issues and Linear remain the first supported external trackers, and
+  live work state remains in those trackers.
 - Claude Code and Codex remain the first supported output targets.
-- Existing skills and agents cover part of the desired workflow surface.
-- Consumer projects are willing to adopt AFDS conventions deliberately rather
-  than receive automatic repository rewrites.
-- Users can provide the tracker and target-tool access required by the relevant
-  workflows.
+- Existing skills, agent roles, docs, and source behavior cover part of the
+  desired workflow surface and must be reviewed before new workflow assets are
+  approved.
+- Consumer projects are willing to adopt AFDS conventions deliberately through
+  guidance and reusable workflows rather than automatic repository rewrites.
+- Users can provide the tracker, PR, CI/check, repository, and target-tool
+  access required by the relevant workflows, or the missing access can be named
+  as a blocker.
+- Validation and review evidence can live in the system that performed or
+  recorded it, with durable artifacts linking to that evidence only when it
+  changes durable intent, behavior, policy, routing, or follow-up ownership.
 
-### Risks
+## Product Risks
 
+- If ownership boundaries are unclear, teams may recreate repo-local logbooks,
+  duplicate tracker or PR history, or treat temporary agent artifacts as durable
+  truth.
 - If product requirements and behavior specs share one profile, contributors may
   treat broad product intent as acceptance-ready behavior.
-- If DevCanon creates new workflow surfaces before reviewing existing assets,
-  it may duplicate existing planning, execution setup, review, verification, or
-  documentation-maintenance workflows.
-- If provider-specific issue behavior leaks into provider-neutral guidance, the
-  toolkit may become harder to adopt across GitHub Issues and Linear.
-- If Claude Code, Codex, GitHub Issues, or Linear change their supported
-  surfaces, target parity may drift.
+- If lifecycle routing is too heavy, Product Leaders and developers may bypass
+  the toolkit and return to ad hoc issue, PR, or chat-based context.
+- If traceability requires copied summaries instead of stable links, durable
+  artifacts will rot and systems of record will diverge.
+- If evidence-location rules are vague, agents may create repo-local logbooks,
+  postmortems, validation summaries, or narrative ledgers to compensate for
+  missing links.
+- If provider-specific issue behavior leaks into provider-neutral guidance,
+  GitHub Issues and Linear support may drift into separate workflow models.
+- If Claude Code, Codex, GitHub Issues, Linear, or CI/check systems change
+  their supported surfaces, target parity and evidence discoverability may
+  drift.
+- If capability classification becomes too heavy, teams may bypass the toolkit
+  during normal work instead of using it to reduce coordination cost.
 
-### Resolved Workflow Decisions
+## Open Decisions and Derivation Blockers
 
-- The product-requirements authoring gap is resolved by a bounded source
-  workflow split: product requirements and behavior specs now have distinct
-  authoring workflows. The existing behavior-spec workflow remains compatible
-  unless a later migration decision renames it. Broader AFDS workflow skill or
-  agent-role additions still require AFDS Workflow Capability Map
-  classification.
+- What durable artifact should own the AFDS Workflow Capability Map: reusable
+  workflow guidance, an ADR, or a focused behavior spec?
+- What minimum evidence pointer is required when validation is incomplete:
+  issue comment, PR note, CI/check link, source test reference, or named
+  blocker?
+- Which artifact owns the canonical routing table or decision tree that lets a
+  fresh human or agent map work origin to owner, route, or blocker?
+- How should the toolkit handle private or inaccessible tracker, PR, or CI
+  evidence without copying that evidence into repository documentation?
+- What pilot threshold proves that the toolkit reduces process overhead instead
+  of adding another review ritual?
 
-### Open Questions
-
-- Should the AFDS Workflow Capability Map be maintained as reusable workflow
-  guidance or as one or more ADRs for bounded skill and agent-role decisions?
-
-## Expected Follow-Up Artifacts
+## Follow-Up Artifact Routing
 
 Stable requirements from this document can derive narrower owning artifacts.
+Follow-up work should be routed by ownership, not by convenience.
+
+- Changed product intent updates this PRD or a narrower PRD.
+- Exact intended behavior updates a behavior spec.
+- Reusable workflow policy updates guidance or a reusable workflow asset after
+  capability classification.
+- Durable architecture, decision, or roadmap changes update the owning
+  architecture doc, ADR, or roadmap artifact.
+- Executable work, blockers, assignments, and live status remain in GitHub
+  Issues or Linear.
+- Review, merge, and validation discussion remain in PRs, CI/check systems, Git
+  history, source tests, or linked evidence.
+- Temporary execution detail remains in agent-local artifacts.
 
 Immediate next artifact: a behavior spec for Portable AFDS Toolkit source
-artifacts, generated outputs, installed managed outputs, and systems-of-record
-boundaries.
+artifacts, generated outputs, installed managed outputs, evidence-location
+rules, and systems-of-record boundaries.
 
 Later follow-up artifacts may include:
 
-- an AFDS Workflow Capability Map under `docs/guidelines/` if the follow-up
-  defines reusable workflow policy;
+- an AFDS Workflow Capability Map under the owning AFDS profile if the follow-up
+  defines reusable workflow policy or routing guidance;
 - ADRs if the follow-up records bounded decisions about adding, rejecting, or
   restructuring skills or agent roles;
 - implementation issues after the owning durable AFDS artifact is stable enough
-  to execute.
+  to execute;
+- external tracker issues for pilot execution and validation evidence.
 
-## PRD Readiness Criteria
+Follow-up artifacts should not create repository-local logbooks, work journals,
+postmortem narratives, validation summaries, or execution ledgers for state
+already owned by trackers, PRs, CI/check systems, Git history, source tests, or
+linked evidence.
+
+## PRD Readiness Gate
 
 These requirements are ready to drive one immediate next artifact when:
 
 - the Portable AFDS Toolkit purpose, target users, and priority order are clear;
 - key terms are defined or linked to owning definitions;
+- a fresh Human Developer with Agent can identify what to read first, what is
+  authoritative, what is evidence, and what is temporary context;
 - GitHub Issues and Linear support are stated as issue-tracker options;
 - target outputs for Claude Code and Codex are in scope;
-- source-owned authoring surfaces, generated-output boundaries, installed-output
-  boundaries, contract authority, and systems of record are stated without
-  duplicating exact contracts;
-- product validation criteria name the pilot signals required;
+- source-owned authoring surfaces, generated-output boundaries,
+  installed-output boundaries, contract authority, evidence locations, and
+  systems of record are stated without duplicating exact contracts;
+- product validation criteria test deterministic routing, context discovery,
+  evidence location, target portability, and low process overhead;
 - traceability, gardening, and drift-evaluation requirements are stated without
   turning the PRD into detailed workflow procedure;
-- assumptions, risks, and open questions are explicit;
+- assumptions, product risks, and open decisions are explicit;
 - follow-up workflow surfaces are identified without approving them;
 - the immediate next owning artifact is named;
 - the new requirements path is discoverable from `MAP.md`.
 
 Not included in the first derivation: AFDS Workflow Capability Map decisions,
 additional new skill approval beyond the product-requirements authoring split,
-new agent-role approval, and provider-specific issue workflow behavior.
+new agent-role approval, provider-specific issue workflow behavior, and any
+repo-local narrative artifact for validation, postmortem, or execution history.
 
-## Product Validation Criteria
+## Product Validation Gate
 
 The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
 
 - one GitHub Issues-backed project and one Linear-backed project can identify
   the AFDS adoption path from DevCanon documentation without DevCanon rewriting
   repository docs;
+- a fresh human and a fresh agent can start from the same work origin and reach
+  the same owning artifact, route, evidence location, or named blocker;
 - each pilot can route execution-work setup, shared issue workflow,
   implementation planning, review, and completion verification while live work
   state remains in the external tracker;
 - Claude Code and Codex outputs are generated from the same source library and
   are usable by their target tools without manual rewriting;
-- contributors can identify whether a change belongs in product requirements,
-  a behavior spec, a roadmap, a guideline, source-owned implementation, an
-  issue, a PR, or an agent-local artifact;
+- contributors can identify whether a change belongs in product requirements, a
+  behavior spec, a roadmap, a guideline, source-owned implementation, an issue,
+  a PR, CI/check evidence, or an agent-local artifact;
 - pilot work includes at least one documentation gardening case where stale or
   misplaced durable content is routed to the owning AFDS artifact without
-  copying live issue state, PR state, or agent-local execution detail into
-  durable docs;
-- pilots can identify at least one stale, duplicated, or conflicting knowledge
-  case and resolve it by updating the owning artifact rather than copying the
-  same truth into multiple locations;
+  copying live issue state, PR state, validation history, or agent-local
+  execution detail into durable docs;
+- pilots can resolve at least one stale, duplicated, or conflicting knowledge
+  case by updating the owning artifact rather than copying the same truth into
+  multiple locations;
 - at least one proposed workflow addition is evaluated through the AFDS
   Workflow Capability Map and results in an explicit update, creation,
   deferral, or rejection decision with evidence linked from the owning artifact;
-- pilot notes identify missing behavior specs, guidelines, or skills as
-  follow-up artifacts rather than embedding those procedures in this PRD.
+- pilot notes identify missing behavior specs, guidelines, skills, or source
+  behavior as follow-up artifacts rather than embedding those procedures in
+  this PRD.
 
-Pilot outcomes should be recorded in a follow-up issue, PR notes, or a durable
-validation summary linked from the derived artifact.
+Pilot outcomes should be recorded in the external issue tracker, PR notes,
+CI/check output, source tests, or another owning evidence system. Durable AFDS
+artifacts should link to that evidence only when it changes durable intent,
+behavior, policy, routing, or follow-up ownership.
 
-## PRD Maintenance Checks
+## PRD Maintenance Gate
 
 Changes to this PRD should verify that:
 
 - markdown formatting and linting pass;
 - links point to existing owning artifacts;
 - requirement IDs and headings remain stable unless intentionally renamed;
-- no live issue status, PR state, branch plan, assignee, schedule, or
-  agent-local execution log is introduced;
+- a fresh human or agent can still discover context, route work, and locate
+  evidence without private chat history or agent-local memory;
+- no live issue status, PR state, branch plan, assignee, schedule,
+  validation-history narrative, postmortem narrative, or agent-local execution
+  log is introduced;
 - no behavior-spec scenarios, exact contract field lists, renderer details, or
   workflow procedures are copied into the PRD;
 - gardening requirements remain framed as ownership, routing, and maintenance
@@ -574,9 +623,12 @@ Changes to this PRD should verify that:
   from pilot validation evidence;
 - changes are checked for newly duplicated, stale, or conflicting authority
   across PRDs, specs, guidelines, roadmap items, issues, PRs, source contracts,
-  generated outputs, installed outputs, and agent-local artifacts;
+  generated outputs, installed outputs, CI/check evidence, and agent-local
+  artifacts;
 - any newly implied next artifact is named or captured as an open readiness
   blocker;
+- no new recurring process artifact is introduced unless its owning AFDS profile
+  and non-overlap with existing systems of record are explicit;
 - `MAP.md` remains updated when this path is introduced or renamed.
 
 ## Future Change Constraints
@@ -587,7 +639,14 @@ Future changes should preserve these product constraints:
   procedure or implementation plans;
 - external issue trackers own live work state;
 - PRs own review and merge state;
+- CI/check systems, source tests, PR notes, or issue comments own validation
+  evidence unless durable requirements change;
 - `.ephemeral/` artifacts own temporary agent execution detail;
 - generated outputs and installed managed outputs remain non-source artifacts;
+- repository documentation must not become a logbook, work journal, validation
+  summary store, postmortem archive, or execution ledger for state owned
+  elsewhere;
 - new workflow surfaces require classification against existing DevCanon assets
-  before approval.
+  before approval;
+- added guidance must reduce routing ambiguity or evidence discovery cost, not
+  add process overhead for its own sake.
