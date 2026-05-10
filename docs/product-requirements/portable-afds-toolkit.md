@@ -36,32 +36,12 @@ passes.
 - **AFDS**: Agent-Friendly Documentation Standard, the repository document model
   that separates durable docs, issue trackers, PRs, and agent-local artifacts.
 - **Portable AFDS Toolkit**: DevCanon's product surface for sharing AFDS
-  workflows, skills, agent roles, target-native generated outputs, and adoption
-  guidance across projects.
-- **Target-native output**: a generated output that uses the target tool's
-  supported file format, location, metadata, and configuration model.
-- **Stable delegate identity**: an agent role identity that remains meaningful
-  across tasks, such as reviewer, planner, or debugger.
-- **Target-supported constraint**: a role constraint the target tool can enforce,
-  such as model, effort, tool access, sandbox, or approval policy.
-- **Source behavior**: behavior owned by source artifacts, including source code,
-  source skills, source agent roles, and durable source docs.
+  workflows, reusable guidance, and target-tool support across projects.
 - **Guided adoption**: DevCanon provides reusable workflows and guidance while
   consumer projects remain responsible for their own repository docs, tracker
   setup, migration choices, and local policy.
-- **Source artifact**: an authored file under `skills/`, `agents/`, `docs/`, or
-  `src/`.
-- **Generated output**: a disposable render result under `generated/<target>/`.
-- **Installed managed output**: a target-home file or directory installed by
-  `devcanon sync` and tracked by the install manifest.
-- **Issue-priming entrypoint**: provider-specific setup that fetches a GitHub or
-  Linear issue, prepares the worktree, preserves normalized issue context, and
-  hands off to the shared issue workflow.
-- **Shared issue workflow**: provider-neutral work after issue-priming handoff,
-  including readiness checks, shaping, planning, implementation, review, or PR
-  preparation as requested.
-- **Owning durable AFDS artifact**: a repository-owned doc or source artifact
-  that outlives an issue, PR, or agent session and owns durable product intent,
+- **Owning durable AFDS artifact**: a repository-owned source of truth that
+  outlives an issue, PR, or agent session and owns durable product intent,
   behavior, policy, architecture, contract authority, roadmap direction, or
   decision rationale.
 - **Agent-local artifact**: temporary execution context produced or used by an
