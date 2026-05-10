@@ -38,27 +38,28 @@ The target output includes:
 - migration/setup guidance for projects adopting AFDS from an existing state
 - Claude Code and Codex outputs generated from the same source library
 
-## Current Capability Baseline
+## Starting Assumptions for First Slice
 
-The first slice starts from the capabilities DevCanon already has, rather than
-from a new tool surface:
+The first slice starts from existing DevCanon product and workflow constraints
+rather than from a new tool surface:
 
-- source skills under `skills/` for product-requirements authoring,
-  behavior-spec authoring, issue priming, shared issue workflow, planning,
-  review, verification, branch finish, PR merge, and documentation gardening;
-- GitHub Issues and Linear entrypoint skills that isolate provider-specific
-  issue fetching before handing off to the shared issue-priming workflow;
-- thin source agent roles under `agents/` for implementation, research,
-  spec-compliance review, and code-quality review;
-- AFDS documentation that separates product requirements, behavior specs,
-  roadmap direction, guidelines, architecture, ADRs, issue tracking, PR review
-  state, generated outputs, installed managed outputs, and agent-local
-  artifacts;
-- CLI support for validating, rendering, syncing, diffing, uninstalling, and
-  listing source skills and agent roles for Claude Code and Codex targets.
+- reusable workflow guidance and thin role definitions already have source
+  owners under the source library; `MAP.md` owns current source navigation;
+- GitHub Issues and Linear issue entrypoints isolate provider-specific issue
+  access, worktree setup, and issue-body persistence before handing off to a
+  shared issue workflow;
+- GitHub-backed use depends on authenticated `gh` access, and Linear-backed use
+  depends on the configured Linear issue-reading skills or connector surface;
+- AFDS documentation separates product requirements, behavior specs, roadmap
+  direction, guidelines, architecture, ADRs, issue tracking, PR review state,
+  generated outputs, installed managed outputs, and agent-local artifacts;
+- CLI validation and listing apply to source definitions, while rendering,
+  syncing, diffing, and uninstalling operate on generated or installed managed
+  outputs derived from those sources.
 
 Generated previews under `generated/` are disposable render outputs. They are
-useful as validation artifacts, but the source library remains authoritative.
+useful as evidence that the source library renders consistently, but the source
+library remains authoritative.
 
 ## Scope
 
@@ -106,13 +107,14 @@ The slice should let a project:
    spec, a roadmap item, a guideline, source-owned implementation, an external
    issue, a PR, CI/check evidence, or an agent-local artifact;
 3. start from either a GitHub Issues-backed or Linear-backed issue and enter
-   the same shared issue-priming workflow after provider-specific issue fetch
-   and handoff;
+   the same shared issue-priming workflow after provider-specific issue access,
+   worktree setup, issue-body persistence, and handoff;
 4. move through shaping, execution, review, validation, and completion without
    creating a new durable artifact unless the documented ownership trigger
    fires;
-5. prove Claude Code and Codex parity by rendering and validating target
-   outputs from the same source skills and agent role definitions.
+5. prove Claude Code and Codex parity by rendering both targets from the same
+   source skills and agent role definitions, then running source validation and
+   render checks.
 
 This slice is intentionally smaller than the full toolkit. Its appetite is to
 make one end-to-end AFDS adoption path usable, traceable, and low-overhead
@@ -128,12 +130,11 @@ specs, guidelines, source files, or follow-up issues.
    Product Leader or Human Developer with Agent can navigate.
 3. Classify current reusable workflow assets against the Portable AFDS Toolkit
    product requirements before approving new assets.
-4. Define the provider-neutral first usable slice from the current capability
-   baseline.
+4. Define the provider-neutral first usable slice from the starting assumptions.
 5. Exercise the same first-slice adoption path in one GitHub Issues-backed
    project and one Linear-backed project.
-6. Validate Claude Code and Codex parity by rendering and checking outputs from
-   the same source library.
+6. Validate Claude Code and Codex parity by rendering both targets from the same
+   source library and running source validation and render checks.
 7. Route pilot findings to their owning systems: durable docs for changed
    product, behavior, policy, or roadmap direction; source files for source-
    owned behavior; external trackers for live work; PRs for review state; and
@@ -164,6 +165,6 @@ specs, guidelines, source files, or follow-up issues.
   narratives, or agent-local execution detail into repository roadmap docs.
 - Generated Claude Code and Codex outputs continue to come from the same source
   skills and agent role definitions.
-- Proposed workflow additions discovered during pilots are routed through
-  capability classification before becoming new skills, agents, docs, or source
-  behavior.
+- Proposed workflow additions discovered during pilots are routed through the
+  owning capability-governance path before becoming new skills, agents, docs,
+  or source behavior.

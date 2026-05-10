@@ -17,6 +17,12 @@ Product requirements are not implementation plans, task boards, roadmaps,
 architecture docs, or behavior specs. They should avoid live issue state,
 assignees, PR state, branch names, schedules, and agent-local execution detail.
 
+Product requirements and roadmaps are adjacent but separate. Product
+requirements answer what product problem matters, who is served, what outcomes
+and broad requirements should be true, and what uncertainty remains. Roadmaps
+translate stable-enough product intent into target outputs, first usable
+slices, outcome-level sequencing, appetite, and validation signals.
+
 ## Lifecycle
 
 1. Create or update a product requirements document when product intent is not
@@ -47,7 +53,8 @@ when:
 
 - `docs/specs/` owns exact intended behavior, acceptance-ready requirements,
   scenarios, and verification expectations.
-- `docs/roadmap/` owns durable direction and outcome-level sequencing.
+- `docs/roadmap/` owns durable direction, first usable slices, appetite,
+  outcome-level sequencing, and validation targets.
 - `docs/guidelines/` owns repeatable procedure and policy.
 - `docs/arch/` owns system shape and module boundaries.
 - External issue trackers own live work state.
