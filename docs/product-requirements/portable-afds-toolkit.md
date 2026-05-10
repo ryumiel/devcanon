@@ -544,9 +544,10 @@ event narrative in repository documentation.
   PR, or CI evidence without copying that evidence into repository
   documentation.
 - `docs/guidelines/afds-workflow-capability-governance.md` should own the
-  reusable capability-classification procedure for deciding whether a workflow need
-  updates an existing asset, creates a new skill, creates a new agent role,
-  changes source behavior, becomes follow-up work, is deferred, or is rejected.
+  reusable capability-classification procedure for deciding whether a workflow
+  need should be handled by updating an existing asset, creating a new skill,
+  creating a new agent role, changing source behavior, creating follow-up work,
+  deferring, or rejecting the need.
 - Provider-specific issue behavior should stay with provider entrypoints,
   provider integration specs, or focused source behavior rather than this PRD.
 
