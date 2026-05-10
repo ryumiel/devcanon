@@ -540,34 +540,9 @@ event narrative in repository documentation.
 - What pilot threshold proves that the toolkit reduces process overhead instead
   of adding another review ritual?
 
-## Expected Follow-Up Artifacts
-
-Stable requirements from this document can derive narrower owning artifacts.
-This PRD names likely follow-up artifact types without defining the reusable
-routing policy for all AFDS work.
-
-Immediate next artifact: a behavior spec for Portable AFDS Toolkit source
-artifacts, generated outputs, installed managed outputs, evidence-location
-rules, ordinary execution fast-path behavior, and systems-of-record boundaries.
-
-Later follow-up artifacts may include:
-
-- an AFDS Workflow Capability Map under the owning AFDS profile if the follow-up
-  defines reusable workflow policy or routing guidance;
-- ADRs if the follow-up records bounded decisions about adding, rejecting, or
-  restructuring skills or agent roles;
-- implementation issues after the owning durable AFDS artifact is stable enough
-  to execute;
-- external tracker issues for pilot execution and validation evidence.
-
-Follow-up artifacts should not create repository-local logbooks, work journals,
-postmortem narratives, validation summaries, or execution ledgers for state
-already owned by trackers, PRs, CI/check systems, Git history, source tests, or
-linked evidence.
-
 ## PRD Readiness Gate
 
-These requirements are ready to drive one immediate next artifact when:
+This PRD is ready to serve as product direction when:
 
 - the Portable AFDS Toolkit purpose, target users, and priority order are clear;
 - key terms are defined or linked to owning definitions;
@@ -583,14 +558,12 @@ These requirements are ready to drive one immediate next artifact when:
 - traceability, gardening, and drift-evaluation requirements are stated without
   turning the PRD into detailed workflow procedure;
 - assumptions, product risks, and open decisions are explicit;
-- follow-up workflow surfaces are identified without approving them;
-- the immediate next owning artifact is named;
 - the new requirements path is discoverable from `MAP.md`.
 
-Not included in the first derivation: AFDS Workflow Capability Map decisions,
-new workflow asset approval, new agent-role approval, provider-specific issue
-workflow behavior, and any repo-local narrative artifact for validation,
-postmortem, or execution history.
+Not included in this PRD: roadmap sequencing, exact behavior specifications,
+workflow procedure, new workflow asset approval, new agent-role approval,
+provider-specific issue workflow behavior, and any repo-local narrative artifact
+for validation, postmortem, or execution history.
 
 ## Product Validation Gate
 
