@@ -198,151 +198,161 @@ The Portable AFDS Toolkit should enable these outcomes:
 
 ## Functional Requirements
 
-### FR-001: Guided Adoption
+### FR-001: Artifact Ownership Model
 
-The toolkit should provide guidance and reusable workflows for AFDS adoption,
-but the consumer project should remain responsible for its own repository docs,
-local policy, tracker setup, and migration choices.
+The toolkit should help users identify the authoritative owner for product
+intent, intended behavior, reusable policy, architecture, decisions, roadmap
+direction, live work state, PR review state, source contracts, validation
+evidence, generated outputs, installed outputs, and agent-local execution
+detail.
 
-### FR-002: Source-First Authoring
+When no owner is clear, the toolkit should surface the ambiguity instead of
+letting humans or agents silently choose a convenient artifact.
 
-The toolkit should preserve source files as the authoring surface:
+### FR-002: Authoritative Context Discovery
 
-- `skills/` for reusable workflow source;
-- `agents/` for neutral agent role source;
-- `docs/product-requirements/` for product intent and requirements that are not
-  yet behavior specs;
-- `docs/specs/` for exact behavior specs and acceptance-ready requirements;
-- source-owned schemas, validators, and types for exact interface contracts.
+The toolkit should provide a predictable discovery path so humans and agents can
+answer what to read first, what is authoritative, and what can be treated as
+evidence or temporary context.
 
-Generated outputs and installed managed outputs should not be treated as source
-files.
+Discovery guidance should prefer stable headings, requirement IDs, named
+anchors, and links to owning artifacts over duplicated summaries.
 
-### FR-003: Target Output Support
+### FR-003: Lifecycle Routing
 
-The toolkit should continue to produce Claude Code and Codex outputs from the
-same source library.
+The toolkit should route work based on how it starts:
 
-Target details belong to behavior specs and renderer or installer source
-modules. This product requirement only establishes that both targets remain in
-scope for Portable AFDS Toolkit behavior.
+- unclear product or workflow intent;
+- acceptance-ready behavior;
+- executable issue work;
+- failing tests;
+- review comments;
+- audit findings;
+- implementation discoveries;
+- stale, duplicated, misplaced, or conflicting knowledge.
 
-### FR-004: GitHub and Linear Issue Support
+Routing should identify whether the next step is shaping an owning durable AFDS
+artifact, executing against an existing contract, updating source behavior,
+opening follow-up work, or recording that no durable artifact update is needed.
 
-The toolkit should support GitHub Issues-backed and Linear-backed AFDS projects.
+### FR-004: Readiness Gates
 
-Issue-tracker-specific behavior should live in the relevant source skills and
-supporting integration surfaces. Durable guidance should use provider-neutral
-language unless GitHub or Linear behavior is being described directly.
+The toolkit should define product-level readiness gates for moving work between
+durable intent, exact behavior, and execution.
 
-### FR-005: Shape Path Support
+Product requirements should be ready to derive downstream work only when the
+problem, users, goals, outcomes, broad requirements, assumptions, risks, open
+questions, validation criteria, and expected follow-up artifact are explicit or
+the blocking decision is named.
 
-The toolkit should support work that starts from product or workflow
-uncertainty and needs an owning durable AFDS artifact before implementation is
-sliced.
+Behavior specs should be ready to drive implementation only when exact intended
+behavior, boundaries, acceptance criteria, verification expectations, and
+agent-facing context are explicit or the blocking decision is named.
 
-That path may produce or update a product requirements document, behavior spec,
-guideline, roadmap item, ADR, or another owning durable AFDS artifact. The
-exact procedure belongs in workflow guidance and skills, not in this
-requirements document.
+### FR-005: Executable Work Contracts
 
-### FR-006: Execution Path Support
+Issues, review comments, failing tests, audit findings, or other execution
+inputs should contain or link to enough stable context to act.
 
-The toolkit should support work that starts from an already-sliced issue,
-failing test, review comment, audit finding, or other concrete execution
-contract.
+Executable work should identify the owning artifact or source contract,
+acceptance criteria or reproduction evidence, validation expectation, known
+blockers, and the trigger that would require a durable documentation update.
 
-Execution-path work should update durable docs only when the implementation
-changes behavior, policy, product intent, contract ownership, architecture, or
-verification expectations.
-
-### FR-007: Workflow Coverage
-
-The toolkit should cover the core AFDS work journeys needed to move from
-unclear intent to reviewed implementation:
-
-- shape unclear product or workflow intent into the correct owning durable AFDS
-  artifact;
-- derive behavior, guideline, roadmap, ADR, or issue work from stable product
-  requirements;
-- prime GitHub Issues-backed and Linear-backed execution work;
-- plan, execute, verify, and review implementation work;
-- identify when documentation impact requires an owning durable AFDS artifact
-  update.
-
-Coverage may be delivered through existing skills, updated skills, agent roles,
-documentation, or source behavior. This requirement does not approve a separate
-entrypoint for each journey.
-
-### FR-008: Workflow Capability Classification
-
-The toolkit should require proposed AFDS workflow additions to be classified
-against existing workflow assets, documentation, source behavior, and known
-non-goals before a new skill, agent role, command, or durable workflow surface
-is approved.
-
-A workflow proposal should identify whether the need is best handled by:
-
-- updating existing workflow guidance;
-- updating documentation or behavior specs;
-- updating source behavior;
-- creating a new reusable workflow asset;
-- creating or changing a target-specific role or entrypoint;
-- deferring or rejecting the proposal.
-
-This requirement does not approve any named new skill, agent role, or command.
-
-### FR-009: Iterative Artifact Maintenance
+### FR-006: Iterative Change Propagation
 
 The toolkit should support iterative development in which product requirements,
-behavior specs, workflow guidance, issues, PRs, and source code can change as
-new information emerges.
+behavior specs, workflow guidance, issues, PRs, source code, and validation
+evidence can change as new information emerges.
 
-Iteration should update the artifact that owns the changed truth. It should not
-copy stale summaries across product requirements, behavior specs, guidelines,
-issues, PRs, source files, generated outputs, or agent-local artifacts.
+When discovery, implementation, review, or validation changes product intent,
+behavior, policy, architecture, contract ownership, or verification
+expectations, the owning artifact should be updated or the unresolved blocking
+decision should be made visible.
 
-When implementation changes product intent, behavior, policy, architecture,
-contract ownership, or verification expectations, the same PR should update the
-owning durable artifact or name the unresolved decision that blocks that update.
+### FR-007: Bidirectional Traceability
 
-### FR-010: Artifact Traceability
+The toolkit should help users preserve durable trace links from product intent
+to derived behavior specs, guidelines, roadmap items, ADRs, executable issues,
+source changes, review outcomes, validation evidence, and follow-up artifacts.
 
-The toolkit should help users preserve durable trace links between product
-intent, derived behavior specs, guidelines, roadmap items, ADRs, executable
-issues, source changes, review outcomes, validation evidence, and follow-up
+Traceability should also support the reverse path from an issue, PR, failing
+test, review comment, or audit finding back to the owning durable artifact or
+source contract that governs the change.
+
+Trace links should connect related artifacts without copying the same
+authoritative claim into multiple systems of record.
+
+### FR-008: Review and Validation Evidence Traceability
+
+PRs should own review state, but durable conclusions from review should route to
+the owning artifact, source contract, external issue, or explicit follow-up.
+
+Validation evidence should identify what was checked, which requirement or
+execution contract it supports, where the evidence lives, and what follow-up is
+required when validation is incomplete or fails.
+
+### FR-009: Follow-Up Artifact Lifecycle
+
+Follow-up artifacts created from shaping, implementation, review, validation,
+or gardening should have an owning AFDS profile, a trigger, a decision state,
+and a resolution path.
+
+Resolution may be an owning artifact update, source change, implementation
+issue, validation note, deferral, rejection, or explicit non-goal.
+
+### FR-010: Drift, Conflict, and Gardening
+
+The toolkit should help users detect stale, duplicated, misplaced,
+profile-mismatched, derived, or conflicting claims across durable docs, issues,
+PRs, source files, generated outputs, installed outputs, and agent-local
 artifacts.
 
-Traceability should connect related artifacts without collapsing their
-ownership boundaries. Links, references, or summaries should point readers to
-the owning artifact rather than copying the same truth into multiple systems of
-record.
-
-### FR-011: Documentation Gardening Support
-
-The toolkit should support documentation gardening as maintenance of existing
-owning AFDS artifacts, not as a separate source of product behavior, live work
-state, or implementation procedure.
-
-Gardening workflows should help contributors identify stale, duplicated,
-misplaced, or profile-mismatched documentation; move durable content to the
-owning artifact; remove obsolete content after useful claims are preserved; and
-update navigation when document paths or ownership change.
-
-Gardening support may be delivered through guidelines, checklists, reusable
-workflows, or review workflows. This requirement does not require DevCanon to
-automatically rewrite consumer repository documentation.
-
-### FR-012: Drift and Conflict Evaluation
-
-The toolkit should help users evaluate stale, duplicated, or conflicting
-knowledge across durable docs, issues, PRs, source files, generated outputs,
-installed outputs, and agent-local artifacts.
-
 When conflict is found, the expected outcome is to identify the authoritative
-owner, classify non-owner content as stale, duplicate, derived, misplaced, or
-unresolved, and route the correction to the owning artifact without spreading
-the same truth across multiple systems of record.
+owner, classify the non-owner content, and route correction to the owner without
+creating competing systems of record.
+
+Gardening should maintain existing owning AFDS artifacts through profile
+alignment, stale-content removal or consolidation, navigation updates, and
+preservation of useful claims in the owning artifact.
+
+### FR-011: Issue Tracker Portability
+
+The toolkit should support GitHub Issues-backed and Linear-backed AFDS projects
+through the same AFDS work concepts: work origin, live tracker state, blockers,
+acceptance criteria, owning durable artifacts, review handoff, validation
+expectations, and follow-up routing.
+
+Provider-specific fields, APIs, and behavior should remain isolated to the
+places where provider differences matter.
+
+### FR-012: Target Tool Portability
+
+The toolkit should make reusable AFDS workflows available to Claude Code and
+Codex from the same source library with equivalent intent, discoverability,
+triggerability, and source references.
+
+Target-specific differences should be explicit, minimal, and owned by
+target-specific source fields, renderers, installers, integrations, or focused
+behavior specs.
+
+### FR-013: Source Authority and Generated Outputs
+
+The toolkit should preserve source-owned authoring surfaces as authoritative
+for reusable workflow guidance, role definitions, durable docs, source
+contracts, validation rules, and target-output generation.
+
+Generated outputs and installed managed outputs should be treated as derived
+artifacts, not as durable product, behavior, policy, or contract authority.
+
+### FR-014: Toolkit Capability Governance
+
+The toolkit should require proposed workflow additions to be evaluated against
+existing guidance, source behavior, target entrypoints, known non-goals, and
+follow-up artifact options before expanding the toolkit surface.
+
+A proposal should identify whether the need is best handled by updating an
+existing asset, creating a new asset, changing source behavior, creating
+follow-up work, deferring, or rejecting the proposal.
 
 ## Non-Functional Requirements
 
