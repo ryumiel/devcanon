@@ -126,43 +126,48 @@ existing asset instead of creating another workflow surface.
 
 ## Product Goals
 
-### PR-001: Portable AFDS Adoption
+### PR-001: Guided AFDS Adoption
 
-DevCanon should make it practical for a project to adopt AFDS through reusable
-workflows and guidance rather than repository automation that rewrites or owns
-the consumer project.
+DevCanon should make it practical for a project to adopt AFDS deliberately,
+understand where knowledge belongs, and improve its docs and workflows without
+DevCanon rewriting or owning the consumer repository.
 
-### PR-002: One Source Library, Multiple Targets
+### PR-002: Traceable Product-to-Implementation Lifecycle
 
-DevCanon should let users define reusable skills and agent roles once, then
-render usable target-native outputs for Claude Code and Codex.
+DevCanon should help Product Leaders keep product intent, behavior specs,
+workflow guidance, executable issues, source changes, review outcomes, and
+follow-up artifacts connected as understanding changes.
 
-### PR-003: Skills as the Primary Workflow Unit
+### PR-003: Shared Human-Agent Operating Context
 
-DevCanon should keep reusable AFDS method, checklists, and operating procedures
-in skills by default.
+DevCanon should help Human Developers with Agent ensure that human and agent
+participants can find the same authoritative context, follow compatible
+workflows, and update the owning artifact when implementation changes
+understanding.
 
-### PR-004: Thin Agent Roles
+### PR-004: Portable Workflow Across Tools
 
-DevCanon should use agent roles only when stable delegate identity or
-target-supported constraints add value beyond a skill.
+DevCanon should let teams use the same AFDS workflow model across Claude Code,
+Codex, GitHub Issues, and Linear while keeping target- or provider-specific
+behavior isolated where it belongs.
 
-### PR-005: Provider-Neutral Issue Workflow
+### PR-005: Clear Systems of Record
 
-DevCanon should support AFDS projects that use GitHub Issues or Linear while
-keeping durable guidance provider-neutral unless behavior is specific to one
-tracker.
+DevCanon should help maintainers, developers, and agents distinguish durable
+knowledge, live issue state, PR review state, generated outputs, installed
+outputs, and temporary agent-local execution detail.
 
-### PR-006: Clear Systems of Record
+### PR-006: Low-Rot Artifact Lifecycle
 
-DevCanon should help maintainers and agents keep durable repository knowledge,
-live issue state, PR review state, and temporary agent execution detail in
-separate systems of record.
+DevCanon should help teams detect, evaluate, and resolve stale, duplicated,
+misplaced, or conflicting knowledge over time without turning DevCanon into a
+repository-level document manager.
 
-### PR-007: Conservative Workflow Expansion
+### PR-007: Coherent Toolkit Evolution
 
-DevCanon should require proposed AFDS workflow skills and agent roles to be
-classified against existing assets before they are created or changed.
+DevCanon should help contributors evolve reusable AFDS support without
+duplicating workflow surfaces, creating unnecessary tool-specific assets, or
+making generated outputs authoritative.
 
 ## Target Outcomes
 
@@ -170,19 +175,22 @@ The Portable AFDS Toolkit should enable these outcomes:
 
 - A new or existing project can understand the AFDS adoption path without
   making DevCanon manage its repository docs.
-- A GitHub Issues-backed project can run issue-priming entrypoints and shared
-  issue workflow while keeping live work state in GitHub Issues.
+- A GitHub Issues-backed project can run execution-work setup and shared issue
+  workflows while keeping live work state in GitHub Issues.
 - A Linear-backed project can use the same source library and target outputs
   while keeping live work state in Linear.
-- Contributors can tell when to create a skill, when to create an agent, and
-  when to update a durable repository doc instead.
+- Contributors can tell when to update existing workflow guidance, create a new
+  workflow surface, or update a durable repository doc instead.
 - Agents can route work through shape-path or execution-path workflows without
   treating issues, PRs, or `.ephemeral/` files as durable authority.
 - Teams can revise product requirements, behavior specs, workflow guidance,
   issues, PRs, and source code as they learn, while preserving one owning
   system of record per concern.
-- Future AFDS workflow proposals can be evaluated against existing skills, agent
-  roles, docs, and source behavior before new entrypoints are approved.
+- Teams can detect stale, duplicated, misplaced, or conflicting knowledge and
+  route the correction to the owning artifact.
+- Future AFDS workflow proposals can be evaluated against existing workflow
+  assets, documentation, source behavior, and known non-goals before new
+  surfaces are approved.
 
 ## Functional Requirements
 
@@ -265,16 +273,17 @@ entrypoint for each journey.
 ### FR-008: Workflow Capability Classification
 
 The toolkit should require proposed AFDS workflow additions to be classified
-against existing skills, agent roles, documentation, and source behavior before
-new entrypoints are created.
+against existing workflow assets, documentation, source behavior, and known
+non-goals before a new skill, agent role, command, or durable workflow surface
+is approved.
 
 A workflow proposal should identify whether the need is best handled by:
 
-- updating an existing skill;
+- updating existing workflow guidance;
 - updating documentation or behavior specs;
 - updating source behavior;
-- creating a new skill;
-- creating or changing an agent role;
+- creating a new reusable workflow asset;
+- creating or changing a target-specific role or entrypoint;
 - deferring or rejecting the proposal.
 
 This requirement does not approve any named new skill, agent role, or command.
@@ -292,6 +301,44 @@ issues, PRs, source files, generated outputs, or agent-local artifacts.
 When implementation changes product intent, behavior, policy, architecture,
 contract ownership, or verification expectations, the same PR should update the
 owning durable artifact or name the unresolved decision that blocks that update.
+
+### FR-010: Artifact Traceability
+
+The toolkit should help users preserve durable trace links between product
+intent, derived behavior specs, guidelines, roadmap items, ADRs, executable
+issues, source changes, review outcomes, validation evidence, and follow-up
+artifacts.
+
+Traceability should connect related artifacts without collapsing their
+ownership boundaries. Links, references, or summaries should point readers to
+the owning artifact rather than copying the same truth into multiple systems of
+record.
+
+### FR-011: Documentation Gardening Support
+
+The toolkit should support documentation gardening as maintenance of existing
+owning AFDS artifacts, not as a separate source of product behavior, live work
+state, or implementation procedure.
+
+Gardening workflows should help contributors identify stale, duplicated,
+misplaced, or profile-mismatched documentation; move durable content to the
+owning artifact; remove obsolete content after useful claims are preserved; and
+update navigation when document paths or ownership change.
+
+Gardening support may be delivered through guidelines, checklists, reusable
+workflows, or review workflows. This requirement does not require DevCanon to
+automatically rewrite consumer repository documentation.
+
+### FR-012: Drift and Conflict Evaluation
+
+The toolkit should help users evaluate stale, duplicated, or conflicting
+knowledge across durable docs, issues, PRs, source files, generated outputs,
+installed outputs, and agent-local artifacts.
+
+When conflict is found, the expected outcome is to identify the authoritative
+owner, classify non-owner content as stale, duplicate, derived, misplaced, or
+unresolved, and route the correction to the owning artifact without spreading
+the same truth across multiple systems of record.
 
 ## Non-Functional Requirements
 
@@ -315,6 +362,12 @@ can reference durable product intent without depending on line numbers.
 Product requirements should keep GitHub- and Linear-specific behavior isolated
 to the places where provider differences matter.
 
+### NFR-004: Evaluability
+
+Toolkit guidance should make it possible for contributors and agents to explain
+why a workflow need belongs in an existing asset, a changed asset, a new asset,
+or no asset without depending on private chat history or agent-local notes.
+
 ## Boundaries and Non-Goals
 
 The Portable AFDS Toolkit should not:
@@ -325,7 +378,7 @@ The Portable AFDS Toolkit should not:
 - make generated outputs authoritative source files;
 - duplicate live issue state, PR state, schedules, assignees, branch plans, or
   agent-local execution logs in durable docs;
-- approve future workflow skill or agent-role additions outside the
+- approve future workflow additions outside the
   product-requirements authoring split without AFDS Workflow Capability Map
   classification;
 - duplicate exact source-owned contract fields already owned by schemas, types,
@@ -349,9 +402,9 @@ The Portable AFDS Toolkit should not:
 
 - If product requirements and behavior specs share one profile, contributors may
   treat broad product intent as acceptance-ready behavior.
-- If DevCanon creates new workflow skills before reviewing existing assets, it
-  may duplicate `play-*`, issue-priming, review, or documentation-gardening
-  behavior.
+- If DevCanon creates new workflow surfaces before reviewing existing assets,
+  it may duplicate existing planning, execution setup, review, verification, or
+  documentation-maintenance workflows.
 - If provider-specific issue behavior leaks into provider-neutral guidance, the
   toolkit may become harder to adopt across GitHub Issues and Linear.
 - If Claude Code, Codex, GitHub Issues, or Linear change their supported
@@ -400,6 +453,8 @@ These requirements are ready to drive one immediate next artifact when:
   boundaries, contract authority, and systems of record are stated without
   duplicating exact contracts;
 - product validation criteria name the pilot signals required;
+- traceability, gardening, and drift-evaluation requirements are stated without
+  turning the PRD into detailed workflow procedure;
 - assumptions, risks, and open questions are explicit;
 - follow-up workflow surfaces are identified without approving them;
 - the immediate next owning artifact is named;
@@ -416,14 +471,24 @@ The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
 - one GitHub Issues-backed project and one Linear-backed project can identify
   the AFDS adoption path from DevCanon documentation without DevCanon rewriting
   repository docs;
-- each pilot can route issue-priming entrypoints, shared issue workflow,
-  implementation planning, and completion verification while live work state
-  remains in the external tracker;
+- each pilot can route execution-work setup, shared issue workflow,
+  implementation planning, review, and completion verification while live work
+  state remains in the external tracker;
 - Claude Code and Codex outputs are generated from the same source library and
   are usable by their target tools without manual rewriting;
 - contributors can identify whether a change belongs in product requirements,
   a behavior spec, a roadmap, a guideline, source-owned implementation, an
   issue, a PR, or an agent-local artifact;
+- pilot work includes at least one documentation gardening case where stale or
+  misplaced durable content is routed to the owning AFDS artifact without
+  copying live issue state, PR state, or agent-local execution detail into
+  durable docs;
+- pilots can identify at least one stale, duplicated, or conflicting knowledge
+  case and resolve it by updating the owning artifact rather than copying the
+  same truth into multiple locations;
+- at least one proposed workflow addition is evaluated through the AFDS
+  Workflow Capability Map and results in an explicit update, creation,
+  deferral, or rejection decision with evidence linked from the owning artifact;
 - pilot notes identify missing behavior specs, guidelines, or skills as
   follow-up artifacts rather than embedding those procedures in this PRD.
 
@@ -441,6 +506,13 @@ Changes to this PRD should verify that:
   agent-local execution log is introduced;
 - no behavior-spec scenarios, exact contract field lists, renderer details, or
   workflow procedures are copied into the PRD;
+- gardening requirements remain framed as ownership, routing, and maintenance
+  expectations rather than detailed cleanup procedure;
+- toolkit evaluation requirements distinguish capability-classification gates
+  from pilot validation evidence;
+- changes are checked for newly duplicated, stale, or conflicting authority
+  across PRDs, specs, guidelines, roadmap items, issues, PRs, source contracts,
+  generated outputs, installed outputs, and agent-local artifacts;
 - any newly implied next artifact is named or captured as an open readiness
   blocker;
 - `MAP.md` remains updated when this path is introduced or renamed.
@@ -455,5 +527,5 @@ Future changes should preserve these product constraints:
 - PRs own review and merge state;
 - `.ephemeral/` artifacts own temporary agent execution detail;
 - generated outputs and installed managed outputs remain non-source artifacts;
-- new workflow skills or agent roles require classification against existing
-  DevCanon assets before approval.
+- new workflow surfaces require classification against existing DevCanon assets
+  before approval.
