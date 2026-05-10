@@ -97,7 +97,7 @@ turning any one artifact into an everything document.
 
 ## Users
 
-Priority order for tradeoffs:
+Priority user personas for tradeoffs:
 
 1. Product Leader.
 2. Human Developer with Agent.
