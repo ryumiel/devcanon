@@ -173,24 +173,28 @@ making generated outputs authoritative.
 
 The Portable AFDS Toolkit should enable these outcomes:
 
-- A new or existing project can understand the AFDS adoption path without
-  making DevCanon manage its repository docs.
-- A GitHub Issues-backed project can run execution-work setup and shared issue
-  workflows while keeping live work state in GitHub Issues.
-- A Linear-backed project can use the same source library and target outputs
-  while keeping live work state in Linear.
-- Contributors can tell when to update existing workflow guidance, create a new
-  workflow surface, or update a durable repository doc instead.
-- Agents can route work through shape-path or execution-path workflows without
-  treating issues, PRs, or `.ephemeral/` files as durable authority.
-- Teams can revise product requirements, behavior specs, workflow guidance,
-  issues, PRs, and source code as they learn, while preserving one owning
-  system of record per concern.
-- Teams can detect stale, duplicated, misplaced, or conflicting knowledge and
-  route the correction to the owning artifact.
-- Future AFDS workflow proposals can be evaluated against existing workflow
-  assets, documentation, source behavior, and known non-goals before new
-  surfaces are approved.
+- A Product Leader can see where product intent belongs, which behavior specs
+  or issues derive from it, and what follow-up artifact should change when new
+  information appears.
+- A Human Developer with Agent can start investigation, design, implementation,
+  or review work and quickly find the authoritative context needed for that
+  task.
+- Humans and agents can tell which artifact owns each kind of truth, so they do
+  not treat issues, PRs, generated outputs, installed outputs, or
+  agent-local notes as durable authority.
+- A GitHub Issues-backed or Linear-backed project can keep live work state in
+  its tracker while using the same AFDS knowledge model and reusable workflow
+  guidance.
+- A team can switch between Claude Code and Codex without rewriting its AFDS
+  source library or redesigning its development workflow.
+- A team can revise product requirements, behavior specs, workflow guidance,
+  issues, PRs, and source code as it learns while preserving one owning system
+  of record per concern.
+- A team can identify stale, duplicated, misplaced, or conflicting knowledge and
+  route the correction to the artifact that owns that truth.
+- A DevCanon Contributor can evaluate whether a workflow need belongs in an
+  existing asset, a changed asset, a new asset, or no asset before expanding the
+  toolkit surface.
 
 ## Functional Requirements
 
