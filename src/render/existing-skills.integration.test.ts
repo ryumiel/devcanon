@@ -446,6 +446,8 @@ mkdir -p .ephemeral
     expect(writeProductRequirementsBody).toContain(
       "expected follow-up artifact",
     );
+    expect(writeProductRequirementsBody).toContain("non-goals");
+    expect(writeProductRequirementsBody).toContain("out-of-scope");
     expect(writeProductRequirementsBody).toContain(
       "immediate next owning artifact",
     );

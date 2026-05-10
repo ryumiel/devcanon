@@ -318,10 +318,15 @@ The Portable AFDS Toolkit should not:
 - If Claude Code, Codex, GitHub Issues, or Linear change their supported
   surfaces, target parity may drift.
 
+### Resolved Workflow Decisions
+
+- `write-product-spec` is supplemented by `write-product-requirements` so
+  product requirements and behavior specs have distinct source authoring
+  workflows. `write-product-spec` remains the behavior-spec workflow unless a
+  later migration decision renames it.
+
 ### Open Questions
 
-- Should `write-product-spec` be renamed or supplemented so product
-  requirements and behavior specs have distinct authoring workflows?
 - Should the AFDS Workflow Capability Map be maintained as reusable workflow
   guidance or as one or more ADRs for bounded skill and agent-role decisions?
 
@@ -360,8 +365,8 @@ These requirements are ready to drive one immediate next artifact when:
 - the new requirements path is discoverable from `MAP.md`.
 
 Not included in the first derivation: AFDS Workflow Capability Map decisions,
-new skill approval, new agent-role approval, and provider-specific issue
-workflow behavior.
+additional new skill approval beyond `write-product-requirements`, new
+agent-role approval, and provider-specific issue workflow behavior.
 
 ## Product Validation Criteria
 

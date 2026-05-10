@@ -80,6 +80,8 @@ Use headings that fit the existing PRD, but cover these concerns:
 - Goals and outcomes: what success should make true for users or maintainers.
 - Broad requirements: product-level requirements that are not yet exact
   behavior scenarios.
+- Non-goals and out-of-scope items: what the PRD explicitly does not intend
+  to solve.
 - Assumptions, risks, and dependencies: durable context that affects product
   choices.
 - Open questions: product decisions still blocking derivation.
@@ -105,6 +107,8 @@ Before finalizing, confirm:
   acceptance-ready behavior, interface field lists, architecture, roadmap
   sequencing, workflow procedure, implementation plans, live issue state, PR
   state, branch plans, schedules, assignees, or agent-local execution detail.
+- Goals, outcomes, requirements, and non-goals or out-of-scope items are
+  explicit.
 - The PRD links to contract authority rather than duplicating contract fields.
 - The PRD links source-owned schemas, types, validators, renderers,
   installers, or explicit artifact-owned contracts when exact contracts
