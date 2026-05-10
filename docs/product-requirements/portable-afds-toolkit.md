@@ -321,13 +321,12 @@ The Portable AFDS Toolkit should not:
 
 ### Resolved Workflow Decisions
 
-- `write-product-spec` is supplemented by `write-product-requirements` so
-  product requirements and behavior specs have distinct source authoring
-  workflows. `write-product-spec` remains the behavior-spec workflow unless a
-  later migration decision renames it. This is the bounded decision for the
-  product-requirements authoring gap identified by this PRD; broader AFDS
-  workflow skill or agent-role additions still require AFDS Workflow Capability
-  Map classification.
+- The product-requirements authoring gap is resolved by a bounded source
+  workflow split: product requirements and behavior specs now have distinct
+  authoring workflows. The existing behavior-spec workflow remains compatible
+  unless a later migration decision renames it. Broader AFDS workflow skill or
+  agent-role additions still require AFDS Workflow Capability Map
+  classification.
 
 ### Open Questions
 
@@ -369,8 +368,8 @@ These requirements are ready to drive one immediate next artifact when:
 - the new requirements path is discoverable from `MAP.md`.
 
 Not included in the first derivation: AFDS Workflow Capability Map decisions,
-additional new skill approval beyond `write-product-requirements`, new
-agent-role approval, and provider-specific issue workflow behavior.
+additional new skill approval beyond the product-requirements authoring split,
+new agent-role approval, and provider-specific issue workflow behavior.
 
 ## Product Validation Criteria
 
