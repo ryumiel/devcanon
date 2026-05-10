@@ -432,11 +432,19 @@ The Portable AFDS Toolkit should not:
 - make generated outputs authoritative source files;
 - duplicate live issue state, PR state, schedules, assignees, branch plans, or
   agent-local execution logs in durable docs;
+- create repository-local logbooks, work journals, execution ledgers,
+  postmortems, or validation summary narratives for issue, PR, CI, review, or
+  incident history that is already owned by external trackers, PR systems,
+  CI/check systems, Git history, or linked evidence;
 - approve future workflow additions outside the
   product-requirements authoring split without AFDS Workflow Capability Map
   classification;
 - duplicate exact source-owned contract fields already owned by schemas, types,
   validators, renderers, installers, or focused behavior specs.
+
+Durable lessons or changed requirements from reviews, incidents, validation, or
+postmortems should update the owning AFDS artifact instead of preserving the
+event narrative in repository documentation.
 
 ## Assumptions, Risks, and Open Questions
 
