@@ -23,7 +23,14 @@ Quick navigation index for the DevCanon repository.
 - Where are the Portable AFDS Toolkit product requirements? -> [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
 - Where are AFDS document profiles defined? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where is profile guidance for conditional `contracts/`, `docs/product-requirements/`, `docs/harness/`, `docs/knowledge/`, `docs/references/`, `docs/roadmap/`, `docs/tech-debt/`, and module breadcrumbs? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
-- Where are issue/behavior-spec relationships and work-origin routing defined? -> [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
+- Where are current issue/behavior-spec relationships and lightweight
+  work-origin routing defined? ->
+  [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
+- Where are exact Portable AFDS routing and evidence behavior planned to be
+  owned? ->
+  [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
+  § Planned Downstream Authority Handoffs, then future
+  `docs/specs/afds-workflow-routing.md`
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)

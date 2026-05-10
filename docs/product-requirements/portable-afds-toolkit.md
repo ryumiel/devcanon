@@ -28,7 +28,7 @@ or Linear as their external issue tracker while keeping adoption guided instead
 of automatic.
 
 This document captures product requirements for that toolkit. It is the
-discussion basis for later behavior spec and AFDS Workflow Capability Map
+discussion basis for later behavior spec and capability-governance guideline
 passes.
 
 ## Terminology
@@ -52,8 +52,12 @@ passes.
 - **Execution path**: work that starts from an already-sliced issue, finding,
   test, or review comment and updates durable docs only when behavior or policy
   changes.
-- **AFDS Workflow Capability Map**: a follow-up owning durable AFDS artifact
-  that maps AFDS workflow needs to existing skills, agent roles, docs, source
+- **AFDS workflow routing spec**: the planned behavior spec at
+  `docs/specs/afds-workflow-routing.md` that should own exact routing and
+  evidence behavior for the Portable AFDS Toolkit.
+- **AFDS workflow capability governance**: the reusable governance procedure,
+  planned for `docs/guidelines/afds-workflow-capability-governance.md`, that
+  maps AFDS workflow needs to existing skills, agent roles, docs, source
   behavior, or explicit non-goals before new workflow assets are approved.
 
 ## Problem
@@ -326,7 +330,8 @@ Validation evidence should identify what was checked, which requirement or
 execution contract it supports, where the evidence lives, and what follow-up is
 required when validation is incomplete or fails.
 
-Minimum evidence pointers should identify the evidence system, a stable
+The owning routing and evidence behavior spec should define minimum evidence
+pointer requirements sufficient to identify the evidence system, a stable
 reference such as a PR note, issue comment, CI/check URL, source test reference,
 or test command, the checked requirement or execution contract, the result
 state, and any named blocker when evidence is incomplete or inaccessible.
@@ -529,14 +534,25 @@ event narrative in repository documentation.
 - If capability classification becomes too heavy, teams may bypass the toolkit
   during normal work instead of using it to reduce coordination cost.
 
-## Open Decisions and Derivation Blockers
+## Planned Downstream Authority Handoffs
 
-- What durable artifact should own the AFDS Workflow Capability Map: reusable
-  workflow guidance, an ADR, or a focused behavior spec?
-- Which artifact owns the canonical routing table or decision tree that lets a
-  fresh human or agent map work origin to owner, route, or blocker?
-- How should the toolkit handle private or inaccessible tracker, PR, or CI
-  evidence without copying that evidence into repository documentation?
+- `docs/specs/afds-workflow-routing.md` should own the canonical routing table
+  or decision tree that lets a fresh human or agent map work origin to owner,
+  route, evidence location, durable-update trigger, or blocker.
+- `docs/specs/afds-workflow-routing.md` should also own exact evidence pointer
+  behavior, including how the toolkit handles private or inaccessible tracker,
+  PR, or CI evidence without copying that evidence into repository
+  documentation.
+- `docs/guidelines/afds-workflow-capability-governance.md` should own the
+  reusable capability-classification procedure for deciding whether a workflow
+  need should be handled by updating an existing asset, creating a new skill,
+  creating a new agent role, changing source behavior, creating follow-up work,
+  deferring, or rejecting the need.
+- Provider-specific issue behavior should stay with provider entrypoints,
+  provider integration specs, or focused source behavior rather than this PRD.
+
+## Remaining Open Decision
+
 - What pilot threshold proves that the toolkit reduces process overhead instead
   of adding another review ritual?
 
@@ -598,8 +614,8 @@ The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
   multiple locations;
 - pilots reduce or remove duplicated durable claims found during the pilot
   instead of preserving them as parallel summaries;
-- at least one proposed workflow addition is evaluated through the AFDS
-  Workflow Capability Map and results in an explicit update, creation,
+- at least one proposed workflow addition is evaluated through the owning
+  capability-governance path and results in an explicit update, creation,
   deferral, or rejection decision with evidence linked from the owning artifact;
 - pilot notes identify missing behavior specs, guidelines, skills, or source
   behavior as follow-up artifacts rather than embedding those procedures in
