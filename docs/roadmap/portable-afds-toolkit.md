@@ -123,14 +123,21 @@ targets. Exact routing tables, evidence-pointer fields, acceptance-ready
 workflow behavior, and new workflow asset approvals belong in their owning
 specs, guidelines, source files, or follow-up issues.
 
+For first-slice derivation, deterministic routing and evidence behavior should
+be owned by the planned `docs/specs/afds-workflow-routing.md` behavior spec.
+Reusable capability classification should be owned by the planned
+`docs/guidelines/afds-workflow-capability-governance.md` guideline. This
+roadmap only depends on those owners being available enough to pilot the slice;
+it does not define their exact behavior.
+
 ### Sequencing
 
 1. Preserve the product direction and roadmap ownership model.
 2. Reconcile AFDS taxonomy and workflow guidance into durable docs that a fresh
    Product Leader or Human Developer with Agent can navigate.
-3. Classify current reusable workflow assets against the Portable AFDS Toolkit
-   product requirements before approving new assets.
-4. Define the provider-neutral first usable slice from the starting assumptions.
+3. Define the provider-neutral first usable slice from the starting assumptions.
+4. Establish enough routing/evidence behavior and capability-governance
+   procedure to pilot the slice without putting those contracts in the roadmap.
 5. Exercise the same first-slice adoption path in one GitHub Issues-backed
    project and one Linear-backed project.
 6. Validate Claude Code and Codex parity by rendering both targets from the same
