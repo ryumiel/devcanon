@@ -58,20 +58,42 @@ passes.
 
 ## Problem
 
-DevCanon already has pieces of an AFDS-based development operating model:
+AI-assisted software development depends on humans and agents finding the right
+knowledge at the right moment during investigation, design, implementation, and
+review. In practice, that knowledge is often scattered across durable docs,
+issues, PRs, source code, chat history, tool-specific instructions, and
+agent-local notes. Teams lose time rediscovering context, agents act from
+incomplete or outdated assumptions, and important product or workflow intent is
+easy to miss.
 
-- source skills under `skills/`;
-- neutral agent roles under `agents/`;
-- generated Claude Code and Codex outputs;
-- guidance for document profiles, issue/behavior-spec relationships, PR
-  workflow, and skill/agent authoring;
-- GitHub and Linear issue-priming entrypoints.
+When sources of truth are unclear, durable decisions, live work state,
+implementation notes, review conclusions, and temporary agent context drift
+into competing places. Product intent can be repeated in behavior specs, exact
+behavior can be summarized in issues, reusable policy can drift into PRs, and
+agent-local execution detail can be mistaken for durable documentation. This
+creates stale information, contradictory requirements, and confusion about
+which artifact is authoritative.
 
-Those pieces need one product requirements artifact that says how DevCanon
-should organize AFDS documentation rules, workflow guidance, reusable skills,
-and thin agent roles into a coherent product. Without that layer, future skill
-and agent work risks duplicating existing behavior or turning requirements,
-roadmap, guideline, issue, and implementation details into one mixed artifact.
+This becomes most costly during iterative development. Discovery and
+implementation legitimately change what the team knows, but without a shared
+rule for which artifact owns each kind of truth, updates land in whichever
+surface is active at the moment. The result is weak traceability from product
+intent to behavior, work items, implementation, review, and follow-up
+documentation.
+
+Teams also need common agent skills and workflow policies to apply consistently
+across repositories and tasks. Those practices are hard to enforce when they
+live as informal prompts, one-off instructions, or target-tool-specific setup.
+The problem is compounded because users may use different agentic coding tools
+or switch tools over time, and should not have to redesign their development
+workflow each time their toolchain changes.
+
+The Portable AFDS Toolkit needs to make the ownership model portable and usable
+across projects. It should help teams decide where knowledge belongs, how
+changes propagate when understanding evolves, and how to trace work across
+durable requirements, behavior specs, reusable policy, live issue state, PR
+review state, source changes, and temporary agent-local artifacts without
+turning any one artifact into an everything document.
 
 ## Users
 
