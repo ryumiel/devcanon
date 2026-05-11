@@ -31,7 +31,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Portable AFDS user procedure map? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
 - Where are Portable AFDS procedure flow graphs? ->
-  [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
+  [`docs/guidelines/portable-afds-user-procedure-map.md` § Procedure Flow Graphs](docs/guidelines/portable-afds-user-procedure-map.md#procedure-flow-graphs)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
@@ -83,7 +83,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Portable AFDS user procedure map? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
 - Where are Portable AFDS procedure flow graphs? ->
-  [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
+  [`docs/guidelines/portable-afds-user-procedure-map.md` § Procedure Flow Graphs](docs/guidelines/portable-afds-user-procedure-map.md#procedure-flow-graphs)
 - Where are the Copilot review instructions? -> [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
 - Where are the TypeScript review instructions? -> [`.github/instructions/review-ts.instructions.md`](.github/instructions/review-ts.instructions.md)
 - Where is the PR template? -> [`.github/pull_request_template.md`](.github/pull_request_template.md)
