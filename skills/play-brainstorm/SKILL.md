@@ -115,13 +115,14 @@ Every project goes through this process. A todo list, a single-function utility,
 You MUST create a task for each of these items and complete them in order:
 
 1. **Explore project context** — check files, docs, recent commits
-2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
-6. **Design self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-7. **User reviews written design** — ask user to review the design file before proceeding
-8. **Transition to implementation** — invoke play-planning skill to create implementation plan
+2. **Classify the AFDS handoff** — decide whether shaped work continues to an executable design or exits to the durable owner
+3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+4. **Propose 2-3 approaches** — with trade-offs and your recommendation
+5. **Present design** — in sections scaled to their complexity, get user approval after each section
+6. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
+7. **Design self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
+8. **User reviews written design** — ask user to review the design file before proceeding
+9. **Transition to implementation when appropriate** — invoke play-planning skill only for executable implementation designs
 
 **In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 4, and 7 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
 
@@ -130,6 +131,8 @@ You MUST create a task for each of these items and complete them in order:
 ```dot
 digraph brainstorming {
     "Explore project context" [shape=box];
+    "AFDS handoff classification" [shape=diamond];
+    "Handoff to durable owner" [shape=box];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
@@ -141,7 +144,9 @@ digraph brainstorming {
     "User reviews design?" [shape=diamond];
     "Invoke play-planning skill" [shape=doublecircle];
 
-    "Explore project context" -> "Ask clarifying questions";
+    "Explore project context" -> "AFDS handoff classification";
+    "AFDS handoff classification" -> "Handoff to durable owner" [label="non-executable owner work"];
+    "AFDS handoff classification" -> "Ask clarifying questions" [label="executable design"];
     "Ask clarifying questions" -> "Propose 2-3 approaches";
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "Auto mode?";
@@ -158,7 +163,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking play-planning.** Do NOT invoke any other implementation skill. The ONLY skill you invoke after brainstorming is play-planning.
+**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS handoff classification routes the work to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification, stop at that owner handoff instead of forcing an implementation plan.
 
 ## The Process
 
@@ -166,6 +171,20 @@ digraph brainstorming {
 
 - Check out the current project state first (files, docs, recent commits)
 - Scan `docs/adr/` titles and `docs/arch/overview.md`. If a covering ADR exists for the domain this work touches, summarize it before proposing changes.
+
+**AFDS handoff classification:**
+
+Before approach selection, use
+[`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
+to decide whether the shaped output should continue as an executable
+implementation design or exit to a durable owner. Hand off unclear product
+intent to `write-product-requirements`; acceptance-ready behavior to
+`write-product-spec`; roadmap-scale direction to the roadmap owner; reusable
+workflow policy, procedure, role-boundary, guideline, ADR, or source-owner
+changes to that owning artifact; and repeated reusable workflow gaps without a
+governed owner to capability classification. Do not make `play-brainstorm`
+write those owner artifacts or slice issues itself.
+
 - **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single design, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own design → plan → implementation cycle.
@@ -244,11 +263,16 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 **Implementation:**
 
-- Invoke the play-planning skill to create a detailed implementation plan.
-  Pass the design as a `Design: <path>` reference in the invocation prose
-  (the path you just emitted in the notice line above), not as inline
-  content.
-- Do NOT invoke any other skill. play-planning is the next step.
+- If AFDS handoff classification produced an executable implementation
+  design, invoke the play-planning skill to create a detailed implementation
+  plan. Pass the design as a `Design: <path>` reference in the invocation prose
+  (the path you just emitted in the notice line above), not as inline content.
+- If classification routes the shaped work to product requirements, behavior
+  spec, roadmap, guideline, ADR, source owner, or capability classification,
+  stop after naming that handoff. Do not invoke implementation planning for
+  non-executable durable-owner work.
+- Do NOT invoke any other implementation skill. play-planning is the next step
+  only for executable implementation designs.
 
 ## Common Mistakes
 
