@@ -47,6 +47,231 @@ comments, failing tests, CI checks, and audit findings do not need new product
 requirements, behavior specs, or capability classification when durable truth is
 unchanged.
 
+## Procedure Flow Graphs
+
+These graphs are visual summaries of the canonical work-origin procedures. The
+table below remains the source of truth for owners, evidence, allowed outputs,
+non-goals, blocker wording, and next handoffs. The routing spec remains the
+authority for exact behavior.
+
+### Product Requirements Path
+
+```mermaid
+flowchart TD
+  raw["Entry: raw idea or unclear product intent"] --> shape["Shape product intent"]
+  shape --> prd["Product requirements"]
+  shape -. optional collaborative shaping .-> brainstorm["play-brainstorm handoff"]
+  brainstorm --> prd
+  prd --> ready["PRD readiness criteria"]
+  ready --> handoff["Handoff: behavior spec, roadmap item, guideline, ADR, or issue slicing"]
+```
+
+Use this path when the product outcome, user, goal, risk, assumption, or open
+question is not stable enough to write exact behavior or executable issues.
+
+### Behavior Spec Path
+
+```mermaid
+flowchart TD
+  behavior["Entry: acceptance-ready behavior question"] --> spec["Behavior spec"]
+  prd["Accepted product requirements evidence"] --> spec
+  roadmap["Accepted roadmap evidence"] --> spec
+  spec --> criteria["Acceptance criteria and verification expectations"]
+  criteria --> readiness["Readiness review before slicing"]
+  evidence["Requirement, scenario, test, issue note, or source finding"] --> readiness
+```
+
+Use this path when exact behavior, boundaries, acceptance criteria, verification
+expectations, or agent context need durable ownership.
+
+### Roadmap Path
+
+```mermaid
+flowchart TD
+  input["Entry: roadmap-scale direction"] --> roadmap["Roadmap owner"]
+  roadmap --> evidence["Target output, first usable slice, validation signal, or owning spec link"]
+  evidence --> readiness["Readiness review before slicing"]
+  evidence --> issueEvidence["Issue-drafting evidence, not roadmap-owned issue inventory"]
+```
+
+Use this path when work is larger than one issue or PR and needs durable target
+output, appetite, sequencing, or validation direction.
+
+### Issue Slicing Path
+
+```mermaid
+flowchart TD
+  prd["Concrete product requirements evidence"] --> pointer["Minimum evidence pointer"]
+  spec["Concrete behavior spec evidence"] --> pointer
+  roadmap["Concrete roadmap evidence"] --> pointer
+  source["Concrete source-owner evidence"] --> pointer
+  guideline["Reusable workflow or role-boundary evidence"] --> reusable["Reusable capability gap?"]
+  reusable -->|yes| classify["Capability classification"]
+  reusable -->|no, executable work| pointer
+  pointer --> readiness["Readiness review before slicing"]
+  readiness --> slice["Draft executable issue body"]
+  slice --> tracker["External issue tracker"]
+```
+
+Use this path to create executable work from an owning durable artifact. Issue
+slicing should produce draft tracker work from evidence; provider-specific live
+mutation needs separate approval.
+
+### Execute Ready Issue
+
+```mermaid
+flowchart TD
+  issue["Entry: executable GitHub or Linear issue"] --> gh["GitHub issue priming"]
+  issue --> linear["Linear issue priming"]
+  gh --> workflow["Shared issue-priming workflow"]
+  linear --> workflow
+  workflow --> brainstorm["play-brainstorm"]
+  brainstorm --> stop["Interactive mode: stop for user review"]
+  brainstorm --> plan["Auto mode: planning"]
+  plan --> execute["Implementation"]
+  execute --> scoped["Scoped spec review when requirements exist"]
+  execute --> verify["Fresh verification gates"]
+  verify --> review["Branch or PR review"]
+  review --> finish["Open or update PR"]
+```
+
+Use this path when an existing GitHub or Linear issue has enough contract to
+start work without reshaping product intent or workflow policy.
+
+### Investigate Concrete Finding
+
+```mermaid
+flowchart TD
+  symptom["Entry: symptom or bug report"] --> evidence["Repro or evidence pointer"]
+  failure["Entry: failing test, CI, or audit finding"] --> evidence
+  evidence --> debug["Root-cause investigation"]
+  evidence --> blocked["Evidence blocker when inaccessible or not reproducible"]
+  debug --> fast["Ordinary execution fast path when durable truth is unchanged"]
+  debug --> owner["Same-PR owner update when expectations change"]
+  debug --> followup["Owner or follow-up blocker when update is out of scope"]
+  fast --> plan["Plan implementation when needed"]
+  owner --> plan
+  plan --> execute["Implementation"]
+  execute --> verify["Verification"]
+```
+
+Use this path for concrete failures and findings. Fix the failure when
+expectations are unchanged; update the owning artifact when the expected
+behavior or verification expectation changes.
+
+### Review Existing Work
+
+```mermaid
+flowchart TD
+  pr["Entry: existing GitHub PR"] --> prReview["PR review"]
+  feedback["Entry: review feedback or PR comment"] --> response["Review-response workflow"]
+  prReview --> pipeline["Shared review pipeline"]
+  response --> fix["Fix within execution contract"]
+  response --> owner["Same-PR owner update when truth changes"]
+  response --> blocker["Owner or follow-up blocker when out of scope"]
+  owner --> fix
+  pipeline --> spec["Scoped implementation-vs-spec check"]
+  pipeline --> findings["Concrete review findings or no findings"]
+```
+
+Use this path when reviewing a PR or responding to review feedback. PR systems
+own review state; durable repository artifacts own changes to behavior, policy,
+or ownership.
+
+### Finish And Merge
+
+```mermaid
+flowchart TD
+  branch["Reviewed branch needing PR"] --> finish["Open or update PR"]
+  ready["Existing PR with explicit merge request"] --> mergeFlow["Merge workflow"]
+  finish --> gate["User review and branch protection gate"]
+  gate --> mergeFlow
+  mergeFlow --> ci["Poll CI and investigate in-scope failures"]
+  ci --> blocked["CI or log evidence blocker when inaccessible"]
+  ci --> merge["PR system and Git history own merge state"]
+```
+
+Use this path for closeout. Opening a PR creates the review gate; merge
+automation needs an explicit merge request and must leave merge state in the PR
+system and Git history.
+
+### Same-PR Documentation Impact
+
+```mermaid
+flowchart TD
+  self["Self-review before PR"] --> impact["Documentation impact gate"]
+  prReview["PR review"] --> impact
+  impact --> owner["Update owning durable artifact in the same PR when truth changes"]
+  impact --> none["No PRD, spec, or doc update needed rationale"]
+  impact --> blocker["Owner or follow-up blocker when out of scope"]
+  self --> diff["Optional diff-scoped documentation gardening"]
+  prReview --> diff
+  diff --> findings["Audit findings and gated fixes"]
+  findings --> owner
+  findings --> none
+  findings --> blocker
+```
+
+Use this path to decide whether a code, docs, or review change alters durable
+truth. Do not copy issue comments, PR review history, validation logs, or
+agent-local plans into repository docs.
+
+### Knowledge Gardening
+
+```mermaid
+flowchart TD
+  stale["Entry: stale, duplicated, misplaced, or conflicting knowledge"] --> route["Identify authoritative owner"]
+  route --> owner["Update owner and remove, redirect, or narrow non-owner content"]
+  route --> blocker["Ownership blocker when unclear"]
+  periodic["Entry: documentation health check"] --> standard["Use the target repo's documentation standard"]
+  standard --> garden["Full documentation gardening"]
+  garden --> findings["Audit findings and gated fixes"]
+```
+
+Use this path to correct durable knowledge. The owning artifact should be
+updated, while non-owner copies should be removed, redirected, or narrowed.
+
+### Generated And Installed Drift
+
+```mermaid
+flowchart TD
+  generated["Entry: generated-preview drift"] --> render["Fresh render"]
+  render --> source["Source or renderer owner, or drift blocker"]
+  installed["Entry: installed-output drift"] --> manifest["Prove manifest-managed ownership"]
+  manifest --> diff["Diff installed output against source expectations"]
+  manifest --> blocker["Ownership blocker when not manifest-managed"]
+  diff --> action["Sync, uninstall, or fix install behavior"]
+  action --> owner["Source, install, manifest owner, or drift blocker"]
+```
+
+Use this path when generated previews or installed managed outputs differ from
+expectations. These outputs are evidence, not durable authority.
+
+### Govern Reusable Capability
+
+```mermaid
+flowchart TD
+  gap["Entry: repeated reusable workflow gap"] --> map["User procedure map"]
+  local["Entry: adopter local workflow need"] --> localOwner["Local owner update or ownership blocker"]
+  local --> candidate["Reusable DevCanon candidate only if repeated beyond one repo"]
+  candidate --> map
+  map --> classify["Capability classification pass"]
+  classify --> update["Follow-up candidate: update existing asset"]
+  classify --> create["Follow-up candidate: create new source skill only for an uncovered procedure"]
+  classify --> defer["Follow-up candidate: defer until revisit condition is met"]
+  classify --> reject["Decision: reject duplicate or wrong-owner surface"]
+  create --> approval["Separate approved issue before source behavior changes"]
+  update --> approval
+  classify --> agentGate["Agent-authoring gate for any role wrapper"]
+  agentGate --> default["Default to skill or guideline"]
+  agentGate --> rejectAgent["Reject wrapper without stable role identity and target constraints"]
+  agentGate --> agentFollowup["Agent follow-up only if threshold is met"]
+```
+
+Use this path when repeated work suggests a reusable skill, agent, guideline,
+source behavior, or governance update. This map helps identify the user
+procedure; it does not approve new reusable assets by itself.
+
 ## Canonical Work-Origin Procedure Map
 
 Use work origin as the canonical key. The same origin routes the same way
