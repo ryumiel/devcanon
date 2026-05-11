@@ -28,6 +28,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Where is exact Portable AFDS routing and evidence behavior defined? ->
   [`docs/specs/afds-workflow-routing.md`](docs/specs/afds-workflow-routing.md)
+- Where is the Portable AFDS user procedure map? ->
+  [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
@@ -76,6 +78,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the code review guideline? -> [`docs/guidelines/code-review-guideline.md`](docs/guidelines/code-review-guideline.md)
 - Where is the gh api hygiene guideline? -> [`docs/guidelines/gh-api-hygiene.md`](docs/guidelines/gh-api-hygiene.md)
 - Where is the project management model? -> [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
+- Where is the Portable AFDS user procedure map? ->
+  [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
 - Where are the Copilot review instructions? -> [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
 - Where are the TypeScript review instructions? -> [`.github/instructions/review-ts.instructions.md`](.github/instructions/review-ts.instructions.md)
 - Where is the PR template? -> [`.github/pull_request_template.md`](.github/pull_request_template.md)

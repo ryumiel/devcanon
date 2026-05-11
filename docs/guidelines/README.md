@@ -31,6 +31,8 @@ state, and active agent sessions for temporary execution detail.
   review, and breaking-change guidance.
 - [Project Management Model](project-management-model.md) - systems of record
   for product requirements, behavior specs, issues, PRs, and agent-local plans.
+- [Portable AFDS User Procedure Map](portable-afds-user-procedure-map.md) -
+  user-facing Portable AFDS procedures by work origin and persona journey.
 - [Shared Skill Reporting Workflow](shared-skill-reporting-workflow.md) - how
   to report reusable shared-skill or shared-agent needs upstream.
 - [Writing Skills](writing-skills.md) - source skill authoring and rendering
