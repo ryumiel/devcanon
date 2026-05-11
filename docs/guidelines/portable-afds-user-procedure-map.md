@@ -31,16 +31,16 @@ decisions belong to a capability-classification pass outside this guideline.
 Portable AFDS lifecycle work moves through these user-level phases. Not every
 piece of work needs every phase.
 
-| Phase                      | User goal                                                       | Owning surface                                                                 |
-| -------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Shape intent               | Turn unclear product or workflow intent into durable direction. | Product requirements, roadmap, guideline, ADR, or other durable AFDS artifact. |
-| Specify behavior           | Convert stable intent into acceptance-ready behavior.           | Behavior spec under `docs/specs/`.                                             |
-| Slice work                 | Create executable work from the owning artifact.                | External issue tracker, linked to the owning durable artifact.                 |
-| Execute issue              | Implement already-sliced work or concrete findings.             | Source, issue tracker, and any linked durable artifact.                        |
-| Review and verify          | Check the change against the execution contract and evidence.   | PR system, source tests, CI/check systems, audit output, or review comments.   |
-| Merge                      | Ship the reviewed change and keep merge state in the PR system. | PR system and Git history.                                                     |
-| Garden                     | Correct stale, duplicated, misplaced, or conflicting knowledge. | Artifact that owns the truth being corrected.                                  |
-| Govern reusable capability | Decide whether a repeated workflow need changes toolkit assets. | Capability-classification issue or accepted governance artifact.               |
+| Phase                      | User goal                                                               | Owning surface                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Shape intent               | Turn unclear product or workflow intent into durable direction.         | Product requirements, roadmap, guideline, ADR, or other durable AFDS artifact. |
+| Specify behavior           | Convert stable intent into acceptance-ready behavior.                   | Behavior spec under `docs/specs/`.                                             |
+| Slice work                 | Create executable work from the owning artifact.                        | External issue tracker, linked to the owning durable artifact.                 |
+| Execute issue              | Implement already-sliced work or concrete findings.                     | Source, issue tracker, and any linked durable artifact.                        |
+| Review and verify          | Check the change against the execution contract and evidence.           | PR system, source tests, CI/check systems, audit output, or review comments.   |
+| Merge                      | Ship the reviewed change and keep merge state in the PR system.         | PR system and Git history.                                                     |
+| Garden                     | Correct stale, duplicated, misplaced, or conflicting knowledge.         | Artifact that owns the truth being corrected.                                  |
+| Govern reusable capability | Decide whether a repeated workflow need requires toolkit asset changes. | Capability-classification issue or accepted governance artifact.               |
 
 The ordinary execution fast path stays valid: executable issues, review
 comments, failing tests, CI checks, and audit findings do not need new product
