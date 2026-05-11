@@ -14,6 +14,11 @@ intent, target users, goals, risks, and broad requirements belong in
 `docs/product-requirements/`. This overview summarizes behavior-spec scope,
 shared boundaries, and links to acceptance-ready specs.
 
+A behavior spec is a durable repository artifact that owns exact intended
+behavior, requirements, boundaries, acceptance criteria, verification
+expectations, and agent-facing context for behavior stable enough to execute
+against.
+
 ## Behavior Scope
 
 DevCanon is a user-wide Node.js CLI and source library for portable AFDS skills,
@@ -24,6 +29,7 @@ Behavior specs under this directory own exact intended behavior for:
 - CLI commands and command output;
 - configuration format and schema behavior;
 - skill and agent source formats;
+- Portable AFDS Toolkit lifecycle routing and evidence behavior;
 - target rendering for Claude Code and Codex;
 - install, sync, uninstall, and diff behavior;
 - platform, security, error handling, and testing requirements.
@@ -48,6 +54,7 @@ These boundaries apply across DevCanon behavior specs:
 ## Behavior Spec Index
 
 - [Core concepts and principles](core-concepts.md)
+- [AFDS workflow routing and evidence behavior](afds-workflow-routing.md)
 - [Configuration format](configuration.md)
 - [Skill specification](skills.md)
 - [Agent source schema](agents.md)
@@ -69,13 +76,14 @@ devcanon/
 ├─ skills/
 │  ├─ pr-review/
 │  │  ├─ SKILL.md
-│  │  └─ examples/
-│  └─ implementation-plan/
+│  │  └─ ...
+│  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
-│  ├─ reviewer.yaml
-│  ├─ planner.yaml
-│  └─ debugger.yaml
+│  ├─ code-quality-reviewer.yaml
+│  ├─ implementer.yaml
+│  ├─ research-agent.yaml
+│  └─ spec-compliance-reviewer.yaml
 ├─ generated/
 │  ├─ claude/
 │  │  └─ agents/
@@ -99,12 +107,13 @@ Notes:
 ~/.claude/
 └─ skills/
    ├─ pr-review/
-   └─ implementation-plan/
+   └─ write-product-spec/
 
 ~/.claude/agents/
-├─ reviewer.md
-├─ planner.md
-└─ debugger.md
+├─ code-quality-reviewer.md
+├─ implementer.md
+├─ research-agent.md
+└─ spec-compliance-reviewer.md
 ```
 
 ### Codex Target
@@ -113,12 +122,13 @@ Notes:
 ~/.agents/
 └─ skills/
    ├─ pr-review/
-   └─ implementation-plan/
+   └─ write-product-spec/
 
 ~/.codex/agents/
-├─ reviewer.toml
-├─ planner.toml
-└─ debugger.toml
+├─ code-quality-reviewer.toml
+├─ implementer.toml
+├─ research-agent.toml
+└─ spec-compliance-reviewer.toml
 ```
 
 Notes:

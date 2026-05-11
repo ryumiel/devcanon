@@ -27,9 +27,9 @@ repository-level document manager. It supports projects that use GitHub Issues
 or Linear as their external issue tracker while keeping adoption guided instead
 of automatic.
 
-This document captures product requirements for that toolkit. It is the
-discussion basis for later behavior spec and capability-governance guideline
-passes.
+This document captures product requirements for that toolkit. It remains the
+product-intent source for derived behavior specs and capability-governance
+guidance.
 
 ## Terminology
 
@@ -52,9 +52,9 @@ passes.
 - **Execution path**: work that starts from an already-sliced issue, finding,
   test, or review comment and updates durable docs only when behavior or policy
   changes.
-- **AFDS workflow routing spec**: the planned behavior spec at
-  `docs/specs/afds-workflow-routing.md` that should own exact routing and
-  evidence behavior for the Portable AFDS Toolkit.
+- **AFDS workflow routing spec**: the behavior spec at
+  `docs/specs/afds-workflow-routing.md` that owns exact routing and evidence
+  behavior for the Portable AFDS Toolkit.
 - **AFDS workflow capability governance**: the reusable governance procedure,
   planned for `docs/guidelines/afds-workflow-capability-governance.md`, that
   maps AFDS workflow needs to existing skills, agent roles, docs, source
@@ -534,15 +534,14 @@ event narrative in repository documentation.
 - If capability classification becomes too heavy, teams may bypass the toolkit
   during normal work instead of using it to reduce coordination cost.
 
-## Planned Downstream Authority Handoffs
+## Downstream Authority Handoffs
 
-- `docs/specs/afds-workflow-routing.md` should own the canonical routing table
-  or decision tree that lets a fresh human or agent map work origin to owner,
+- `docs/specs/afds-workflow-routing.md` owns the canonical routing table or
+  decision tree that lets a fresh human or agent map work origin to owner,
   route, evidence location, durable-update trigger, or blocker.
-- `docs/specs/afds-workflow-routing.md` should also own exact evidence pointer
-  behavior, including how the toolkit handles private or inaccessible tracker,
-  PR, or CI evidence without copying that evidence into repository
-  documentation.
+- `docs/specs/afds-workflow-routing.md` owns exact evidence pointer behavior,
+  including how the toolkit handles private or inaccessible tracker, PR, or CI
+  evidence without copying that evidence into repository documentation.
 - `docs/guidelines/afds-workflow-capability-governance.md` should own the
   reusable capability-classification procedure for deciding whether a workflow
   need should be handled by updating an existing asset, creating a new skill,
