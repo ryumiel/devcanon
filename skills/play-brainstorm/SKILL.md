@@ -124,7 +124,7 @@ You MUST create a task for each of these items and complete them in order:
 8. **User reviews written design** — ask user to review the design file before proceeding
 9. **Transition to implementation when appropriate** — invoke play-planning skill only for executable implementation designs
 
-**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 4, and 7 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
+**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 3, 5, and 8 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
 
 ## Process Flow
 
@@ -174,11 +174,12 @@ digraph brainstorming {
 
 **AFDS handoff classification:**
 
-Before approach selection, use
-[`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
-to decide whether the shaped output should continue as an executable
-implementation design or exit to a durable owner. Hand off unclear product
-intent to `write-product-requirements`; acceptance-ready behavior to
+Before approach selection, apply the Portable AFDS procedure map routing
+summarized here (source path:
+`docs/guidelines/portable-afds-user-procedure-map.md`) to decide whether the
+shaped output should continue as an executable implementation design or exit to
+a durable owner. Hand off unclear product intent to
+`write-product-requirements`; acceptance-ready behavior to
 `write-product-spec`; roadmap-scale direction to the roadmap owner; reusable
 workflow policy, procedure, role-boundary, guideline, ADR, or source-owner
 changes to that owning artifact; and repeated reusable workflow gaps without a
