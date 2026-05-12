@@ -408,9 +408,17 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("single-PR execution plans");
     expect(writeProductSpecBody).toContain("contract authority");
     expect(writeProductSpecBody).toContain("source-owned schemas");
+    expect(writeProductSpecBody).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(writeProductSpecBody).toContain("evidence pointer");
+    expect(writeProductSpecBody).toContain("readiness review");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
-    expect(writeProductSpecBody).not.toContain("spec-readiness-review");
+    expect(writeProductSpecBody).toContain("spec-readiness-review");
     expect(writeProductSpecBody).toContain("issue-slicing");
+    expect(writeProductSpecBody.indexOf("spec-readiness-review")).toBeLessThan(
+      writeProductSpecBody.indexOf("issue-slicing"),
+    );
     expect(writeProductSpecBody).not.toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
     expect(writeProductSpecBody).toContain("post-merge-gardener");

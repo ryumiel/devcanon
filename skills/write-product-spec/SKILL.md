@@ -19,6 +19,10 @@ This skill is a narrow authoring workflow. It is not a general planning,
 architecture, roadmap, contract, issue-tracking, or documentation-gardening
 workflow.
 
+Use `docs/guidelines/portable-afds-user-procedure-map.md` as the broader
+Portable AFDS routing reference when deciding how behavior-spec evidence
+supports readiness review and downstream issue slicing.
+
 ## When To Use
 
 Use when the task is to create, update, shape, draft, or review a durable
@@ -48,7 +52,10 @@ Gather only durable inputs:
 - Issues, PRs, design notes, tests, and code investigation used as evidence
 
 Treat issues, PRs, and agent-local notes as evidence, not as durable content
-to copy into the spec.
+to copy into the spec. Record an evidence pointer instead: name the evidence
+system, stable reference, checked requirement or owner, result state, and any
+blocker or follow-up owner needed for readiness review and later issue
+slicing.
 
 ## Procedure
 
@@ -72,7 +79,13 @@ to copy into the spec.
      `.ephemeral/` agent-local artifacts.
 4. Draft or update the behavior spec using the smallest complete shape that
    captures the durable behavior.
-5. Verify the spec against the boundary checklist before finishing.
+5. Record evidence pointers that support the requirements, acceptance
+   criteria, verification expectations, and owner links without copying live
+   issue, PR, CI, or agent-local state into the spec.
+6. Verify the spec against the boundary checklist before finishing.
+7. When the spec is ready to become executable work, route through
+   `spec-readiness-review` for readiness review before handing draft issue
+   content to `issue-slicing`.
 
 ## Behavior Spec Shape
 
@@ -90,6 +103,9 @@ Use headings that fit the existing spec, but cover these concerns:
   spec.
 - Verification expectations: tests, commands, review checks, or inspection
   steps that prove the behavior.
+- Evidence pointers: durable links to issues, PRs, source findings, tests, or
+  review evidence that support readiness and later slicing without copying
+  live state.
 - Agent context: concise constraints future agents must preserve.
 
 Optional sections can cover assumptions, open questions, migration,
@@ -112,8 +128,12 @@ Before finalizing, confirm:
   roadmap items, reusable workflow guidelines, and issue plans.
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
-- Slice-ready behavior points to the approved `issue-slicing` handoff instead
-  of inventing provider-specific issue mutation.
+- Evidence pointers identify the evidence system, stable reference, checked
+  requirement or owner, result state, and any blocker without copying live
+  tracker, PR, CI, or agent-local state.
+- Slice-ready behavior points to `spec-readiness-review` for readiness review
+  before the approved `issue-slicing` handoff instead of inventing
+  provider-specific issue mutation.
 - The change does not implement or imply approval for unapproved follow-up
   surfaces such as `doc-impact-review`, `post-merge-gardener`, or new agent
   roles.
