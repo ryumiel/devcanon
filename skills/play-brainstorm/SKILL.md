@@ -103,7 +103,7 @@ an external issue body.
 The path reference is consumed by the controller; the inline form is preserved for direct human invocations.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval. The design step is skipped only when AFDS routing classification emits the durable owner referral notice for non-executable owner work; that notice stops the flow before implementation planning.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval. The design step is skipped only when durable owner referral classification emits the durable owner referral notice for non-executable owner work; that notice stops the flow before implementation planning.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
@@ -112,13 +112,13 @@ Every executable implementation project goes through this process. A todo list, 
 
 ## Checklist
 
-You MUST create and complete the applicable tasks sequentially. If AFDS routing
-classification emits the durable owner referral notice, stop there; the later
-design and implementation-transition tasks do not apply.
+You MUST create and complete the applicable tasks sequentially. If durable owner
+referral classification emits the durable owner referral notice, stop there; the
+later design and implementation-transition tasks do not apply.
 
 1. **Explore project context** — check files, docs, recent commits
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-3. **Classify the AFDS route** — decide whether shaped work continues to an executable design or exits through the durable owner referral notice
+3. **Classify durable owner referral need** — decide whether shaped work continues to an executable design or exits through the durable owner referral notice
 4. **Propose 2-3 approaches when executable** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
 6. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
@@ -133,7 +133,7 @@ design and implementation-transition tasks do not apply.
 ```dot
 digraph brainstorming {
     "Explore project context" [shape=box];
-    "AFDS routing classification" [shape=diamond];
+    "Durable owner referral classification" [shape=diamond];
     "Durable owner referral notice" [shape=doublecircle];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
@@ -147,9 +147,9 @@ digraph brainstorming {
     "Invoke play-planning skill" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
-    "Ask clarifying questions" -> "AFDS routing classification";
-    "AFDS routing classification" -> "Durable owner referral notice" [label="non-executable or unclear owner work"];
-    "AFDS routing classification" -> "Propose 2-3 approaches" [label="executable design"];
+    "Ask clarifying questions" -> "Durable owner referral classification";
+    "Durable owner referral classification" -> "Durable owner referral notice" [label="non-executable or unclear owner work"];
+    "Durable owner referral classification" -> "Propose 2-3 approaches" [label="executable design"];
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "Auto mode?";
     "Auto mode?" -> "Write design doc" [label="yes (bypass approval)"];
@@ -165,7 +165,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS routing classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop instead of forcing an implementation plan.
+**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop instead of forcing an implementation plan.
 
 ## The Process
 
@@ -174,7 +174,7 @@ digraph brainstorming {
 - Check out the current project state first (files, docs, recent commits)
 - Scan `docs/adr/` titles and `docs/arch/overview.md`. If a covering ADR exists for the domain this work touches, summarize it before proposing changes.
 
-**AFDS routing classification:**
+**Durable owner referral classification:**
 
 Before approach selection, apply the Portable AFDS procedure map routing
 summarized here (source path:
@@ -297,7 +297,7 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 **Implementation:**
 
-- If AFDS routing classification produced an executable implementation
+- If durable owner referral classification produced an executable implementation
   design, invoke the play-planning skill to create a detailed implementation
   plan. Pass the design as a `Design: <path>` reference in the invocation prose
   (the path you just emitted in the notice line above), not as inline content.
