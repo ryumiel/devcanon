@@ -434,6 +434,10 @@ mkdir -p .ephemeral
       "docs/guidelines/portable-afds-user-procedure-map.md",
     );
     expect(specReadinessReviewBody).toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    expect(specReadinessReviewBody).toContain("routing spec as the authority");
+    expect(specReadinessReviewBody).toContain(
       "does not approve implementation",
     );
   });

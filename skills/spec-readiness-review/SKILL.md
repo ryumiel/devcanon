@@ -40,10 +40,12 @@ not as authority that can override the owning durable artifact.
 
 ## Review Procedure
 
-1. Load the project instructions file, `MAP.md`, and
+1. Load the project instructions file, `MAP.md`,
+   `docs/specs/afds-workflow-routing.md`, and
    `docs/guidelines/portable-afds-user-procedure-map.md` before assessing the
-   artifact. Use the procedure map as the routing authority for readiness review
-   before slicing.
+   artifact. Use the routing spec as the authority for exact owner, evidence,
+   blocker, drift, and follow-up behavior; use the procedure map to apply those
+   rules to pre-slicing readiness review.
 2. Identify the owning artifact and the work origin. If ownership is unclear,
    return `Blocked`.
 3. Check whether the artifact contains enough scope and boundaries for a fresh
