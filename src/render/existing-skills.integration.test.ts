@@ -415,6 +415,9 @@ mkdir -p .ephemeral
       "references/behavior-spec-evidence-routing.md",
     );
     expect(writeProductSpecBody).toContain(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecBody).toContain(
       "Repo-local AFDS docs are optional project context",
     );
     expect(writeProductSpecBody).toContain("required runtime inputs");
@@ -435,6 +438,31 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("write-product-requirements");
     expect(writeProductSpecBody).toContain("docs/product-requirements/");
     expect(writeProductSpecBody).toContain("product intent");
+  });
+
+  it("documents behavior-spec evidence routing as a durable procedure-map owner", async () => {
+    const repoRoot = process.cwd();
+
+    const procedureMap = await readFile(
+      path.join(
+        repoRoot,
+        "docs/guidelines/portable-afds-user-procedure-map.md",
+      ),
+      "utf-8",
+    );
+    const routingGuideline = await readFile(
+      path.join(repoRoot, "docs/guidelines/behavior-spec-evidence-routing.md"),
+      "utf-8",
+    );
+
+    expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
+    expect(procedureMap).toContain("durable source of origin");
+    expect(routingGuideline).toContain(
+      "This guideline is the durable source of origin",
+    );
+    expect(routingGuideline).toContain("Evidence Pointers");
+    expect(routingGuideline).toContain("Readiness Before Slicing");
+    expect(routingGuideline).toContain("Storage Boundary");
   });
 
   it("documents the spec-readiness-review status contract", async () => {
@@ -567,6 +595,13 @@ mkdir -p .ephemeral
       "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
     );
     const sourceContent = await readFile(sourcePath, "utf-8");
+    const sourceOfOriginPath = path.join(
+      repoRoot,
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    const sourceOfOriginContent = await readFile(sourceOfOriginPath, "utf-8");
+
+    expect(sourceContent).toBe(sourceOfOriginContent);
 
     for (const target of ["claude", "codex"] as const) {
       const generatedPath = path.join(

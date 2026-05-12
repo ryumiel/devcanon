@@ -21,8 +21,10 @@ workflow.
 
 Load `references/behavior-spec-evidence-routing.md` as the portable runtime
 authority for evidence pointers, readiness review, and downstream issue
-slicing. Repo-local AFDS docs are optional project context when present,
-including the broader Portable AFDS user procedure map at
+slicing. It mirrors the durable source-of-origin guideline at
+`docs/guidelines/behavior-spec-evidence-routing.md` for installed skill copies.
+Repo-local AFDS docs are optional project context when present, including the
+broader Portable AFDS user procedure map at
 `docs/guidelines/portable-afds-user-procedure-map.md`. Do not treat repo-local
 AFDS docs as required runtime inputs.
 
