@@ -162,9 +162,10 @@ artifacts:
 
 ### FOLLOW-001: Follow-Up Surface Identification
 
-The spec may identify candidate follow-up surfaces that need capability
-classification, but it must not approve additional skills, agents, or governance
-artifacts.
+This spec distinguishes approved follow-up surfaces from candidate follow-up
+surfaces that still need capability classification. Candidate identification is
+not approval; additional skills, agents, or governance artifacts require an
+accepted owner update before moving to the approved list.
 
 Approved follow-up surfaces:
 

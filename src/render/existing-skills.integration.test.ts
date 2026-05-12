@@ -450,13 +450,16 @@ mkdir -p .ephemeral
       "Repo-local AFDS docs are optional project context",
     );
     expect(specReadinessReviewBody).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "not treat repo-local docs as required runtime inputs",
+    );
+    expect(specReadinessReviewBody).toContain(
       "does not approve implementation",
     );
     expect(specReadinessReviewBody).not.toContain(
       "docs/specs/afds-workflow-routing.md",
-    );
-    expect(specReadinessReviewBody).not.toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
     );
   });
 
