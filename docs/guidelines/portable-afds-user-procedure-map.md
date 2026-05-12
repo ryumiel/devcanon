@@ -12,6 +12,12 @@ into repeatable user journeys. The routing spec remains the authority for exact
 owner, evidence, blocker, fast-path, drift, and follow-up behavior. This
 guideline owns how users apply those rules.
 
+The installable readiness-review runtime subset lives in
+`skills/spec-readiness-review/references/`. That packaged subset is the
+skill-local authority for pre-slicing readiness review at runtime; this
+guideline remains the broader user procedure map for Portable AFDS lifecycle
+work.
+
 ## Purpose
 
 Use this map when a user, maintainer, or agent needs to decide what procedure

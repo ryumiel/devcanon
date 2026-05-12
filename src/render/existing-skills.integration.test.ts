@@ -21,6 +21,7 @@ const TOUCHED_SKILLS = new Set([
   "play-skill-authoring",
   "play-planning",
   "report-devcanon-shared-issue",
+  "spec-readiness-review",
   "write-product-requirements",
   "write-product-spec",
 ]);
@@ -406,13 +407,97 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("single-PR execution plans");
     expect(writeProductSpecBody).toContain("contract authority");
     expect(writeProductSpecBody).toContain("source-owned schemas");
-    expect(writeProductSpecBody).toContain("spec-readiness-review");
+    expect(writeProductSpecBody).toContain("unapproved follow-up");
+    expect(writeProductSpecBody).not.toContain("spec-readiness-review");
     expect(writeProductSpecBody).toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
     expect(writeProductSpecBody).toContain("new agent roles");
     expect(writeProductSpecBody).toContain("write-product-requirements");
     expect(writeProductSpecBody).toContain("docs/product-requirements/");
     expect(writeProductSpecBody).toContain("product intent");
+  });
+
+  it("documents the spec-readiness-review status contract", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const specReadinessReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "spec-readiness-review", "codex").content,
+    ).body;
+
+    expect(specReadinessReviewBody).toContain(
+      "**Status:** <one of: Ready, Needs revision, Blocked>",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "Final status: <repeat the same single status>",
+    );
+    expect(specReadinessReviewBody).not.toContain(
+      "**Status:** Ready | Needs revision | Blocked",
+    );
+    expect(specReadinessReviewBody).not.toContain(
+      "Final status: Ready | Needs revision | Blocked",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "references/pre-slicing-procedure-map.md",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "references/routing-and-evidence.md",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "Repo-local AFDS docs are optional project context",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "not treat repo-local docs as required runtime inputs",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "does not approve implementation",
+    );
+    expect(specReadinessReviewBody).not.toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+  });
+
+  it("mirrors spec-readiness-review bundled references to both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    await renderAll(config, true);
+
+    const expectedReferences = [
+      "routing-and-evidence.md",
+      "pre-slicing-procedure-map.md",
+    ];
+
+    for (const reference of expectedReferences) {
+      const sourcePath = path.join(
+        repoRoot,
+        "skills/spec-readiness-review/references",
+        reference,
+      );
+      const sourceContent = await readFile(sourcePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "spec-readiness-review",
+          "references",
+          reference,
+        );
+
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
+    }
   });
 
   it("documents the write-product-requirements PRD boundaries", async () => {

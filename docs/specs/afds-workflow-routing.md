@@ -25,6 +25,12 @@ This spec is not a product requirements document, roadmap item, reusable
 procedure, implementation plan, live tracker, or review record. Those artifacts
 may link to this spec, but they remain separate systems of record.
 
+The portable runtime subset for pre-slicing readiness review is packaged under
+`skills/spec-readiness-review/references/`. That installable subset is the
+skill-local runtime authority for the `spec-readiness-review` skill; this file
+remains the broader repo-level behavior spec for AFDS workflow routing and
+evidence behavior.
+
 ## Scope
 
 This spec owns deterministic routing, minimum evidence pointers, ordinary
@@ -37,8 +43,9 @@ using Claude Code or Codex outputs.
 - Defining product intent or broad product requirements.
 - Defining roadmap sequencing, appetite, or pilot validation targets.
 - Defining reusable workflow procedure or contributor policy.
-- Approving new workflow skills, new agent wrappers, or capability-governance
-  artifacts before the owning capability-classification pass.
+- Performing new capability-classification approvals for workflow skills, new
+  agent wrappers, or capability-governance artifacts; approved surfaces may be
+  recorded only after the owning acceptance path exists.
 - Duplicating provider-specific issue APIs, PR APIs, CI APIs, source schemas, or
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
@@ -155,13 +162,19 @@ artifacts:
 
 ### FOLLOW-001: Follow-Up Surface Identification
 
-The spec may identify candidate follow-up surfaces that need capability
-classification, but it must not approve new skills, agents, or governance
-artifacts.
+This spec distinguishes approved follow-up surfaces from candidate follow-up
+surfaces that still need capability classification. Candidate identification is
+not approval; additional skills, agents, or governance artifacts require an
+accepted owner update before moving to the approved list.
+
+Approved follow-up surfaces:
+
+- `spec-readiness-review` is approved as a read-only pre-slicing readiness
+  review skill. Its installable runtime subset is packaged under
+  `skills/spec-readiness-review/references/`.
 
 Candidate surfaces for the owning capability-classification pass include:
 
-- `spec-readiness-review`;
 - `slice-issues`;
 - `doc-impact-review`;
 - `post-merge-gardener`;

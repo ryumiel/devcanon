@@ -112,8 +112,8 @@ Before finalizing, confirm:
   roadmap items, reusable workflow guidelines, and issue plans.
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
-- The change does not implement or imply approval for
-  `spec-readiness-review`, `slice-issues`, `doc-impact-review`, or new agent roles.
+- The change does not implement or imply approval for unapproved follow-up
+  surfaces such as `slice-issues`, `doc-impact-review`, or new agent roles.
 
 ## Outputs
 
