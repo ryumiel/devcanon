@@ -411,7 +411,15 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain(
       "docs/guidelines/portable-afds-user-procedure-map.md",
     );
+    expect(writeProductSpecBody).toContain(
+      "references/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecBody).toContain(
+      "Repo-local AFDS docs are optional project context",
+    );
+    expect(writeProductSpecBody).toContain("required runtime inputs");
     expect(writeProductSpecBody).toContain("evidence pointer");
+    expect(writeProductSpecBody).toContain("durable team/system/role");
     expect(writeProductSpecBody).toContain("readiness review");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
     expect(writeProductSpecBody).toContain("spec-readiness-review");
@@ -543,6 +551,35 @@ mkdir -p .ephemeral
         expect(await pathExists(generatedPath)).toBe(true);
         expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
       }
+    }
+  });
+
+  it("mirrors write-product-spec bundled references to both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    await renderAll(config, true);
+
+    const sourcePath = path.join(
+      repoRoot,
+      "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
+    );
+    const sourceContent = await readFile(sourcePath, "utf-8");
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "write-product-spec",
+        "references",
+        "behavior-spec-evidence-routing.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
     }
   });
 
