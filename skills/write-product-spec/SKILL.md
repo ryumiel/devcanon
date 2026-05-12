@@ -112,8 +112,11 @@ Before finalizing, confirm:
   roadmap items, reusable workflow guidelines, and issue plans.
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
+- Slice-ready behavior points to the approved `issue-slicing` handoff instead
+  of inventing provider-specific issue mutation.
 - The change does not implement or imply approval for unapproved follow-up
-  surfaces such as `slice-issues`, `doc-impact-review`, or new agent roles.
+  surfaces such as `doc-impact-review`, `post-merge-gardener`, or new agent
+  roles.
 
 ## Outputs
 

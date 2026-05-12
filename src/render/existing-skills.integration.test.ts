@@ -410,9 +410,12 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("source-owned schemas");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
     expect(writeProductSpecBody).not.toContain("spec-readiness-review");
-    expect(writeProductSpecBody).toContain("slice-issues");
+    expect(writeProductSpecBody).toContain("issue-slicing");
+    expect(writeProductSpecBody).not.toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
-    expect(writeProductSpecBody).toContain("new agent roles");
+    expect(writeProductSpecBody).toContain("post-merge-gardener");
+    expect(writeProductSpecBody).toContain("new agent");
+    expect(writeProductSpecBody).toContain("roles");
     expect(writeProductSpecBody).toContain("write-product-requirements");
     expect(writeProductSpecBody).toContain("docs/product-requirements/");
     expect(writeProductSpecBody).toContain("product intent");
