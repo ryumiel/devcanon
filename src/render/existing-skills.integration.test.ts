@@ -460,10 +460,18 @@ mkdir -p .ephemeral
 
     expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
     expect(procedureMap).toContain("durable source of origin");
+    expect(procedureMap).toContain(
+      "`spec-readiness-review`, then `issue-slicing`",
+    );
     expect(routingGuideline).toContain("The durable source of origin");
     expect(routingGuideline).toContain(
       "`docs/specs/afds-workflow-routing.md` `EVID-001`",
     );
+    expect(routingGuideline).toContain("Runtime excerpt from `EVID-001`");
+    expect(routingGuideline).toContain(
+      "checked requirement, route, execution contract, or owner",
+    );
+    expect(routingGuideline).toContain("blocker or follow-up owner");
     expect(routingGuideline).toContain("contract to behavior-spec authoring");
     expect(routingGuideline).toContain("Evidence Pointers");
     expect(routingGuideline).toContain("Readiness Before Slicing");

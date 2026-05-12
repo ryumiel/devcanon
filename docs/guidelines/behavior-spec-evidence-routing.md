@@ -36,6 +36,17 @@ state into the spec. The minimum evidence-pointer contract is owned by
 `docs/specs/afds-workflow-routing.md` `EVID-001`; this guideline applies that
 contract to behavior-spec authoring.
 
+Runtime excerpt from `EVID-001`: an evidence pointer must identify:
+
+- evidence system;
+- stable reference, such as an issue URL, PR URL, review comment, CI/check URL,
+  source test path, command, audit output reference, commit, or source file path;
+- checked requirement, route, execution contract, or owner;
+- result state, such as passed, failed, blocked, unavailable, not run, or not
+  applicable;
+- blocker or follow-up owner when evidence is incomplete, private,
+  inaccessible, or failing.
+
 For behavior specs, the pointer must still be enough for a later human or agent
 with appropriate access to find the evidence. When the evidence is incomplete,
 private, inaccessible, or failing, record the blocker or follow-up owner as a
