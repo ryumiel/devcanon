@@ -43,8 +43,9 @@ using Claude Code or Codex outputs.
 - Defining product intent or broad product requirements.
 - Defining roadmap sequencing, appetite, or pilot validation targets.
 - Defining reusable workflow procedure or contributor policy.
-- Approving new workflow skills, new agent wrappers, or capability-governance
-  artifacts before the owning capability-classification pass.
+- Approving additional workflow skills, new agent wrappers, or
+  capability-governance artifacts before the owning capability-classification
+  pass.
 - Duplicating provider-specific issue APIs, PR APIs, CI APIs, source schemas, or
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
@@ -162,12 +163,17 @@ artifacts:
 ### FOLLOW-001: Follow-Up Surface Identification
 
 The spec may identify candidate follow-up surfaces that need capability
-classification, but it must not approve new skills, agents, or governance
+classification, but it must not approve additional skills, agents, or governance
 artifacts.
+
+Approved follow-up surfaces:
+
+- `spec-readiness-review` is approved as a read-only pre-slicing readiness
+  review skill. Its installable runtime subset is packaged under
+  `skills/spec-readiness-review/references/`.
 
 Candidate surfaces for the owning capability-classification pass include:
 
-- `spec-readiness-review`;
 - `slice-issues`;
 - `doc-impact-review`;
 - `post-merge-gardener`;

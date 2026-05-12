@@ -407,7 +407,8 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("single-PR execution plans");
     expect(writeProductSpecBody).toContain("contract authority");
     expect(writeProductSpecBody).toContain("source-owned schemas");
-    expect(writeProductSpecBody).toContain("spec-readiness-review");
+    expect(writeProductSpecBody).toContain("unapproved follow-up");
+    expect(writeProductSpecBody).not.toContain("spec-readiness-review");
     expect(writeProductSpecBody).toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
     expect(writeProductSpecBody).toContain("new agent roles");
@@ -428,6 +429,15 @@ mkdir -p .ephemeral
     ).body;
 
     expect(specReadinessReviewBody).toContain(
+      "**Status:** <one of: Ready, Needs revision, Blocked>",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "Final status: <repeat the same single status>",
+    );
+    expect(specReadinessReviewBody).not.toContain(
+      "**Status:** Ready | Needs revision | Blocked",
+    );
+    expect(specReadinessReviewBody).not.toContain(
       "Final status: Ready | Needs revision | Blocked",
     );
     expect(specReadinessReviewBody).toContain(

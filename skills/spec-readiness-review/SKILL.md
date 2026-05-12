@@ -85,7 +85,7 @@ Return a concise report in this shape:
 
 **Artifact:** <path or reference>
 **Runtime references:** `references/routing-and-evidence.md`, `references/pre-slicing-procedure-map.md`
-**Status:** Ready | Needs revision | Blocked
+**Status:** <one of: Ready, Needs revision, Blocked>
 
 ### Findings
 
@@ -95,7 +95,7 @@ Return a concise report in this shape:
 
 - <only include when useful; name issue-slicing implications without drafting tracker text>
 
-Final status: Ready | Needs revision | Blocked
+Final status: <repeat the same single status>
 ```
 
 Keep findings tied to the artifact under review. Do not include implementation
