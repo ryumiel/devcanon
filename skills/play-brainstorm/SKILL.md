@@ -189,6 +189,11 @@ specs, roadmap updates, or capability classification. Route away from
 implementation design only when the issue lacks an execution contract, durable
 truth changes, or ownership is unclear.
 
+Generated or installed drift is not automatically non-executable. If the issue
+has enough contract to regenerate stale preview output, sync or uninstall
+manifest-managed installed output, or fix source, renderer, install, or manifest
+behavior with proven ownership, continue to executable design.
+
 For non-executable owner work, do not invoke owner-authoring skills from this
 flow. Emit exactly this bare standalone line, including the trailing period,
 and then stop:
@@ -201,11 +206,11 @@ Use
 `write-product-requirements` for unclear product intent; `write-product-spec`
 for acceptance-ready behavior; the roadmap owner for roadmap-scale direction;
 the owning guideline, ADR, or source owner for reusable workflow policy,
-procedure, role-boundary, guideline, ADR, or source-owner changes; source,
-renderer, install, or manifest ownership for generated or installed drift; and
-capability classification for repeated reusable workflow gaps without a
-governed owner. Do not make `play-brainstorm` write those owner artifacts or
-slice issues itself.
+procedure, role-boundary, guideline, ADR, or source-owner changes; a source,
+renderer, install, manifest, or blocker owner only when generated or installed
+drift ownership cannot be proven from the issue evidence; and capability
+classification for repeated reusable workflow gaps without a governed owner. Do
+not make `play-brainstorm` write those owner artifacts or slice issues itself.
 
 - **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
