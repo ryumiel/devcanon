@@ -53,9 +53,10 @@ Gather only durable inputs:
 
 Treat issues, PRs, and agent-local notes as evidence, not as durable content
 to copy into the spec. Record an evidence pointer instead: name the evidence
-system, stable reference, checked requirement or owner, result state, and any
-blocker or follow-up owner needed for readiness review and later issue
-slicing.
+system, stable reference, checked requirement or durable artifact/system/role
+owner, result state, and any blocker or durable follow-up owner needed for
+readiness review and later issue slicing. Do not record person names,
+assignees, reviewer names, or live tracker ownership in the spec.
 
 ## Procedure
 
@@ -84,8 +85,9 @@ slicing.
    issue, PR, CI, or agent-local state into the spec.
 6. Verify the spec against the boundary checklist before finishing.
 7. When the spec is ready to become executable work, route through
-   `spec-readiness-review` for readiness review before handing draft issue
-   content to `issue-slicing`.
+   `spec-readiness-review` for readiness review before handing the spec,
+   readiness evidence, or evidence pointers to `issue-slicing` to draft
+   executable issue content.
 
 ## Behavior Spec Shape
 
@@ -129,8 +131,9 @@ Before finalizing, confirm:
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
 - Evidence pointers identify the evidence system, stable reference, checked
-  requirement or owner, result state, and any blocker without copying live
-  tracker, PR, CI, or agent-local state.
+  requirement or durable artifact/system/role owner, result state, and any
+  blocker without copying live tracker, PR, CI, agent-local state, person
+  names, assignees, reviewer names, or live tracker ownership.
 - Slice-ready behavior points to `spec-readiness-review` for readiness review
   before the approved `issue-slicing` handoff instead of inventing
   provider-specific issue mutation.
