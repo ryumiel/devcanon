@@ -43,9 +43,9 @@ using Claude Code or Codex outputs.
 - Defining product intent or broad product requirements.
 - Defining roadmap sequencing, appetite, or pilot validation targets.
 - Defining reusable workflow procedure or contributor policy.
-- Approving additional workflow skills, new agent wrappers, or
-  capability-governance artifacts before the owning capability-classification
-  pass.
+- Performing new capability-classification approvals for workflow skills, new
+  agent wrappers, or capability-governance artifacts; approved surfaces may be
+  recorded only after the owning acceptance path exists.
 - Duplicating provider-specific issue APIs, PR APIs, CI APIs, source schemas, or
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
