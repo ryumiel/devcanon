@@ -25,6 +25,12 @@ This spec is not a product requirements document, roadmap item, reusable
 procedure, implementation plan, live tracker, or review record. Those artifacts
 may link to this spec, but they remain separate systems of record.
 
+The portable runtime subset for pre-slicing readiness review is packaged under
+`skills/spec-readiness-review/references/`. That installable subset is the
+skill-local runtime authority for the `spec-readiness-review` skill; this file
+remains the broader repo-level behavior spec for AFDS workflow routing and
+evidence behavior.
+
 ## Scope
 
 This spec owns deterministic routing, minimum evidence pointers, ordinary

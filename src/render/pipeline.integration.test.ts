@@ -801,6 +801,8 @@ describe("renderAll", () => {
     );
     expect(await pathExists(claudeFile)).toBe(true);
     expect(await pathExists(codexFile)).toBe(true);
+    expect(await readFile(claudeFile, "utf-8")).toBe("hello\n");
+    expect(await readFile(codexFile, "utf-8")).toBe("hello\n");
   });
 
   it("purges stale orphans inside a per-skill generated dir on re-render", async () => {

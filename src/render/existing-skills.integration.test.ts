@@ -431,15 +431,60 @@ mkdir -p .ephemeral
       "Final status: Ready | Needs revision | Blocked",
     );
     expect(specReadinessReviewBody).toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
+      "references/pre-slicing-procedure-map.md",
     );
     expect(specReadinessReviewBody).toContain(
-      "docs/specs/afds-workflow-routing.md",
+      "references/routing-and-evidence.md",
     );
-    expect(specReadinessReviewBody).toContain("routing spec as the authority");
+    expect(specReadinessReviewBody).toContain(
+      "Repo-local AFDS docs are optional project context",
+    );
     expect(specReadinessReviewBody).toContain(
       "does not approve implementation",
     );
+    expect(specReadinessReviewBody).not.toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    expect(specReadinessReviewBody).not.toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+  });
+
+  it("mirrors spec-readiness-review bundled references to both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    await renderAll(config, true);
+
+    const expectedReferences = [
+      "routing-and-evidence.md",
+      "pre-slicing-procedure-map.md",
+    ];
+
+    for (const reference of expectedReferences) {
+      const sourcePath = path.join(
+        repoRoot,
+        "skills/spec-readiness-review/references",
+        reference,
+      );
+      const sourceContent = await readFile(sourcePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "spec-readiness-review",
+          "references",
+          reference,
+        );
+
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
+    }
   });
 
   it("documents the write-product-requirements PRD boundaries", async () => {

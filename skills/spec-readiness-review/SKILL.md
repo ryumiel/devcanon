@@ -31,7 +31,7 @@ Linear state, or replace owner-authoring workflows such as
 
 Accept any combination of:
 
-- artifact paths, such as `docs/specs/afds-workflow-routing.md`;
+- artifact paths, such as `docs/specs/<topic>.md`;
 - evidence pointers, such as issue, PR, CI, test, or source references;
 - the intended slicing target, when known.
 
@@ -40,12 +40,14 @@ not as authority that can override the owning durable artifact.
 
 ## Review Procedure
 
-1. Load the project instructions file, `MAP.md`,
-   `docs/specs/afds-workflow-routing.md`, and
-   `docs/guidelines/portable-afds-user-procedure-map.md` before assessing the
-   artifact. Use the routing spec as the authority for exact owner, evidence,
-   blocker, drift, and follow-up behavior; use the procedure map to apply those
-   rules to pre-slicing readiness review.
+1. Load `references/routing-and-evidence.md` and
+   `references/pre-slicing-procedure-map.md` before assessing the artifact. Use
+   the bundled routing and evidence reference as the portable runtime authority
+   for exact owner, evidence, blocker, drift, and follow-up behavior; use the
+   bundled pre-slicing procedure map to apply those rules to readiness review.
+   Repo-local AFDS docs are optional project context when present or when the
+   reviewed artifact points there, including project instructions, `MAP.md`,
+   `docs/specs/`, and `docs/guidelines/`.
 2. Identify the owning artifact and the work origin. If ownership is unclear,
    return `Blocked`.
 3. Check whether the artifact contains enough scope and boundaries for a fresh
@@ -82,7 +84,7 @@ Return a concise report in this shape:
 ## Readiness Review
 
 **Artifact:** <path or reference>
-**Procedure map:** `docs/guidelines/portable-afds-user-procedure-map.md`
+**Runtime references:** `references/routing-and-evidence.md`, `references/pre-slicing-procedure-map.md`
 **Status:** Ready | Needs revision | Blocked
 
 ### Findings
