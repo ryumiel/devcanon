@@ -60,5 +60,5 @@ devcanon sync
 
 ## Status
 
-Active development. v1 CLI is implemented with 9 commands, 23 skills, and
+Active development. v1 CLI is implemented with 9 commands, 24 skills, and
 support for Claude Code and Codex targets.

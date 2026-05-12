@@ -11,6 +11,7 @@ import { renderAll } from "./pipeline.js";
 const TOUCHED_SKILLS = new Set([
   "github-issue-priming",
   "issue-priming-workflow",
+  "issue-slicing",
   "issue-worktree-setup",
   "linear-issue-priming",
   "play-brainstorm",
@@ -460,6 +461,40 @@ mkdir -p .ephemeral
     );
     expect(specReadinessReviewBody).not.toContain(
       "docs/specs/afds-workflow-routing.md",
+    );
+  });
+
+  it("documents the issue-slicing draft-only provider-neutral contract", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const issueSlicingBody = parseFrontmatter(
+      getSkillOutput(outputs, "issue-slicing", "codex").content,
+    ).body;
+
+    expect(issueSlicingBody).toContain("MODE=draft");
+    expect(issueSlicingBody).toContain("MODE=blocked");
+    expect(issueSlicingBody).toContain("GitHub Issues or Linear");
+    expect(issueSlicingBody).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(issueSlicingBody).toContain("Do not create live issues");
+    expect(issueSlicingBody).toContain("assign users");
+    expect(issueSlicingBody).toContain("set status");
+    expect(issueSlicingBody).toContain("mutate labels");
+    expect(issueSlicingBody).toContain("duplicate live tracker state");
+    expect(issueSlicingBody).toContain("Evidence Pointers");
+    expect(issueSlicingBody).toContain(
+      "At least one evidence pointer must name the owning durable artifact",
+    );
+    expect(issueSlicingBody).toContain(
+      "<owning durable artifact>: <stable reference>",
+    );
+    expect(issueSlicingBody).not.toContain(
+      "Final mode: <repeat MODE=draft or MODE=blocked>",
     );
   });
 
