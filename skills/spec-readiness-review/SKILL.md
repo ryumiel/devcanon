@@ -45,11 +45,9 @@ not as authority that can override the owning durable artifact.
    the bundled routing and evidence reference as the portable runtime authority
    for exact owner, evidence, blocker, drift, and follow-up behavior; use the
    bundled pre-slicing procedure map to apply those rules to readiness review.
-   Repo-local AFDS docs are optional project context when present or when the
-   reviewed artifact points there, including project instructions, `MAP.md`,
-   `docs/specs/`, `docs/guidelines/`, and the broader Portable AFDS user
-   procedure map at `docs/guidelines/portable-afds-user-procedure-map.md`. Do
-   not treat repo-local docs as required runtime inputs.
+   Repo-local project docs are optional context when present or when the
+   reviewed artifact points there. Do not treat repo-local docs as required
+   runtime inputs.
 2. Identify the owning artifact and the work origin. If ownership is unclear,
    return `Blocked`.
 3. Check whether the artifact contains enough scope and boundaries for a fresh

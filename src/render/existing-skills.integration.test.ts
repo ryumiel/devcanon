@@ -515,13 +515,10 @@ mkdir -p .ephemeral
     expect(specReadinessReviewBody).toContain("person names, assignees");
     expect(specReadinessReviewBody).toContain("live tracker ownership");
     expect(specReadinessReviewBody).toContain(
-      "Repo-local AFDS docs are optional project context",
+      "Repo-local project docs are optional context",
     );
     expect(specReadinessReviewBody).toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
-    );
-    expect(specReadinessReviewBody).toContain(
-      "not treat repo-local docs as required runtime inputs",
+      "Do not treat repo-local docs as required",
     );
     expect(specReadinessReviewBody).toContain(
       "does not approve implementation",
@@ -529,6 +526,8 @@ mkdir -p .ephemeral
     expect(specReadinessReviewBody).not.toContain(
       "docs/specs/afds-workflow-routing.md",
     );
+    expect(specReadinessReviewBody).not.toContain("MAP.md");
+    expect(specReadinessReviewBody).not.toContain("docs/guidelines/");
   });
 
   it("documents the issue-slicing draft-only provider-neutral contract", async () => {
