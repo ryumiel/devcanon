@@ -457,9 +457,7 @@ mkdir -p .ephemeral
 
     expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
     expect(procedureMap).toContain("durable source of origin");
-    expect(routingGuideline).toContain(
-      "This guideline is the durable source of origin",
-    );
+    expect(routingGuideline).toContain("The durable source of origin");
     expect(routingGuideline).toContain("Evidence Pointers");
     expect(routingGuideline).toContain("Readiness Before Slicing");
     expect(routingGuideline).toContain("Storage Boundary");

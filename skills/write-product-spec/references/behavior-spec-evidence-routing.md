@@ -1,9 +1,9 @@
 # Behavior Spec Evidence Routing
 
-This guideline is the durable source of origin for behavior-spec evidence
-routing in DevCanon's Portable AFDS Toolkit. It defines how behavior-spec
-authoring records evidence pointers, prepares readiness-review handoff, and
-keeps issue-slicing boundaries clear.
+The durable source of origin for this guidance is
+`docs/guidelines/behavior-spec-evidence-routing.md`. It defines how
+behavior-spec authoring records evidence pointers, prepares readiness-review
+handoff, and keeps issue-slicing boundaries clear.
 
 `write-product-spec` bundles an installable copy of this guidance under
 `skills/write-product-spec/references/` so user-wide skill installs can apply
