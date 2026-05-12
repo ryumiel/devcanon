@@ -422,7 +422,10 @@ mkdir -p .ephemeral
     );
     expect(writeProductSpecBody).toContain("required runtime inputs");
     expect(writeProductSpecBody).toContain("evidence pointer");
-    expect(writeProductSpecBody).toContain("durable team/system/role");
+    expect(writeProductSpecBody).toContain("durable team, system, role");
+    expect(writeProductSpecBody).toContain(
+      "`docs/specs/afds-workflow-routing.md` `EVID-001`",
+    );
     expect(writeProductSpecBody).toContain("readiness review");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
     expect(writeProductSpecBody).toContain("spec-readiness-review");
@@ -458,6 +461,10 @@ mkdir -p .ephemeral
     expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
     expect(procedureMap).toContain("durable source of origin");
     expect(routingGuideline).toContain("The durable source of origin");
+    expect(routingGuideline).toContain(
+      "`docs/specs/afds-workflow-routing.md` `EVID-001`",
+    );
+    expect(routingGuideline).toContain("contract to behavior-spec authoring");
     expect(routingGuideline).toContain("Evidence Pointers");
     expect(routingGuideline).toContain("Readiness Before Slicing");
     expect(routingGuideline).toContain("Storage Boundary");
@@ -492,6 +499,12 @@ mkdir -p .ephemeral
     expect(specReadinessReviewBody).toContain(
       "references/routing-and-evidence.md",
     );
+    expect(specReadinessReviewBody).toContain(
+      "artifact, durable team, system, or role",
+    );
+    expect(specReadinessReviewBody).toContain("do not accept");
+    expect(specReadinessReviewBody).toContain("person names, assignees");
+    expect(specReadinessReviewBody).toContain("live tracker ownership");
     expect(specReadinessReviewBody).toContain(
       "Repo-local AFDS docs are optional project context",
     );
