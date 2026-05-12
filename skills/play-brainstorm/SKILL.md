@@ -1,6 +1,6 @@
 ---
 name: play-brainstorm
-description: Guides ideas into approved designs through clarifying dialogue and saves the result to `.ephemeral/`. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
+description: Guides executable ideas into approved designs saved to `.ephemeral/`, or emits a durable owner referral notice for non-executable work. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
 ---
 
 # Brainstorming Ideas Into Designs
@@ -103,33 +103,38 @@ an external issue body.
 The path reference is consumed by the controller; the inline form is preserved for direct human invocations.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval — but the design step itself is never skipped.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval. The design step is skipped only when durable owner referral classification emits the durable owner referral notice for non-executable owner work; that notice stops the flow before implementation planning.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it (and, in interactive mode, get user approval — see HARD-GATE above for `--auto` behavior).
+Every executable implementation project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it (and, in interactive mode, get user approval — see HARD-GATE above for `--auto` behavior). Non-executable owner work exits through the durable owner referral notice instead of continuing to design.
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+You MUST create and complete the applicable tasks sequentially. If durable owner
+referral classification emits the durable owner referral notice, stop there; the
+later design and implementation-transition tasks do not apply.
 
 1. **Explore project context** — check files, docs, recent commits
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
-6. **Design self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
-7. **User reviews written design** — ask user to review the design file before proceeding
-8. **Transition to implementation** — invoke play-planning skill to create implementation plan
+3. **Classify durable owner referral need** — decide whether shaped work continues to an executable design or exits through the durable owner referral notice
+4. **Propose 2-3 approaches when executable** — with trade-offs and your recommendation
+5. **Present design** — in sections scaled to their complexity, get user approval after each section
+6. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
+7. **Design self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
+8. **User reviews written design** — ask user to review the design file before proceeding
+9. **Transition to implementation when appropriate** — invoke play-planning skill only for executable implementation designs
 
-**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 4, and 7 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
+**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 5, and 8 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. For executable implementation designs, the design step itself — including writing the design doc to `.ephemeral/` — is never skipped. For durable owner referrals, emit the notice described below and stop before design writing.
 
 ## Process Flow
 
 ```dot
 digraph brainstorming {
     "Explore project context" [shape=box];
+    "Durable owner referral classification" [shape=diamond];
+    "Durable owner referral notice" [shape=doublecircle];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
@@ -142,7 +147,9 @@ digraph brainstorming {
     "Invoke play-planning skill" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
-    "Ask clarifying questions" -> "Propose 2-3 approaches";
+    "Ask clarifying questions" -> "Durable owner referral classification";
+    "Durable owner referral classification" -> "Durable owner referral notice" [label="non-executable or unclear owner work"];
+    "Durable owner referral classification" -> "Propose 2-3 approaches" [label="executable design"];
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "Auto mode?";
     "Auto mode?" -> "Write design doc" [label="yes (bypass approval)"];
@@ -158,7 +165,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking play-planning.** Do NOT invoke any other implementation skill. The ONLY skill you invoke after brainstorming is play-planning.
+**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop instead of forcing an implementation plan.
 
 ## The Process
 
@@ -166,7 +173,53 @@ digraph brainstorming {
 
 - Check out the current project state first (files, docs, recent commits)
 - Scan `docs/adr/` titles and `docs/arch/overview.md`. If a covering ADR exists for the domain this work touches, summarize it before proposing changes.
-- **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
+
+**Durable owner referral classification:**
+
+Before approach selection, apply the Portable AFDS procedure map routing
+summarized here (source path:
+`docs/guidelines/portable-afds-user-procedure-map.md`) to decide whether the
+shaped output should continue as an executable implementation design or exit to
+a durable owner.
+
+Start from the work origin, execution contract, and owner clarity. If the GitHub
+or Linear issue, review comment, failing check, audit finding, or concrete
+source finding has enough contract to act and identifies the owner for any
+durable artifact it changes, continue to executable design. That includes clear
+issues to update an owning guideline, source skill, ADR, or role boundary.
+Ordinary execution with unchanged durable truth also continues without new
+product requirements, behavior specs, roadmap updates, or capability
+classification.
+
+Route away from implementation design only when the work is non-executable
+shaping of product intent, behavior requirements, roadmap direction, reusable
+workflow policy, role boundaries, or capability classification; when it lacks an
+execution contract; or when the durable owner needed for execution is unclear.
+
+Generated or installed drift is not automatically non-executable. If the issue
+has enough contract to regenerate stale preview output, sync or uninstall
+manifest-managed installed output, or fix source, renderer, install, or manifest
+behavior with proven ownership, continue to executable design.
+
+For non-executable owner work, do not invoke owner-authoring skills from this
+flow. Emit the durable owner referral notice as exactly this bare standalone
+line, including the trailing period, and then stop:
+
+```
+Durable owner referral: <owner>.
+```
+
+Use `write-product-requirements` for unclear product intent;
+`write-product-spec` for acceptance-ready behavior; the roadmap owner for
+roadmap-scale direction; the owning guideline, ADR, or source owner when
+reusable workflow policy, procedure, role-boundary, guideline, ADR, or
+source-owner work needs an owner decision before execution; a source, renderer,
+install, manifest, or blocker owner only when generated or installed drift
+ownership cannot be proven from the issue evidence; and capability
+classification for repeated reusable workflow gaps without a governed owner. Do
+not make `play-brainstorm` write those owner artifacts or slice issues itself.
+
+- **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misdirected fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single design, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own design → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
@@ -240,15 +293,22 @@ This prompt is the interactive User Review Gate, distinct from the producer noti
 
 Wait for the user's response. If they request changes, make them and re-run the design review loop. Only proceed once the user approves.
 
-**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. The design step itself — including the self-review loop above and writing to `.ephemeral/` — is never skipped; only the user-approval pause is bypassed.
+**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. For durable owner referrals, emit the durable owner referral notice and stop before this design-writing step.
 
 **Implementation:**
 
-- Invoke the play-planning skill to create a detailed implementation plan.
-  Pass the design as a `Design: <path>` reference in the invocation prose
-  (the path you just emitted in the notice line above), not as inline
-  content.
-- Do NOT invoke any other skill. play-planning is the next step.
+- If durable owner referral classification produced an executable implementation
+  design, invoke the play-planning skill to create a detailed implementation
+  plan. Pass the design as a `Design: <path>` reference in the invocation prose
+  (the path you just emitted in the notice line above), not as inline content.
+- If classification finds non-executable shaping work or unclear ownership that
+  must route to product requirements, behavior spec, roadmap, guideline, ADR,
+  source owner, or capability classification before execution can safely
+  continue, emit the durable owner referral notice and stop. Do not invoke
+  implementation planning or owner-authoring skills for non-executable
+  owner work.
+- Do NOT invoke any other implementation skill. play-planning is the next step
+  only for executable implementation designs.
 
 ## Common Mistakes
 

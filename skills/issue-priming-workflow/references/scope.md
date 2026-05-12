@@ -10,5 +10,6 @@ Expanded list of what this skill does and does not do.
 ## With `--auto`
 
 - Does not merge PRs — the PR is the user's review gate.
-- Does not skip brainstorming or planning — runs the full pipeline, just without user checkpoints.
+- Does not skip brainstorming or planning for executable designs — runs the full pipeline, just without user checkpoints.
+- Stops before planning only when `play-brainstorm` emits the explicit durable owner referral notice, after cleaning up the issue worktree through the discard path.
 - Does not make genuinely ambiguous design decisions — stops and asks if options are equally valid.

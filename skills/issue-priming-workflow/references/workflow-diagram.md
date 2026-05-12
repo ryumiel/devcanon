@@ -11,6 +11,9 @@ digraph priming {
   decide [label="Research?", shape=diamond];
   research [label="3. Research\nDedicated agent\npolicy + codebase + external"];
   brainstorm [label="4. Brainstorm\nInvoke skill with\nissue-body path + brief"];
+  referral_check [label="Referral notice?", shape=diamond];
+  cleanup [label="Cleanup worktree\nplay-branch-finish\ndiscard"];
+  referral [label="STOP\nReport durable owner\nreferral notice", shape=doublecircle];
   auto_check [label="--auto?", shape=diamond];
   plan [label="5. Plan\nWrite implementation plan"];
   implement [label="6. Implement\nplay-subagent-execution"];
@@ -20,7 +23,10 @@ digraph priming {
   decide -> research [label="yes"];
   decide -> brainstorm [label="no"];
   research -> brainstorm;
-  brainstorm -> auto_check;
+  brainstorm -> referral_check;
+  referral_check -> cleanup [label="yes"];
+  cleanup -> referral;
+  referral_check -> auto_check [label="no"];
   auto_check -> plan [label="yes"];
   auto_check -> stop_interactive [label="no"];
   plan -> implement -> review -> create_pr -> done;
