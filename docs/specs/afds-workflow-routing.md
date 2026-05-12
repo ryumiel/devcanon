@@ -172,10 +172,13 @@ Approved follow-up surfaces:
 - `spec-readiness-review` is approved as a read-only pre-slicing readiness
   review skill. Its installable runtime subset is packaged under
   `skills/spec-readiness-review/references/`.
+- `issue-slicing` is approved as a provider-neutral draft-only issue slicing
+  skill. It drafts executable issue bodies from owning durable artifact
+  evidence for GitHub Issues or Linear, but it does not create live issues,
+  assign users, set status, mutate labels, or duplicate live tracker state.
 
 Candidate surfaces for the owning capability-classification pass include:
 
-- `slice-issues`;
 - `doc-impact-review`;
 - `post-merge-gardener`;
 - AFDS workflow capability governance;
