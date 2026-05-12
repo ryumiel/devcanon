@@ -148,7 +148,7 @@ digraph brainstorming {
 
     "Explore project context" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "AFDS handoff classification";
-    "AFDS handoff classification" -> "Handoff recommended notice" [label="non-executable owner work"];
+    "AFDS handoff classification" -> "Handoff recommended notice" [label="non-executable or unclear owner work"];
     "AFDS handoff classification" -> "Propose 2-3 approaches" [label="executable design"];
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "Auto mode?";
@@ -165,7 +165,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS handoff classification routes the work to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification, emit `Handoff recommended: <owner>.` and stop instead of forcing an implementation plan.
+**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS handoff classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit `Handoff recommended: <owner>.` and stop instead of forcing an implementation plan.
 
 ## The Process
 
@@ -182,12 +182,19 @@ summarized here (source path:
 shaped output should continue as an executable implementation design or exit to
 a durable owner.
 
-Start from the work origin and execution contract. If the GitHub or Linear
-issue is executable and durable truth is unchanged, continue to executable
-design; ordinary execution does not need new product requirements, behavior
-specs, roadmap updates, or capability classification. Route away from
-implementation design only when the issue lacks an execution contract, durable
-truth changes, or ownership is unclear.
+Start from the work origin, execution contract, and owner clarity. If the GitHub
+or Linear issue, review comment, failing check, audit finding, or concrete
+source finding has enough contract to act and identifies the owner for any
+durable artifact it changes, continue to executable design. That includes clear
+issues to update an owning guideline, source skill, ADR, or role boundary.
+Ordinary execution with unchanged durable truth also continues without new
+product requirements, behavior specs, roadmap updates, or capability
+classification.
+
+Route away from implementation design only when the work is non-executable
+shaping of product intent, behavior requirements, roadmap direction, reusable
+workflow policy, role boundaries, or capability classification; when it lacks an
+execution contract; or when the durable owner needed for execution is unclear.
 
 Generated or installed drift is not automatically non-executable. If the issue
 has enough contract to regenerate stale preview output, sync or uninstall
@@ -202,13 +209,13 @@ and then stop:
 Handoff recommended: <owner>.
 ```
 
-Use
-`write-product-requirements` for unclear product intent; `write-product-spec`
-for acceptance-ready behavior; the roadmap owner for roadmap-scale direction;
-the owning guideline, ADR, or source owner for reusable workflow policy,
-procedure, role-boundary, guideline, ADR, or source-owner changes; a source,
-renderer, install, manifest, or blocker owner only when generated or installed
-drift ownership cannot be proven from the issue evidence; and capability
+Use `write-product-requirements` for unclear product intent;
+`write-product-spec` for acceptance-ready behavior; the roadmap owner for
+roadmap-scale direction; the owning guideline, ADR, or source owner when
+reusable workflow policy, procedure, role-boundary, guideline, ADR, or
+source-owner work needs an owner decision before execution; a source, renderer,
+install, manifest, or blocker owner only when generated or installed drift
+ownership cannot be proven from the issue evidence; and capability
 classification for repeated reusable workflow gaps without a governed owner. Do
 not make `play-brainstorm` write those owner artifacts or slice issues itself.
 
@@ -294,10 +301,12 @@ Wait for the user's response. If they request changes, make them and re-run the 
   design, invoke the play-planning skill to create a detailed implementation
   plan. Pass the design as a `Design: <path>` reference in the invocation prose
   (the path you just emitted in the notice line above), not as inline content.
-- If classification routes the shaped work to product requirements, behavior
-  spec, roadmap, guideline, ADR, source owner, or capability classification,
-  emit `Handoff recommended: <owner>.` and stop. Do not invoke implementation
-  planning or owner-authoring skills for non-executable durable-owner work.
+- If classification finds non-executable shaping work or unclear ownership that
+  must route to product requirements, behavior spec, roadmap, guideline, ADR,
+  source owner, or capability classification before execution can safely
+  continue, emit `Handoff recommended: <owner>.` and stop. Do not invoke
+  implementation planning or owner-authoring skills for non-executable
+  durable-owner work.
 - Do NOT invoke any other implementation skill. play-planning is the next step
   only for executable implementation designs.
 
