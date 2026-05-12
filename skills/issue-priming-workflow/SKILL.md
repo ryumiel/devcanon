@@ -207,11 +207,11 @@ Skipped — <reason from gate agent>. Proceed with codebase exploration in brain
 
 When `--auto` is set, the brainstorming skill still runs through its required
 classification path. If that path continues to an executable design, the skill
-runs fully (exploration, option generation, spec writing), but:
+runs fully (exploration, option generation, design writing), but:
 
 - Do NOT ask the user to choose between options — pick the architecturally cleanest approach
 - Do NOT wait for user approval of the spec/design — proceed immediately
-- Do NOT ask clarifying questions — make reasonable assumptions and document them in the spec
+- Do NOT ask clarifying questions — make reasonable assumptions and document them in the design
 
 If `play-brainstorm` emits `Handoff recommended: <owner>.`, stop `--auto`
 before Phase 5. Surface the handoff line to the user and do not invoke
@@ -429,6 +429,6 @@ Use `{{model:standard}}` as the floor for agents that make judgment calls during
 ## What This Skill Does NOT Do
 
 - **Without `--auto`:** Does not write code, create PRs, or manage implementation.
-- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); does not skip phases; does not silently pick between equally-valid design options (stops and asks instead).
+- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); does not skip phases except for the explicit durable-owner handoff stop; does not silently pick between equally-valid design options (stops and asks instead).
 
 See [`references/scope.md`](references/scope.md) for the expanded list.

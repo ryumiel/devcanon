@@ -1,6 +1,6 @@
 ---
 name: play-brainstorm
-description: Guides ideas into approved designs through clarifying dialogue and saves the result to `.ephemeral/`. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
+description: Guides executable ideas into approved designs saved to `.ephemeral/`, or emits a durable-owner handoff notice for non-executable work. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
 ---
 
 # Brainstorming Ideas Into Designs
@@ -112,9 +112,9 @@ Every executable implementation project goes through this process. A todo list, 
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order. If
-AFDS handoff classification emits `Handoff recommended: <owner>.`, stop there;
-the later design and implementation-transition tasks do not apply.
+You MUST create and complete the applicable tasks sequentially. If AFDS
+handoff classification emits `Handoff recommended: <owner>.`, stop there; the
+later design and implementation-transition tasks do not apply.
 
 1. **Explore project context** — check files, docs, recent commits
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
@@ -190,7 +190,14 @@ implementation design only when the issue lacks an execution contract, durable
 truth changes, or ownership is unclear.
 
 For non-executable owner work, do not invoke owner-authoring skills from this
-flow. Emit the exact notice `Handoff recommended: <owner>.` and stop. Use
+flow. Emit exactly this bare standalone line, including the trailing period,
+and then stop:
+
+```
+Handoff recommended: <owner>.
+```
+
+Use
 `write-product-requirements` for unclear product intent; `write-product-spec`
 for acceptance-ready behavior; the roadmap owner for roadmap-scale direction;
 the owning guideline, ADR, or source owner for reusable workflow policy,
