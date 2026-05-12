@@ -1,13 +1,8 @@
 # Behavior Spec Evidence Routing
 
-The durable source of origin for this guidance is
-`docs/guidelines/behavior-spec-evidence-routing.md`. It defines how
-behavior-spec authoring records evidence pointers, prepares readiness-review
-handoff, and keeps issue-slicing boundaries clear.
-
-`write-product-spec` bundles an installable copy of this guidance under
-`skills/write-product-spec/references/` so user-wide skill installs can apply
-the same rules without relying on repository-local docs at runtime.
+This packaged runtime reference defines how `write-product-spec` records
+evidence pointers, prepares readiness-review handoff, and keeps issue-slicing
+boundaries clear when installed outside this repository.
 
 ## Behavior Spec Ownership
 
@@ -32,11 +27,7 @@ owner instead of forcing it into a behavior spec.
 ## Evidence Pointers
 
 Use evidence pointers to support behavior requirements without copying live
-state into the spec. The minimum evidence-pointer contract is owned by
-`docs/specs/afds-workflow-routing.md` `EVID-001`; this guideline applies that
-contract to behavior-spec authoring.
-
-Runtime excerpt from `EVID-001`: an evidence pointer must identify:
+state into the spec. A minimum evidence pointer must identify:
 
 - evidence system;
 - stable reference, such as an issue URL, PR URL, review comment, CI/check URL,

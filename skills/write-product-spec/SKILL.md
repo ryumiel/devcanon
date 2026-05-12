@@ -21,12 +21,8 @@ workflow.
 
 Load `references/behavior-spec-evidence-routing.md` as the portable runtime
 authority for evidence pointers, readiness review, and downstream issue
-slicing. It mirrors the durable source-of-origin guideline at
-`docs/guidelines/behavior-spec-evidence-routing.md` for installed skill copies.
-Repo-local AFDS docs are optional project context when present, including the
-broader Portable AFDS user procedure map at
-`docs/guidelines/portable-afds-user-procedure-map.md`. Do not treat repo-local
-AFDS docs as required runtime inputs.
+slicing. Repo-local AFDS docs are optional project context when present. Do not
+treat repo-local AFDS docs as required runtime inputs.
 
 ## When To Use
 
@@ -57,11 +53,12 @@ Gather only durable inputs:
 - Issues, PRs, design notes, tests, and code investigation used as evidence
 
 Treat issues, PRs, and agent-local notes as evidence, not as durable content
-to copy into the spec. Record an evidence pointer instead, following the
-minimum pointer contract in `docs/specs/afds-workflow-routing.md` `EVID-001`.
-For behavior specs, record incomplete, private, inaccessible, or failing
-evidence follow-up as a durable team, system, role, or artifact instead of
-person names, assignees, reviewer names, or live tracker ownership.
+to copy into the spec. Record an evidence pointer instead: name the evidence
+system, stable reference, checked requirement or owner, result state, and any
+blocker or follow-up owner. For behavior specs, record incomplete, private,
+inaccessible, or failing evidence follow-up as a durable team, system, role, or
+artifact instead of person names, assignees, reviewer names, or live tracker
+ownership.
 
 ## Procedure
 
@@ -136,12 +133,12 @@ Before finalizing, confirm:
   roadmap items, reusable workflow guidelines, and issue plans.
 - Stable requirement IDs, scenario IDs, headings, or named anchors are used
   when future work needs durable references.
-- Evidence pointers follow the minimum contract in
-  `docs/specs/afds-workflow-routing.md` `EVID-001` and apply the
-  behavior-spec rule for incomplete, private, inaccessible, or failing evidence:
-  use a durable team, system, role, or artifact owner link without copying live
-  tracker, PR, CI, agent-local state, person names, assignees, reviewer names,
-  or live tracker ownership.
+- Evidence pointers identify the evidence system, stable reference, checked
+  requirement or owner, result state, and any blocker or follow-up owner. For
+  incomplete, private, inaccessible, or failing evidence, use a durable team,
+  system, role, or artifact owner link without copying live tracker, PR, CI,
+  agent-local state, person names, assignees, reviewer names, or live tracker
+  ownership.
 - Slice-ready behavior points to `spec-readiness-review` for readiness review
   before the approved `issue-slicing` handoff instead of inventing
   provider-specific issue mutation.

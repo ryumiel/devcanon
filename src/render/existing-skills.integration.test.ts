@@ -409,13 +409,7 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("contract authority");
     expect(writeProductSpecBody).toContain("source-owned schemas");
     expect(writeProductSpecBody).toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
-    );
-    expect(writeProductSpecBody).toContain(
       "references/behavior-spec-evidence-routing.md",
-    );
-    expect(writeProductSpecBody).toContain(
-      "docs/guidelines/behavior-spec-evidence-routing.md",
     );
     expect(writeProductSpecBody).toContain(
       "Repo-local AFDS docs are optional project context",
@@ -423,9 +417,16 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("required runtime inputs");
     expect(writeProductSpecBody).toContain("evidence pointer");
     expect(writeProductSpecBody).toContain("durable team, system, role");
-    expect(writeProductSpecBody).toContain(
-      "`docs/specs/afds-workflow-routing.md` `EVID-001`",
+    expect(writeProductSpecBody).not.toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
     );
+    expect(writeProductSpecBody).not.toContain(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecBody).not.toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    expect(writeProductSpecBody).not.toContain("EVID-001");
     expect(writeProductSpecBody).toContain("readiness review");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
     expect(writeProductSpecBody).toContain("spec-readiness-review");
@@ -614,13 +615,15 @@ mkdir -p .ephemeral
       "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
     );
     const sourceContent = await readFile(sourcePath, "utf-8");
-    const sourceOfOriginPath = path.join(
-      repoRoot,
+    expect(sourceContent).toContain("packaged runtime reference");
+    expect(sourceContent).toContain("minimum evidence pointer");
+    expect(sourceContent).toContain("durable team, system, role, or artifact");
+    expect(sourceContent).not.toContain(
       "docs/guidelines/behavior-spec-evidence-routing.md",
     );
-    const sourceOfOriginContent = await readFile(sourceOfOriginPath, "utf-8");
-
-    expect(sourceContent).toBe(sourceOfOriginContent);
+    expect(sourceContent).not.toContain("docs/specs/afds-workflow-routing.md");
+    expect(sourceContent).not.toContain("EVID-001");
+    expect(sourceContent).not.toContain("source of origin");
 
     for (const target of ["claude", "codex"] as const) {
       const generatedPath = path.join(
