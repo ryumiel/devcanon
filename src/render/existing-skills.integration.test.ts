@@ -21,6 +21,7 @@ const TOUCHED_SKILLS = new Set([
   "play-skill-authoring",
   "play-planning",
   "report-devcanon-shared-issue",
+  "spec-readiness-review",
   "write-product-requirements",
   "write-product-spec",
 ]);
@@ -413,6 +414,28 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("write-product-requirements");
     expect(writeProductSpecBody).toContain("docs/product-requirements/");
     expect(writeProductSpecBody).toContain("product intent");
+  });
+
+  it("documents the spec-readiness-review status contract", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const specReadinessReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "spec-readiness-review", "codex").content,
+    ).body;
+
+    expect(specReadinessReviewBody).toContain(
+      "Final status: Ready | Needs revision | Blocked",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(specReadinessReviewBody).toContain(
+      "does not approve implementation",
+    );
   });
 
   it("documents the write-product-requirements PRD boundaries", async () => {
