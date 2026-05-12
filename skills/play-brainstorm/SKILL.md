@@ -103,28 +103,30 @@ an external issue body.
 The path reference is consumed by the controller; the inline form is preserved for direct human invocations.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval — but the design step itself is never skipped.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design. In interactive mode, this also requires explicit user approval. In `--auto` mode (when invoked by an upstream skill that has bypassed user gates), the design is presented and recorded, and execution proceeds without waiting for user approval. The design step is skipped only when AFDS handoff classification emits `Handoff recommended: <owner>.` for non-executable durable-owner work; that notice stops the flow before implementation planning.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it (and, in interactive mode, get user approval — see HARD-GATE above for `--auto` behavior).
+Every executable implementation project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it (and, in interactive mode, get user approval — see HARD-GATE above for `--auto` behavior). Non-executable durable-owner work exits through the AFDS handoff notice instead of continuing to design.
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+You MUST create a task for each of these items and complete them in order. If
+AFDS handoff classification emits `Handoff recommended: <owner>.`, stop there;
+the later design and implementation-transition tasks do not apply.
 
 1. **Explore project context** — check files, docs, recent commits
-2. **Classify the AFDS handoff** — decide whether shaped work continues to an executable design or exits to the durable owner
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-4. **Propose 2-3 approaches** — with trade-offs and your recommendation
+2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+3. **Classify the AFDS handoff** — decide whether shaped work continues to an executable design or exits to the durable owner
+4. **Propose 2-3 approaches when executable** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
 6. **Write design doc** — save to `.ephemeral/YYYY-MM-DD-<topic>-design.md`
 7. **Design self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written design** — ask user to review the design file before proceeding
 9. **Transition to implementation when appropriate** — invoke play-planning skill only for executable implementation designs
 
-**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 3, 5, and 8 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. The design step itself — including writing the design doc to `.ephemeral/` — is never skipped.
+**In `--auto` mode** (invoked by an upstream skill like `github-issue-priming --auto`), the user-interaction parts of steps 2, 5, and 8 are bypassed: skip clarifying-question prompts (make documented assumptions instead), skip the per-section approval pause, and skip the User Review Gate prompt. For executable implementation designs, the design step itself — including writing the design doc to `.ephemeral/` — is never skipped. For durable-owner handoffs, emit the handoff notice described below and stop before design writing.
 
 ## Process Flow
 
@@ -132,7 +134,7 @@ You MUST create a task for each of these items and complete them in order:
 digraph brainstorming {
     "Explore project context" [shape=box];
     "AFDS handoff classification" [shape=diamond];
-    "Handoff to durable owner" [shape=box];
+    "Handoff recommended notice" [shape=doublecircle];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
@@ -144,10 +146,10 @@ digraph brainstorming {
     "User reviews design?" [shape=diamond];
     "Invoke play-planning skill" [shape=doublecircle];
 
-    "Explore project context" -> "AFDS handoff classification";
-    "AFDS handoff classification" -> "Handoff to durable owner" [label="non-executable owner work"];
-    "AFDS handoff classification" -> "Ask clarifying questions" [label="executable design"];
-    "Ask clarifying questions" -> "Propose 2-3 approaches";
+    "Explore project context" -> "Ask clarifying questions";
+    "Ask clarifying questions" -> "AFDS handoff classification";
+    "AFDS handoff classification" -> "Handoff recommended notice" [label="non-executable owner work"];
+    "AFDS handoff classification" -> "Propose 2-3 approaches" [label="executable design"];
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "Auto mode?";
     "Auto mode?" -> "Write design doc" [label="yes (bypass approval)"];
@@ -163,7 +165,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS handoff classification routes the work to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification, stop at that owner handoff instead of forcing an implementation plan.
+**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If AFDS handoff classification routes the work to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification, emit `Handoff recommended: <owner>.` and stop instead of forcing an implementation plan.
 
 ## The Process
 
@@ -178,13 +180,25 @@ Before approach selection, apply the Portable AFDS procedure map routing
 summarized here (source path:
 `docs/guidelines/portable-afds-user-procedure-map.md`) to decide whether the
 shaped output should continue as an executable implementation design or exit to
-a durable owner. Hand off unclear product intent to
-`write-product-requirements`; acceptance-ready behavior to
-`write-product-spec`; roadmap-scale direction to the roadmap owner; reusable
-workflow policy, procedure, role-boundary, guideline, ADR, or source-owner
-changes to that owning artifact; and repeated reusable workflow gaps without a
-governed owner to capability classification. Do not make `play-brainstorm`
-write those owner artifacts or slice issues itself.
+a durable owner.
+
+Start from the work origin and execution contract. If the GitHub or Linear
+issue is executable and durable truth is unchanged, continue to executable
+design; ordinary execution does not need new product requirements, behavior
+specs, roadmap updates, or capability classification. Route away from
+implementation design only when the issue lacks an execution contract, durable
+truth changes, or ownership is unclear.
+
+For non-executable owner work, do not invoke owner-authoring skills from this
+flow. Emit the exact notice `Handoff recommended: <owner>.` and stop. Use
+`write-product-requirements` for unclear product intent; `write-product-spec`
+for acceptance-ready behavior; the roadmap owner for roadmap-scale direction;
+the owning guideline, ADR, or source owner for reusable workflow policy,
+procedure, role-boundary, guideline, ADR, or source-owner changes; source,
+renderer, install, or manifest ownership for generated or installed drift; and
+capability classification for repeated reusable workflow gaps without a
+governed owner. Do not make `play-brainstorm` write those owner artifacts or
+slice issues itself.
 
 - **Verify causal claims.** When the brief asserts that X causes Y (or that doing X prevents Y), reproduce or trace the claim once before designing around it. A 30-second `git`/`grep`/script check is far cheaper than a verified-but-misaimed fix. See `references/verifying-causal-claims.md` for a worked example.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
@@ -260,7 +274,7 @@ This prompt is the interactive User Review Gate, distinct from the producer noti
 
 Wait for the user's response. If they request changes, make them and re-run the design review loop. Only proceed once the user approves.
 
-**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. The design step itself — including the self-review loop above and writing to `.ephemeral/` — is never skipped; only the user-approval pause is bypassed.
+**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. For executable implementation designs, the design step itself — including the self-review loop above and writing to `.ephemeral/` — is never skipped; only the user-approval pause is bypassed. For durable-owner handoffs, emit `Handoff recommended: <owner>.` and stop before this design-writing step.
 
 **Implementation:**
 
@@ -270,8 +284,8 @@ Wait for the user's response. If they request changes, make them and re-run the 
   (the path you just emitted in the notice line above), not as inline content.
 - If classification routes the shaped work to product requirements, behavior
   spec, roadmap, guideline, ADR, source owner, or capability classification,
-  stop after naming that handoff. Do not invoke implementation planning for
-  non-executable durable-owner work.
+  emit `Handoff recommended: <owner>.` and stop. Do not invoke implementation
+  planning or owner-authoring skills for non-executable durable-owner work.
 - Do NOT invoke any other implementation skill. play-planning is the next step
   only for executable implementation designs.
 

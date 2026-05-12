@@ -205,11 +205,18 @@ Skipped — <reason from gate agent>. Proceed with codebase exploration in brain
 
 **`--auto` mode behavior in brainstorming:**
 
-When `--auto` is set, the brainstorming skill still runs fully (exploration, option generation, spec writing), but:
+When `--auto` is set, the brainstorming skill still runs through its required
+classification path. If that path continues to an executable design, the skill
+runs fully (exploration, option generation, spec writing), but:
 
 - Do NOT ask the user to choose between options — pick the architecturally cleanest approach
 - Do NOT wait for user approval of the spec/design — proceed immediately
 - Do NOT ask clarifying questions — make reasonable assumptions and document them in the spec
+
+If `play-brainstorm` emits `Handoff recommended: <owner>.`, stop `--auto`
+before Phase 5. Surface the handoff line to the user and do not invoke
+`play-planning`, `play-subagent-execution`, branch review, or PR creation. This
+is a clean durable-owner handoff, not a missing-design failure.
 
 If brainstorming surfaces a genuinely ambiguous decision (two equally valid approaches with different trade-offs), **stop `--auto` mode and ask the user**. Resume autonomous execution after their answer.
 
@@ -221,11 +228,21 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md) f
 
 These phases run only when `--auto` is set. They chain automatically after brainstorming.
 
-**`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end; only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
+**`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end unless `play-brainstorm` emits the explicit durable-owner handoff notice. Only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
 
 ### Phase 5: Write Plan
 
-After `play-brainstorm` returns, capture the literal `Design written to <path>.` notice line it emitted. Validate the captured path:
+After `play-brainstorm` returns, first check whether it emitted the literal
+handoff notice:
+
+```
+Handoff recommended: <owner>.
+```
+
+When this notice is present, stop `--auto` immediately and report it. Do not
+fall through to design-path validation or later phases. When no handoff notice
+is present, capture the literal `Design written to <path>.` notice line it
+emitted. Validate the captured path:
 
 ```bash
 case "$DESIGN_PATH" in
@@ -370,8 +387,8 @@ mkdir -p .ephemeral
 | 1. Worktree      | Adopt handed-off worktree + issue body | Fail loudly on malformed or missing paths                                    |
 | 2. Gate          | Dedicated agent assesses complexity    | Always evaluated; default to `RESEARCH_NEEDED` on failure                    |
 | 3. Research      | Dedicated agent synthesizes brief      | Optional — only if gate says so                                              |
-| 4. Brainstorm    | Invoke `play-brainstorm`               | Never skip, even for "simple" issues                                         |
-| 5. Plan          | `play-planning`                        | `--auto` only                                                                |
+| 4. Brainstorm    | Invoke `play-brainstorm`               | Never skip; may stop `--auto` with `Handoff recommended: <owner>.`           |
+| 5. Plan          | `play-planning`                        | `--auto` only; skipped only after a durable-owner handoff notice             |
 | 6. Implement     | `play-subagent-execution`              | `--auto` only; single-task path may return directly to Phase 7               |
 | 7. Branch Review | `branch-review --fix` + classify nits  | `--auto` only; mechanical nits auto-fixed, judgment-required nits to Phase 8 |
 | 8. Create PR     | Push + `gh pr create`                  | `--auto` only; never auto-merge; follow project PR guideline                 |
