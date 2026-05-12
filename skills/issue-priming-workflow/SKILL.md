@@ -210,7 +210,7 @@ classification path. If that path continues to an executable design, the skill
 runs fully (exploration, option generation, design writing), but:
 
 - Do NOT ask the user to choose between options — pick the architecturally cleanest approach
-- Do NOT wait for user approval of the spec/design — proceed immediately
+- Do NOT wait for user approval of the design — proceed immediately
 - Do NOT ask clarifying questions — make reasonable assumptions and document them in the design
 
 If `play-brainstorm` emits `Handoff recommended: <owner>.`, stop `--auto`
