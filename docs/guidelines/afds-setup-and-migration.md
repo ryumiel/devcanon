@@ -60,16 +60,22 @@ projects.
 2. Create `MAP.md` as the canonical navigation index.
 3. Establish baseline AFDS areas: `CONTRIBUTING.md`, `WORKFLOW.md`,
    `docs/specs/`, `docs/arch/`, and `docs/guidelines/`.
-4. Add `docs/adr/` when durable architecture, boundary, technology, or major
+4. Because Git does not track empty directories, represent baseline areas with
+   tracked owner files such as `docs/specs/overview.md`,
+   `docs/arch/overview.md`, or `docs/guidelines/README.md`. Keep starter files
+   lightweight when detailed content is not ready: they should point to the
+   owner and next expected artifact, while the profile rules remain in
+   [documentation-standard.md](documentation-standard.md).
+5. Add `docs/adr/` when durable architecture, boundary, technology, or major
    tradeoff decisions exist.
-5. Decide whether product requirements or roadmap direction are needed before
+6. Decide whether product requirements or roadmap direction are needed before
    behavior specs or issue slicing.
-6. Choose an external issue tracker.
-7. Decide contract authority before creating `contracts/`.
-8. Add DevCanon source skills under `skills/` and agent roles under `agents/`
+7. Choose an external issue tracker.
+8. Decide contract authority before creating `contracts/`.
+9. Add DevCanon source skills under `skills/` and agent roles under `agents/`
    only when the project uses DevCanon to sync reusable capabilities.
-9. Run the project's normal formatting, linting, and documentation checks after
-   introducing new paths.
+10. Run the project's normal formatting, linting, and documentation checks after
+    introducing new paths.
 
 DevCanon does not automatically manage consumer repositories. Projects remain
 responsible for their own durable docs, tracker configuration, and repository
@@ -81,18 +87,26 @@ checks.
    practices, generated outputs, and repeated manual procedures.
 2. Identify source-of-truth conflicts across repo docs, issues, PR comments,
    and agent-local files.
-3. Introduce or tighten `AGENTS.md` and `MAP.md` before broad content movement.
-4. Classify existing durable docs by AFDS profile using
+3. Resolve source-of-truth conflicts before moving or promoting content: update
+   the owning artifact, remove or narrow non-owner copies, redirect readers to
+   the owner, or stop with an ownership blocker when the owner is unclear.
+4. Introduce or tighten `AGENTS.md` and `MAP.md` before broad content movement.
+5. Before preserving an existing document as durable truth, check it against
+   current source, tests, source-owned contracts, and linked tracker evidence.
+   If it is stale, update the owner or mark the owner update needed instead of
+   treating the old document as authoritative.
+6. Classify existing durable docs by AFDS profile using
    [documentation-standard.md](documentation-standard.md).
-5. Avoid strict-template rewrites for all old specs; garden existing docs when
+7. Avoid strict-template rewrites for all old specs; garden existing docs when
    they are touched or when ownership is wrong.
-6. Move, narrow, or redirect documents only when ownership or discoverability is
+8. Move, narrow, or redirect documents only when ownership or discoverability is
    broken.
-7. Extract repeated procedures into skills only when the procedure is reused
-   across issues or projects.
-8. Create or promote agent roles only when stable delegate identity or
-   target-supported constraints justify them.
-9. Sync DevCanon managed outputs only after source ownership is clear.
+9. Route repeated procedures before extraction: keep project-local policy in
+   `WORKFLOW.md` or `docs/guidelines/`, create a source skill only for portable
+   reusable method, create an agent role only when stable delegate identity or
+   target-supported constraints justify it, and use the capability-gap path when
+   ownership is unclear.
+10. Sync DevCanon managed outputs only after source ownership is clear.
 
 ## Choosing GitHub Issues Or Linear
 
@@ -110,20 +124,16 @@ only when a live planning container or evidence pointer is useful.
 
 ## Identifying Contract Authority
 
-Contract authority follows the ownership or deployment boundary, not the
-runtime boundary. This matches
+Before creating `contracts/`, identify the owning contract surface using
+[documentation-standard.md](documentation-standard.md) and
 [ADR-0004: Code-as-Contract by Default](../adr/adr-0004-code-as-contract.md).
+Record whether the current authority is source-owned or artifact-owned in the
+owning doc or navigation pointer, then create `contracts/` only when those
+owners call for an artifact-owned contract or registry.
 
-Use source-owned contracts when schemas, types, validation code, or source
-modules own and enforce the interface. Tests can verify that contract behavior,
-but they do not become the contract authority. Use artifact-owned contracts
-when an external, generated, deployed, or registry artifact owns or indexes the
-interface.
-
-Do not create `contracts/` merely because two modules communicate at runtime.
-For DevCanon itself, current contract authority is code-owned through Zod
-schemas, TypeScript types, validation code, manifest handling, and source
-modules.
+For DevCanon itself, ADR-0004 remains the owner for the current code-owned
+contract decision. This guide only adds the migration action: find and preserve
+that owner before adding or moving contract artifacts.
 
 ## Conditional Profiles
 
@@ -161,8 +171,11 @@ New project checklist:
 
 - [ ] `AGENTS.md` gives humans and agents the compact entry point.
 - [ ] `MAP.md` answers canonical navigation questions.
-- [ ] Baseline docs and areas exist where needed: `CONTRIBUTING.md`,
-      `WORKFLOW.md`, `docs/specs/`, `docs/arch/`, and `docs/guidelines/`.
+- [ ] Baseline docs and areas are represented by tracked owner files:
+      `CONTRIBUTING.md`, `WORKFLOW.md`, `docs/specs/`, `docs/arch/`, and
+      `docs/guidelines/`.
+- [ ] Starter owner files stay lightweight when detailed content is not ready,
+      and empty directories are not treated as durable owners.
 - [ ] The project has chosen an external issue tracker.
 - [ ] Contract authority is identified before any `contracts/` path is added.
 - [ ] Conditional-profile paths are created only when their triggers exist.
@@ -175,11 +188,16 @@ Existing project checklist:
       practices, generated outputs, and repeated manual procedures are audited.
 - [ ] Source-of-truth conflicts across repo docs, issues, PR comments, and
       agent-local files are identified.
+- [ ] Conflicts are resolved by updating the owner, narrowing non-owner copies,
+      redirecting readers, or stopping with an ownership blocker.
 - [ ] `AGENTS.md` and `MAP.md` exist or are tightened before broad content
       movement.
+- [ ] Existing docs are checked against current source, tests, source-owned
+      contracts, and linked tracker evidence before being preserved as durable
+      truth.
 - [ ] Existing durable docs are classified by AFDS profile.
 - [ ] Legacy docs are gardened incrementally when touched or when ownership is
       wrong.
-- [ ] Repeated procedures are extracted into skills only when reuse justifies
-      them.
+- [ ] Repeated procedures are routed to local workflow docs, portable source
+      skills, agent roles, or capability-gap blockers before extraction.
 - [ ] DevCanon managed outputs are synced only after source ownership is clear.
