@@ -100,9 +100,10 @@ Recommended surface: repository-doc check script.
 Check documentation filenames against the explicit naming rules in
 `docs/guidelines/documentation-standard.md`, including lowercase kebab-case for
 docs under `docs/`, uppercase canonical root docs, ADR numbering, and the
-standard's listed avoid patterns.
+standard's listed avoid patterns. Documented exceptions such as module-local
+`README.md` index and breadcrumb files must be allowed.
 
-Ready now: yes, for rules already explicit in the standard.
+Ready now: yes, for rules and exceptions already explicit in the standard.
 
 Recommended surface: repository-doc check script.
 
