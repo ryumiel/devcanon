@@ -45,11 +45,12 @@ spec". Those are normal edits, not audits.
 
 Same-PR documentation impact is also normal implementation/review work, not
 implicit gardening. When an active issue or PR changes durable truth covered by
-the canonical trigger list in `docs/guidelines/documentation-standard.md` §5.2,
-the owning artifact update stays with that active planning/execution/review
-flow. Use `doc-gardening` for explicit documentation health checks and audits.
-For the broader routing model, see
-`docs/guidelines/portable-afds-user-procedure-map.md`.
+the target standard's same-PR update rule, the owning artifact update stays with
+that active planning/execution/review flow. Use `doc-gardening` for explicit
+documentation health checks and audits. For the broader routing model, see
+`docs/guidelines/portable-afds-user-procedure-map.md`; for audits, Phase 1 still
+discovers the target repository's authoritative standard before applying any
+same-PR coverage rule.
 
 ## Modes
 
