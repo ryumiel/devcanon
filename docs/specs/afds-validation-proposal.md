@@ -1,7 +1,7 @@
 # AFDS Mechanical Documentation-Check Proposal
 
 - Scope: DevCanon AFDS documentation checks
-- Status: Proposal
+- Status: Accepted
 
 ---
 
