@@ -44,11 +44,11 @@ Use only when explicitly invoked with phrases like:
 spec". Those are normal edits, not audits.
 
 Same-PR documentation impact is also normal implementation/review work, not
-implicit gardening. When an active issue or PR changes durable behavior,
-workflow, command, ownership, verification, architecture, or policy truth, the
-owning artifact update stays with that active planning/execution/review flow.
-Use `doc-gardening` for explicit documentation health checks and audits. For
-the broader routing model, see
+implicit gardening. When an active issue or PR changes durable truth covered by
+the canonical trigger list in `docs/guidelines/documentation-standard.md` §5.2,
+the owning artifact update stays with that active planning/execution/review
+flow. Use `doc-gardening` for explicit documentation health checks and audits.
+For the broader routing model, see
 `docs/guidelines/portable-afds-user-procedure-map.md`.
 
 ## Modes
