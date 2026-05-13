@@ -13,6 +13,9 @@ state, and active agent sessions for temporary execution detail.
 
 - [Agent Authoring Guide](agent-authoring-guide.md) - when to create agent
   roles instead of skills, and how to promote prompt templates.
+- [AFDS Setup and Migration](afds-setup-and-migration.md) - how new and
+  existing projects can adopt AFDS entry points, navigation, tracker
+  boundaries, contract authority, and DevCanon sync incrementally.
 - [AI-Assisted Product Workflow Guideline](ai-assisted-product-workflow-guideline.md)
   - how DevCanon applies AFDS to product, documentation, issue, and PR work.
 - [Behavior Spec Evidence Routing](behavior-spec-evidence-routing.md) -
