@@ -2,7 +2,6 @@
 
 - Scope: DevCanon AFDS documentation checks
 - Status: Proposal
-- Related issue: [#225](https://github.com/ryumiel/devcanon/issues/225)
 
 ---
 
