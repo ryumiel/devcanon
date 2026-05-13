@@ -1,8 +1,8 @@
 # AFDS Mechanical Documentation-Check Proposal
 
-Scope: DevCanon AFDS documentation checks\
-Status: Proposal\
-Related issue: [#225](https://github.com/ryumiel/devcanon/issues/225)
+- Scope: DevCanon AFDS documentation checks
+- Status: Proposal
+- Related issue: [#225](https://github.com/ryumiel/devcanon/issues/225)
 
 ---
 
@@ -54,7 +54,7 @@ linting scripts.
 These scripts should enforce rules already owned by durable docs such as
 `docs/guidelines/documentation-standard.md`; they should not create new policy.
 
-### Pre-Commit
+### Pre-commit
 
 Pre-commit should stay an orchestrator for cheap staged-file checks. It may
 delegate to repository-doc check commands once those commands exist, but it
