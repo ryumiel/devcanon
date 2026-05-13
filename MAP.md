@@ -30,6 +30,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Where is exact Portable AFDS routing and evidence behavior defined? ->
   [`docs/specs/afds-workflow-routing.md`](docs/specs/afds-workflow-routing.md)
+- Where is the AFDS mechanical documentation-check proposal? ->
+  [`docs/specs/afds-validation-proposal.md`](docs/specs/afds-validation-proposal.md)
 - Where is the Portable AFDS user procedure map? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
 - Where is behavior-spec evidence routing defined? ->
