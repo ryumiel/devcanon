@@ -36,9 +36,10 @@ artifacts:
 
 - config files;
 - skill source files;
-- agent source files;
-- placeholder contracts;
-- generated-source contracts.
+- agent source files.
+
+Placeholder and glossary rules remain part of those source-artifact validation
+surfaces where already documented for config, skills, and agents.
 
 Repository-documentation governance should not be folded into
 `src/validate/**` unless a later approved implementation issue explicitly
