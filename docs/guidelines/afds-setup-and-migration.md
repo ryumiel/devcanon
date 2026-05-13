@@ -153,7 +153,7 @@ profile definitions and triggers.
 
 ## DevCanon Skill And Agent Sync
 
-DevCanon is user-wide source library and CLI tooling, not a repository-level
+DevCanon is a user-wide source library and CLI tooling, not a repository-level
 document manager for consumer projects.
 
 Source skills live under `skills/`; source agent roles live under `agents/`.
