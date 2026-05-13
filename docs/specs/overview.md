@@ -55,7 +55,7 @@ These boundaries apply across DevCanon behavior specs:
 
 - [Core concepts and principles](core-concepts.md)
 - [AFDS workflow routing and evidence behavior](afds-workflow-routing.md)
-- [AFDS mechanical documentation-check proposal](afds-validation-proposal.md)
+- [AFDS mechanical documentation checks](afds-mechanical-documentation-checks.md)
 - [Configuration format](configuration.md)
 - [Skill specification](skills.md)
 - [Agent source schema](agents.md)

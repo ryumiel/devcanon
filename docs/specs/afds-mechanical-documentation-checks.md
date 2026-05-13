@@ -1,4 +1,4 @@
-# AFDS Mechanical Documentation-Check Proposal
+# AFDS Mechanical Documentation Checks
 
 - Scope: DevCanon AFDS documentation checks
 - Status: Accepted
@@ -7,9 +7,10 @@
 
 ## Purpose
 
-This proposal identifies scoped mechanical AFDS documentation checks that can
-be implemented after the document-profile taxonomy and workflow expectations
-are stable. It intentionally does not implement validation behavior.
+This specification identifies scoped mechanical AFDS documentation checks that
+can be implemented after the document-profile taxonomy and workflow
+expectations are stable. It intentionally does not implement validation
+behavior.
 
 The goal is to draw a durable boundary between:
 
@@ -20,11 +21,11 @@ The goal is to draw a durable boundary between:
 
 ## Scope
 
-This proposal covers mechanically detectable documentation checks for DevCanon
-repositories that have adopted the AFDS documentation standard.
+This specification covers mechanically detectable documentation checks for
+DevCanon repositories that have adopted the AFDS documentation standard.
 
-The proposal is documentation-only. It does not change runtime validation,
-package scripts, pre-commit hooks, CI, or source validation code.
+This specification is documentation-only. It does not change runtime
+validation, package scripts, pre-commit hooks, CI, or source validation code.
 
 ## Boundary Model
 
@@ -170,7 +171,7 @@ and verification fixtures.
 
 ### Deferred Pending Follow-Up Issues
 
-These checks should not be implemented from this proposal alone:
+These checks should not be implemented from this specification alone:
 
 - broad profile-shape enforcement;
 - automated ownership classification across documentation profiles;
@@ -213,5 +214,6 @@ Any future implementation issue should define:
 - staged-file behavior, if pre-commit delegates to the check;
 - how doc-gardening or review workflows consume the check result.
 
-For this proposal-only issue, verification is limited to Markdown formatting,
-Markdown linting, and `devcanon validate` as a source-artifact sanity check.
+For this documentation-only change, verification is limited to Markdown
+formatting, Markdown linting, and `devcanon validate` as a source-artifact
+sanity check.
