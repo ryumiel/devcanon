@@ -43,6 +43,14 @@ Use only when explicitly invoked with phrases like:
 "update the README", "add a note to AGENTS.md", or "fix the typo in the
 spec". Those are normal edits, not audits.
 
+Same-PR documentation impact is also normal implementation/review work, not
+implicit gardening. When an active issue or PR changes durable behavior,
+workflow, command, ownership, verification, architecture, or policy truth, the
+owning artifact update stays with that active planning/execution/review flow.
+Use `doc-gardening` for explicit documentation health checks and audits. For
+the broader routing model, see
+`docs/guidelines/portable-afds-user-procedure-map.md`.
+
 ## Modes
 
 | Mode            | Default | Scope                                                                   |
@@ -50,7 +58,10 @@ spec". Those are normal edits, not audits.
 | `--full`        | yes     | Whole repo against the standard                                         |
 | `--diff <base>` | no      | Only the doc-coverage delta for changes since `<base>` (default `main`) |
 
-`--diff` is the mode to use before opening a PR. `--full` is for periodic
+`--diff` is the optional audit mode to use before opening a PR when you want a
+documentation-coverage check. It can report same-PR coverage gaps, but it does
+not own the same-PR update; the active planning/execution/review workflow owns
+durable updates caused by its own change. `--full` is for explicit periodic
 gardening passes.
 
 **`--diff` graceful degradation:** if the target standard does not name a
