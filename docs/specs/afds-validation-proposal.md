@@ -75,6 +75,10 @@ Check inline relative Markdown links in tracked docs and report links whose
 targets no longer exist. Anchor checking can be a follow-up once the basic
 path resolver is stable.
 
+Resolution must normalize each target against its source file, reject or ignore
+targets that escape the repository root, and report escaped paths without
+probing the filesystem outside the repository.
+
 Ready now: yes.
 
 Recommended surface: repository-doc check script, reusable by full checks,
