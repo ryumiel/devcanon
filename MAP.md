@@ -30,6 +30,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/specs/afds-workflow-routing.md`](docs/specs/afds-workflow-routing.md)
 - Where is the Portable AFDS user procedure map? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
+- Where is behavior-spec evidence routing defined? ->
+  [`docs/guidelines/behavior-spec-evidence-routing.md`](docs/guidelines/behavior-spec-evidence-routing.md)
 - Where are Portable AFDS procedure flow graphs? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md` § Procedure Flow Graphs](docs/guidelines/portable-afds-user-procedure-map.md#procedure-flow-graphs)
 - Where is the config format spec? -> [`docs/specs/configuration.md`](docs/specs/configuration.md)
@@ -82,6 +84,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the project management model? -> [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Where is the Portable AFDS user procedure map? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md`](docs/guidelines/portable-afds-user-procedure-map.md)
+- Where is behavior-spec evidence routing defined? ->
+  [`docs/guidelines/behavior-spec-evidence-routing.md`](docs/guidelines/behavior-spec-evidence-routing.md)
 - Where are Portable AFDS procedure flow graphs? ->
   [`docs/guidelines/portable-afds-user-procedure-map.md` § Procedure Flow Graphs](docs/guidelines/portable-afds-user-procedure-map.md#procedure-flow-graphs)
 - Where are the Copilot review instructions? -> [`.github/copilot-instructions.md`](.github/copilot-instructions.md)

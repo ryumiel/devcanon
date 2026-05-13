@@ -15,6 +15,9 @@ state, and active agent sessions for temporary execution detail.
   roles instead of skills, and how to promote prompt templates.
 - [AI-Assisted Product Workflow Guideline](ai-assisted-product-workflow-guideline.md)
   - how DevCanon applies AFDS to product, documentation, issue, and PR work.
+- [Behavior Spec Evidence Routing](behavior-spec-evidence-routing.md) -
+  behavior-spec evidence pointers, readiness-review handoff, and issue-slicing
+  boundaries.
 - [Code Review Guideline](code-review-guideline.md) - review finding model,
   workflow, and self-review checklist.
 - [Commit Guideline](commit-guideline.md) - commit message format, body, and

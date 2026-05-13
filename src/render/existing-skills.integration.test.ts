@@ -408,9 +408,32 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("single-PR execution plans");
     expect(writeProductSpecBody).toContain("contract authority");
     expect(writeProductSpecBody).toContain("source-owned schemas");
+    expect(writeProductSpecBody).toContain(
+      "references/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecBody).toContain(
+      "Repo-local AFDS docs are optional project context",
+    );
+    expect(writeProductSpecBody).toContain("required runtime inputs");
+    expect(writeProductSpecBody).toContain("evidence pointer");
+    expect(writeProductSpecBody).toContain("durable team, system, role");
+    expect(writeProductSpecBody).not.toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    expect(writeProductSpecBody).not.toContain(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecBody).not.toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    expect(writeProductSpecBody).not.toContain("EVID-001");
+    expect(writeProductSpecBody).toContain("readiness review");
     expect(writeProductSpecBody).toContain("unapproved follow-up");
-    expect(writeProductSpecBody).not.toContain("spec-readiness-review");
+    expect(writeProductSpecBody).toContain("spec-readiness-review");
     expect(writeProductSpecBody).toContain("issue-slicing");
+    expect(writeProductSpecBody.indexOf("spec-readiness-review")).toBeLessThan(
+      writeProductSpecBody.indexOf("issue-slicing"),
+    );
     expect(writeProductSpecBody).not.toContain("slice-issues");
     expect(writeProductSpecBody).toContain("doc-impact-review");
     expect(writeProductSpecBody).toContain("post-merge-gardener");
@@ -419,6 +442,41 @@ mkdir -p .ephemeral
     expect(writeProductSpecBody).toContain("write-product-requirements");
     expect(writeProductSpecBody).toContain("docs/product-requirements/");
     expect(writeProductSpecBody).toContain("product intent");
+  });
+
+  it("documents behavior-spec evidence routing as a durable procedure-map owner", async () => {
+    const repoRoot = process.cwd();
+
+    const procedureMap = await readFile(
+      path.join(
+        repoRoot,
+        "docs/guidelines/portable-afds-user-procedure-map.md",
+      ),
+      "utf-8",
+    );
+    const routingGuideline = await readFile(
+      path.join(repoRoot, "docs/guidelines/behavior-spec-evidence-routing.md"),
+      "utf-8",
+    );
+
+    expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
+    expect(procedureMap).toContain("durable source of origin");
+    expect(procedureMap).toContain(
+      "`spec-readiness-review`, then `issue-slicing`",
+    );
+    expect(routingGuideline).toContain("The durable source of origin");
+    expect(routingGuideline).toContain(
+      "`docs/specs/afds-workflow-routing.md` `EVID-001`",
+    );
+    expect(routingGuideline).toContain("Runtime excerpt from `EVID-001`");
+    expect(routingGuideline).toContain(
+      "checked requirement, route, execution contract, or owner",
+    );
+    expect(routingGuideline).toContain("blocker or follow-up owner");
+    expect(routingGuideline).toContain("contract to behavior-spec authoring");
+    expect(routingGuideline).toContain("Evidence Pointers");
+    expect(routingGuideline).toContain("Readiness Before Slicing");
+    expect(routingGuideline).toContain("Storage Boundary");
   });
 
   it("documents the spec-readiness-review status contract", async () => {
@@ -451,13 +509,16 @@ mkdir -p .ephemeral
       "references/routing-and-evidence.md",
     );
     expect(specReadinessReviewBody).toContain(
-      "Repo-local AFDS docs are optional project context",
+      "artifact, durable team, system, or role",
+    );
+    expect(specReadinessReviewBody).toContain("do not accept");
+    expect(specReadinessReviewBody).toContain("person names, assignees");
+    expect(specReadinessReviewBody).toContain("live tracker ownership");
+    expect(specReadinessReviewBody).toContain(
+      "Repo-local project docs are optional context",
     );
     expect(specReadinessReviewBody).toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
-    );
-    expect(specReadinessReviewBody).toContain(
-      "not treat repo-local docs as required runtime inputs",
+      "Do not treat repo-local docs as required",
     );
     expect(specReadinessReviewBody).toContain(
       "does not approve implementation",
@@ -465,6 +526,8 @@ mkdir -p .ephemeral
     expect(specReadinessReviewBody).not.toContain(
       "docs/specs/afds-workflow-routing.md",
     );
+    expect(specReadinessReviewBody).not.toContain("MAP.md");
+    expect(specReadinessReviewBody).not.toContain("docs/guidelines/");
   });
 
   it("documents the issue-slicing draft-only provider-neutral contract", async () => {
@@ -501,7 +564,7 @@ mkdir -p .ephemeral
     );
   });
 
-  it("mirrors spec-readiness-review bundled references to both targets", async () => {
+  it("mirrors bundled references to both targets", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -535,6 +598,35 @@ mkdir -p .ephemeral
         expect(await pathExists(generatedPath)).toBe(true);
         expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
       }
+    }
+
+    const sourcePath = path.join(
+      repoRoot,
+      "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
+    );
+    const sourceContent = await readFile(sourcePath, "utf-8");
+    expect(sourceContent).toContain("packaged runtime reference");
+    expect(sourceContent).toContain("minimum evidence pointer");
+    expect(sourceContent).toContain("durable team, system, role, or artifact");
+    expect(sourceContent).not.toContain(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    expect(sourceContent).not.toContain("docs/specs/afds-workflow-routing.md");
+    expect(sourceContent).not.toContain("EVID-001");
+    expect(sourceContent).not.toContain("source of origin");
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "write-product-spec",
+        "references",
+        "behavior-spec-evidence-routing.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
     }
   });
 
