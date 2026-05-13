@@ -21,6 +21,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the roadmap? -> [`docs/roadmap/`](docs/roadmap/)
 - Where is the Portable AFDS Toolkit direction? -> [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
 - Where are the Portable AFDS Toolkit product requirements? -> [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
+- Where is AFDS setup and migration guidance? ->
+  [`docs/guidelines/afds-setup-and-migration.md`](docs/guidelines/afds-setup-and-migration.md)
 - Where are AFDS document profiles defined? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where is profile guidance for conditional `contracts/`, `docs/product-requirements/`, `docs/harness/`, `docs/knowledge/`, `docs/references/`, `docs/roadmap/`, `docs/tech-debt/`, and module breadcrumbs? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where are current issue/behavior-spec relationships and lightweight
@@ -69,6 +71,8 @@ Quick navigation index for the DevCanon repository.
 ## Guidelines and templates
 
 - Where is the guideline directory index? -> [`docs/guidelines/README.md`](docs/guidelines/README.md)
+- Where is AFDS setup and migration guidance? ->
+  [`docs/guidelines/afds-setup-and-migration.md`](docs/guidelines/afds-setup-and-migration.md)
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where is the AI-assisted product workflow guide? -> [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
