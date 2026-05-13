@@ -209,7 +209,20 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **4. Example verification:** For any worked example, code snippet annotation, or scenario reference _that purports to cite existing code, files, or history_ in the plan that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking task definitions (new files in `Files: Create:` blocks, function names being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples. Note: this complements the existing Plan Review subagent, which independently checks that file paths in the plan reference real locations; this self-review item additionally verifies citations inside worked examples and prose.
 
-**5. Documentation tasks:** If the input design has a "Documentation impact" section, every listed file must have a corresponding task in the plan. New ADRs use `docs/adr/adr-template.md` as the source. If the design has no "Documentation impact" section, this check is a no-op.
+**5. Documentation impact tasks:** Same-PR documentation impact is normal
+implementation work when the design changes durable truth. AFDS repositories
+should provide the canonical trigger list at
+`docs/guidelines/documentation-standard.md` §5.2; common examples include
+interfaces or schemas, major paths or layout, behavior, workflow, commands,
+ownership, verification, architecture, and policy. If the target repository has
+not adopted that path, use its discovered equivalent documentation standard
+before applying same-PR triggers. If the input design has a "Documentation
+impact" section, every listed file must have a corresponding task in the plan.
+New ADRs use `docs/adr/adr-template.md` as the source. For routing boundaries,
+follow
+`docs/guidelines/portable-afds-user-procedure-map.md`.
+
+Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
 
 **6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 

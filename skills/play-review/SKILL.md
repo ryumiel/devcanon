@@ -230,6 +230,15 @@ MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
 This summary is passed to the Architecture agent's briefing in Phase 3
 as anchor data. No findings are emitted at this step.
 
+This is a same-PR documentation impact check, not documentation gardening. The
+review pipeline verifies whether durable documentation impact from the diff was
+handled in the same PR and routes findings through the review result. Review
+state that still needs to be surfaced after PR creation belongs in PR review
+comments, not repository docs. Do not copy issue comments, PR review history,
+validation logs, or agent-local plans into repository docs; use them only as
+evidence for updates to the owning durable artifact. For the routing model, see
+`docs/guidelines/portable-afds-user-procedure-map.md`.
+
 ## Phase 2.5: Compose shared review context
 
 Phase 3 dispatches multiple reviewer agents. Rather than re-paste the
