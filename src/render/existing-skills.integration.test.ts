@@ -564,7 +564,7 @@ mkdir -p .ephemeral
     );
   });
 
-  it("mirrors spec-readiness-review bundled references to both targets", async () => {
+  it("mirrors bundled references to both targets", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -599,15 +599,6 @@ mkdir -p .ephemeral
         expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
       }
     }
-  });
-
-  it("mirrors write-product-spec bundled references to both targets", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    await renderAll(config, true);
 
     const sourcePath = path.join(
       repoRoot,
