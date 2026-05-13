@@ -147,8 +147,10 @@ DevCanon is user-wide source library and CLI tooling, not a repository-level
 document manager for consumer projects.
 
 Source skills live under `skills/`; source agent roles live under `agents/`.
-When the project uses DevCanon, run `devcanon validate`, `devcanon render`, and
-`devcanon sync` after source changes.
+When the project uses DevCanon, run `devcanon validate` and `devcanon render`
+after source changes. Run `devcanon sync` only from a trusted source library
+after reviewing changed `skills/`, `agents/`, and rendered output, because sync
+writes managed outputs into user-wide target homes.
 
 Generated preview output and installed managed output are disposable and should
 not be edited as authoritative source.
