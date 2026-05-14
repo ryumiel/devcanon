@@ -394,8 +394,31 @@ mkdir -p .ephemeral
     const playSubagentExecutionBody = parseFrontmatter(
       getSkillOutput(outputs, "play-subagent-execution", "codex").content,
     ).body;
+    const playPlanningBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-planning", "codex").content,
+    ).body;
+    expect(playPlanningBody).toContain("## Cohesive Task Composition");
+    expect(playPlanningBody).toContain(
+      "share the same subsystem or file family",
+    );
+    expect(playPlanningBody).toContain(
+      "Do not replace executable checkbox steps with vague high-level subtasks",
+    );
+    expect(playPlanningBody).toContain(
+      "Do not hide dependent implementation units merely to avoid multi-task review",
+    );
+
     expect(playSubagentExecutionBody).toContain(
       "high-assurance serial execution",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "preserves the task boundaries authored in the plan",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "does not regroup adjacent tasks or runtime-batch by default",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "runtime batching would be a separate policy change",
     );
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
@@ -423,6 +446,19 @@ mkdir -p .ephemeral
     expect(playSubagentAdvantages).toContain("reviewers still read from disk");
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
+
+    const playSubagentExampleWorkflow = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/example-workflow.md",
+      ),
+      "utf-8",
+    );
+    expect(playSubagentExampleWorkflow).toContain("coherent authored tasks");
+    expect(playSubagentExampleWorkflow).toContain(
+      "runtime regrouping or batching",
+    );
+    expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
 
     const playSubagentRedFlags = await readFile(
       path.join(

@@ -3,16 +3,25 @@
 An end-to-end illustration of the multi-task subagent-driven flow. The procedure
 itself lives in `SKILL.md` § The Process; this file is illustrative.
 
-The example below shows a multi-task (5-task) plan, so per-task reviewers run after every task. For a **single-task plan** the per-task reviewer dispatches are skipped (see "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the flow shrinks to: dispatch implementer → implementer self-reviews and commits → mark task complete → final whole-implementation code-quality reviewer → `play-branch-finish`. On the `issue-priming-workflow --auto` single-task path, the flow instead returns to the caller after task completion so Phase 7 `branch-review --fix` becomes the whole-diff gate.
+The example below shows a multi-task plan with coherent authored tasks, so
+per-task reviewers run after every task. The executor follows the authored plan
+boundaries; it does not do runtime regrouping or batching. For a
+**single-task plan** the per-task reviewer dispatches are skipped (see
+"Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
+flow shrinks to: dispatch implementer -> implementer self-reviews and commits
+-> mark task complete -> final whole-implementation code-quality reviewer ->
+`play-branch-finish`. On the `issue-priming-workflow --auto` single-task path,
+the flow instead returns to the caller after task completion so Phase 7
+`branch-review --fix` becomes the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
 [Read plan file once: .ephemeral/feature-plan.md]
-[Extract all 5 tasks with full text and context]
+[Extract all 3 coherent authored tasks with full text and context]
 [Create TodoWrite with all tasks]
 
-Task 1: Hook installation script
+Task 1: Hook lifecycle
 
 [Get Task 1 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
@@ -23,9 +32,9 @@ You: "User level (~/.config/agent-hooks/)"
 
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
+  - Implemented install, verify, and remove hook lifecycle commands
+  - Added tests, 12/12 passing
+  - Self-review: Found I missed --force replacement coverage, added it
   - Committed
 
 [Dispatch spec compliance reviewer]
@@ -36,14 +45,14 @@ Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Mark Task 1 complete]
 
-Task 2: Recovery modes
+Task 2: Recovery and repair modes
 
 [Get Task 2 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
 
 Implementer: [No questions, proceeds]
 Implementer:
-  - Added verify/repair modes
+  - Added verify/repair modes with progress reporting
   - 8/8 tests passing
   - Self-review: All good
   - Committed

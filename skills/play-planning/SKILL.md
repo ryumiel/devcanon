@@ -85,6 +85,27 @@ Before defining tasks, map out which files will be created or modified and what 
 
 This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
 
+## Cohesive Task Composition
+
+Compose related implementation steps into one authored task when they form a
+self-contained implementation unit. Prefer one task when the work:
+
+- shares the same subsystem or file family;
+- uses the same verification route;
+- does not need an intermediate reviewed state to be safe;
+- can fit in one implementer's working context; and
+- can land as one coherent commit.
+
+Related steps should share the same subsystem or file family before they are
+composed into one authored task.
+
+Composition changes task boundaries, not step quality. A composed task still
+uses exact executable checkbox steps with code, commands, and expected output.
+Do not replace executable checkbox steps with vague high-level subtasks.
+
+Do not compose unrelated work just to reduce dispatch count. Do not hide dependent implementation units merely to avoid multi-task review. If separate
+units need independent review, rollback, or verification, keep them as separate tasks.
+
 ## Bite-Sized Task Granularity
 
 **Each step is one action (2-5 minutes):**
