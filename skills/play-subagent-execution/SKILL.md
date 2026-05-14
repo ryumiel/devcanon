@@ -232,6 +232,64 @@ gate; on direct/manual single-task invocations, the final
 whole-implementation reviewer remains the built-in gate and the user can
 still run `branch-review` manually.
 
+## Controller Lifecycle Ledger
+
+The controller maintains a compact per-task lifecycle ledger while executing the plan. The ledger is agent-local/controller-local state; do not write it as durable repository documentation and do not pass it to reviewer agents as evidence. Reviewers still read the worktree from disk.
+
+Track one row per active or completed implementer/reviewer session:
+
+| Field                                                | Purpose                                                                                                               |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| task id                                              | Plan task identifier, e.g. `Task 2`.                                                                                  |
+| base/head SHA                                        | Base SHA before dispatch and head SHA after the session's committed or reviewed work.                                 |
+| active/completed agent ids when available            | Runtime-provided agent/session ids used for follow-up, inventory, or cleanup.                                         |
+| role                                                 | `implementer`, `spec-compliance-reviewer`, `code-quality-reviewer`, or `final-code-quality-reviewer`.                 |
+| status                                               | Current state: active, DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, PASS, findings-recorded, superseded, closed. |
+| closed=yes, closed=no, or cleanup-unavailable reason | Whether the session was closed, remains open, or cannot be closed because the target lacks lifecycle support.         |
+| reviewer result                                      | PASS, findings routed, re-review requested, or not applicable.                                                        |
+| fixup count                                          | Number of same-task fixup/re-review cycles already attempted.                                                         |
+| blocker state                                        | Current blocker family and disposition when a task reports BLOCKED or a spawn fails.                                  |
+
+Update the ledger before and after every implementer, reviewer, re-reviewer, and final reviewer dispatch. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
+
+## Target Lifecycle Capability
+
+Before promising automatic cleanup, identify what lifecycle controls the current target runtime exposes. Do this once before the first subagent dispatch and update the conclusion if later tool availability proves it wrong.
+
+| Capability class            | Required support                                                                         | Controller behavior                                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `automatic-close-supported` | The runtime exposes both stable agent/session ids and a close/session-cleanup operation. | Close completed or superseded sessions after required state is recorded, then mark `closed=yes` in the ledger.             |
+| `inventory-only`            | The runtime exposes session inventory or ids, but no close operation.                    | Record open inventory and mark `cleanup-unavailable` with the reason `inventory-only; no close operation`.                 |
+| `cleanup-unavailable`       | The runtime exposes neither reliable inventory nor close/session-cleanup.                | Record `cleanup-unavailable` with a clear reason and give explicit operator/UI cleanup guidance when slot pressure occurs. |
+
+Codex runtimes may expose a `close_agent` operation; Claude Code or other targets may expose different lifecycle controls or none at all. Do not infer support from another target. If either the id source or close operation is missing, automatic closure is unavailable for that target.
+
+## Cleanup Gate Before Spawns
+
+Before every new subagent spawn, inspect the lifecycle ledger for completed or superseded sessions:
+
+1. Close PASS reviewers after their verdict is recorded when the target is `automatic-close-supported`.
+2. Close reviewers with findings after findings are recorded and routed, unless a narrow follow-up needs the same session.
+3. Close implementers after DONE once the report, changed files, base/head SHA, test results, and snapshot state are captured, unless immediate follow-up is planned.
+4. If the target is `inventory-only` or `cleanup-unavailable`, record the cleanup-unavailable reason before spawning instead of claiming closure.
+
+This gate is orchestration hygiene. It does not change task status, reviewer independence, git state, or the serial implementer rule.
+
+## Slot-Limit Recovery
+
+A spawn failure caused by open agent/session limits is orchestration resource exhaustion, not implementation failure and not reviewer failure.
+
+When a spawn fails because of a slot/session limit:
+
+1. Classify the failure as orchestration resource exhaustion in the lifecycle ledger.
+2. Run the cleanup gate for all completed or superseded sessions.
+3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup guidance. Include open-agent inventory when the target exposes it; otherwise state that inventory is unavailable.
+4. Run recovery steps to reconstruct active task state from the lifecycle ledger and git (`git status`, current branch, and relevant base/head SHAs).
+5. Then retry the spawn exactly once.
+6. If the retry still fails, stop and escalate to the user with the reconstructed state and remaining open-agent inventory, or with a clear statement that inventory is unavailable.
+
+If the same blocker family repeats after cleanup and one retry, route through the existing BLOCKED handling below: provide missing context, escalate model strength, split the task, or stop because the plan is wrong. Do not add broader replanning rules in this skill.
+
 ## Implementer Snapshot Consumption
 
 Every dispatched implementer agent emits a literal
@@ -462,6 +520,8 @@ The two fixtures together lock the heuristic by showing both branches.
 
 ## Handling Implementer Status
 
+Before acting on any returned status, update the lifecycle ledger for that session. After the required report, snapshot, changed-file list, base/head SHA, and test result are captured, run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer.
+
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 **DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see § Single-Task Plans).
@@ -476,6 +536,8 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 2. If the task requires more reasoning, re-dispatch with a more capable model
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the user
+
+If BLOCKED appears after a slot-limit recovery retry and belongs to the same blocker family already recorded in the lifecycle ledger, treat it as repeated blocker-family behavior and escalate through the existing path above instead of retrying cleanup again.
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 

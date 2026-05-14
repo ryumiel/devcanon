@@ -43,12 +43,27 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 [Get git SHAs, dispatch code quality reviewer]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
+[Lifecycle cleanup checkpoint]
+Ledger:
+  - Task 1 implementer: agent_id=impl-1, base/head SHA captured, snapshot captured, test state captured, closed=yes after DONE report recorded
+  - Task 1 spec reviewer: agent_id=spec-1, reviewer result=PASS, closed=yes after PASS verdict recorded
+  - Task 1 code reviewer: agent_id=quality-1, reviewer result=PASS, closed=yes after PASS verdict recorded
+
+[Before Task 2 spawn]
+Target capability: cleanup-unavailable: target exposes no close operation
+Controller records cleanup-unavailable reason before dispatching Task 2.
+
 [Mark Task 1 complete]
 
 Task 2: Recovery and repair modes
 
 [Get Task 2 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
+
+[Slot-limit spawn failure]
+Controller classifies this as orchestration resource exhaustion, not task failure.
+Controller reconstructs active task state from the lifecycle ledger and git, asks the operator to close completed sessions because cleanup is unavailable, then retries the spawn exactly once.
+Retry succeeds.
 
 Implementer: [No questions, proceeds]
 Implementer:

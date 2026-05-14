@@ -425,6 +425,38 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "## Controller Lifecycle Ledger",
+    );
+    expect(playSubagentExecutionBody).toContain("task id");
+    expect(playSubagentExecutionBody).toContain("base/head SHA");
+    expect(playSubagentExecutionBody).toContain(
+      "active/completed agent ids when available",
+    );
+    expect(playSubagentExecutionBody).toContain("role");
+    expect(playSubagentExecutionBody).toContain("status");
+    expect(playSubagentExecutionBody).toContain("closed=yes");
+    expect(playSubagentExecutionBody).toContain("closed=no");
+    expect(playSubagentExecutionBody).toContain("cleanup-unavailable reason");
+    expect(playSubagentExecutionBody).toContain("reviewer result");
+    expect(playSubagentExecutionBody).toContain("fixup count");
+    expect(playSubagentExecutionBody).toContain("blocker state");
+    expect(playSubagentExecutionBody).toContain(
+      "## Target Lifecycle Capability",
+    );
+    expect(playSubagentExecutionBody).toContain("automatic-close-supported");
+    expect(playSubagentExecutionBody).toContain("inventory-only");
+    expect(playSubagentExecutionBody).toContain("cleanup-unavailable");
+    expect(playSubagentExecutionBody).toContain(
+      "Before every new subagent spawn",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "orchestration resource exhaustion",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "reconstruct active task state from the lifecycle ledger and git",
+    );
+    expect(playSubagentExecutionBody).toContain("retry the spawn exactly once");
     expect(playSubagentExecutionBody).not.toContain(
       "high quality, fast iteration",
     );
@@ -461,6 +493,16 @@ mkdir -p .ephemeral
       "does not do runtime regrouping or batching",
     );
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Lifecycle cleanup checkpoint",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "closed=yes after PASS verdict recorded",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "cleanup-unavailable: target exposes no close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain("Slot-limit spawn failure");
 
     const playSubagentRedFlags = await readFile(
       path.join(
