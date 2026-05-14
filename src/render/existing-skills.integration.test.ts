@@ -372,6 +372,39 @@ mkdir -p .ephemeral
       '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
     );
 
+    const playSubagentExecutionBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-subagent-execution", "codex").content,
+    ).body;
+    expect(playSubagentExecutionBody).toContain(
+      "high-assurance serial execution",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "bounded fast paths for single-task and mechanical cases",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "high quality, fast iteration",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "- Faster iteration (no human-in-loop between tasks)",
+    );
+
+    const playSubagentAdvantages = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/advantages.md",
+      ),
+      "utf-8",
+    );
+    expect(playSubagentAdvantages).toContain(
+      "Serial-safe implementer isolation",
+    );
+    expect(playSubagentAdvantages).toContain(
+      "Controller rereads may be reduced",
+    );
+    expect(playSubagentAdvantages).toContain("reviewers still read from disk");
+    expect(playSubagentAdvantages).not.toContain("Parallel-safe");
+    expect(playSubagentAdvantages).not.toContain("No file reading overhead");
+
     const adr0014 = await readFile(
       path.join(
         repoRoot,
