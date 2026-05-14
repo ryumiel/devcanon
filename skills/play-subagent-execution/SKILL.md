@@ -236,31 +236,17 @@ still run `branch-review` manually.
 
 The controller maintains a compact per-task lifecycle ledger while executing the plan. The ledger is agent-local/controller-local state; do not write it as durable repository documentation and do not pass it to reviewer agents as evidence. Reviewers still read the worktree from disk.
 
-Track one row per active or completed implementer/reviewer session:
+Track one row per active or completed implementer, reviewer, re-reviewer, and final reviewer session. Each row records: task id, role, active/completed agent ids when available, base/head SHA, status, role-specific captured state, reviewer result, fixup count, blocker state, and one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable:<reason>`. Role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, and re-review target when applicable.
 
-| Field                                              | Purpose                                                                                                                    |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| task id                                            | Plan task identifier, e.g. `Task 2`.                                                                                       |
-| base/head SHA                                      | Base SHA before dispatch and head SHA after the session's committed or reviewed work.                                      |
-| active/completed agent ids when available          | Runtime-provided agent/session ids used for follow-up, inventory, or cleanup.                                              |
-| role                                               | `implementer`, `spec-compliance-reviewer`, `code-quality-reviewer`, or `final-code-quality-reviewer`.                      |
-| status                                             | Current state: active, DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, PASS, findings-recorded, or superseded.           |
-| closed=yes, closed=no, or close-unavailable reason | Whether the session was closed, remains open, or cannot be closed because the target lacks lifecycle support.              |
-| reviewer result                                    | PASS, findings recorded/routed with concrete finding summary and re-review target, re-review requested, or not applicable. |
-| fixup count                                        | Number of same-task fixup/re-review cycles already attempted.                                                              |
-| blocker state                                      | Current blocker family and disposition when a task reports BLOCKED or a spawn fails.                                       |
-
-Update the ledger before and after every implementer, reviewer, re-reviewer, and final reviewer dispatch. A pre-dispatch row may use `agent_id=pending` until the runtime returns a stable id. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
+Update the ledger before and after every dispatch. A pre-dispatch row may use `agent_id=pending` until the runtime returns a stable id. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
 
 ## Target Lifecycle Capability
 
 Before promising automatic cleanup, identify what lifecycle controls the current target runtime exposes. Do this once before the first subagent dispatch and update the conclusion if later tool availability proves it wrong.
 
-| Capability class            | Required support                                                                         | Controller behavior                                                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `automatic-close-supported` | The runtime exposes both stable agent/session ids and a close/session-cleanup operation. | Close completed or superseded sessions after required state is recorded, then mark `closed=yes` in the ledger.            |
-| `inventory-only`            | The runtime exposes session inventory or ids, but no close operation.                    | Record open inventory and mark `close-unavailable: inventory-only; no close operation` in the ledger.                     |
-| `cleanup-unavailable`       | The runtime exposes neither reliable inventory nor close/session-cleanup.                | Record `close-unavailable: no inventory or close operation` in the ledger and give explicit operator/UI cleanup guidance. |
+- `automatic-close-supported`: stable agent/session ids and a close/session-cleanup operation exist. Close completed or superseded sessions after required state is recorded, then mark `closed=yes`.
+- `inventory-only`: session inventory or ids exist, but no close operation exists. Record open inventory and mark `close-unavailable: inventory-only; no close operation`.
+- `cleanup-unavailable`: neither reliable inventory nor close/session-cleanup exists. Record `close-unavailable: no inventory or close operation` and give explicit operator/UI cleanup guidance.
 
 Codex runtimes may expose a `close_agent` operation; Claude Code or other targets may expose different lifecycle controls or none at all. Do not infer support from another target. If either the id source or close operation is missing, automatic closure is unavailable for that target.
 

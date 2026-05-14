@@ -25,25 +25,21 @@ Target capability for this run: automatic-close-supported
 
 Task 1: Hook lifecycle
 
-[Cleanup gate before Task 1 implementer spawn]
-Ledger: no completed or superseded sessions to close
+[Cleanup gate before spawn]
+Ledger: no completed or superseded sessions to close.
 
 [Get Task 1 text and context (already extracted)]
-[Lifecycle ledger update before Task 1 implementer dispatch]
-Ledger:
-  - Task 1 implementer: agent_id=pending, role=implementer, status=active, base SHA captured, closed=no
-
+[Ledger pre-dispatch]
+Task 1 implementer: agent_id=pending, role=implementer, status=active, base SHA captured, closed=no
 [Dispatch implementation subagent with full task text + context]
+[Ledger post-dispatch]
+Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base SHA captured, closed=no
 
-[Lifecycle ledger update after Task 1 implementer dispatch]
-Ledger:
-  - Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base SHA captured, closed=no
+[Ledger shorthand used below]
+Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending` before dispatch, then the stable agent id after dispatch, with role, scope or task context, base/head SHA, status=active, and closed=no. Cleanup checkpoints below still show separate completed-session rows.
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
-
 You: "User level (~/.config/agent-hooks/)"
-
-Implementer: "Got it. Implementing now..."
 [Later] Implementer:
   - Implemented install, verify, and remove hook lifecycle commands
   - Files changed: src/hooks/install.ts, tests/hooks/install.test.ts
@@ -52,47 +48,29 @@ Implementer: "Got it. Implementing now..."
   - Committed
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 1 implementer: agent_id=impl-1, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
+Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
 
 [Cleanup gate before Task 1 spec reviewer spawn]
 Controller keeps Task 1 implementer open for possible spec-review fixups.
 
-[Lifecycle ledger update before Task 1 spec reviewer dispatch]
-Ledger:
-  - Task 1 spec reviewer: agent_id=pending, role=spec-compliance-reviewer, status=active, review scope=Task 1 diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending]
 [Dispatch spec compliance reviewer]
-
-[Lifecycle ledger update after Task 1 spec reviewer dispatch]
-Ledger:
-  - Task 1 spec reviewer: agent_id=spec-1, role=spec-compliance-reviewer, status=active, review scope=Task 1 diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 
 [Cleanup gate before Task 1 code-quality reviewer spawn]
-Ledger:
-  - Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded
-  - Task 1 implementer: agent_id=impl-1, closed=no because code-quality fixups may still need same-session follow-up
+Task 1 spec reviewer: review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
+Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 
-[Get git SHAs]
-[Lifecycle ledger update before Task 1 code-quality reviewer dispatch]
-Ledger:
-  - Task 1 code-quality reviewer: agent_id=pending, role=code-quality-reviewer, status=active, review scope=Task 1 diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
 [Dispatch code quality reviewer]
-
-[Lifecycle ledger update after Task 1 code-quality reviewer dispatch]
-Ledger:
-  - Task 1 code-quality reviewer: agent_id=quality-1, role=code-quality-reviewer, status=active, review scope=Task 1 diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
-Ledger:
-  - Task 1 implementer: agent_id=impl-1, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed
-  - Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded earlier
-  - Task 1 code reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded
+Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
+Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
+Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
 
 [Mark Task 1 complete]
 
@@ -102,17 +80,9 @@ Task 2: Recovery and repair modes
 [Cleanup gate before Task 2 implementer spawn]
 Controller verifies Task 1 completed sessions are already closed before spawning Task 2.
 
-[Lifecycle ledger update before Task 2 implementer dispatch]
-Ledger:
-  - Task 2 implementer: agent_id=pending, role=implementer, status=active, base SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 2 implementer, agent_id=pending]
 [Dispatch implementation subagent with full task text + context]
-
-[Lifecycle ledger update after Task 2 implementer dispatch]
-Ledger:
-  - Task 2 implementer: agent_id=impl-2, role=implementer, status=active, base SHA captured, closed=no
-
-Implementer: [No questions, proceeds]
+[Ledger post-dispatch: Task 2 implementer, agent_id=impl-2]
 Implementer:
   - Added verify/repair modes
   - 8/8 tests passing
@@ -120,104 +90,69 @@ Implementer:
   - Committed
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 2 implementer: agent_id=impl-2, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
+Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up.
 
 [Cleanup gate before Task 2 spec reviewer spawn]
 Controller keeps Task 2 implementer open for possible spec-review fixups.
 
-[Lifecycle ledger update before Task 2 spec reviewer dispatch]
-Ledger:
-  - Task 2 spec reviewer: agent_id=pending, role=spec-compliance-reviewer, status=active, review scope=Task 2 diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending]
 [Dispatch spec compliance reviewer]
-
-[Lifecycle ledger update after Task 2 spec reviewer dispatch]
-Ledger:
-  - Task 2 spec reviewer: agent_id=spec-2, role=spec-compliance-reviewer, status=active, review scope=Task 2 diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Missing progress reporting; Extra --json flag, re-review target=spec-2-rereview, closed=yes after findings routed
-  - Task 2 implementer: agent_id=impl-2, closed=no because routed spec findings need same-session fixup
+Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, closed=yes after findings routed.
+Task 2 implementer: closed=no because routed spec findings need same-session fixup.
 
 [Implementer fixes issues]
 Implementer: Removed --json flag, added progress reporting
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 2 implementer: fixup count=1, blocker state=none, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because spec re-review is pending
+Task 2 implementer: fixup count=1, blocker state=none, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because spec re-review is pending.
 
 [Cleanup gate before Task 2 spec re-review spawn]
 Controller keeps Task 2 implementer open until the spec reviewer passes.
 
-[Lifecycle ledger update before Task 2 spec re-reviewer dispatch]
-Ledger:
-  - Task 2 spec re-reviewer: agent_id=pending, role=spec-compliance-reviewer, status=active, review scope=Task 2 spec fixup diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 2 spec re-reviewer, agent_id=pending]
 [Spec re-reviewer reviews again]
-
-[Lifecycle ledger update after Task 2 spec re-reviewer dispatch]
-Ledger:
-  - Task 2 spec re-reviewer: agent_id=spec-2-rereview, role=spec-compliance-reviewer, status=active, review scope=Task 2 spec fixup diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 2 spec re-reviewer, agent_id=spec-2-rereview]
 Spec reviewer: ✅ Spec compliant now
 
 [Cleanup gate before Task 2 code-quality reviewer spawn]
-Ledger:
-  - Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded
-  - Task 2 implementer: agent_id=impl-2, closed=no because code-quality fixups may still need same-session follow-up
+Task 2 spec re-reviewer: review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
+Task 2 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 
-[Lifecycle ledger update before Task 2 code-quality reviewer dispatch]
-Ledger:
-  - Task 2 code-quality reviewer: agent_id=pending, role=code-quality-reviewer, status=active, review scope=Task 2 diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
 [Dispatch code quality reviewer]
-
-[Lifecycle ledger update after Task 2 code-quality reviewer dispatch]
-Ledger:
-  - Task 2 code-quality reviewer: agent_id=quality-2, role=code-quality-reviewer, status=active, review scope=Task 2 diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Code reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 2 code reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), re-review target=quality-2-rereview, closed=yes after findings routed
-  - Task 2 implementer: agent_id=impl-2, closed=no because routed code-quality findings need same-session fixup
+Task 2 code reviewer: status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), routing target=Task 2 implementer, re-review target=quality-2-rereview, closed=yes after findings routed.
+Task 2 implementer: closed=no because routed code-quality findings need same-session fixup.
 
 [Implementer fixes]
 Implementer: Extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
-Ledger:
-  - Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because code-quality re-review is pending
+Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because code-quality re-review is pending.
 
 [Cleanup gate before Task 2 code-quality re-review spawn]
 Controller keeps Task 2 implementer open until the code-quality reviewer passes.
 
-[Lifecycle ledger update before Task 2 code-quality re-reviewer dispatch]
-Ledger:
-  - Task 2 code-quality re-reviewer: agent_id=pending, role=code-quality-reviewer, status=active, review scope=Task 2 code-quality fixup diff, base/head SHA captured, closed=no
-
+[Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending]
 [Code-quality re-reviewer reviews again]
-
-[Lifecycle ledger update after Task 2 code-quality re-reviewer dispatch]
-Ledger:
-  - Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, role=code-quality-reviewer, status=active, review scope=Task 2 code-quality fixup diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
 Code reviewer: ✅ Approved
 
 [Lifecycle cleanup checkpoint]
-Ledger:
-  - Task 2 implementer: agent_id=impl-2, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed
-  - Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Missing progress reporting; Extra --json flag, closed=yes after findings routed
-  - Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded earlier
-  - Task 2 code reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), closed=yes after findings routed
-  - Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded
+Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
+Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
+Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
+Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
+Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
 
 [Mark Task 2 complete]
 
@@ -225,21 +160,14 @@ Ledger:
 
 [After all tasks]
 [Cleanup gate before final code-reviewer spawn]
-Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row as active.
-Ledger:
-  - final-code-quality-reviewer: agent_id=pending, role=final-code-quality-reviewer, status=active, review scope=whole implementation diff, base/head SHA captured, closed=no
+Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row: agent_id=pending, role=final-code-quality-reviewer, review scope=whole implementation diff, base/head SHA captured, closed=no.
 
 [Dispatch final code-reviewer]
-
-[Lifecycle ledger update after final code-reviewer dispatch]
-Ledger:
-  - final-code-quality-reviewer: agent_id=final-quality, role=final-code-quality-reviewer, status=active, review scope=whole implementation diff, base/head SHA captured, closed=no
-
+[Ledger post-dispatch: final-code-quality-reviewer, agent_id=final-quality]
 Final reviewer: All requirements met, ready to merge
 
 [Lifecycle cleanup checkpoint]
-Ledger:
-  - final-code-quality-reviewer: agent_id=final-quality, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after final verdict recorded
+final-code-quality-reviewer: agent_id=final-quality, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after final verdict recorded.
 
 [Alternative target capability examples - separate runs, not the automatic-close run above]
 

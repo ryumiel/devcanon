@@ -433,11 +433,13 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "active/completed agent ids when available",
     );
-    expect(playSubagentExecutionBody).toContain("| role");
-    expect(playSubagentExecutionBody).toContain("| status");
+    expect(playSubagentExecutionBody).toContain("role");
+    expect(playSubagentExecutionBody).toContain("status");
+    expect(playSubagentExecutionBody).toContain("role-specific captured state");
+    expect(playSubagentExecutionBody).toContain("reviewer scope");
     expect(playSubagentExecutionBody).toContain("closed=yes");
     expect(playSubagentExecutionBody).toContain("closed=no");
-    expect(playSubagentExecutionBody).toContain("close-unavailable reason");
+    expect(playSubagentExecutionBody).toContain("close-unavailable:<reason>");
     expect(playSubagentExecutionBody).toContain(
       "close-unavailable: inventory-only; no close operation",
     );
@@ -512,15 +514,15 @@ mkdir -p .ephemeral
     expect(playSubagentExampleWorkflow).toContain(
       "closed=yes after PASS verdict recorded",
     );
+    expect(playSubagentExampleWorkflow).toContain("Ledger pre-dispatch");
+    expect(playSubagentExampleWorkflow).toContain("Ledger post-dispatch");
     expect(playSubagentExampleWorkflow).toContain(
-      "Lifecycle ledger update before Task 1 implementer dispatch",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Lifecycle ledger update after Task 1 implementer dispatch",
+      "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
     );
     expect(playSubagentExampleWorkflow).toContain("agent_id=pending");
     expect(playSubagentExampleWorkflow).toContain("review scope captured");
     expect(playSubagentExampleWorkflow).toContain("report captured");
+    expect(playSubagentExampleWorkflow).toContain("status=DONE");
     expect(playSubagentExampleWorkflow).toContain(
       "inventory-only: target exposes session inventory but no close operation",
     );
@@ -569,6 +571,9 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExampleWorkflow).toContain(
       "re-review target=spec-2-rereview",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "routing target=Task 2 implementer",
     );
     expect(playSubagentExampleWorkflow).toContain("report refreshed");
     expect(playSubagentExampleWorkflow).toContain("test state refreshed");
