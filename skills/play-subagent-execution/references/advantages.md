@@ -7,7 +7,7 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 
 - Subagents follow TDD naturally
 - Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
+- Serial-safe implementer isolation (fresh contexts without parallel implementer dispatch)
 - Subagent can ask questions (before AND during work)
 
 **vs. Executing Plans:**
@@ -18,7 +18,7 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 
 **Efficiency gains:**
 
-- No file reading overhead (controller provides full text)
+- Controller rereads may be reduced through curated handoff and valid snapshots; reviewers still read from disk
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)

@@ -384,6 +384,59 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
   });
 
+  it("documents play-subagent-execution assurance and overhead boundaries", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const playSubagentExecutionBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-subagent-execution", "codex").content,
+    ).body;
+    expect(playSubagentExecutionBody).toContain(
+      "high-assurance serial execution",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "bounded fast paths for single-task and mechanical cases",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "high quality, fast iteration",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "- Faster iteration (no human-in-loop between tasks)",
+    );
+
+    const playSubagentAdvantages = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/advantages.md",
+      ),
+      "utf-8",
+    );
+    expect(playSubagentAdvantages).toContain(
+      "Serial-safe implementer isolation",
+    );
+    expect(playSubagentAdvantages).toContain(
+      "Controller rereads may be reduced",
+    );
+    expect(playSubagentAdvantages).toContain("reviewers still read from disk");
+    expect(playSubagentAdvantages).not.toContain("Parallel-safe");
+    expect(playSubagentAdvantages).not.toContain("No file reading overhead");
+
+    const playSubagentRedFlags = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/red-flags.md",
+      ),
+      "utf-8",
+    );
+    expect(playSubagentRedFlags).toContain(
+      "the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch",
+    );
+    expect(playSubagentRedFlags).not.toContain("(conflicts)");
+  });
+
   it("documents the write-product-spec behavior-spec boundaries", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
