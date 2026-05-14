@@ -9,7 +9,7 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high-assurance serial execution with isolated implementer context and independent review. Single-task plans skip per-task review and rely on `branch-review`; bounded fast paths for single-task and mechanical cases reduce specific overhead without changing the review contract.
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high-assurance serial execution with isolated implementer context and independent review. Single-task plans skip per-task review and rely on the final whole-implementation reviewer for direct/manual calls, or downstream `branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast paths for single-task and mechanical cases reduce specific overhead without changing the review contract.
 
 ## Inputs
 
