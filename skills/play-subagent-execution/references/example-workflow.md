@@ -69,7 +69,7 @@ Ledger:
 
 [Inventory-only target variant]
 Target capability: inventory-only: target exposes session inventory but no close operation
-Controller records the cleanup-unavailable reason `inventory-only; no close operation` instead of claiming closed=yes before dispatching the next agent.
+Controller records `close-unavailable: inventory-only; no close operation` instead of claiming closed=yes before dispatching the next agent.
 
 [Cleanup-unavailable target variant]
 Target capability: cleanup-unavailable: target exposes neither inventory nor close operation
@@ -81,7 +81,7 @@ Task 2: Recovery and repair modes
 
 [Get Task 2 text and context (already extracted)]
 [Cleanup gate before Task 2 implementer spawn]
-Controller verifies Task 1 completed sessions are already closed or marked cleanup-unavailable before spawning Task 2.
+Controller verifies Task 1 completed sessions are already closed or marked close-unavailable before spawning Task 2.
 
 [Dispatch implementation subagent with full task text + context]
 

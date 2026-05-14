@@ -437,7 +437,10 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("| status");
     expect(playSubagentExecutionBody).toContain("closed=yes");
     expect(playSubagentExecutionBody).toContain("closed=no");
-    expect(playSubagentExecutionBody).toContain("cleanup-unavailable reason");
+    expect(playSubagentExecutionBody).toContain("close-unavailable reason");
+    expect(playSubagentExecutionBody).toContain(
+      "close-unavailable: inventory-only; no close operation",
+    );
     expect(playSubagentExecutionBody).toContain("reviewer result");
     expect(playSubagentExecutionBody).toContain("fixup count");
     expect(playSubagentExecutionBody).toContain("blocker state");
@@ -501,6 +504,9 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExampleWorkflow).toContain(
       "inventory-only: target exposes session inventory but no close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: inventory-only; no close operation",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "cleanup-unavailable: target exposes neither inventory nor close operation",
