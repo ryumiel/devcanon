@@ -178,7 +178,7 @@ Controller first captures each completed session's role-specific state, records 
 [Slot-limit spawn failure on cleanup-unavailable target - separate run]
 Target capability for this separate run: cleanup-unavailable: target exposes neither inventory nor close operation
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
-Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
+Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
 Retry succeeds.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]

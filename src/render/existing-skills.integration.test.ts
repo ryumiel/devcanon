@@ -461,6 +461,9 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "reconstruct active task state from the lifecycle ledger and git",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "Wait for operator confirmation that manual cleanup is complete",
+    );
     expect(playSubagentExecutionBody).toContain("retry the spawn exactly once");
     expect(playSubagentExecutionBody).toContain("agent_id=pending");
     expect(playSubagentExecutionBody).toContain(

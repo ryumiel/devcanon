@@ -269,9 +269,9 @@ When a spawn fails because of a slot/session limit:
 
 1. Classify the failure as orchestration resource exhaustion in the lifecycle ledger.
 2. Run the cleanup gate for all completed or superseded sessions.
-3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup guidance. Include open-agent inventory when the target exposes it; otherwise state that inventory is unavailable.
+3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup guidance. Include open-agent inventory when the target exposes it; otherwise state that inventory is unavailable. Wait for operator confirmation that manual cleanup is complete before continuing.
 4. Run recovery steps to reconstruct active task state from the lifecycle ledger and git (`git status`, current branch, and relevant base/head SHAs).
-5. Then retry the spawn exactly once.
+5. Then retry the spawn exactly once after automatic cleanup completes or the operator confirms manual cleanup.
 6. If the retry still fails, stop and escalate to the user with the reconstructed state and remaining open-agent inventory, or with a clear statement that inventory is unavailable.
 
 ## Implementer Snapshot Consumption
