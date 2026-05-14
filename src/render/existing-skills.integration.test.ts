@@ -456,7 +456,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExampleWorkflow).toContain("coherent authored tasks");
     expect(playSubagentExampleWorkflow).toContain(
-      "runtime regrouping or batching",
+      "does not do runtime regrouping or batching",
     );
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
 

@@ -52,7 +52,7 @@ Task 2: Recovery and repair modes
 
 Implementer: [No questions, proceeds]
 Implementer:
-  - Added verify/repair modes with progress reporting
+  - Added verify/repair modes
   - 8/8 tests passing
   - Self-review: All good
   - Committed
