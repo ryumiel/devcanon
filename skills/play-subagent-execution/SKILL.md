@@ -504,7 +504,7 @@ The two fixtures together lock the heuristic by showing both branches.
 
 ## Handling Implementer Status
 
-Before acting on any returned status, update the lifecycle ledger for that session. After the required report, snapshot, changed-file list, base/head SHA, and test result are captured, run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer. The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session.
+Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides. For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot, changed-file list, base/head SHA, and test result before dispatching reviewers. For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context request, agent id, and any available base/head SHA; do not wait for snapshot, changed-file, or test artifacts that were not produced. Run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer. The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session.
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 

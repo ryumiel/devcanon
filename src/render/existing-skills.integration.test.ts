@@ -475,6 +475,12 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "first capture the same role-specific state",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "artifacts that status actually provides",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "do not wait for snapshot, changed-file, or test artifacts that were not produced",
+    );
     expect(playSubagentExecutionBody).not.toContain(
       "high quality, fast iteration",
     );
