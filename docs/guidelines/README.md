@@ -16,6 +16,9 @@ state, and active agent sessions for temporary execution detail.
 - [AFDS Setup and Migration](afds-setup-and-migration.md) - how new and
   existing projects can adopt AFDS entry points, navigation, tracker
   boundaries, contract authority, and DevCanon sync incrementally.
+- [AFDS Pilot Checklist](afds-pilot-checklist.md) - shared readiness,
+  evidence, validation, and follow-up checklist for GitHub Issues-backed and
+  Linear-backed AFDS pilot repositories.
 - [AI-Assisted Product Workflow Guideline](ai-assisted-product-workflow-guideline.md)
   - how DevCanon applies AFDS to product, documentation, issue, and PR work.
 - [Behavior Spec Evidence Routing](behavior-spec-evidence-routing.md) -
