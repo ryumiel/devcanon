@@ -13,8 +13,9 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 `play-subagent-execution` preserves the task boundaries authored in the plan.
 After extraction, each authored task remains the unit of implementer dispatch
-and per-task review. The executor does not regroup adjacent tasks or runtime-batch by default; runtime batching would be a separate policy change,
-not an implicit optimization.
+and, for multi-task plans, per-task review. The executor does not regroup
+adjacent tasks or runtime-batch by default; runtime batching would be a
+separate policy change, not an implicit optimization.
 
 ## Inputs
 

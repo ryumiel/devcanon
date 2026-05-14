@@ -94,7 +94,7 @@ self-contained implementation unit. Prefer one task when the work:
 - uses the same verification route;
 - does not need an intermediate reviewed state to be safe;
 - can fit in one implementer's working context; and
-- can land as one coherent commit.
+- can land as one coherent changeset.
 
 Related steps should share the same subsystem or file family before they are
 composed into one authored task.

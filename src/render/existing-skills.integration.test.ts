@@ -414,11 +414,13 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "preserves the task boundaries authored in the plan",
     );
+    expect(playSubagentExecutionBody).toContain("does not regroup");
     expect(playSubagentExecutionBody).toContain(
-      "does not regroup adjacent tasks or runtime-batch by default",
+      "adjacent tasks or runtime-batch by default",
     );
+    expect(playSubagentExecutionBody).toContain("runtime batching would be a");
     expect(playSubagentExecutionBody).toContain(
-      "runtime batching would be a separate policy change",
+      "separate policy change, not an implicit optimization",
     );
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
