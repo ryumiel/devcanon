@@ -460,6 +460,16 @@ mkdir -p .ephemeral
       "reconstruct active task state from the lifecycle ledger and git",
     );
     expect(playSubagentExecutionBody).toContain("retry the spawn exactly once");
+    expect(playSubagentExecutionBody).toContain("agent_id=pending");
+    expect(playSubagentExecutionBody).toContain(
+      "review scope, base/head SHA, report, and PASS verdict",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "concrete findings, routing target, and re-review target",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "first capture the same role-specific state",
+    );
     expect(playSubagentExecutionBody).not.toContain(
       "high quality, fast iteration",
     );
@@ -503,15 +513,81 @@ mkdir -p .ephemeral
       "closed=yes after PASS verdict recorded",
     );
     expect(playSubagentExampleWorkflow).toContain(
+      "Lifecycle ledger update before Task 1 implementer dispatch",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Lifecycle ledger update after Task 1 implementer dispatch",
+    );
+    expect(playSubagentExampleWorkflow).toContain("agent_id=pending");
+    expect(playSubagentExampleWorkflow).toContain("review scope captured");
+    expect(playSubagentExampleWorkflow).toContain("report captured");
+    expect(playSubagentExampleWorkflow).toContain(
       "inventory-only: target exposes session inventory but no close operation",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "close-unavailable: inventory-only; no close operation",
     );
     expect(playSubagentExampleWorkflow).toContain(
+      "first captures each completed session's role-specific state",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
       "cleanup-unavailable: target exposes neither inventory nor close operation",
     );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: no inventory or close operation",
+    );
     expect(playSubagentExampleWorkflow).toContain("Slot-limit spawn failure");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Controller runs the cleanup gate",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Repeated blocker-family branch",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Initial blocker-family record",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "blocker state=context-missing",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: no inventory or close operation after BLOCKED report",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 spec reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 spec re-review spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 code-quality reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 code-quality re-review spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "findings captured: Missing progress reporting",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "re-review target=spec-2-rereview",
+    );
+    expect(playSubagentExampleWorkflow).toContain("report refreshed");
+    expect(playSubagentExampleWorkflow).toContain("test state refreshed");
+    expect(playSubagentExampleWorkflow).toContain("snapshot refreshed");
+    expect(playSubagentExampleWorkflow).toContain(
+      "findings captured: Magic number (100)",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "re-review target=quality-2-rereview",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before final code-reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Alternative target capability examples - separate runs",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "final-code-quality-reviewer",
+    );
 
     const playSubagentRedFlags = await readFile(
       path.join(
