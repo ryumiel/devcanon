@@ -384,7 +384,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
   });
 
-  it("documents play-subagent-execution assurance and overhead boundaries", async () => {
+  it("documents planning composition and execution boundary contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
