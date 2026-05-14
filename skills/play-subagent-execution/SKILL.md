@@ -288,8 +288,6 @@ When a spawn fails because of a slot/session limit:
 5. Then retry the spawn exactly once.
 6. If the retry still fails, stop and escalate to the user with the reconstructed state and remaining open-agent inventory, or with a clear statement that inventory is unavailable.
 
-If the same blocker family repeats after cleanup and one retry, route through the existing BLOCKED handling below: provide missing context, escalate model strength, split the task, or stop because the plan is wrong. Do not add broader replanning rules in this skill.
-
 ## Implementer Snapshot Consumption
 
 Every dispatched implementer agent emits a literal
@@ -537,7 +535,7 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the user
 
-If BLOCKED appears after a slot-limit recovery retry and belongs to the same blocker family already recorded in the lifecycle ledger, treat it as repeated blocker-family behavior and escalate through the existing path above instead of retrying cleanup again.
+If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker belongs to the same family already recorded in the lifecycle ledger, treat it as repeated blocker-family behavior and escalate through the existing path above instead of running another cleanup retry.
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 

@@ -433,8 +433,8 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "active/completed agent ids when available",
     );
-    expect(playSubagentExecutionBody).toContain("role");
-    expect(playSubagentExecutionBody).toContain("status");
+    expect(playSubagentExecutionBody).toContain("| role");
+    expect(playSubagentExecutionBody).toContain("| status");
     expect(playSubagentExecutionBody).toContain("closed=yes");
     expect(playSubagentExecutionBody).toContain("closed=no");
     expect(playSubagentExecutionBody).toContain("cleanup-unavailable reason");
