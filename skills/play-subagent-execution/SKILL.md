@@ -238,17 +238,17 @@ The controller maintains a compact per-task lifecycle ledger while executing the
 
 Track one row per active or completed implementer/reviewer session:
 
-| Field                                                | Purpose                                                                                                               |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| task id                                              | Plan task identifier, e.g. `Task 2`.                                                                                  |
-| base/head SHA                                        | Base SHA before dispatch and head SHA after the session's committed or reviewed work.                                 |
-| active/completed agent ids when available            | Runtime-provided agent/session ids used for follow-up, inventory, or cleanup.                                         |
-| role                                                 | `implementer`, `spec-compliance-reviewer`, `code-quality-reviewer`, or `final-code-quality-reviewer`.                 |
-| status                                               | Current state: active, DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, PASS, findings-recorded, superseded, closed. |
-| closed=yes, closed=no, or cleanup-unavailable reason | Whether the session was closed, remains open, or cannot be closed because the target lacks lifecycle support.         |
-| reviewer result                                      | PASS, findings routed, re-review requested, or not applicable.                                                        |
-| fixup count                                          | Number of same-task fixup/re-review cycles already attempted.                                                         |
-| blocker state                                        | Current blocker family and disposition when a task reports BLOCKED or a spawn fails.                                  |
+| Field                                                | Purpose                                                                                                          |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| task id                                              | Plan task identifier, e.g. `Task 2`.                                                                             |
+| base/head SHA                                        | Base SHA before dispatch and head SHA after the session's committed or reviewed work.                            |
+| active/completed agent ids when available            | Runtime-provided agent/session ids used for follow-up, inventory, or cleanup.                                    |
+| role                                                 | `implementer`, `spec-compliance-reviewer`, `code-quality-reviewer`, or `final-code-quality-reviewer`.            |
+| status                                               | Current state: active, DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED, PASS, findings-recorded, or superseded. |
+| closed=yes, closed=no, or cleanup-unavailable reason | Whether the session was closed, remains open, or cannot be closed because the target lacks lifecycle support.    |
+| reviewer result                                      | PASS, findings routed, re-review requested, or not applicable.                                                   |
+| fixup count                                          | Number of same-task fixup/re-review cycles already attempted.                                                    |
+| blocker state                                        | Current blocker family and disposition when a task reports BLOCKED or a spawn fails.                             |
 
 Update the ledger before and after every implementer, reviewer, re-reviewer, and final reviewer dispatch. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
 
@@ -270,7 +270,7 @@ Before every new subagent spawn, inspect the lifecycle ledger for completed or s
 
 1. Close PASS reviewers after their verdict is recorded when the target is `automatic-close-supported`.
 2. Close reviewers with findings after findings are recorded and routed, unless a narrow follow-up needs the same session.
-3. Close implementers after DONE once the report, changed files, base/head SHA, test results, and snapshot state are captured, unless immediate follow-up is planned.
+3. Close implementers only after the report, changed files, base/head SHA, test results, snapshot state, and all same-session reviewer fixup needs are captured. For multi-task plans, keep the implementer available until both the spec-compliance and code-quality reviewer loops pass, unless the target lacks same-session follow-up and a fresh implementer can receive the complete captured state.
 4. If the target is `inventory-only` or `cleanup-unavailable`, record the cleanup-unavailable reason before spawning instead of claiming closure.
 
 This gate is orchestration hygiene. It does not change task status, reviewer independence, git state, or the serial implementer rule.
@@ -518,7 +518,7 @@ The two fixtures together lock the heuristic by showing both branches.
 
 ## Handling Implementer Status
 
-Before acting on any returned status, update the lifecycle ledger for that session. After the required report, snapshot, changed-file list, base/head SHA, and test result are captured, run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer.
+Before acting on any returned status, update the lifecycle ledger for that session. After the required report, snapshot, changed-file list, base/head SHA, and test result are captured, run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer. The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session.
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 

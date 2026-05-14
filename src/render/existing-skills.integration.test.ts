@@ -500,7 +500,10 @@ mkdir -p .ephemeral
       "closed=yes after PASS verdict recorded",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "cleanup-unavailable: target exposes no close operation",
+      "inventory-only: target exposes session inventory but no close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "cleanup-unavailable: target exposes neither inventory nor close operation",
     );
     expect(playSubagentExampleWorkflow).toContain("Slot-limit spawn failure");
 
