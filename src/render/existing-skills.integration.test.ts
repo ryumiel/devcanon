@@ -372,6 +372,25 @@ mkdir -p .ephemeral
       '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
     );
 
+    const adr0014 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
+    expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
+    expect(adr0014).toContain("`mkdir -p .ephemeral`");
+  });
+
+  it("documents play-subagent-execution assurance and overhead boundaries", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
     const playSubagentExecutionBody = parseFrontmatter(
       getSkillOutput(outputs, "play-subagent-execution", "codex").content,
     ).body;
@@ -405,16 +424,17 @@ mkdir -p .ephemeral
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
 
-    const adr0014 = await readFile(
+    const playSubagentRedFlags = await readFile(
       path.join(
         repoRoot,
-        "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
+        "skills/play-subagent-execution/references/red-flags.md",
       ),
       "utf-8",
     );
-    expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
-    expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
-    expect(adr0014).toContain("`mkdir -p .ephemeral`");
+    expect(playSubagentRedFlags).toContain(
+      "the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch",
+    );
+    expect(playSubagentRedFlags).not.toContain("(conflicts)");
   });
 
   it("documents the write-product-spec behavior-spec boundaries", async () => {
