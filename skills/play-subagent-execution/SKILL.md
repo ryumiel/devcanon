@@ -11,6 +11,12 @@ Execute plan by dispatching fresh subagent per task, with two-stage review after
 
 **Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high-assurance serial execution with isolated implementer context and independent review. Single-task plans skip per-task review and rely on the final whole-implementation reviewer for direct/manual calls, or downstream `branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast paths for single-task and mechanical cases reduce specific overhead without changing the review contract.
 
+`play-subagent-execution` preserves the task boundaries authored in the plan.
+After extraction, each authored task remains the unit of implementer dispatch
+and, for multi-task plans, per-task review. The executor does not regroup
+adjacent tasks or runtime-batch by default; runtime batching would be a
+separate policy change, not an implicit optimization.
+
 ## Inputs
 
 This skill accepts a plan document in either of two shapes inside its
@@ -82,6 +88,7 @@ digraph when_to_use {
 
 - Same session coordination (no context switch)
 - Fresh serial implementer context per task (no context pollution)
+- Authored task boundaries are preserved as the execution and review units
 - Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review
 - Automatic review checkpoints, with bounded fast paths for single-task and mechanical cases
 

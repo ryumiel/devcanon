@@ -384,7 +384,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
   });
 
-  it("documents play-subagent-execution assurance and overhead boundaries", async () => {
+  it("documents planning composition and execution boundary contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -394,8 +394,33 @@ mkdir -p .ephemeral
     const playSubagentExecutionBody = parseFrontmatter(
       getSkillOutput(outputs, "play-subagent-execution", "codex").content,
     ).body;
+    const playPlanningBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-planning", "codex").content,
+    ).body;
+    expect(playPlanningBody).toContain("## Cohesive Task Composition");
+    expect(playPlanningBody).toContain(
+      "share the same subsystem or file family",
+    );
+    expect(playPlanningBody).toContain(
+      "Do not replace executable checkbox steps with vague high-level subtasks",
+    );
+    expect(playPlanningBody).toContain(
+      "Do not hide dependent implementation units merely to avoid multi-task review",
+    );
+
     expect(playSubagentExecutionBody).toContain(
       "high-assurance serial execution",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "preserves the task boundaries authored in the plan",
+    );
+    expect(playSubagentExecutionBody).toContain("does not regroup");
+    expect(playSubagentExecutionBody).toContain(
+      "adjacent tasks or runtime-batch by default",
+    );
+    expect(playSubagentExecutionBody).toContain("runtime batching would be a");
+    expect(playSubagentExecutionBody).toContain(
+      "separate policy change, not an implicit optimization",
     );
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
@@ -423,6 +448,19 @@ mkdir -p .ephemeral
     expect(playSubagentAdvantages).toContain("reviewers still read from disk");
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
+
+    const playSubagentExampleWorkflow = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/example-workflow.md",
+      ),
+      "utf-8",
+    );
+    expect(playSubagentExampleWorkflow).toContain("coherent authored tasks");
+    expect(playSubagentExampleWorkflow).toContain(
+      "does not do runtime regrouping or batching",
+    );
+    expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
 
     const playSubagentRedFlags = await readFile(
       path.join(
