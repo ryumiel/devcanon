@@ -118,19 +118,19 @@ teardown (consistent with ADR-0012 cleanup).
 
 Per-field contract:
 
-| Field      | Type                                       | Notes                                                                                                                                                                                                    |
-| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                                |
-| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                                 |
-| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                          |
-| `files`    | array                                      | One object per file the implementer created or modified for this task.                                                                                                                                   |
-| `path`     | string, repo-relative                      | Path of the modified file.                                                                                                                                                                               |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status --no-renames` letters mapped to words: `A`→`added`, `M`→`modified`, `D`→`deleted`. `--no-renames` decomposes any rename into delete+add, so `R`/`C` never appear.        |
-| `lines`    | integer                                    | Visible line count post-commit (`awk 'END{print NR}' <path>`). Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
-| `bytes`    | integer                                    | Byte count post-commit. For deleted files, `0`.                                                                                                                                                          |
-| `sha256`   | string, hex                                | SHA-256 of the file's post-commit content. For deleted files, `""`.                                                                                                                                      |
-| `content`  | string OR omitted                          | Verbatim post-commit file content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                                    |
-| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                               |
+| Field      | Type                                       | Notes                                                                                                                                                                                     |
+| ---------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                 |
+| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                  |
+| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                           |
+| `files`    | array                                      | One object per file the implementer created or modified for this task.                                                                                                                    |
+| `path`     | string, repo-relative                      | Path of the modified file.                                                                                                                                                                |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors `git diff --name-status --no-renames` letters mapped to words: `A`->`added`, `M`->`modified`, `D`->`deleted`. Unsupported status letters such as `T` or `U` route to `BLOCKED`.   |
+| `lines`    | integer                                    | Visible line count of the post-commit Git blob. Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
+| `bytes`    | integer                                    | Byte count of the post-commit Git blob. For deleted files, `0`.                                                                                                                           |
+| `sha256`   | string, hex                                | SHA-256 of the post-commit Git blob. For deleted files, `""`.                                                                                                                             |
+| `content`  | string OR omitted                          | Verbatim post-commit Git blob content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                 |
+| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                |
 
 Mutual exclusion: exactly one of `content` or `skipped` is present
 per file, except when `status == "deleted"` (both omitted; the
@@ -144,6 +144,10 @@ Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Deletion dominates binary
 detection: when `status == "deleted"`, the file emits neither `content`
 nor `skipped`, even if numstat reports the path as binary.
+
+For non-deleted entries, the snapshot recipe reads file bytes from Git object
+storage instead of the working tree. That makes symlink entries snapshot the
+committed link-text blob rather than the symlink target.
 
 ### Notice line
 

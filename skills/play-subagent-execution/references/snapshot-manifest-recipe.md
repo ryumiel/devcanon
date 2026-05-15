@@ -59,9 +59,17 @@ If `git rev-parse HEAD` fails before or after implementation, report
    ```
 
    Map letters: `A` -> `added`, `M` -> `modified`, `D` -> `deleted`.
-   `--no-renames` decomposes any rename into a delete plus an add, so only
-   `A`/`M`/`D` appear. If `${BASE_SHA}..HEAD` is empty, report `BLOCKED`
-   rather than writing a snapshot with an empty `files` array.
+   `--no-renames` decomposes rename/copy detection into delete/add rows, but
+   other status letters such as `T` or `U` can still appear. If any row starts
+   with an unsupported status letter or multi-letter status, report `BLOCKED`
+   with this message:
+
+   ```text
+   unsupported git diff status <status> for <path>; implementer/snapshot/v1 only supports added, modified, deleted
+   ```
+
+   If `${BASE_SHA}..HEAD` is empty, report `BLOCKED` rather than writing a
+   snapshot with an empty `files` array.
 
 6. Detect binary files with:
 
@@ -76,6 +84,9 @@ If `git rev-parse HEAD` fails before or after implementation, report
    and do not use `$(cat path)` inside `jq --arg`; command substitution strips
    trailing newlines, so the content will not be byte-faithful. Use
    `jq --rawfile` to read each file's bytes verbatim into the `content` field.
+   Read committed file bytes from Git object storage, not the working tree, so
+   repo symlinks snapshot their link-text blob instead of following the symlink
+   target. Quote every path variable used by the shell.
 
    Envelope shape:
 
@@ -107,16 +118,21 @@ If `git rev-parse HEAD` fails before or after implementation, report
    Example for a single non-binary file whose content is included:
 
    ```bash
+   path="<repo-relative-path>"
+   content_file=$(mktemp)
+   trap 'rm -f "$content_file"' EXIT
+   git cat-file blob "HEAD:$path" > "$content_file"
+
    jq -n \
      --arg schema "implementer/snapshot/v1" \
      --arg task_id "<task identifier>" \
      --arg head_sha "$HEAD_SHA" \
-     --arg path "<repo-relative-path>" \
+     --arg path "$path" \
      --arg status "added" \
-     --argjson lines "$(awk 'END{print NR}' <path>)" \
-     --argjson bytes "$(wc -c < <path>)" \
-     --arg sha256 "$(shasum -a 256 <path> | awk '{print $1}')" \
-     --rawfile content <path> \
+     --argjson lines "$(awk 'END{print NR}' "$content_file")" \
+     --argjson bytes "$(wc -c < "$content_file")" \
+     --arg sha256 "$(shasum -a 256 "$content_file" | awk '{print $1}')" \
+     --rawfile content "$content_file" \
      '{schema:$schema,task_id:$task_id,head_sha:$head_sha,
        files:[{path:$path,status:$status,lines:$lines,bytes:$bytes,
                sha256:$sha256,content:$content}]}' \
@@ -130,14 +146,19 @@ If `git rev-parse HEAD` fails before or after implementation, report
 
 ## Per-File Rules
 
-- `status` is `added`, `modified`, or `deleted`.
-- `lines` is `awk 'END{print NR}' <path>` post-commit, or `0` for deleted
-  files. This is the visible line count; it equals `wc -l` for
+- `status` is `added`, `modified`, or `deleted`; unsupported git status letters
+  block the snapshot.
+- For non-deleted files, materialize the post-commit Git blob into a temporary
+  file with `git cat-file blob "HEAD:$path" > "$content_file"` and compute
+  `lines`, `bytes`, `sha256`, and included `content` from that temporary file.
+  This preserves committed content and does not follow working-tree symlinks.
+- `lines` is `awk 'END{print NR}' "$content_file"` post-commit, or `0` for
+  deleted files. This is the visible line count; it equals `wc -l` for
   newline-terminated files and is one greater than `wc -l` for files without a
   trailing newline.
-- `bytes` is `wc -c < <path>` post-commit, or `0` for deleted files.
-- `sha256` is `shasum -a 256 <path> | awk '{print $1}'`, or `""` for deleted
-  files.
+- `bytes` is `wc -c < "$content_file"` post-commit, or `0` for deleted files.
+- `sha256` is `shasum -a 256 "$content_file" | awk '{print $1}'`, or `""` for
+  deleted files.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, and the
   file is not binary.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to

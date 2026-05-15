@@ -375,8 +375,11 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "git diff --name-status --no-renames ${BASE_SHA}..HEAD",
     );
+    expect(snapshotRecipe).toContain("unsupported git diff status");
     expect(snapshotRecipe).toContain("JSON-aware tool");
     expect(snapshotRecipe).toContain("do not use `$(cat path)`");
+    expect(snapshotRecipe).toContain("content_file=$(mktemp)");
+    expect(snapshotRecipe).toContain('git cat-file blob "HEAD:$path"');
     expect(snapshotRecipe).toContain("bytes <= 64000");
     expect(snapshotRecipe).toContain('"skipped": "binary"');
     expect(snapshotRecipe).toContain('"skipped": "size>64KB"');
@@ -429,6 +432,12 @@ mkdir -p .ephemeral
       "references/snapshot-manifest-recipe.md",
     );
     expect(playSubagentExecutionBody).toContain("include the full contents");
+    expect(playSubagentExecutionBody).toContain(
+      "~72 lines vs. the default's ~151-line body",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "After extracting the detailed snapshot recipe",
+    );
 
     const adr0014 = await readFile(
       path.join(
@@ -442,6 +451,9 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("mandatory-use contract");
+    expect(adr0014).toContain("Unsupported status letters");
+    expect(adr0014).toContain("post-commit Git blob");
+    expect(adr0014).toContain("committed link-text blob");
     expect(adr0014).not.toContain(
       "64 KB byte threshold, hard-coded in the implementer prompts",
     );
