@@ -1,5 +1,16 @@
-import { readFile, readdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { loadConfig } from "../config/load.js";
@@ -7,6 +18,8 @@ import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
+
+const execFileAsync = promisify(execFile);
 
 const TOUCHED_SKILLS = new Set([
   "github-issue-priming",
@@ -69,6 +82,10 @@ function getSkillOutput(
     throw new Error(`Missing rendered ${target} output for skill ${name}`);
   }
   return output;
+}
+
+function sha256(content: string | Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
 }
 
 describe("existing skills render cleanly", () => {
@@ -378,8 +395,9 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("unsupported git diff status");
     expect(snapshotRecipe).toContain("JSON-aware tool");
     expect(snapshotRecipe).toContain("do not use `$(cat path)`");
-    expect(snapshotRecipe).toContain("content_file=$(mktemp)");
-    expect(snapshotRecipe).toContain('git cat-file blob "HEAD:$path"');
+    expect(snapshotRecipe).toContain("CONTENT_FILE=$(mktemp)");
+    expect(snapshotRecipe).toContain('cat < "$path" > "$CONTENT_FILE"');
+    expect(snapshotRecipe).not.toContain("git cat-file blob");
     expect(snapshotRecipe).toContain("bytes <= 64000");
     expect(snapshotRecipe).toContain('"skipped": "binary"');
     expect(snapshotRecipe).toContain('"skipped": "size>64KB"');
@@ -392,7 +410,13 @@ mkdir -p .ephemeral
       "sourced from `references/snapshot-manifest-recipe.md`",
     );
     expect(implementerPrompt).toContain(
-      "If the dispatch does not include the Snapshot Manifest Recipe",
+      "readable Snapshot Manifest Recipe path",
+    );
+    expect(implementerPrompt).toContain(
+      "read that recipe file and follow it exactly",
+    );
+    expect(implementerPrompt).toContain(
+      "If the dispatch does not include a readable Snapshot Manifest Recipe path",
     );
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
@@ -413,7 +437,13 @@ mkdir -p .ephemeral
       "sourced from `references/snapshot-manifest-recipe.md`",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "If the dispatch does not include the Snapshot Manifest Recipe",
+      "readable Snapshot Manifest Recipe path",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "read that recipe file and follow it exactly",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "If the dispatch does not include a readable Snapshot Manifest Recipe path",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
@@ -431,7 +461,14 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "references/snapshot-manifest-recipe.md",
     );
-    expect(playSubagentExecutionBody).toContain("include the full contents");
+    expect(playSubagentExecutionBody).toContain("include a readable");
+    expect(playSubagentExecutionBody).toContain(
+      "Snapshot Manifest Recipe path sourced from",
+    );
+    expect(playSubagentExecutionBody).toContain("instead of duplicating");
+    expect(playSubagentExecutionBody).toContain(
+      "inlining it into every dispatch",
+    );
     expect(playSubagentExecutionBody).toContain(
       "~72 lines vs. the default's ~151-line body",
     );
@@ -450,16 +487,174 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
     expect(adr0014).toContain("snapshot-manifest recipe");
+    expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).toContain("Unsupported status letters");
-    expect(adr0014).toContain("post-commit Git blob");
-    expect(adr0014).toContain("committed link-text blob");
+    expect(adr0014).toContain(
+      "One object per file the implementer added, modified, or deleted",
+    );
+    expect(adr0014).toContain("post-commit working-tree path");
+    expect(adr0014).toContain("Snapshot written to <repo-relative-path>.");
+    expect(adr0014).not.toContain("post-commit Git blob");
+    expect(adr0014).not.toContain("committed link-text blob");
     expect(adr0014).not.toContain(
       "64 KB byte threshold, hard-coded in the implementer prompts",
     );
     expect(adr0014).not.toContain(
       "The threshold is a single literal in two prompts",
     );
+  });
+
+  it("executes the canonical snapshot recipe for changed file classes", async () => {
+    const repoRoot = process.cwd();
+    const snapshotRecipe = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+      ),
+      "utf-8",
+    );
+    const procedureMatch = snapshotRecipe.match(
+      /Complete general procedure:\n\n\s*```bash\n([\s\S]*?)\n\s*```/,
+    );
+    expect(procedureMatch).not.toBeNull();
+    const procedure = procedureMatch?.[1].replace(/^ {3}/gm, "");
+    if (!procedure) {
+      throw new Error("Snapshot recipe procedure was not found");
+    }
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
+    try {
+      await execFileAsync("git", ["init", "--initial-branch=main"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.name", "Test User"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+        cwd: tempDir,
+      });
+
+      await writeFile(path.join(tempDir, "modified.md"), "old\n");
+      await writeFile(path.join(tempDir, "deleted.md"), "remove me\n");
+      await execFileAsync("git", ["add", "."], { cwd: tempDir });
+      await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+        cwd: tempDir,
+      });
+      const { stdout: baseStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        {
+          cwd: tempDir,
+        },
+      );
+      const baseSha = baseStdout.trim();
+
+      const modifiedContent = "new\ncontent\n";
+      const addedContent = "line without newline";
+      const largeContent = "x".repeat(64001);
+      const binaryContent = Buffer.from([0, 1, 2, 0, 3]);
+      await writeFile(path.join(tempDir, "modified.md"), modifiedContent);
+      await writeFile(path.join(tempDir, "added file.md"), addedContent);
+      await writeFile(path.join(tempDir, "large.txt"), largeContent);
+      await writeFile(path.join(tempDir, "binary.bin"), binaryContent);
+      await rm(path.join(tempDir, "deleted.md"));
+      await execFileAsync("git", ["add", "-A"], { cwd: tempDir });
+      await execFileAsync("git", ["commit", "-m", "feat: update files"], {
+        cwd: tempDir,
+      });
+      const { stdout: headStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        {
+          cwd: tempDir,
+        },
+      );
+      const headSha = headStdout.trim();
+
+      await mkdir(path.join(tempDir, ".ephemeral"));
+      const snapshotFile = ".ephemeral/test-snapshot.json";
+      await execFileAsync("bash", ["-lc", procedure], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          BASE_SHA: baseSha,
+          HEAD_SHA: headSha,
+          SNAPSHOT_FILE: snapshotFile,
+          TASK_ID: "Task 1",
+        },
+      });
+
+      type SnapshotFile = {
+        path: string;
+        status: string;
+        lines: number;
+        bytes: number;
+        sha256: string;
+        content?: string;
+        skipped?: string;
+      };
+      const snapshot = JSON.parse(
+        await readFile(path.join(tempDir, snapshotFile), "utf-8"),
+      ) as {
+        schema: string;
+        task_id: string;
+        head_sha: string;
+        files: SnapshotFile[];
+      };
+      const filesByPath = new Map(
+        snapshot.files.map((file) => [file.path, file]),
+      );
+
+      expect(snapshot.schema).toBe("implementer/snapshot/v1");
+      expect(snapshot.task_id).toBe("Task 1");
+      expect(snapshot.head_sha).toBe(headSha);
+      expect(snapshot.files).toHaveLength(5);
+
+      expect(filesByPath.get("modified.md")).toMatchObject({
+        status: "modified",
+        lines: 2,
+        bytes: Buffer.byteLength(modifiedContent),
+        sha256: sha256(modifiedContent),
+        content: modifiedContent,
+      });
+      expect(filesByPath.get("modified.md")).not.toHaveProperty("skipped");
+
+      expect(filesByPath.get("added file.md")).toMatchObject({
+        status: "added",
+        lines: 1,
+        bytes: Buffer.byteLength(addedContent),
+        sha256: sha256(addedContent),
+        content: addedContent,
+      });
+
+      expect(filesByPath.get("deleted.md")).toEqual({
+        path: "deleted.md",
+        status: "deleted",
+        lines: 0,
+        bytes: 0,
+        sha256: "",
+      });
+
+      expect(filesByPath.get("binary.bin")).toMatchObject({
+        status: "added",
+        bytes: binaryContent.byteLength,
+        sha256: sha256(binaryContent),
+        skipped: "binary",
+      });
+      expect(filesByPath.get("binary.bin")).not.toHaveProperty("content");
+
+      expect(filesByPath.get("large.txt")).toMatchObject({
+        status: "added",
+        lines: 1,
+        bytes: Buffer.byteLength(largeContent),
+        sha256: sha256(largeContent),
+        skipped: "size>64KB",
+      });
+      expect(filesByPath.get("large.txt")).not.toHaveProperty("content");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("documents planning composition and execution boundary contracts", async () => {

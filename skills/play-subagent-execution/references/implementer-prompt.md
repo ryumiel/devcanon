@@ -112,17 +112,18 @@ Task tool (general-purpose):
     After committing and self-reviewing, write the side-channel snapshot
     manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
-    The controller supplies the Snapshot Manifest Recipe with this dispatch,
-    sourced from `references/snapshot-manifest-recipe.md`. Follow that supplied
-    recipe exactly. It is the canonical construction source for the
+    The controller supplies a readable Snapshot Manifest Recipe path with this
+    dispatch, sourced from `references/snapshot-manifest-recipe.md`. Before
+    writing the snapshot, read that recipe file and follow it exactly. It is the
+    canonical construction source for the
     `implementer/snapshot/v1` envelope, including the path rules, `head_sha`,
     file metadata, binary and size behavior, deleted-file behavior, JSON-aware
     construction, `.ephemeral` write guard, and consumer fallback semantics.
 
-    If the dispatch does not include the Snapshot Manifest Recipe, report
-    BLOCKED and ask the controller to resend the task with the recipe. If any
-    recipe step fails, report BLOCKED instead of emitting the notice line. On
-    success, append exactly one final report line:
+    If the dispatch does not include a readable Snapshot Manifest Recipe path,
+    report BLOCKED and ask the controller to resend the task with the recipe
+    path. If any recipe step fails, report BLOCKED instead of emitting the
+    notice line. On success, append exactly one final report line:
 
     ```text
     Snapshot written to <repo-relative-path>.

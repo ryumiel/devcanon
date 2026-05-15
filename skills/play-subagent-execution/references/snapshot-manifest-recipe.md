@@ -8,7 +8,7 @@ this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
 - `BASE_SHA`: pre-task SHA captured before implementation.
 - `HEAD_SHA`: post-commit SHA from `git rev-parse HEAD`.
-- Task identifier: the task header identifier, such as `Task 3`.
+- `TASK_ID`: the task header identifier, such as `Task 3`.
 
 If `git rev-parse HEAD` fails before or after implementation, report
 `BLOCKED`. The snapshot contract requires a known base and head.
@@ -84,9 +84,8 @@ If `git rev-parse HEAD` fails before or after implementation, report
    and do not use `$(cat path)` inside `jq --arg`; command substitution strips
    trailing newlines, so the content will not be byte-faithful. Use
    `jq --rawfile` to read each file's bytes verbatim into the `content` field.
-   Read committed file bytes from Git object storage, not the working tree, so
-   repo symlinks snapshot their link-text blob instead of following the symlink
-   target. Quote every path variable used by the shell.
+   Read file bytes from the post-commit working-tree path, matching ADR-0014's
+   original contract. Quote every path variable used by the shell.
 
    Envelope shape:
 
@@ -115,32 +114,105 @@ If `git rev-parse HEAD` fails before or after implementation, report
    }
    ```
 
-   Example for a single non-binary file whose content is included:
+   Complete general procedure:
 
    ```bash
-   path="<repo-relative-path>"
-   content_file=$(mktemp)
-   trap 'rm -f "$content_file"' EXIT
-   git cat-file blob "HEAD:$path" > "$content_file"
+   set -e
+
+   STATUS_FILE=$(mktemp)
+   NUMSTAT_FILE=$(mktemp)
+   BINARY_PATHS_FILE=$(mktemp)
+   FILES_JSON=$(mktemp)
+   ENTRY_JSON=$(mktemp)
+   NEXT_JSON=$(mktemp)
+   CONTENT_FILE=$(mktemp)
+   trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$BINARY_PATHS_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"' EXIT
+
+   git diff --name-status --no-renames "${BASE_SHA}..HEAD" > "$STATUS_FILE"
+   [ -s "$STATUS_FILE" ] || { echo "snapshot has no changed files" >&2; exit 1; }
+
+   git diff --numstat --no-renames "${BASE_SHA}..HEAD" > "$NUMSTAT_FILE"
+   while IFS="$(printf '\t')" read -r added deleted path; do
+     if [ "$added" = "-" ] && [ "$deleted" = "-" ]; then
+       printf '%s\n' "$path" >> "$BINARY_PATHS_FILE"
+     fi
+   done < "$NUMSTAT_FILE"
+
+   printf '[]\n' > "$FILES_JSON"
+
+   while IFS="$(printf '\t')" read -r git_status path; do
+     case "$git_status" in
+       A) status=added ;;
+       M) status=modified ;;
+       D) status=deleted ;;
+       *)
+         echo "unsupported git diff status $git_status for $path; implementer/snapshot/v1 only supports added, modified, deleted" >&2
+         exit 1
+         ;;
+     esac
+
+     if [ "$status" = deleted ]; then
+       jq -n \
+         --arg path "$path" \
+         --arg status "$status" \
+         '{path:$path,status:$status,lines:0,bytes:0,sha256:""}' \
+         > "$ENTRY_JSON"
+     else
+       lines=$(awk 'END{print NR}' < "$path")
+       bytes=$(wc -c < "$path" | tr -d ' ')
+       sha256=$(shasum -a 256 < "$path" | awk '{print $1}')
+
+       if grep -Fxq -- "$path" "$BINARY_PATHS_FILE"; then
+         jq -n \
+           --arg path "$path" \
+           --arg status "$status" \
+           --argjson lines "$lines" \
+           --argjson bytes "$bytes" \
+           --arg sha256 "$sha256" \
+           '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,skipped:"binary"}' \
+           > "$ENTRY_JSON"
+       elif [ "$bytes" -gt 64000 ]; then
+         jq -n \
+           --arg path "$path" \
+           --arg status "$status" \
+           --argjson lines "$lines" \
+           --argjson bytes "$bytes" \
+           --arg sha256 "$sha256" \
+           '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,skipped:"size>64KB"}' \
+           > "$ENTRY_JSON"
+       else
+         cat < "$path" > "$CONTENT_FILE"
+         jq -n \
+           --arg path "$path" \
+           --arg status "$status" \
+           --argjson lines "$lines" \
+           --argjson bytes "$bytes" \
+           --arg sha256 "$sha256" \
+           --rawfile content "$CONTENT_FILE" \
+           '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,content:$content}' \
+           > "$ENTRY_JSON"
+       fi
+     fi
+
+     jq -n \
+       --slurpfile files "$FILES_JSON" \
+       --slurpfile entry "$ENTRY_JSON" \
+       '$files[0] + [$entry[0]]' \
+       > "$NEXT_JSON"
+     mv "$NEXT_JSON" "$FILES_JSON"
+   done < "$STATUS_FILE"
 
    jq -n \
      --arg schema "implementer/snapshot/v1" \
-     --arg task_id "<task identifier>" \
+     --arg task_id "$TASK_ID" \
      --arg head_sha "$HEAD_SHA" \
-     --arg path "$path" \
-     --arg status "added" \
-     --argjson lines "$(awk 'END{print NR}' "$content_file")" \
-     --argjson bytes "$(wc -c < "$content_file")" \
-     --arg sha256 "$(shasum -a 256 "$content_file" | awk '{print $1}')" \
-     --rawfile content "$content_file" \
-     '{schema:$schema,task_id:$task_id,head_sha:$head_sha,
-       files:[{path:$path,status:$status,lines:$lines,bytes:$bytes,
-               sha256:$sha256,content:$content}]}' \
+     --slurpfile files "$FILES_JSON" \
+     '{schema:$schema,task_id:$task_id,head_sha:$head_sha,files:$files[0]}' \
      > "$SNAPSHOT_FILE"
    ```
 
-   Extend the `files` array for multi-file commits. For files where `content`
-   is omitted, drop `--rawfile content` and emit `skipped: $skipped` instead.
+   For non-deleted files where `content` is omitted, drop `--rawfile content`
+   and emit `skipped: $skipped` instead.
    Hand-quoting verbatim file bytes will mis-escape `"`, `\`, and newlines and
    silently corrupt the snapshot, so always go through a JSON-aware tool.
 
@@ -148,17 +220,15 @@ If `git rev-parse HEAD` fails before or after implementation, report
 
 - `status` is `added`, `modified`, or `deleted`; unsupported git status letters
   block the snapshot.
-- For non-deleted files, materialize the post-commit Git blob into a temporary
-  file with `git cat-file blob "HEAD:$path" > "$content_file"` and compute
-  `lines`, `bytes`, `sha256`, and included `content` from that temporary file.
-  This preserves committed content and does not follow working-tree symlinks.
-- `lines` is `awk 'END{print NR}' "$content_file"` post-commit, or `0` for
-  deleted files. This is the visible line count; it equals `wc -l` for
+- For non-deleted files, read the post-commit working-tree path and compute
+  `lines`, `bytes`, `sha256`, and included `content` from that path.
+- `lines` is `awk 'END{print NR}' < "$path"` post-commit, or `0` for deleted
+  files. This is the visible line count; it equals `wc -l` for
   newline-terminated files and is one greater than `wc -l` for files without a
   trailing newline.
-- `bytes` is `wc -c < "$content_file"` post-commit, or `0` for deleted files.
-- `sha256` is `shasum -a 256 "$content_file" | awk '{print $1}'`, or `""` for
-  deleted files.
+- `bytes` is `wc -c < "$path"` post-commit, or `0` for deleted files.
+- `sha256` is `shasum -a 256 < "$path" | awk '{print $1}'`, or `""` for deleted
+  files.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, and the
   file is not binary.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to
