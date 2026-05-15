@@ -112,18 +112,25 @@ Task tool (general-purpose):
     After committing and self-reviewing, write the side-channel snapshot
     manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
-    The controller supplies a readable Snapshot Manifest Recipe path with this
-    dispatch, sourced from `references/snapshot-manifest-recipe.md`. Before
-    writing the snapshot, read that recipe file and follow it exactly. It is the
-    canonical construction source for the
-    `implementer/snapshot/v1` envelope, including the path rules, `head_sha`,
-    file metadata, binary and size behavior, deleted-file behavior, JSON-aware
-    construction, `.ephemeral` write guard, and consumer fallback semantics.
+    The controller supplies two paths with this dispatch:
+    - A readable Snapshot Manifest Recipe path, sourced from
+      `references/snapshot-manifest-recipe.md`
+    - An executable Snapshot Manifest Helper Script path, sourced from
+      `scripts/write-snapshot-manifest.sh`
 
-    If the dispatch does not include a readable Snapshot Manifest Recipe path,
-    report BLOCKED and ask the controller to resend the task with the recipe
-    path. If any recipe step fails, report BLOCKED instead of emitting the
-    notice line. On success, append exactly one final report line:
+    Before writing the snapshot, read the recipe file. Then run the helper
+    script with the captured `BASE_SHA` and the task header identifier as
+    `SNAPSHOT_TASK_ID`. The recipe is the canonical contract for the
+    `implementer/snapshot/v1` envelope, and the helper script is the canonical
+    implementation of the path rules, `head_sha`, file metadata, binary and
+    size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
+    write guard, and write-verification check.
+
+    If the dispatch does not include both a readable Snapshot Manifest Recipe
+    path and an executable Snapshot Manifest Helper Script path, report BLOCKED
+    and ask the controller to resend the task with both paths. If the helper
+    exits nonzero, report BLOCKED instead of emitting the notice line. On
+    success, use the helper's notice line as the final report line:
 
     ```text
     Snapshot written to <repo-relative-path>.
@@ -151,8 +158,8 @@ Task tool (general-purpose):
 
     The controller parses this literal line off the report. Do not reword,
     do not wrap in backticks, do not omit the trailing period. If the
-    supplied recipe's write-verification check fails, report BLOCKED
-    instead — never emit the notice line for an absent file.
+    supplied helper exits nonzero, report BLOCKED instead — never emit the
+    notice line for an absent file.
 
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need

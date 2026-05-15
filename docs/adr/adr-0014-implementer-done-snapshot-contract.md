@@ -73,10 +73,13 @@ side-channel snapshot manifest. The path:
 
 Detailed producer-side construction instructions live in the canonical
 snapshot-manifest recipe under
-`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`.
-The controller supplies a readable recipe path with each implementer dispatch,
-and the implementer prompts carry a compact mandatory-use contract while
-preserving the same notice line and failure behavior.
+`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`, while
+the executable construction procedure lives in
+`skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`. The
+controller supplies both a readable recipe path and an executable helper script
+path with each implementer dispatch, and the implementer prompts carry a compact
+mandatory-use contract while preserving the same notice line and failure
+behavior.
 
 The path scheme matches `play-review`'s findings file because, like
 `play-review`, the implementer is writing post-commit and so has a
@@ -165,8 +168,8 @@ or corrupt snapshot.
 ### Size threshold (64 KB)
 
 The snapshot contract uses a 64 KB byte threshold, specified by the canonical
-snapshot-manifest recipe that the controller supplies with each implementer
-dispatch.
+snapshot-manifest recipe and enforced by the helper script that the controller
+supplies with each implementer dispatch.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.
@@ -342,8 +345,8 @@ reuse is opportunistic; the cost is one notice line and one
   uniform across file types and avoids gaming via long-line
   packing.
 - **Configurable threshold.** Rejected for v1 as YAGNI. The
-  threshold is a single literal in the canonical recipe; if real workloads
-  need a different value we add the knob then.
+  threshold is a single literal in the canonical helper script; if real
+  workloads need a different value we add the knob then.
 
 ## Related
 

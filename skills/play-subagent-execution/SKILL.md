@@ -156,10 +156,11 @@ digraph process {
 >
 > When assembling either implementer dispatch prompt, include a readable
 > Snapshot Manifest Recipe path sourced from
-> `references/snapshot-manifest-recipe.md`. The prompt templates intentionally
-> keep only the compact mandatory-use contract; the implementer reads the
-> canonical recipe from that supplied path only when it needs to write the
-> snapshot.
+> `references/snapshot-manifest-recipe.md` and an executable Snapshot Manifest
+> Helper Script path sourced from `scripts/write-snapshot-manifest.sh`. The
+> prompt templates intentionally keep only the compact mandatory-use contract;
+> the implementer reads the canonical recipe and runs the helper instead of
+> carrying the construction procedure inline.
 >
 > When the plan has exactly one task and all four skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
 
@@ -333,11 +334,12 @@ or DONE_WITH_CONCERNS report. The path points at a side-channel
 uses the snapshot to avoid re-reading files for post-commit
 verification and line-range extraction.
 
-The detailed producer-side construction recipe lives in
-`references/snapshot-manifest-recipe.md`. When dispatching an implementer, the
-controller supplies a readable recipe path with the task prompt; the prompt
-source itself carries a compact mandatory-use contract instead of duplicating
-the recipe or inlining it into every dispatch.
+The producer-side contract lives in `references/snapshot-manifest-recipe.md`,
+and the executable construction helper lives in
+`scripts/write-snapshot-manifest.sh`. When dispatching an implementer, the
+controller supplies both paths with the task prompt; the prompt source itself
+carries a compact mandatory-use contract instead of duplicating the recipe or
+inlining the shell implementation into every dispatch.
 
 ### Parse and validate the path
 
@@ -588,6 +590,7 @@ If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and 
 - `references/implementer-prompt.md` — default dispatch-time prompt for the `implementer` agent
 - `references/mechanical-implementer-prompt.md` — leaner variant for tasks marked `**Mode:** mechanical` (see "Mechanical Task Hint" above)
 - `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
+- `scripts/write-snapshot-manifest.sh` — executable helper for writing implementer `implementer/snapshot/v1` manifests
 - `references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
