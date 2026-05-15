@@ -44,7 +44,89 @@ all treat `Blocking` vs `Nit` as the primary decision boundary.
 Category does not determine whether a finding blocks. Any category can be
 either `Blocking` or `Nit`.
 
-## 3. Review Workflow
+## 3. Procedure and Workflow Invariant Review
+
+Procedure and workflow invariant review is a cross-cutting review lens for
+diffs that change repeatable procedure semantics. It is not a new reviewer
+role, automation route, skill, agent, or finding category; findings still use
+the severity and category model above.
+
+Apply this lens when a diff changes actor handoffs, ordered phases, required
+sequencing, gates, approvals, branch conditions, lifecycle or resource
+handling, retry/fix/re-review loops, cleanup rules, escalation paths, failure
+classification, failure routing, normative examples, or tests and assertions
+for procedural behavior.
+
+Do not apply this lens to editorial-only documentation cleanup or ordinary
+wording changes that do not alter actor handoff, order, resource lifetime,
+failure routing, ownership, or target-supported capabilities.
+
+Reviewers should mentally model enough of the changed procedure to identify:
+
+- actors, such as controller, implementer, reviewer, user, or external service
+- procedure phases and result states
+- owned resources, such as sessions, worktrees, files, locks, tokens, or review
+  findings
+- target-supported capabilities, such as inventory, close, retry, post, or
+  fetch
+- transitions, such as dispatch, handoff, review, fix, retry, cleanup, close,
+  or escalate
+- failure classes, such as task failure, review failure, orchestration or
+  resource failure, user-decision blocker, or external-system failure
+
+Findings from this lens should cite the concrete violated invariant,
+transition, resource lifetime, failure route, ownership boundary,
+target-supported capability, or authoritative example. Use qualified
+terminology where ambiguity matters, such as `procedure phase`,
+`target-supported capability`, `ledger cleanup state`, `owning artifact`, or
+`mutable external system`, instead of bare terms like state, capability, or
+resource.
+
+Common failure shapes include:
+
+- resources closed before a later required use
+- capability and state conflation
+- failure routed to the wrong handler
+- retry, fix, or re-review loops broken or skipped
+- cleanup or retry rules that discard state needed for recovery
+- examples that contradict normative procedure prose
+- tests that assert generic wording instead of invariant-specific behavior
+
+Map invariant failures back to existing categories:
+
+- **Logic**: invalid transition, premature terminal state, or broken retry,
+  fix, or re-review loop
+- **Architecture**: misplaced procedure owner, lifecycle ownership issue,
+  duplicated procedure ownership, or capability boundary violation
+- **Contracts**: contradiction with a source skill, behavior spec, ADR, target
+  capability, schema, or declared workflow contract
+- **Documentation**: prose or examples that contradict the normative procedure
+- **Tests**: tests that assert wording but miss the procedural invariant
+
+Reviewer-specific prompts:
+
+- **Spec/compliance**: Does the change preserve the stated workflow contract
+  and acceptance behavior? Are acceptance criteria still reachable after the
+  new transition?
+- **Architecture**: Does the right artifact own the procedure? Are capability
+  boundaries, source-of-truth boundaries, and lifecycle ownership coherent?
+- **Documentation**: Do examples and prose trace valid transitions under the
+  same rules as the normative procedure?
+- **Tests**: Do assertions bind the trigger, invariant, owner, and expected
+  disposition rather than checking incidental word presence?
+
+Compact trace examples:
+
+- Finding: Given a worker session must remain available for a later
+  fix/re-review loop, the owning procedure requires preserving that session
+  until review disposition is final, but the changed cleanup step closes it
+  immediately after implementation handoff.
+- Non-finding: Given a procedure's actor handoff, order, resource lifetime,
+  failure routing, and ownership are unchanged, a wording edit that clarifies
+  a sentence without changing those semantics is not a procedure-invariant
+  finding.
+
+## 4. Review Workflow
 
 1. Read the PR description (or diff summary for self-review).
 2. Check CI status before detailed review.
@@ -53,7 +135,7 @@ either `Blocking` or `Nit`.
 5. Within each category, present the strongest evidence first.
 6. Approve when only `Nit` findings remain.
 
-## 4. Coupled Unchanged Code
+## 5. Coupled Unchanged Code
 
 Reviewers may call out unchanged code only when the current diff makes that
 code technically incorrect, contractually inconsistent, or semantically
@@ -63,7 +145,7 @@ misleading.
 - An imagined broader cleanup by itself is not enough.
 - The diff must explicitly create or reveal the contradiction.
 
-## 5. What Reviewers Should Not Do
+## 6. What Reviewers Should Not Do
 
 - Request style changes already enforced by Biome or Prettier
 - Block on hypothetical future requirements
@@ -71,7 +153,7 @@ misleading.
 - Request changes you would not actually reject the PR over
 - Hold approval waiting for nits to be addressed
 
-## 6. Self-Review Checklist
+## 7. Self-Review Checklist
 
 Before opening a PR, the author should verify:
 
@@ -84,7 +166,7 @@ Before opening a PR, the author should verify:
       `docs/guidelines/pr-guideline.md`)
 - [ ] CONTRIBUTING.md PR checklist answered (schema, snapshot, docs updates)
 
-## 7. Agent-Assisted Review
+## 8. Agent-Assisted Review
 
 Agent-assisted review follows this contract:
 
