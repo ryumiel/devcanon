@@ -50,26 +50,31 @@ mkdir -p .ephemeral
 
 STATUS_FILE=$(mktemp)
 NUMSTAT_FILE=$(mktemp)
-BINARY_PATHS_FILE=$(mktemp)
 FILES_JSON=$(mktemp)
 ENTRY_JSON=$(mktemp)
 NEXT_JSON=$(mktemp)
 CONTENT_FILE=$(mktemp)
-trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$BINARY_PATHS_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"' EXIT
+trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"' EXIT
 
-git diff --name-status --no-renames "${BASE_SHA}..HEAD" > "$STATUS_FILE"
+git diff -z --name-status --no-renames "${BASE_SHA}..HEAD" > "$STATUS_FILE"
 [ -s "$STATUS_FILE" ] || { echo "snapshot has no changed files" >&2; exit 1; }
 
-git diff --numstat --no-renames "${BASE_SHA}..HEAD" > "$NUMSTAT_FILE"
-while IFS="$(printf '\t')" read -r added deleted path; do
-  if [ "$added" = "-" ] && [ "$deleted" = "-" ]; then
-    printf '%s\n' "$path" >> "$BINARY_PATHS_FILE"
-  fi
-done < "$NUMSTAT_FILE"
+git diff -z --numstat --no-renames "${BASE_SHA}..HEAD" > "$NUMSTAT_FILE"
+
+is_binary_path() {
+  local needle="$1"
+  local added deleted candidate
+  while IFS="$(printf '\t')" read -r -d '' added deleted candidate; do
+    if [ "$added" = "-" ] && [ "$deleted" = "-" ] && [ "$candidate" = "$needle" ]; then
+      return 0
+    fi
+  done < "$NUMSTAT_FILE"
+  return 1
+}
 
 printf '[]\n' > "$FILES_JSON"
 
-while IFS="$(printf '\t')" read -r git_status path; do
+while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
   case "$git_status" in
     A) status=added ;;
     M) status=modified ;;
@@ -91,7 +96,7 @@ while IFS="$(printf '\t')" read -r git_status path; do
     bytes=$(wc -c < "$path" | tr -d ' ')
     sha256=$(sha256_file "$path")
 
-    if grep -Fxq -- "$path" "$BINARY_PATHS_FILE"; then
+    if is_binary_path "$path"; then
       jq -n \
         --arg path "$path" \
         --arg status "$status" \

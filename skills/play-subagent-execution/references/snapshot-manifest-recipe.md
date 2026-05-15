@@ -38,9 +38,11 @@ The helper script owns the full construction procedure:
   directory, create `.ephemeral` when absent, and remove a symlink already
   present at the target snapshot path before writing.
 - Enumerates changed files with
-  `git diff --name-status --no-renames "${BASE_SHA}..HEAD"`.
+  `git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"` so Git does
+  not quote or escape repo-relative paths.
 - Detects binary files with
-  `git diff --numstat --no-renames "${BASE_SHA}..HEAD"`.
+  `git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"` and NUL-safe path
+  parsing.
 - Builds the JSON envelope with `jq` and `jq --rawfile` for file content, so
   quotes, backslashes, newlines, and trailing newlines stay byte-faithful.
 - Performs the post-write size check before printing the success notice.

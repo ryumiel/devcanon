@@ -405,7 +405,10 @@ mkdir -p .ephemeral
       ".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json",
     );
     expect(snapshotRecipe).toContain(
-      'git diff --name-status --no-renames "${BASE_SHA}..HEAD"',
+      'git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"',
+    );
+    expect(snapshotRecipe).toContain(
+      'git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"',
     );
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("post-write size check");
@@ -571,10 +574,13 @@ mkdir -p .ephemeral
 
       const modifiedContent = "new\ncontent\n";
       const addedContent = "line without newline";
+      const quotedPath = "quoted\tpath.md";
+      const quotedContent = "path uses a tab\n";
       const largeContent = "x".repeat(64001);
       const binaryContent = Buffer.from([0, 1, 2, 0, 3]);
       await writeFile(path.join(tempDir, "modified.md"), modifiedContent);
       await writeFile(path.join(tempDir, "added file.md"), addedContent);
+      await writeFile(path.join(tempDir, quotedPath), quotedContent);
       await writeFile(path.join(tempDir, "large.txt"), largeContent);
       await writeFile(path.join(tempDir, "binary.bin"), binaryContent);
       await rm(path.join(tempDir, "deleted.md"));
@@ -631,7 +637,7 @@ mkdir -p .ephemeral
       expect(snapshot.schema).toBe("implementer/snapshot/v1");
       expect(snapshot.task_id).toBe("Task 1");
       expect(snapshot.head_sha).toBe(headSha);
-      expect(snapshot.files).toHaveLength(5);
+      expect(snapshot.files).toHaveLength(6);
 
       expect(filesByPath.get("modified.md")).toMatchObject({
         status: "modified",
@@ -648,6 +654,14 @@ mkdir -p .ephemeral
         bytes: Buffer.byteLength(addedContent),
         sha256: sha256(addedContent),
         content: addedContent,
+      });
+
+      expect(filesByPath.get(quotedPath)).toMatchObject({
+        status: "added",
+        lines: 1,
+        bytes: Buffer.byteLength(quotedContent),
+        sha256: sha256(quotedContent),
+        content: quotedContent,
       });
 
       expect(filesByPath.get("deleted.md")).toEqual({
