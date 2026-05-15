@@ -86,8 +86,10 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
   newline-terminated files and is one greater than `wc -l` for files without a
   trailing newline.
 - `bytes` is `wc -c < "$path"` post-commit, or `0` for deleted files.
-- `sha256` is `shasum -a 256 < "$path" | awk '{print $1}'`, or `""` for deleted
-  files.
+- `sha256` is computed from the post-commit working-tree path with the helper
+  script's `sha256_file` function, which uses `shasum -a 256` when available
+  and falls back to `sha256sum` on environments such as Windows Git Bash. For
+  deleted files, it is `""`.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, and the
   file is not binary.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to

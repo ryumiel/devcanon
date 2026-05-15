@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -87,6 +88,14 @@ function getSkillOutput(
 
 function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
+}
+
+async function commandPath(command: string): Promise<string> {
+  const { stdout } = await execFileAsync("bash", [
+    "-lc",
+    `command -v ${command}`,
+  ]);
+  return stdout.trim();
 }
 
 describe("existing skills render cleanly", () => {
@@ -522,6 +531,7 @@ mkdir -p .ephemeral
     expect(helperSource).toContain(
       '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
     );
+    expect(helperSource).toContain("sha256sum");
 
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
     const outsideTarget = path.join(tempDir, "outside-target");
@@ -656,6 +666,100 @@ mkdir -p .ephemeral
         skipped: "size>64KB",
       });
       expect(filesByPath.get("large.txt")).not.toHaveProperty("content");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses sha256sum when shasum is unavailable", async () => {
+    const repoRoot = process.cwd();
+    const helperScript = path.join(
+      repoRoot,
+      "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+    );
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
+    try {
+      await execFileAsync("git", ["init", "--initial-branch=main"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.name", "Test User"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+        cwd: tempDir,
+      });
+      await writeFile(path.join(tempDir, "file.md"), "old\n");
+      await execFileAsync("git", ["add", "."], { cwd: tempDir });
+      await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+        cwd: tempDir,
+      });
+      const { stdout: baseStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        {
+          cwd: tempDir,
+        },
+      );
+      await writeFile(path.join(tempDir, "file.md"), "new\n");
+      await execFileAsync("git", ["add", "."], { cwd: tempDir });
+      await execFileAsync("git", ["commit", "-m", "feat: update file"], {
+        cwd: tempDir,
+      });
+      const { stdout: headStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        {
+          cwd: tempDir,
+        },
+      );
+      const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+
+      const fakeBin = path.join(tempDir, "fake-bin");
+      await mkdir(fakeBin);
+      const requiredCommands = [
+        "git",
+        "jq",
+        "awk",
+        "wc",
+        "tr",
+        "grep",
+        "cat",
+        "mktemp",
+        "rm",
+        "mkdir",
+        "mv",
+      ];
+      for (const command of requiredCommands) {
+        await symlink(await commandPath(command), path.join(fakeBin, command));
+      }
+      const fallbackHasher = path.join(fakeBin, "sha256sum");
+      await writeFile(
+        fallbackHasher,
+        "#!/bin/sh\ncat >/dev/null\nprintf 'fallback-sha256  -\\n'\n",
+        { mode: 0o755 },
+      );
+      await chmod(fallbackHasher, 0o755);
+
+      await execFileAsync(await commandPath("bash"), [helperScript], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          BASE_SHA: baseStdout.trim(),
+          PATH: fakeBin,
+          SNAPSHOT_TASK_ID: "Task 1",
+        },
+      });
+
+      const snapshot = JSON.parse(
+        await readFile(path.join(tempDir, snapshotFile), "utf-8"),
+      ) as { files: Array<{ path: string; sha256: string }> };
+      expect(snapshot.files).toContainEqual(
+        expect.objectContaining({
+          path: "file.md",
+          sha256: "fallback-sha256",
+        }),
+      );
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

@@ -12,6 +12,18 @@ require_env() {
 require_env BASE_SHA
 require_env SNAPSHOT_TASK_ID
 
+sha256_file() {
+  local path="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 < "$path" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum < "$path" | awk '{print $1}'
+  else
+    echo "shasum or sha256sum is required to write implementer/snapshot/v1" >&2
+    exit 1
+  fi
+}
+
 command -v jq >/dev/null 2>&1 || {
   echo "jq is required to write implementer/snapshot/v1" >&2
   exit 1
@@ -77,7 +89,7 @@ while IFS="$(printf '\t')" read -r git_status path; do
   else
     lines=$(awk 'END{print NR}' < "$path")
     bytes=$(wc -c < "$path" | tr -d ' ')
-    sha256=$(shasum -a 256 < "$path" | awk '{print $1}')
+    sha256=$(sha256_file "$path")
 
     if grep -Fxq -- "$path" "$BINARY_PATHS_FILE"; then
       jq -n \
