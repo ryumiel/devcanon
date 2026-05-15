@@ -232,6 +232,91 @@ gate; on direct/manual single-task invocations, the final
 whole-implementation reviewer remains the built-in gate and the user can
 still run `branch-review` manually.
 
+## Controller Lifecycle Ledger
+
+The controller maintains a compact per-task lifecycle ledger while executing the plan. The ledger is agent-local/controller-local state; do not write it as durable repository documentation and do not pass it to reviewer agents as evidence. Reviewers still read the worktree from disk.
+
+Track one row per active or completed implementer, reviewer, re-reviewer, and final reviewer session. Each row records: task id, role, one `agent_id` or `agent_id=pending`, optional open-agent inventory when the target exposes it, base/head SHA, status, role-specific captured state, reviewer result, fixup count, blocker state, and one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`. Role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, and re-review target when applicable.
+
+Update the ledger before and after every dispatch. A pre-dispatch row may use `agent_id=pending` until the runtime returns a stable id. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
+
+## Lifecycle State Machine
+
+This diagram is a visual summary; the ledger fields and rules below are authoritative.
+
+```dot
+digraph lifecycle_state {
+    rankdir=TB;
+
+    "agent_id=pending" [shape=ellipse];
+    "active session" [shape=ellipse];
+    "status captured" [shape=box];
+    "DONE artifacts captured" [shape=box];
+    "review fix loop needs same session?" [shape=diamond];
+    "closed=no" [shape=ellipse];
+    "cleanup gate" [shape=box];
+    "target can close?" [shape=diamond];
+    "closed=yes" [shape=ellipse];
+    "close-unavailable: <reason>" [shape=ellipse];
+    "slot-limit spawn failure" [shape=diamond];
+    "operator confirms manual cleanup?" [shape=diamond];
+    "retry spawn once" [shape=box];
+    "escalate with reconstructed state" [shape=box];
+
+    "agent_id=pending" -> "active session" [label="dispatch returns id"];
+    "active session" -> "status captured" [label="DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED"];
+    "status captured" -> "DONE artifacts captured" [label="DONE or DONE_WITH_CONCERNS"];
+    "status captured" -> "closed=no" [label="NEEDS_CONTEXT or BLOCKED follow-up remains"];
+    "DONE artifacts captured" -> "review fix loop needs same session?";
+    "review fix loop needs same session?" -> "closed=no" [label="yes"];
+    "review fix loop needs same session?" -> "cleanup gate" [label="no"];
+    "closed=no" -> "cleanup gate" [label="follow-up complete or superseded"];
+    "cleanup gate" -> "target can close?";
+    "target can close?" -> "closed=yes" [label="automatic-close-supported"];
+    "target can close?" -> "close-unavailable: <reason>" [label="inventory-only or cleanup-unavailable"];
+    "cleanup gate" -> "slot-limit spawn failure" [label="spawn blocked by open sessions"];
+    "slot-limit spawn failure" -> "retry spawn once" [label="automatic cleanup completed"];
+    "slot-limit spawn failure" -> "operator confirms manual cleanup?" [label="manual cleanup required"];
+    "operator confirms manual cleanup?" -> "retry spawn once" [label="yes"];
+    "operator confirms manual cleanup?" -> "escalate with reconstructed state" [label="no"];
+    "retry spawn once" -> "escalate with reconstructed state" [label="still blocked"];
+}
+```
+
+## Target Lifecycle Capability
+
+Before promising automatic cleanup, identify what lifecycle controls the current target runtime exposes. Do this once before the first subagent dispatch and update the conclusion if later tool availability proves it wrong.
+
+- `automatic-close-supported`: stable agent/session ids and a close/session-cleanup operation exist. Close completed or superseded sessions after required state is recorded, then mark `closed=yes`.
+- `inventory-only`: session inventory or ids exist, but no close operation exists. Record open inventory and mark `close-unavailable: inventory-only; no close operation`.
+- `cleanup-unavailable`: neither reliable inventory nor close/session-cleanup exists. Record `close-unavailable: no inventory or close operation` and give explicit operator/UI cleanup guidance.
+
+Codex runtimes may expose a `close_agent` operation; Claude Code or other targets may expose different lifecycle controls or none at all. Do not infer support from another target. If either the id source or close operation is missing, automatic closure is unavailable for that target.
+
+## Cleanup Gate Before Spawns
+
+Before every new subagent spawn, inspect the lifecycle ledger for completed or superseded sessions:
+
+1. Close PASS reviewers only after their review scope, base/head SHA, report, and PASS verdict are recorded when the target is `automatic-close-supported`.
+2. Close reviewers with findings only after their review scope, base/head SHA, report, concrete findings, routing target, and re-review target are recorded, unless a narrow follow-up needs the same session.
+3. Close implementers only after the report, changed files, base/head SHA, test results, snapshot state, blocker state when applicable, and all same-session reviewer fixup needs are captured. For multi-task plans, keep the implementer available until both the spec-compliance and code-quality reviewer loops pass, unless the target lacks same-session follow-up and a fresh implementer can receive the complete captured state.
+4. If the target is `inventory-only` or `cleanup-unavailable`, first capture the same role-specific state required by steps 1-3, then record the `close-unavailable` reason before spawning instead of claiming closure.
+
+This gate is orchestration hygiene. It does not change task status, reviewer independence, git state, or the serial implementer rule.
+
+## Slot-Limit Recovery
+
+A spawn failure caused by open agent/session limits is orchestration resource exhaustion, not implementation failure and not reviewer failure.
+
+When a spawn fails because of a slot/session limit:
+
+1. Classify the failure as orchestration resource exhaustion in the lifecycle ledger.
+2. Run the cleanup gate for all completed or superseded sessions.
+3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup guidance. Include open-agent inventory when the target exposes it; otherwise state that inventory is unavailable. Wait for operator confirmation that manual cleanup is complete before continuing.
+4. Run recovery steps to reconstruct active task state from the lifecycle ledger and git (`git status`, current branch, and relevant base/head SHAs).
+5. Then retry the spawn exactly once after automatic cleanup completes or the operator confirms manual cleanup.
+6. If the retry still fails, stop and escalate to the user with the reconstructed state and remaining open-agent inventory, or with a clear statement that inventory is unavailable.
+
 ## Implementer Snapshot Consumption
 
 Every dispatched implementer agent emits a literal
@@ -462,6 +547,8 @@ The two fixtures together lock the heuristic by showing both branches.
 
 ## Handling Implementer Status
 
+Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides. For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot, changed-file list, base/head SHA, and test result before dispatching reviewers. For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context request, `agent_id`, and any available base/head SHA; do not wait for snapshot, changed-file, or test artifacts that were not produced. Run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer. The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session.
+
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
 **DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see § Single-Task Plans).
@@ -476,6 +563,10 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 2. If the task requires more reasoning, re-dispatch with a more capable model
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the user
+
+Record blocker state as a stable family plus brief detail, e.g. `context-missing: needs target install path` or `task-too-large: generated prompt exceeds context`. The family is the text before the first colon and is what repeated-blocker checks compare.
+
+If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task, treat it as repeated blocker-family behavior and escalate through the existing path above instead of running another cleanup retry.
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 

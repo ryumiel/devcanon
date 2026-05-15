@@ -26,4 +26,4 @@ Task tool (general-purpose):
 - Is the implementation following the file structure from the plan?
 - Did this implementation create new files that are already large, or significantly grow existing files? (Don't flag pre-existing file sizes — focus on what this change contributed.)
 
-**Code reviewer returns:** Strengths, Issues (Blocking/Nit), Assessment
+**Code-quality reviewer returns:** Strengths, Issues (Blocking/Nit), Assessment

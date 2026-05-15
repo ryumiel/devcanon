@@ -425,6 +425,72 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "## Controller Lifecycle Ledger",
+    );
+    expect(playSubagentExecutionBody).toContain("task id");
+    expect(playSubagentExecutionBody).toContain("base/head SHA");
+    expect(playSubagentExecutionBody).toContain(
+      "one `agent_id` or `agent_id=pending`",
+    );
+    expect(playSubagentExecutionBody).toContain("role");
+    expect(playSubagentExecutionBody).toContain("status");
+    expect(playSubagentExecutionBody).toContain("role-specific captured state");
+    expect(playSubagentExecutionBody).toContain("reviewer scope");
+    expect(playSubagentExecutionBody).toContain("closed=yes");
+    expect(playSubagentExecutionBody).toContain("closed=no");
+    expect(playSubagentExecutionBody).toContain("close-unavailable: <reason>");
+    expect(playSubagentExecutionBody).toContain("## Lifecycle State Machine");
+    expect(playSubagentExecutionBody).toContain(
+      "This diagram is a visual summary; the ledger fields and rules below are authoritative.",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "close-unavailable: inventory-only; no close operation",
+    );
+    expect(playSubagentExecutionBody).toContain("reviewer result");
+    expect(playSubagentExecutionBody).toContain("fixup count");
+    expect(playSubagentExecutionBody).toContain("blocker state");
+    expect(playSubagentExecutionBody).toContain(
+      "## Target Lifecycle Capability",
+    );
+    expect(playSubagentExecutionBody).toContain("automatic-close-supported");
+    expect(playSubagentExecutionBody).toContain("inventory-only");
+    expect(playSubagentExecutionBody).toContain("cleanup-unavailable");
+    expect(playSubagentExecutionBody).toContain(
+      "Before every new subagent spawn",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "orchestration resource exhaustion",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "reconstruct active task state from the lifecycle ledger and git",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Wait for operator confirmation that manual cleanup is complete",
+    );
+    expect(playSubagentExecutionBody).toContain("retry the spawn exactly once");
+    expect(playSubagentExecutionBody).toContain("agent_id=pending");
+    expect(playSubagentExecutionBody).toContain(
+      "review scope, base/head SHA, report, and PASS verdict",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "concrete findings, routing target, and re-review target",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "first capture the same role-specific state",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "artifacts that status actually provides",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "report or blocker/context request, `agent_id`, and any available base/head SHA",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "do not wait for snapshot, changed-file, or test artifacts that were not produced",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "The family is the text before the first colon",
+    );
     expect(playSubagentExecutionBody).not.toContain(
       "high quality, fast iteration",
     );
@@ -461,6 +527,97 @@ mkdir -p .ephemeral
       "does not do runtime regrouping or batching",
     );
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Lifecycle cleanup checkpoint",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "closed=yes after PASS verdict recorded",
+    );
+    expect(playSubagentExampleWorkflow).toContain("Ledger pre-dispatch");
+    expect(playSubagentExampleWorkflow).toContain("Ledger post-dispatch");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
+    );
+    expect(playSubagentExampleWorkflow).toContain("agent_id=pending");
+    expect(playSubagentExampleWorkflow).toContain("review scope captured");
+    expect(playSubagentExampleWorkflow).toContain("report captured");
+    expect(playSubagentExampleWorkflow).toContain("status=DONE");
+    expect(playSubagentExampleWorkflow).toContain(
+      "inventory-only: target exposes session inventory but no close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: inventory-only; no close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "first captures each completed session's role-specific state",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "cleanup-unavailable: target exposes neither inventory nor close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: no inventory or close operation",
+    );
+    expect(playSubagentExampleWorkflow).toContain("Slot-limit spawn failure");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Controller runs the cleanup gate",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Repeated blocker-family branch",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Initial blocker-family record",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "blocker state=context-missing: needs target install path",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "base/head SHA captured (head pending)",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "close-unavailable: no inventory or close operation after BLOCKED report",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 spec reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 spec re-review spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 code-quality reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before Task 2 code-quality re-review spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "findings captured: Missing progress reporting",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "re-review target=spec-2-rereview",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "routing target=Task 2 implementer",
+    );
+    expect(playSubagentExampleWorkflow).toContain("report refreshed");
+    expect(playSubagentExampleWorkflow).toContain("test state refreshed");
+    expect(playSubagentExampleWorkflow).toContain("snapshot refreshed");
+    expect(playSubagentExampleWorkflow).toContain(
+      "findings captured: Magic number (100)",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "re-review target=quality-2-rereview",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Cleanup gate before final code-quality reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Task 2 code-quality reviewer: status=findings-recorded",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Alternative target capability examples - separate runs",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "final-code-quality-reviewer",
+    );
 
     const playSubagentRedFlags = await readFile(
       path.join(
