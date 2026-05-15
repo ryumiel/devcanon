@@ -63,8 +63,13 @@ git diff -z --numstat --no-renames "${BASE_SHA}..HEAD" > "$NUMSTAT_FILE"
 
 is_binary_path() {
   local needle="$1"
-  local added deleted candidate
-  while IFS="$(printf '\t')" read -r -d '' added deleted candidate; do
+  local record tab added rest deleted candidate
+  tab=$(printf '\t')
+  while IFS= read -r -d '' record; do
+    added=${record%%"$tab"*}
+    rest=${record#*"$tab"}
+    deleted=${rest%%"$tab"*}
+    candidate=${rest#*"$tab"}
     if [ "$added" = "-" ] && [ "$deleted" = "-" ] && [ "$candidate" = "$needle" ]; then
       return 0
     fi

@@ -8,8 +8,8 @@ this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
 - `BASE_SHA`: pre-task SHA captured before implementation.
 - `SNAPSHOT_TASK_ID`: the task header identifier, such as `Task 3`.
-- Snapshot Manifest Helper Script path: executable path supplied by the
-  controller, sourced from
+- `SNAPSHOT_HELPER_SCRIPT`: executable Snapshot Manifest Helper Script path
+  supplied by the controller, sourced from
   `skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`.
 
 If `git rev-parse HEAD` fails before or after implementation, report
