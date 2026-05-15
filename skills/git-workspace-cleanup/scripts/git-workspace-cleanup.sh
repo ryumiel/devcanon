@@ -53,7 +53,7 @@ git_c() {
 }
 
 worktree_status() {
-  git -C "$1" status --porcelain=v1 --untracked-files=normal --ignored=matching
+  git -C "$1" status --porcelain=v1 --untracked-files=normal
 }
 
 resolve_default_branch() {
