@@ -17,33 +17,35 @@ cleanup sequence.
 2. Report the dry-run summary to the user.
 3. If `STATUS=blocked`, stop and ask whether to force only the blocked category
    that can be forced.
-4. Run `--execute` only after explicit user approval.
+4. Run `--execute` only after explicit user approval, using the same target repo
+   shown in dry-run output.
 5. Never use force flags unless the user approved them after seeing dry-run
    output.
 
 ```bash
 SKILL_DIR="<path-to-git-workspace-cleanup-skill>"
-bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --dry-run
+TARGET_REPO="<path-to-target-repo-or-worktree>"
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --dry-run
 ```
 
 Approved execution:
 
 ```bash
-bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --execute
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --execute
 ```
 
 If local-only commits exist on non-default branches and the user approves
 discarding them:
 
 ```bash
-bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --execute --force-branches
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --execute --force-branches
 ```
 
 If dirty linked worktrees exist and the user separately approves discarding
 their uncommitted files:
 
 ```bash
-bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --execute --force-dirty-worktrees
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --execute --force-dirty-worktrees
 ```
 
 Use both force flags only when both categories were shown in dry-run output and
@@ -69,6 +71,10 @@ Dirty primary worktrees and default-branch local-only commits are never forced.
 Ask the user to commit, stash, or otherwise resolve those manually before
 running cleanup.
 
+Dry-run refreshes `origin/*` with `git fetch origin --prune` before reporting.
+Execute intentionally does not fetch again, so the destructive run uses the
+remote-tracking state that the user approved from the dry-run report.
+
 ## Output Contract
 
 The script writes `KEY=VALUE` lines.
@@ -80,6 +86,7 @@ Important keys:
 - `DEFAULT_BRANCH=<branch>`
 - `PRIMARY_WORKTREE=<absolute path>`
 - `REMOVABLE_WORKTREES=<count>`
+- `PRUNABLE_WORKTREES=<count>`
 - `DIRTY_WORKTREES=<count>`
 - `LOCAL_BRANCHES_TO_DELETE=<count>`
 - `LOCAL_BRANCHES_WITH_UNIQUE_COMMITS=<count>`
@@ -88,6 +95,7 @@ Important keys:
 Detail lines repeat as needed:
 
 - `REMOVABLE_WORKTREE=<path>`
+- `PRUNABLE_WORKTREE=<path>`
 - `DIRTY_WORKTREE=<path>|FILES=<count>|PRIMARY=true|false`
 - `DELETE_BRANCH=<branch>`
 - `UNIQUE_BRANCH=<branch>|COMMITS=<count>`

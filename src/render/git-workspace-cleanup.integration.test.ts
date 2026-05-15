@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,11 +27,13 @@ async function runCommand(
   command: string,
   args: string[],
   cwd: string,
+  env: NodeJS.ProcessEnv = {},
 ): Promise<{ stdout: string; stderr: string }> {
   return execFileAsync(command, args, {
     cwd,
     env: {
       ...process.env,
+      ...env,
     },
   });
 }
@@ -37,6 +46,7 @@ async function runGit(args: string[], cwd: string): Promise<string> {
 async function runScript(
   args: string[],
   cwd: string,
+  env: NodeJS.ProcessEnv = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const scriptPath = path.join(
     process.cwd(),
@@ -51,6 +61,7 @@ async function runScript(
       "bash",
       [scriptPath, ...args],
       cwd,
+      env,
     );
     return { code: 0, stdout, stderr };
   } catch (error) {
@@ -117,6 +128,11 @@ async function publishDefaultCommit(
   return runGit(["rev-parse", "HEAD"], publisherDir);
 }
 
+async function listBranches(cwd: string): Promise<string[]> {
+  const branches = await runGit(["branch", "--format=%(refname:short)"], cwd);
+  return branches.split(/\r?\n/u).filter(Boolean);
+}
+
 describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
   const tempDirs: string[] = [];
 
@@ -142,7 +158,10 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     );
     await writeFile(path.join(linkedDir, "dirty.txt"), "dirty\n", "utf-8");
 
-    const result = await runScript(["--dry-run"], linkedDir);
+    const result = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      linkedDir,
+    );
     const output = parseKeyValueOutput(result.stdout);
     const canonicalLinkedDir = await realpath(linkedDir);
 
@@ -152,7 +171,9 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(output.DEFAULT_BRANCH).toBe("main");
     expect(output.DIRTY_WORKTREES).toBe("1");
     expect(output.LOCAL_BRANCHES_WITH_UNIQUE_COMMITS).toBe("1");
-    expect(result.stdout).toContain(`DIRTY_WORKTREE=${canonicalLinkedDir}`);
+    expect(result.stdout).toContain(
+      `DIRTY_WORKTREE=${canonicalLinkedDir}|FILES=1|PRIMARY=false`,
+    );
     expect(result.stdout).toContain("UNIQUE_BRANCH=feature/local-only");
   });
 
@@ -167,7 +188,10 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     await runGit(["commit", "-m", "feat: local only"], primaryDir);
     await runGit(["checkout", "main"], primaryDir);
 
-    const result = await runScript(["--execute"], primaryDir);
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(1);
@@ -188,18 +212,17 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
 
     await runGit(["branch", "feature/already-merged", "main"], primaryDir);
 
-    const result = await runScript(["--execute"], primaryDir);
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(0);
     expect(output.STATUS).toBe("ok");
     expect(output.LOCAL_BRANCHES_TO_DELETE).toBe("1");
     expect(output.LOCAL_BRANCHES_WITH_UNIQUE_COMMITS).toBe("0");
-    const branches = await runGit(
-      ["branch", "--format=%(refname:short)"],
-      primaryDir,
-    );
-    expect(branches.split(/\r?\n/u)).toEqual(["main"]);
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
   });
 
   it("fast-forwards the primary default branch and removes clean linked worktrees and local branches when forced", async () => {
@@ -219,9 +242,15 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
       primaryDir,
     );
 
+    const dryRun = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    expect(dryRun.code).toBe(0);
+
     const result = await runScript(
-      ["--execute", "--force-branches"],
-      linkedDir,
+      ["--repo", primaryDir, "--execute", "--force-branches"],
+      rootDir,
     );
     const output = parseKeyValueOutput(result.stdout);
 
@@ -230,10 +259,214 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(output.MODE).toBe("execute");
     expect(await pathExists(linkedDir)).toBe(false);
     expect(await runGit(["rev-parse", "HEAD"], primaryDir)).toBe(remoteHead);
-    const branches = await runGit(
-      ["branch", "--format=%(refname:short)"],
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
+  it("uses the explicit repo target instead of the current working directory", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(0);
+    expect(output.PRIMARY_WORKTREE).toBe(await realpath(primaryDir));
+  });
+
+  it("removes a linked default-branch worktree before checking out the primary default branch", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedMainDir = path.join(rootDir, "linked main");
+
+    await runGit(["checkout", "-b", "feature/local-only"], primaryDir);
+    await writeFile(path.join(primaryDir, "local.txt"), "local\n", "utf-8");
+    await runGit(["add", "local.txt"], primaryDir);
+    await runGit(["commit", "-m", "feat: local only"], primaryDir);
+    await runGit(["worktree", "add", linkedMainDir, "main"], primaryDir);
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute", "--force-branches"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(await pathExists(linkedMainDir)).toBe(false);
+    expect(await runGit(["branch", "--show-current"], primaryDir)).toBe("main");
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
+  it("reports prunable worktrees without aborting dry-run", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const staleDir = path.join(rootDir, "stale linked");
+
+    await runGit(
+      ["worktree", "add", "-b", "feature/stale", staleDir],
       primaryDir,
     );
-    expect(branches.split(/\r?\n/u)).toEqual(["main"]);
+    await rm(staleDir, { recursive: true, force: true });
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+    const canonicalStaleDir = path.join(
+      await realpath(rootDir),
+      "stale linked",
+    );
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(output.PRUNABLE_WORKTREES).toBe("1");
+    expect(result.stdout).toContain(`PRUNABLE_WORKTREE=${canonicalStaleDir}`);
+  });
+
+  it("prunes stale worktree metadata before deleting local branches", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const staleDir = path.join(rootDir, "stale branch");
+
+    await runGit(
+      ["worktree", "add", "-b", "feature/stale", staleDir],
+      primaryDir,
+    );
+    await rm(staleDir, { recursive: true, force: true });
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+    const worktrees = await runGit(
+      ["worktree", "list", "--porcelain"],
+      primaryDir,
+    );
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(output.PRUNABLE_WORKTREES).toBe("1");
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+    expect(worktrees).not.toContain("feature/stale");
+  });
+
+  it("removes dirty linked worktrees only with the dirty-worktree force flag", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedDir = path.join(rootDir, "dirty linked");
+
+    await runGit(
+      ["worktree", "add", "-b", "feature/dirty", linkedDir],
+      primaryDir,
+    );
+    await writeFile(path.join(linkedDir, "dirty.txt"), "dirty\n", "utf-8");
+
+    const blocked = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
+    expect(blocked.code).toBe(1);
+    expect(parseKeyValueOutput(blocked.stdout).STATUS).toBe("blocked");
+    expect(await pathExists(linkedDir)).toBe(true);
+
+    const forced = await runScript(
+      ["--repo", primaryDir, "--execute", "--force-dirty-worktrees"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(forced.stdout);
+
+    expect(forced.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(await pathExists(linkedDir)).toBe(false);
+  });
+
+  it("does not force a dirty primary worktree", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    await writeFile(path.join(primaryDir, "dirty.txt"), "dirty\n", "utf-8");
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute", "--force-dirty-worktrees"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(1);
+    expect(output.STATUS).toBe("blocked");
+    expect(result.stdout).toContain("DIRTY_WORKTREE=");
+    expect(result.stdout).toContain("|PRIMARY=true");
+    expect(await pathExists(path.join(primaryDir, "dirty.txt"))).toBe(true);
+  });
+
+  it("aborts if a linked worktree becomes dirty after status collection without force approval", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedDir = path.join(rootDir, "drift linked");
+    const binDir = path.join(rootDir, "bin");
+    const { stdout: gitPathOutput } = await runCommand(
+      "sh",
+      ["-c", "command -v git"],
+      rootDir,
+    );
+    const gitPath = gitPathOutput.trim();
+
+    await runGit(
+      ["worktree", "add", "-b", "feature/drift", linkedDir],
+      primaryDir,
+    );
+    const canonicalLinkedDir = await realpath(linkedDir);
+    await mkdir(binDir, { recursive: true });
+    const wrapperPath = path.join(binDir, "git");
+    await writeFile(
+      wrapperPath,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        `REAL_GIT=${JSON.stringify(gitPath)}`,
+        `LINKED_DIR=${JSON.stringify(canonicalLinkedDir)}`,
+        `MARKER=${JSON.stringify(path.join(rootDir, "status-count"))}`,
+        'if [ "$#" -ge 4 ] && [ "$1" = "-C" ] && [ "$2" = "$LINKED_DIR" ] && [ "$3" = "status" ]; then',
+        "  count=0",
+        '  [ -f "$MARKER" ] && count=$(cat "$MARKER")',
+        "  count=$((count + 1))",
+        '  printf "%s" "$count" > "$MARKER"',
+        '  if [ "$count" -ge 2 ]; then',
+        '    printf "dirty\\n" > "$LINKED_DIR/drift.txt"',
+        "  fi",
+        "fi",
+        'exec "$REAL_GIT" "$@"',
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+    await chmod(wrapperPath, 0o755);
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+      {
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      },
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(1);
+    expect(output.STATUS).toBe("ok");
+    expect(result.stderr).toContain("became dirty");
+    expect(await pathExists(linkedDir)).toBe(true);
+    expect(await pathExists(path.join(linkedDir, "drift.txt"))).toBe(true);
   });
 });

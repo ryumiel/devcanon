@@ -4,10 +4,11 @@ set -euo pipefail
 MODE="dry-run"
 FORCE_BRANCHES=0
 FORCE_DIRTY_WORKTREES=0
+TARGET_REPO=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: git-workspace-cleanup.sh [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]
+usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]
 EOF
 }
 
@@ -29,6 +30,11 @@ while [ "$#" -gt 0 ]; do
       ;;
     --force-dirty-worktrees)
       FORCE_DIRTY_WORKTREES=1
+      ;;
+    --repo)
+      [ "$#" -ge 2 ] || die "--repo requires a path"
+      TARGET_REPO=$2
+      shift
       ;;
     -h|--help)
       usage
@@ -69,17 +75,24 @@ resolve_default_branch() {
 
 append_worktree_record() {
   [ -n "$CURRENT_WORKTREE_PATH" ] || return 0
-  WORKTREE_PATHS+=("$CURRENT_WORKTREE_PATH")
-  WORKTREE_BRANCHES+=("$CURRENT_WORKTREE_BRANCH")
+  if [ "$CURRENT_WORKTREE_PRUNABLE" = "true" ]; then
+    PRUNABLE_WORKTREE_PATHS+=("$CURRENT_WORKTREE_PATH")
+  else
+    WORKTREE_PATHS+=("$CURRENT_WORKTREE_PATH")
+    WORKTREE_BRANCHES+=("$CURRENT_WORKTREE_BRANCH")
+  fi
   CURRENT_WORKTREE_PATH=""
   CURRENT_WORKTREE_BRANCH=""
+  CURRENT_WORKTREE_PRUNABLE="false"
 }
 
 collect_worktrees() {
   WORKTREE_PATHS=()
   WORKTREE_BRANCHES=()
+  PRUNABLE_WORKTREE_PATHS=()
   CURRENT_WORKTREE_PATH=""
   CURRENT_WORKTREE_BRANCH=""
+  CURRENT_WORKTREE_PRUNABLE="false"
 
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
@@ -91,6 +104,9 @@ collect_worktrees() {
         ;;
       branch\ refs/heads/*)
         CURRENT_WORKTREE_BRANCH=${line#branch refs/heads/}
+        ;;
+      prunable\ *)
+        CURRENT_WORKTREE_PRUNABLE="true"
         ;;
     esac
   done < <(git_c worktree list --porcelain)
@@ -197,6 +213,7 @@ print_report() {
   echo "DEFAULT_BRANCH=$DEFAULT_BRANCH"
   echo "PRIMARY_WORKTREE=$PRIMARY_WORKTREE"
   echo "REMOVABLE_WORKTREES=$(( ${#WORKTREE_PATHS[@]} - 1 ))"
+  echo "PRUNABLE_WORKTREES=${#PRUNABLE_WORKTREE_PATHS[@]}"
   echo "DIRTY_WORKTREES=$DIRTY_WORKTREE_COUNT"
   echo "LOCAL_BRANCHES_TO_DELETE=$LOCAL_BRANCH_DELETE_COUNT"
   echo "LOCAL_BRANCHES_WITH_UNIQUE_COMMITS=$LOCAL_BRANCH_UNIQUE_COUNT"
@@ -206,6 +223,9 @@ print_report() {
   for index in "${!WORKTREE_PATHS[@]}"; do
     [ "$index" -eq 0 ] && continue
     echo "REMOVABLE_WORKTREE=${WORKTREE_PATHS[$index]}"
+  done
+  for index in "${!PRUNABLE_WORKTREE_PATHS[@]}"; do
+    echo "PRUNABLE_WORKTREE=${PRUNABLE_WORKTREE_PATHS[$index]}"
   done
 
   if [ "${#DIRTY_WORKTREE_LINES[@]}" -gt 0 ]; then
@@ -237,6 +257,10 @@ remove_linked_worktrees() {
     path=${WORKTREE_PATHS[$index]}
     dirty=$(git -C "$path" status --porcelain=v1 --untracked-files=normal)
     if [ -n "$dirty" ]; then
+      if [ "$FORCE_DIRTY_WORKTREES" -ne 1 ]; then
+        echo "ERROR=linked worktree became dirty before removal: $path" >&2
+        return 1
+      fi
       git -C "$PRIMARY_WORKTREE" worktree remove --force "$path"
     else
       git -C "$PRIMARY_WORKTREE" worktree remove "$path"
@@ -256,12 +280,14 @@ delete_local_branches() {
   done
 }
 
-[ "$(git rev-parse --is-inside-work-tree 2>/dev/null || printf '%s\n' false)" = "true" ] || die "not inside a git worktree"
-[ "$(git rev-parse --is-bare-repository 2>/dev/null || printf '%s\n' true)" = "false" ] || die "bare repositories are unsupported"
+[ -n "$TARGET_REPO" ] || TARGET_REPO=$PWD
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+[ "$(git -C "$TARGET_REPO" rev-parse --is-inside-work-tree 2>/dev/null || printf '%s\n' false)" = "true" ] || die "not inside a git worktree: $TARGET_REPO"
+[ "$(git -C "$TARGET_REPO" rev-parse --is-bare-repository 2>/dev/null || printf '%s\n' true)" = "false" ] || die "bare repositories are unsupported"
 
-if [ "$MODE" = "execute" ]; then
+REPO_ROOT=$(git -C "$TARGET_REPO" rev-parse --show-toplevel)
+
+if [ "$MODE" = "dry-run" ]; then
   git_c fetch origin --prune
 fi
 
@@ -283,7 +309,8 @@ if [ "$STATUS" != "ok" ]; then
   exit 1
 fi
 
-checkout_and_fast_forward_default
 remove_linked_worktrees
+git -C "$PRIMARY_WORKTREE" worktree prune
+checkout_and_fast_forward_default
 delete_local_branches
 git -C "$PRIMARY_WORKTREE" worktree prune
