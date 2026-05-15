@@ -52,6 +52,10 @@ git_c() {
   git -C "$REPO_ROOT" "$@"
 }
 
+worktree_status() {
+  git -C "$1" status --porcelain=v1 --untracked-files=normal --ignored=matching
+}
+
 resolve_default_branch() {
   local symbolic_ref
 
@@ -80,19 +84,27 @@ append_worktree_record() {
   else
     WORKTREE_PATHS+=("$CURRENT_WORKTREE_PATH")
     WORKTREE_BRANCHES+=("$CURRENT_WORKTREE_BRANCH")
+    WORKTREE_LOCKED_FLAGS+=("$CURRENT_WORKTREE_LOCKED")
+    WORKTREE_LOCKED_REASONS+=("$CURRENT_WORKTREE_LOCKED_REASON")
   fi
   CURRENT_WORKTREE_PATH=""
   CURRENT_WORKTREE_BRANCH=""
   CURRENT_WORKTREE_PRUNABLE="false"
+  CURRENT_WORKTREE_LOCKED="false"
+  CURRENT_WORKTREE_LOCKED_REASON=""
 }
 
 collect_worktrees() {
   WORKTREE_PATHS=()
   WORKTREE_BRANCHES=()
+  WORKTREE_LOCKED_FLAGS=()
+  WORKTREE_LOCKED_REASONS=()
   PRUNABLE_WORKTREE_PATHS=()
   CURRENT_WORKTREE_PATH=""
   CURRENT_WORKTREE_BRANCH=""
   CURRENT_WORKTREE_PRUNABLE="false"
+  CURRENT_WORKTREE_LOCKED="false"
+  CURRENT_WORKTREE_LOCKED_REASON=""
 
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
@@ -107,6 +119,11 @@ collect_worktrees() {
         ;;
       prunable\ *)
         CURRENT_WORKTREE_PRUNABLE="true"
+        ;;
+      locked*)
+        CURRENT_WORKTREE_LOCKED="true"
+        CURRENT_WORKTREE_LOCKED_REASON=${line#locked}
+        CURRENT_WORKTREE_LOCKED_REASON=${CURRENT_WORKTREE_LOCKED_REASON# }
         ;;
     esac
   done < <(git_c worktree list --porcelain)
@@ -124,6 +141,26 @@ count_lines() {
   printf '%s\n' "$value" | wc -l | tr -d ' '
 }
 
+collect_locked_worktrees() {
+  LOCKED_WORKTREE_LINES=()
+  LOCKED_WORKTREE_COUNT=0
+
+  local index path reason line
+  for index in "${!WORKTREE_PATHS[@]}"; do
+    [ "$index" -eq 0 ] && continue
+    [ "${WORKTREE_LOCKED_FLAGS[$index]}" = "true" ] || continue
+
+    path=${WORKTREE_PATHS[$index]}
+    reason=${WORKTREE_LOCKED_REASONS[$index]}
+    line="LOCKED_WORKTREE=$path"
+    if [ -n "$reason" ]; then
+      line="$line|REASON=$reason"
+    fi
+    LOCKED_WORKTREE_COUNT=$((LOCKED_WORKTREE_COUNT + 1))
+    LOCKED_WORKTREE_LINES+=("$line")
+  done
+}
+
 collect_dirty_worktrees() {
   DIRTY_WORKTREE_LINES=()
   DIRTY_WORKTREE_COUNT=0
@@ -133,7 +170,7 @@ collect_dirty_worktrees() {
   local index path status files primary
   for index in "${!WORKTREE_PATHS[@]}"; do
     path=${WORKTREE_PATHS[$index]}
-    status=$(git -C "$path" status --porcelain=v1 --untracked-files=normal)
+    status=$(worktree_status "$path")
     [ -n "$status" ] || continue
 
     files=$(count_lines "$status")
@@ -151,32 +188,20 @@ collect_dirty_worktrees() {
 }
 
 branch_is_squash_merged() {
-  local branch=$1
+  local branch_ref=$1
   local merge_base tree dummy_commit cherry_status
 
-  merge_base=$(git_c merge-base "origin/$DEFAULT_BRANCH" "$branch" 2>/dev/null || true)
+  merge_base=$(git_c merge-base "refs/remotes/origin/$DEFAULT_BRANCH" "$branch_ref" 2>/dev/null || true)
   [ -n "$merge_base" ] || return 1
 
-  tree=$(git_c rev-parse "$branch^{tree}" 2>/dev/null || true)
+  tree=$(git_c rev-parse "$branch_ref^{tree}" 2>/dev/null || true)
   [ -n "$tree" ] || return 1
 
   dummy_commit=$(git_c commit-tree "$tree" -p "$merge_base" -m _ 2>/dev/null || true)
   [ -n "$dummy_commit" ] || return 1
 
-  cherry_status=$(git_c cherry "origin/$DEFAULT_BRANCH" "$dummy_commit" 2>/dev/null | cut -c 1 || true)
+  cherry_status=$(git_c cherry "refs/remotes/origin/$DEFAULT_BRANCH" "$dummy_commit" 2>/dev/null | cut -c 1 || true)
   [ "$cherry_status" = "-" ]
-}
-
-array_contains() {
-  local needle=$1
-  local item
-
-  shift
-  for item in "$@"; do
-    [ "$item" = "$needle" ] && return 0
-  done
-
-  return 1
 }
 
 collect_branches() {
@@ -184,19 +209,19 @@ collect_branches() {
   MERGED_BRANCH_LINES=()
   UNIQUE_BRANCH_LINES=()
   BRANCHES_TO_DELETE=()
-  SQUASH_MERGED_BRANCHES=()
-  BRANCHES_WITH_UNIQUE_COMMITS=()
   LOCAL_BRANCH_DELETE_COUNT=0
   LOCAL_BRANCH_UNIQUE_COUNT=0
   DEFAULT_BRANCH_AHEAD_COMMITS=0
 
-  local branch unique_count
-  while IFS= read -r branch || [ -n "$branch" ]; do
-    [ -n "$branch" ] || continue
+  local branch_ref branch unique_count remote_default_ref
+  remote_default_ref="refs/remotes/origin/$DEFAULT_BRANCH"
+  while IFS= read -r branch_ref || [ -n "$branch_ref" ]; do
+    [ -n "$branch_ref" ] || continue
+    branch=${branch_ref#refs/heads/}
 
-    if [ "$branch" = "$DEFAULT_BRANCH" ]; then
-      if git_c show-ref --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH"; then
-        DEFAULT_BRANCH_AHEAD_COMMITS=$(git_c rev-list --count "origin/$DEFAULT_BRANCH..$DEFAULT_BRANCH" 2>/dev/null || printf '%s\n' "0")
+    if [ "$branch_ref" = "refs/heads/$DEFAULT_BRANCH" ]; then
+      if git_c show-ref --verify --quiet "$remote_default_ref"; then
+        DEFAULT_BRANCH_AHEAD_COMMITS=$(git_c rev-list --count "$remote_default_ref..$branch_ref" 2>/dev/null || printf '%s\n' "0")
       fi
       continue
     fi
@@ -205,18 +230,16 @@ collect_branches() {
     BRANCHES_TO_DELETE+=("$branch")
     BRANCH_DELETE_LINES+=("DELETE_BRANCH=$branch")
 
-    if git_c merge-base --is-ancestor "$branch" "origin/$DEFAULT_BRANCH" 2>/dev/null; then
+    if git_c merge-base --is-ancestor "$branch_ref" "$remote_default_ref" 2>/dev/null; then
       MERGED_BRANCH_LINES+=("MERGED_BRANCH=$branch|REASON=ancestor")
-    elif branch_is_squash_merged "$branch"; then
-      SQUASH_MERGED_BRANCHES+=("$branch")
+    elif branch_is_squash_merged "$branch_ref"; then
       MERGED_BRANCH_LINES+=("MERGED_BRANCH=$branch|REASON=squash")
     else
-      unique_count=$(git_c rev-list --count "origin/$DEFAULT_BRANCH..$branch" 2>/dev/null || printf '%s\n' "1")
+      unique_count=$(git_c rev-list --count "$remote_default_ref..$branch_ref" 2>/dev/null || printf '%s\n' "1")
       LOCAL_BRANCH_UNIQUE_COUNT=$((LOCAL_BRANCH_UNIQUE_COUNT + 1))
-      BRANCHES_WITH_UNIQUE_COMMITS+=("$branch")
       UNIQUE_BRANCH_LINES+=("UNIQUE_BRANCH=$branch|COMMITS=$unique_count")
     fi
-  done < <(git_c for-each-ref --format='%(refname:short)' refs/heads)
+  done < <(git_c for-each-ref --format='%(refname)' refs/heads)
 }
 
 compute_status() {
@@ -236,6 +259,10 @@ compute_status() {
     fi
   fi
 
+  if [ "$LOCKED_WORKTREE_COUNT" -gt 0 ]; then
+    STATUS="blocked"
+  fi
+
   if [ "$LOCAL_BRANCH_UNIQUE_COUNT" -gt 0 ]; then
     if [ "$MODE" = "dry-run" ] || [ "$FORCE_BRANCHES" -ne 1 ]; then
       STATUS="blocked"
@@ -250,6 +277,7 @@ print_report() {
   echo "PRIMARY_WORKTREE=$PRIMARY_WORKTREE"
   echo "REMOVABLE_WORKTREES=$(( ${#WORKTREE_PATHS[@]} - 1 ))"
   echo "PRUNABLE_WORKTREES=${#PRUNABLE_WORKTREE_PATHS[@]}"
+  echo "LOCKED_WORKTREES=$LOCKED_WORKTREE_COUNT"
   echo "DIRTY_WORKTREES=$DIRTY_WORKTREE_COUNT"
   echo "LOCAL_BRANCHES_TO_DELETE=$LOCAL_BRANCH_DELETE_COUNT"
   echo "LOCAL_BRANCHES_WITH_UNIQUE_COMMITS=$LOCAL_BRANCH_UNIQUE_COUNT"
@@ -266,6 +294,9 @@ print_report() {
 
   if [ "${#DIRTY_WORKTREE_LINES[@]}" -gt 0 ]; then
     printf '%s\n' "${DIRTY_WORKTREE_LINES[@]}"
+  fi
+  if [ "${#LOCKED_WORKTREE_LINES[@]}" -gt 0 ]; then
+    printf '%s\n' "${LOCKED_WORKTREE_LINES[@]}"
   fi
   if [ "${#BRANCH_DELETE_LINES[@]}" -gt 0 ]; then
     printf '%s\n' "${BRANCH_DELETE_LINES[@]}"
@@ -294,7 +325,7 @@ remove_linked_worktrees() {
   for index in "${!WORKTREE_PATHS[@]}"; do
     [ "$index" -eq 0 ] && continue
     path=${WORKTREE_PATHS[$index]}
-    dirty=$(git -C "$path" status --porcelain=v1 --untracked-files=normal)
+    dirty=$(worktree_status "$path")
     if [ -n "$dirty" ]; then
       if [ "$FORCE_DIRTY_WORKTREES" -ne 1 ]; then
         echo "ERROR=linked worktree became dirty before removal: $path" >&2
@@ -311,13 +342,7 @@ delete_local_branches() {
   local branch
 
   for branch in "${BRANCHES_TO_DELETE[@]}"; do
-    if [ "${#BRANCHES_WITH_UNIQUE_COMMITS[@]}" -gt 0 ] && array_contains "$branch" "${BRANCHES_WITH_UNIQUE_COMMITS[@]}"; then
-      git -C "$PRIMARY_WORKTREE" branch -D "$branch" >/dev/null
-    elif [ "${#SQUASH_MERGED_BRANCHES[@]}" -gt 0 ] && array_contains "$branch" "${SQUASH_MERGED_BRANCHES[@]}"; then
-      git -C "$PRIMARY_WORKTREE" branch -D "$branch" >/dev/null
-    else
-      git -C "$PRIMARY_WORKTREE" branch -d "$branch" >/dev/null
-    fi
+    git -C "$PRIMARY_WORKTREE" branch -D "$branch" >/dev/null
   done
 }
 
@@ -337,6 +362,7 @@ git_c show-ref --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH" || die "or
 
 collect_worktrees
 PRIMARY_WORKTREE=${WORKTREE_PATHS[0]}
+collect_locked_worktrees
 collect_dirty_worktrees
 collect_branches
 compute_status

@@ -1,6 +1,6 @@
 ---
 name: git-workspace-cleanup
-description: Deterministic cleanup of Git worktrees and local branches back to the remote default branch. Use when the user asks to clean all linked worktrees, return the main checkout to main or master, or delete local branches after work is complete.
+description: Deterministic cleanup of Git worktrees and local branches back to the remote default branch. Use when the user asks to clean all linked worktrees, return the primary checkout to the remote default branch, or delete local branches after work is complete.
 ---
 
 # Git Workspace Cleanup
@@ -55,7 +55,8 @@ the user explicitly approved both.
 
 The script blocks by default on:
 
-- uncommitted or untracked files in any worktree
+- uncommitted, untracked, or ignored files in any worktree
+- locked linked worktrees
 - commits on non-default local branches that are not reachable from
   `origin/<default-branch>` and are not squash-merged into
   `origin/<default-branch>`
@@ -66,11 +67,12 @@ Only two blocker classes are forceable:
 
 - `--force-branches` permits deleting non-default branches with local-only
   commits.
-- `--force-dirty-worktrees` permits removing dirty linked worktrees.
+- `--force-dirty-worktrees` permits removing dirty linked worktrees,
+  including ignored files in those linked worktrees.
 
-Dirty primary worktrees and default-branch local-only commits are never forced.
-Ask the user to commit, stash, or otherwise resolve those manually before
-running cleanup.
+Dirty primary worktrees, locked linked worktrees, and default-branch local-only
+commits are never forced. Ask the user to commit, stash, unlock, or otherwise
+resolve those manually before running cleanup.
 
 Dry-run refreshes `origin/*` with `git fetch origin --prune` before reporting.
 Execute intentionally does not fetch again, so the destructive run uses the
@@ -95,6 +97,7 @@ Important keys:
 - `PRIMARY_WORKTREE=<absolute path>`
 - `REMOVABLE_WORKTREES=<count>`
 - `PRUNABLE_WORKTREES=<count>`
+- `LOCKED_WORKTREES=<count>`
 - `DIRTY_WORKTREES=<count>`
 - `LOCAL_BRANCHES_TO_DELETE=<count>`
 - `LOCAL_BRANCHES_WITH_UNIQUE_COMMITS=<count>`
@@ -104,6 +107,7 @@ Detail lines repeat as needed:
 
 - `REMOVABLE_WORKTREE=<path>`
 - `PRUNABLE_WORKTREE=<path>`
+- `LOCKED_WORKTREE=<path>|REASON=<reason>`
 - `DIRTY_WORKTREE=<path>|FILES=<count>|PRIMARY=true|false`
 - `DELETE_BRANCH=<branch>`
 - `MERGED_BRANCH=<branch>|REASON=ancestor|squash`

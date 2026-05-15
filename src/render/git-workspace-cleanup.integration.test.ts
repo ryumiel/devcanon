@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
+const TEST_TIMEOUT = process.platform === "win32" ? 30_000 : 10_000;
+const TEST_OPTIONS = { timeout: TEST_TIMEOUT };
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -137,7 +139,7 @@ async function listBranches(cwd: string): Promise<string[]> {
   return branches.split(/\r?\n/u).filter(Boolean);
 }
 
-describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
+describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
@@ -437,6 +439,154 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(forced.code).toBe(0);
     expect(output.STATUS).toBe("ok");
     expect(await pathExists(linkedDir)).toBe(false);
+  });
+
+  it("blocks ignored files in linked worktrees unless dirty-worktree removal is forced", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedDir = path.join(rootDir, "ignored linked");
+
+    await writeFile(path.join(primaryDir, ".gitignore"), "*.cache\n", "utf-8");
+    await runGit(["add", ".gitignore"], primaryDir);
+    await runGit(["commit", "-m", "chore: ignore cache files"], primaryDir);
+    await runGit(["push", "origin", "main"], primaryDir);
+    await runGit(
+      ["worktree", "add", "-b", "feature/ignored", linkedDir],
+      primaryDir,
+    );
+    await writeFile(path.join(linkedDir, "local.cache"), "cache\n", "utf-8");
+
+    const blocked = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
+    const blockedOutput = parseKeyValueOutput(blocked.stdout);
+
+    expect(blocked.code).toBe(1);
+    expect(blockedOutput.STATUS).toBe("blocked");
+    expect(blockedOutput.DIRTY_WORKTREES).toBe("1");
+    expectNormalizedOutputToContain(
+      blocked.stdout,
+      `DIRTY_WORKTREE=${await realpath(linkedDir)}|FILES=1|PRIMARY=false`,
+    );
+    expect(await pathExists(linkedDir)).toBe(true);
+
+    const forced = await runScript(
+      ["--repo", primaryDir, "--execute", "--force-dirty-worktrees"],
+      rootDir,
+    );
+
+    expect(forced.code).toBe(0);
+    expect(parseKeyValueOutput(forced.stdout).STATUS).toBe("ok");
+    expect(await pathExists(linkedDir)).toBe(false);
+  });
+
+  it("reports and blocks locked linked worktrees during dry-run and execute", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedDir = path.join(rootDir, "locked linked");
+
+    await runGit(
+      ["worktree", "add", "-b", "feature/locked", linkedDir],
+      primaryDir,
+    );
+    await runGit(
+      ["worktree", "lock", "--reason", "manual review", linkedDir],
+      primaryDir,
+    );
+
+    const dryRun = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const dryRunOutput = parseKeyValueOutput(dryRun.stdout);
+
+    expect(dryRun.code).toBe(0);
+    expect(dryRunOutput.STATUS).toBe("blocked");
+    expect(dryRunOutput.LOCKED_WORKTREES).toBe("1");
+    expectNormalizedOutputToContain(
+      dryRun.stdout,
+      `LOCKED_WORKTREE=${await realpath(linkedDir)}|REASON=manual review`,
+    );
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute", "--force-dirty-worktrees"],
+      rootDir,
+    );
+
+    expect(result.code).toBe(1);
+    expect(parseKeyValueOutput(result.stdout).STATUS).toBe("blocked");
+    expect(await pathExists(linkedDir)).toBe(true);
+  });
+
+  it("force-deletes branches after classifying them as merged against the remote default", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const envDir = path.join(rootDir, "env");
+    const { stdout: gitPathOutput } = await runCommand(
+      "sh",
+      ["-c", "command -v git"],
+      rootDir,
+    );
+
+    await runGit(["branch", "feature/already-merged", "main"], primaryDir);
+    await mkdir(envDir, { recursive: true });
+    const wrapperPath = path.join(envDir, "git-wrapper-env.sh");
+    const canonicalPrimaryDir = normalizeGitPath(await realpath(primaryDir));
+    await writeFile(
+      wrapperPath,
+      [
+        "#!/usr/bin/env bash",
+        `REAL_GIT=${JSON.stringify(normalizeGitPath(gitPathOutput.trim()))}`,
+        `PRIMARY_DIR=${JSON.stringify(canonicalPrimaryDir)}`,
+        "git() {",
+        '  if [ "$#" -ge 5 ] && [ "$1" = "-C" ] && [ "$2" = "$PRIMARY_DIR" ] && [ "$3" = "branch" ] && [ "$4" = "-d" ] && [ "$5" = "feature/already-merged" ]; then',
+        '    printf "refusing implicit delete\\n" >&2',
+        "    return 1",
+        "  fi",
+        '  "$REAL_GIT" "$@"',
+        "}",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+      {
+        BASH_ENV: wrapperPath,
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(parseKeyValueOutput(result.stdout).STATUS).toBe("ok");
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
+  it("does not treat an ambiguous default branch short ref as removable", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    await runGit(["branch", "feature/already-merged", "main"], primaryDir);
+    await runGit(["tag", "main"], primaryDir);
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(output.DEFAULT_BRANCH_AHEAD_COMMITS).toBe("0");
+    expect(output.LOCAL_BRANCHES_TO_DELETE).toBe("1");
+    expect(result.stdout).not.toContain("DELETE_BRANCH=heads/main");
+    expect(result.stdout).toContain("DELETE_BRANCH=feature/already-merged");
   });
 
   it("does not force a dirty primary worktree", async () => {
