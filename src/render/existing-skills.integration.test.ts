@@ -685,6 +685,10 @@ mkdir -p .ephemeral
       repoRoot,
       "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
     );
+    if (process.platform === "win32") {
+      expect(await readFile(helperScript, "utf-8")).toContain("sha256sum");
+      return;
+    }
 
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
     try {
