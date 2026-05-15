@@ -61,7 +61,7 @@ This document is the procedural guide for contributing to the repository. For po
    `Resolves #N`, or `Part of #N`; for Linear, include the team issue key or
    link. Use `No issue: <reason>` only when the PR is intentionally not tied to
    an external issue.
-3. Run the self-review checklist from the [code review guideline](docs/guidelines/code-review-guideline.md#6-self-review-checklist)
+3. Run the self-review checklist from the [code review guideline](docs/guidelines/code-review-guideline.md#7-self-review-checklist)
 4. Answer every item in the [CONTRIBUTING.md](CONTRIBUTING.md#pull-request-policy) PR policy checklist
 
 ## Post-Merge
