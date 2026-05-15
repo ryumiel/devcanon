@@ -236,9 +236,52 @@ still run `branch-review` manually.
 
 The controller maintains a compact per-task lifecycle ledger while executing the plan. The ledger is agent-local/controller-local state; do not write it as durable repository documentation and do not pass it to reviewer agents as evidence. Reviewers still read the worktree from disk.
 
-Track one row per active or completed implementer, reviewer, re-reviewer, and final reviewer session. Each row records: task id, role, active/completed agent ids when available, base/head SHA, status, role-specific captured state, reviewer result, fixup count, blocker state, and one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable:<reason>`. Role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, and re-review target when applicable.
+Track one row per active or completed implementer, reviewer, re-reviewer, and final reviewer session. Each row records: task id, role, one `agent_id` or `agent_id=pending`, optional open-agent inventory when the target exposes it, base/head SHA, status, role-specific captured state, reviewer result, fixup count, blocker state, and one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`. Role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, and re-review target when applicable.
 
 Update the ledger before and after every dispatch. A pre-dispatch row may use `agent_id=pending` until the runtime returns a stable id. The ledger is the source for controller recovery after orchestration failures; git remains the source for repository state.
+
+## Lifecycle State Machine
+
+This diagram is a visual summary; the ledger fields and rules below are authoritative.
+
+```dot
+digraph lifecycle_state {
+    rankdir=TB;
+
+    "agent_id=pending" [shape=ellipse];
+    "active session" [shape=ellipse];
+    "status captured" [shape=box];
+    "DONE artifacts captured" [shape=box];
+    "review fix loop needs same session?" [shape=diamond];
+    "closed=no" [shape=ellipse];
+    "cleanup gate" [shape=box];
+    "target can close?" [shape=diamond];
+    "closed=yes" [shape=ellipse];
+    "close-unavailable: <reason>" [shape=ellipse];
+    "slot-limit spawn failure" [shape=diamond];
+    "operator confirms manual cleanup?" [shape=diamond];
+    "retry spawn once" [shape=box];
+    "escalate with reconstructed state" [shape=box];
+
+    "agent_id=pending" -> "active session" [label="dispatch returns id"];
+    "active session" -> "status captured" [label="DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED"];
+    "status captured" -> "DONE artifacts captured" [label="DONE or DONE_WITH_CONCERNS"];
+    "status captured" -> "closed=no" [label="NEEDS_CONTEXT or BLOCKED follow-up remains"];
+    "DONE artifacts captured" -> "review fix loop needs same session?";
+    "review fix loop needs same session?" -> "closed=no" [label="yes"];
+    "review fix loop needs same session?" -> "cleanup gate" [label="no"];
+    "closed=no" -> "cleanup gate" [label="follow-up complete or superseded"];
+    "cleanup gate" -> "target can close?";
+    "target can close?" -> "closed=yes" [label="automatic-close-supported"];
+    "target can close?" -> "close-unavailable: <reason>" [label="inventory-only or cleanup-unavailable"];
+    "cleanup gate" -> "slot-limit spawn failure" [label="spawn blocked by open sessions"];
+    "slot-limit spawn failure" -> "retry spawn once" [label="automatic cleanup completed"];
+    "slot-limit spawn failure" -> "operator confirms manual cleanup?" [label="manual cleanup required"];
+    "operator confirms manual cleanup?" -> "retry spawn once" [label="yes"];
+    "operator confirms manual cleanup?" -> "escalate with reconstructed state" [label="no"];
+    "retry spawn once" -> "escalate with reconstructed state" [label="still blocked"];
+}
+```
 
 ## Target Lifecycle Capability
 
@@ -521,7 +564,9 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the user
 
-If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker belongs to the same family already recorded in the lifecycle ledger, treat it as repeated blocker-family behavior and escalate through the existing path above instead of running another cleanup retry.
+Record blocker state as a stable family plus brief detail, e.g. `context-missing: needs target install path` or `task-too-large: generated prompt exceeds context`. The family is the text before the first colon and is what repeated-blocker checks compare.
+
+If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task, treat it as repeated blocker-family behavior and escalate through the existing path above instead of running another cleanup retry.
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 

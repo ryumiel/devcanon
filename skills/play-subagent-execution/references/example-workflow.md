@@ -63,9 +63,9 @@ Task 1 spec reviewer: review scope captured, base/head SHA captured, report capt
 Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
-[Dispatch code quality reviewer]
+[Dispatch code-quality reviewer]
 [Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+Code-quality reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
 Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
@@ -125,12 +125,12 @@ Task 2 spec re-reviewer: review scope captured, base/head SHA captured, report c
 Task 2 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 
 [Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
-[Dispatch code quality reviewer]
+[Dispatch code-quality reviewer]
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
-Code reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
+Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 code reviewer: status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), routing target=Task 2 implementer, re-review target=quality-2-rereview, closed=yes after findings routed.
+Task 2 code-quality reviewer: status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), routing target=Task 2 implementer, re-review target=quality-2-rereview, closed=yes after findings routed.
 Task 2 implementer: closed=no because routed code-quality findings need same-session fixup.
 
 [Implementer fixes]
@@ -145,7 +145,7 @@ Controller keeps Task 2 implementer open until the code-quality reviewer passes.
 [Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending]
 [Code-quality re-reviewer reviews again]
 [Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
-Code reviewer: ✅ Approved
+Code-quality reviewer: ✅ Approved
 
 [Lifecycle cleanup checkpoint]
 Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
@@ -159,10 +159,10 @@ Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captu
 ...
 
 [After all tasks]
-[Cleanup gate before final code-reviewer spawn]
+[Cleanup gate before final code-quality reviewer spawn]
 Controller verifies task implementers, reviewers, and re-reviewers are closed, then records the final reviewer pre-dispatch row: agent_id=pending, role=final-code-quality-reviewer, review scope=whole implementation diff, base/head SHA captured, closed=no.
 
-[Dispatch final code-reviewer]
+[Dispatch final code-quality reviewer]
 [Ledger post-dispatch: final-code-quality-reviewer, agent_id=final-quality]
 Final reviewer: All requirements met, ready to merge
 

@@ -431,7 +431,7 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("task id");
     expect(playSubagentExecutionBody).toContain("base/head SHA");
     expect(playSubagentExecutionBody).toContain(
-      "active/completed agent ids when available",
+      "one `agent_id` or `agent_id=pending`",
     );
     expect(playSubagentExecutionBody).toContain("role");
     expect(playSubagentExecutionBody).toContain("status");
@@ -439,7 +439,11 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("reviewer scope");
     expect(playSubagentExecutionBody).toContain("closed=yes");
     expect(playSubagentExecutionBody).toContain("closed=no");
-    expect(playSubagentExecutionBody).toContain("close-unavailable:<reason>");
+    expect(playSubagentExecutionBody).toContain("close-unavailable: <reason>");
+    expect(playSubagentExecutionBody).toContain("## Lifecycle State Machine");
+    expect(playSubagentExecutionBody).toContain(
+      "This diagram is a visual summary; the ledger fields and rules below are authoritative.",
+    );
     expect(playSubagentExecutionBody).toContain(
       "close-unavailable: inventory-only; no close operation",
     );
@@ -480,6 +484,9 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExecutionBody).toContain(
       "do not wait for snapshot, changed-file, or test artifacts that were not produced",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "The family is the text before the first colon",
     );
     expect(playSubagentExecutionBody).not.toContain(
       "high quality, fast iteration",
@@ -594,7 +601,10 @@ mkdir -p .ephemeral
       "re-review target=quality-2-rereview",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before final code-reviewer spawn",
+      "Cleanup gate before final code-quality reviewer spawn",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Task 2 code-quality reviewer: status=findings-recorded",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "Alternative target capability examples - separate runs",
