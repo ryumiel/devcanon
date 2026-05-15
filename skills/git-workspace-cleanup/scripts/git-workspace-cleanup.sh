@@ -150,10 +150,41 @@ collect_dirty_worktrees() {
   done
 }
 
+branch_is_squash_merged() {
+  local branch=$1
+  local merge_base tree dummy_commit cherry_status
+
+  merge_base=$(git_c merge-base "origin/$DEFAULT_BRANCH" "$branch" 2>/dev/null || true)
+  [ -n "$merge_base" ] || return 1
+
+  tree=$(git_c rev-parse "$branch^{tree}" 2>/dev/null || true)
+  [ -n "$tree" ] || return 1
+
+  dummy_commit=$(git_c commit-tree "$tree" -p "$merge_base" -m _ 2>/dev/null || true)
+  [ -n "$dummy_commit" ] || return 1
+
+  cherry_status=$(git_c cherry "origin/$DEFAULT_BRANCH" "$dummy_commit" 2>/dev/null | cut -c 1 || true)
+  [ "$cherry_status" = "-" ]
+}
+
+array_contains() {
+  local needle=$1
+  local item
+
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+
+  return 1
+}
+
 collect_branches() {
   BRANCH_DELETE_LINES=()
+  MERGED_BRANCH_LINES=()
   UNIQUE_BRANCH_LINES=()
   BRANCHES_TO_DELETE=()
+  SQUASH_MERGED_BRANCHES=()
   BRANCHES_WITH_UNIQUE_COMMITS=()
   LOCAL_BRANCH_DELETE_COUNT=0
   LOCAL_BRANCH_UNIQUE_COUNT=0
@@ -174,7 +205,12 @@ collect_branches() {
     BRANCHES_TO_DELETE+=("$branch")
     BRANCH_DELETE_LINES+=("DELETE_BRANCH=$branch")
 
-    if ! git_c merge-base --is-ancestor "$branch" "origin/$DEFAULT_BRANCH" 2>/dev/null; then
+    if git_c merge-base --is-ancestor "$branch" "origin/$DEFAULT_BRANCH" 2>/dev/null; then
+      MERGED_BRANCH_LINES+=("MERGED_BRANCH=$branch|REASON=ancestor")
+    elif branch_is_squash_merged "$branch"; then
+      SQUASH_MERGED_BRANCHES+=("$branch")
+      MERGED_BRANCH_LINES+=("MERGED_BRANCH=$branch|REASON=squash")
+    else
       unique_count=$(git_c rev-list --count "origin/$DEFAULT_BRANCH..$branch" 2>/dev/null || printf '%s\n' "1")
       LOCAL_BRANCH_UNIQUE_COUNT=$((LOCAL_BRANCH_UNIQUE_COUNT + 1))
       BRANCHES_WITH_UNIQUE_COMMITS+=("$branch")
@@ -234,6 +270,9 @@ print_report() {
   if [ "${#BRANCH_DELETE_LINES[@]}" -gt 0 ]; then
     printf '%s\n' "${BRANCH_DELETE_LINES[@]}"
   fi
+  if [ "${#MERGED_BRANCH_LINES[@]}" -gt 0 ]; then
+    printf '%s\n' "${MERGED_BRANCH_LINES[@]}"
+  fi
   if [ "${#UNIQUE_BRANCH_LINES[@]}" -gt 0 ]; then
     printf '%s\n' "${UNIQUE_BRANCH_LINES[@]}"
   fi
@@ -272,7 +311,9 @@ delete_local_branches() {
   local branch
 
   for branch in "${BRANCHES_TO_DELETE[@]}"; do
-    if printf '%s\n' "${BRANCHES_WITH_UNIQUE_COMMITS[@]}" | grep -Fxq "$branch"; then
+    if [ "${#BRANCHES_WITH_UNIQUE_COMMITS[@]}" -gt 0 ] && array_contains "$branch" "${BRANCHES_WITH_UNIQUE_COMMITS[@]}"; then
+      git -C "$PRIMARY_WORKTREE" branch -D "$branch" >/dev/null
+    elif [ "${#SQUASH_MERGED_BRANCHES[@]}" -gt 0 ] && array_contains "$branch" "${SQUASH_MERGED_BRANCHES[@]}"; then
       git -C "$PRIMARY_WORKTREE" branch -D "$branch" >/dev/null
     else
       git -C "$PRIMARY_WORKTREE" branch -d "$branch" >/dev/null

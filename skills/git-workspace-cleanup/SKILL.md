@@ -57,6 +57,7 @@ The script blocks by default on:
 
 - uncommitted or untracked files in any worktree
 - commits on non-default local branches that are not reachable from
+  `origin/<default-branch>` and are not squash-merged into
   `origin/<default-branch>`
 - commits on the local default branch that are ahead of
   `origin/<default-branch>`
@@ -74,6 +75,13 @@ running cleanup.
 Dry-run refreshes `origin/*` with `git fetch origin --prune` before reporting.
 Execute intentionally does not fetch again, so the destructive run uses the
 remote-tracking state that the user approved from the dry-run report.
+
+Squash-merged branch detection is part of this helper. A non-default branch is
+treated as merged when its branch tree can be represented as a single commit on
+top of its merge base and `git cherry origin/<default-branch>` reports that
+patch as already present. Such branches can require `git branch -D` because
+their tips are not ancestors of the default branch, but they do not require
+`--force-branches`.
 
 ## Output Contract
 
@@ -98,6 +106,7 @@ Detail lines repeat as needed:
 - `PRUNABLE_WORKTREE=<path>`
 - `DIRTY_WORKTREE=<path>|FILES=<count>|PRIMARY=true|false`
 - `DELETE_BRANCH=<branch>`
+- `MERGED_BRANCH=<branch>|REASON=ancestor|squash`
 - `UNIQUE_BRANCH=<branch>|COMMITS=<count>`
 
 Dry-run exits zero even when blocked so callers can inspect and report the

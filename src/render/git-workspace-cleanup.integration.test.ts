@@ -225,6 +225,45 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(await listBranches(primaryDir)).toEqual(["main"]);
   });
 
+  it("deletes squash-merged local branches without force", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    await runGit(["checkout", "-b", "feature/squash"], primaryDir);
+    await writeFile(path.join(primaryDir, "squash.txt"), "squash\n", "utf-8");
+    await runGit(["add", "squash.txt"], primaryDir);
+    await runGit(["commit", "-m", "feat: squash"], primaryDir);
+    await runGit(["checkout", "main"], primaryDir);
+    await runGit(["merge", "--squash", "feature/squash"], primaryDir);
+    await runGit(["commit", "-m", "feat: squash merged"], primaryDir);
+    await runGit(["push", "origin", "main"], primaryDir);
+
+    const dryRun = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const dryRunOutput = parseKeyValueOutput(dryRun.stdout);
+
+    expect(dryRun.code).toBe(0);
+    expect(dryRunOutput.STATUS).toBe("ok");
+    expect(dryRunOutput.LOCAL_BRANCHES_TO_DELETE).toBe("1");
+    expect(dryRunOutput.LOCAL_BRANCHES_WITH_UNIQUE_COMMITS).toBe("0");
+    expect(dryRun.stdout).toContain(
+      "MERGED_BRANCH=feature/squash|REASON=squash",
+    );
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
   it("fast-forwards the primary default branch and removes clean linked worktrees and local branches when forced", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
