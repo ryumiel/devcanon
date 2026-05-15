@@ -92,6 +92,21 @@ function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function firstFencedBlockLineCount(content: string): number {
+  let fenceCount = 0;
+  let lineCount = 0;
+  for (const line of content.split("\n")) {
+    if (/^`{3,}$/.test(line)) {
+      fenceCount += 1;
+      continue;
+    }
+    if (fenceCount === 1) {
+      lineCount += 1;
+    }
+  }
+  return lineCount;
+}
+
 async function commandPath(command: string): Promise<string> {
   const { stdout } = await execFileAsync("bash", [
     "-lc",
@@ -430,10 +445,10 @@ mkdir -p .ephemeral
     );
     expect(implementerPrompt).toContain("scripts/write-snapshot-manifest.sh");
     expect(implementerPrompt).toContain(
-      "readable Snapshot Manifest Recipe path",
+      "Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>",
     );
     expect(implementerPrompt).toContain(
-      "executable Snapshot Manifest Helper Script path",
+      "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
     expect(implementerPrompt).toContain("script with the captured `BASE_SHA`");
     expect(implementerPrompt).toContain(
@@ -458,10 +473,10 @@ mkdir -p .ephemeral
       "scripts/write-snapshot-manifest.sh",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "readable Snapshot Manifest Recipe path",
+      "Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "executable Snapshot Manifest Helper Script path",
+      "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "script with the captured `BASE_SHA`",
@@ -491,8 +506,15 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "inlining the shell implementation",
     );
-    expect(playSubagentExecutionBody).toContain(
-      "~72 lines vs. the default's ~151-line body",
+    const baselineMatch = playSubagentExecutionBody.match(
+      /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
+    );
+    expect(baselineMatch).not.toBeNull();
+    expect(Number(baselineMatch?.[1])).toBe(
+      firstFencedBlockLineCount(mechanicalImplementerPrompt),
+    );
+    expect(Number(baselineMatch?.[2])).toBe(
+      firstFencedBlockLineCount(implementerPrompt),
     );
     expect(playSubagentExecutionBody).toContain(
       "After extracting the detailed snapshot recipe",
@@ -698,6 +720,54 @@ mkdir -p .ephemeral
         skipped: "size>64KB",
       });
       expect(filesByPath.get("large.txt")).not.toHaveProperty("content");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("rejects empty snapshot diffs", async () => {
+    const repoRoot = process.cwd();
+    const helperScript = path.join(
+      repoRoot,
+      "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+    );
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
+    try {
+      await execFileAsync("git", ["init", "--initial-branch=main"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.name", "Test User"], {
+        cwd: tempDir,
+      });
+      await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+        cwd: tempDir,
+      });
+      await writeFile(path.join(tempDir, "file.md"), "unchanged\n");
+      await execFileAsync("git", ["add", "."], { cwd: tempDir });
+      await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+        cwd: tempDir,
+      });
+      const { stdout: headStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        {
+          cwd: tempDir,
+        },
+      );
+
+      await expect(
+        execFileAsync("bash", [helperScript], {
+          cwd: tempDir,
+          env: {
+            ...process.env,
+            BASE_SHA: headStdout.trim(),
+            SNAPSHOT_TASK_ID: "Task 1",
+          },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("snapshot has no changed files"),
+      });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

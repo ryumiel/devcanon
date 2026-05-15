@@ -188,7 +188,7 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the lean template's prompt body (the first fenced block of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) is ~72 lines vs. the default's ~151-line body (the first fenced block of [`references/implementer-prompt.md`](references/implementer-prompt.md)). After extracting the detailed snapshot recipe, both templates keep only the compact mandatory-use snapshot contract. Count the body of either template with:
+**Verification baseline:** the lean template's prompt body (the first fenced block of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) is ~80 lines vs. the default's ~159-line body (the first fenced block of [`references/implementer-prompt.md`](references/implementer-prompt.md)). After extracting the detailed snapshot recipe, both templates keep only the compact mandatory-use snapshot contract. Count the body of either template with:
 
 ```bash
 awk '/^`{3,}$/{c++; next} c==1' references/<template>.md | wc -l

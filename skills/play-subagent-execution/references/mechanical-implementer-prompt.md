@@ -39,11 +39,11 @@ Task tool (general-purpose):
     After committing and self-reviewing, write the side-channel snapshot
     manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
-    The controller supplies two paths with this dispatch:
-    - A readable Snapshot Manifest Recipe path, sourced from
-      `references/snapshot-manifest-recipe.md`
-    - An executable Snapshot Manifest Helper Script path, sourced from
-      `scripts/write-snapshot-manifest.sh`
+    The controller supplies two resolved paths with this dispatch:
+    - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
+      - Source: `references/snapshot-manifest-recipe.md`
+    - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
+      - Source: `scripts/write-snapshot-manifest.sh`
 
     Before writing the snapshot, read the recipe file. Then run the helper
     script with the captured `BASE_SHA` and the task header identifier as

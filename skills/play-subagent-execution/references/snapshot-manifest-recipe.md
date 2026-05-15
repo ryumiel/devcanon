@@ -17,9 +17,10 @@ If `git rev-parse HEAD` fails before or after implementation, report
 
 ## Recipe
 
-Use the executable helper script supplied by the controller. Do not reimplement
-the shell procedure in the prompt body unless the helper script is unavailable
-and the controller explicitly instructs you to proceed another way.
+Use the executable helper script supplied by the controller. Normal dispatches
+must report `BLOCKED` if the helper script is unavailable; do not hand-roll the
+snapshot procedure from this recipe. A controller may override this only by
+providing a separate explicit fallback contract in the dispatch.
 
 ```bash
 BASE_SHA="$BASE_SHA" SNAPSHOT_TASK_ID="$SNAPSHOT_TASK_ID" bash "$SNAPSHOT_HELPER_SCRIPT"

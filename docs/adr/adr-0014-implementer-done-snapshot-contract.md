@@ -350,8 +350,9 @@ reuse is opportunistic; the cost is one notice line and one
   uniform across file types and avoids gaming via long-line
   packing.
 - **Configurable threshold.** Rejected for v1 as YAGNI. The
-  threshold is a single literal in the canonical helper script; if real
-  workloads need a different value we add the knob then.
+  threshold is enforced by a single literal in the canonical helper
+  script and documented by the recipe contract; if real workloads need
+  a different value we add the knob then.
 
 ## Related
 
