@@ -81,6 +81,13 @@ path with each implementer dispatch, and the implementer prompts carry a compact
 mandatory-use contract while preserving the same notice line and failure
 behavior.
 
+Authority model: the helper script is authoritative for executable snapshot
+behavior; the recipe is authoritative for implementer-facing operating
+instructions; this ADR is authoritative for policy intent and accepted behavior
+changes; prompt text is only the compact handoff to those sources. If these
+surfaces conflict, update the lower-authority surface to match the helper's
+behavior and this ADR's policy intent.
+
 The path scheme matches `play-review`'s findings file because, like
 `play-review`, the implementer is writing post-commit and so has a
 defined `head_sha`. ADR-0013 explicitly noted that brainstorm/plan

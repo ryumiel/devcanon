@@ -539,6 +539,12 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("executable helper script");
     expect(adr0014).toContain("mandatory-use contract");
+    expect(adr0014).toContain(
+      "the helper script is authoritative for executable snapshot",
+    );
+    expect(adr0014).toContain(
+      "prompt text is only the compact handoff to those sources",
+    );
     expect(adr0014).toContain("Unsupported status letters");
     expect(adr0014).toContain("Non-deleted symlink paths route to `BLOCKED`");
     expect(adr0014).toContain("intentional v1 helper behavior change");
