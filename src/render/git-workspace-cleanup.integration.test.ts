@@ -441,7 +441,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     expect(await pathExists(linkedDir)).toBe(false);
   });
 
-  it("blocks ignored files in linked worktrees unless dirty-worktree removal is forced", async () => {
+  it("removes linked worktrees with only ignored files without dirty-worktree force", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
@@ -457,29 +457,48 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     );
     await writeFile(path.join(linkedDir, "local.cache"), "cache\n", "utf-8");
 
-    const blocked = await runScript(
+    const dryRun = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
+      rootDir,
+    );
+    const dryRunOutput = parseKeyValueOutput(dryRun.stdout);
+
+    expect(dryRun.code).toBe(0);
+    expect(dryRunOutput.STATUS).toBe("ok");
+    expect(dryRunOutput.DIRTY_WORKTREES).toBe("0");
+    expect(await pathExists(linkedDir)).toBe(true);
+
+    const result = await runScript(
       ["--repo", primaryDir, "--execute"],
       rootDir,
     );
-    const blockedOutput = parseKeyValueOutput(blocked.stdout);
 
-    expect(blocked.code).toBe(1);
-    expect(blockedOutput.STATUS).toBe("blocked");
-    expect(blockedOutput.DIRTY_WORKTREES).toBe("1");
-    expectNormalizedOutputToContain(
-      blocked.stdout,
-      `DIRTY_WORKTREE=${await realpath(linkedDir)}|FILES=1|PRIMARY=false`,
-    );
-    expect(await pathExists(linkedDir)).toBe(true);
+    expect(result.code).toBe(0);
+    expect(parseKeyValueOutput(result.stdout).STATUS).toBe("ok");
+    expect(await pathExists(linkedDir)).toBe(false);
+  });
 
-    const forced = await runScript(
-      ["--repo", primaryDir, "--execute", "--force-dirty-worktrees"],
+  it("does not block cleanup when the primary worktree has only ignored files", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    await writeFile(path.join(primaryDir, ".gitignore"), "*.cache\n", "utf-8");
+    await runGit(["add", ".gitignore"], primaryDir);
+    await runGit(["commit", "-m", "chore: ignore cache files"], primaryDir);
+    await runGit(["push", "origin", "main"], primaryDir);
+    await writeFile(path.join(primaryDir, "local.cache"), "cache\n", "utf-8");
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--dry-run"],
       rootDir,
     );
+    const output = parseKeyValueOutput(result.stdout);
 
-    expect(forced.code).toBe(0);
-    expect(parseKeyValueOutput(forced.stdout).STATUS).toBe("ok");
-    expect(await pathExists(linkedDir)).toBe(false);
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(output.DIRTY_WORKTREES).toBe("0");
+    expect(result.stdout).not.toContain("DIRTY_WORKTREE=");
   });
 
   it("reports and blocks locked linked worktrees during dry-run and execute", async () => {

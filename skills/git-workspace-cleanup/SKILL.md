@@ -55,7 +55,7 @@ the user explicitly approved both.
 
 The script blocks by default on:
 
-- uncommitted, untracked, or ignored files in any worktree
+- uncommitted or untracked files in any worktree
 - locked linked worktrees
 - commits on non-default local branches that are not reachable from
   `origin/<default-branch>` and are not squash-merged into
@@ -68,11 +68,15 @@ Only two blocker classes are forceable:
 - `--force-branches` permits deleting non-default branches with local-only
   commits.
 - `--force-dirty-worktrees` permits removing dirty linked worktrees,
-  including ignored files in those linked worktrees.
+  including uncommitted or untracked files in those linked worktrees.
 
 Dirty primary worktrees, locked linked worktrees, and default-branch local-only
 commits are never forced. Ask the user to commit, stash, unlock, or otherwise
 resolve those manually before running cleanup.
+
+Ignored files alone are not blockers. Git can remove linked worktrees that
+contain only ignored files without `--force`, and ignored files in the primary
+worktree do not represent source changes that cleanup must stop on.
 
 Dry-run refreshes `origin/*` with `git fetch origin --prune` before reporting.
 Execute intentionally does not fetch again, so the destructive run uses the
