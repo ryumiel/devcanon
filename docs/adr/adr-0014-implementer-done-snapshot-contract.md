@@ -74,8 +74,9 @@ side-channel snapshot manifest. The path:
 Detailed producer-side construction instructions live in the canonical
 snapshot-manifest recipe under
 `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`.
-The implementer prompts carry a compact mandatory read contract that points to
-that recipe while preserving the same notice line and failure behavior.
+The controller supplies that recipe content with each implementer dispatch, and
+the implementer prompts carry a compact mandatory-use contract while preserving
+the same notice line and failure behavior.
 
 The path scheme matches `play-review`'s findings file because, like
 `play-review`, the implementer is writing post-commit and so has a
@@ -164,7 +165,7 @@ or corrupt snapshot.
 ### Size threshold (64 KB)
 
 64 KB byte threshold, specified by the canonical snapshot-manifest recipe that
-dispatched implementers are required to read before reporting DONE.
+the controller supplies with each implementer dispatch.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.

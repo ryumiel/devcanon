@@ -154,6 +154,11 @@ digraph process {
 
 > The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md`. See "Mechanical Task Hint" below.
 >
+> When assembling either implementer dispatch prompt, include the full contents
+> of `references/snapshot-manifest-recipe.md` with the task prompt. The prompt
+> templates intentionally keep only the compact mandatory-use contract; the
+> controller supplies the canonical recipe content at dispatch time.
+>
 > When the plan has exactly one task and all four skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
 
 ## Model Selection
@@ -327,8 +332,10 @@ uses the snapshot to avoid re-reading files for post-commit
 verification and line-range extraction.
 
 The detailed producer-side construction recipe lives in
-`references/snapshot-manifest-recipe.md`; dispatch prompts carry a compact
-mandatory read contract instead of inlining that recipe.
+`references/snapshot-manifest-recipe.md`. When dispatching an implementer, the
+controller supplies that recipe content with the task prompt; the prompt source
+itself carries a compact mandatory-use contract instead of duplicating the
+recipe.
 
 ### Parse and validate the path
 

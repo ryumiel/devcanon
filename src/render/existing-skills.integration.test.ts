@@ -386,14 +386,15 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("falls back to disk reads");
 
     expect(implementerPrompt).toContain(
-      "Read `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`",
+      "sourced from `references/snapshot-manifest-recipe.md`",
+    );
+    expect(implementerPrompt).toContain(
+      "If the dispatch does not include the Snapshot Manifest Recipe",
     );
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
-    expect(implementerPrompt).toContain(
-      "If any recipe step fails, report BLOCKED",
-    );
+    expect(implementerPrompt).toContain("recipe step fails, report BLOCKED");
     expect(implementerPrompt).not.toContain(
       "One canonical recipe for a single file",
     );
@@ -406,13 +407,16 @@ mkdir -p .ephemeral
       "utf-8",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "Read `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`",
+      "sourced from `references/snapshot-manifest-recipe.md`",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "If the dispatch does not include the Snapshot Manifest Recipe",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "If any recipe step fails, report BLOCKED",
+      "recipe step fails, report BLOCKED",
     );
     expect(mechanicalImplementerPrompt).not.toContain(
       "Build a JSON envelope conforming to schema",
@@ -424,6 +428,7 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "references/snapshot-manifest-recipe.md",
     );
+    expect(playSubagentExecutionBody).toContain("include the full contents");
 
     const adr0014 = await readFile(
       path.join(
@@ -436,7 +441,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
     expect(adr0014).toContain("canonical snapshot-manifest recipe");
-    expect(adr0014).toContain("mandatory read contract");
+    expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).not.toContain(
       "64 KB byte threshold, hard-coded in the implementer prompts",
     );
