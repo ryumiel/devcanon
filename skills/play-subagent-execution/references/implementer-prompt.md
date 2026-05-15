@@ -150,9 +150,8 @@ Task tool (general-purpose):
 
     The controller parses this literal line off the report. Do not reword,
     do not wrap in backticks, do not omit the trailing period. If the
-    snapshot write failed (Snapshot Manifest § Step 7 returned non-zero),
-    report BLOCKED instead — never emit the notice line for an absent
-    file.
+    supplied recipe's write-verification check fails, report BLOCKED
+    instead — never emit the notice line for an absent file.
 
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need

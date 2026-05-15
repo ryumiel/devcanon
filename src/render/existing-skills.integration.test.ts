@@ -440,7 +440,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
-    expect(adr0014).toContain("canonical snapshot-manifest recipe");
+    expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).not.toContain(
       "64 KB byte threshold, hard-coded in the implementer prompts",

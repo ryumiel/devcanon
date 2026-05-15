@@ -164,8 +164,9 @@ or corrupt snapshot.
 
 ### Size threshold (64 KB)
 
-64 KB byte threshold, specified by the canonical snapshot-manifest recipe that
-the controller supplies with each implementer dispatch.
+The snapshot contract uses a 64 KB byte threshold, specified by the canonical
+snapshot-manifest recipe that the controller supplies with each implementer
+dispatch.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.
