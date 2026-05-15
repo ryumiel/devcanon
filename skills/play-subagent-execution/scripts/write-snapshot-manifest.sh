@@ -92,6 +92,11 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       '{path:$path,status:$status,lines:0,bytes:0,sha256:""}' \
       > "$ENTRY_JSON"
   else
+    if [ -L "$path" ]; then
+      echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
+      exit 1
+    fi
+
     lines=$(awk 'END{print NR}' < "$path")
     bytes=$(wc -c < "$path" | tr -d ' ')
     sha256=$(sha256_file "$path")

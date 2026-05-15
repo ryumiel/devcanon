@@ -81,6 +81,9 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 - `status` is `added`, `modified`, or `deleted`; unsupported git status letters
   block the snapshot.
+- Non-deleted symlink paths block the snapshot before any working-tree path read.
+  The helper must not follow changed symlinks while computing metadata or
+  content.
 - For non-deleted files, read the post-commit working-tree path and compute
   `lines`, `bytes`, `sha256`, and included `content` from that path.
 - `lines` is `awk 'END{print NR}' < "$path"` post-commit, or `0` for deleted
