@@ -1,12 +1,5 @@
 import { execFile } from "node:child_process";
-import {
-  access,
-  chmod,
-  mkdir,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -91,6 +84,17 @@ function parseKeyValueOutput(stdout: string): Record<string, string> {
   return result;
 }
 
+function normalizeGitPath(value: string): string {
+  return value.replace(/\\/gu, "/");
+}
+
+function expectNormalizedOutputToContain(
+  stdout: string,
+  expected: string,
+): void {
+  expect(normalizeGitPath(stdout)).toContain(normalizeGitPath(expected));
+}
+
 async function createOriginRepo(rootDir: string): Promise<{
   primaryDir: string;
   publisherDir: string;
@@ -171,7 +175,8 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(output.DEFAULT_BRANCH).toBe("main");
     expect(output.DIRTY_WORKTREES).toBe("1");
     expect(output.LOCAL_BRANCHES_WITH_UNIQUE_COMMITS).toBe("1");
-    expect(result.stdout).toContain(
+    expectNormalizedOutputToContain(
+      result.stdout,
       `DIRTY_WORKTREE=${canonicalLinkedDir}|FILES=1|PRIMARY=false`,
     );
     expect(result.stdout).toContain("UNIQUE_BRANCH=feature/local-only");
@@ -313,7 +318,9 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(0);
-    expect(output.PRIMARY_WORKTREE).toBe(await realpath(primaryDir));
+    expect(normalizeGitPath(output.PRIMARY_WORKTREE)).toBe(
+      normalizeGitPath(await realpath(primaryDir)),
+    );
   });
 
   it("removes a linked default-branch worktree before checking out the primary default branch", async () => {
@@ -366,7 +373,10 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     expect(result.code).toBe(0);
     expect(output.STATUS).toBe("ok");
     expect(output.PRUNABLE_WORKTREES).toBe("1");
-    expect(result.stdout).toContain(`PRUNABLE_WORKTREE=${canonicalStaleDir}`);
+    expectNormalizedOutputToContain(
+      result.stdout,
+      `PRUNABLE_WORKTREE=${canonicalStaleDir}`,
+    );
   });
 
   it("prunes stale worktree metadata before deleting local branches", async () => {
@@ -454,7 +464,7 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
     const linkedDir = path.join(rootDir, "drift linked");
-    const binDir = path.join(rootDir, "bin");
+    const envDir = path.join(rootDir, "env");
     const { stdout: gitPathOutput } = await runCommand(
       "sh",
       ["-c", "command -v git"],
@@ -466,17 +476,19 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
       ["worktree", "add", "-b", "feature/drift", linkedDir],
       primaryDir,
     );
-    const canonicalLinkedDir = await realpath(linkedDir);
-    await mkdir(binDir, { recursive: true });
-    const wrapperPath = path.join(binDir, "git");
+    const canonicalLinkedDir = normalizeGitPath(await realpath(linkedDir));
+    await mkdir(envDir, { recursive: true });
+    const wrapperPath = path.join(envDir, "git-wrapper-env.sh");
     await writeFile(
       wrapperPath,
       [
         "#!/usr/bin/env bash",
-        "set -euo pipefail",
-        `REAL_GIT=${JSON.stringify(gitPath)}`,
+        `REAL_GIT=${JSON.stringify(normalizeGitPath(gitPath))}`,
         `LINKED_DIR=${JSON.stringify(canonicalLinkedDir)}`,
-        `MARKER=${JSON.stringify(path.join(rootDir, "status-count"))}`,
+        `MARKER=${JSON.stringify(
+          normalizeGitPath(path.join(rootDir, "status-count")),
+        )}`,
+        "git() {",
         'if [ "$#" -ge 4 ] && [ "$1" = "-C" ] && [ "$2" = "$LINKED_DIR" ] && [ "$3" = "status" ]; then',
         "  count=0",
         '  [ -f "$MARKER" ] && count=$(cat "$MARKER")',
@@ -486,18 +498,18 @@ describe("git-workspace-cleanup skill helper", { timeout: 10_000 }, () => {
         '    printf "dirty\\n" > "$LINKED_DIR/drift.txt"',
         "  fi",
         "fi",
-        'exec "$REAL_GIT" "$@"',
+        '  "$REAL_GIT" "$@"',
+        "}",
         "",
       ].join("\n"),
       "utf-8",
     );
-    await chmod(wrapperPath, 0o755);
 
     const result = await runScript(
       ["--repo", primaryDir, "--execute"],
       rootDir,
       {
-        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        BASH_ENV: wrapperPath,
       },
     );
     const output = parseKeyValueOutput(result.stdout);
