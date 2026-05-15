@@ -98,6 +98,14 @@ async function commandPath(command: string): Promise<string> {
   return stdout.trim();
 }
 
+async function nodeExecutablePath(command: string): Promise<string> {
+  if (process.platform !== "win32") {
+    return commandPath(command);
+  }
+  const { stdout } = await execFileAsync("where", [command]);
+  return stdout.split(/\r?\n/)[0].trim();
+}
+
 describe("existing skills render cleanly", () => {
   it("renders every shipped skill to both targets without error", async () => {
     const repoRoot = process.cwd();
@@ -741,7 +749,7 @@ mkdir -p .ephemeral
       );
       await chmod(fallbackHasher, 0o755);
 
-      await execFileAsync(await commandPath("bash"), [helperScript], {
+      await execFileAsync(await nodeExecutablePath("bash"), [helperScript], {
         cwd: tempDir,
         env: {
           ...process.env,
