@@ -15,6 +15,11 @@ this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
 If `git rev-parse HEAD` fails before or after implementation, report
 `BLOCKED`. The snapshot contract requires a known base and head.
 
+Runtime prerequisites: `bash`, `git`, `jq`, `awk`, `wc`, `tr`, `mktemp`, `rm`,
+`mkdir`, and either `shasum` or `sha256sum`. `jq` is a hard helper prerequisite;
+if it is unavailable, the helper exits nonzero and the implementer reports
+`BLOCKED`.
+
 ## Recipe
 
 Use the executable helper script supplied by the controller. Normal dispatches

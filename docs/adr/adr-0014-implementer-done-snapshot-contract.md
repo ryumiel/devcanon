@@ -78,8 +78,14 @@ the executable construction procedure lives in
 `skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`. The
 controller supplies both a readable recipe path and an executable helper script
 path with each implementer dispatch, and the implementer prompts carry a compact
-mandatory-use contract while preserving the same notice line and failure
-behavior.
+mandatory-use contract while preserving the same notice line and
+missing-snapshot fallback contract.
+
+The helper has a hard runtime prerequisite on `jq`. If `jq` is unavailable, the
+helper exits nonzero and the implementer reports `BLOCKED` rather than
+hand-rolling JSON assembly. This is accepted because the helper is now the
+authority for executable snapshot behavior, and byte-faithful JSON construction
+is part of that behavior.
 
 Authority model: the helper script is authoritative for executable snapshot
 behavior; the recipe is authoritative for implementer-facing operating
