@@ -574,8 +574,8 @@ mkdir -p .ephemeral
 
       const modifiedContent = "new\ncontent\n";
       const addedContent = "line without newline";
-      const quotedPath = "quoted\tpath.md";
-      const quotedContent = "path uses a tab\n";
+      const quotedPath = "quoted-\u00e9.md";
+      const quotedContent = "path uses unicode\n";
       const largeContent = "x".repeat(64001);
       const binaryContent = Buffer.from([0, 1, 2, 0, 3]);
       await writeFile(path.join(tempDir, "modified.md"), modifiedContent);
