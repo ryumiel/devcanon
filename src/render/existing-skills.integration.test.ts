@@ -349,12 +349,53 @@ mkdir -p .ephemeral
       ),
       "utf-8",
     );
-    expect(implementerPrompt).toContain(
+    const snapshotRecipe = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+      ),
+      "utf-8",
+    );
+    expect(snapshotRecipe).toContain("schema `implementer/snapshot/v1`");
+    expect(snapshotRecipe).toContain(
+      "Snapshot written to <repo-relative-path>.",
+    );
+    expect(snapshotRecipe).toContain(
       '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
     );
-    expect(implementerPrompt).toContain("mkdir -p .ephemeral");
-    expect(implementerPrompt).toContain(
+    expect(snapshotRecipe).toContain("mkdir -p .ephemeral");
+    expect(snapshotRecipe).toContain(
       '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
+    );
+    expect(snapshotRecipe).toContain("head_sha");
+    expect(snapshotRecipe).toContain("BRANCH_SLUG");
+    expect(snapshotRecipe).toContain(
+      'SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"',
+    );
+    expect(snapshotRecipe).toContain(
+      "git diff --name-status --no-renames ${BASE_SHA}..HEAD",
+    );
+    expect(snapshotRecipe).toContain("JSON-aware tool");
+    expect(snapshotRecipe).toContain("do not use `$(cat path)`");
+    expect(snapshotRecipe).toContain("bytes <= 64000");
+    expect(snapshotRecipe).toContain('"skipped": "binary"');
+    expect(snapshotRecipe).toContain('"skipped": "size>64KB"');
+    expect(snapshotRecipe).toContain(
+      "Deleted files emit neither `content` nor `skipped`",
+    );
+    expect(snapshotRecipe).toContain("falls back to disk reads");
+
+    expect(implementerPrompt).toContain(
+      "Read `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`",
+    );
+    expect(implementerPrompt).toContain(
+      "Snapshot written to <repo-relative-path>.",
+    );
+    expect(implementerPrompt).toContain(
+      "If any recipe step fails, report BLOCKED",
+    );
+    expect(implementerPrompt).not.toContain(
+      "One canonical recipe for a single file",
     );
 
     const mechanicalImplementerPrompt = await readFile(
@@ -365,11 +406,23 @@ mkdir -p .ephemeral
       "utf-8",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+      "Read `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`",
     );
-    expect(mechanicalImplementerPrompt).toContain("mkdir -p .ephemeral");
     expect(mechanicalImplementerPrompt).toContain(
-      '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
+      "Snapshot written to <repo-relative-path>.",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "If any recipe step fails, report BLOCKED",
+    );
+    expect(mechanicalImplementerPrompt).not.toContain(
+      "Build a JSON envelope conforming to schema",
+    );
+
+    const playSubagentExecutionBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-subagent-execution", "codex").content,
+    ).body;
+    expect(playSubagentExecutionBody).toContain(
+      "references/snapshot-manifest-recipe.md",
     );
 
     const adr0014 = await readFile(
@@ -382,6 +435,14 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
+    expect(adr0014).toContain("canonical snapshot-manifest recipe");
+    expect(adr0014).toContain("mandatory read contract");
+    expect(adr0014).not.toContain(
+      "64 KB byte threshold, hard-coded in the implementer prompts",
+    );
+    expect(adr0014).not.toContain(
+      "The threshold is a single literal in two prompts",
+    );
   });
 
   it("documents planning composition and execution boundary contracts", async () => {
@@ -846,6 +907,31 @@ mkdir -p .ephemeral
         expect(await pathExists(generatedPath)).toBe(true);
         expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
       }
+    }
+
+    const snapshotRecipeSourcePath = path.join(
+      repoRoot,
+      "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
+    );
+    const snapshotRecipeSourceContent = await readFile(
+      snapshotRecipeSourcePath,
+      "utf-8",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "play-subagent-execution",
+        "references",
+        "snapshot-manifest-recipe.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(
+        snapshotRecipeSourceContent,
+      );
     }
 
     const sourcePath = path.join(

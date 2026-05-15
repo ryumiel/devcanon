@@ -326,6 +326,10 @@ or DONE_WITH_CONCERNS report. The path points at a side-channel
 uses the snapshot to avoid re-reading files for post-commit
 verification and line-range extraction.
 
+The detailed producer-side construction recipe lives in
+`references/snapshot-manifest-recipe.md`; dispatch prompts carry a compact
+mandatory read contract instead of inlining that recipe.
+
 ### Parse and validate the path
 
 Parse the path off the literal notice line, then run the canonical
@@ -574,6 +578,7 @@ If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and 
 
 - `references/implementer-prompt.md` — default dispatch-time prompt for the `implementer` agent
 - `references/mechanical-implementer-prompt.md` — leaner variant for tasks marked `**Mode:** mechanical` (see "Mechanical Task Hint" above)
+- `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
 - `references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 

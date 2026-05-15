@@ -71,6 +71,12 @@ side-channel snapshot manifest. The path:
   implementer reuses that canon — it does not invent a new slug
   rule.
 
+Detailed producer-side construction instructions live in the canonical
+snapshot-manifest recipe under
+`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`.
+The implementer prompts carry a compact mandatory read contract that points to
+that recipe while preserving the same notice line and failure behavior.
+
 The path scheme matches `play-review`'s findings file because, like
 `play-review`, the implementer is writing post-commit and so has a
 defined `head_sha`. ADR-0013 explicitly noted that brainstorm/plan
@@ -157,7 +163,8 @@ or corrupt snapshot.
 
 ### Size threshold (64 KB)
 
-64 KB byte threshold, hard-coded in the implementer prompts.
+64 KB byte threshold, specified by the canonical snapshot-manifest recipe that
+dispatched implementers are required to read before reporting DONE.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.
@@ -333,7 +340,7 @@ reuse is opportunistic; the cost is one notice line and one
   uniform across file types and avoids gaming via long-line
   packing.
 - **Configurable threshold.** Rejected for v1 as YAGNI. The
-  threshold is a single literal in two prompts; if real workloads
+  threshold is a single literal in the canonical recipe; if real workloads
   need a different value we add the knob then.
 
 ## Related
