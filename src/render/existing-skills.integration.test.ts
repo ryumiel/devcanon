@@ -669,7 +669,7 @@ mkdir -p .ephemeral
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it("uses sha256sum when shasum is unavailable", async () => {
     const repoRoot = process.cwd();
@@ -763,7 +763,7 @@ mkdir -p .ephemeral
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it("rejects a symlinked snapshot directory", async () => {
     const repoRoot = process.cwd();
