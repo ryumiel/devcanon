@@ -430,6 +430,11 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("Non-deleted symlink paths block");
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("post-write size check");
+    expect(snapshotRecipe).toContain(
+      "In normal dispatches, the helper owns persistence and verification",
+    );
+    expect(snapshotRecipe).toContain("separate explicit fallback contract");
+    expect(snapshotRecipe).not.toContain("Write tool");
     expect(snapshotRecipe).not.toContain("git cat-file blob");
     expect(snapshotRecipe).not.toContain("Complete general procedure");
     expect(snapshotRecipe).toContain("bytes <= 64000");
@@ -536,6 +541,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).toContain("Unsupported status letters");
     expect(adr0014).toContain("Non-deleted symlink paths route to `BLOCKED`");
+    expect(adr0014).toContain("intentional v1 helper behavior change");
     expect(adr0014).toContain(
       "One object per file the implementer added, modified, or deleted",
     );
@@ -602,11 +608,13 @@ mkdir -p .ephemeral
       const addedContent = "line without newline";
       const quotedPath = "quoted-\u00e9.md";
       const quotedContent = "path uses unicode\n";
+      const thresholdContent = "x".repeat(64000);
       const largeContent = "x".repeat(64001);
       const binaryContent = Buffer.from([0, 1, 2, 0, 3]);
       await writeFile(path.join(tempDir, "modified.md"), modifiedContent);
       await writeFile(path.join(tempDir, "added file.md"), addedContent);
       await writeFile(path.join(tempDir, quotedPath), quotedContent);
+      await writeFile(path.join(tempDir, "threshold.txt"), thresholdContent);
       await writeFile(path.join(tempDir, "large.txt"), largeContent);
       await writeFile(path.join(tempDir, "binary.bin"), binaryContent);
       await rm(path.join(tempDir, "deleted.md"));
@@ -669,7 +677,7 @@ mkdir -p .ephemeral
       expect(snapshot.schema).toBe("implementer/snapshot/v1");
       expect(snapshot.task_id).toBe("Task 1");
       expect(snapshot.head_sha).toBe(headSha);
-      expect(snapshot.files).toHaveLength(6);
+      expect(snapshot.files).toHaveLength(7);
 
       expect(filesByPath.get("modified.md")).toMatchObject({
         status: "modified",
@@ -695,6 +703,15 @@ mkdir -p .ephemeral
         sha256: sha256(quotedContent),
         content: quotedContent,
       });
+
+      expect(filesByPath.get("threshold.txt")).toMatchObject({
+        status: "added",
+        lines: 1,
+        bytes: Buffer.byteLength(thresholdContent),
+        sha256: sha256(thresholdContent),
+        content: thresholdContent,
+      });
+      expect(filesByPath.get("threshold.txt")).not.toHaveProperty("skipped");
 
       expect(filesByPath.get("deleted.md")).toEqual({
         path: "deleted.md",
@@ -1607,7 +1624,7 @@ mkdir -p .ephemeral
     );
   });
 
-  it("mirrors bundled references to both targets", async () => {
+  it("mirrors bundled references and scripts to both targets", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),

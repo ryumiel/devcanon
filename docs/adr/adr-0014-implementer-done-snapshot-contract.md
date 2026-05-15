@@ -147,6 +147,9 @@ Non-deleted symlink paths route to `BLOCKED` before the producer reads
 line count, byte count, hash, or content. This preserves the
 post-commit working-tree path contract for ordinary files without
 following a changed link to content outside the committed diff.
+This is an intentional v1 helper behavior change from the older
+prompt-embedded shell sketch, which read working-tree paths and
+therefore followed non-deleted symlinks.
 
 Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Deletion dominates binary

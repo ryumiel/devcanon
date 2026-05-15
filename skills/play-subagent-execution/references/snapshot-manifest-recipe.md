@@ -109,10 +109,13 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 ## Persist and Verify
 
-Persist the envelope to `$SNAPSHOT_FILE`. If you assemble the JSON with `jq`,
-redirect `jq` output to the path; if you assemble the JSON another way, use the
-Write tool. Do not append. Neither `>` redirection nor the Write tool
-guarantees atomic replacement, so the post-write size check is the integrity
+In normal dispatches, the helper owns persistence and verification. It writes
+the envelope to `$SNAPSHOT_FILE`, performs the post-write size check, and prints
+the success notice. Do not assemble or write the snapshot manually.
+
+If a controller supplies a separate explicit fallback contract because the
+helper is unavailable, that fallback must preserve the same write guard and
+post-write size check. Do not append. The post-write size check is the integrity
 gate:
 
 ```bash
