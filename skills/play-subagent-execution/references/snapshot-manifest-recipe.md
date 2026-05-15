@@ -16,9 +16,9 @@ If `git rev-parse HEAD` fails before or after implementation, report
 `BLOCKED`. The snapshot contract requires a known base and head.
 
 Runtime prerequisites: `bash`, `git`, `jq`, `awk`, `wc`, `tr`, `mktemp`, `rm`,
-`mkdir`, and either `shasum` or `sha256sum`. `jq` is a hard helper prerequisite;
-if it is unavailable, the helper exits nonzero and the implementer reports
-`BLOCKED`.
+`mkdir`, `cat`, `mv`, and either `shasum` or `sha256sum`. `jq` is a hard helper
+prerequisite; if it is unavailable, the helper exits nonzero and the implementer
+reports `BLOCKED`.
 
 ## Recipe
 

@@ -438,7 +438,9 @@ mkdir -p .ephemeral
     );
     expect(snapshotRecipe).toContain("scripts/write-snapshot-manifest.sh");
     expect(snapshotRecipe).toContain("SNAPSHOT_HELPER_SCRIPT");
-    expect(snapshotRecipe).toContain("`jq` is a hard helper prerequisite");
+    expect(snapshotRecipe).toContain("`jq` is a hard helper");
+    expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
+    expect(snapshotRecipe).toContain("`cat`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
     expect(snapshotRecipe).toContain("remove a symlink already");
     expect(snapshotRecipe).toContain("head_sha");
@@ -1188,6 +1190,59 @@ mkdir -p .ephemeral
             sha256: "fallback-sha256",
           }),
         );
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "fails closed when jq is unavailable",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      try {
+        const fakeBin = path.join(tempDir, "fake-bin");
+        await mkdir(fakeBin);
+        const requiredExceptJq = [
+          "git",
+          "awk",
+          "wc",
+          "tr",
+          "grep",
+          "cat",
+          "mktemp",
+          "rm",
+          "mkdir",
+          "mv",
+        ];
+        for (const command of requiredExceptJq) {
+          await writeCommandWrapper(fakeBin, command);
+        }
+
+        await expect(
+          execFileAsync(await nodeExecutablePath("bash"), [helperScript], {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: "0000000000000000000000000000000000000000",
+              PATH: fakeBin,
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "jq is required to write implementer/snapshot/v1",
+          ),
+        });
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
