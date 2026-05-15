@@ -483,6 +483,9 @@ mkdir -p .ephemeral
       "artifacts that status actually provides",
     );
     expect(playSubagentExecutionBody).toContain(
+      "report or blocker/context request, `agent_id`, and any available base/head SHA",
+    );
+    expect(playSubagentExecutionBody).toContain(
       "do not wait for snapshot, changed-file, or test artifacts that were not produced",
     );
     expect(playSubagentExecutionBody).toContain(
@@ -565,7 +568,10 @@ mkdir -p .ephemeral
       "Initial blocker-family record",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "blocker state=context-missing",
+      "blocker state=context-missing: needs target install path",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "base/head SHA captured (head pending)",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "close-unavailable: no inventory or close operation after BLOCKED report",

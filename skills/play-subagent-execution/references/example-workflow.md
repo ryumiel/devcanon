@@ -30,13 +30,13 @@ Ledger: no completed or superseded sessions to close.
 
 [Get Task 1 text and context (already extracted)]
 [Ledger pre-dispatch]
-Task 1 implementer: agent_id=pending, role=implementer, status=active, base SHA captured, closed=no
+Task 1 implementer: agent_id=pending, role=implementer, status=active, base/head SHA captured (head pending), closed=no
 [Dispatch implementation subagent with full task text + context]
 [Ledger post-dispatch]
-Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base SHA captured, closed=no
+Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base/head SHA captured (head pending), closed=no
 
 [Ledger shorthand used below]
-Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending` before dispatch, then the stable agent id after dispatch, with role, scope or task context, base/head SHA, status=active, and closed=no. Cleanup checkpoints below still show separate completed-session rows.
+Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row: `agent_id=pending` before dispatch, then the stable `agent_id` after dispatch, with role, scope or task context, base/head SHA, status=active, and closed=no. Cleanup checkpoints below still show separate completed-session rows.
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 You: "User level (~/.config/agent-hooks/)"
@@ -183,8 +183,8 @@ Retry succeeds.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]
 Initial blocker-family record:
-  - Task 2 implementer: agent_id=impl-2a, status=BLOCKED, blocker state=context-missing, close-unavailable: no inventory or close operation after BLOCKED report and reconstructed state are captured
-If a later spawned implementer reports BLOCKED with blocker state=context-missing after slot-limit recovery succeeds, the controller escalates through existing BLOCKED handling instead of retrying cleanup again.
+  - Task 2 implementer: agent_id=impl-2a, status=BLOCKED, blocker state=context-missing: needs target install path, close-unavailable: no inventory or close operation after BLOCKED report and reconstructed state are captured
+If a later spawned implementer reports BLOCKED with blocker state=context-missing: needs target install path after slot-limit recovery succeeds, the controller escalates through existing BLOCKED handling instead of retrying cleanup again.
 
 Done!
 ```
