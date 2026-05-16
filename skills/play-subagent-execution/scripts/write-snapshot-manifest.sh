@@ -24,6 +24,26 @@ sha256_file() {
   fi
 }
 
+content_round_trips_through_jq() {
+  local path="$1"
+  local raw_json roundtrip_file original_hash roundtrip_hash result=1
+
+  raw_json=$(mktemp)
+  roundtrip_file=$(mktemp)
+
+  if jq -n --rawfile content "$path" '$content' > "$raw_json" &&
+    jq -rj . "$raw_json" > "$roundtrip_file"; then
+    original_hash=$(sha256_file "$path")
+    roundtrip_hash=$(sha256_file "$roundtrip_file")
+    if [ "$original_hash" = "$roundtrip_hash" ]; then
+      result=0
+    fi
+  fi
+
+  rm -f "$raw_json" "$roundtrip_file"
+  return "$result"
+}
+
 command -v jq >/dev/null 2>&1 || {
   echo "jq is required to write implementer/snapshot/v1" >&2
   exit 1
@@ -43,12 +63,12 @@ else
 fi
 
 SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
+SNAPSHOT_TMP=""
 
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
-if [ -e "$SNAPSHOT_FILE" ] || [ -L "$SNAPSHOT_FILE" ]; then
-  rm "$SNAPSHOT_FILE"
-fi
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+SNAPSHOT_TMP=$(mktemp ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot.XXXXXX")
 
 STATUS_FILE=$(mktemp)
 NUMSTAT_FILE=$(mktemp)
@@ -56,7 +76,7 @@ FILES_JSON=$(mktemp)
 ENTRY_JSON=$(mktemp)
 NEXT_JSON=$(mktemp)
 CONTENT_FILE=$(mktemp)
-trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"' EXIT
+trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"; [ -z "${SNAPSHOT_TMP:-}" ] || rm -f "$SNAPSHOT_TMP"' EXIT
 
 git diff -z --name-status --no-renames "${BASE_SHA}..HEAD" > "$STATUS_FILE"
 [ -s "$STATUS_FILE" ] || { echo "snapshot has no changed files" >&2; exit 1; }
@@ -151,7 +171,7 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
     bytes=$(wc -c < "$CONTENT_FILE" | tr -d ' ')
     sha256=$(sha256_file "$CONTENT_FILE")
 
-    if is_binary_path "$path"; then
+    if is_binary_path "$path" || ! content_round_trips_through_jq "$CONTENT_FILE"; then
       jq -n \
         --arg path "$path" \
         --arg status "$status" \
@@ -196,7 +216,11 @@ jq -n \
   --arg head_sha "$HEAD_SHA" \
   --slurpfile files "$FILES_JSON" \
   '{schema:$schema,task_id:$task_id,head_sha:$head_sha,files:$files[0]}' \
-  > "$SNAPSHOT_FILE"
+  > "$SNAPSHOT_TMP"
 
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ -s "$SNAPSHOT_TMP" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
+mv -f "$SNAPSHOT_TMP" "$SNAPSHOT_FILE"
+SNAPSHOT_TMP=""
 [ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
 printf 'Snapshot written to %s.\n' "$SNAPSHOT_FILE"

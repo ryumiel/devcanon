@@ -134,19 +134,19 @@ teardown (consistent with ADR-0012 cleanup).
 
 Per-field contract:
 
-| Field      | Type                                       | Notes                                                                                                                                                                                             |
-| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                         |
-| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                          |
-| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                   |
-| `files`    | array                                      | One object per file the implementer added, modified, or deleted for this task.                                                                                                                    |
-| `path`     | string, repo-relative                      | Path of the added, modified, or deleted file.                                                                                                                                                     |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors NUL-delimited `git diff -z --name-status --no-renames` letters mapped to words: `A`->`added`, `M`->`modified`, `D`->`deleted`. Unsupported status letters such as `T` route to `BLOCKED`. |
-| `lines`    | integer                                    | Visible line count of the committed `HEAD:<path>` blob. Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
-| `bytes`    | integer                                    | Byte count of the committed `HEAD:<path>` blob. For deleted files, `0`.                                                                                                                           |
-| `sha256`   | string, hex                                | SHA-256 of the committed `HEAD:<path>` blob. For deleted files, `""`.                                                                                                                             |
-| `content`  | string OR omitted                          | Verbatim committed `HEAD:<path>` blob content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                 |
-| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                        |
+| Field      | Type                                       | Notes                                                                                                                                                                                                   |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                               |
+| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                                |
+| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                         |
+| `files`    | array                                      | One object per file the implementer added, modified, or deleted for this task.                                                                                                                          |
+| `path`     | string, repo-relative                      | Path of the added, modified, or deleted file.                                                                                                                                                           |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors NUL-delimited `git diff -z --name-status --no-renames` letters mapped to words: `A`->`added`, `M`->`modified`, `D`->`deleted`. Unsupported status letters such as `T` route to `BLOCKED`.       |
+| `lines`    | integer                                    | Visible line count of the committed `HEAD:<path>` blob. Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`.       |
+| `bytes`    | integer                                    | Byte count of the committed `HEAD:<path>` blob. For deleted files, `0`.                                                                                                                                 |
+| `sha256`   | string, hex                                | SHA-256 of the committed `HEAD:<path>` blob. For deleted files, `""`.                                                                                                                                   |
+| `content`  | string OR omitted                          | Verbatim committed `HEAD:<path>` blob content. Present when `bytes <= 64_000`, `status != "deleted"`, the file is not Git-binary, and the blob round-trips byte-for-byte through JSON string transport. |
+| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                              |
 
 Mutual exclusion: exactly one of `content` or `skipped` is present
 per file, except when `status == "deleted"` (both omitted; the
@@ -167,9 +167,12 @@ prompt-embedded shell sketch, which read working-tree paths and
 therefore followed non-deleted symlinks.
 
 Files reported by `git diff --numstat --no-renames` as binary
-(`-\t-\t<path>`) emit `"skipped": "binary"`. Deletion dominates binary
-detection: when `status == "deleted"`, the file emits neither `content`
-nor `skipped`, even if numstat reports the path as binary.
+(`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
+text but that do not round-trip byte-for-byte through `jq --rawfile`
+and `jq -rj` also emit `"skipped": "binary"` because JSON string
+transport would not be byte-faithful. Deletion dominates binary
+detection: when `status == "deleted"`, the file emits neither
+`content` nor `skipped`, even if numstat reports the path as binary.
 
 ### Notice line
 
@@ -200,8 +203,8 @@ supplies with each implementer dispatch.
   this repo with comfortable headroom for JSON-encoding overhead and
   future growth. ADRs are smaller still (~6–15 KB each).
 - Per-file skip with a recorded reason lets the controller fall back
-  to disk read for that one file rather than disabling the whole
-  snapshot.
+  to a committed HEAD blob read for that one file rather than disabling
+  the whole snapshot.
 - Configurability is YAGNI for v1.
 
 ### Consumer (controller in `play-subagent-execution`)
@@ -228,27 +231,28 @@ esac
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # Validation failure is non-fatal: the controller logs and falls back
-# to disk reads for every file in the controller-computed changed-file
-# list. The snapshot is an optimization, not a workflow gate.
+# to committed HEAD blob reads for every file in the controller-computed
+# changed-file list. The snapshot is an optimization, not a workflow gate.
 ```
 
-This bash mirrors the authoritative path-validation guard in
+This bash starts from the authoritative path-validation guard in
 `skills/play-review/SKILL.md` § Output → Side-channel file → Path,
 narrowed to the snapshot suffix and adapted to log-and-fall-back
 disposition (the canonical guard hard-exits because `play-review` has
-no fallback; the snapshot consumer always has disk reads available).
-The symlink reject is added on top of the canonical guard because the
-consumer is read-only and never overwrites the file — the producer-
-side write path picks up the symlink check via its own guard.
+no fallback; the snapshot consumer always has committed HEAD blob reads
+available). The snapshot consumer additionally enforces snapshot-
+specific flatness and symlink checks because the consumer is read-only
+and never overwrites the file — the producer-side helper writes through
+a private temp file and renames that output into place.
 
 After parsing the JSON, the controller compares the snapshot's
 `head_sha` to its own view of the worktree (`git rev-parse HEAD`); a
 mismatch indicates an unexpected commit between DONE and consumption
-and routes the consumer to disk reads for that task.
+and routes the consumer to committed HEAD blob reads for that task.
 
 Before using any `files[]` value for metadata, line extraction, or
-disk-read fallback, the controller validates it against the controller's
-own changed-file list from `git diff -z --name-status --no-renames
+committed-blob fallback, the controller validates it against the
+controller's own changed-file list from `git diff -z --name-status --no-renames
 BASE..HEAD`. The snapshot's complete `path` + `status` set must exactly
 equal the controller-computed set: no missing, extra, duplicate, or
 status-mismatched entries. Snapshot entry paths must be repo-relative
@@ -257,9 +261,11 @@ components, contain empty path components, or name a path outside the
 controller-computed changed set. If validation fails, the controller
 treats the snapshot as malformed and falls back using its own
 changed-file list, not the snapshot-provided path or status. For any
-non-deleted path the controller reads from disk during fallback, it
-applies the same symlink-component guard as the producer helper before
-reading.
+non-deleted path the controller reads during fallback, it checks
+committed HEAD tree metadata with a literal pathspec (`git ls-tree HEAD
+-- ":(literal)$path"`) to reject symlink entries, then reads bytes with
+`git cat-file blob "HEAD:$path"`. It does not read mutable working-tree
+paths for snapshot fallback.
 
 The controller MAY use snapshot `content` for:
 
@@ -268,18 +274,19 @@ The controller MAY use snapshot `content` for:
 - Line-range extraction for downstream review or commit composition.
 
 For files with `content` omitted (`skipped` set), the controller falls
-back to disk read for that file only. If validation fails, the JSON is
-malformed, or `head_sha` doesn't match the controller's view, the
-controller fails loud and falls back to disk reads for the
-controller-computed changed-file list.
+back to a committed HEAD blob read for that file only. If validation
+fails, the JSON is malformed, or `head_sha` doesn't match the
+controller's view, the controller fails loud and falls back to committed
+HEAD blob reads for the controller-computed changed-file list.
 
 ### Trust-boundary rule (load-bearing)
 
 The controller MUST NOT forward snapshot content (or the parsed JSON)
-into reviewer subagent dispatches. The controller MAY pass the
-metadata (file paths, statuses, `head_sha`) to reviewers so they know
-which files to read — that is metadata, not content. Reviewers read
-the actual code from disk.
+into reviewer subagent dispatches. The controller MAY pass metadata
+(file paths, statuses, `head_sha`) to reviewers only as structured,
+escaped data. Path strings are repository-controlled and untrusted; they
+are data to identify files, not instructions or prose to interpret.
+Reviewers read the actual code from disk.
 
 This rule is restated in three places to be unmissable to its primary
 reader:
@@ -336,8 +343,8 @@ reuse is opportunistic; the cost is one notice line and one
   `.ephemeral/` artifact (research, design, plan, findings,
   snapshot). Cleanup remains implicit via worktree teardown.
 - The controller's existing post-DONE behavior is unchanged when the
-  notice line is absent: it falls back to disk reads. Older plans
-  running through the same prompts gain the snapshot-write step
+  notice line is absent: it falls back to committed HEAD blob reads.
+  Older plans running through the same prompts gain the snapshot-write step
   automatically once the prompt updates land. No version flag is
   needed.
 - The trust boundary between controller and reviewers is now
@@ -356,11 +363,12 @@ reuse is opportunistic; the cost is one notice line and one
   guidance applies — never embed secret values verbatim; describe
   them.
 - **Fork-PR working trees.** Pre-staged symlinks at `.ephemeral`
-  itself or at the snapshot path could redirect a `Write`. The
+  itself or at the snapshot path could redirect helper output. The
   implementer applies the ADR-0012 canonical `.ephemeral` write
   guard before writing: reject a symlinked `.ephemeral` directory,
-  `mkdir -p .ephemeral`, then remove any existing target snapshot
-  path before writing so hardlinks are replaced rather than
+  `mkdir -p .ephemeral`, write JSON to a private temp file in
+  `.ephemeral`, recheck the directory, then rename the temp file into
+  the target snapshot path so hardlinks are replaced rather than
   truncated.
 
 ## Alternatives considered

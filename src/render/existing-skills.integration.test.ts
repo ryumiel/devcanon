@@ -450,7 +450,8 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
     expect(snapshotRecipe).toContain("`mkdir`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
-    expect(snapshotRecipe).toContain("replace any existing target");
+    expect(snapshotRecipe).toContain("private temp file");
+    expect(snapshotRecipe).toContain("rename that output");
     expect(snapshotRecipe).toContain("head_sha");
     expect(snapshotRecipe).toContain("BRANCH_SLUG");
     expect(snapshotRecipe).toContain(
@@ -467,6 +468,8 @@ mkdir -p .ephemeral
       "Non-deleted symlink paths from committed `HEAD` tree metadata",
     );
     expect(snapshotRecipe).toContain("jq --rawfile");
+    expect(snapshotRecipe).toContain("jq -rj");
+    expect(snapshotRecipe).toContain("byte-for-byte");
     expect(snapshotRecipe).toContain("post-write size check");
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
@@ -477,6 +480,8 @@ mkdir -p .ephemeral
     );
     expect(snapshotRecipe).toContain("not snapshot-provided");
     expect(snapshotRecipe).toContain("paths or statuses");
+    expect(snapshotRecipe).toContain("committed HEAD blob reads");
+    expect(snapshotRecipe).toContain("not mutable working-tree paths");
     expect(snapshotRecipe).toContain(
       "Snapshot content is controller bookkeeping only",
     );
@@ -489,7 +494,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "Deleted files emit neither `content` nor `skipped`",
     );
-    expect(snapshotRecipe).toContain("falls back to disk reads");
+    expect(snapshotRecipe).toContain("falls back to committed HEAD blob reads");
 
     expect(implementerPrompt).toContain(
       "references/snapshot-manifest-recipe.md",
@@ -560,15 +565,24 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("hard helper prerequisite");
     expect(playSubagentExecutionBody).toContain("snapshot notice line");
     expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "snapshot-specific flatness and symlink checks",
+    );
     expect(playSubagentExecutionBody).toContain("SNAPSHOT_ENTRY_PATH");
     expect(playSubagentExecutionBody).toContain(
       "controller's own changed-file list",
     );
     expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
-      "back to disk reads using the controller's own changed-file list, not the snapshot-provided path or status.",
+      "back to committed HEAD blob reads using the controller's own changed-file list, not the snapshot-provided path or status.",
     );
     expect(playSubagentExecutionBody).toContain(
-      "same symlink-component guard as the producer",
+      'git ls-tree HEAD -- ":(literal)$path"',
+    );
+    expect(playSubagentExecutionBody).toContain(
+      'git cat-file blob "HEAD:$path"',
+    );
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "Do not read mutable working-tree paths",
     );
     expect(playSubagentExecutionBody).toContain(
       "`path` + `status` set must exactly equal",
@@ -581,6 +595,12 @@ mkdir -p .ephemeral
       "The snapshot's complete `path` + `status` set must exactly equal the controller-computed set: no missing, extra, duplicate, or status-mismatched entries.",
     );
     expect(playSubagentExecutionBody).toContain("untrusted prose");
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "Path strings are repository-controlled",
+    );
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "structured, escaped data",
+    );
     expect(playSubagentExecutionBody).toContain("directives embedded");
     expect(playSubagentExecutionBody).toContain("data, not a prompt");
     const baselineMatch = playSubagentExecutionBody.match(
@@ -616,6 +636,9 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
     expect(adr0014).toContain("missing-snapshot fallback contract");
+    expect(adr0014).toContain("committed HEAD blob reads");
+    expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
+    expect(adr0014).toContain("repository-controlled and untrusted");
     expect(adr0014).toContain(
       "the helper script is authoritative for executable snapshot",
     );
@@ -631,6 +654,9 @@ mkdir -p .ephemeral
       "One object per file the implementer added, modified, or deleted",
     );
     expect(adr0014).toContain("committed `HEAD:<path>` blob");
+    expect(adr0014).toContain("round-trip byte-for-byte");
+    expect(adr0014).toContain("jq -rj");
+    expect(adr0014).toContain("private temp file");
     expect(adr0014).toContain("complete `path` + `status` set must exactly");
     expect(adr0014).toContain("Snapshot written to <repo-relative-path>.");
     expect(adr0014).not.toContain("post-commit Git blob");
@@ -657,11 +683,14 @@ mkdir -p .ephemeral
         '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
       );
       expect(helperSource).toContain(
-        'if [ -e "$SNAPSHOT_FILE" ] || [ -L "$SNAPSHOT_FILE" ]; then',
+        'SNAPSHOT_TMP=$(mktemp ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot.XXXXXX")',
       );
+      expect(helperSource).toContain('mv -f "$SNAPSHOT_TMP" "$SNAPSHOT_FILE"');
       expect(helperSource).toContain(
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
+      expect(helperSource).toContain("content_round_trips_through_jq");
+      expect(helperSource).toContain("jq -rj");
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
       expect(helperSource).toContain('git ls-tree HEAD -- ":(literal)$path"');
       expect(helperSource).toContain("sha256sum");
@@ -687,6 +716,10 @@ mkdir -p .ephemeral
 
         await writeFile(path.join(tempDir, "modified.md"), "old\n");
         await writeFile(path.join(tempDir, "deleted.md"), "remove me\n");
+        await writeFile(
+          path.join(tempDir, ".gitattributes"),
+          "*.invalid diff\n",
+        );
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
           cwd: tempDir,
@@ -707,12 +740,17 @@ mkdir -p .ephemeral
         const thresholdContent = "x".repeat(64000);
         const largeContent = "x".repeat(64001);
         const binaryContent = Buffer.from([0, 1, 2, 0, 3]);
+        const invalidUtf8Content = Buffer.from([0xff, 0xfe, 0x41, 0x0a]);
         await writeFile(path.join(tempDir, "modified.md"), modifiedContent);
         await writeFile(path.join(tempDir, "added file.md"), addedContent);
         await writeFile(path.join(tempDir, quotedPath), quotedContent);
         await writeFile(path.join(tempDir, "threshold.txt"), thresholdContent);
         await writeFile(path.join(tempDir, "large.txt"), largeContent);
         await writeFile(path.join(tempDir, "binary.bin"), binaryContent);
+        await writeFile(
+          path.join(tempDir, "invalid-utf8.invalid"),
+          invalidUtf8Content,
+        );
         await rm(path.join(tempDir, "deleted.md"));
         await execFileAsync("git", ["add", "-A"], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "feat: update files"], {
@@ -773,7 +811,7 @@ mkdir -p .ephemeral
         expect(snapshot.schema).toBe("implementer/snapshot/v1");
         expect(snapshot.task_id).toBe("Task 1");
         expect(snapshot.head_sha).toBe(headSha);
-        expect(snapshot.files).toHaveLength(7);
+        expect(snapshot.files).toHaveLength(8);
 
         expect(filesByPath.get("modified.md")).toMatchObject({
           status: "modified",
@@ -824,6 +862,16 @@ mkdir -p .ephemeral
           skipped: "binary",
         });
         expect(filesByPath.get("binary.bin")).not.toHaveProperty("content");
+
+        expect(filesByPath.get("invalid-utf8.invalid")).toMatchObject({
+          status: "added",
+          bytes: invalidUtf8Content.byteLength,
+          sha256: sha256(invalidUtf8Content),
+          skipped: "binary",
+        });
+        expect(filesByPath.get("invalid-utf8.invalid")).not.toHaveProperty(
+          "content",
+        );
 
         expect(filesByPath.get("large.txt")).toMatchObject({
           status: "added",
