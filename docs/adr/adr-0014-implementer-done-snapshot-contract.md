@@ -169,8 +169,9 @@ therefore followed non-deleted symlinks.
 Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
 text but that do not round-trip byte-for-byte through `jq --rawfile`
-and `jq -rj` also emit `"skipped": "binary"` because JSON string
-transport would not be byte-faithful. Skip precedence is fixed:
+and `jq -rj` streamed into the helper's SHA-256 hasher also emit
+`"skipped": "binary"` because JSON string transport would not be
+byte-faithful. Skip precedence is fixed:
 Git-reported binary files emit `"skipped": "binary"` first; non-binary
 files over 64 KB emit `"skipped": "size>64KB"` before JSON transport
 validation; non-binary files at or under 64 KB that fail byte-faithful
@@ -371,9 +372,11 @@ reuse is opportunistic; the cost is one notice line and one
   implementer applies the ADR-0012 canonical `.ephemeral` write
   guard before writing: reject a symlinked `.ephemeral` directory,
   `mkdir -p .ephemeral`, write JSON to a private temp file in
-  `.ephemeral`, recheck the directory, then rename the temp file into
-  the target snapshot path so hardlinks are replaced rather than
-  truncated.
+  `.ephemeral`, recheck the directory, reject an existing directory at
+  the target snapshot path, then rename the temp file into the target
+  snapshot path so hardlinks are replaced rather than truncated. After
+  the rename, the helper verifies the target is a regular non-empty
+  file before it prints the success notice.
 
 ## Alternatives considered
 

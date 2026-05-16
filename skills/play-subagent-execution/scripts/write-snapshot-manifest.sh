@@ -12,35 +12,37 @@ require_env() {
 require_env BASE_SHA
 require_env SNAPSHOT_TASK_ID
 
-sha256_file() {
-  local path="$1"
+sha256_stream() {
   if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 < "$path" | awk '{print $1}'
+    shasum -a 256 | awk '{print $1}'
   elif command -v sha256sum >/dev/null 2>&1; then
-    sha256sum < "$path" | awk '{print $1}'
+    sha256sum | awk '{print $1}'
   else
     echo "shasum or sha256sum is required to write implementer/snapshot/v1" >&2
     exit 1
   fi
 }
 
+sha256_file() {
+  local path="$1"
+  sha256_stream < "$path"
+}
+
 content_round_trips_through_jq() {
   local path="$1"
-  local raw_json roundtrip_file original_hash roundtrip_hash result=1
+  local raw_json original_hash roundtrip_hash result=1
 
   raw_json=$(mktemp)
-  roundtrip_file=$(mktemp)
 
-  if jq -n --rawfile content "$path" '$content' > "$raw_json" &&
-    jq -rj . "$raw_json" > "$roundtrip_file"; then
+  if jq -n --rawfile content "$path" '$content' > "$raw_json"; then
     original_hash=$(sha256_file "$path")
-    roundtrip_hash=$(sha256_file "$roundtrip_file")
-    if [ "$original_hash" = "$roundtrip_hash" ]; then
+    if roundtrip_hash=$(jq -rj . "$raw_json" | sha256_stream) &&
+      [ "$original_hash" = "$roundtrip_hash" ]; then
       result=0
     fi
   fi
 
-  rm -f "$raw_json" "$roundtrip_file"
+  rm -f "$raw_json"
   return "$result"
 }
 
@@ -229,7 +231,9 @@ jq -n \
 
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 [ -s "$SNAPSHOT_TMP" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
+[ -d "$SNAPSHOT_FILE" ] && { echo "snapshot path is a directory: $SNAPSHOT_FILE" >&2; exit 1; }
 mv -f "$SNAPSHOT_TMP" "$SNAPSHOT_FILE"
 SNAPSHOT_TMP=""
+[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE is not a regular file" >&2; exit 1; }
 [ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
 printf 'Snapshot written to %s.\n' "$SNAPSHOT_FILE"

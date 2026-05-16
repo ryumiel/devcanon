@@ -385,6 +385,9 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
     expect(snapshotRecipe).toContain("`mkdir`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
+    expect(snapshotRecipe).toContain(
+      "reject a target snapshot path that is already a directory",
+    );
     expect(snapshotRecipe).toContain("private temp file");
     expect(snapshotRecipe).toContain("rename that output");
     expect(snapshotRecipe).toContain("head_sha");
@@ -405,7 +408,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("jq -rj");
     expect(snapshotRecipe).toContain("byte-for-byte");
-    expect(snapshotRecipe).toContain("post-write size check");
+    expect(snapshotRecipe).toContain("post-write regular-file and size checks");
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
     );

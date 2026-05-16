@@ -41,7 +41,8 @@ The helper script owns the full construction procedure:
   `.ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json`.
 - Applies the `.ephemeral` write guard: reject a symlinked `.ephemeral`
   directory, create `.ephemeral` when absent, write JSON to a private temp file
-  in `.ephemeral`, then rename that output into the target snapshot path.
+  in `.ephemeral`, reject a target snapshot path that is already a directory,
+  then rename that output into the target snapshot path.
 - Enumerates changed files with
   `git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"` so Git does
   not quote or escape repo-relative paths.
@@ -53,9 +54,11 @@ The helper script owns the full construction procedure:
   a mutable working-tree file.
 - Builds the JSON envelope with `jq` and `jq --rawfile` for UTF-8-safe file
   content, so quotes, backslashes, newlines, and trailing newlines stay
-  byte-faithful. Blobs that do not round-trip through JSON string transport are
+  byte-faithful. Blobs that do not round-trip byte-for-byte through
+  `jq --rawfile` and `jq -rj` streamed into the helper's SHA-256 hasher are
   skipped as `"binary"`.
-- Performs the post-write size check before printing the success notice.
+- Performs the post-write regular-file and size checks before printing the
+  success notice.
 
 If the helper script is missing, unreadable, or exits nonzero, report `BLOCKED`
 instead of emitting the notice line.
@@ -108,7 +111,7 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
   `""`.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, the file
   is not reported as binary by Git, and the blob round-trips byte-for-byte
-  through `jq --rawfile` and `jq -rj`.
+  through `jq --rawfile` and `jq -rj` streamed into the helper's SHA-256 hasher.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to
   `"size>64KB"` or `"binary"`. Mutual exclusion: exactly one of `content` or
   `skipped` is present per non-deleted file.
@@ -128,15 +131,17 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 In normal dispatches, the helper owns persistence and verification. It writes
 the envelope to a private temp file in `.ephemeral`, rechecks that `.ephemeral`
-is not a symlink, renames the temp file to `$SNAPSHOT_FILE`, performs the
-post-write size check, and prints the success notice. Do not assemble or write
-the snapshot manually.
+is not a symlink, rejects an existing directory at `$SNAPSHOT_FILE`, renames the
+temp file to `$SNAPSHOT_FILE`, verifies the result is a regular non-empty file,
+and prints the success notice. Do not assemble or write the snapshot manually.
 
 Because the helper is authoritative for executable snapshot behavior, do not
 substitute a dispatch-local fallback contract when the helper is unavailable.
-Do not append. The post-write size check is the integrity gate:
+Do not append. The post-write regular-file and size checks are the integrity
+gate:
 
 ```bash
+[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE is not a regular file" >&2; exit 1; }
 [ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }
 ```
 

@@ -386,7 +386,9 @@ skill to match the check while keeping the soft-skip disposition. The
 snapshot consumer additionally enforces snapshot-specific flatness and
 symlink checks because the consumer is read-only and never overwrites the
 file — the producer-side helper writes through a private temp file and
-renames that output into place.
+renames that output into place only after rejecting an existing directory at
+the target snapshot path, then verifies the final path is a regular non-empty
+file before reporting success.
 
 After parsing the JSON, also compare the snapshot's `head_sha` to
 the controller's own view of the worktree:

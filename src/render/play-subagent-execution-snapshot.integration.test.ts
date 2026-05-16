@@ -85,8 +85,15 @@ describe("play-subagent-execution snapshot helper", () => {
       );
       expect(helperSource).toContain('mv -f "$SNAPSHOT_TMP" "$SNAPSHOT_FILE"');
       expect(helperSource).toContain(
+        '[ -d "$SNAPSHOT_FILE" ] && { echo "snapshot path is a directory: $SNAPSHOT_FILE"',
+      );
+      expect(helperSource).toContain(
+        '[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE is not a regular file"',
+      );
+      expect(helperSource).toContain(
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
+      expect(helperSource).toContain("sha256_stream");
       expect(helperSource).toContain("content_round_trips_through_jq");
       expect(helperSource).toContain("jq -rj");
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
@@ -651,6 +658,82 @@ describe("play-subagent-execution snapshot helper", () => {
         expect(await readFile(snapshotFile, "utf-8")).toContain(
           '"schema": "implementer/snapshot/v1"',
         );
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "rejects a directory at the target snapshot path before reporting success",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "file.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        await writeFile(path.join(tempDir, "file.md"), "new\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "feat: update file"], {
+          cwd: tempDir,
+        });
+        const { stdout: headStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        await mkdir(path.join(tempDir, snapshotFile), { recursive: true });
+
+        await expect(
+          execFileAsync("bash", [helperScript], {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: baseStdout.trim(),
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            `snapshot path is a directory: ${snapshotFile}`,
+          ),
+        });
       } finally {
         await cleanupTempDir(tempDir);
       }
