@@ -288,10 +288,11 @@ reader:
 
 1. `spec-reviewer-prompt.md` § "CRITICAL: Do Not Trust the Report" —
    one bullet calling out controller-held snapshots specifically.
-2. `code-quality-reviewer-prompt.md` § "In addition to standard code
-   quality concerns" — equivalent bullet.
-3. `play-subagent-execution/SKILL.md` § Red Flags — controller-side
-   prohibition on forwarding snapshot content.
+2. `code-quality-reviewer-prompt.md` § "Trust boundary
+   (load-bearing)" — equivalent reviewer-side prohibition.
+3. `play-subagent-execution/SKILL.md` § "Trust boundary
+   (load-bearing)" — controller-side prohibition on forwarding snapshot
+   content.
 
 Snapshot content is treated by the controller as **untrusted prose**
 (in the same sense ADR-0013 § Consequences names): embedded directives

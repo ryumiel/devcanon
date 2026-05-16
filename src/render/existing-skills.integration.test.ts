@@ -570,6 +570,16 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "`path` + `status` set must exactly equal",
     );
+    expect(playSubagentExecutionBody).toContain("missing");
+    expect(playSubagentExecutionBody).toContain("extra");
+    expect(playSubagentExecutionBody).toContain("duplicate");
+    expect(playSubagentExecutionBody).toContain("status-mismatched");
+    expect(playSubagentExecutionBody).toContain(
+      "back to disk reads using the controller's own changed-file list",
+    );
+    expect(playSubagentExecutionBody).toContain("untrusted prose");
+    expect(playSubagentExecutionBody).toContain("directives embedded");
+    expect(playSubagentExecutionBody).toContain("data, not a prompt");
     const baselineMatch = playSubagentExecutionBody.match(
       /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
     );
@@ -650,7 +660,7 @@ mkdir -p .ephemeral
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
-      expect(helperSource).toContain("git ls-tree HEAD --");
+      expect(helperSource).toContain('git ls-tree HEAD -- ":(literal)$path"');
       expect(helperSource).toContain("sha256sum");
 
       const tempDir = await mkdtemp(
