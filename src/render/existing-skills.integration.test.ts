@@ -459,7 +459,9 @@ mkdir -p .ephemeral
       'git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"',
     );
     expect(snapshotRecipe).toContain("committed `HEAD:<path>` blob");
-    expect(snapshotRecipe).toContain("Non-deleted symlink paths block");
+    expect(snapshotRecipe).toContain(
+      "Non-deleted symlink paths from committed `HEAD` tree metadata",
+    );
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("post-write size check");
     expect(snapshotRecipe).toContain(
@@ -578,7 +580,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("own changed-file list");
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");
-    expect(adr0014).toContain("executable helper script");
+    expect(adr0014).toContain("readable helper script path");
     expect(adr0014).toContain("mandatory-use contract");
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
     expect(adr0014).toContain("missing-snapshot fallback contract");
@@ -590,7 +592,7 @@ mkdir -p .ephemeral
     );
     expect(adr0014).toContain("Unsupported status letters");
     expect(adr0014).toContain(
-      "Non-deleted symlink paths and symlinked parent components route to",
+      "Non-deleted symlink paths from committed `HEAD` tree metadata",
     );
     expect(adr0014).toContain("intentional v1 helper behavior change");
     expect(adr0014).toContain(
@@ -628,6 +630,7 @@ mkdir -p .ephemeral
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
+      expect(helperSource).toContain("git ls-tree HEAD --");
       expect(helperSource).toContain("sha256sum");
 
       const tempDir = await mkdtemp(
@@ -911,6 +914,80 @@ mkdir -p .ephemeral
         await execFileAsync("git", ["commit", "-m", "feat: add symlink"], {
           cwd: tempDir,
         });
+
+        await expect(
+          execFileAsync("bash", [helperScript], {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: baseStdout.trim(),
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!symlinkAvailable || !jqAvailable)(
+    "rejects committed HEAD symlinks even when the working-tree path is replaced",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      const outsideTarget = path.join(tempDir, "outside-target.md");
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(outsideTarget, "outside content must not be read\n");
+        await symlink(outsideTarget, path.join(tempDir, "link.md"));
+        await execFileAsync("git", ["add", "link.md"], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "feat: add symlink"], {
+          cwd: tempDir,
+        });
+        await rm(path.join(tempDir, "link.md"));
+        await writeFile(
+          path.join(tempDir, "link.md"),
+          "mutable working-tree replacement\n",
+        );
 
         await expect(
           execFileAsync("bash", [helperScript], {

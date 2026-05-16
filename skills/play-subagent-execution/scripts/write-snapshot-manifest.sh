@@ -112,6 +112,17 @@ reject_symlink_changed_path() {
   done
 }
 
+reject_head_symlink_path() {
+  local path="$1"
+  local mode
+
+  mode=$(git ls-tree HEAD -- "$path" | awk 'NR == 1 {print $1}')
+  if [ "$mode" = 120000 ]; then
+    echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
+    exit 1
+  fi
+}
+
 printf '[]\n' > "$FILES_JSON"
 
 while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
@@ -133,6 +144,7 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       > "$ENTRY_JSON"
   else
     reject_symlink_changed_path "$path"
+    reject_head_symlink_path "$path"
 
     git cat-file blob "HEAD:$path" > "$CONTENT_FILE"
     lines=$(awk 'END{print NR}' < "$CONTENT_FILE")

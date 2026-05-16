@@ -8,7 +8,7 @@ this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
 - `BASE_SHA`: pre-task SHA captured before implementation.
 - `SNAPSHOT_TASK_ID`: the task header identifier, such as `Task 3`.
-- `SNAPSHOT_HELPER_SCRIPT`: executable Snapshot Manifest Helper Script path
+- `SNAPSHOT_HELPER_SCRIPT`: readable Snapshot Manifest Helper Script path
   supplied by the controller, sourced from
   `skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`.
 
@@ -22,7 +22,7 @@ implementer reports `BLOCKED`.
 
 ## Recipe
 
-Use the executable helper script supplied by the controller. Normal dispatches
+Use the readable helper script supplied by the controller. Normal dispatches
 must report `BLOCKED` if the helper script is unavailable; do not hand-roll the
 snapshot procedure from this recipe.
 
@@ -48,7 +48,8 @@ The helper script owns the full construction procedure:
 - Detects binary files with
   `git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"` and NUL-safe path
   parsing.
-- Reads non-deleted file bytes from the committed `HEAD:<path>` blob, never from
+- Rejects non-deleted symlink paths from committed `HEAD` tree metadata, then
+  reads non-deleted file bytes from the committed `HEAD:<path>` blob, never from
   a mutable working-tree file.
 - Builds the JSON envelope with `jq` and `jq --rawfile` for file content, so
   quotes, backslashes, newlines, and trailing newlines stay byte-faithful.
@@ -88,9 +89,10 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 - `status` is `added`, `modified`, or `deleted`; unsupported git status letters
   block the snapshot.
-- Non-deleted symlink paths block the snapshot before any working-tree path read.
-  Symlinked parent components also block the snapshot. The helper must not
-  follow changed symlinks while computing metadata or content.
+- Non-deleted symlink paths from committed `HEAD` tree metadata block the
+  snapshot before metadata or content reads. Symlinked parent components also
+  block the snapshot. The helper must not follow changed symlinks while
+  computing metadata or content.
 - For non-deleted files, read the committed `HEAD:<path>` blob and compute
   `lines`, `bytes`, `sha256`, and included `content` from that blob.
 - `lines` is `awk 'END{print NR}'` over the committed blob, or `0` for deleted

@@ -76,8 +76,8 @@ snapshot-manifest recipe under
 `skills/play-subagent-execution/references/snapshot-manifest-recipe.md`, while
 the executable construction procedure lives in
 `skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`. The
-controller supplies both a readable recipe path and an executable helper script
-path with each implementer dispatch, and the implementer prompts carry a compact
+controller supplies both a readable recipe path and a readable helper script path
+with each implementer dispatch, and the implementer prompts carry a compact
 mandatory-use contract while preserving the same notice line and
 missing-snapshot fallback contract.
 
@@ -156,11 +156,12 @@ The `files` array MUST NOT be empty: a DONE report implies at least
 one commit landed between `BASE_SHA` and `HEAD`. If the implementer
 made no changes, it reports BLOCKED instead of writing a snapshot.
 
-Non-deleted symlink paths and symlinked parent components route to
-`BLOCKED` before the producer reads line count, byte count, hash, or
-content. For ordinary files, the helper reads bytes from the committed
-`HEAD:<path>` blob so the snapshot cannot diverge from the `head_sha`
-it reports if the working tree changes after commit.
+Non-deleted symlink paths from committed `HEAD` tree metadata and
+symlinked working-tree parent components route to `BLOCKED` before the
+producer reads line count, byte count, hash, or content. For ordinary
+files, the helper reads bytes from the committed `HEAD:<path>` blob so
+the snapshot cannot diverge from the `head_sha` it reports if the
+working tree changes after commit.
 This is an intentional v1 helper behavior change from the older
 prompt-embedded shell sketch, which read working-tree paths and
 therefore followed non-deleted symlinks.
@@ -229,8 +230,8 @@ esac
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # Validation failure is non-fatal: the controller logs and falls back
-# to disk reads for every file in this task. The snapshot is an
-# optimization, not a workflow gate.
+# to disk reads for every file in the controller-computed changed-file
+# list. The snapshot is an optimization, not a workflow gate.
 ```
 
 This bash mirrors the authoritative path-validation guard in

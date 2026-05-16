@@ -156,7 +156,7 @@ digraph process {
 >
 > When assembling either implementer dispatch prompt, include a readable
 > Snapshot Manifest Recipe path sourced from
-> `references/snapshot-manifest-recipe.md` and an executable Snapshot Manifest
+> `references/snapshot-manifest-recipe.md` and a readable Snapshot Manifest
 > Helper Script path sourced from `scripts/write-snapshot-manifest.sh`. The
 > prompt templates intentionally keep only the compact mandatory-use contract;
 > the implementer reads the canonical recipe and runs the helper instead of
@@ -343,9 +343,9 @@ inlining the shell implementation into every dispatch.
 
 The helper script is authoritative for executable snapshot construction. `jq`
 is a hard helper prerequisite because byte-faithful JSON assembly is part of the
-contract. If the helper script is missing, unreadable, unexecutable, or exits
-nonzero for any reason (including missing `jq`), the implementer reports
-`BLOCKED` without emitting the snapshot notice line.
+contract. If the helper script is missing, unreadable, or exits nonzero for any
+reason (including missing `jq`), the implementer reports `BLOCKED` without
+emitting the snapshot notice line.
 
 ### Parse and validate the path
 
@@ -369,9 +369,10 @@ esac
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # If $SNAPSHOT_OK == false, skip snapshot consumption for this task and
-# fall back to disk reads for every file the implementer reported as
-# changed. Do not abort the controller workflow — the snapshot is an
-# optimization, not a workflow gate.
+# fall back to disk reads for every file in the controller's own changed-file
+# list from git diff -z --name-status --no-renames BASE..HEAD. Do not abort
+# the controller workflow — the snapshot is an optimization, not a workflow
+# gate.
 ```
 
 This bash mirrors the authoritative path-validation guard in
@@ -469,16 +470,16 @@ rule.
 
 ### Failure modes
 
-| Scenario                                                           | Action                                                                                                                  |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to disk reads for all files this task touched. |
-| Snapshot file missing / unreadable after notice line               | Same as above (the fail-loud guard prevents silent skew).                                                               |
-| JSON malformed                                                     | Same as above.                                                                                                          |
-| Per-entry `files[].path` validation fails                          | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path.                 |
-| Implementer reports DONE without notice line                       | Backward-compat: fall back to disk reads. The controller does not enforce a notice line.                                |
-| Per-file `content` omitted, `status == "deleted"`                  | File no longer exists on disk — treat `status` as authoritative, no disk read. Rest of files use snapshot content.      |
-| Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`) | Read that file from disk; rest of files use snapshot content.                                                           |
-| `head_sha` in snapshot doesn't match controller's view             | Log and fall back to disk; signals an unexpected commit between DONE and consumption.                                   |
+| Scenario                                                           | Action                                                                                                                                  |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to disk reads using the controller-computed changed-file list. |
+| Snapshot file missing / unreadable after notice line               | Same as above (the fail-loud guard prevents silent skew).                                                                               |
+| JSON malformed                                                     | Same as above.                                                                                                                          |
+| Per-entry `files[].path` validation fails                          | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path.                                 |
+| Implementer reports DONE without notice line                       | Backward-compat: fall back to disk reads. The controller does not enforce a notice line.                                                |
+| Per-file `content` omitted, `status == "deleted"`                  | File no longer exists on disk — treat `status` as authoritative, no disk read. Rest of files use snapshot content.                      |
+| Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`) | Read that file from disk; rest of files use snapshot content.                                                                           |
+| `head_sha` in snapshot doesn't match controller's view             | Log and fall back to disk; signals an unexpected commit between DONE and consumption.                                                   |
 
 ### Skip-dispatch exclusion
 
@@ -625,7 +626,7 @@ If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and 
 - `references/implementer-prompt.md` — default dispatch-time prompt for the `implementer` agent
 - `references/mechanical-implementer-prompt.md` — leaner variant for tasks marked `**Mode:** mechanical` (see "Mechanical Task Hint" above)
 - `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
-- `scripts/write-snapshot-manifest.sh` — executable helper for writing implementer `implementer/snapshot/v1` manifests
+- `scripts/write-snapshot-manifest.sh` — helper script for writing implementer `implementer/snapshot/v1` manifests
 - `references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 

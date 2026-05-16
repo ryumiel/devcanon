@@ -127,7 +127,7 @@ Task tool (general-purpose):
     write guard, and write-verification check.
 
     If the dispatch does not include both a readable Snapshot Manifest Recipe
-    path and an executable Snapshot Manifest Helper Script path, report BLOCKED
+    path and a readable Snapshot Manifest Helper Script path, report BLOCKED
     and ask the controller to resend the task with both paths. If the helper
     exits nonzero, report BLOCKED instead of emitting the notice line. On
     success, use the helper's notice line as the final report line:
