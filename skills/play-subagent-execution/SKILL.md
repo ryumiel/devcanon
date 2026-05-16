@@ -188,10 +188,6 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the mechanical template exists to keep verbatim mechanical tasks on a materially smaller dispatch prompt than the default template. Do not pin that claim to exact line counts in this skill; prompt bodies drift as examples, fences, and compact contracts change. After extracting the detailed snapshot recipe, both templates should keep only the compact mandatory-use snapshot contract.
-
-To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates), compare their relative size, and confirm the mechanical prompt still omits the default scaffolding that is unnecessary for verbatim work. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
-
 ## Mechanical Task Taxonomy
 
 Use the hint when the task fits one of these positive shapes:

@@ -537,16 +537,8 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExecutionBody).toContain("directives embedded");
     expect(playSubagentExecutionBody).toContain("data, not a prompt");
-    expect(playSubagentExecutionBody).toContain(
-      "materially smaller dispatch prompt",
-    );
-    expect(playSubagentExecutionBody).toContain(
-      "Do not pin that claim to exact line counts",
-    );
-    expect(playSubagentExecutionBody).toContain("compare their relative size");
-    expect(playSubagentExecutionBody).toContain(
-      "After extracting the detailed snapshot recipe",
-    );
+    expect(playSubagentExecutionBody).toContain("no runtime auto-detection");
+    expect(playSubagentExecutionBody).toContain("Mechanical Task Taxonomy");
 
     const adr0014 = await readFile(
       path.join(
