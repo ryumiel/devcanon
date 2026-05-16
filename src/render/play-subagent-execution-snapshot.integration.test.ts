@@ -22,6 +22,10 @@ import {
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
 const jqAvailable = await commandAvailable("jq");
+const snapshotHelperScript = path.join(
+  process.cwd(),
+  "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+);
 
 function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
@@ -66,16 +70,71 @@ async function writeCommandWrapper(binDir: string, command: string) {
   await chmod(wrapperPath, 0o755);
 }
 
+async function initializeGitRepo(cwd: string): Promise<void> {
+  await execFileAsync("git", ["init", "--initial-branch=main"], {
+    cwd,
+  });
+  await execFileAsync("git", ["config", "user.name", "Test User"], {
+    cwd,
+  });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+}
+
+async function createTempGitRepo(): Promise<string> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-snapshot-"));
+  await initializeGitRepo(tempDir);
+  return tempDir;
+}
+
+async function gitHead(cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    cwd,
+  });
+  return stdout.trim();
+}
+
+async function commitChanges(
+  cwd: string,
+  message: string,
+  addArgs = ["."],
+): Promise<string> {
+  await execFileAsync("git", ["add", ...addArgs], { cwd });
+  await execFileAsync("git", ["commit", "-m", message], { cwd });
+  return gitHead(cwd);
+}
+
+async function runSnapshotHelper(
+  cwd: string,
+  baseSha: string,
+  env: NodeJS.ProcessEnv = {},
+) {
+  return execFileAsync("bash", [snapshotHelperScript], {
+    cwd,
+    env: {
+      ...process.env,
+      BASE_SHA: baseSha,
+      SNAPSHOT_TASK_ID: "Task 1",
+      ...env,
+    },
+  });
+}
+
+async function readSnapshot<T>(cwd: string, headSha: string): Promise<T> {
+  return JSON.parse(
+    await readFile(
+      path.join(cwd, `.ephemeral/main-${headSha}-snapshot.json`),
+      "utf-8",
+    ),
+  ) as T;
+}
+
 describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "executes the canonical snapshot helper for changed file classes",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-      const helperSource = await readFile(helperScript, "utf-8");
+      const helperSource = await readFile(snapshotHelperScript, "utf-8");
       expect(helperSource).toContain("implementer/snapshot/v1");
       expect(helperSource).toContain(
         '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
@@ -102,43 +161,20 @@ describe("play-subagent-execution snapshot helper", () => {
       expect(helperSource).toContain('git ls-tree HEAD -- ":(literal)$path"');
       expect(helperSource).toContain("sha256sum");
 
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideTarget = path.join(tempDir, "outside-target");
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "modified.md"), "old\n");
         await writeFile(path.join(tempDir, "deleted.md"), "remove me\n");
+        await writeFile(
+          path.join(tempDir, "deleted-binary.bin"),
+          Buffer.from([0, 1, 2, 0, 3]),
+        );
         await writeFile(
           path.join(tempDir, ".gitattributes"),
           "*.invalid diff\n",
         );
-        await execFileAsync("git", ["add", "."], { cwd: tempDir });
-        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-          cwd: tempDir,
-        });
-        const { stdout: baseStdout } = await execFileAsync(
-          "git",
-          ["rev-parse", "HEAD"],
-          {
-            cwd: tempDir,
-          },
-        );
-        const baseSha = baseStdout.trim();
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
 
         const modifiedContent = "new\ncontent\n";
         const addedContent = "line without newline";
@@ -159,18 +195,10 @@ describe("play-subagent-execution snapshot helper", () => {
           invalidUtf8Content,
         );
         await rm(path.join(tempDir, "deleted.md"));
-        await execFileAsync("git", ["add", "-A"], { cwd: tempDir });
-        await execFileAsync("git", ["commit", "-m", "feat: update files"], {
-          cwd: tempDir,
-        });
-        const { stdout: headStdout } = await execFileAsync(
-          "git",
-          ["rev-parse", "HEAD"],
-          {
-            cwd: tempDir,
-          },
-        );
-        const headSha = headStdout.trim();
+        await rm(path.join(tempDir, "deleted-binary.bin"));
+        const headSha = await commitChanges(tempDir, "feat: update files", [
+          "-A",
+        ]);
         const snapshotFile = `.ephemeral/main-${headSha}-snapshot.json`;
 
         await mkdir(path.join(tempDir, ".ephemeral"));
@@ -179,14 +207,7 @@ describe("play-subagent-execution snapshot helper", () => {
           await symlink(outsideTarget, path.join(tempDir, snapshotFile));
         }
 
-        const { stdout } = await execFileAsync("bash", [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseSha,
-            SNAPSHOT_TASK_ID: "Task 1",
-          },
-        });
+        const { stdout } = await runSnapshotHelper(tempDir, baseSha);
         expect(stdout.trim()).toBe(`Snapshot written to ${snapshotFile}.`);
         if (symlinkAvailable) {
           expect(await readFile(outsideTarget, "utf-8")).toBe(
@@ -203,14 +224,12 @@ describe("play-subagent-execution snapshot helper", () => {
           content?: string;
           skipped?: string;
         };
-        const snapshot = JSON.parse(
-          await readFile(path.join(tempDir, snapshotFile), "utf-8"),
-        ) as {
+        const snapshot = await readSnapshot<{
           schema: string;
           task_id: string;
           head_sha: string;
           files: SnapshotFile[];
-        };
+        }>(tempDir, headSha);
         const filesByPath = new Map(
           snapshot.files.map((file) => [file.path, file]),
         );
@@ -218,7 +237,7 @@ describe("play-subagent-execution snapshot helper", () => {
         expect(snapshot.schema).toBe("implementer/snapshot/v1");
         expect(snapshot.task_id).toBe("Task 1");
         expect(snapshot.head_sha).toBe(headSha);
-        expect(snapshot.files).toHaveLength(8);
+        expect(snapshot.files).toHaveLength(9);
 
         expect(filesByPath.get("modified.md")).toMatchObject({
           status: "modified",
@@ -261,6 +280,13 @@ describe("play-subagent-execution snapshot helper", () => {
           bytes: 0,
           sha256: "",
         });
+        expect(filesByPath.get("deleted-binary.bin")).toEqual({
+          path: "deleted-binary.bin",
+          status: "deleted",
+          lines: 0,
+          bytes: 0,
+          sha256: "",
+        });
 
         expect(filesByPath.get("binary.bin")).toMatchObject({
           status: "added",
@@ -298,29 +324,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "rejects empty snapshot diffs",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
         await writeFile(path.join(tempDir, "file.md"), "unchanged\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -335,14 +340,7 @@ describe("play-subagent-execution snapshot helper", () => {
         );
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: headStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, headStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("snapshot has no changed files"),
         });
@@ -356,33 +354,12 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects changed symlink paths before reading linked content",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-      const helperSource = await readFile(helperScript, "utf-8");
+      const helperSource = await readFile(snapshotHelperScript, "utf-8");
       expect(helperSource).toContain("symlink changed path is unsupported");
 
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideTarget = path.join(tempDir, "outside-target.md");
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "baseline.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -404,14 +381,7 @@ describe("play-subagent-execution snapshot helper", () => {
         });
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
@@ -427,31 +397,9 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects committed HEAD symlinks even when the working-tree path is replaced",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideTarget = path.join(tempDir, "outside-target.md");
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "baseline.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -478,14 +426,7 @@ describe("play-subagent-execution snapshot helper", () => {
         );
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
@@ -501,30 +442,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(process.platform === "win32" || !jqAvailable)(
     "treats pathspec-looking changed filenames as literal HEAD paths",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "baseline.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -541,7 +460,9 @@ describe("play-subagent-execution snapshot helper", () => {
         const magicPath = ":(glob)*.md";
         const magicContent = "literal pathspec-looking name\n";
         await writeFile(path.join(tempDir, magicPath), magicContent);
-        await execFileAsync("git", ["add", "--", magicPath], { cwd: tempDir });
+        await execFileAsync("git", ["add", "--", `./${magicPath}`], {
+          cwd: tempDir,
+        });
         await execFileAsync(
           "git",
           ["commit", "-m", "feat: add pathspec-looking file"],
@@ -558,14 +479,7 @@ describe("play-subagent-execution snapshot helper", () => {
         );
         const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
 
-        await execFileAsync("bash", [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            SNAPSHOT_TASK_ID: "Task 1",
-          },
-        });
+        await runSnapshotHelper(tempDir, baseStdout.trim());
 
         const snapshot = JSON.parse(
           await readFile(path.join(tempDir, snapshotFile), "utf-8"),
@@ -588,30 +502,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "replaces a preexisting snapshot hardlink without truncating its target",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -645,14 +537,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await writeFile(hardlinkTarget, "do not truncate\n");
         await link(hardlinkTarget, snapshotFile);
 
-        await execFileAsync("bash", [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            SNAPSHOT_TASK_ID: "Task 1",
-          },
-        });
+        await runSnapshotHelper(tempDir, baseStdout.trim());
 
         expect(await readFile(hardlinkTarget, "utf-8")).toBe(
           "do not truncate\n",
@@ -670,30 +555,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "rejects a directory at the target snapshot path before reporting success",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -722,14 +585,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await mkdir(path.join(tempDir, snapshotFile), { recursive: true });
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stdout: "",
           stderr: expect.stringContaining(
@@ -746,30 +602,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "snapshots committed HEAD content when the working-tree file is replaced",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -800,14 +634,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await rm(path.join(tempDir, "file.md"));
         await link(hardlinkTarget, path.join(tempDir, "file.md"));
 
-        await execFileAsync("bash", [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            SNAPSHOT_TASK_ID: "Task 1",
-          },
-        });
+        await runSnapshotHelper(tempDir, baseStdout.trim());
 
         const snapshot = JSON.parse(
           await readFile(path.join(tempDir, snapshotFile), "utf-8"),
@@ -831,33 +658,11 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects changed paths with symlinked parent directories before reading content",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideDir = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-snapshot-target-"),
       );
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await mkdir(path.join(tempDir, "dir"));
         await writeFile(path.join(tempDir, "dir/file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
@@ -886,14 +691,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await symlink(outsideDir, path.join(tempDir, "dir"));
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "symlink changed path is unsupported for implementer/snapshot/v1: dir/file.md",
@@ -910,34 +708,12 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects unsupported type-change status",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideDir = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-snapshot-target-"),
       );
       const outsideTarget = path.join(outsideDir, "outside-target.md");
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
-
         await writeFile(path.join(tempDir, "type-change.md"), "regular\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -960,14 +736,7 @@ describe("play-subagent-execution snapshot helper", () => {
         });
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "unsupported git diff status T for type-change.md",
@@ -984,29 +753,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(process.platform === "win32" || !jqAvailable)(
     "preserves tab-padded binary paths",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
         await writeFile(path.join(tempDir, "baseline.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -1041,14 +789,7 @@ describe("play-subagent-execution snapshot helper", () => {
         );
         const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
 
-        await execFileAsync("bash", [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            SNAPSHOT_TASK_ID: "Task 1",
-          },
-        });
+        await runSnapshotHelper(tempDir, baseStdout.trim());
 
         const snapshot = JSON.parse(
           await readFile(path.join(tempDir, snapshotFile), "utf-8"),
@@ -1081,40 +822,15 @@ describe("play-subagent-execution snapshot helper", () => {
   );
 
   it("documents sha256sum fallback in the helper source", async () => {
-    const repoRoot = process.cwd();
-    const helperScript = path.join(
-      repoRoot,
-      "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+    expect(await readFile(snapshotHelperScript, "utf-8")).toContain(
+      "sha256sum",
     );
-
-    expect(await readFile(helperScript, "utf-8")).toContain("sha256sum");
   });
   it.skipIf(process.platform === "win32" || !jqAvailable)(
     "skips large Git-text files before jq rawfile content transport",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
         await writeFile(path.join(tempDir, "baseline.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -1173,15 +889,19 @@ describe("play-subagent-execution snapshot helper", () => {
         );
         await chmod(jqWrapper, 0o755);
 
-        await execFileAsync(await nodeExecutablePath("bash"), [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            PATH: fakeBin,
-            SNAPSHOT_TASK_ID: "Task 1",
+        await execFileAsync(
+          await nodeExecutablePath("bash"),
+          [snapshotHelperScript],
+          {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: baseStdout.trim(),
+              PATH: fakeBin,
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
           },
-        });
+        );
 
         const snapshot = JSON.parse(
           await readFile(path.join(tempDir, snapshotFile), "utf-8"),
@@ -1206,29 +926,8 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(process.platform === "win32" || !jqAvailable)(
     "uses sha256sum when shasum is unavailable",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
         await writeFile(path.join(tempDir, "file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -1282,15 +981,19 @@ describe("play-subagent-execution snapshot helper", () => {
         );
         await chmod(fallbackHasher, 0o755);
 
-        await execFileAsync(await nodeExecutablePath("bash"), [helperScript], {
-          cwd: tempDir,
-          env: {
-            ...process.env,
-            BASE_SHA: baseStdout.trim(),
-            PATH: fakeBin,
-            SNAPSHOT_TASK_ID: "Task 1",
+        await execFileAsync(
+          await nodeExecutablePath("bash"),
+          [snapshotHelperScript],
+          {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: baseStdout.trim(),
+              PATH: fakeBin,
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
           },
-        });
+        );
 
         const snapshot = JSON.parse(
           await readFile(path.join(tempDir, snapshotFile), "utf-8"),
@@ -1311,15 +1014,7 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(process.platform === "win32")(
     "fails closed when jq is unavailable",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       try {
         const fakeBin = path.join(tempDir, "fake-bin");
         await mkdir(fakeBin);
@@ -1341,15 +1036,19 @@ describe("play-subagent-execution snapshot helper", () => {
         }
 
         await expect(
-          execFileAsync(await nodeExecutablePath("bash"), [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: "0000000000000000000000000000000000000000",
-              PATH: fakeBin,
-              SNAPSHOT_TASK_ID: "Task 1",
+          execFileAsync(
+            await nodeExecutablePath("bash"),
+            [snapshotHelperScript],
+            {
+              cwd: tempDir,
+              env: {
+                ...process.env,
+                BASE_SHA: "0000000000000000000000000000000000000000",
+                PATH: fakeBin,
+                SNAPSHOT_TASK_ID: "Task 1",
+              },
             },
-          }),
+          ),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "jq is required to write implementer/snapshot/v1",
@@ -1365,30 +1064,9 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects a symlinked snapshot directory",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
-      const tempDir = await mkdtemp(
-        path.join(os.tmpdir(), "devcanon-snapshot-"),
-      );
+      const tempDir = await createTempGitRepo();
       const outsideDir = path.join(tempDir, "outside");
       try {
-        await execFileAsync("git", ["init", "--initial-branch=main"], {
-          cwd: tempDir,
-        });
-        await execFileAsync("git", ["config", "user.name", "Test User"], {
-          cwd: tempDir,
-        });
-        await execFileAsync(
-          "git",
-          ["config", "user.email", "test@example.com"],
-          {
-            cwd: tempDir,
-          },
-        );
         await writeFile(path.join(tempDir, "file.md"), "old\n");
         await execFileAsync("git", ["add", "."], { cwd: tempDir });
         await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -1411,14 +1089,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await symlink(outsideDir, path.join(tempDir, ".ephemeral"));
 
         await expect(
-          execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          }),
+          runSnapshotHelper(tempDir, baseStdout.trim()),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             ".ephemeral must be a directory, not a symlink",
@@ -1434,32 +1105,11 @@ describe("play-subagent-execution snapshot helper", () => {
   it.skipIf(!jqAvailable)(
     "uses canonical branch slug fallbacks for detached and unsafe branch names",
     async () => {
-      const repoRoot = process.cwd();
-      const helperScript = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-      );
-
       async function writeSnapshotOnCurrentBranch(
         branchSetup: (tempDir: string) => Promise<void>,
       ) {
-        const tempDir = await mkdtemp(
-          path.join(os.tmpdir(), "devcanon-snapshot-"),
-        );
+        const tempDir = await createTempGitRepo();
         try {
-          await execFileAsync("git", ["init", "--initial-branch=main"], {
-            cwd: tempDir,
-          });
-          await execFileAsync("git", ["config", "user.name", "Test User"], {
-            cwd: tempDir,
-          });
-          await execFileAsync(
-            "git",
-            ["config", "user.email", "test@example.com"],
-            {
-              cwd: tempDir,
-            },
-          );
           await writeFile(path.join(tempDir, "file.md"), "old\n");
           await execFileAsync("git", ["add", "."], { cwd: tempDir });
           await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
@@ -1479,14 +1129,10 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           });
 
-          const { stdout } = await execFileAsync("bash", [helperScript], {
-            cwd: tempDir,
-            env: {
-              ...process.env,
-              BASE_SHA: baseStdout.trim(),
-              SNAPSHOT_TASK_ID: "Task 1",
-            },
-          });
+          const { stdout } = await runSnapshotHelper(
+            tempDir,
+            baseStdout.trim(),
+          );
           return stdout.trim();
         } finally {
           await cleanupTempDir(tempDir);
