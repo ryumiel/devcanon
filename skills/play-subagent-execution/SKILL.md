@@ -184,7 +184,7 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 A task whose entire deliverable is "reproduce this verbatim text into a file and commit" doesn't need the full implementer scaffolding (escalation prose, ask-if-unclear reminders, code-organization advice). Plans can mark such tasks with `**Mode:** mechanical` in the task header. When this hint is present, dispatch with [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md) instead of the default [`references/implementer-prompt.md`](references/implementer-prompt.md).
 
-The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly. Hint-only is the conservative choice: under-marking falls back to the full template (no harm), while a heuristic biases toward over-trimming (false positives strip needed scaffolding).
+The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly.
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
