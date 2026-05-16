@@ -461,6 +461,64 @@ describe("play-subagent-execution snapshot helper", () => {
   );
 
   it.skipIf(!jqAvailable)(
+    "rejects changed paths that start with parent-directory components",
+    async () => {
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      const binDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-"));
+      const fakeGit = path.join(binDir, "git");
+      try {
+        await writeFile(
+          fakeGit,
+          `#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$1" = "rev-parse" ] && [ "$2" = "--verify" ]; then
+  exit 0
+fi
+
+if [ "$1" = "rev-parse" ] && [ "$2" = "HEAD" ]; then
+  printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n'
+  exit 0
+fi
+
+if [ "$1" = "diff" ]; then
+  case " $* " in
+    *" --name-status "*) printf 'A\\0../file\\0'; exit 0 ;;
+    *" --numstat "*) printf '1\\t0\\t../file\\0'; exit 0 ;;
+  esac
+fi
+
+echo "unexpected git invocation: $*" >&2
+exit 1
+`,
+          { mode: 0o755 },
+        );
+        await chmod(fakeGit, 0o755);
+
+        await expect(
+          runSnapshotHelper(
+            tempDir,
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            {
+              PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+            },
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "unsupported repo-relative path for implementer/snapshot/v1: ../file",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+        await cleanupTempDir(binDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
     "rejects committed non-regular HEAD entries",
     async () => {
       const tempDir = await createTempGitRepo();

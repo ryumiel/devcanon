@@ -500,6 +500,7 @@ mkdir -p .ephemeral
       "snapshot is not a regular file",
     );
     expect(playSubagentExecutionBody).toContain("SNAPSHOT_ENTRY_PATH");
+    expect(playSubagentExecutionBody).toContain("../*");
     expect(playSubagentExecutionBody).toContain(
       "controller's own changed-file list",
     );

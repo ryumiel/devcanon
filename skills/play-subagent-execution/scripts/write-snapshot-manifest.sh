@@ -132,7 +132,7 @@ reject_unsupported_changed_path() {
   local path="$1"
 
   case "$path" in
-    ''|/*|.|..|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
+    ''|/*|.|..|../*|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
       echo "unsupported repo-relative path for implementer/snapshot/v1: $path" >&2
       exit 1
       ;;

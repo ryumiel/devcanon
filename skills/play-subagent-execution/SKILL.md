@@ -407,7 +407,7 @@ syntax:
 
 ```bash
 case "$SNAPSHOT_ENTRY_PATH" in
-  ''|/*|.|..|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
+  ''|/*|.|..|../*|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
     echo "snapshot entry path validation failed: $SNAPSHOT_ENTRY_PATH" >&2
     SNAPSHOT_OK=false
     ;;
