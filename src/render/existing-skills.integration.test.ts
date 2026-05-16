@@ -112,6 +112,10 @@ function firstFencedBlockLineCount(content: string): number {
   return lineCount;
 }
 
+function normalizeWhitespace(content: string): string {
+  return content.replace(/\s+/g, " ").trim();
+}
+
 async function commandPath(command: string): Promise<string> {
   const { stdout } = await execFileAsync("bash", [
     "-lc",
@@ -574,6 +578,9 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("extra");
     expect(playSubagentExecutionBody).toContain("duplicate");
     expect(playSubagentExecutionBody).toContain("status-mismatched");
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "The snapshot's complete `path` + `status` set must exactly equal the controller-computed set: no missing, extra, duplicate, or status-mismatched entries.",
+    );
     expect(playSubagentExecutionBody).toContain(
       "back to disk reads using the controller's own changed-file list",
     );
