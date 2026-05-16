@@ -628,11 +628,14 @@ mkdir -p .ephemeral
 
     for (const prompt of [specReviewerPrompt, codeQualityReviewerPrompt]) {
       expect(prompt).toContain("Read the implementation from disk");
-      expect(prompt).toContain("Do not consume any content snapshot");
       expect(prompt).toContain(
         "snapshots are for the controller's bookkeeping only",
       );
     }
+    expect(specReviewerPrompt).toContain("Consume any content snapshot");
+    expect(codeQualityReviewerPrompt).toContain(
+      "Do not consume any content snapshot",
+    );
   });
 
   it("documents planning composition and execution boundary contracts", async () => {

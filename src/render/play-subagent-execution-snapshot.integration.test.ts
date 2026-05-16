@@ -29,7 +29,7 @@ function sha256(content: string | Buffer): string {
 
 async function commandPath(command: string): Promise<string> {
   const { stdout } = await execFileAsync("bash", [
-    "-lc",
+    "-c",
     `command -v ${command}`,
   ]);
   return stdout.trim();

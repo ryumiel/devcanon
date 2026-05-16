@@ -163,8 +163,11 @@ files, the helper reads bytes from the committed `HEAD:<path>` blob so
 the snapshot cannot diverge from the `head_sha` it reports if the
 working tree changes after commit.
 This is an intentional v1 helper behavior change from the older
-prompt-embedded shell sketch, which read working-tree paths and
-therefore followed non-deleted symlinks.
+prompt-embedded shell sketch, which read working-tree paths. The change
+blocks non-deleted symlinks instead of following them and snapshots
+committed blob bytes rather than any post-commit working-tree bytes that
+may differ because of filters, Git LFS pointer expansion, line-ending
+normalization, or other checkout transformations.
 
 Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
