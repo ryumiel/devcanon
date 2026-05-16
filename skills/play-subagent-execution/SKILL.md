@@ -367,6 +367,7 @@ esac
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -L .ephemeral ] && { echo "snapshot directory is a symlink: .ephemeral" >&2; SNAPSHOT_OK=false; }
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot is not a regular file: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # If $SNAPSHOT_OK == false, skip snapshot consumption for this task and
 # fall back to committed HEAD blob reads for every file in the controller's
@@ -383,12 +384,12 @@ no fallback path; the snapshot consumer always has committed HEAD blob reads
 available, so any validation failure here is non-fatal. If the
 canonical copy gains a step (e.g., a new pre-read check), update this
 skill to match the check while keeping the soft-skip disposition. The
-snapshot consumer additionally enforces snapshot-specific flatness and
-symlink checks because the consumer is read-only and never overwrites the
-file — the producer-side helper writes through a private temp file and
-renames that output into place only after rejecting an existing directory at
-the target snapshot path, then verifies the final path is a regular non-empty
-file before reporting success.
+snapshot consumer additionally enforces snapshot-specific flatness, symlink,
+and regular-file checks because the consumer is read-only and never overwrites
+the file — the producer-side helper writes through a repo-scoped private scratch
+directory and renames that output into place only after rejecting an existing
+directory at the target snapshot path, then verifies the final path is a regular
+non-empty file before reporting success.
 
 After parsing the JSON, also compare the snapshot's `head_sha` to
 the controller's own view of the worktree:
@@ -427,8 +428,8 @@ If this complete-set validation fails, treat the snapshot as malformed and fall
 back to committed HEAD blob reads using the controller's own changed-file list,
 not the snapshot-provided path or status. For any non-deleted path the
 controller reads during fallback, first use committed HEAD tree metadata with a
-literal pathspec (`git ls-tree HEAD -- ":(literal)$path"`) to reject symlink
-entries, then read bytes with `git cat-file blob "HEAD:$path"`. Do not read
+literal pathspec (`git ls-tree HEAD -- ":(literal)$path"`) to require a regular
+blob entry, then read bytes with `git cat-file blob "HEAD:$path"`. Do not read
 mutable working-tree paths for snapshot fallback.
 
 ### Use cases
@@ -483,7 +484,7 @@ rule.
 | Scenario                                                           | Action                                                                                                                                                 |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to committed HEAD blob reads using the controller-computed changed-file list. |
-| Snapshot file missing / unreadable after notice line               | Same as above (the fail-loud guard prevents silent skew).                                                                                              |
+| Snapshot file missing / unreadable / non-regular after notice line | Same as above (the fail-loud guard prevents silent skew and special-file reads).                                                                       |
 | JSON malformed                                                     | Same as above.                                                                                                                                         |
 | `files[]` path/status set validation fails                         | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path or status.                                      |
 | Implementer reports DONE without notice line                       | Backward-compat: fall back to committed HEAD blob reads. The controller does not enforce a notice line.                                                |

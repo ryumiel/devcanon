@@ -30,19 +30,28 @@ sha256_file() {
 
 base64_file() {
   local path="$1"
+  base64_stream < "$path"
+}
+
+base64_stream() {
   if command -v base64 >/dev/null 2>&1; then
-    base64 < "$path" | tr -d '\r\n'
+    base64 | tr -d '\r\n'
   else
     echo "base64 is required to write implementer/snapshot/v1" >&2
     exit 1
   fi
 }
 
+make_temp_file() {
+  local name="$1"
+  mktemp "$SNAPSHOT_WORK_DIR/$name.XXXXXX"
+}
+
 content_round_trips_through_jq() {
   local path="$1"
   local raw_json original_base64 roundtrip_base64 result=1
 
-  raw_json=$(mktemp)
+  raw_json=$(make_temp_file raw-json)
 
   if jq -n --rawfile content "$path" '$content' > "$raw_json"; then
     original_base64=$(base64_file "$path")
@@ -52,7 +61,23 @@ content_round_trips_through_jq() {
     fi
   fi
 
-  rm -f "$raw_json"
+  return "$result"
+}
+
+path_round_trips_through_jq() {
+  local path="$1"
+  local raw_json original_base64 roundtrip_base64 result=1
+
+  raw_json=$(make_temp_file path-json)
+
+  if jq -n --arg path "$path" '$path' > "$raw_json"; then
+    original_base64=$(printf '%s' "$path" | base64_stream)
+    if roundtrip_base64=$(jq -rj '@base64' "$raw_json") &&
+      [ "$original_base64" = "$roundtrip_base64" ]; then
+      result=0
+    fi
+  fi
+
   return "$result"
 }
 
@@ -76,19 +101,21 @@ fi
 
 SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
 SNAPSHOT_TMP=""
+SNAPSHOT_WORK_DIR=""
 
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-SNAPSHOT_TMP=$(mktemp ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot.XXXXXX")
+SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot-work.XXXXXX")
+SNAPSHOT_TMP=$(mktemp "$SNAPSHOT_WORK_DIR/snapshot.XXXXXX")
 
-STATUS_FILE=$(mktemp)
-NUMSTAT_FILE=$(mktemp)
-FILES_JSON=$(mktemp)
-ENTRY_JSON=$(mktemp)
-NEXT_JSON=$(mktemp)
-CONTENT_FILE=$(mktemp)
-trap 'rm -f "$STATUS_FILE" "$NUMSTAT_FILE" "$FILES_JSON" "$ENTRY_JSON" "$NEXT_JSON" "$CONTENT_FILE"; [ -z "${SNAPSHOT_TMP:-}" ] || rm -f "$SNAPSHOT_TMP"' EXIT
+STATUS_FILE=$(make_temp_file status)
+NUMSTAT_FILE=$(make_temp_file numstat)
+FILES_JSON=$(make_temp_file files)
+ENTRY_JSON=$(make_temp_file entry)
+NEXT_JSON=$(make_temp_file next)
+CONTENT_FILE=$(make_temp_file content)
+trap '[ -z "${SNAPSHOT_TMP:-}" ] || rm -f "$SNAPSHOT_TMP"; [ -z "${SNAPSHOT_WORK_DIR:-}" ] || rm -rf "$SNAPSHOT_WORK_DIR"' EXIT
 
 git diff -z --name-status --no-renames "${BASE_SHA}..HEAD" > "$STATUS_FILE"
 [ -s "$STATUS_FILE" ] || { echo "snapshot has no changed files" >&2; exit 1; }
@@ -111,10 +138,8 @@ is_binary_path() {
   return 1
 }
 
-reject_symlink_changed_path() {
+reject_unsupported_changed_path() {
   local path="$1"
-  local rest="$path"
-  local component current=""
 
   case "$path" in
     ''|/*|.|..|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
@@ -122,6 +147,17 @@ reject_symlink_changed_path() {
       exit 1
       ;;
   esac
+
+  if ! path_round_trips_through_jq "$path"; then
+    echo "unsupported non-UTF-8 repo-relative path for implementer/snapshot/v1" >&2
+    exit 1
+  fi
+}
+
+reject_worktree_symlink_changed_path() {
+  local path="$1"
+  local rest="$path"
+  local component current=""
 
   while [ -n "$rest" ]; do
     component=${rest%%/*}
@@ -144,15 +180,23 @@ reject_symlink_changed_path() {
   done
 }
 
-reject_head_symlink_path() {
+reject_head_non_regular_path() {
   local path="$1"
   local mode
 
   mode=$(git ls-tree HEAD -- ":(literal)$path" | awk 'NR == 1 {print $1}')
-  if [ "$mode" = 120000 ]; then
-    echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
-    exit 1
-  fi
+  case "$mode" in
+    100644|100755)
+      ;;
+    120000)
+      echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
+      exit 1
+      ;;
+    *)
+      echo "non-regular changed path is unsupported for implementer/snapshot/v1: $path" >&2
+      exit 1
+      ;;
+  esac
 }
 
 printf '[]\n' > "$FILES_JSON"
@@ -168,6 +212,8 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       ;;
   esac
 
+  reject_unsupported_changed_path "$path"
+
   if [ "$status" = deleted ]; then
     jq -n \
       --arg path "$path" \
@@ -175,8 +221,8 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       '{path:$path,status:$status,lines:0,bytes:0,sha256:""}' \
       > "$ENTRY_JSON"
   else
-    reject_symlink_changed_path "$path"
-    reject_head_symlink_path "$path"
+    reject_worktree_symlink_changed_path "$path"
+    reject_head_non_regular_path "$path"
 
     git cat-file blob "HEAD:$path" > "$CONTENT_FILE"
     lines=$(awk 'END{print NR}' < "$CONTENT_FILE")

@@ -156,18 +156,21 @@ The `files` array MUST NOT be empty: a DONE report implies at least
 one commit landed between `BASE_SHA` and `HEAD`. If the implementer
 made no changes, it reports BLOCKED instead of writing a snapshot.
 
-Non-deleted symlink paths from committed `HEAD` tree metadata and
-symlinked working-tree parent components route to `BLOCKED` before the
-producer reads line count, byte count, hash, or content. For ordinary
-files, the helper reads bytes from the committed `HEAD:<path>` blob so
-the snapshot cannot diverge from the `head_sha` it reports if the
-working tree changes after commit.
+Changed path strings must round-trip byte-for-byte through `jq --arg`
+and `jq -rj '@base64'` JSON string transport before the producer emits
+them into the snapshot. Non-deleted non-regular paths from committed
+`HEAD` tree metadata and symlinked working-tree parent components route
+to `BLOCKED` before the producer reads line count, byte count, hash, or
+content. For ordinary files, the helper reads bytes from the committed
+`HEAD:<path>` blob so the snapshot cannot diverge from the `head_sha` it
+reports if the working tree changes after commit.
 This is an intentional v1 helper behavior change from the older
 prompt-embedded shell sketch, which read working-tree paths. The change
-blocks non-deleted symlinks instead of following them and snapshots
-committed blob bytes rather than any post-commit working-tree bytes that
-may differ because of filters, Git LFS pointer expansion, line-ending
-normalization, or other checkout transformations.
+blocks non-deleted symlinks, gitlinks, and other non-regular entries
+instead of following them and snapshots committed blob bytes rather than
+any post-commit working-tree bytes that may differ because of filters,
+Git LFS pointer expansion, line-ending normalization, or other checkout
+transformations.
 
 Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
@@ -237,6 +240,7 @@ esac
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -L .ephemeral ] && { echo "snapshot directory is a symlink: .ephemeral" >&2; SNAPSHOT_OK=false; }
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot is not a regular file: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # Validation failure is non-fatal: the controller logs and falls back
 # to committed HEAD blob reads for every file in the controller-computed
@@ -249,9 +253,10 @@ narrowed to the snapshot suffix and adapted to log-and-fall-back
 disposition (the canonical guard hard-exits because `play-review` has
 no fallback; the snapshot consumer always has committed HEAD blob reads
 available). The snapshot consumer additionally enforces snapshot-
-specific flatness and symlink checks because the consumer is read-only
-and never overwrites the file — the producer-side helper writes through
-a private temp file and renames that output into place.
+specific flatness, symlink, and regular-file checks because the consumer
+is read-only and never overwrites the file — the producer-side helper
+writes through a repo-scoped private scratch directory and renames that
+output into place.
 
 After parsing the JSON, the controller compares the snapshot's
 `head_sha` to its own view of the worktree (`git rev-parse HEAD`); a
@@ -271,9 +276,9 @@ treats the snapshot as malformed and falls back using its own
 changed-file list, not the snapshot-provided path or status. For any
 non-deleted path the controller reads during fallback, it checks
 committed HEAD tree metadata with a literal pathspec (`git ls-tree HEAD
--- ":(literal)$path"`) to reject symlink entries, then reads bytes with
-`git cat-file blob "HEAD:$path"`. It does not read mutable working-tree
-paths for snapshot fallback.
+-- ":(literal)$path"`) to require a regular blob entry, then reads bytes
+with `git cat-file blob "HEAD:$path"`. It does not read mutable
+working-tree paths for snapshot fallback.
 
 The controller MAY use snapshot `content` for:
 
@@ -374,12 +379,13 @@ reuse is opportunistic; the cost is one notice line and one
   itself or at the snapshot path could redirect helper output. The
   implementer applies the ADR-0012 canonical `.ephemeral` write
   guard before writing: reject a symlinked `.ephemeral` directory,
-  `mkdir -p .ephemeral`, write JSON to a private temp file in
-  `.ephemeral`, recheck the directory, reject an existing directory at
-  the target snapshot path, then rename the temp file into the target
-  snapshot path so hardlinks are replaced rather than truncated. After
-  the rename, the helper verifies the target is a regular non-empty
-  file before it prints the success notice.
+  `mkdir -p .ephemeral`, write all helper scratch files and JSON temp
+  output to a private scratch directory under `.ephemeral`, recheck the
+  directory, reject an existing directory at the target snapshot path,
+  then rename the temp file into the target snapshot path so hardlinks
+  are replaced rather than truncated. After the rename, the helper
+  verifies the target is a regular non-empty file before it prints the
+  success notice.
 
 ## Alternatives considered
 

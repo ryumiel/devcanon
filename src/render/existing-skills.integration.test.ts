@@ -390,6 +390,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "reject a target snapshot path that is already a directory",
     );
+    expect(snapshotRecipe).toContain("private scratch directory");
     expect(snapshotRecipe).toContain("private temp file");
     expect(snapshotRecipe).toContain("rename that output");
     expect(snapshotRecipe).toContain("head_sha");
@@ -404,13 +405,14 @@ mkdir -p .ephemeral
       'git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"',
     );
     expect(snapshotRecipe).toContain("committed `HEAD:<path>` blob");
-    expect(snapshotRecipe).toContain(
-      "Non-deleted symlink paths from committed `HEAD` tree metadata",
-    );
+    expect(snapshotRecipe).toContain("changed paths that are not safe");
+    expect(snapshotRecipe).toContain("do not round-trip byte-for-byte");
+    expect(snapshotRecipe).toContain("non-regular committed `HEAD` entries");
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("jq -rj");
     expect(snapshotRecipe).toContain("byte-for-byte");
     expect(snapshotRecipe).toContain("post-write regular-file and size checks");
+    expect(snapshotRecipe).toContain("non-regular");
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
     );
@@ -420,7 +422,9 @@ mkdir -p .ephemeral
     );
     expect(snapshotRecipe).toContain("not snapshot-provided");
     expect(snapshotRecipe).toContain("paths or statuses");
-    expect(snapshotRecipe).toContain("committed HEAD blob reads");
+    expect(normalizeWhitespace(snapshotRecipe)).toContain(
+      "committed HEAD blob reads",
+    );
     expect(snapshotRecipe).toContain("not mutable working-tree paths");
     expect(snapshotRecipe).toContain(
       "Snapshot content is controller bookkeeping only",
@@ -434,7 +438,9 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "Deleted files emit neither `content` nor `skipped`",
     );
-    expect(snapshotRecipe).toContain("falls back to committed HEAD blob reads");
+    expect(normalizeWhitespace(snapshotRecipe)).toContain(
+      "falls back to committed HEAD blob reads",
+    );
 
     expect(implementerPrompt).toContain(
       "references/snapshot-manifest-recipe.md",
@@ -506,7 +512,10 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("snapshot notice line");
     expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
     expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
-      "snapshot-specific flatness and symlink checks",
+      "snapshot-specific flatness, symlink, and regular-file checks",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "snapshot is not a regular file",
     );
     expect(playSubagentExecutionBody).toContain("SNAPSHOT_ENTRY_PATH");
     expect(playSubagentExecutionBody).toContain(
@@ -586,9 +595,8 @@ mkdir -p .ephemeral
       "prompt text is only the compact handoff to those sources",
     );
     expect(adr0014).toContain("Unsupported status letters");
-    expect(adr0014).toContain(
-      "Non-deleted symlink paths from committed `HEAD` tree metadata",
-    );
+    expect(adr0014).toContain("Changed path strings must round-trip");
+    expect(adr0014).toContain("Non-deleted non-regular paths");
     expect(adr0014).toContain("intentional v1 helper behavior change");
     expect(adr0014).toContain(
       "One object per file the implementer added, modified, or deleted",
@@ -596,7 +604,8 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("committed `HEAD:<path>` blob");
     expect(adr0014).toContain("round-trip byte-for-byte");
     expect(adr0014).toContain("jq -rj");
-    expect(adr0014).toContain("private temp file");
+    expect(adr0014).toContain("private scratch directory");
+    expect(adr0014).toContain("snapshot is not a regular file");
     expect(adr0014).toContain("complete `path` + `status` set must exactly");
     expect(adr0014).toContain("Snapshot written to <repo-relative-path>.");
     expect(adr0014).not.toContain("post-commit Git blob");

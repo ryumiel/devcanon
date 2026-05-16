@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -140,7 +141,10 @@ describe("play-subagent-execution snapshot helper", () => {
         '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
       );
       expect(helperSource).toContain(
-        'SNAPSHOT_TMP=$(mktemp ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot.XXXXXX")',
+        'SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot-work.XXXXXX")',
+      );
+      expect(helperSource).toContain(
+        'SNAPSHOT_TMP=$(mktemp "$SNAPSHOT_WORK_DIR/snapshot.XXXXXX")',
       );
       expect(helperSource).toContain('mv -f "$SNAPSHOT_TMP" "$SNAPSHOT_FILE"');
       expect(helperSource).toContain(
@@ -154,11 +158,17 @@ describe("play-subagent-execution snapshot helper", () => {
       );
       expect(helperSource).toContain("sha256_stream");
       expect(helperSource).toContain("base64_file");
+      expect(helperSource).toContain("base64_stream");
       expect(helperSource).toContain("content_round_trips_through_jq");
+      expect(helperSource).toContain("path_round_trips_through_jq");
       expect(helperSource).toContain("jq -rj");
       expect(helperSource).toContain("@base64");
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
       expect(helperSource).toContain('git ls-tree HEAD -- ":(literal)$path"');
+      expect(helperSource).toContain("non-regular changed path is unsupported");
+      expect(helperSource).toContain(
+        "unsupported non-UTF-8 repo-relative path",
+      );
       expect(helperSource).toContain("sha256sum");
 
       const tempDir = await createTempGitRepo();
@@ -322,6 +332,31 @@ describe("play-subagent-execution snapshot helper", () => {
   );
 
   it.skipIf(!jqAvailable)(
+    "keeps helper scratch files under the repo-scoped snapshot directory",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      const systemTempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-system-tmp-"),
+      );
+      try {
+        await writeFile(path.join(tempDir, "file.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        await writeFile(path.join(tempDir, "file.md"), "new\n");
+        await commitChanges(tempDir, "feat: update file");
+
+        await runSnapshotHelper(tempDir, baseSha, { TMPDIR: systemTempDir });
+
+        expect(await readdir(systemTempDir)).toEqual([]);
+        expect(await readdir(path.join(tempDir, ".ephemeral"))).toHaveLength(1);
+      } finally {
+        await cleanupTempDir(tempDir);
+        await cleanupTempDir(systemTempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
     "rejects empty snapshot diffs",
     async () => {
       const tempDir = await createTempGitRepo();
@@ -387,6 +422,74 @@ describe("play-subagent-execution snapshot helper", () => {
             "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
           ),
         });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform !== "linux" || !jqAvailable)(
+    "rejects non-UTF-8 changed paths before JSON encoding",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      try {
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+
+        await execFileAsync(
+          "bash",
+          [
+            "-c",
+            "printf 'bad\\n' > $'bad\\xff.md' && git add -A && git commit -m 'feat: add invalid path'",
+          ],
+          { cwd: tempDir },
+        );
+
+        await expect(runSnapshotHelper(tempDir, baseSha)).rejects.toMatchObject(
+          {
+            stderr: expect.stringContaining(
+              "unsupported non-UTF-8 repo-relative path for implementer/snapshot/v1",
+            ),
+          },
+        );
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "rejects committed non-regular HEAD entries",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      try {
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        await execFileAsync(
+          "git",
+          [
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "160000",
+            baseSha,
+            "submodule",
+          ],
+          { cwd: tempDir },
+        );
+        await execFileAsync("git", ["commit", "-m", "feat: add gitlink"], {
+          cwd: tempDir,
+        });
+
+        await expect(runSnapshotHelper(tempDir, baseSha)).rejects.toMatchObject(
+          {
+            stderr: expect.stringContaining(
+              "non-regular changed path is unsupported for implementer/snapshot/v1: submodule",
+            ),
+          },
+        );
       } finally {
         await cleanupTempDir(tempDir);
       }

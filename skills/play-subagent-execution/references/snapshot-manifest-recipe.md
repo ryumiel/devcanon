@@ -40,23 +40,26 @@ The helper script owns the full construction procedure:
 - Computes `SNAPSHOT_FILE` as
   `.ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json`.
 - Applies the `.ephemeral` write guard: reject a symlinked `.ephemeral`
-  directory, create `.ephemeral` when absent, write JSON to a private temp file
-  in `.ephemeral`, reject a target snapshot path that is already a directory,
-  then rename that output into the target snapshot path.
+  directory, create `.ephemeral` when absent, create a private scratch directory
+  under `.ephemeral`, write JSON to a private temp file in that scratch
+  directory, reject a target snapshot path that is already a directory, then
+  rename that output into the target snapshot path.
 - Enumerates changed files with
   `git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"` so Git does
   not quote or escape repo-relative paths.
 - Detects binary files with
   `git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"` and NUL-safe path
   parsing.
-- Rejects non-deleted symlink paths from committed `HEAD` tree metadata, then
-  reads non-deleted file bytes from the committed `HEAD:<path>` blob, never from
-  a mutable working-tree file.
-- Builds the JSON envelope with `jq` and `jq --rawfile` for UTF-8-safe file
-  content, so quotes, backslashes, newlines, and trailing newlines stay
-  byte-faithful. Blobs that do not round-trip byte-for-byte through
-  `jq --rawfile` and `jq -rj '@base64'` comparison are
-  skipped as `"binary"`.
+- Rejects changed paths that are not safe repo-relative paths or whose bytes do
+  not round-trip byte-for-byte through `jq --arg` JSON string transport.
+- Rejects non-deleted non-regular committed `HEAD` entries. Regular blobs are
+  `100644` and `100755`; committed symlinks, gitlinks, missing entries, and other
+  modes block the snapshot. It then reads non-deleted file bytes from the
+  committed `HEAD:<path>` blob, never from a mutable working-tree file.
+- Builds the JSON envelope with `jq` and `jq --rawfile` for UTF-8-safe path and
+  file content strings, so quotes, backslashes, newlines, and trailing newlines
+  stay byte-faithful. Blobs that do not round-trip byte-for-byte through
+  `jq --rawfile` and `jq -rj '@base64'` comparison are skipped as `"binary"`.
 - Performs the post-write regular-file and size checks before printing the
   success notice.
 
@@ -94,10 +97,13 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 - `status` is `added`, `modified`, or `deleted`; unsupported git status letters
   block the snapshot.
-- Non-deleted symlink paths from committed `HEAD` tree metadata block the
-  snapshot before metadata or content reads. Symlinked parent components also
-  block the snapshot. The helper must not follow changed symlinks while
-  computing metadata or content.
+- Changed paths must be repo-relative, safe to compare as JSON strings, and
+  byte-faithful through `jq --arg` and `jq -rj '@base64'` comparison. Paths that
+  fail that check block the snapshot before any path is emitted into JSON.
+- Non-deleted non-regular committed `HEAD` entries block the snapshot before
+  metadata or content reads. Symlinked parent components also block the snapshot.
+  The helper must not follow changed symlinks while computing metadata or
+  content.
 - For non-deleted files, read the committed `HEAD:<path>` blob and compute
   `lines`, `bytes`, `sha256`, and included `content` from that blob.
 - `lines` is `awk 'END{print NR}'` over the committed blob, or `0` for deleted
@@ -129,11 +135,12 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 ## Persist and Verify
 
-In normal dispatches, the helper owns persistence and verification. It writes
-the envelope to a private temp file in `.ephemeral`, rechecks that `.ephemeral`
-is not a symlink, rejects an existing directory at `$SNAPSHOT_FILE`, renames the
-temp file to `$SNAPSHOT_FILE`, verifies the result is a regular non-empty file,
-and prints the success notice. Do not assemble or write the snapshot manually.
+In normal dispatches, the helper owns persistence and verification. It creates a
+private scratch directory under `.ephemeral`, writes all helper scratch files and
+the envelope temp file inside that directory, rechecks that `.ephemeral` is not a
+symlink, rejects an existing directory at `$SNAPSHOT_FILE`, renames the temp file
+to `$SNAPSHOT_FILE`, verifies the result is a regular non-empty file, and prints
+the success notice. Do not assemble or write the snapshot manually.
 
 Because the helper is authoritative for executable snapshot behavior, do not
 substitute a dispatch-local fallback contract when the helper is unavailable.
@@ -158,9 +165,9 @@ backticks, or omit the trailing period.
 
 The producer reports `BLOCKED` if the snapshot cannot be written or verified
 and never emits the notice line for an absent file. The controller still treats
-malformed, missing, unreadable, symlinked, non-flat, path-traversing, or stale
-snapshots as non-fatal and falls back to committed HEAD blob reads using the
-controller-computed changed-file list from
+malformed, missing, unreadable, symlinked, non-regular, non-flat,
+path-traversing, or stale snapshots as non-fatal and falls back to committed HEAD
+blob reads using the controller-computed changed-file list from
 `git diff -z --name-status --no-renames BASE..HEAD`, not snapshot-provided
 paths or statuses. Fallback content reads must use committed `HEAD:<path>` blobs
 with literal pathspec tree checks, not mutable working-tree paths.
