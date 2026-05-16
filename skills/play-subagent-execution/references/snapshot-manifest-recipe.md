@@ -143,7 +143,10 @@ backticks, or omit the trailing period.
 The producer reports `BLOCKED` if the snapshot cannot be written or verified
 and never emits the notice line for an absent file. The controller still treats
 malformed, missing, unreadable, symlinked, non-flat, path-traversing, or stale
-snapshots as non-fatal and falls back to disk reads.
+snapshots as non-fatal and falls back to disk reads using the
+controller-computed changed-file list from
+`git diff -z --name-status --no-renames BASE..HEAD`, not snapshot-provided
+paths or statuses.
 
 Snapshot content is controller bookkeeping only. The controller must not forward
 snapshot content or parsed snapshot JSON into reviewer prompts, and reviewers

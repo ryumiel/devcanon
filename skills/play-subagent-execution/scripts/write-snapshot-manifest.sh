@@ -116,7 +116,7 @@ reject_head_symlink_path() {
   local path="$1"
   local mode
 
-  mode=$(git ls-tree HEAD -- "$path" | awk 'NR == 1 {print $1}')
+  mode=$(git ls-tree HEAD -- ":(literal)$path" | awk 'NR == 1 {print $1}')
   if [ "$mode" = 120000 ]; then
     echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
     exit 1

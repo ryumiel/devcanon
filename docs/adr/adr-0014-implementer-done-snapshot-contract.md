@@ -248,17 +248,20 @@ After parsing the JSON, the controller compares the snapshot's
 mismatch indicates an unexpected commit between DONE and consumption
 and routes the consumer to disk reads for that task.
 
-Before using any `files[].path` value for metadata, line extraction, or
+Before using any `files[]` value for metadata, line extraction, or
 disk-read fallback, the controller validates it against the controller's
 own changed-file list from `git diff -z --name-status --no-renames
-BASE..HEAD`. Snapshot entry paths must be repo-relative and must not be
-absolute, empty, `.`, `..`, contain `.` / `..` path components, contain
-empty path components, or name a path outside the controller-computed
-changed set. If validation fails, the controller treats the snapshot as
-malformed and falls back using its own changed-file list, not the
-snapshot-provided path. For any non-deleted path the controller reads
-from disk during fallback, it applies the same symlink-component guard
-as the producer helper before reading.
+BASE..HEAD`. The snapshot's complete `path` + `status` set must exactly
+equal the controller-computed set: no missing, extra, duplicate, or
+status-mismatched entries. Snapshot entry paths must be repo-relative
+and must not be absolute, empty, `.`, `..`, contain `.` / `..` path
+components, contain empty path components, or name a path outside the
+controller-computed changed set. If validation fails, the controller
+treats the snapshot as malformed and falls back using its own
+changed-file list, not the snapshot-provided path or status. For any
+non-deleted path the controller reads from disk during fallback, it
+applies the same symlink-component guard as the producer helper before
+reading.
 
 The controller MAY use snapshot `content` for:
 
@@ -266,11 +269,11 @@ The controller MAY use snapshot `content` for:
   existence).
 - Line-range extraction for downstream review or commit composition.
 
-For files with `content` omitted (`skipped` set), the controller
-falls back to disk read for that file only. If validation fails, the
-JSON is malformed, or `head_sha` doesn't match the controller's
-view, the controller fails loud and falls back to disk reads for all
-files.
+For files with `content` omitted (`skipped` set), the controller falls
+back to disk read for that file only. If validation fails, the JSON is
+malformed, or `head_sha` doesn't match the controller's view, the
+controller fails loud and falls back to disk reads for the
+controller-computed changed-file list.
 
 ### Trust-boundary rule (load-bearing)
 

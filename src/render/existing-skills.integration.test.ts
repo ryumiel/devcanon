@@ -467,6 +467,12 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
     );
+    expect(snapshotRecipe).toContain("controller-computed changed-file list");
+    expect(snapshotRecipe).toContain(
+      "git diff -z --name-status --no-renames BASE..HEAD",
+    );
+    expect(snapshotRecipe).toContain("not snapshot-provided");
+    expect(snapshotRecipe).toContain("paths or statuses");
     expect(snapshotRecipe).toContain(
       "Snapshot content is controller bookkeeping only",
     );
@@ -551,6 +557,19 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("snapshot notice line");
     expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
     expect(playSubagentExecutionBody).toContain("SNAPSHOT_ENTRY_PATH");
+    expect(playSubagentExecutionBody).toContain(
+      "controller's own changed-file list",
+    );
+    expect(playSubagentExecutionBody).toContain("not the");
+    expect(playSubagentExecutionBody).toContain(
+      "snapshot-provided path or status",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "same symlink-component guard as the producer",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "`path` + `status` set must exactly equal",
+    );
     const baselineMatch = playSubagentExecutionBody.match(
       /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
     );
@@ -599,6 +618,7 @@ mkdir -p .ephemeral
       "One object per file the implementer added, modified, or deleted",
     );
     expect(adr0014).toContain("committed `HEAD:<path>` blob");
+    expect(adr0014).toContain("complete `path` + `status` set must exactly");
     expect(adr0014).toContain("Snapshot written to <repo-relative-path>.");
     expect(adr0014).not.toContain("post-commit Git blob");
     expect(adr0014).not.toContain("committed link-text blob");
@@ -1003,6 +1023,93 @@ mkdir -p .ephemeral
             "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
           ),
         });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
+    "treats pathspec-looking changed filenames as literal HEAD paths",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        const magicPath = ":(glob)*.md";
+        const magicContent = "literal pathspec-looking name\n";
+        await writeFile(path.join(tempDir, magicPath), magicContent);
+        await execFileAsync("git", ["add", "--", magicPath], { cwd: tempDir });
+        await execFileAsync(
+          "git",
+          ["commit", "-m", "feat: add pathspec-looking file"],
+          {
+            cwd: tempDir,
+          },
+        );
+        const { stdout: headStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+
+        await execFileAsync("bash", [helperScript], {
+          cwd: tempDir,
+          env: {
+            ...process.env,
+            BASE_SHA: baseStdout.trim(),
+            SNAPSHOT_TASK_ID: "Task 1",
+          },
+        });
+
+        const snapshot = JSON.parse(
+          await readFile(path.join(tempDir, snapshotFile), "utf-8"),
+        ) as {
+          files: Array<{ path: string; content: string }>;
+        };
+        expect(snapshot.files).toContainEqual(
+          expect.objectContaining({
+            path: magicPath,
+            content: magicContent,
+          }),
+        );
       } finally {
         await cleanupTempDir(tempDir);
       }
@@ -1437,6 +1544,32 @@ mkdir -p .ephemeral
     );
 
     expect(await readFile(helperScript, "utf-8")).toContain("sha256sum");
+  });
+
+  it("pins reviewer prompt snapshot trust-boundary language", async () => {
+    const repoRoot = process.cwd();
+    const specReviewerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+      ),
+      "utf-8",
+    );
+    const codeQualityReviewerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+      ),
+      "utf-8",
+    );
+
+    for (const prompt of [specReviewerPrompt, codeQualityReviewerPrompt]) {
+      expect(prompt).toContain("Read the implementation from disk");
+      expect(prompt).toContain("Do not consume any content snapshot");
+      expect(prompt).toContain(
+        "snapshots are for the controller's bookkeeping only",
+      );
+    }
   });
 
   it.skipIf(process.platform === "win32" || !jqAvailable)(
