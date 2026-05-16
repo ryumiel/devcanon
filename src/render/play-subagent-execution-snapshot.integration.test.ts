@@ -132,7 +132,7 @@ async function readSnapshot<T>(cwd: string, headSha: string): Promise<T> {
 }
 
 describe("play-subagent-execution snapshot helper", () => {
-  it.skipIf(process.platform === "win32" || !jqAvailable)(
+  it.skipIf(!jqAvailable)(
     "executes the canonical snapshot helper for changed file classes",
     async () => {
       const helperSource = await readFile(snapshotHelperScript, "utf-8");
@@ -460,7 +460,7 @@ describe("play-subagent-execution snapshot helper", () => {
     30_000,
   );
 
-  it.skipIf(!jqAvailable)(
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
     "rejects changed paths that start with parent-directory components",
     async () => {
       const tempDir = await mkdtemp(
