@@ -77,6 +77,39 @@ is_binary_path() {
   return 1
 }
 
+reject_symlink_changed_path() {
+  local path="$1"
+  local rest="$path"
+  local component current=""
+
+  case "$path" in
+    ''|/*|.|..|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
+      echo "unsupported repo-relative path for implementer/snapshot/v1: $path" >&2
+      exit 1
+      ;;
+  esac
+
+  while [ -n "$rest" ]; do
+    component=${rest%%/*}
+    if [ "$component" = "$rest" ]; then
+      rest=""
+    else
+      rest=${rest#*/}
+    fi
+
+    if [ -z "$current" ]; then
+      current="$component"
+    else
+      current="$current/$component"
+    fi
+
+    if [ -L "$current" ]; then
+      echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
+      exit 1
+    fi
+  done
+}
+
 printf '[]\n' > "$FILES_JSON"
 
 while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
@@ -97,10 +130,7 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       '{path:$path,status:$status,lines:0,bytes:0,sha256:""}' \
       > "$ENTRY_JSON"
   else
-    if [ -L "$path" ]; then
-      echo "symlink changed path is unsupported for implementer/snapshot/v1: $path" >&2
-      exit 1
-    fi
+    reject_symlink_changed_path "$path"
 
     lines=$(awk 'END{print NR}' < "$path")
     bytes=$(wc -c < "$path" | tr -d ' ')

@@ -460,7 +460,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
     );
-    expect(snapshotRecipe).toContain("separate explicit fallback contract");
+    expect(snapshotRecipe).not.toContain("separate explicit fallback contract");
     expect(snapshotRecipe).not.toContain("Write tool");
     expect(snapshotRecipe).not.toContain("git cat-file blob");
     expect(snapshotRecipe).not.toContain("Complete general procedure");
@@ -575,7 +575,9 @@ mkdir -p .ephemeral
       "prompt text is only the compact handoff to those sources",
     );
     expect(adr0014).toContain("Unsupported status letters");
-    expect(adr0014).toContain("Non-deleted symlink paths route to `BLOCKED`");
+    expect(adr0014).toContain(
+      "Non-deleted symlink paths and symlinked parent components route to",
+    );
     expect(adr0014).toContain("intentional v1 helper behavior change");
     expect(adr0014).toContain(
       "One object per file the implementer added, modified, or deleted",
@@ -917,6 +919,85 @@ mkdir -p .ephemeral
   );
 
   it.skipIf(!symlinkAvailable || !jqAvailable)(
+    "rejects changed paths with symlinked parent directories before reading content",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      const outsideDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-target-"),
+      );
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await mkdir(path.join(tempDir, "dir"));
+        await writeFile(path.join(tempDir, "dir/file.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "dir/file.md"), "committed\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "feat: update file"], {
+          cwd: tempDir,
+        });
+
+        await writeFile(
+          path.join(outsideDir, "file.md"),
+          "outside content must not be read\n",
+        );
+        await rm(path.join(tempDir, "dir"), { recursive: true, force: true });
+        await symlink(outsideDir, path.join(tempDir, "dir"));
+
+        await expect(
+          execFileAsync("bash", [helperScript], {
+            cwd: tempDir,
+            env: {
+              ...process.env,
+              BASE_SHA: baseStdout.trim(),
+              SNAPSHOT_TASK_ID: "Task 1",
+            },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "symlink changed path is unsupported for implementer/snapshot/v1: dir/file.md",
+          ),
+        });
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+        await rm(outsideDir, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!symlinkAvailable || !jqAvailable)(
     "rejects unsupported type-change status",
     async () => {
       const repoRoot = process.cwd();
@@ -1089,7 +1170,17 @@ mkdir -p .ephemeral
     30_000,
   );
 
-  it.skipIf(process.platform !== "win32" && !jqAvailable)(
+  it("documents sha256sum fallback in the helper source", async () => {
+    const repoRoot = process.cwd();
+    const helperScript = path.join(
+      repoRoot,
+      "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+    );
+
+    expect(await readFile(helperScript, "utf-8")).toContain("sha256sum");
+  });
+
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
     "uses sha256sum when shasum is unavailable",
     async () => {
       const repoRoot = process.cwd();
@@ -1097,10 +1188,6 @@ mkdir -p .ephemeral
         repoRoot,
         "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
       );
-      if (process.platform === "win32") {
-        expect(await readFile(helperScript, "utf-8")).toContain("sha256sum");
-        return;
-      }
 
       const tempDir = await mkdtemp(
         path.join(os.tmpdir(), "devcanon-snapshot-"),
@@ -1380,6 +1467,20 @@ mkdir -p .ephemeral
           await rm(tempDir, { recursive: true, force: true });
         }
       }
+
+      await expect(
+        writeSnapshotOnCurrentBranch(async (tempDir) => {
+          await execFileAsync(
+            "git",
+            ["checkout", "-b", "feature/snapshot+recipe"],
+            {
+              cwd: tempDir,
+            },
+          );
+        }),
+      ).resolves.toMatch(
+        /^Snapshot written to \.ephemeral\/feature-snapshotrecipe-[0-9a-f]{40}-snapshot\.json\.$/,
+      );
 
       await expect(
         writeSnapshotOnCurrentBranch(async (tempDir) => {

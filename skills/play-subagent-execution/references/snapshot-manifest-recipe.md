@@ -24,8 +24,7 @@ reports `BLOCKED`.
 
 Use the executable helper script supplied by the controller. Normal dispatches
 must report `BLOCKED` if the helper script is unavailable; do not hand-roll the
-snapshot procedure from this recipe. A controller may override this only by
-providing a separate explicit fallback contract in the dispatch.
+snapshot procedure from this recipe.
 
 ```bash
 BASE_SHA="$BASE_SHA" SNAPSHOT_TASK_ID="$SNAPSHOT_TASK_ID" bash "$SNAPSHOT_HELPER_SCRIPT"
@@ -88,8 +87,8 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 - `status` is `added`, `modified`, or `deleted`; unsupported git status letters
   block the snapshot.
 - Non-deleted symlink paths block the snapshot before any working-tree path read.
-  The helper must not follow changed symlinks while computing metadata or
-  content.
+  Symlinked parent components also block the snapshot. The helper must not
+  follow changed symlinks while computing metadata or content.
 - For non-deleted files, read the post-commit working-tree path and compute
   `lines`, `bytes`, `sha256`, and included `content` from that path.
 - `lines` is `awk 'END{print NR}' < "$path"` post-commit, or `0` for deleted
@@ -118,10 +117,9 @@ In normal dispatches, the helper owns persistence and verification. It writes
 the envelope to `$SNAPSHOT_FILE`, performs the post-write size check, and prints
 the success notice. Do not assemble or write the snapshot manually.
 
-If a controller supplies a separate explicit fallback contract because the
-helper is unavailable, that fallback must preserve the same write guard and
-post-write size check. Do not append. The post-write size check is the integrity
-gate:
+Because the helper is authoritative for executable snapshot behavior, do not
+substitute a dispatch-local fallback contract when the helper is unavailable.
+Do not append. The post-write size check is the integrity gate:
 
 ```bash
 [ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE" >&2; exit 1; }

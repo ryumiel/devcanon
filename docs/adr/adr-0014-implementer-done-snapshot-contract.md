@@ -134,19 +134,19 @@ teardown (consistent with ADR-0012 cleanup).
 
 Per-field contract:
 
-| Field      | Type                                       | Notes                                                                                                                                                                                                    |
-| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                                |
-| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                                 |
-| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                          |
-| `files`    | array                                      | One object per file the implementer added, modified, or deleted for this task.                                                                                                                           |
-| `path`     | string, repo-relative                      | Path of the added, modified, or deleted file.                                                                                                                                                            |
-| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors NUL-delimited `git diff -z --name-status --no-renames` letters mapped to words: `A`->`added`, `M`->`modified`, `D`->`deleted`. Unsupported status letters such as `T` or `U` route to `BLOCKED`. |
-| `lines`    | integer                                    | Visible line count of the post-commit working-tree path. Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`.       |
-| `bytes`    | integer                                    | Byte count of the post-commit working-tree path. For deleted files, `0`.                                                                                                                                 |
-| `sha256`   | string, hex                                | SHA-256 of the post-commit working-tree path. For deleted files, `""`.                                                                                                                                   |
-| `content`  | string OR omitted                          | Verbatim post-commit working-tree path content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                       |
-| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                               |
+| Field      | Type                                       | Notes                                                                                                                                                                                              |
+| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`   | string literal `"implementer/snapshot/v1"` | Pinned. Additive changes stay on `v1`; renames/type changes require `v2`.                                                                                                                          |
+| `task_id`  | string                                     | Free-form task identifier from the plan task header (e.g., `"Task 3"`). Provenance only.                                                                                                           |
+| `head_sha` | string                                     | Post-commit SHA, full 40-char lowercase hex (`^[0-9a-f]{40}$`).                                                                                                                                    |
+| `files`    | array                                      | One object per file the implementer added, modified, or deleted for this task.                                                                                                                     |
+| `path`     | string, repo-relative                      | Path of the added, modified, or deleted file.                                                                                                                                                      |
+| `status`   | `"added"` \| `"modified"` \| `"deleted"`   | Mirrors NUL-delimited `git diff -z --name-status --no-renames` letters mapped to words: `A`->`added`, `M`->`modified`, `D`->`deleted`. Unsupported status letters such as `T` route to `BLOCKED`.  |
+| `lines`    | integer                                    | Visible line count of the post-commit working-tree path. Equals `wc -l` for newline-terminated files and is one greater than `wc -l` for files lacking a trailing newline. For deleted files, `0`. |
+| `bytes`    | integer                                    | Byte count of the post-commit working-tree path. For deleted files, `0`.                                                                                                                           |
+| `sha256`   | string, hex                                | SHA-256 of the post-commit working-tree path. For deleted files, `""`.                                                                                                                             |
+| `content`  | string OR omitted                          | Verbatim post-commit working-tree path content. Present when `bytes <= 64_000`, `status != "deleted"`, and the file is not binary.                                                                 |
+| `skipped`  | string OR omitted                          | When `content` is omitted on a non-deleted file, the reason (`"size>64KB"` or `"binary"`).                                                                                                         |
 
 Mutual exclusion: exactly one of `content` or `skipped` is present
 per file, except when `status == "deleted"` (both omitted; the
@@ -156,10 +156,11 @@ The `files` array MUST NOT be empty: a DONE report implies at least
 one commit landed between `BASE_SHA` and `HEAD`. If the implementer
 made no changes, it reports BLOCKED instead of writing a snapshot.
 
-Non-deleted symlink paths route to `BLOCKED` before the producer reads
-line count, byte count, hash, or content. This preserves the
-post-commit working-tree path contract for ordinary files without
-following a changed link to content outside the committed diff.
+Non-deleted symlink paths and symlinked parent components route to
+`BLOCKED` before the producer reads line count, byte count, hash, or
+content. This preserves the post-commit working-tree path contract for
+ordinary files without following a changed link to content outside the
+committed diff.
 This is an intentional v1 helper behavior change from the older
 prompt-embedded shell sketch, which read working-tree paths and
 therefore followed non-deleted symlinks.
