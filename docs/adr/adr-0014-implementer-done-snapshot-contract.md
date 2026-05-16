@@ -169,9 +169,9 @@ therefore followed non-deleted symlinks.
 Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
 text but that do not round-trip byte-for-byte through `jq --rawfile`
-and `jq -rj` streamed into the helper's SHA-256 hasher also emit
-`"skipped": "binary"` because JSON string transport would not be
-byte-faithful. Skip precedence is fixed:
+and `jq -rj '@base64'` comparison also emit `"skipped": "binary"`
+because JSON string transport would not be byte-faithful. Skip
+precedence is fixed:
 Git-reported binary files emit `"skipped": "binary"` first; non-binary
 files over 64 KB emit `"skipped": "size>64KB"` before JSON transport
 validation; non-binary files at or under 64 KB that fail byte-faithful

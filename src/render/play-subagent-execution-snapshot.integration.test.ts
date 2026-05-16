@@ -94,8 +94,10 @@ describe("play-subagent-execution snapshot helper", () => {
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
       expect(helperSource).toContain("sha256_stream");
+      expect(helperSource).toContain("base64_file");
       expect(helperSource).toContain("content_round_trips_through_jq");
       expect(helperSource).toContain("jq -rj");
+      expect(helperSource).toContain("@base64");
       expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
       expect(helperSource).toContain('git ls-tree HEAD -- ":(literal)$path"');
       expect(helperSource).toContain("sha256sum");
@@ -1153,6 +1155,7 @@ describe("play-subagent-execution snapshot helper", () => {
           "tr",
           "grep",
           "cat",
+          "base64",
           "mktemp",
           "rm",
           "mkdir",
@@ -1262,6 +1265,7 @@ describe("play-subagent-execution snapshot helper", () => {
           "tr",
           "grep",
           "cat",
+          "base64",
           "mktemp",
           "rm",
           "mkdir",
@@ -1326,6 +1330,7 @@ describe("play-subagent-execution snapshot helper", () => {
           "tr",
           "grep",
           "cat",
+          "base64",
           "mktemp",
           "rm",
           "mkdir",

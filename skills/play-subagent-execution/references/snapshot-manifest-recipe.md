@@ -15,10 +15,10 @@ this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
 If `git rev-parse HEAD` fails before or after implementation, report
 `BLOCKED`. The snapshot contract requires a known base and head.
 
-Runtime prerequisites: `bash`, `git`, `jq`, `awk`, `wc`, `tr`, `mktemp`, `rm`,
-`mkdir`, `mv`, and either `shasum` or `sha256sum`. `jq` is a hard helper
-prerequisite; if it is unavailable, the helper exits nonzero and the
-implementer reports `BLOCKED`.
+Runtime prerequisites: `bash`, `git`, `jq`, `awk`, `wc`, `tr`, `base64`,
+`mktemp`, `rm`, `mkdir`, `mv`, and either `shasum` or `sha256sum`. `jq` is a
+hard helper prerequisite; if it is unavailable, the helper exits nonzero and
+the implementer reports `BLOCKED`.
 
 ## Recipe
 
@@ -55,7 +55,7 @@ The helper script owns the full construction procedure:
 - Builds the JSON envelope with `jq` and `jq --rawfile` for UTF-8-safe file
   content, so quotes, backslashes, newlines, and trailing newlines stay
   byte-faithful. Blobs that do not round-trip byte-for-byte through
-  `jq --rawfile` and `jq -rj` streamed into the helper's SHA-256 hasher are
+  `jq --rawfile` and `jq -rj '@base64'` comparison are
   skipped as `"binary"`.
 - Performs the post-write regular-file and size checks before printing the
   success notice.
@@ -111,7 +111,7 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
   `""`.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, the file
   is not reported as binary by Git, and the blob round-trips byte-for-byte
-  through `jq --rawfile` and `jq -rj` streamed into the helper's SHA-256 hasher.
+  through `jq --rawfile` and `jq -rj '@base64'` comparison.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to
   `"size>64KB"` or `"binary"`. Mutual exclusion: exactly one of `content` or
   `skipped` is present per non-deleted file.

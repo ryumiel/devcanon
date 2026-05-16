@@ -381,8 +381,10 @@ mkdir -p .ephemeral
     );
     expect(snapshotRecipe).toContain("scripts/write-snapshot-manifest.sh");
     expect(snapshotRecipe).toContain("SNAPSHOT_HELPER_SCRIPT");
-    expect(snapshotRecipe).toContain("`jq` is a hard helper");
+    expect(snapshotRecipe).toContain("`jq` is a");
+    expect(snapshotRecipe).toContain("hard helper prerequisite");
     expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
+    expect(snapshotRecipe).toContain("`base64`");
     expect(snapshotRecipe).toContain("`mkdir`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
     expect(snapshotRecipe).toContain(

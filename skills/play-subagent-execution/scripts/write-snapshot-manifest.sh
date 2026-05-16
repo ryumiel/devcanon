@@ -28,16 +28,26 @@ sha256_file() {
   sha256_stream < "$path"
 }
 
+base64_file() {
+  local path="$1"
+  if command -v base64 >/dev/null 2>&1; then
+    base64 < "$path" | tr -d '\r\n'
+  else
+    echo "base64 is required to write implementer/snapshot/v1" >&2
+    exit 1
+  fi
+}
+
 content_round_trips_through_jq() {
   local path="$1"
-  local raw_json original_hash roundtrip_hash result=1
+  local raw_json original_base64 roundtrip_base64 result=1
 
   raw_json=$(mktemp)
 
   if jq -n --rawfile content "$path" '$content' > "$raw_json"; then
-    original_hash=$(sha256_file "$path")
-    if roundtrip_hash=$(jq -rj . "$raw_json" | sha256_stream) &&
-      [ "$original_hash" = "$roundtrip_hash" ]; then
+    original_base64=$(base64_file "$path")
+    if roundtrip_base64=$(jq -rj '@base64' "$raw_json") &&
+      [ "$original_base64" = "$roundtrip_base64" ]; then
       result=0
     fi
   fi
