@@ -196,11 +196,9 @@ supplies with each implementer dispatch.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.
-- 64 KB clears the largest skill markdown in this repo
-  (`skills/play-review/SKILL.md` ~42 KB; next-largest
-  `skills/issue-priming-workflow/SKILL.md` ~34 KB) with comfortable
-  headroom for JSON-encoding overhead and future growth. ADRs are
-  smaller still (~6–15 KB each).
+- 64 KB clears the current largest Markdown skill and reference files in
+  this repo with comfortable headroom for JSON-encoding overhead and
+  future growth. ADRs are smaller still (~6–15 KB each).
 - Per-file skip with a recorded reason lets the controller fall back
   to disk read for that one file rather than disabling the whole
   snapshot.

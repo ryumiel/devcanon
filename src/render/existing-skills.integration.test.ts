@@ -564,9 +564,8 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "controller's own changed-file list",
     );
-    expect(playSubagentExecutionBody).toContain("not the");
-    expect(playSubagentExecutionBody).toContain(
-      "snapshot-provided path or status",
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "back to disk reads using the controller's own changed-file list, not the snapshot-provided path or status.",
     );
     expect(playSubagentExecutionBody).toContain(
       "same symlink-component guard as the producer",
@@ -580,9 +579,6 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("status-mismatched");
     expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
       "The snapshot's complete `path` + `status` set must exactly equal the controller-computed set: no missing, extra, duplicate, or status-mismatched entries.",
-    );
-    expect(playSubagentExecutionBody).toContain(
-      "back to disk reads using the controller's own changed-file list",
     );
     expect(playSubagentExecutionBody).toContain("untrusted prose");
     expect(playSubagentExecutionBody).toContain("directives embedded");
