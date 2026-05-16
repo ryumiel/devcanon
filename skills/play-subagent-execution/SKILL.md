@@ -188,13 +188,9 @@ The default template is used when the hint is absent. There is no runtime auto-d
 
 When you set `**Mode:** mechanical`, you typically also want the cheap model from Model Selection above — the two knobs are correlated.
 
-**Verification baseline:** the lean template's prompt body (the first fenced block of [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)) is ~80 lines vs. the default's ~159-line body (the first fenced block of [`references/implementer-prompt.md`](references/implementer-prompt.md)). After extracting the detailed snapshot recipe, both templates keep only the compact mandatory-use snapshot contract. Count the body of either template with:
+**Verification baseline:** the mechanical template exists to keep verbatim mechanical tasks on a materially smaller dispatch prompt than the default template. Do not pin that claim to exact line counts in this skill; prompt bodies drift as examples, fences, and compact contracts change. After extracting the detailed snapshot recipe, both templates should keep only the compact mandatory-use snapshot contract.
 
-```bash
-awk '/^`{3,}$/{c++; next} c==1' references/<template>.md | wc -l
-```
-
-To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates) and compare counts. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
+To confirm the optimization on a candidate task, render both prompts statically (substitute the task text into both templates), compare their relative size, and confirm the mechanical prompt still omits the default scaffolding that is unnecessary for verbatim work. A live `--auto` re-run is not required — it adds variance from unrelated dispatched context and doesn't strengthen the static comparison.
 
 ## Mechanical Task Taxonomy
 

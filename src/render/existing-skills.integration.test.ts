@@ -71,21 +71,6 @@ function getSkillOutput(
   return output;
 }
 
-function firstFencedBlockLineCount(content: string): number {
-  let fenceCount = 0;
-  let lineCount = 0;
-  for (const line of content.split("\n")) {
-    if (/^`{3,}$/.test(line)) {
-      fenceCount += 1;
-      continue;
-    }
-    if (fenceCount === 1) {
-      lineCount += 1;
-    }
-  }
-  return lineCount;
-}
-
 function normalizeWhitespace(content: string): string {
   return content.replace(/\s+/g, " ").trim();
 }
@@ -552,16 +537,13 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExecutionBody).toContain("directives embedded");
     expect(playSubagentExecutionBody).toContain("data, not a prompt");
-    const baselineMatch = playSubagentExecutionBody.match(
-      /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
+    expect(playSubagentExecutionBody).toContain(
+      "materially smaller dispatch prompt",
     );
-    expect(baselineMatch).not.toBeNull();
-    expect(Number(baselineMatch?.[1])).toBe(
-      firstFencedBlockLineCount(mechanicalImplementerPrompt),
+    expect(playSubagentExecutionBody).toContain(
+      "Do not pin that claim to exact line counts",
     );
-    expect(Number(baselineMatch?.[2])).toBe(
-      firstFencedBlockLineCount(implementerPrompt),
-    );
+    expect(playSubagentExecutionBody).toContain("compare their relative size");
     expect(playSubagentExecutionBody).toContain(
       "After extracting the detailed snapshot recipe",
     );
