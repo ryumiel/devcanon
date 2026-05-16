@@ -60,16 +60,11 @@ After the implementer commits its work, before reporting, it writes a
 side-channel snapshot manifest. The path:
 
 ```text
-.ephemeral/<branch_slug>-<head_sha>-snapshot.json
+.ephemeral/snapshot-<head_sha>.json
 ```
 
 - `<head_sha>` — full 40-character lowercase hex from
   `git rev-parse HEAD` post-commit. Regex `^[0-9a-f]{40}$`.
-- `<branch_slug>` — derived using the canonical bash from
-  `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-  (including the `detached` and `unnamed` substitutions). The
-  implementer reuses that canon — it does not invent a new slug
-  rule.
 
 Detailed producer-side construction instructions live in the canonical
 snapshot-manifest recipe under
@@ -223,17 +218,17 @@ supplies with each implementer dispatch.
 After the implementer reports DONE (or DONE_WITH_CONCERNS), the
 controller parses the literal `Snapshot written to <repo-relative-path>.`
 line off the report and validates the parsed path with the canonical
-guard narrowed to the `*-snapshot.json` suffix:
+guard narrowed to the `snapshot-*.json` name:
 
 ```bash
 SNAPSHOT_OK=true
 case "$SNAPSHOT_FILE" in
-  .ephemeral/*-snapshot.json) ;;
+  .ephemeral/snapshot-*.json) ;;
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
 SNAPSHOT_BASENAME=${SNAPSHOT_FILE#.ephemeral/}
 case "$SNAPSHOT_FILE" in
-  .ephemeral/*/*-snapshot.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
+  .ephemeral/*/snapshot-*.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
 [ "$SNAPSHOT_BASENAME" != "$SNAPSHOT_FILE" ] && [ "$SNAPSHOT_BASENAME" != "" ] || { echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ "${SNAPSHOT_BASENAME#*/}" = "$SNAPSHOT_BASENAME" ] || { echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
@@ -406,7 +401,7 @@ reuse is opportunistic; the cost is one notice line and one
   always needs content for line-range extraction, so the hybrid's
   optimization rarely pays.
 - **Per-task `task<N>` segment in path.** Path scheme
-  `<branch_slug>-<head_sha>-task<N>-snapshot.json`. Rejected:
+  `snapshot-<head_sha>-task<N>.json`. Rejected:
   per-commit `head_sha` already disambiguates because each task
   produces a new commit. The `task<N>` segment is redundant.
 - **500-line size threshold (matching the issue body's example).**

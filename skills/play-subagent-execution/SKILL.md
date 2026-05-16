@@ -347,12 +347,12 @@ guard narrowed to the snapshot suffix:
 ```bash
 SNAPSHOT_OK=true
 case "$SNAPSHOT_FILE" in
-  .ephemeral/*-snapshot.json) ;;
+  .ephemeral/snapshot-*.json) ;;
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
 SNAPSHOT_BASENAME=${SNAPSHOT_FILE#.ephemeral/}
 case "$SNAPSHOT_FILE" in
-  .ephemeral/*/*-snapshot.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
+  .ephemeral/*/snapshot-*.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
 [ "$SNAPSHOT_BASENAME" != "$SNAPSHOT_FILE" ] && [ "$SNAPSHOT_BASENAME" != "" ] || { echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ "${SNAPSHOT_BASENAME#*/}" = "$SNAPSHOT_BASENAME" ] || { echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }

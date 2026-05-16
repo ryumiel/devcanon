@@ -379,10 +379,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("private temp file");
     expect(snapshotRecipe).toContain("rename that output");
     expect(snapshotRecipe).toContain("head_sha");
-    expect(snapshotRecipe).toContain("BRANCH_SLUG");
-    expect(snapshotRecipe).toContain(
-      ".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json",
-    );
+    expect(snapshotRecipe).toContain(".ephemeral/snapshot-${HEAD_SHA}.json");
     expect(snapshotRecipe).toContain(
       'git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"',
     );
@@ -495,7 +492,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExecutionBody).toContain("hard helper prerequisite");
     expect(playSubagentExecutionBody).toContain("snapshot notice line");
-    expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
+    expect(playSubagentExecutionBody).toContain(".ephemeral/*/snapshot-*.json");
     expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
       "snapshot-specific flatness, symlink, and regular-file checks",
     );
@@ -551,7 +548,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
     expect(adr0014).toContain("SNAPSHOT_BASENAME=");
-    expect(adr0014).toContain(".ephemeral/*/*-snapshot.json");
+    expect(adr0014).toContain(".ephemeral/*/snapshot-*.json");
     expect(adr0014).toContain("own changed-file list");
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");

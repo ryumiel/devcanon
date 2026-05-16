@@ -125,7 +125,7 @@ async function runSnapshotHelper(
 async function readSnapshot<T>(cwd: string, headSha: string): Promise<T> {
   return JSON.parse(
     await readFile(
-      path.join(cwd, `.ephemeral/main-${headSha}-snapshot.json`),
+      path.join(cwd, `.ephemeral/snapshot-${headSha}.json`),
       "utf-8",
     ),
   ) as T;
@@ -141,7 +141,7 @@ describe("play-subagent-execution snapshot helper", () => {
         '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
       );
       expect(helperSource).toContain(
-        'SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot-work.XXXXXX")',
+        'SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.snapshot-${HEAD_SHA}-work.XXXXXX")',
       );
       expect(helperSource).toContain(
         'SNAPSHOT_TMP=$(mktemp "$SNAPSHOT_WORK_DIR/snapshot.XXXXXX")',
@@ -209,7 +209,7 @@ describe("play-subagent-execution snapshot helper", () => {
         const headSha = await commitChanges(tempDir, "feat: update files", [
           "-A",
         ]);
-        const snapshotFile = `.ephemeral/main-${headSha}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headSha}.json`;
 
         await mkdir(path.join(tempDir, ".ephemeral"));
         if (symlinkAvailable) {
@@ -580,7 +580,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
 
         await runSnapshotHelper(tempDir, baseStdout.trim());
 
@@ -633,7 +633,7 @@ describe("play-subagent-execution snapshot helper", () => {
         );
         const snapshotFile = path.join(
           tempDir,
-          `.ephemeral/main-${headStdout.trim()}-snapshot.json`,
+          `.ephemeral/snapshot-${headStdout.trim()}.json`,
         );
         const hardlinkTarget = path.join(tempDir, "hardlink-target.json");
         await mkdir(path.dirname(snapshotFile), { recursive: true });
@@ -684,7 +684,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
         await mkdir(path.join(tempDir, snapshotFile), { recursive: true });
 
         await expect(
@@ -731,7 +731,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
         const hardlinkTarget = path.join(tempDir, "hardlink-source.md");
         await writeFile(hardlinkTarget, "outside secret\n");
         await rm(path.join(tempDir, "file.md"));
@@ -890,7 +890,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
 
         await runSnapshotHelper(tempDir, baseStdout.trim());
 
@@ -960,7 +960,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
 
         const fakeBin = path.join(tempDir, "fake-bin");
         await mkdir(fakeBin);
@@ -1055,7 +1055,7 @@ describe("play-subagent-execution snapshot helper", () => {
             cwd: tempDir,
           },
         );
-        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const snapshotFile = `.ephemeral/snapshot-${headStdout.trim()}.json`;
 
         const fakeBin = path.join(tempDir, "fake-bin");
         await mkdir(fakeBin);
@@ -1206,7 +1206,7 @@ describe("play-subagent-execution snapshot helper", () => {
   );
 
   it.skipIf(!jqAvailable)(
-    "uses canonical branch slug fallbacks for detached and unsafe branch names",
+    "uses HEAD-only snapshot paths across detached and unsafe branch names",
     async () => {
       async function writeSnapshotOnCurrentBranch(
         branchSetup: (tempDir: string) => Promise<void>,
@@ -1253,7 +1253,7 @@ describe("play-subagent-execution snapshot helper", () => {
           );
         }),
       ).resolves.toMatch(
-        /^Snapshot written to \.ephemeral\/feature-snapshotrecipe-[0-9a-f]{40}-snapshot\.json\.$/,
+        /^Snapshot written to \.ephemeral\/snapshot-[0-9a-f]{40}\.json\.$/,
       );
 
       await expect(
@@ -1263,7 +1263,7 @@ describe("play-subagent-execution snapshot helper", () => {
           });
         }),
       ).resolves.toMatch(
-        /^Snapshot written to \.ephemeral\/feature-a\.b-[0-9a-f]{40}-snapshot\.json\.$/,
+        /^Snapshot written to \.ephemeral\/snapshot-[0-9a-f]{40}\.json\.$/,
       );
 
       await expect(
@@ -1273,7 +1273,7 @@ describe("play-subagent-execution snapshot helper", () => {
           });
         }),
       ).resolves.toMatch(
-        /^Snapshot written to \.ephemeral\/detached-[0-9a-f]{40}-snapshot\.json\.$/,
+        /^Snapshot written to \.ephemeral\/snapshot-[0-9a-f]{40}\.json\.$/,
       );
 
       await expect(
@@ -1283,7 +1283,7 @@ describe("play-subagent-execution snapshot helper", () => {
           });
         }),
       ).resolves.toMatch(
-        /^Snapshot written to \.ephemeral\/unnamed-[0-9a-f]{40}-snapshot\.json\.$/,
+        /^Snapshot written to \.ephemeral\/snapshot-[0-9a-f]{40}\.json\.$/,
       );
     },
     30_000,

@@ -33,12 +33,8 @@ BASE_SHA="$BASE_SHA" SNAPSHOT_TASK_ID="$SNAPSHOT_TASK_ID" bash "$SNAPSHOT_HELPER
 The helper script owns the full construction procedure:
 
 - Resolves `HEAD_SHA` with `git rev-parse HEAD`.
-- Resolves `BRANCH_SLUG` using the canonical bash from
-  `skills/play-review/SKILL.md` section Output -> Side-channel file -> Path.
-  The `-C "$WORKING_DIRECTORY"` form is dropped because the implementer runs in
-  cwd.
 - Computes `SNAPSHOT_FILE` as
-  `.ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json`.
+  `.ephemeral/snapshot-${HEAD_SHA}.json`.
 - Applies the `.ephemeral` write guard: reject a symlinked `.ephemeral`
   directory, create `.ephemeral` when absent, create a private scratch directory
   under `.ephemeral`, write JSON to a private temp file in that scratch

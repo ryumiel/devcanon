@@ -89,27 +89,14 @@ command -v jq >/dev/null 2>&1 || {
 git rev-parse --verify "${BASE_SHA}^{commit}" >/dev/null
 HEAD_SHA=$(git rev-parse HEAD)
 
-RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$RAW_BRANCH" = HEAD ]; then
-  BRANCH_SLUG=detached
-else
-  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
-  while [ "${BRANCH_SLUG#*..}" != "$BRANCH_SLUG" ]; do
-    BRANCH_SLUG=${BRANCH_SLUG//../.}
-  done
-  case "$BRANCH_SLUG" in
-    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
-  esac
-fi
-
-SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
+SNAPSHOT_FILE=".ephemeral/snapshot-${HEAD_SHA}.json"
 SNAPSHOT_TMP=""
 SNAPSHOT_WORK_DIR=""
 
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.${BRANCH_SLUG}-${HEAD_SHA}-snapshot-work.XXXXXX")
+SNAPSHOT_WORK_DIR=$(mktemp -d ".ephemeral/.snapshot-${HEAD_SHA}-work.XXXXXX")
 SNAPSHOT_TMP=$(mktemp "$SNAPSHOT_WORK_DIR/snapshot.XXXXXX")
 
 STATUS_FILE=$(make_temp_file status)
