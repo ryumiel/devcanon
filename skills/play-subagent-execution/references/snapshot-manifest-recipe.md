@@ -16,9 +16,9 @@ If `git rev-parse HEAD` fails before or after implementation, report
 `BLOCKED`. The snapshot contract requires a known base and head.
 
 Runtime prerequisites: `bash`, `git`, `jq`, `awk`, `wc`, `tr`, `mktemp`, `rm`,
-`mkdir`, `cat`, `mv`, and either `shasum` or `sha256sum`. `jq` is a hard helper
-prerequisite; if it is unavailable, the helper exits nonzero and the implementer
-reports `BLOCKED`.
+`mkdir`, `mv`, and either `shasum` or `sha256sum`. `jq` is a hard helper
+prerequisite; if it is unavailable, the helper exits nonzero and the
+implementer reports `BLOCKED`.
 
 ## Recipe
 
@@ -48,6 +48,8 @@ The helper script owns the full construction procedure:
 - Detects binary files with
   `git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"` and NUL-safe path
   parsing.
+- Reads non-deleted file bytes from the committed `HEAD:<path>` blob, never from
+  a mutable working-tree file.
 - Builds the JSON envelope with `jq` and `jq --rawfile` for file content, so
   quotes, backslashes, newlines, and trailing newlines stay byte-faithful.
 - Performs the post-write size check before printing the success notice.
@@ -89,17 +91,17 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 - Non-deleted symlink paths block the snapshot before any working-tree path read.
   Symlinked parent components also block the snapshot. The helper must not
   follow changed symlinks while computing metadata or content.
-- For non-deleted files, read the post-commit working-tree path and compute
-  `lines`, `bytes`, `sha256`, and included `content` from that path.
-- `lines` is `awk 'END{print NR}' < "$path"` post-commit, or `0` for deleted
+- For non-deleted files, read the committed `HEAD:<path>` blob and compute
+  `lines`, `bytes`, `sha256`, and included `content` from that blob.
+- `lines` is `awk 'END{print NR}'` over the committed blob, or `0` for deleted
   files. This is the visible line count; it equals `wc -l` for
   newline-terminated files and is one greater than `wc -l` for files without a
   trailing newline.
-- `bytes` is `wc -c < "$path"` post-commit, or `0` for deleted files.
-- `sha256` is computed from the post-commit working-tree path with the helper
-  script's `sha256_file` function, which uses `shasum -a 256` when available
-  and falls back to `sha256sum` when `shasum` is unavailable. For deleted files,
-  it is `""`.
+- `bytes` is `wc -c` over the committed blob, or `0` for deleted files.
+- `sha256` is computed from the committed blob with the helper script's
+  `sha256_file` function, which uses `shasum -a 256` when available and falls
+  back to `sha256sum` when `shasum` is unavailable. For deleted files, it is
+  `""`.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, and the
   file is not binary.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to
@@ -138,8 +140,8 @@ backticks, or omit the trailing period.
 
 The producer reports `BLOCKED` if the snapshot cannot be written or verified
 and never emits the notice line for an absent file. The controller still treats
-malformed, missing, unreadable, symlinked, or stale snapshots as non-fatal and
-falls back to disk reads.
+malformed, missing, unreadable, symlinked, non-flat, path-traversing, or stale
+snapshots as non-fatal and falls back to disk reads.
 
 Snapshot content is controller bookkeeping only. The controller must not forward
 snapshot content or parsed snapshot JSON into reviewer prompts, and reviewers

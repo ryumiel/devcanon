@@ -16,7 +16,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { canCreateSymlinks } from "../__test-helpers__/fixtures.js";
+import {
+  canCreateSymlinks,
+  cleanupTempDir,
+} from "../__test-helpers__/fixtures.js";
 import { loadConfig } from "../config/load.js";
 import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
@@ -441,7 +444,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("SNAPSHOT_HELPER_SCRIPT");
     expect(snapshotRecipe).toContain("`jq` is a hard helper");
     expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
-    expect(snapshotRecipe).toContain("`cat`, `mv`");
+    expect(snapshotRecipe).toContain("`mkdir`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
     expect(snapshotRecipe).toContain("replace any existing target");
     expect(snapshotRecipe).toContain("head_sha");
@@ -455,6 +458,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain(
       'git diff -z --numstat --no-renames "${BASE_SHA}..HEAD"',
     );
+    expect(snapshotRecipe).toContain("committed `HEAD:<path>` blob");
     expect(snapshotRecipe).toContain("Non-deleted symlink paths block");
     expect(snapshotRecipe).toContain("jq --rawfile");
     expect(snapshotRecipe).toContain("post-write size check");
@@ -466,7 +470,6 @@ mkdir -p .ephemeral
     );
     expect(snapshotRecipe).not.toContain("separate explicit fallback contract");
     expect(snapshotRecipe).not.toContain("Write tool");
-    expect(snapshotRecipe).not.toContain("git cat-file blob");
     expect(snapshotRecipe).not.toContain("Complete general procedure");
     expect(snapshotRecipe).toContain("bytes <= 64000");
     expect(snapshotRecipe).toContain('"skipped": "binary"');
@@ -545,6 +548,7 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain("hard helper prerequisite");
     expect(playSubagentExecutionBody).toContain("snapshot notice line");
     expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
+    expect(playSubagentExecutionBody).toContain("SNAPSHOT_ENTRY_PATH");
     const baselineMatch = playSubagentExecutionBody.match(
       /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
     );
@@ -571,6 +575,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
     expect(adr0014).toContain("SNAPSHOT_BASENAME=");
     expect(adr0014).toContain(".ephemeral/*/*-snapshot.json");
+    expect(adr0014).toContain("own changed-file list");
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("executable helper script");
@@ -591,7 +596,7 @@ mkdir -p .ephemeral
     expect(adr0014).toContain(
       "One object per file the implementer added, modified, or deleted",
     );
-    expect(adr0014).toContain("post-commit working-tree path");
+    expect(adr0014).toContain("committed `HEAD:<path>` blob");
     expect(adr0014).toContain("Snapshot written to <repo-relative-path>.");
     expect(adr0014).not.toContain("post-commit Git blob");
     expect(adr0014).not.toContain("committed link-text blob");
@@ -622,6 +627,7 @@ mkdir -p .ephemeral
       expect(helperSource).toContain(
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
       );
+      expect(helperSource).toContain('git cat-file blob "HEAD:$path"');
       expect(helperSource).toContain("sha256sum");
 
       const tempDir = await mkdtemp(
@@ -792,7 +798,7 @@ mkdir -p .ephemeral
         });
         expect(filesByPath.get("large.txt")).not.toHaveProperty("content");
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -850,7 +856,7 @@ mkdir -p .ephemeral
           stderr: expect.stringContaining("snapshot has no changed files"),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -921,7 +927,7 @@ mkdir -p .ephemeral
           ),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1003,7 +1009,92 @@ mkdir -p .ephemeral
           '"schema": "implementer/snapshot/v1"',
         );
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "snapshots committed HEAD content when the working-tree file is replaced",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "file.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        await writeFile(path.join(tempDir, "file.md"), "committed\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "feat: update file"], {
+          cwd: tempDir,
+        });
+        const { stdout: headStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        const snapshotFile = `.ephemeral/main-${headStdout.trim()}-snapshot.json`;
+        const hardlinkTarget = path.join(tempDir, "hardlink-source.md");
+        await writeFile(hardlinkTarget, "outside secret\n");
+        await rm(path.join(tempDir, "file.md"));
+        await link(hardlinkTarget, path.join(tempDir, "file.md"));
+
+        await execFileAsync("bash", [helperScript], {
+          cwd: tempDir,
+          env: {
+            ...process.env,
+            BASE_SHA: baseStdout.trim(),
+            SNAPSHOT_TASK_ID: "Task 1",
+          },
+        });
+
+        const snapshot = JSON.parse(
+          await readFile(path.join(tempDir, snapshotFile), "utf-8"),
+        ) as {
+          files: Array<{ path: string; content: string; sha256: string }>;
+        };
+        expect(snapshot.files).toContainEqual(
+          expect.objectContaining({
+            path: "file.md",
+            content: "committed\n",
+            sha256: sha256("committed\n"),
+          }),
+        );
+      } finally {
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1081,8 +1172,8 @@ mkdir -p .ephemeral
           ),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
-        await rm(outsideDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
+        await cleanupTempDir(outsideDir);
       }
     },
     30_000,
@@ -1155,8 +1246,8 @@ mkdir -p .ephemeral
           ),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
-        await rm(outsideDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
+        await cleanupTempDir(outsideDir);
       }
     },
     30_000,
@@ -1255,7 +1346,7 @@ mkdir -p .ephemeral
           snapshot.files.find((file) => file.path === trailingTabBinaryPath),
         ).not.toHaveProperty("content");
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1369,7 +1460,7 @@ mkdir -p .ephemeral
           }),
         );
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1422,7 +1513,7 @@ mkdir -p .ephemeral
           ),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1491,7 +1582,7 @@ mkdir -p .ephemeral
           ),
         });
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
@@ -1555,7 +1646,7 @@ mkdir -p .ephemeral
           });
           return stdout.trim();
         } finally {
-          await rm(tempDir, { recursive: true, force: true });
+          await cleanupTempDir(tempDir);
         }
       }
 

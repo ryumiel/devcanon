@@ -134,9 +134,10 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
   else
     reject_symlink_changed_path "$path"
 
-    lines=$(awk 'END{print NR}' < "$path")
-    bytes=$(wc -c < "$path" | tr -d ' ')
-    sha256=$(sha256_file "$path")
+    git cat-file blob "HEAD:$path" > "$CONTENT_FILE"
+    lines=$(awk 'END{print NR}' < "$CONTENT_FILE")
+    bytes=$(wc -c < "$CONTENT_FILE" | tr -d ' ')
+    sha256=$(sha256_file "$CONTENT_FILE")
 
     if is_binary_path "$path"; then
       jq -n \
@@ -157,7 +158,6 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
         '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,skipped:"size>64KB"}' \
         > "$ENTRY_JSON"
     else
-      cat < "$path" > "$CONTENT_FILE"
       jq -n \
         --arg path "$path" \
         --arg status "$status" \

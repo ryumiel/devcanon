@@ -401,6 +401,27 @@ A mismatch is the trigger for the `head_sha`-mismatch row in the
 failure-mode table below; without this comparison, that row is
 unreachable.
 
+Before using any `files[].path` value for metadata, line extraction, or
+disk-read fallback, validate it against the controller's own changed-file list
+from `git diff -z --name-status --no-renames BASE..HEAD` and reject unsafe path
+syntax:
+
+```bash
+case "$SNAPSHOT_ENTRY_PATH" in
+  ''|/*|.|..|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
+    echo "snapshot entry path validation failed: $SNAPSHOT_ENTRY_PATH" >&2
+    SNAPSHOT_OK=false
+    ;;
+esac
+# Also require exact membership in the controller-computed changed path set.
+```
+
+If this per-entry validation fails, treat the snapshot as malformed and fall
+back to disk reads using the controller's own changed-file list, not the
+snapshot-provided path. For any non-deleted path the controller reads from disk
+during fallback, run the same symlink-component guard as the producer helper
+before reading.
+
 ### Use cases
 
 The controller MAY use `files[].content` from the snapshot for:
@@ -453,6 +474,7 @@ rule.
 | Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to disk reads for all files this task touched. |
 | Snapshot file missing / unreadable after notice line               | Same as above (the fail-loud guard prevents silent skew).                                                               |
 | JSON malformed                                                     | Same as above.                                                                                                          |
+| Per-entry `files[].path` validation fails                          | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path.                 |
 | Implementer reports DONE without notice line                       | Backward-compat: fall back to disk reads. The controller does not enforce a notice line.                                |
 | Per-file `content` omitted, `status == "deleted"`                  | File no longer exists on disk — treat `status` as authoritative, no disk read. Rest of files use snapshot content.      |
 | Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`) | Read that file from disk; rest of files use snapshot content.                                                           |
