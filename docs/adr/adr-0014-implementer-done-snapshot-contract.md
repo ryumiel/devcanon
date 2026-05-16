@@ -89,11 +89,10 @@ changes; prompt text is only the compact handoff to those sources. If these
 surfaces conflict, update the lower-authority surface to match the helper's
 behavior and this ADR's policy intent.
 
-The path scheme matches `play-review`'s findings file because, like
-`play-review`, the implementer is writing post-commit and so has a
-defined `head_sha`. ADR-0013 explicitly noted that brainstorm/plan
-artifacts cannot use this scheme because they precede commits; the
-implementer is in a different position.
+The snapshot path shares `play-review`'s post-commit `head_sha` anchor, not its
+full findings-file path scheme. ADR-0013 explicitly noted that brainstorm/plan
+artifacts cannot use commit-derived artifact names because they precede commits;
+the implementer is in a different position.
 
 Per-commit `head_sha` guarantees uniqueness, so no `task<N>` segment
 is needed in the path. Re-dispatched tasks produce new commits → new
