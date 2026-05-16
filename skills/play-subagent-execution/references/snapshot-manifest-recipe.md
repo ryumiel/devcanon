@@ -115,6 +115,11 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 - The concrete skip values are `"skipped": "size>64KB"` and
   `"skipped": "binary"`. Use `"binary"` for Git-reported binary files and for
   blobs that cannot be transported byte-faithfully as JSON strings.
+- Skip precedence is fixed: Git-reported binary files emit
+  `"skipped": "binary"` first; non-binary files over 64 KB emit
+  `"skipped": "size>64KB"` before JSON transport validation; non-binary files
+  at or under 64 KB that fail byte-faithful JSON transport emit
+  `"skipped": "binary"`.
 - Deleted files emit neither `content` nor `skipped`. Deletion dominates binary
   detection: when `status == "deleted"`, emit neither field even if numstat
   reports the path as binary.

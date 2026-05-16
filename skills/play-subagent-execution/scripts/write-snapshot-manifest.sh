@@ -171,7 +171,7 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
     bytes=$(wc -c < "$CONTENT_FILE" | tr -d ' ')
     sha256=$(sha256_file "$CONTENT_FILE")
 
-    if is_binary_path "$path" || ! content_round_trips_through_jq "$CONTENT_FILE"; then
+    if is_binary_path "$path"; then
       jq -n \
         --arg path "$path" \
         --arg status "$status" \
@@ -188,6 +188,15 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
         --argjson bytes "$bytes" \
         --arg sha256 "$sha256" \
         '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,skipped:"size>64KB"}' \
+        > "$ENTRY_JSON"
+    elif ! content_round_trips_through_jq "$CONTENT_FILE"; then
+      jq -n \
+        --arg path "$path" \
+        --arg status "$status" \
+        --argjson lines "$lines" \
+        --argjson bytes "$bytes" \
+        --arg sha256 "$sha256" \
+        '{path:$path,status:$status,lines:$lines,bytes:$bytes,sha256:$sha256,skipped:"binary"}' \
         > "$ENTRY_JSON"
     else
       jq -n \

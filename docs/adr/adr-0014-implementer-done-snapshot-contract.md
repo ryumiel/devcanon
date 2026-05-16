@@ -170,7 +170,11 @@ Files reported by `git diff --numstat --no-renames` as binary
 (`-\t-\t<path>`) emit `"skipped": "binary"`. Files that Git reports as
 text but that do not round-trip byte-for-byte through `jq --rawfile`
 and `jq -rj` also emit `"skipped": "binary"` because JSON string
-transport would not be byte-faithful. Deletion dominates binary
+transport would not be byte-faithful. Skip precedence is fixed:
+Git-reported binary files emit `"skipped": "binary"` first; non-binary
+files over 64 KB emit `"skipped": "size>64KB"` before JSON transport
+validation; non-binary files at or under 64 KB that fail byte-faithful
+JSON transport emit `"skipped": "binary"`. Deletion dominates binary
 detection: when `status == "deleted"`, the file emits neither
 `content` nor `skipped`, even if numstat reports the path as binary.
 
