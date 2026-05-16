@@ -40,8 +40,8 @@ The helper script owns the full construction procedure:
 - Computes `SNAPSHOT_FILE` as
   `.ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json`.
 - Applies the `.ephemeral` write guard: reject a symlinked `.ephemeral`
-  directory, create `.ephemeral` when absent, and remove a symlink already
-  present at the target snapshot path before writing.
+  directory, create `.ephemeral` when absent, and replace any existing target
+  snapshot path before writing.
 - Enumerates changed files with
   `git diff -z --name-status --no-renames "${BASE_SHA}..HEAD"` so Git does
   not quote or escape repo-relative paths.
@@ -98,8 +98,8 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 - `bytes` is `wc -c < "$path"` post-commit, or `0` for deleted files.
 - `sha256` is computed from the post-commit working-tree path with the helper
   script's `sha256_file` function, which uses `shasum -a 256` when available
-  and falls back to `sha256sum` on environments such as Windows Git Bash. For
-  deleted files, it is `""`.
+  and falls back to `sha256sum` when `shasum` is unavailable. For deleted files,
+  it is `""`.
 - `content` is included when `bytes <= 64000`, `status != "deleted"`, and the
   file is not binary.
 - When `content` is omitted on a non-deleted file, set `"skipped"` to
@@ -140,3 +140,7 @@ The producer reports `BLOCKED` if the snapshot cannot be written or verified
 and never emits the notice line for an absent file. The controller still treats
 malformed, missing, unreadable, symlinked, or stale snapshots as non-fatal and
 falls back to disk reads.
+
+Snapshot content is controller bookkeeping only. The controller must not forward
+snapshot content or parsed snapshot JSON into reviewer prompts, and reviewers
+must continue reading implementation files from disk.

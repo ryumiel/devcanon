@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  link,
   mkdir,
   mkdtemp,
   readFile,
@@ -442,7 +443,7 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("prerequisite; if it is unavailable");
     expect(snapshotRecipe).toContain("`cat`, `mv`");
     expect(snapshotRecipe).toContain("reject a symlinked `.ephemeral`");
-    expect(snapshotRecipe).toContain("remove a symlink already");
+    expect(snapshotRecipe).toContain("replace any existing target");
     expect(snapshotRecipe).toContain("head_sha");
     expect(snapshotRecipe).toContain("BRANCH_SLUG");
     expect(snapshotRecipe).toContain(
@@ -459,6 +460,9 @@ mkdir -p .ephemeral
     expect(snapshotRecipe).toContain("post-write size check");
     expect(snapshotRecipe).toContain(
       "In normal dispatches, the helper owns persistence and verification",
+    );
+    expect(snapshotRecipe).toContain(
+      "Snapshot content is controller bookkeeping only",
     );
     expect(snapshotRecipe).not.toContain("separate explicit fallback contract");
     expect(snapshotRecipe).not.toContain("Write tool");
@@ -538,6 +542,9 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "inlining the shell implementation",
     );
+    expect(playSubagentExecutionBody).toContain("hard helper prerequisite");
+    expect(playSubagentExecutionBody).toContain("snapshot notice line");
+    expect(playSubagentExecutionBody).toContain(".ephemeral/*/*-snapshot.json");
     const baselineMatch = playSubagentExecutionBody.match(
       /is ~(\d+) lines vs\. the default's ~(\d+)-line body/,
     );
@@ -562,6 +569,8 @@ mkdir -p .ephemeral
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
+    expect(adr0014).toContain("SNAPSHOT_BASENAME=");
+    expect(adr0014).toContain(".ephemeral/*/*-snapshot.json");
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("executable helper script");
@@ -608,7 +617,7 @@ mkdir -p .ephemeral
         '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
       );
       expect(helperSource).toContain(
-        '[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"',
+        'if [ -e "$SNAPSHOT_FILE" ] || [ -L "$SNAPSHOT_FILE" ]; then',
       );
       expect(helperSource).toContain(
         '[ -s "$SNAPSHOT_FILE" ] || { echo "snapshot write failed: $SNAPSHOT_FILE"',
@@ -911,6 +920,88 @@ mkdir -p .ephemeral
             "symlink changed path is unsupported for implementer/snapshot/v1: link.md",
           ),
         });
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "replaces a preexisting snapshot hardlink without truncating its target",
+    async () => {
+      const repoRoot = process.cwd();
+      const helperScript = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
+      );
+
+      const tempDir = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-snapshot-"),
+      );
+      try {
+        await execFileAsync("git", ["init", "--initial-branch=main"], {
+          cwd: tempDir,
+        });
+        await execFileAsync("git", ["config", "user.name", "Test User"], {
+          cwd: tempDir,
+        });
+        await execFileAsync(
+          "git",
+          ["config", "user.email", "test@example.com"],
+          {
+            cwd: tempDir,
+          },
+        );
+
+        await writeFile(path.join(tempDir, "file.md"), "old\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+          cwd: tempDir,
+        });
+        const { stdout: baseStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        await writeFile(path.join(tempDir, "file.md"), "new\n");
+        await execFileAsync("git", ["add", "."], { cwd: tempDir });
+        await execFileAsync("git", ["commit", "-m", "feat: update file"], {
+          cwd: tempDir,
+        });
+        const { stdout: headStdout } = await execFileAsync(
+          "git",
+          ["rev-parse", "HEAD"],
+          {
+            cwd: tempDir,
+          },
+        );
+        const snapshotFile = path.join(
+          tempDir,
+          `.ephemeral/main-${headStdout.trim()}-snapshot.json`,
+        );
+        const hardlinkTarget = path.join(tempDir, "hardlink-target.json");
+        await mkdir(path.dirname(snapshotFile), { recursive: true });
+        await writeFile(hardlinkTarget, "do not truncate\n");
+        await link(hardlinkTarget, snapshotFile);
+
+        await execFileAsync("bash", [helperScript], {
+          cwd: tempDir,
+          env: {
+            ...process.env,
+            BASE_SHA: baseStdout.trim(),
+            SNAPSHOT_TASK_ID: "Task 1",
+          },
+        });
+
+        expect(await readFile(hardlinkTarget, "utf-8")).toBe(
+          "do not truncate\n",
+        );
+        expect(await readFile(snapshotFile, "utf-8")).toContain(
+          '"schema": "implementer/snapshot/v1"',
+        );
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }

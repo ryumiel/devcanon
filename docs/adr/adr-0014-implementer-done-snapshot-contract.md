@@ -218,7 +218,14 @@ case "$SNAPSHOT_FILE" in
   .ephemeral/*-snapshot.json) ;;
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
+SNAPSHOT_BASENAME=${SNAPSHOT_FILE#.ephemeral/}
+case "$SNAPSHOT_FILE" in
+  .ephemeral/*/*-snapshot.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
+esac
+[ "$SNAPSHOT_BASENAME" != "$SNAPSHOT_FILE" ] && [ "$SNAPSHOT_BASENAME" != "" ] || { echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ "${SNAPSHOT_BASENAME#*/}" = "$SNAPSHOT_BASENAME" ] || { echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -L .ephemeral ] && { echo "snapshot directory is a symlink: .ephemeral" >&2; SNAPSHOT_OK=false; }
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # Validation failure is non-fatal: the controller logs and falls back
@@ -337,8 +344,9 @@ reuse is opportunistic; the cost is one notice line and one
   itself or at the snapshot path could redirect a `Write`. The
   implementer applies the ADR-0012 canonical `.ephemeral` write
   guard before writing: reject a symlinked `.ephemeral` directory,
-  `mkdir -p .ephemeral`, then remove any symlink at the target
-  snapshot path.
+  `mkdir -p .ephemeral`, then remove any existing target snapshot
+  path before writing so hardlinks are replaced rather than
+  truncated.
 
 ## Alternatives considered
 

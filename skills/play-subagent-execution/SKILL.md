@@ -341,6 +341,12 @@ controller supplies both paths with the task prompt; the prompt source itself
 carries a compact mandatory-use contract instead of duplicating the recipe or
 inlining the shell implementation into every dispatch.
 
+The helper script is authoritative for executable snapshot construction. `jq`
+is a hard helper prerequisite because byte-faithful JSON assembly is part of the
+contract. If the helper script is missing, unreadable, unexecutable, or exits
+nonzero for any reason (including missing `jq`), the implementer reports
+`BLOCKED` without emitting the snapshot notice line.
+
 ### Parse and validate the path
 
 Parse the path off the literal notice line, then run the canonical
@@ -352,7 +358,14 @@ case "$SNAPSHOT_FILE" in
   .ephemeral/*-snapshot.json) ;;
   *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
 esac
+SNAPSHOT_BASENAME=${SNAPSHOT_FILE#.ephemeral/}
+case "$SNAPSHOT_FILE" in
+  .ephemeral/*/*-snapshot.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
+esac
+[ "$SNAPSHOT_BASENAME" != "$SNAPSHOT_FILE" ] && [ "$SNAPSHOT_BASENAME" != "" ] || { echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ "${SNAPSHOT_BASENAME#*/}" = "$SNAPSHOT_BASENAME" ] || { echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
+[ -L .ephemeral ] && { echo "snapshot directory is a symlink: .ephemeral" >&2; SNAPSHOT_OK=false; }
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 # If $SNAPSHOT_OK == false, skip snapshot consumption for this task and

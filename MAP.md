@@ -192,6 +192,11 @@ Quick navigation index for the DevCanon repository.
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where is the shared review pipeline? -> [`skills/play-review/SKILL.md`](skills/play-review/SKILL.md)
+- Where is the subagent execution workflow? -> [`skills/play-subagent-execution/SKILL.md`](skills/play-subagent-execution/SKILL.md)
+- Where is the implementer snapshot manifest recipe? ->
+  [`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`](skills/play-subagent-execution/references/snapshot-manifest-recipe.md)
+- Where is the implementer snapshot manifest helper script? ->
+  [`skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`](skills/play-subagent-execution/scripts/write-snapshot-manifest.sh)
 - Where are agent role definitions? -> [`agents/`](agents/)
 - Where is the implementer agent role? -> [`agents/implementer.yaml`](agents/implementer.yaml)
 - Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)

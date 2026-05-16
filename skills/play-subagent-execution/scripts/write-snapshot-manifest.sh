@@ -46,7 +46,9 @@ SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"
 
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
-[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"
+if [ -e "$SNAPSHOT_FILE" ] || [ -L "$SNAPSHOT_FILE" ]; then
+  rm "$SNAPSHOT_FILE"
+fi
 
 STATUS_FILE=$(mktemp)
 NUMSTAT_FILE=$(mktemp)
