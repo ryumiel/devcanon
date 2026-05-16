@@ -1258,6 +1258,16 @@ describe("play-subagent-execution snapshot helper", () => {
 
       await expect(
         writeSnapshotOnCurrentBranch(async (tempDir) => {
+          await execFileAsync("git", ["checkout", "-b", "feature/a.+.b"], {
+            cwd: tempDir,
+          });
+        }),
+      ).resolves.toMatch(
+        /^Snapshot written to \.ephemeral\/feature-a\.b-[0-9a-f]{40}-snapshot\.json\.$/,
+      );
+
+      await expect(
+        writeSnapshotOnCurrentBranch(async (tempDir) => {
           await execFileAsync("git", ["checkout", "--detach", "HEAD"], {
             cwd: tempDir,
           });

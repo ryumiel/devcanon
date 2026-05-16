@@ -94,6 +94,9 @@ if [ "$RAW_BRANCH" = HEAD ]; then
   BRANCH_SLUG=detached
 else
   BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  while [ "${BRANCH_SLUG#*..}" != "$BRANCH_SLUG" ]; do
+    BRANCH_SLUG=${BRANCH_SLUG//../.}
+  done
   case "$BRANCH_SLUG" in
     ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
   esac
