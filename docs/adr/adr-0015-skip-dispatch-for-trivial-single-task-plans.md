@@ -103,6 +103,9 @@ here.
   is no DONE-report boundary. The plan body is itself the snapshot.
   ADR-0014's `play-subagent-execution` § Implementer Snapshot Consumption
   → Skip-dispatch exclusion subsection states this exclusion explicitly.
+- ADR-0018 refines multi-task per-task review routing only. This ADR remains
+  scoped to trivial single-task skip-dispatch and does not inherit ADR-0018's
+  multi-task route selection.
 - Future changes to either ADR-0007 or this ADR must update both per the
   ADR governance rule.
 

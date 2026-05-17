@@ -108,12 +108,24 @@ After processing — whether the loop completes or halts on the stop rule — re
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening or overwriting `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`, then use the `Write` tool for atomic replacement and reuse the canonical symlink guard from `play-review`'s Write rules before writing:
 
 ```bash
+HEAD_SHA="$(git rev-parse HEAD)"
+RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$RAW_BRANCH" = HEAD ]; then
+  BRANCH_SLUG=detached
+else
+  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  case "$BRANCH_SLUG" in
+    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+  esac
+fi
+EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
 case "$FINDINGS_FILE" in
   .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"

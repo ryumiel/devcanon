@@ -105,18 +105,30 @@ The structured envelope is written to a deterministic file under `.ephemeral/`. 
   fi
   ```
 
-The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation is a single guard:
+The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation recomputes the deterministic path from trusted inputs and compares the parsed notice path to it:
 
 ```bash
+HEAD_SHA="$head_sha"  # validated upstream per the SHA-format rule above
+RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
+if [ "$RAW_BRANCH" = HEAD ]; then
+  BRANCH_SLUG=detached
+else
+  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  case "$BRANCH_SLUG" in
+    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+  esac
+fi
+EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
 case "$FINDINGS_FILE" in
   .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
-Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
+Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file. Read consumers MUST also reject a symlink at `$FINDINGS_FILE` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 

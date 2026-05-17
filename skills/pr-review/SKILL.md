@@ -158,12 +158,26 @@ Only after user approval:
 1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
 
    ```bash
+   HEAD_SHA="$head_sha"  # trusted Phase 4 head_sha input
+   RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
+   if [ "$RAW_BRANCH" = HEAD ]; then
+     BRANCH_SLUG=detached
+   else
+     BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+     case "$BRANCH_SLUG" in
+       ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+     esac
+   fi
+   EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
    case "$FINDINGS_FILE" in
      .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
      .ephemeral/*-findings.json) ;;
      *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
    esac
    [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+   [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+   [ ! -L "$FINDINGS_FILE" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
+   jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
    ```
 
    Do **not** re-parse the human-readable markdown findings — read the JSON envelope directly with `jq` (e.g., `jq '.findings' "$FINDINGS_FILE"`). The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:

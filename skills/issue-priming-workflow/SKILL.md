@@ -318,12 +318,26 @@ If a blocking finding requires design changes **or out-of-diff edits**, **stop `
 **Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — then validate the parsed findings path before reading it:
 
 ```bash
+HEAD_SHA="$(git rev-parse HEAD)"
+RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$RAW_BRANCH" = HEAD ]; then
+  BRANCH_SLUG=detached
+else
+  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  case "$BRANCH_SLUG" in
+    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+  esac
+fi
+EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
 case "$FINDINGS_FILE" in
   .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+[ ! -L "$FINDINGS_FILE" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
+jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
 After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.

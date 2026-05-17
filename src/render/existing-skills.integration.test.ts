@@ -325,6 +325,12 @@ mkdir -p .ephemeral
       "nested findings path rejected: $FINDINGS_FILE",
     );
     expect(playReviewBody).toContain(".ephemeral/*-findings.json");
+    expect(playReviewBody).toContain(
+      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
+    );
+    expect(playReviewBody).toContain(
+      'echo "findings path mismatch: $FINDINGS_FILE"',
+    );
     expect(playReviewBody).not.toContain(
       ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json",
     );
@@ -365,6 +371,12 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(branchReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
     );
+    expect(branchReviewBody).toContain(
+      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
+    );
+    expect(branchReviewBody).toContain(
+      'echo "findings path mismatch: $FINDINGS_FILE"',
+    );
     expectOrdered(
       branchReviewBody,
       '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
@@ -383,6 +395,18 @@ mkdir -p .ephemeral
     );
     expect(prReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expect(prReviewBody).toContain(
+      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
+    );
+    expect(prReviewBody).toContain(
+      'echo "findings path mismatch: $FINDINGS_FILE"',
+    );
+    expect(prReviewBody).toContain(
+      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(prReviewBody).toContain(
+      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
     );
     expectOrdered(
       prReviewBody,
@@ -1325,6 +1349,18 @@ mkdir -p .ephemeral
     expect(issuePhase7Section).toContain(".ephemeral/*-findings.json");
     expect(issuePhase7Section).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expect(issuePhase7Section).toContain(
+      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
+    );
+    expect(issuePhase7Section).toContain(
+      'echo "findings path mismatch: $FINDINGS_FILE"',
+    );
+    expect(issuePhase7Section).toContain(
+      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(issuePhase7Section).toContain(
+      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
     );
     expectOrdered(
       issuePhase7Section,
