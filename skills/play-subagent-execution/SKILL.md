@@ -354,7 +354,8 @@ Hard-risk triggers force `spec-and-quality`:
 - schema/model/config changes;
 - generated output format changes;
 - install/sync behavior or user-home writes;
-- external CLI/API/system invocation substitutions;
+- external CLI/API/system invocation additions, removals, substitutions, or
+  flag/body/argument changes;
 - async lifecycle, ordering, or concurrency changes;
 - security-sensitive behavior;
 - data-loss/destructive filesystem risk;

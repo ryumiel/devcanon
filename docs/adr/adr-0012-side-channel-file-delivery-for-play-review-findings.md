@@ -107,9 +107,10 @@ Consumer responsibilities:
   wrapper output. No JSON re-emission.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
   file_ with the remaining-set envelope (every nit, plus blockers
-  skipped on `INVALID`/`DOWNGRADE`, plus the halt blocker). Capture the
-  immutable Phase 2 review SHA before applying any auto-fix commits, then
-  report it after processing as the exact line
+  skipped on `INVALID`/`DOWNGRADE`, hard-rule judgment-required blockers
+  from `play-review` Sub-check 1 Safety / Sub-check 2 Contracts, plus the
+  halt blocker). Capture the immutable Phase 2 review SHA before applying
+  any auto-fix commits, then report it after processing as the exact line
   `Review head: <40-hex-sha>.`. Re-emit the (unchanged) findings notice line.
 - `pr-review` Phase 6 — read the envelope from the file. The
   partition-by-`anchor` logic, `start_line` null-handling, and

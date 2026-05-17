@@ -323,7 +323,14 @@ describe("play-subagent planning and routing contracts", () => {
     expect(routingSection).toContain(
       '.schema == "issue-priming/auto-handoff/v1"',
     );
+    expect(routingSection).toContain('.phase == "issue-priming-workflow:6"');
+    expect(routingSection).toContain('.mode == "auto"');
     expect(routingSection).toContain(".plan_path == $plan");
+    expect(routingSection).toContain(".head_sha == $head");
+    expect(routingSection).toContain(
+      ".phase7_branch_review_fix_required == true",
+    );
+    expect(routingSection).toContain(".phase7_rerun_after_commits == true");
     expect(normalizedRoutingSection).toContain(
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
@@ -371,7 +378,8 @@ describe("play-subagent planning and routing contracts", () => {
       "schema/model/config changes",
       "generated output format changes",
       "install/sync behavior or user-home writes",
-      "external CLI/API/system invocation substitutions",
+      "external CLI/API/system invocation additions, removals, substitutions, or",
+      "flag/body/argument changes",
       "async lifecycle, ordering, or concurrency changes",
       "security-sensitive behavior",
       "data-loss/destructive filesystem risk",
@@ -737,6 +745,14 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase6Section).toContain(
       'schema: "issue-priming/auto-handoff/v1"',
     );
+    expect(issuePhase6Section).toContain('phase: "issue-priming-workflow:6"');
+    expect(issuePhase6Section).toContain('mode: "auto"');
+    expect(issuePhase6Section).toContain("plan_path: $plan");
+    expect(issuePhase6Section).toContain("head_sha: $head");
+    expect(issuePhase6Section).toContain(
+      "phase7_branch_review_fix_required: true",
+    );
+    expect(issuePhase6Section).toContain("phase7_rerun_after_commits: true");
     expect(issuePhase6Section).toContain(
       'mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"',
     );
