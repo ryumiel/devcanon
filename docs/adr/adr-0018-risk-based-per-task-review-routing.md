@@ -99,6 +99,13 @@ Foundation-producing tasks receive at least per-task spec review before
 dependent tasks start. If a foundation-producing task also matches any
 hard-risk trigger, it receives `spec-and-quality`.
 
+After any implementer fixup commit requested by a spec-compliance or
+code-quality reviewer, `play-subagent-execution` revalidates the effective route
+from the original task base to the refreshed task head before skipping any
+remaining reviewer or marking the task complete. Revalidation may only preserve
+or escalate the route; if a fixup introduces a hard-risk trigger, the task
+continues as `spec-and-quality`.
+
 DevCanon-specific checks remain available through two paths:
 
 - hard-risk tasks keep full per-task spec and code-quality review;

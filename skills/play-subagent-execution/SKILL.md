@@ -175,7 +175,9 @@ digraph process {
     "Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"];
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
-    "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="re-review"];
+    "Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"];
+    "Revalidate effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="still spec-only or spec-and-quality"];
+    "Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="escalated to spec-and-quality after spec PASS"];
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"];
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
     "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
@@ -339,6 +341,12 @@ Eligibility thresholds:
   artifact, use `spec-and-quality`.
 - If post-implementation diff inspection cannot verify that no hard-risk
   trigger is present, use `spec-and-quality`.
+- After any implementer fixup commit requested by a spec-compliance or
+  code-quality reviewer, revalidate the effective route from the original task
+  base to the refreshed task head before skipping any remaining reviewer or
+  marking the task complete. Revalidation may only preserve or escalate the
+  route; it never downgrades a task after work has begun. If the refreshed diff
+  introduces a hard-risk trigger, continue as `spec-and-quality`.
 
 Low-risk tasks are limited to localized prose/comment/example changes or
 verbatim creation of non-executable prose/example/fixture files with fully
@@ -789,6 +797,16 @@ The `implementer` agent reports one of four statuses. Handle each appropriately:
 **DONE:** For multi-task plans, apply the task's effective review route. `spec-and-quality` proceeds to spec-compliance review and then code-quality review; `spec-only` proceeds to spec-compliance review and then marks the task complete after approval; `none-final-only` marks the task complete after implementer self-review and commit. For single-task plans, mark the task complete (see § Single-Task Plans).
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then apply the task's effective review route; for single-task plans (see § Single-Task Plans), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next route step (review for multi-task routes that require it, mark complete for `none-final-only` or single-task paths).
+
+**Fixup route revalidation:** When a reviewer routes findings back to the
+implementer and the implementer commits a fixup, refresh the task head SHA and
+revalidate the effective review route against the original task base before
+skipping any remaining reviewer or marking the task complete. The route may only
+stay the same or escalate (`none-final-only` -> `spec-only` or
+`spec-and-quality`; `spec-only` -> `spec-and-quality`). It must not downgrade
+after fixups. If revalidation escalates a `spec-only` task to
+`spec-and-quality` after spec review has already passed, dispatch the
+code-quality reviewer before completion.
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 

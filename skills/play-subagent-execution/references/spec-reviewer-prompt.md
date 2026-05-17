@@ -61,10 +61,11 @@ Task tool (general-purpose):
     Scope: this check runs only when the effective route dispatches the
     spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
     `none-final-only` reduced routes and the `issue-priming-workflow --auto`
-    single-task path, equivalent coverage lives in mandatory Phase 7
-    `branch-review --fix` through `play-review`'s Docs agent under the same
-    name. Direct/manual single-task paths get only the local final reviewer
-    unless the operator also runs `branch-review` or `pr-review`.
+    single-task path, Phase 7 `branch-review --fix` is mandatory, but ADR-0017
+    guarded tiny-diff mode may suppress dynamic Docs-agent dispatch for
+    qualifying tiny low-risk diffs. Direct/manual single-task paths get only the
+    local final reviewer unless the operator also runs `branch-review` or
+    `pr-review`.
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify

@@ -57,8 +57,19 @@ describe("play-subagent planning and routing contracts", () => {
       );
     }
     expect(specReviewerPrompt).toContain("Consume any content snapshot");
+    expect(specReviewerPrompt).toContain(
+      "spec-compliance reviewer (`spec-and-quality` or `spec-only`)",
+    );
+    expect(specReviewerPrompt).toContain("ADR-0017");
+    expect(specReviewerPrompt).toContain(
+      "guarded tiny-diff mode may suppress dynamic Docs-agent dispatch",
+    );
     expect(codeQualityReviewerPrompt).toContain(
       "Do not consume any content snapshot",
+    );
+    expect(codeQualityReviewerPrompt).toContain("Per-task dispatch only");
+    expect(normalizeWhitespace(codeQualityReviewerPrompt)).toContain(
+      "final whole-implementation code-quality reviewer",
     );
   });
 
@@ -297,6 +308,12 @@ describe("play-subagent planning and routing contracts", () => {
       '"Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"]',
     );
     expect(processSection).toContain(
+      '"Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"]',
+    );
+    expect(processSection).toContain(
+      '"Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="escalated to spec-and-quality after spec PASS"]',
+    );
+    expect(processSection).toContain(
       '"Dispatch the code-quality-reviewer agent for entire implementation" -> "Owning caller final whole-diff gate present?"',
     );
     expect(processSection).toContain(
@@ -412,6 +429,12 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(normalizedRoutingSection).toContain(
       "If the controller cannot validate the `issue-priming/auto-handoff/v1` artifact, use `spec-and-quality`",
+    );
+    expect(routingSection).toContain(
+      "After any implementer fixup commit requested by a spec-compliance or",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "Revalidation may only preserve or escalate the route; it never downgrades",
     );
     expect(routingSection).toContain(
       "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
