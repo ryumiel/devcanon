@@ -239,11 +239,21 @@ Effective routes:
   required final whole-diff gate.
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
-when the invocation or local workflow guarantees a final whole-diff review
-through `branch-review --fix`, `pr-review`, or shared `play-review`. If that
-guarantee is absent, use `spec-and-quality`. If the guaranteed final
-whole-diff review later completes with remaining `Blocking` findings, the
-workflow must stop instead of treating the reduced route as safe.
+when an explicit owning caller contract guarantees a final whole-diff review
+through `branch-review --fix`, `pr-review`, or shared `play-review`. The
+owning caller must enforce that gate and stop if it later completes with
+remaining `Blocking` findings. If the owning caller contract is absent, use
+`spec-and-quality`; direct/manual invocations without that contract do not use
+reduced per-task routes.
+
+Eligibility thresholds:
+
+- `spec-only` is allowed for medium-risk tasks when no hard-risk trigger
+  applies and the owning caller contract is present.
+- `none-final-only` is allowed for low-risk tasks when no hard-risk trigger
+  applies and the owning caller contract is present.
+- Hard-risk, unclear, malformed, conflicting, or untrusted classifications
+  use `spec-and-quality`.
 
 Hard-risk triggers force `spec-and-quality`:
 

@@ -664,6 +664,18 @@ mkdir -p .ephemeral
     expect(playPlanningBody).toContain(
       "Hint field ordering is heading, optional `**Mode:** mechanical`, optional",
     );
+    expect(playPlanningBody).toContain(
+      "I invoke play-subagent-execution for fresh subagents per task and executor-owned risk-based review routing",
+    );
+    expect(playPlanningBody).toContain(
+      "Fresh subagent per task + executor-owned risk-based per-task review routing",
+    );
+    expect(playPlanningBody).toContain(
+      "Reduced routes require an explicit owning caller contract for the final whole-diff gate",
+    );
+    expect(playPlanningBody).not.toContain(
+      "Fresh subagent per task + two-stage review",
+    );
 
     const planningHintExample = playPlanningBody.slice(
       playPlanningBody.indexOf("Example mechanical-task header:"),
@@ -708,22 +720,49 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "## Risk-Based Per-Task Review Routing",
     );
+    const routingSection = playSubagentExecutionBody.slice(
+      playSubagentExecutionBody.indexOf(
+        "## Risk-Based Per-Task Review Routing",
+      ),
+      playSubagentExecutionBody.indexOf("## Single-Task Plans"),
+    );
     expect(playSubagentExecutionBody).toContain(
       "`play-subagent-execution` owns reviewer dispatch",
     );
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
       "defaults missing, malformed, conflicting, or unclear classifications to",
     );
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
       "`spec-and-quality`: run the spec-compliance reviewer, then the code-quality",
     );
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
       "`spec-only`: run the spec-compliance reviewer only.",
     );
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
       "`none-final-only`: run no per-task reviewer for that task; rely on the",
     );
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
+      "when an explicit owning caller contract guarantees a final whole-diff review",
+    );
+    expect(routingSection).toContain(
+      "through `branch-review --fix`, `pr-review`, or shared `play-review`",
+    );
+    expect(routingSection).toContain(
+      "owning caller must enforce that gate and stop",
+    );
+    expect(routingSection).toContain(
+      "direct/manual invocations without that contract do not use",
+    );
+    expect(routingSection).toContain(
+      "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
+    );
+    expect(routingSection).toContain(
+      "`none-final-only` is allowed for low-risk tasks when no hard-risk trigger",
+    );
+    expect(routingSection).toContain(
+      "Hard-risk, unclear, malformed, conflicting, or untrusted classifications",
+    );
+    expect(routingSection).toContain(
       "Hard-risk triggers force `spec-and-quality`",
     );
     for (const trigger of [
@@ -743,18 +782,11 @@ mkdir -p .ephemeral
       "test harness or validation behavior changes that can mask regressions",
       "task output that establishes a foundation consumed by later tasks",
     ]) {
-      expect(playSubagentExecutionBody).toContain(trigger);
+      expect(routingSection).toContain(trigger);
     }
-    expect(playSubagentExecutionBody).toContain(
+    expect(routingSection).toContain(
       "Foundation-producing tasks receive at least `spec-only` before dependent",
     );
-    expect(playSubagentExecutionBody).toContain("If the guaranteed final");
-    expect(playSubagentExecutionBody).toContain(
-      "whole-diff review later completes with remaining `Blocking` findings",
-    );
-    expect(playSubagentExecutionBody).toContain("branch-review --fix");
-    expect(playSubagentExecutionBody).toContain("pr-review");
-    expect(playSubagentExecutionBody).toContain("play-review");
     expect(playSubagentExecutionBody).toContain(
       "## Controller Lifecycle Ledger",
     );
@@ -867,7 +899,13 @@ mkdir -p .ephemeral
       "Effective route: `none-final-only`",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "caller guarantees final whole-diff review through `branch-review --fix`",
+      "the owning caller guarantees final whole-diff review through `branch-review --fix`",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "`issue-priming-workflow` Phase 7 runs `branch-review --fix`",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Branch review: no remaining `Blocking` findings",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
@@ -980,7 +1018,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentRedFlags).toContain("Hard-risk triggers force");
     expect(playSubagentRedFlags).toContain(
-      "reduced routes require the final whole-diff review guarantee",
+      "reduced routes require an explicit owning caller contract",
     );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
 

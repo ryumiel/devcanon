@@ -43,15 +43,16 @@ The allowed effective routes are:
 - `none-final-only`: run no per-task reviewer for that task and rely on the
   required final whole-diff review gate.
 
-`spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies.
-`none-final-only` is allowed for low-risk tasks when no hard-risk trigger
-applies and the caller or local workflow guarantees a final whole-diff review.
-The final gate must be `branch-review --fix`, `pr-review`, or shared
-`play-review`, and it must complete with no remaining `Blocking` findings
-before reduced per-task review is considered safe.
+`spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
+and an explicit owning caller contract guarantees a final whole-diff review.
+`none-final-only` is allowed for low-risk tasks under the same contract and
+hard-risk conditions. The final gate must be `branch-review --fix`,
+`pr-review`, or shared `play-review`. The owning caller must enforce that gate
+and stop if it completes with remaining `Blocking` findings.
 
-Unclear classification, missing or malformed hints, absent final whole-diff
-guarantees, and conflicting signals all default to `spec-and-quality`.
+Unclear classification, missing or malformed hints, absent owning caller
+contracts for the final whole-diff gate, and conflicting signals all default
+to `spec-and-quality`.
 
 Hard-risk triggers force full per-task `spec-and-quality` review:
 

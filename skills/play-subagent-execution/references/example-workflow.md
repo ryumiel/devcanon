@@ -7,7 +7,7 @@ The example below shows a multi-task plan with coherent authored tasks. The
 executor follows the authored plan boundaries; it does not do runtime regrouping or batching. Each multi-task task follows the executor-computed
 review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` when
-the final whole-diff review guarantee is present. For a
+an explicit owning caller contract guarantees the final whole-diff gate. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
@@ -166,7 +166,7 @@ Task 3: Low-risk reference wording
 
 [Compute effective review route]
 Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
-caller guarantees final whole-diff review through `branch-review --fix`.
+the owning caller guarantees final whole-diff review through `branch-review --fix`.
 If that later review leaves remaining `Blocking` findings, the workflow stops.
 Effective route: `none-final-only`.
 
@@ -196,6 +196,16 @@ Final reviewer: All requirements met, ready to merge
 
 [Lifecycle cleanup checkpoint]
 final-code-quality-reviewer: agent_id=final-quality, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after final verdict recorded.
+
+[Return to owning caller]
+`play-subagent-execution` returns to `issue-priming-workflow --auto`.
+
+[Caller runs final whole-diff gate]
+`issue-priming-workflow` Phase 7 runs `branch-review --fix`.
+Branch review: no remaining `Blocking` findings.
+
+[Caller continues]
+`issue-priming-workflow` proceeds to PR creation.
 
 [Alternative target capability examples - separate runs, not the automatic-close run above]
 

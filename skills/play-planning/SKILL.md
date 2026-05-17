@@ -326,7 +326,7 @@ Otherwise, offer execution choice:
 
 **"Plan complete and saved to `.ephemeral/<filename>.md`. Two execution options:**
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task using play-subagent-execution, review between tasks, fast iteration
+**1. Subagent-Driven (recommended)** - I invoke play-subagent-execution for fresh subagents per task and executor-owned risk-based review routing
 
 **2. Inline Execution** - Execute tasks in this session, batch execution with checkpoints
 
@@ -335,7 +335,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + two-stage review
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require an explicit owning caller contract for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 
 **If Inline Execution chosen:**
 
