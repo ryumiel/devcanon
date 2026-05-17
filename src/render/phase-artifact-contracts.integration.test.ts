@@ -29,6 +29,9 @@ describe("rendered phase artifact contracts", () => {
       '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
     );
     expect(githubPriming).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+    expect(githubPriming).toContain(
+      "nested issue body path rejected: $ISSUE_BODY_PATH",
+    );
 
     const linearPriming = parseFrontmatter(
       getSkillOutput(outputs, "linear-issue-priming", "codex").content,
@@ -40,6 +43,9 @@ describe("rendered phase artifact contracts", () => {
       '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
     );
     expect(linearPriming).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+    expect(linearPriming).toContain(
+      "nested issue body path rejected: $ISSUE_BODY_PATH",
+    );
 
     const workflowBody = parseFrontmatter(
       getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
@@ -48,6 +54,14 @@ describe("rendered phase artifact contracts", () => {
     expect(workflowBody).toContain("issue-body-path");
     expect(workflowBody).toContain("worktree-path");
     expect(workflowBody).toContain('cd "$WORKTREE_PATH" ||');
+    expect(workflowBody).toContain(
+      "nested issue body path rejected: $ISSUE_BODY_PATH",
+    );
+    expect(workflowBody).toContain(
+      "nested research brief path rejected: $RESEARCH_BRIEF_PATH",
+    );
+    expect(workflowBody).toContain("nested design path rejected: $DESIGN_PATH");
+    expect(workflowBody).toContain("nested plan path rejected: $PLAN_PATH");
     expect(workflowBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
    mkdir -p .ephemeral
@@ -62,6 +76,12 @@ describe("rendered phase artifact contracts", () => {
     ).body;
     expect(brainstormBody).toContain("Issue body:");
     expect(brainstormBody).toContain("-issue-body.md");
+    expect(brainstormBody).toContain(
+      "nested issue body path rejected: $ISSUE_BODY_PATH",
+    );
+    expect(brainstormBody).toContain(
+      "nested research brief path rejected: $RESEARCH_BRIEF_PATH",
+    );
     expect(brainstormBody).toContain(`\
 DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
@@ -71,6 +91,9 @@ DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
     const playPlanningBody = parseFrontmatter(
       getSkillOutput(outputs, "play-planning", "codex").content,
     ).body;
+    expect(playPlanningBody).toContain(
+      "nested design path rejected: $DESIGN_PATH",
+    );
     expect(playPlanningBody).toContain(`\
 PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
@@ -164,6 +187,13 @@ mkdir -p .ephemeral
     expect(branchReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
     );
+    expect(branchReviewBody).toContain("Sub-check 1 (substitution audit) or");
+    expect(branchReviewBody).toContain(
+      "Sub-check 2\n     (documented-behavior verification)",
+    );
+    expect(branchReviewBody).toContain(
+      "skipped hard-rule judgment-required blocker",
+    );
     expect(branchReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
@@ -210,6 +240,7 @@ mkdir -p .ephemeral
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting',
     );
     expect(prReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
+    expect(prReviewBody).toContain('--arg commit_id "$REVIEW_HEAD_SHA"');
     expect(prReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
     );
@@ -288,6 +319,8 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("This is not emitted as a conversation-output");
     expect(adr0013).toContain("issue-priming/auto-handoff/v1");
     expect(adr0013).toContain("not emitted as a conversation-output");
+    expect(adr0013).toContain("rejects nested `.ephemeral` subpaths");
+    expect(adr0013).toContain("symlinked parent component could escape");
 
     const implementerPrompt = await readFile(
       path.join(
@@ -383,7 +416,7 @@ mkdir -p .ephemeral
     );
     expect(implementerPrompt).toContain("exits nonzero");
     expect(implementerPrompt).toContain(
-      "Review-routing hint fields (`Execution`, `Risk hint`, `Review hint`, and",
+      "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
     expect(implementerPrompt).toContain(
       "the controller owns reviewer dispatch",
@@ -419,7 +452,7 @@ mkdir -p .ephemeral
     );
     expect(mechanicalImplementerPrompt).toContain("exits nonzero");
     expect(mechanicalImplementerPrompt).toContain(
-      "Review-routing hint fields (`Execution`, `Risk hint`, `Review hint`, and",
+      "Review-routing hint fields (`Risk hint`, `Review hint`, and",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "the controller owns reviewer dispatch",

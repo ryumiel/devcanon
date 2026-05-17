@@ -101,6 +101,7 @@ Validate the repo-relative path before writing:
 
 ```bash
 case "$ISSUE_BODY_PATH" in
+  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
   .ephemeral/*-issue-body.md) ;;
   *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
 esac

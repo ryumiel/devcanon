@@ -77,6 +77,7 @@ cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; ex
 
 ISSUE_BODY_PATH="<payload.issue-body-path>"
 case "$ISSUE_BODY_PATH" in
+  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
   .ephemeral/*-issue-body.md) ;;
   *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
 esac
@@ -153,6 +154,7 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 
    ```bash
    case "$RESEARCH_BRIEF_PATH" in
+     .ephemeral/*/*) echo "nested research brief path rejected: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
      .ephemeral/*-research.md) ;;
      *) echo "research brief path validation failed: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
    esac
@@ -253,6 +255,7 @@ result. When no durable owner referral notice is present, capture the literal
 
 ```bash
 case "$DESIGN_PATH" in
+  .ephemeral/*/*) echo "nested design path rejected: $DESIGN_PATH" >&2; exit 1 ;;
   .ephemeral/*-design.md) ;;
   *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
 esac
@@ -283,6 +286,7 @@ After `play-planning` returns, capture the literal `Plan written to <path>.` not
 
 ```bash
 case "$PLAN_PATH" in
+  .ephemeral/*/*) echo "nested plan path rejected: $PLAN_PATH" >&2; exit 1 ;;
   .ephemeral/*-plan.md) ;;
   *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
 esac
@@ -335,8 +339,8 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
-Plan: <repo-relative-path captured above>
-Auto handoff: <repo-relative-path captured above>
+Plan: <PLAN_PATH captured above>
+Auto handoff: <AUTO_HANDOFF_FILE captured above>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,

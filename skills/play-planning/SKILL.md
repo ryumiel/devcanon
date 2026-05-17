@@ -48,6 +48,7 @@ When this line is present, validate the path before reading:
 
 ```bash
 case "$DESIGN_PATH" in
+  .ephemeral/*/*) echo "nested design path rejected: $DESIGN_PATH" >&2; exit 1 ;;
   .ephemeral/*-design.md) ;;
   *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
 esac
@@ -194,7 +195,6 @@ Example mechanical-task header:
 
 **Mode:** mechanical
 
-**Execution:** single
 **Risk hint:** low
 **Review hint:** none-final-only
 **Review rationale:** Exact single-file identifier replacement with no hard-risk trigger; final whole-diff review remains required.
@@ -215,7 +215,6 @@ Tasks may include these fields after optional `**Mode:** mechanical` and
 before `**Files:**`:
 
 ```markdown
-**Execution:** single | composed
 **Risk hint:** low | medium | high
 **Review hint:** none-final-only | spec-only | spec-and-quality
 **Review rationale:** <one sentence naming why this route is safe or why full review is required>
@@ -225,11 +224,8 @@ These fields are non-authoritative hints only. `play-subagent-execution`
 owns reviewer dispatch, may override any hint, and defaults unclear cases to
 `spec-and-quality`.
 
-Use `**Execution:** single` for an authored task that is intended to stand
-alone, and `**Execution:** composed` when the task intentionally groups
-closely related edits into one coherent implementation unit. Use
-`**Risk hint:** high` and `**Review hint:** spec-and-quality` whenever any
-hard-risk trigger may apply. Do not mark foundation-producing tasks below
+Use `**Risk hint:** high` and `**Review hint:** spec-and-quality` whenever
+any hard-risk trigger may apply. Do not mark foundation-producing tasks below
 `spec-only`, because dependent tasks need at least per-task spec review before
 they start.
 
@@ -284,8 +280,8 @@ Do not turn issue comments, PR review history, validation logs, or agent-local p
 confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
-must be heading, optional `**Mode:** mechanical`, optional review-routing
-hint fields, then `**Files:**`.
+must be heading, optional `**Mode:** mechanical`, optional review-routing hint
+fields, then `**Files:**`.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 

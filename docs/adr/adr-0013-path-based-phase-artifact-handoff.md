@@ -137,6 +137,7 @@ clobbered.
 ```bash
 # Generic shape (each consumer narrows the allow-list)
 case "$ARTIFACT_PATH" in
+  .ephemeral/*/*) echo "nested <artifact> path rejected: $ARTIFACT_PATH" >&2; exit 1 ;;
   .ephemeral/*-<expected-suffix>) ;;
   *) echo "<artifact> path validation failed: $ARTIFACT_PATH" >&2; exit 1 ;;
 esac
@@ -147,11 +148,13 @@ esac
 Two deliberate shape properties of this guard, named here so future readers do
 not mistake them for bugs:
 
-- This generic phase-artifact guard allows nested `.ephemeral` subpaths. Some
-  narrower consumers deliberately reject nested paths: `play-review` findings
-  and nits envelopes must be direct children of `.ephemeral/`, because their
-  paths are echoed through review output and reused by wrappers before read or
-  overwrite.
+- This generic phase-artifact guard rejects nested `.ephemeral` subpaths.
+  Allowing a nested path such as `.ephemeral/link/foo-plan.md` would require
+  parent-component realpath confinement checks before read or write; without
+  those checks, a symlinked parent component could escape the worktree.
+  Findings/nits envelopes also stay direct children of `.ephemeral/` for the
+  same reason and because their paths are echoed through review output and
+  reused by wrappers before read or overwrite.
 - The generic guard allows an empty `<id>` slug (e.g.,
   `.ephemeral/-research.md`) when the suffix matches. Consumers rely on
   producer notice-line authenticity plus suffix validation for routing.

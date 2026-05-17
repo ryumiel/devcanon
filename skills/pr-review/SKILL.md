@@ -202,7 +202,7 @@ Only after user approval:
      --method POST \
      --silent \
      --input <(jq -n \
-       --arg commit_id "<HEAD SHA>" \
+       --arg commit_id "$REVIEW_HEAD_SHA" \
        --arg body "<overall summary; include out-of-diff findings here>" \
        --arg event "<APPROVE|REQUEST_CHANGES|COMMENT>" \
        --argjson comments '<JSON array of inline comments>' \

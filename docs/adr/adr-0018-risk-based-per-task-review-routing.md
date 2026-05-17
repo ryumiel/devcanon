@@ -62,9 +62,12 @@ the contract. Any other caller or invalid handoff uses `spec-and-quality` until
 controller-owned verification rule.
 
 Low-risk tasks are limited to localized prose/comment/example changes or
-verbatim file creation with fully specified content, no behavior change, no
-contract change, no shared reference update, and no dependency/foundation role
-for later tasks. Medium-risk tasks have bounded implementation judgment but no
+verbatim creation of non-executable prose/example/fixture files with fully
+specified content, no behavior change, no contract change, no shared reference
+update, and no dependency/foundation role for later tasks. New source, test,
+config, manifest, generated, or executable files are not low-risk; route them
+to at least `spec-only`, or `spec-and-quality` when any hard-risk trigger
+applies. Medium-risk tasks have bounded implementation judgment but no
 hard-risk trigger: ordinary single-module code changes, focused tests, or
 localized skill/docs edits that do not alter workflow policy, public contracts,
 or generated output format. Anything outside those definitions is unclear or

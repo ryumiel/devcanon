@@ -29,6 +29,7 @@ When this line is present, validate the path before reading:
 
 ```bash
 case "$ISSUE_BODY_PATH" in
+  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
   .ephemeral/*-issue-body.md) ;;
   *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
 esac
@@ -70,6 +71,7 @@ When this line is present, validate the path before reading:
 
 ```bash
 case "$RESEARCH_BRIEF_PATH" in
+  .ephemeral/*/*) echo "nested research brief path rejected: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
   .ephemeral/*-research.md) ;;
   *) echo "research brief path validation failed: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
 esac

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   expectOrdered,
   getSkillOutput,
@@ -11,8 +11,30 @@ import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
 describe("play-subagent planning and routing contracts", () => {
+  let repoRoot: string;
+  let playSubagentExecutionBody: string;
+  let playPlanningBody: string;
+  let issuePrimingWorkflowBody: string;
+
+  beforeAll(async () => {
+    repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    playSubagentExecutionBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-subagent-execution", "codex").content,
+    ).body;
+    playPlanningBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-planning", "codex").content,
+    ).body;
+    issuePrimingWorkflowBody = parseFrontmatter(
+      getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
+    ).body;
+  });
+
   it("pins reviewer prompt snapshot trust-boundary language", async () => {
-    const repoRoot = process.cwd();
     const specReviewerPrompt = await readFile(
       path.join(
         repoRoot,
@@ -40,22 +62,7 @@ describe("play-subagent planning and routing contracts", () => {
     );
   });
 
-  it("documents planning composition and execution boundary contracts", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    const { outputs } = await renderAll(config, false);
-    const playSubagentExecutionBody = parseFrontmatter(
-      getSkillOutput(outputs, "play-subagent-execution", "codex").content,
-    ).body;
-    const playPlanningBody = parseFrontmatter(
-      getSkillOutput(outputs, "play-planning", "codex").content,
-    ).body;
-    const issuePrimingWorkflowBody = parseFrontmatter(
-      getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
-    ).body;
+  it("documents planning composition and hint contracts", () => {
     expect(playPlanningBody).toContain("## Cohesive Task Composition");
     expect(playPlanningBody).toContain(
       "share the same subsystem or file family",
@@ -76,7 +83,7 @@ describe("play-subagent planning and routing contracts", () => {
       reviewHintSectionStart,
       reviewHintSectionEnd,
     );
-    expect(reviewHintSection).toContain("**Execution:** single | composed");
+    expect(reviewHintSection).not.toContain("**Execution:**");
     expect(reviewHintSection).toContain("**Risk hint:** low | medium | high");
     expect(reviewHintSection).toContain(
       "**Review hint:** none-final-only | spec-only | spec-and-quality",
@@ -164,7 +171,6 @@ describe("play-subagent planning and routing contracts", () => {
       planningHintEnd,
     );
     const modeIndex = planningHintExample.indexOf("**Mode:** mechanical");
-    const executionIndex = planningHintExample.indexOf("**Execution:** single");
     expect(planningHintExample).toContain("### Task N: Rename Example Token");
     expect(planningHintExample).toContain(
       "Exact single-file identifier replacement with no hard-risk trigger",
@@ -179,17 +185,21 @@ describe("play-subagent planning and routing contracts", () => {
     const rationaleIndex = planningHintExample.indexOf("**Review rationale:**");
     const filesIndex = planningHintExample.indexOf("**Files:**");
     expect(modeIndex).toBeGreaterThanOrEqual(0);
-    expect(modeIndex).toBeLessThan(executionIndex);
-    expect(executionIndex).toBeLessThan(riskIndex);
+    expect(modeIndex).toBeLessThan(riskIndex);
     expect(riskIndex).toBeLessThan(reviewIndex);
     expect(reviewIndex).toBeLessThan(rationaleIndex);
     expect(rationaleIndex).toBeLessThan(filesIndex);
+  });
 
+  it("documents play-subagent execution routing and lifecycle contracts", async () => {
     expect(playSubagentExecutionBody).toContain(
       "high-assurance serial execution",
     );
     expect(playSubagentExecutionBody).toContain(
       "preserves the task boundaries authored in the plan",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "nested plan path rejected: $PLAN_PATH",
     );
     expect(playSubagentExecutionBody).toContain("does not regroup");
     expect(playSubagentExecutionBody).toContain(
@@ -342,7 +352,10 @@ describe("play-subagent planning and routing contracts", () => {
       "`none-final-only` is allowed for low-risk tasks when no hard-risk trigger",
     );
     expect(normalizedRoutingSection).toContain(
-      "Low-risk tasks are limited to localized prose/comment/example changes or verbatim file creation",
+      "Low-risk tasks are limited to localized prose/comment/example changes or verbatim creation of non-executable prose/example/fixture files",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "New source, test, config, manifest, generated, or executable files are not low-risk",
     );
     expect(normalizedRoutingSection).toContain(
       "Medium-risk tasks have bounded implementation judgment but no hard-risk trigger",
@@ -690,7 +703,9 @@ describe("play-subagent planning and routing contracts", () => {
       "Move to next task while either review has open issues",
     );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
+  });
 
+  it("documents issue-priming implementation and review handoffs", () => {
     const issuePhase6Start = issuePrimingWorkflowBody.indexOf(
       "### Phase 6: Implement",
     );
@@ -725,8 +740,9 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase6Section).toContain(
       'mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"',
     );
+    expect(issuePhase6Section).toContain("Plan: <PLAN_PATH captured above>");
     expect(issuePhase6Section).toContain(
-      "Auto handoff: <repo-relative-path captured above>",
+      "Auto handoff: <AUTO_HANDOFF_FILE captured above>",
     );
     expect(issuePhase6Section).toContain(
       "ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true",
