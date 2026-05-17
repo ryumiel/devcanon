@@ -815,8 +815,9 @@ describe("play-subagent planning and routing contracts", () => {
       'mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"',
     );
     expect(issuePhase6Section).toContain("Plan: <PLAN_PATH captured above>");
-    expect(issuePhase6Section).toContain(
-      "Auto handoff: <AUTO_HANDOFF_FILE captured above>",
+    expect(issuePhase6Section).toContain("Auto handoff: <repo-relative-path>");
+    expect(normalizeWhitespace(issuePhase6Section)).toContain(
+      "Use the `$AUTO_HANDOFF_FILE` path captured above for that placeholder",
     );
     expect(issuePhase6Section).toContain(
       "ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true",
@@ -923,7 +924,10 @@ describe("play-subagent planning and routing contracts", () => {
       'Ignore `critic: "INVALID"` findings for continuation',
     );
     expect(issuePhase7Section).toContain(
-      'Treat `critic: "DOWNGRADE"` findings as non-blocking feedback',
+      'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback',
+    );
+    expect(issuePhase7Section).toContain(
+      'Treat each `critic: "DOWNGRADE"` finding as judgment-required without mechanical auto-fix',
     );
     expect(issuePhase7Section).toContain(
       'If any remaining finding has `severity: "Blocking"` with any other critic value, **stop `--auto` and surface those findings to the user**',

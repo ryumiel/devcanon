@@ -336,9 +336,10 @@ mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"
 ```
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
-reference plus `Auto handoff: <path>` in the invocation prose, NOT as inline
-content. The artifact is audit evidence; the authorization for reduced routes
-is the controller-local parent state from this active workflow run, which
+reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT
+as inline content. Use the `$AUTO_HANDOFF_FILE` path captured above for that
+placeholder. The artifact is audit evidence; the authorization for reduced
+routes is the controller-local parent state from this active workflow run, which
 direct/manual calls cannot supply. Carry `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true`
 and `ISSUE_PRIMING_AUTO_HEAD` in controller-local state for the executor's
 handoff validation. The invocation skeleton:
@@ -351,7 +352,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
-Auto handoff: <AUTO_HANDOFF_FILE captured above>
+Auto handoff: <repo-relative-path>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,
@@ -376,9 +377,7 @@ remaining findings file contains no unresolved `severity: "Blocking"` entries.
 If later mechanical nit handling creates any commit, rerun this same Branch Review step
 on the new `HEAD` before proceeding to Phase 8.
 
-This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If a `Blocking` finding requires design changes or out-of-diff edits, the workflow stops and reports it instead of auto-fixing. `Nit` findings are collected and passed to `play-branch-finish` in Phase 8 for posting as PR review comments after PR creation, not in the description body.
-
-If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
+This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If any remaining `Blocking` finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and report to the user**. This includes Safety / Contracts hard-rule blockers, design-change blockers, and out-of-diff blockers. `Nit` findings and `DOWNGRADE` findings are collected and passed through the classification flow below for Phase 8 PR review comments when they are judgment-required.
 
 **Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. Then validate the parsed findings path before reading it:
 
@@ -413,9 +412,9 @@ jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { ec
 
 After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
 
-**First, check unresolved blockers.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer preserved but that do not require a stop: blockers whose critic verdict was `INVALID` are critic-rejected false positives, and blockers whose critic verdict was `DOWNGRADE` are valid non-blocking feedback. Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`. Treat `critic: "DOWNGRADE"` findings as non-blocking feedback and include them in the nit classification input. If any remaining finding has `severity: "Blocking"` with any other critic value, **stop `--auto` and surface those findings to the user** — these include Safety / Contracts hard-rule blockers and blockers requiring design changes or out-of-diff edits. Only proceed with the per-nit classification flow when every remaining finding is either `severity: "Nit"`, `critic: "DOWNGRADE"`, or `critic: "INVALID"`.
+**First, check unresolved blockers.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer preserved but that do not require a stop: blockers whose critic verdict was `INVALID` are critic-rejected false positives, and blockers whose critic verdict was `DOWNGRADE` are valid non-blocking feedback. Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`. Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments; do not auto-fix them. If any remaining finding has `severity: "Blocking"` with any other critic value, **stop `--auto` and surface those findings to the user** — these include Safety / Contracts hard-rule blockers and blockers requiring design changes or out-of-diff edits. Only proceed with the per-nit classification flow when every remaining finding is either `severity: "Nit"`, `critic: "DOWNGRADE"`, or `critic: "INVALID"`.
 
-For each `severity: "Nit"` finding object and each `critic: "DOWNGRADE"` finding object, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields:
+For each `severity: "Nit"` finding object, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields. Treat each `critic: "DOWNGRADE"` finding as judgment-required without mechanical auto-fix.
 
 - **Mechanical** — 1–3 line source change with a single obvious correct fix (e.g., typos, broken sentences with one reconstruction, dead cross-references). See [`references/nit-classification.md`](references/nit-classification.md) for the full taxonomy and examples.
 - **Judgment-required** — anything else (subjective wording, structural suggestions, multiple plausible fixes).

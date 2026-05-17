@@ -217,6 +217,12 @@ mkdir -p .ephemeral
       "Hard-rule judgment-required blockers preserved in the remaining set",
     );
     expect(branchReviewBody).toContain(
+      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
+    );
+    expect(branchReviewBody).toContain(
+      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
+    );
+    expect(branchReviewBody).toContain(
       "all pre-fix findings except blockers that were successfully auto-fixed",
     );
     expect(branchReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
@@ -234,10 +240,18 @@ mkdir -p .ephemeral
       '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
       ".ephemeral/*-findings.json)",
     );
-    expect(branchReviewBody).toContain(`\
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-mkdir -p .ephemeral
-[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
+    expect(branchReviewBody).toContain(
+      ".ephemeral must be a directory, not a symlink",
+    );
+    expect(branchReviewBody).toContain(
+      'echo "findings file missing or unreadable: $FINDINGS_FILE"',
+    );
+    expect(branchReviewBody).toContain(
+      "After computing the remaining-set envelope from the validated file",
+    );
+    expect(branchReviewBody).toContain(
+      '[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"',
+    );
     expect(branchReviewBody).toContain(
       "Re-emit the (unchanged) `Findings written to <path>.` notice line",
     );
@@ -351,6 +365,17 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("symlinked parent component could escape");
     expect(adr0013).toContain("require a regular");
     expect(adr0013).toContain("artifact must not be a symlink");
+
+    const adr0016 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0016-single-task-auto-final-review-carve-out.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0016).toContain("verified controller-local");
+    expect(adr0016).toContain("`issue-priming/auto-handoff/v1` artifact");
+    expect(adr0016).toContain("not bearer prose");
 
     const implementerPrompt = await readFile(
       path.join(
