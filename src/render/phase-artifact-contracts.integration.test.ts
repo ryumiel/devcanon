@@ -103,11 +103,17 @@ mkdir -p .ephemeral
   mkdir -p .ephemeral
   [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
     expect(playReviewBody).toContain(`\
-HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
+: "\${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/\${BRANCH_SLUG}-\${HEAD_SHA}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"`);
+    expect(playReviewBody).toContain(
+      ': "${HEAD_SHA:?trusted head_sha input required}"',
+    );
+    expect(playReviewBody).toContain(
+      'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
+    );
 
     const playBranchFinishBody = parseFrontmatter(
       getSkillOutput(outputs, "play-branch-finish", "codex").content,
@@ -187,10 +193,16 @@ mkdir -p .ephemeral
       'echo "findings file must not be a symlink: $FINDINGS_FILE"',
     );
     expect(prReviewBody).toContain(
+      'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
+    );
+    expect(prReviewBody).toContain(
+      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE_ABS"',
+    );
+    expect(prReviewBody).toContain(
       ".ephemeral must be a directory, not a symlink",
     );
     expect(prReviewBody).toContain(
-      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
+      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE_ABS"',
     );
     expectOrdered(
       prReviewBody,

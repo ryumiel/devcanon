@@ -108,10 +108,12 @@ Every consumer that reads a path-referenced artifact MUST run a guard before
 opening the file. ADR-0013 owns the generic phase-artifact guard below.
 `skills/play-review/SKILL.md` § Output defines the stricter findings-file
 variant: it recomputes `.ephemeral/<branch_slug>-<head_sha>-findings.json`,
-rejects nested paths, and is used for findings/nits envelope consumers. Generic
-phase artifacts narrow the guard to their expected suffix and include a `[ -r ]`
-readability check; a missing or unreadable file is a fail-loud signal that the
-producer notice line was malformed or the file was clobbered.
+rejects nested paths, and is used for findings-file consumers. Derived nits
+envelopes use their own direct-child `nits_file` guard because they may end in
+`-nits-pending.json`. Generic phase artifacts narrow the guard to their expected
+suffix and include a `[ -r ]` readability check; a missing or unreadable file is
+a fail-loud signal that the producer notice line was malformed or the file was
+clobbered.
 
 ```bash
 # Generic shape (each consumer narrows the allow-list)

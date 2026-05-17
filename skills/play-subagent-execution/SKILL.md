@@ -230,11 +230,16 @@ Do **not** use the hint for these negative shapes — the default template appli
 ## Risk-Based Per-Task Review Routing
 
 For multi-task plans, the controller computes an effective per-task review
-route after extracting each authored task and before dispatching that task's
-reviewers. Plan-provided review-routing fields are controller inputs only;
+route after the implementer finishes and before dispatching that task's
+reviewers. Route computation MUST inspect the actual task diff using the
+captured task base/head SHAs (for example, `git diff --name-status --no-renames
+BASE_SHA..HEAD` plus the relevant patch hunks), not only the plan text or hints.
+If the changed-file/status/diff data is unavailable, stale, ambiguous, or shows
+an unplanned hard-risk trigger, fail closed to `spec-and-quality`.
+Plan-provided review-routing fields are controller inputs only;
 `play-subagent-execution` owns reviewer dispatch, may override any hint, and
-defaults missing, malformed, conflicting, or unclear classifications to
-`spec-and-quality`.
+defaults missing, malformed, conflicting, unclear, or unverified
+classifications to `spec-and-quality`.
 
 Effective routes:
 
@@ -267,6 +272,8 @@ Eligibility thresholds:
   applies and the shared issue-priming `--auto` Phase 6 handoff is verified.
 - Hard-risk, unclear, malformed, conflicting, or untrusted classifications
   use `spec-and-quality`.
+- If post-implementation diff inspection cannot verify that no hard-risk
+  trigger is present, use `spec-and-quality`.
 
 Hard-risk triggers force `spec-and-quality`:
 

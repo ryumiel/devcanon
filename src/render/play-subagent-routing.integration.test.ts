@@ -246,10 +246,19 @@ describe("play-subagent planning and routing contracts", () => {
       "`play-subagent-execution` owns reviewer dispatch",
     );
     expect(routingSection).toContain(
-      "defaults missing, malformed, conflicting, or unclear classifications to",
+      "defaults missing, malformed, conflicting, unclear, or unverified",
     );
     expect(normalizedRoutingSection).toContain(
-      "defaults missing, malformed, conflicting, or unclear classifications to `spec-and-quality`",
+      "defaults missing, malformed, conflicting, unclear, or unverified classifications to `spec-and-quality`",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "Route computation MUST inspect the actual task diff",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "git diff --name-status --no-renames BASE_SHA..HEAD",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "If the changed-file/status/diff data is unavailable, stale, ambiguous, or shows an unplanned hard-risk trigger, fail closed to `spec-and-quality`",
     );
     expect(routingSection).toContain(
       "`spec-and-quality`: run the spec-compliance reviewer, then the code-quality",

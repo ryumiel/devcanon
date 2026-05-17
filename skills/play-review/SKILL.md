@@ -108,7 +108,11 @@ The structured envelope is written to a deterministic file under `.ephemeral/`. 
 The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation recomputes the deterministic path from trusted inputs and compares the parsed notice path to it:
 
 ```bash
-HEAD_SHA="$head_sha"  # validated upstream per the SHA-format rule above
+: "${HEAD_SHA:?trusted head_sha input required}"
+case "$HEAD_SHA" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "head_sha invalid: $HEAD_SHA" >&2; exit 1 ;;
+esac
 RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
 if [ "$RAW_BRANCH" = HEAD ]; then
   BRANCH_SLUG=detached
@@ -126,10 +130,11 @@ case "$FINDINGS_FILE" in
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
 [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
 ```
 
-Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file. Read consumers MUST also reject a symlink at `$FINDINGS_FILE` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
+Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST bind `HEAD_SHA` from the trusted `head_sha` input and run this guard before opening or overwriting the file. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 
@@ -306,7 +311,7 @@ Compose the file with these sections, in order:
   pattern from § Output:
 
   ```bash
-  HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
+  : "${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral

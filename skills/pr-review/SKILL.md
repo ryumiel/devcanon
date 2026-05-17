@@ -158,7 +158,7 @@ Only after user approval:
 1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
 
    ```bash
-   HEAD_SHA="$head_sha"  # trusted Phase 4 head_sha input
+   HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"  # trusted Phase 4 head_sha input
    RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
    if [ "$RAW_BRANCH" = HEAD ]; then
      BRANCH_SLUG=detached
@@ -176,12 +176,13 @@ Only after user approval:
    esac
    [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
    [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
-   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-   [ ! -L "$FINDINGS_FILE" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
-   jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
+   [ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
+   [ ! -L "$FINDINGS_FILE_ABS" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
+   jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE_ABS" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
    ```
 
-   Do **not** re-parse the human-readable markdown findings — read the JSON envelope directly with `jq` (e.g., `jq '.findings' "$FINDINGS_FILE"`). The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:
+   Do **not** re-parse the human-readable markdown findings — read the JSON envelope directly with `jq` (e.g., `jq '.findings' "$FINDINGS_FILE_ABS"`). The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:
    - `anchor: "natural"` → inline comment using the finding's `path` / `line` / `start_line`; `body` is the finding's pre-rendered `body` field.
    - `anchor: "missing-file"` → inline comment using the finding's `path` / `line` / `start_line` — `play-review` has already resolved them per its priority list; do NOT re-run the priority resolution. Prefix the `body` with _"Missing-file finding (no natural anchor — see body):"_ before passing it through.
    - `anchor: "out-of-diff"` → top-level review comment (single bucket; not inline). Concatenate each finding's pre-rendered `body` field into the review's overall `body`; do not put these in the `comments` array.
