@@ -25,7 +25,8 @@ In multi-task plans where the effective route includes per-task reviewers,
 the controller's re-read pressure is highest because line ranges feed the
 spec-compliance and, for `spec-and-quality`, code-quality reviewer
 dispatches. ADR-0018 later permits reduced routes where line ranges may feed
-only spec review or the final whole-diff gate. Each re-read pulls full file
+only spec review, or no per-task reviewer at all when the final whole-diff
+gate independently reviews the full branch diff. Each re-read pulls full file
 content into the controller's context. The observed failure mode was a
 medium-sized ADR being re-read across post-commit verification, review
 composition, and nit-fixing steps.

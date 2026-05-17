@@ -319,6 +319,7 @@ If a blocking finding requires design changes **or out-of-diff edits**, **stop `
 
 ```bash
 case "$FINDINGS_FILE" in
+  .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
@@ -346,9 +347,16 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#ph
 
   ```bash
   case "$FINDINGS_FILE" in
-    *-findings.json) NITS_PENDING_FILE="${FINDINGS_FILE%-findings.json}-nits-pending.json" ;;
+    .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
+    .ephemeral/*-findings.json) NITS_PENDING_FILE="${FINDINGS_FILE%-findings.json}-nits-pending.json" ;;
     *) echo "FINDINGS_FILE shape unexpected: $FINDINGS_FILE" >&2; exit 1 ;;
   esac
+  case "$NITS_PENDING_FILE" in
+    .ephemeral/*/*) echo "nested nits path rejected: $NITS_PENDING_FILE" >&2; exit 1 ;;
+    .ephemeral/*-nits-pending.json) ;;
+    *) echo "NITS_PENDING_FILE shape unexpected: $NITS_PENDING_FILE" >&2; exit 1 ;;
+  esac
+  [ "${NITS_PENDING_FILE#*..}" = "$NITS_PENDING_FILE" ] || { echo "path traversal: $NITS_PENDING_FILE" >&2; exit 1; }
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"

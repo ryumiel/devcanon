@@ -820,14 +820,15 @@ mkdir -p .ephemeral
       routingSectionStart,
       routingSectionEnd,
     );
+    const normalizedRoutingSection = routingSection.replace(/\s+/g, " ");
     expect(routingSection).toContain(
       "`play-subagent-execution` owns reviewer dispatch",
     );
     expect(routingSection).toContain(
       "defaults missing, malformed, conflicting, or unclear classifications to",
     );
-    expect(routingSection).toContain(
-      "defaults missing, malformed, conflicting, or unclear classifications to\n`spec-and-quality`",
+    expect(normalizedRoutingSection).toContain(
+      "defaults missing, malformed, conflicting, or unclear classifications to `spec-and-quality`",
     );
     expect(routingSection).toContain(
       "`spec-and-quality`: run the spec-compliance reviewer, then the code-quality",
@@ -1074,6 +1075,9 @@ mkdir -p .ephemeral
       "Task 2 implementer: agent_id=impl-2, status=DONE",
       "Plan hints high risk and `spec-and-quality`; repair-mode behavior changes",
     );
+    expect(task2Section).toContain(
+      "workflow policy, so a hard-risk trigger is present",
+    );
     const task3Section = playSubagentExampleWorkflow.slice(
       playSubagentExampleWorkflow.indexOf("Task 3: Low-risk example copy"),
       playSubagentExampleWorkflow.indexOf("[Mark Task 3 complete]"),
@@ -1245,10 +1249,19 @@ mkdir -p .ephemeral
     );
     expect(issuePhase7Section).toContain(".ephemeral/*-findings.json");
     expect(issuePhase7Section).toContain(
+      "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expect(issuePhase7Section).toContain(
       'echo "play-review path validation failed: $FINDINGS_FILE"',
     );
     expect(issuePhase7Section).toContain(
       'echo "path traversal: $FINDINGS_FILE"',
+    );
+    expect(issuePhase7Section).toContain(
+      "nested nits path rejected: $NITS_PENDING_FILE",
+    );
+    expect(issuePhase7Section).toContain(
+      'echo "path traversal: $NITS_PENDING_FILE"',
     );
     expect(issuePhase7Section).toContain(
       'If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user**',

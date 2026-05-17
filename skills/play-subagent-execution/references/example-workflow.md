@@ -101,7 +101,7 @@ Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA
 
 [Compute effective review route]
 Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
-control flow, so a hard-risk trigger is present.
+workflow policy, so a hard-risk trigger is present.
 Effective route: `spec-and-quality`.
 
 [Cleanup gate before Task 2 spec reviewer spawn]
