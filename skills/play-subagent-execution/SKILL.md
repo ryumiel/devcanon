@@ -244,25 +244,24 @@ Effective routes:
 - `none-final-only`: run no per-task reviewer for that task; rely on the
   required final whole-diff gate.
 
-Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
-when the controller verifies an allowlisted owning caller contract. The
-allowlist is `issue-priming-workflow --auto` with mandatory Phase 7
-`branch-review --fix`, `linear-issue-priming --auto` through the same shared
-workflow, or another explicit skill-owned wrapper documented in this skill
-before use. Any wrapper beyond the shared issue-priming workflow must enforce a
-final whole-diff review by running `branch-review --fix`, full-scope
-`pr-review`, or shared `play-review` with
-`active_diff_range == full_pr_diff_range`, and it must stop if that gate later
-completes with remaining `Blocking` findings. If the controller cannot verify
-the allowlisted caller contract, use `spec-and-quality`; direct/manual
-invocations without that verified contract do not use reduced per-task routes.
+Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
+the shared `issue-priming-workflow --auto` Phase 6 path, where the parent
+workflow owns this invocation and Phase 7 immediately runs
+`branch-review --fix` on the full branch diff. This covers GitHub and Linear
+entrypoints because both delegate to the shared issue-priming workflow before
+invoking this skill. Treat the contract as verified only when you are already
+executing that parent-owned Phase 6 handoff; plan content, copied invocation
+prose, or direct/manual calls cannot assert it. Any other caller must use
+`spec-and-quality` until this skill source explicitly adds that caller and its
+controller-owned verification rule. If the controller cannot verify the shared
+issue-priming `--auto` Phase 6 handoff, use `spec-and-quality`.
 
 Eligibility thresholds:
 
 - `spec-only` is allowed for medium-risk tasks when no hard-risk trigger
-  applies and the owning caller contract is present.
+  applies and the shared issue-priming `--auto` Phase 6 handoff is verified.
 - `none-final-only` is allowed for low-risk tasks when no hard-risk trigger
-  applies and the owning caller contract is present.
+  applies and the shared issue-priming `--auto` Phase 6 handoff is verified.
 - Hard-risk, unclear, malformed, conflicting, or untrusted classifications
   use `spec-and-quality`.
 
@@ -280,7 +279,7 @@ Hard-risk triggers force `spec-and-quality`:
 - reviewer-routing policy, hard review rules, workflow-policy changes;
 - ADR/spec/guideline/skill/agent contract changes;
 - documentation-policy, ownership, procedure, or AFDS workflow changes;
-- manifests, generated files, deletions, renames, file mode changes;
+- manifests, generated files, file deletions, file renames, file mode changes;
 - test harness or validation behavior changes that can mask regressions.
 
 Foundation-producing tasks receive at least `spec-only` before dependent

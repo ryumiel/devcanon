@@ -339,7 +339,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require an explicit owning caller contract for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 
 **If Inline Execution chosen:**
 

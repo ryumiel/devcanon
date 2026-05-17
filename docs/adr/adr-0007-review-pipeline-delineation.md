@@ -134,7 +134,8 @@ unchanged.
 - **Variant -- also drop multi-task per-task code-quality review.** Keep the
   per-task spec reviewer for N>1 plans, drop the per-task code-quality
   reviewer entirely. Rejected as undeclared scope expansion beyond what
-  the decision request covered; a future ADR can revisit if motivated.
+  the decision request covered; ADR-0018 later revisits the idea as guarded
+  risk-based routing rather than an unconditional removal.
 
 ## Related
 

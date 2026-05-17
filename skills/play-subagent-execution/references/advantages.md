@@ -29,8 +29,9 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 - Executor-owned risk-based review routing per task on multi-task plans:
   hard-risk and unclear tasks run two-stage review (spec compliance, then
   code quality), while medium-risk tasks may run `spec-only` and low-risk
-  tasks may use `none-final-only` only when a verified allowlisted owning
-  caller contract guarantees the final whole-diff gate
+  tasks may use `none-final-only` only on the verified shared
+  `issue-priming-workflow --auto` Phase 6 path, where Phase 7 guarantees the
+  final whole-diff gate
 - Single-task plans rely on either the final code-quality reviewer
   (direct/manual) or downstream `branch-review --fix` on the
   `issue-priming-workflow --auto` path

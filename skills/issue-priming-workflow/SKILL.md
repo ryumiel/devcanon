@@ -293,14 +293,14 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Caller contract: this invocation comes from `issue-priming-workflow --auto`, and Phase 7 `branch-review --fix` is mandatory. That mandatory whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and Phase 7 `branch-review --fix` is mandatory. That mandatory whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <repo-relative-path captured above>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
-single-task plans skip per-task review). The caller contract above activates
+single-task plans skip per-task review). The parent-owned contract above activates
 its narrow single-task final-review carve-out because this workflow
 guarantees Phase 7 `branch-review --fix`; the same mandatory Phase 7 gate is
 also the final whole-diff no-Blocking guarantee for reduced per-task routes.
@@ -315,7 +315,17 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — and load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the path from `branch-review --fix`'s `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json` — then validate the parsed findings path before reading it:
+
+```bash
+case "$FINDINGS_FILE" in
+  .ephemeral/*-findings.json) ;;
+  *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
+esac
+[ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+```
+
+After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
 
 **First, check severity.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer skipped (Safety / Contracts categories per the play-review hard rule, plus any blocker whose critic verdict was `INVALID` or `DOWNGRADE`, plus blockers requiring design changes or out-of-diff edits). If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user** — they need human attention, not classification as nits. Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`.
 

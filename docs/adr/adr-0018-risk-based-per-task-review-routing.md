@@ -44,20 +44,20 @@ The allowed effective routes are:
   required final whole-diff review gate.
 
 `spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
-and the controller verifies an allowlisted owning caller contract.
-`none-final-only` is allowed for low-risk tasks under the same contract and
-hard-risk conditions. The allowlist is `issue-priming-workflow --auto` with
-mandatory Phase 7 `branch-review --fix`, `linear-issue-priming --auto` through
-the same shared workflow, or another explicit skill-owned wrapper documented in
-`play-subagent-execution` before use. Any additional wrapper must enforce a
-final whole-diff review by running `branch-review --fix`, full-scope
-`pr-review`, or shared `play-review` with
-`active_diff_range == full_pr_diff_range`, and it must stop if that gate
-completes with remaining `Blocking` findings.
+and the controller verifies the shared `issue-priming-workflow --auto` Phase 6
+handoff. `none-final-only` is allowed for low-risk tasks under the same
+contract and hard-risk conditions. The contract is verified only when
+`issue-priming-workflow --auto` owns the Phase 6 invocation and Phase 7
+immediately runs `branch-review --fix` on the full branch diff. This covers the
+GitHub and Linear entrypoints because both delegate to the shared
+issue-priming workflow before invoking `play-subagent-execution`. Plan content,
+copied invocation prose, and direct/manual calls cannot assert the contract.
+Any other caller uses `spec-and-quality` until `play-subagent-execution`
+explicitly documents that caller and its controller-owned verification rule.
 
-Unclear classification, missing or malformed hints, absent owning caller
-contracts for the final whole-diff gate, and conflicting signals all default
-to `spec-and-quality`.
+Unclear classification, missing or malformed hints, absent shared
+issue-priming `--auto` Phase 6 verification, and conflicting signals all
+default to `spec-and-quality`.
 
 Hard-risk triggers force full per-task `spec-and-quality` review:
 
@@ -73,7 +73,7 @@ Hard-risk triggers force full per-task `spec-and-quality` review:
 - reviewer-routing policy, hard review rules, workflow-policy changes;
 - ADR/spec/guideline/skill/agent contract changes;
 - documentation-policy, ownership, procedure, or AFDS workflow changes;
-- manifests, generated files, deletions, renames, file mode changes;
+- manifests, generated files, file deletions, file renames, file mode changes;
 - test harness or validation behavior changes that can mask regressions.
 
 Foundation-producing tasks receive at least per-task spec review before

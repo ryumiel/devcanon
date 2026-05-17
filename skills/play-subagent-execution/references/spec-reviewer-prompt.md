@@ -58,10 +58,12 @@ Task tool (general-purpose):
 
     **Within-document identifier drift (when changes include `*.md` files):**
 
-    Scope: this check runs only on multi-task plans, where this template is
-    dispatched per task. For single-task plans, equivalent coverage lives
-    in `play-review`'s Docs agent under the same name (invoked by both
-    `branch-review` and `pr-review`).
+    Scope: this check runs only when the effective route dispatches the
+    spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
+    single-task plans and `none-final-only` reduced routes, equivalent
+    coverage lives in the final whole-diff review gate through `play-review`'s
+    Docs agent under the same name (invoked by both `branch-review` and
+    `pr-review`).
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify

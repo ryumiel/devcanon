@@ -700,7 +700,7 @@ mkdir -p .ephemeral
       "Fresh subagent per task + executor-owned risk-based per-task review routing",
     );
     expect(executionHandoffSection).toContain(
-      "Reduced routes require an explicit owning caller contract for the final whole-diff gate",
+      "Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(executionHandoffSection).not.toContain(
       "Fresh subagent per task + two-stage review",
@@ -839,23 +839,25 @@ mkdir -p .ephemeral
       "`none-final-only`: run no per-task reviewer for that task; rely on the",
     );
     expect(routingSection).toContain(
-      "when the controller verifies an allowlisted owning caller contract",
+      "Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on",
     );
     expect(routingSection).toContain(
-      "allowlist is `issue-priming-workflow --auto`",
+      "shared `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(routingSection).toContain(
-      "`linear-issue-priming --auto` through the same shared",
+      "Phase 7 immediately runs\n`branch-review --fix` on the full branch diff",
     );
     expect(routingSection).toContain(
-      "full-scope\n`pr-review`, or shared `play-review`",
-    );
-    expect(routingSection).toContain("active_diff_range == full_pr_diff_range");
-    expect(routingSection).toContain(
-      "If the controller cannot verify\nthe allowlisted caller contract, use `spec-and-quality`",
+      "This covers GitHub and Linear\nentrypoints because both delegate",
     );
     expect(routingSection).toContain(
-      "direct/manual\ninvocations without that verified contract do not use",
+      "plan content, copied invocation\nprose, or direct/manual calls cannot assert it",
+    );
+    expect(routingSection).toContain(
+      "Any other caller must use\n`spec-and-quality` until this skill source explicitly adds that caller",
+    );
+    expect(routingSection).toContain(
+      "If the controller cannot verify the shared\nissue-priming `--auto` Phase 6 handoff, use `spec-and-quality`",
     );
     expect(routingSection).toContain(
       "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
@@ -882,7 +884,7 @@ mkdir -p .ephemeral
       "reviewer-routing policy, hard review rules, workflow-policy changes",
       "ADR/spec/guideline/skill/agent contract changes",
       "documentation-policy, ownership, procedure, or AFDS workflow changes",
-      "manifests, generated files, deletions, renames, file mode changes",
+      "manifests, generated files, file deletions, file renames, file mode changes",
       "test harness or validation behavior changes that can mask regressions",
     ]) {
       expect(routingSection).toContain(trigger);
@@ -991,7 +993,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentAdvantages).toContain("none-final-only");
     expect(playSubagentAdvantages).toContain(
-      "only when a verified allowlisted owning",
+      "verified shared\n  `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(playSubagentAdvantages).toContain(
       "remaining `Blocking` findings stop the workflow",
@@ -1011,7 +1013,7 @@ mkdir -p .ephemeral
       "Each multi-task task follows the executor-computed",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "only\nwhen a verified allowlisted owning caller contract guarantees",
+      "only\non the verified shared `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "Effective route: `none-final-only`",
@@ -1029,7 +1031,7 @@ mkdir -p .ephemeral
       "Clarified one example sentence in a reference file",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "the owning caller guarantees final whole-diff review through `branch-review --fix`",
+      "the verified shared `issue-priming-workflow --auto` Phase 6 path guarantees",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "`issue-priming-workflow` Phase 7 runs `branch-review --fix`",
@@ -1179,7 +1181,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentRedFlags).toContain("Hard-risk triggers force");
     expect(playSubagentRedFlags).toContain(
-      "reduced routes require an explicit owning caller contract",
+      "reduced routes require the verified shared `issue-priming-workflow --auto`",
     );
     expect(playSubagentRedFlags).toContain(
       "Move to next task while an executor-required review has open issues",
@@ -1228,6 +1230,16 @@ mkdir -p .ephemeral
     );
     expect(issuePhase7Section).toContain(
       "Invoke `branch-review --fix` to review the implementation before creating a PR.",
+    );
+    expect(issuePhase7Section).toContain(
+      "validate the parsed findings path before reading it",
+    );
+    expect(issuePhase7Section).toContain(".ephemeral/*-findings.json");
+    expect(issuePhase7Section).toContain(
+      'echo "play-review path validation failed: $FINDINGS_FILE"',
+    );
+    expect(issuePhase7Section).toContain(
+      'echo "path traversal: $FINDINGS_FILE"',
     );
     expect(issuePhase7Section).toContain(
       'If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user**',
@@ -1478,12 +1490,9 @@ mkdir -p .ephemeral
       }
     }
 
-    const playSubagentReferenceFiles = [
-      "snapshot-manifest-recipe.md",
-      "advantages.md",
-      "example-workflow.md",
-      "red-flags.md",
-    ];
+    const playSubagentReferenceFiles = await readdir(
+      path.join(repoRoot, "skills/play-subagent-execution/references"),
+    );
 
     for (const reference of playSubagentReferenceFiles) {
       const sourcePath = path.join(
