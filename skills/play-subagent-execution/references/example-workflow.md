@@ -128,6 +128,11 @@ Implementer: Removed --json flag, added progress reporting
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because spec re-review is pending.
 
+[Revalidate effective review route]
+Controller compares the original Task 2 base SHA to the refreshed task head.
+The route may only preserve or escalate; the refreshed diff still requires
+`spec-and-quality`, so continue to spec re-review.
+
 [Cleanup gate before Task 2 spec re-review spawn]
 Controller keeps Task 2 implementer open until the spec reviewer passes.
 
@@ -154,6 +159,11 @@ Implementer: Extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because code-quality re-review is pending.
+
+[Revalidate effective review route]
+Controller compares the original Task 2 base SHA to the refreshed task head.
+The route may only preserve or escalate; the refreshed diff still requires
+`spec-and-quality`, so continue to code-quality re-review.
 
 [Cleanup gate before Task 2 code-quality re-review spawn]
 Controller keeps Task 2 implementer open until the code-quality reviewer passes.

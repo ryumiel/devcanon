@@ -311,7 +311,10 @@ describe("play-subagent planning and routing contracts", () => {
       '"Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"]',
     );
     expect(processSection).toContain(
-      '"Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="escalated to spec-and-quality after spec PASS"]',
+      '"Implementer agent fixes quality issues" -> "Revalidate effective review route" [label="refresh task head"]',
+    );
+    expect(processSection).toContain(
+      '"Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="spec-and-quality code-quality path"]',
     );
     expect(processSection).toContain(
       '"Dispatch the code-quality-reviewer agent for entire implementation" -> "Owning caller final whole-diff gate present?"',
@@ -753,6 +756,21 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExampleWorkflow).toContain("test state refreshed");
     expect(playSubagentExampleWorkflow).toContain("snapshot refreshed");
     expect(playSubagentExampleWorkflow).toContain(
+      "[Revalidate effective review route]",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Controller compares the original Task 2 base SHA to the refreshed task head",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "The route may only preserve or escalate",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "so continue to spec re-review",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "so continue to code-quality re-review",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
       "findings captured: Magic number (100)",
     );
     expect(playSubagentExampleWorkflow).toContain(
@@ -821,6 +839,16 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(issuePhase6Section).toContain("mkdir -p .ephemeral");
     expect(issuePhase6Section).toContain(
+      '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
+    );
+    expectOrdered(
+      issuePhase6Section,
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
+      "mkdir -p .ephemeral",
+    );
+    expectOrdered(
+      issuePhase6Section,
+      "mkdir -p .ephemeral",
       '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
     );
     expect(issuePhase6Section).toContain(

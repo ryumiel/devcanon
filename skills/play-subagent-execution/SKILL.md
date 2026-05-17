@@ -177,12 +177,12 @@ digraph process {
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
     "Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"];
     "Revalidate effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="still spec-only or spec-and-quality"];
-    "Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="escalated to spec-and-quality after spec PASS"];
+    "Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="spec-and-quality code-quality path"];
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"];
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
     "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
     "Code-quality-reviewer agent approves?" -> "Implementer agent fixes quality issues" [label="no"];
-    "Implementer agent fixes quality issues" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="re-review"];
+    "Implementer agent fixes quality issues" -> "Revalidate effective review route" [label="refresh task head"];
     "Code-quality-reviewer agent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes"];
