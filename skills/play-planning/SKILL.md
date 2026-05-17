@@ -184,7 +184,7 @@ git commit -m "feat: add specific feature"
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and `**Files:**`. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
 
 Example mechanical-task header:
 
@@ -193,12 +193,41 @@ Example mechanical-task header:
 
 **Mode:** mechanical
 
+**Execution:** single
+**Risk hint:** low
+**Review hint:** none-final-only
+**Review rationale:** Verbatim docs-only task with no hard-risk trigger; final whole-diff review remains required.
+
 **Files:**
 
 - Create: `docs/adr/adr-NNNN-...md`
 ```
 
 Omit the field for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without the field continue to dispatch with the full implementer template — the field is purely additive.
+
+### Optional Review-Routing Hint Fields
+
+Tasks may include these fields after optional `**Mode:** mechanical` and
+before `**Files:**`:
+
+```markdown
+**Execution:** single | composed
+**Risk hint:** low | medium | high
+**Review hint:** none-final-only | spec-only | spec-and-quality
+**Review rationale:** <one sentence naming why this route is safe or why full review is required>
+```
+
+These fields are non-authoritative hints only. `play-subagent-execution`
+owns reviewer dispatch, may override any hint, and defaults unclear cases to
+`spec-and-quality`.
+
+Use `**Execution:** single` for an authored task that is intended to stand
+alone, and `**Execution:** composed` when the task intentionally groups
+closely related edits into one coherent implementation unit. Use
+`**Risk hint:** high` and `**Review hint:** spec-and-quality` whenever any
+hard-risk trigger may apply. Do not mark foundation-producing tasks below
+`spec-only`, because dependent tasks need at least per-task spec review before
+they start.
 
 ## No Placeholders
 
@@ -247,6 +276,13 @@ Do not turn issue comments, PR review history, validation logs, or agent-local p
 
 **6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
+**7. Review-routing hint check:** If tasks include review-routing hints,
+confirm high-risk triggers are not under-classified, hints are described as
+non-authoritative, unclear cases default to `spec-and-quality`, and
+foundation-producing tasks are not marked below `spec-only`. The field order
+must be heading, optional `**Mode:** mechanical`, optional review-routing
+hint fields, then `**Files:**`.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
 ## Plan Review
@@ -268,6 +304,13 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
 - No placeholder violations (catches what self-review missed)
 - Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
+- Review-routing hints, when present, are non-authoritative inputs to
+  `play-subagent-execution`
+- High-risk triggers are not under-classified
+- Unclear review classification defaults to `spec-and-quality`
+- Foundation-producing tasks are not marked below `spec-only`
+- Hint field ordering is heading, optional `**Mode:** mechanical`, optional
+  review-routing hint fields, then `**Files:**`
 
 **Output:** PASS with confidence notes, or FAIL with specific gaps listed.
 
