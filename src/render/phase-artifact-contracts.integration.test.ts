@@ -114,6 +114,9 @@ mkdir -p .ephemeral
     expect(playReviewBody).toContain(
       'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
     );
+    expect(playReviewBody).toContain(
+      "captures before auto-fix commits and emits after processing",
+    );
 
     const playBranchFinishBody = parseFrontmatter(
       getSkillOutput(outputs, "play-branch-finish", "codex").content,
@@ -196,8 +199,12 @@ mkdir -p .ephemeral
       "Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard",
     );
     expect(prReviewBody).toContain(
+      "Immediately after `play-review` returns and before the Phase 5 user gate",
+    );
+    expect(prReviewBody).toContain(
       'REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review',
     );
+    expect(prReviewBody).toContain("play-review findings notice missing");
     expect(prReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
     expect(prReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting',

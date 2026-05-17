@@ -130,6 +130,27 @@ describe("play-subagent planning and routing contracts", () => {
       "Fresh subagent per task + two-stage review",
     );
 
+    const autoHandoffInputStart = playSubagentExecutionBody.indexOf(
+      "### Auto handoff reference",
+    );
+    expect(autoHandoffInputStart).toBeGreaterThanOrEqual(0);
+    const autoHandoffInputSection = playSubagentExecutionBody.slice(
+      autoHandoffInputStart,
+      playSubagentExecutionBody.indexOf(
+        "### Inline content",
+        autoHandoffInputStart,
+      ),
+    );
+    expect(autoHandoffInputSection).toContain(
+      "Auto handoff: <repo-relative-path>",
+    );
+    expect(autoHandoffInputSection).toContain(
+      "bind the path to `AUTO_HANDOFF_FILE`",
+    );
+    expect(autoHandoffInputSection).toContain(
+      "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
+    );
+
     const planningHintStart = playPlanningBody.indexOf(
       "Example mechanical-task header:",
     );
@@ -287,6 +308,8 @@ describe("play-subagent planning and routing contracts", () => {
     expect(routingSection).toContain(
       'jq -e --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD"',
     );
+    expect(routingSection).toContain('[ -f "$AUTO_HANDOFF_FILE" ]');
+    expect(routingSection).toContain('[ -r "$AUTO_HANDOFF_FILE" ]');
     expect(routingSection).toContain(
       '.schema == "issue-priming/auto-handoff/v1"',
     );

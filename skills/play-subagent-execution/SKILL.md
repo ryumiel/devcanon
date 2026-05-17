@@ -67,6 +67,23 @@ The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,
 inlined task text — they do NOT receive the path. See § Red Flags below.
 
+### Auto handoff reference (issue-priming `--auto` only)
+
+`issue-priming-workflow --auto` may pass a second single literal line:
+
+```
+Auto handoff: <repo-relative-path>
+```
+
+When this line is present, bind the path to `AUTO_HANDOFF_FILE` before the
+Risk-Based Per-Task Review Routing validation step. This line is valid only as
+part of the active parent-owned `issue-priming-workflow --auto` controller
+handoff; direct/manual invocations and plan text cannot use it to authorize
+reduced routes. If the line is absent, malformed, or not backed by
+controller-local parent state, leave `AUTO_HANDOFF_FILE` unset and
+`ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false`; execution continues with
+`spec-and-quality` routes.
+
 ### Inline content (preserved for direct invocations)
 
 A `## Plan` heading followed by content body, or an entire plan document
@@ -278,6 +295,8 @@ if [ "${ISSUE_PRIMING_AUTO_PARENT_ACTIVE:-false}" = true ]; then
       if [ "${AUTO_HANDOFF_FILE#*..}" = "$AUTO_HANDOFF_FILE" ] &&
          [ ! -L .ephemeral ] &&
          [ ! -L "$AUTO_HANDOFF_FILE" ] &&
+         [ -f "$AUTO_HANDOFF_FILE" ] &&
+         [ -r "$AUTO_HANDOFF_FILE" ] &&
          jq -e --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD" '
            .schema == "issue-priming/auto-handoff/v1" and
            .phase == "issue-priming-workflow:6" and

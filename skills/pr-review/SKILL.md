@@ -104,7 +104,14 @@ Hand off to `play-review` with these inputs:
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections.
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
+
+```bash
+REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
+FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
+[ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
+REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
+```
 
 ## Phase 5: Present (USER GATE)
 
@@ -155,14 +162,7 @@ Include a draft review body preview.
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Phase 4 MUST capture the immutable review head and notice path before any later posting step:
-
-   ```bash
-   REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
-   REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
-   ```
-
-   Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
+1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line captured before the Phase 5 user gate. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
 
    ```bash
    HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
