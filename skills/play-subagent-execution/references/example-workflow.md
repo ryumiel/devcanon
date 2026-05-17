@@ -186,7 +186,8 @@ Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
 the verified shared `issue-priming-workflow --auto` Phase 6 path,
 controller-local parent state, and valid `issue-priming/auto-handoff/v1`
 artifact guarantee final whole-diff review through `branch-review --fix`.
-If that later review leaves remaining `Blocking` findings, the workflow stops.
+If that later review leaves unresolved remaining `Blocking` findings, the
+workflow stops.
 Effective route: `none-final-only`.
 
 [Lifecycle cleanup checkpoint]

@@ -283,9 +283,9 @@ this skill.
 
 Treat the reduced-route contract as verified only when this controller is
 already executing an active parent-owned `issue-priming-workflow --auto` Phase
-6 handoff, the invocation includes an `Auto handoff: <path>` audit artifact
-from that same parent state, and the controller validates it once before any
-task dispatch. The artifact is not a bearer token: repo content and copied
+6 handoff, the invocation includes an `Auto handoff: <repo-relative-path>` audit
+artifact from that same parent state, and the controller validates it once
+before any task dispatch. The artifact is not a bearer token: repo content and copied
 invocation prose are forgeable, so direct/manual calls cannot authorize
 reduced routes by creating a matching JSON file. Use the parent state's stable
 invocation head (`ISSUE_PRIMING_AUTO_HEAD`) for this validation; per-task

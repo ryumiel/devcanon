@@ -126,9 +126,8 @@ Then report:
 - Remaining nits (left for user), including `Anchor: out-of-diff` nits
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
-- Blocking findings skipped because `play-review` marked them
-  judgment-required hard-rule findings (Sub-check 1 Safety or Sub-check 2
-  Contracts)
+- Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
+  1 Safety or Sub-check 2 Contracts)
 
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening or overwriting `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`, then use the `Write` tool for atomic replacement and reuse the canonical symlink guard from `play-review`'s Write rules before writing:
 
@@ -157,7 +156,7 @@ mkdir -p .ephemeral
 [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"
 ```
 
-The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, skipped hard-rule judgment-required blockers (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
+The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
 
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict subset of the pre-fix one: this skill only removes auto-fixed blockers from `findings[]`; it never adds new entries, never re-anchors lines, and never edits `body` / `why` / `recommendation` text. Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7) cannot tell from the file alone whether they are reading the pre-fix or post-`--fix` version — the order is workflow-determined (Phase 7 always runs after `branch-review --fix`). The schema does not carry a `source` discriminator; the contract above is what guarantees consumers do not need one.
 

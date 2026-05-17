@@ -154,6 +154,9 @@ mkdir -p .ephemeral
       'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
     );
     expect(playReviewBody).toContain(
+      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
+    );
+    expect(playReviewBody).toContain(
       "captures before auto-fix commits and emits after processing",
     );
 
@@ -168,6 +171,9 @@ mkdir -p .ephemeral
     );
     expect(playBranchFinishBody).toContain(
       "nits_file must not be a symlink: $NITS_FILE",
+    );
+    expect(playBranchFinishBody).toContain(
+      "nits_file missing or not a regular file: $NITS_FILE",
     );
     expect(playBranchFinishBody).toContain(
       "build each API comment from an allowlist",
@@ -208,7 +214,7 @@ mkdir -p .ephemeral
       "Sub-check 2\n     (documented-behavior verification)",
     );
     expect(branchReviewBody).toContain(
-      "skipped hard-rule judgment-required blocker",
+      "Hard-rule judgment-required blockers preserved in the remaining set",
     );
     expect(branchReviewBody).toContain(
       "all pre-fix findings except blockers that were successfully auto-fixed",
@@ -271,6 +277,9 @@ mkdir -p .ephemeral
     );
     expect(prReviewBody).toContain(
       'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(prReviewBody).toContain(
+      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
     );
     expect(prReviewBody).toContain(
       'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',

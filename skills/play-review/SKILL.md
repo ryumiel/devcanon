@@ -132,9 +132,10 @@ esac
 [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
 [ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
+[ -f "$FINDINGS_FILE_ABS" ] || { echo "findings file missing or not a regular file: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
-Findings-file consumers MUST run this guard before opening or overwriting the file. Wrappers that directly call `play-review` (`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted `head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from `branch-review --fix`, so it binds `HEAD_SHA` from the validated `Review head: <40-hex-sha>.` notice that `branch-review --fix` captures before auto-fix commits and emits after processing. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
+Findings-file consumers MUST run this guard before opening or overwriting the file. Wrappers that directly call `play-review` (`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted `head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from `branch-review --fix`, so it binds `HEAD_SHA` from the validated `Review head: <40-hex-sha>.` notice that `branch-review --fix` captures before auto-fix commits and emits after processing. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS`, require a regular file, and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 

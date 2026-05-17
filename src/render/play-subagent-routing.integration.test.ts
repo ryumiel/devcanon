@@ -215,6 +215,61 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
     );
+
+    const singleTaskSectionStart = playSubagentExecutionBody.indexOf(
+      "## Single-Task Plans",
+    );
+    const singleTaskSectionEnd = playSubagentExecutionBody.indexOf(
+      "## Controller Lifecycle Ledger",
+      singleTaskSectionStart,
+    );
+    expect(singleTaskSectionStart).toBeGreaterThanOrEqual(0);
+    expect(singleTaskSectionEnd).toBeGreaterThan(singleTaskSectionStart);
+    const singleTaskSection = playSubagentExecutionBody.slice(
+      singleTaskSectionStart,
+      singleTaskSectionEnd,
+    );
+    const normalizedSingleTaskSection = normalizeWhitespace(singleTaskSection);
+    expect(singleTaskSection).toContain(
+      "validates both controller-local parent state",
+    );
+    expect(singleTaskSection).toContain(
+      "`issue-priming/auto-handoff/v1` audit artifact",
+    );
+    expect(normalizedSingleTaskSection).toContain(
+      "downstream `branch-review --fix` as the mandatory next step",
+    );
+    expect(singleTaskSection).toContain(
+      "Otherwise, the final whole-implementation code-quality reviewer",
+    );
+    expect(singleTaskSection).not.toContain("caller says");
+    expect(singleTaskSection).not.toContain("prose-only");
+
+    const skipDispatchSectionStart = playSubagentExecutionBody.indexOf(
+      "### Inline execution sequence",
+    );
+    const skipDispatchSectionEnd = playSubagentExecutionBody.indexOf(
+      "### Fallback",
+      skipDispatchSectionStart,
+    );
+    expect(skipDispatchSectionStart).toBeGreaterThanOrEqual(0);
+    expect(skipDispatchSectionEnd).toBeGreaterThan(skipDispatchSectionStart);
+    const skipDispatchSection = playSubagentExecutionBody.slice(
+      skipDispatchSectionStart,
+      skipDispatchSectionEnd,
+    );
+    expect(skipDispatchSection).toContain(
+      "validates both controller-local parent state",
+    );
+    expect(skipDispatchSection).toContain(
+      "`issue-priming/auto-handoff/v1` audit artifact",
+    );
+    expect(skipDispatchSection).toContain(
+      "Otherwise, dispatch the existing final whole-implementation code-quality",
+    );
+    expect(skipDispatchSection).not.toContain("caller says");
+    expect(skipDispatchSection).not.toContain("prose-only");
+
     const processSectionStart =
       playSubagentExecutionBody.indexOf("## The Process");
     const processSectionEnd =
@@ -312,7 +367,7 @@ describe("play-subagent planning and routing contracts", () => {
     expect(routingSection).toContain(
       "shared `issue-priming-workflow --auto` Phase 6 path",
     );
-    expect(routingSection).toContain("Auto handoff: <path>");
+    expect(routingSection).toContain("Auto handoff: <repo-relative-path>");
     expect(routingSection).toContain("controller-local parent state");
     expect(routingSection).toContain(".ephemeral/*/*) ;;");
     expect(routingSection).toContain(
