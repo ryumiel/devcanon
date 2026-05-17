@@ -1042,37 +1042,46 @@ mkdir -p .ephemeral
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
     );
+    const expectOrdered = (
+      section: string,
+      beforeMarker: string,
+      afterMarker: string,
+    ) => {
+      const beforeIndex = section.indexOf(beforeMarker);
+      const afterIndex = section.indexOf(afterMarker);
+
+      expect(beforeIndex).toBeGreaterThanOrEqual(0);
+      expect(afterIndex).toBeGreaterThanOrEqual(0);
+      expect(beforeIndex).toBeLessThan(afterIndex);
+    };
+
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
     const task1Section = playSubagentExampleWorkflow.slice(
       playSubagentExampleWorkflow.indexOf("Task 1: Hook lifecycle"),
       playSubagentExampleWorkflow.indexOf("Task 2: Recovery and repair modes"),
     );
-    expect(
-      task1Section.indexOf("Task 1 implementer: status=DONE"),
-    ).toBeLessThan(
-      task1Section.indexOf(
-        "Hard-risk trigger detected: install/sync behavior or user-home writes.",
-      ),
+    expectOrdered(
+      task1Section,
+      "Task 1 implementer: status=DONE",
+      "Hard-risk trigger detected: install/sync behavior or user-home writes.",
     );
     const task2Section = playSubagentExampleWorkflow.slice(
       playSubagentExampleWorkflow.indexOf("Task 2: Recovery and repair modes"),
       playSubagentExampleWorkflow.indexOf("Task 3: Low-risk example copy"),
     );
-    expect(
-      task2Section.indexOf("Task 2 implementer: agent_id=impl-2, status=DONE"),
-    ).toBeLessThan(
-      task2Section.indexOf(
-        "Plan hints high risk and `spec-and-quality`; repair-mode behavior changes",
-      ),
+    expectOrdered(
+      task2Section,
+      "Task 2 implementer: agent_id=impl-2, status=DONE",
+      "Plan hints high risk and `spec-and-quality`; repair-mode behavior changes",
     );
     const task3Section = playSubagentExampleWorkflow.slice(
       playSubagentExampleWorkflow.indexOf("Task 3: Low-risk example copy"),
       playSubagentExampleWorkflow.indexOf("[Mark Task 3 complete]"),
     );
-    expect(task3Section.indexOf("  - Committed")).toBeLessThan(
-      task3Section.indexOf(
-        "Plan hints low risk and `none-final-only`; no hard-risk trigger is present;",
-      ),
+    expectOrdered(
+      task3Section,
+      "  - Committed",
+      "Plan hints low risk and `none-final-only`; no hard-risk trigger is present;",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "Lifecycle cleanup checkpoint",
