@@ -55,11 +55,12 @@ esac
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the design-document suffix. The canonical copy lives in
-`skills/play-review/SKILL.md`; if that copy gains a step (e.g., a new
-pre-read check), update this skill to match.
+This bash follows the same suffix and traversal checks used by the repository's
+phase-artifact handoff guards, narrowed to the design-document suffix.
+`play-review` findings/nits envelopes add a direct-child `.ephemeral/`
+restriction because those paths are echoed through review output and reused by
+wrappers before read or overwrite; design documents keep the generic
+phase-artifact shape from ADR-0013.
 
 ### Inline content (preserved for direct invocations)
 

@@ -124,13 +124,17 @@ esac
 [ -r "$ARTIFACT_PATH" ] || { echo "artifact missing or unreadable: $ARTIFACT_PATH" >&2; exit 1; }
 ```
 
-Two deliberate looseness properties of this guard, named here so future
-readers do not mistake them for bugs:
+Two deliberate shape properties of this guard, named here so future readers do
+not mistake them for bugs:
 
-- The shell-`case` glob `*` matches `/`, so paths under nested subpaths
-  (e.g., `.ephemeral/sub/dir/<…>-research.md`) and an empty `<id>` slug
-  (e.g., `.ephemeral/-research.md`) both pass the suffix match. Consumers
-  rely on producer notice-line authenticity, not depth, for routing.
+- This generic phase-artifact guard allows nested `.ephemeral` subpaths. Some
+  narrower consumers deliberately reject nested paths: `play-review` findings
+  and nits envelopes must be direct children of `.ephemeral/`, because their
+  paths are echoed through review output and reused by wrappers before read or
+  overwrite.
+- The generic guard allows an empty `<id>` slug (e.g.,
+  `.ephemeral/-research.md`) when the suffix matches. Consumers rely on
+  producer notice-line authenticity plus suffix validation for routing.
 - The `[ "${VAR#*..}" = "$VAR" ]` test rejects all `..`-bearing paths,
   including benign filenames that contain `..` as ordinary characters
   (e.g., `.ephemeral/foo-..-bar-research.md`). This is intentional:

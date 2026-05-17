@@ -75,6 +75,19 @@ function normalizeWhitespace(content: string): string {
   return content.replace(/\s+/g, " ").trim();
 }
 
+function expectOrdered(
+  section: string,
+  beforeMarker: string,
+  afterMarker: string,
+) {
+  const beforeIndex = section.indexOf(beforeMarker);
+  const afterIndex = section.indexOf(afterMarker);
+
+  expect(beforeIndex).toBeGreaterThanOrEqual(0);
+  expect(afterIndex).toBeGreaterThanOrEqual(0);
+  expect(beforeIndex).toBeLessThan(afterIndex);
+}
+
 async function listRelativeFiles(root: string, prefix = ""): Promise<string[]> {
   const entries = await readdir(path.join(root, prefix), {
     withFileTypes: true,
@@ -311,6 +324,11 @@ mkdir -p .ephemeral
     );
     expect(playReviewBody).toContain(".ephemeral/*-findings.json");
     expect(playReviewBody).toContain(".ephemeral/*-nits-pending.json");
+    expectOrdered(
+      playReviewBody,
+      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
+      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+    );
     expect(playReviewBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
@@ -331,14 +349,42 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(playBranchFinishBody).toContain(
       "nested nits_file path rejected: $NITS_FILE",
     );
+    expectOrdered(
+      playBranchFinishBody,
+      '.ephemeral/*/*) echo "nested nits_file path rejected: $NITS_FILE"',
+      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+    );
 
     const branchReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "branch-review", "codex").content,
     ).body;
+    expect(branchReviewBody).toContain(
+      "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expectOrdered(
+      branchReviewBody,
+      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
+      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+    );
     expect(branchReviewBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
+
+    const prReviewBody = parseFrontmatter(
+      getSkillOutput(outputs, "pr-review", "codex").content,
+    ).body;
+    expect(prReviewBody).toContain(
+      "Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard",
+    );
+    expect(prReviewBody).toContain(
+      "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expectOrdered(
+      prReviewBody,
+      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
+      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+    );
 
     const gatePrompt = await readFile(
       path.join(
@@ -1081,19 +1127,6 @@ mkdir -p .ephemeral
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
     );
-    const expectOrdered = (
-      section: string,
-      beforeMarker: string,
-      afterMarker: string,
-    ) => {
-      const beforeIndex = section.indexOf(beforeMarker);
-      const afterIndex = section.indexOf(afterMarker);
-
-      expect(beforeIndex).toBeGreaterThanOrEqual(0);
-      expect(afterIndex).toBeGreaterThanOrEqual(0);
-      expect(beforeIndex).toBeLessThan(afterIndex);
-    };
-
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
     const task1Section = playSubagentExampleWorkflow.slice(
       playSubagentExampleWorkflow.indexOf("Task 1: Hook lifecycle"),
@@ -1289,6 +1322,11 @@ mkdir -p .ephemeral
     expect(issuePhase7Section).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
     );
+    expectOrdered(
+      issuePhase7Section,
+      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
+      ".ephemeral/*-findings.json) ;;",
+    );
     expect(issuePhase7Section).toContain(
       'echo "play-review path validation failed: $FINDINGS_FILE"',
     );
@@ -1297,6 +1335,11 @@ mkdir -p .ephemeral
     );
     expect(issuePhase7Section).toContain(
       "nested nits path rejected: $NITS_PENDING_FILE",
+    );
+    expectOrdered(
+      issuePhase7Section,
+      '.ephemeral/*/*) echo "nested nits path rejected: $NITS_PENDING_FILE"',
+      ".ephemeral/*-nits-pending.json) ;;",
     );
     expect(issuePhase7Section).toContain(
       'echo "path traversal: $NITS_PENDING_FILE"',
