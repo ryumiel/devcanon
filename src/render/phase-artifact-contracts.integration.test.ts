@@ -142,8 +142,9 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(branchReviewBody).toContain("play-review findings notice missing");
     expect(branchReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
-      "Exact review-head notice line: `Review head: $REVIEW_HEAD_SHA.`",
+      "emit\nthis exact standalone notice line",
     );
+    expect(branchReviewBody).toContain("Review head: $REVIEW_HEAD_SHA.");
     expect(branchReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
     );

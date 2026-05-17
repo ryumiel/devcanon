@@ -108,10 +108,17 @@ Nit findings are never auto-fixed. Collect them for the report (including any wi
 
 **Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`.
 
-After processing — whether the loop completes or halts on the stop rule — report:
+After processing — whether the loop completes or halts on the stop rule — emit
+this exact standalone notice line, expanding `$REVIEW_HEAD_SHA` to its
+40-character value:
+
+```
+Review head: $REVIEW_HEAD_SHA.
+```
+
+Then report:
 
 - Number of blocking findings auto-fixed
-- Exact review-head notice line: `Review head: $REVIEW_HEAD_SHA.`
 - Remaining nits (left for user), including `Anchor: out-of-diff` nits
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`

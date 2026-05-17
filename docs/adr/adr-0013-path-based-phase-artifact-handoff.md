@@ -105,14 +105,13 @@ producer notice line, not by guessing a path, so mixed schemes inside
 ### Path-validation guard
 
 Every consumer that reads a path-referenced artifact MUST run a guard before
-opening the file. The authoritative bash for the path-validation pattern lives
-in `skills/play-review/SKILL.md` § Output → Side-channel file → Path; the
-guard inherits that structure, narrowed per consumer to its expected suffix,
-plus a `[ -r ]` readability check that does not appear in the canonical
-play-review form (play-review writes its own findings file and so does not
-need a readability gate at the producer; consumers reading an upstream-
-produced path do — a missing or unreadable file is a fail-loud signal that
-the producer notice line was malformed or the file was clobbered):
+opening the file. ADR-0013 owns the generic phase-artifact guard below.
+`skills/play-review/SKILL.md` § Output defines the stricter findings-file
+variant: it recomputes `.ephemeral/<branch_slug>-<head_sha>-findings.json`,
+rejects nested paths, and is used for findings/nits envelope consumers. Generic
+phase artifacts narrow the guard to their expected suffix and include a `[ -r ]`
+readability check; a missing or unreadable file is a fail-loud signal that the
+producer notice line was malformed or the file was clobbered.
 
 ```bash
 # Generic shape (each consumer narrows the allow-list)
