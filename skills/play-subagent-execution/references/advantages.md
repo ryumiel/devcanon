@@ -30,7 +30,8 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   hard-risk and unclear tasks run two-stage review (spec compliance, then
   code quality), while medium-risk tasks may run `spec-only` and low-risk
   tasks may use `none-final-only` only on the verified shared
-  `issue-priming-workflow --auto` Phase 6 path, where Phase 7 reruns
+  `issue-priming-workflow --auto` Phase 6 path with a valid
+  `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
   `branch-review --fix` after any auto-fix or mechanical-nit commit until the
   final run reports zero blocking findings auto-fixed, no remaining `Blocking`
   findings, and no additional mechanical nit commits

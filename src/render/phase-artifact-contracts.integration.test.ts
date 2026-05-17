@@ -128,6 +128,13 @@ mkdir -p .ephemeral
       "nits_file must not be a symlink: $NITS_FILE",
     );
     expect(playBranchFinishBody).toContain(
+      "build each API comment from an allowlist",
+    );
+    expect(playBranchFinishBody).toContain(
+      'map({path, line, start_line, body, side: "RIGHT"}',
+    );
+    expect(playBranchFinishBody).toContain("invalid nits payload fields");
+    expect(playBranchFinishBody).toContain(
       ".ephemeral must be a directory, not a symlink",
     );
     expectOrdered(
@@ -173,6 +180,14 @@ mkdir -p .ephemeral
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
+    expect(branchReviewBody).toContain(
+      "Re-emit the (unchanged) `Findings written to <path>.` notice line",
+    );
+    expectOrdered(
+      branchReviewBody,
+      "Then **overwrite the side-channel findings file in place**",
+      "Re-emit the (unchanged) `Findings written to <path>.` notice line",
+    );
 
     const prReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "pr-review", "codex").content,

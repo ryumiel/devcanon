@@ -23,10 +23,10 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg      | Effect                                                                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `<base>` | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`) |
-| `--fix`  | Auto-fix eligible blocking findings instead of presenting them. Used by `github-issue-priming --auto`.                                   |
+| Arg      | Effect                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<base>` | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)   |
+| `--fix`  | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints. |
 
 ## Phase 1: Gather
 
@@ -90,7 +90,7 @@ Re-emit `play-review`'s findings to the user in conversation. Preserve the forma
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
-**With `--fix` (autonomous mode, used by `github-issue-priming --auto`):**
+**With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
 Iterate over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`). For each:
 
@@ -98,7 +98,7 @@ Iterate over blocking findings verified by the critic (i.e., not `Critic: INVALI
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
    - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the flagged lines.
 
-   Halting here is a contract with the caller: `github-issue-priming --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
+   Halting here is a contract with the caller: `issue-priming-workflow --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
 
 2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit.
 
@@ -192,8 +192,7 @@ The remaining-set `findings[]` contains: every nit (regardless of anchor), plus 
 
 **Called by:**
 
-- `github-issue-priming --auto` (Phase 7, with `--fix`)
-- `linear-issue-priming --auto` (Phase 7, with `--fix`)
+- `issue-priming-workflow --auto` Phase 7 (reached from GitHub and Linear entrypoints, with `--fix`)
 - Any workflow needing pre-PR review
 
 **Calls:**

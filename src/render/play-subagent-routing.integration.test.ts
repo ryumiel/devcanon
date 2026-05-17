@@ -123,6 +123,9 @@ describe("play-subagent planning and routing contracts", () => {
     expect(executionHandoffSection).toContain(
       "Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path",
     );
+    expect(executionHandoffSection).toContain(
+      "`issue-priming/auto-handoff/v1` artifact",
+    );
     expect(executionHandoffSection).not.toContain(
       "Fresh subagent per task + two-stage review",
     );
@@ -275,6 +278,17 @@ describe("play-subagent planning and routing contracts", () => {
     expect(routingSection).toContain(
       "shared `issue-priming-workflow --auto` Phase 6 path",
     );
+    expect(routingSection).toContain("Auto handoff: <path>");
+    expect(routingSection).toContain(
+      "nested auto handoff path rejected: $AUTO_HANDOFF_FILE",
+    );
+    expect(routingSection).toContain(
+      'jq -e --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)"',
+    );
+    expect(routingSection).toContain(
+      '.schema == "issue-priming/auto-handoff/v1"',
+    );
+    expect(routingSection).toContain(".plan_path == $plan");
     expect(normalizedRoutingSection).toContain(
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
@@ -285,13 +299,13 @@ describe("play-subagent planning and routing contracts", () => {
       "This covers GitHub and Linear entrypoints because both delegate",
     );
     expect(normalizedRoutingSection).toContain(
-      "plan content, copied invocation prose, or direct/manual calls cannot assert it",
+      "Plan content, copied invocation prose, or direct/manual calls cannot assert this contract",
     );
     expect(normalizedRoutingSection).toContain(
-      "Any other caller must use `spec-and-quality` until this skill source explicitly adds that caller",
+      "Any other caller, missing artifact, invalid artifact, or artifact that does not match the current plan path and `HEAD` must use `spec-and-quality`",
     );
     expect(normalizedRoutingSection).toContain(
-      "If the controller cannot verify the shared issue-priming `--auto` Phase 6 handoff, use `spec-and-quality`",
+      "If the controller cannot validate the `issue-priming/auto-handoff/v1` artifact, use `spec-and-quality`",
     );
     expect(routingSection).toContain(
       "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
@@ -471,7 +485,10 @@ describe("play-subagent planning and routing contracts", () => {
       "Clarified one example sentence in a reference file",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "Phase 7 reruns `branch-review --fix` after any auto-fix or mechanical-nit",
+      "valid `issue-priming/auto-handoff/v1` artifact",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "`branch-review --fix` after any auto-fix or mechanical-nit",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "reports zero blocking findings auto-fixed",
@@ -647,6 +664,15 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(issuePhase6Section).toContain(
       "Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing",
+    );
+    expect(issuePhase6Section).toContain(
+      'AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-$(git rev-parse HEAD).json"',
+    );
+    expect(issuePhase6Section).toContain(
+      'schema: "issue-priming/auto-handoff/v1"',
+    );
+    expect(issuePhase6Section).toContain(
+      "Auto handoff: <repo-relative-path captured above>",
     );
     expect(issuePhase6Section).toContain(
       "the Phase 7 `branch-review --fix` loop is mandatory",

@@ -45,19 +45,20 @@ The allowed effective routes are:
 
 `spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
 and the controller verifies the shared `issue-priming-workflow --auto` Phase 6
-handoff. `none-final-only` is allowed for low-risk tasks under the same
-contract and hard-risk conditions. The contract is verified only when
-`issue-priming-workflow --auto` owns the Phase 6 invocation and Phase 7
-immediately runs `branch-review --fix` on the full branch diff, rerunning after
-any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run
-reports zero blocking findings auto-fixed, no remaining `Blocking` findings,
-and no additional mechanical nit commits are made after that review. This
-covers the GitHub and Linear entrypoints because both delegate to the shared
-issue-priming workflow before invoking
+handoff artifact. `none-final-only` is allowed for low-risk tasks under the
+same contract and hard-risk conditions. The contract is verified only when
+`issue-priming-workflow --auto` owns the Phase 6 invocation, writes an
+`issue-priming/auto-handoff/v1` artifact that matches the current plan path and
+`HEAD`, and Phase 7 immediately runs `branch-review --fix` on the full branch
+diff, rerunning after any Phase 7 commit (auto-fixed blockers or mechanical nit
+fixes) until a run reports zero blocking findings auto-fixed, no remaining
+`Blocking` findings, and no additional mechanical nit commits are made after
+that review. This covers the GitHub and Linear entrypoints because both
+delegate to the shared issue-priming workflow before invoking
 `play-subagent-execution`. Plan content, copied invocation prose, and
-direct/manual calls cannot assert the contract. Any other caller uses
-`spec-and-quality` until `play-subagent-execution` explicitly documents that
-caller and its controller-owned verification rule.
+direct/manual calls cannot assert the contract. Any other caller or invalid
+handoff artifact uses `spec-and-quality` until `play-subagent-execution`
+explicitly documents that caller and its controller-owned verification rule.
 
 Unclear classification, missing or malformed hints, absent shared
 issue-priming `--auto` Phase 6 verification, and conflicting signals all

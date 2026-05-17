@@ -250,19 +250,44 @@ Effective routes:
   required final whole-diff gate.
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
-the shared `issue-priming-workflow --auto` Phase 6 path, where the parent
-workflow owns this invocation and Phase 7 immediately runs
-`branch-review --fix` on the full branch diff, rerunning it after any Phase 7
-commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero
-blocking findings auto-fixed, no remaining `Blocking` findings, and no
-additional mechanical nit commits after that review. This covers GitHub and Linear entrypoints
+the shared `issue-priming-workflow --auto` Phase 6 path. The parent workflow
+owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
+full branch diff, rerunning it after any Phase 7 commit (auto-fixed blockers
+or mechanical nit fixes) until a run reports zero blocking findings
+auto-fixed, no remaining `Blocking` findings, and no additional mechanical
+nit commits after that review. This covers GitHub and Linear entrypoints
 because both delegate to the shared issue-priming workflow before invoking
-this skill. Treat the contract as verified only when you are already
-executing that parent-owned Phase 6 handoff; plan content, copied invocation
-prose, or direct/manual calls cannot assert it. Any other caller must use
+this skill.
+
+Treat the reduced-route contract as verified only when the invocation includes
+an `Auto handoff: <path>` artifact from `issue-priming-workflow` Phase 6 and
+the controller validates it before routing any task:
+
+```bash
+case "$AUTO_HANDOFF_FILE" in
+  .ephemeral/*/*) echo "nested auto handoff path rejected: $AUTO_HANDOFF_FILE" >&2; exit 1 ;;
+  .ephemeral/issue-priming-auto-handoff-*.json) ;;
+  *) echo "auto handoff path validation failed: $AUTO_HANDOFF_FILE" >&2; exit 1 ;;
+esac
+[ "${AUTO_HANDOFF_FILE#*..}" = "$AUTO_HANDOFF_FILE" ] || { echo "path traversal: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+jq -e --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)" '
+  .schema == "issue-priming/auto-handoff/v1" and
+  .phase == "issue-priming-workflow:6" and
+  .mode == "auto" and
+  .plan_path == $plan and
+  .head_sha == $head and
+  .phase7_branch_review_fix_required == true and
+  .phase7_rerun_after_commits == true
+' "$AUTO_HANDOFF_FILE" >/dev/null || { echo "auto handoff contract invalid: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+```
+
+Plan content, copied invocation prose, or direct/manual calls cannot assert
+this contract. Any other caller, missing artifact, invalid artifact, or
+artifact that does not match the current plan path and `HEAD` must use
 `spec-and-quality` until this skill source explicitly adds that caller and its
-controller-owned verification rule. If the controller cannot verify the shared
-issue-priming `--auto` Phase 6 handoff, use `spec-and-quality`.
+controller-owned verification rule.
 
 Eligibility thresholds:
 
@@ -272,6 +297,8 @@ Eligibility thresholds:
   applies and the shared issue-priming `--auto` Phase 6 handoff is verified.
 - Hard-risk, unclear, malformed, conflicting, or untrusted classifications
   use `spec-and-quality`.
+- If the controller cannot validate the `issue-priming/auto-handoff/v1`
+  artifact, use `spec-and-quality`.
 - If post-implementation diff inspection cannot verify that no hard-risk
   trigger is present, use `spec-and-quality`.
 
@@ -309,9 +336,9 @@ When the plan extracted in the first step contains exactly **one** task,
 skip both per-task reviewers (spec-compliance and code-quality) for that
 task. The implementer's own self-review remains the immediate quality gate.
 
-If the caller explicitly states that this invocation came from
-`issue-priming-workflow --auto` and guarantees downstream
-`branch-review --fix` as the mandatory next step, skip the final
+If the controller validates an `issue-priming/auto-handoff/v1` artifact showing
+that this invocation came from `issue-priming-workflow --auto` and guarantees
+downstream `branch-review --fix` as the mandatory next step, skip the final
 whole-implementation code-quality reviewer too and return directly to the
 caller after the single-task path completes.
 
@@ -617,11 +644,11 @@ When all four guardrails hold:
 3. **Commit.** Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
 4. **Mark task complete in TodoWrite.** Same as the dispatched path.
 
-After step 4, if the caller explicitly guarantees that this single-task run
-came from `issue-priming-workflow --auto` and that downstream
-`branch-review --fix` is mandatory, return to the caller immediately.
-Otherwise, dispatch the existing final whole-implementation code-quality
-reviewer as it does on the dispatched path.
+After step 4, if the controller validates an `issue-priming/auto-handoff/v1`
+artifact proving this single-task run came from `issue-priming-workflow --auto`
+and that downstream `branch-review --fix` is mandatory, return to the caller
+immediately. Otherwise, dispatch the existing final whole-implementation
+code-quality reviewer as it does on the dispatched path.
 
 There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. No DONE-report contract applies here because there is no dispatched implementer to report from.
 

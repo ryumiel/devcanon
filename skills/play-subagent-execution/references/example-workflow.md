@@ -7,10 +7,11 @@ The example below shows a multi-task plan with coherent authored tasks. The
 executor follows the authored plan boundaries; it does not do runtime regrouping or batching. Each multi-task task follows the executor-computed
 review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
-on the verified shared `issue-priming-workflow --auto` Phase 6 path, where
-Phase 7 reruns `branch-review --fix` after any auto-fix or mechanical-nit
-commit until the final run reports zero blocking findings auto-fixed, no
-remaining `Blocking` findings, and no additional mechanical nit commits. For a
+on the verified shared `issue-priming-workflow --auto` Phase 6 path with a
+valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
+`branch-review --fix` after any auto-fix or mechanical-nit commit until the
+final run reports zero blocking findings auto-fixed, no remaining `Blocking`
+findings, and no additional mechanical nit commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
@@ -181,8 +182,9 @@ Implementer:
 
 [Compute effective review route]
 Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
-the verified shared `issue-priming-workflow --auto` Phase 6 path guarantees
-final whole-diff review through `branch-review --fix`.
+the verified shared `issue-priming-workflow --auto` Phase 6 path and valid
+`issue-priming/auto-handoff/v1` artifact guarantee final whole-diff review
+through `branch-review --fix`.
 If that later review leaves remaining `Blocking` findings, the workflow stops.
 Effective route: `none-final-only`.
 

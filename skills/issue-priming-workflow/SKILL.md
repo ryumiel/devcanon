@@ -295,7 +295,28 @@ readability guard, narrowed to the plan-document suffix. `play-review`
 findings/nits envelopes use a stricter direct-child guard because those
 paths are echoed through review output and reused by wrappers.
 
-Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
+Before invoking `play-subagent-execution`, write a controller-owned auto-mode
+handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
+artifact is the positive signal for reduced per-task review routes; invocation
+prose alone is not enough.
+
+```bash
+AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-$(git rev-parse HEAD).json"
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+jq -n --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)" '{
+  schema: "issue-priming/auto-handoff/v1",
+  phase: "issue-priming-workflow:6",
+  mode: "auto",
+  plan_path: $plan,
+  head_sha: $head,
+  phase7_branch_review_fix_required: true,
+  phase7_rerun_after_commits: true
+}' > "$AUTO_HANDOFF_FILE"
+```
+
+Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
+reference plus `Auto handoff: <path>` in the invocation prose, NOT as inline
+content. The invocation skeleton:
 
 ```
 Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
@@ -305,6 +326,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <repo-relative-path captured above>
+Auto handoff: <repo-relative-path captured above>
 ```
 
 All `play-subagent-execution` rules apply (fresh subagent per task,

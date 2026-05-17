@@ -134,7 +134,7 @@ esac
 FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
 ```
 
-Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST bind `HEAD_SHA` from the trusted `head_sha` input and run this guard before opening or overwriting the file. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
+Findings-file consumers MUST run this guard before opening or overwriting the file. Wrappers that directly call `play-review` (`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted `head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from `branch-review --fix`, so it binds `HEAD_SHA` from the validated `Review head: <40-hex-sha>.` notice that `branch-review --fix` emits before any post-review `HEAD` changes are considered. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 
