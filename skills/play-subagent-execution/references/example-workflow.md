@@ -4,8 +4,7 @@ An end-to-end illustration of the multi-task subagent-driven flow. The procedure
 itself lives in `SKILL.md` § The Process; this file is illustrative.
 
 The example below shows a multi-task plan with coherent authored tasks. The
-executor follows the authored plan boundaries; it does not do runtime
-regrouping or batching. Each multi-task task follows the executor-computed
+executor follows the authored plan boundaries; it does not do runtime regrouping or batching. Each multi-task task follows the executor-computed
 review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` when
 the final whole-diff review guarantee is present. For a

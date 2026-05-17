@@ -632,6 +632,9 @@ mkdir -p .ephemeral
     const playPlanningBody = parseFrontmatter(
       getSkillOutput(outputs, "play-planning", "codex").content,
     ).body;
+    const issuePrimingWorkflowBody = parseFrontmatter(
+      getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
+    ).body;
     expect(playPlanningBody).toContain("## Cohesive Task Composition");
     expect(playPlanningBody).toContain(
       "share the same subsystem or file family",
@@ -642,6 +645,44 @@ mkdir -p .ephemeral
     expect(playPlanningBody).toContain(
       "Do not hide dependent implementation units merely to avoid multi-task review",
     );
+    expect(playPlanningBody).toContain(
+      "### Optional Review-Routing Hint Fields",
+    );
+    expect(playPlanningBody).toContain("**Execution:** single | composed");
+    expect(playPlanningBody).toContain("**Risk hint:** low | medium | high");
+    expect(playPlanningBody).toContain(
+      "**Review hint:** none-final-only | spec-only | spec-and-quality",
+    );
+    expect(playPlanningBody).toContain("**Review rationale:**");
+    expect(playPlanningBody).toContain("non-authoritative hints only");
+    expect(playPlanningBody).toContain(
+      "High-risk triggers are not under-classified",
+    );
+    expect(playPlanningBody).toContain(
+      "Unclear review classification defaults to `spec-and-quality`",
+    );
+    expect(playPlanningBody).toContain(
+      "Hint field ordering is heading, optional `**Mode:** mechanical`, optional",
+    );
+
+    const planningHintExample = playPlanningBody.slice(
+      playPlanningBody.indexOf("Example mechanical-task header:"),
+      playPlanningBody.indexOf("Omit the field for any task with judgment"),
+    );
+    const modeIndex = planningHintExample.indexOf("**Mode:** mechanical");
+    const executionIndex = planningHintExample.indexOf("**Execution:** single");
+    const riskIndex = planningHintExample.indexOf("**Risk hint:** low");
+    const reviewIndex = planningHintExample.indexOf(
+      "**Review hint:** none-final-only",
+    );
+    const rationaleIndex = planningHintExample.indexOf("**Review rationale:**");
+    const filesIndex = planningHintExample.indexOf("**Files:**");
+    expect(modeIndex).toBeGreaterThanOrEqual(0);
+    expect(modeIndex).toBeLessThan(executionIndex);
+    expect(executionIndex).toBeLessThan(riskIndex);
+    expect(riskIndex).toBeLessThan(reviewIndex);
+    expect(reviewIndex).toBeLessThan(rationaleIndex);
+    expect(rationaleIndex).toBeLessThan(filesIndex);
 
     expect(playSubagentExecutionBody).toContain(
       "high-assurance serial execution",
@@ -660,6 +701,55 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "## Risk-Based Per-Task Review Routing",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "`play-subagent-execution` owns reviewer dispatch",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "defaults missing, malformed, conflicting, or unclear classifications to",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "`spec-and-quality`: run the spec-compliance reviewer, then the code-quality",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "`spec-only`: run the spec-compliance reviewer only.",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "`none-final-only`: run no per-task reviewer for that task; rely on the",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Hard-risk triggers force `spec-and-quality`",
+    );
+    for (const trigger of [
+      "public API changes",
+      "schema/model/config changes",
+      "generated output format changes",
+      "install/sync behavior or user-home writes",
+      "external CLI/API/system invocation substitutions",
+      "async lifecycle, ordering, or concurrency changes",
+      "security-sensitive behavior",
+      "data-loss/destructive filesystem risk",
+      "broad architecture changes",
+      "reviewer-routing policy, hard review rules, workflow-policy changes",
+      "ADR/spec/guideline/skill/agent contract changes",
+      "documentation-policy, ownership, procedure, or AFDS workflow changes",
+      "manifests, generated files, deletions, renames, file mode changes",
+      "test harness or validation behavior changes that can mask regressions",
+      "task output that establishes a foundation consumed by later tasks",
+    ]) {
+      expect(playSubagentExecutionBody).toContain(trigger);
+    }
+    expect(playSubagentExecutionBody).toContain(
+      "Foundation-producing tasks receive at least `spec-only` before dependent",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "review completes with no remaining `Blocking` findings",
+    );
+    expect(playSubagentExecutionBody).toContain("branch-review --fix");
+    expect(playSubagentExecutionBody).toContain("pr-review");
+    expect(playSubagentExecutionBody).toContain("play-review");
     expect(playSubagentExecutionBody).toContain(
       "## Controller Lifecycle Ledger",
     );
@@ -747,6 +837,13 @@ mkdir -p .ephemeral
       "Controller rereads may be reduced",
     );
     expect(playSubagentAdvantages).toContain("reviewers still read from disk");
+    expect(playSubagentAdvantages).toContain(
+      "Executor-owned risk-based review routing per task",
+    );
+    expect(playSubagentAdvantages).toContain("none-final-only");
+    expect(playSubagentAdvantages).toContain(
+      "no remaining `Blocking` findings",
+    );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
 
@@ -758,6 +855,15 @@ mkdir -p .ephemeral
       "utf-8",
     );
     expect(playSubagentExampleWorkflow).toContain("coherent authored tasks");
+    expect(playSubagentExampleWorkflow).toContain(
+      "Each multi-task task follows the executor-computed",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Effective route: `none-final-only`",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "caller guarantees final whole-diff review through `branch-review --fix`",
+    );
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
     );
@@ -864,7 +970,27 @@ mkdir -p .ephemeral
     expect(playSubagentRedFlags).toContain(
       "the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch",
     );
+    expect(playSubagentRedFlags).toContain(
+      "Skip or weaken the executor-computed review route",
+    );
+    expect(playSubagentRedFlags).toContain("Hard-risk triggers force");
+    expect(playSubagentRedFlags).toContain(
+      "reduced routes require the final whole-diff review guarantee",
+    );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
+
+    expect(issuePrimingWorkflowBody).toContain(
+      "Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing",
+    );
+    expect(issuePrimingWorkflowBody).toContain(
+      "Phase 7 `branch-review --fix` is mandatory",
+    );
+    expect(issuePrimingWorkflowBody).toContain(
+      "satisfies the final-review guarantee required by any reduced per-task review route",
+    );
+    expect(issuePrimingWorkflowBody).not.toContain(
+      "Run all per-task reviews for multi-task plans",
+    );
   });
 
   it("documents the write-product-spec behavior-spec boundaries", async () => {
