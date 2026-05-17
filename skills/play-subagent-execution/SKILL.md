@@ -5,15 +5,27 @@ description: Executes an implementation plan by dispatching a fresh subagent per
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each (spec compliance review first, then code quality review) -- except when the plan has exactly one task, in which case the per-task two-stage review is skipped.
+Execute plan by dispatching fresh subagent per task. Multi-task plans use
+executor-owned risk-based per-task review routing; hard-risk or unclear tasks
+run two-stage review (spec compliance review first, then code quality review).
+Single-task plans skip per-task review.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) for multi-task plans = high-assurance serial execution with isolated implementer context and independent review. Single-task plans skip per-task review and rely on the final whole-implementation reviewer for direct/manual calls, or downstream `branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast paths for single-task and mechanical cases reduce specific overhead without changing the review contract.
+**Core principle:** Fresh subagent per task + executor-owned risk-based
+review routing for multi-task plans = high-assurance serial execution with
+isolated implementer context and independent review. Hard-risk and unclear
+multi-task tasks run two-stage review (spec then quality). Reduced per-task
+routes require a final whole-diff no-Blocking guarantee. Single-task plans
+skip per-task review and rely on the final whole-implementation reviewer for
+direct/manual calls, or downstream `branch-review --fix` on the
+`issue-priming-workflow --auto` path; bounded fast paths for single-task and
+mechanical cases reduce specific overhead without changing the review
+contract.
 
 `play-subagent-execution` preserves the task boundaries authored in the plan.
 After extraction, each authored task remains the unit of implementer dispatch
-and, for multi-task plans, per-task review. The executor does not regroup
+and, for multi-task plans, the executor-computed per-task review route. The executor does not regroup
 adjacent tasks or runtime-batch by default; runtime batching would be a
 separate policy change, not an implicit optimization.
 
@@ -89,7 +101,7 @@ digraph when_to_use {
 - Same session coordination (no context switch)
 - Fresh serial implementer context per task (no context pollution)
 - Authored task boundaries are preserved as the execution and review units
-- Two-stage review after each task for multi-task plans (spec compliance first, then code quality); single-task plans skip per-task review
+- Executor-owned risk-based per-task review after each task for multi-task plans; hard-risk or unclear tasks run two-stage review, and single-task plans skip per-task review
 - Automatic review checkpoints, with bounded fast paths for single-task and mechanical cases
 
 ## The Process
@@ -152,6 +164,13 @@ digraph process {
 }
 ```
 
+> The diagram shows the full two-stage branch. For multi-task plans, first
+> compute the task's effective review route as described in "Risk-Based
+> Per-Task Review Routing" below. `spec-and-quality` follows both reviewer
+> boxes, `spec-only` stops after spec-compliance approval, and
+> `none-final-only` marks the task complete after implementer self-review and
+> commit because the final whole-diff gate is mandatory.
+>
 > The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md`. See "Mechanical Task Hint" below.
 >
 > When assembling either implementer dispatch prompt, include a readable
@@ -202,6 +221,58 @@ Do **not** use the hint for these negative shapes — the default template appli
 - **New module or public interface.** Naming, boundary, or API decisions the implementer would need to make.
 - **Plans containing the words "design", "decide", or "choose."**
 
+## Risk-Based Per-Task Review Routing
+
+For multi-task plans, the controller computes an effective per-task review
+route after extracting each authored task and before dispatching that task's
+reviewers. Plan-provided review-routing fields are controller inputs only;
+`play-subagent-execution` owns reviewer dispatch, may override any hint, and
+defaults missing, malformed, conflicting, or unclear classifications to
+`spec-and-quality`.
+
+Effective routes:
+
+- `spec-and-quality`: run the spec-compliance reviewer, then the code-quality
+  reviewer.
+- `spec-only`: run the spec-compliance reviewer only.
+- `none-final-only`: run no per-task reviewer for that task; rely on the
+  required final whole-diff gate.
+
+Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
+when the invocation or local workflow guarantees a final whole-diff review
+through `branch-review --fix`, `pr-review`, or shared `play-review`, and that
+review completes with no remaining `Blocking` findings. If that guarantee is
+absent, use `spec-and-quality`.
+
+Hard-risk triggers force `spec-and-quality`:
+
+- public API changes;
+- schema/model/config changes;
+- generated output format changes;
+- install/sync behavior or user-home writes;
+- external CLI/API/system invocation substitutions;
+- async lifecycle, ordering, or concurrency changes;
+- security-sensitive behavior;
+- data-loss/destructive filesystem risk;
+- broad architecture changes;
+- reviewer-routing policy, hard review rules, workflow-policy changes;
+- ADR/spec/guideline/skill/agent contract changes;
+- documentation-policy, ownership, procedure, or AFDS workflow changes;
+- manifests, generated files, deletions, renames, file mode changes;
+- test harness or validation behavior changes that can mask regressions;
+- task output that establishes a foundation consumed by later tasks.
+
+Foundation-producing tasks receive at least `spec-only` before dependent
+tasks start, even when the plan hints `none-final-only`. If a foundation-
+producing task also matches any hard-risk trigger, use `spec-and-quality`.
+
+DevCanon-specific checks remain available through the full per-task path for
+hard-risk tasks and through final whole-diff review for reduced routes. The
+final local whole-implementation code-quality reviewer can cover local
+maintainability, integration, and implementation-quality checks when it runs,
+but it does not replace hard-risk per-task checks and is not a substitute for
+the required whole-diff gate on reduced routes.
+
 ## Single-Task Plans
 
 When the plan extracted in the first step contains exactly **one** task,
@@ -218,7 +289,9 @@ Otherwise, the final whole-implementation code-quality reviewer at the end
 of this skill still runs (its scope is the whole implementation, not the
 per-task carve-out).
 
-For plans with two or more tasks, the per-task two-stage review runs unchanged.
+For plans with two or more tasks, each task follows the effective route
+computed by the controller. Hard-risk, unclear, or untrusted routes use
+`spec-and-quality`.
 
 If you invoke this skill **directly** (not via `--auto`) on a single-task
 plan, no whole-diff review runs after the final code-quality reviewer — run
@@ -299,7 +372,7 @@ Before every new subagent spawn, inspect the lifecycle ledger for completed or s
 
 1. Close PASS reviewers only after their review scope, base/head SHA, report, and PASS verdict are recorded when the target is `automatic-close-supported`.
 2. Close reviewers with findings only after their review scope, base/head SHA, report, concrete findings, routing target, and re-review target are recorded, unless a narrow follow-up needs the same session.
-3. Close implementers only after the report, changed files, base/head SHA, test results, snapshot state, blocker state when applicable, and all same-session reviewer fixup needs are captured. For multi-task plans, keep the implementer available until both the spec-compliance and code-quality reviewer loops pass, unless the target lacks same-session follow-up and a fresh implementer can receive the complete captured state.
+3. Close implementers only after the report, changed files, base/head SHA, test results, snapshot state, blocker state when applicable, and all same-session reviewer fixup needs are captured. For multi-task plans, keep the implementer available until every reviewer loop required by the task's effective route passes, unless the target lacks same-session follow-up and a fresh implementer can receive the complete captured state.
 4. If the target is `inventory-only` or `cleanup-unavailable`, first capture the same role-specific state required by steps 1-3, then record the `close-unavailable` reason before spawning instead of claiming closure.
 
 This gate is orchestration hygiene. It does not change task status, reviewer independence, git state, or the serial implementer rule.
@@ -528,7 +601,7 @@ There is no DONE-report step. The plan body is itself the snapshot — the contr
 
 If any guardrail fails, dispatch normally. Template choice is driven by `**Mode:** mechanical` in the task header — except when guardrail #4 fails (TDD step-pair present), in which case use `implementer-prompt.md` regardless of any `**Mode:** mechanical` hint, since TDD work needs the full prompt's judgment scaffolding (a mismarked plan with both `**Mode:** mechanical` and a TDD step-pair is the only case where this carve-out bites). Specifically:
 
-- Guardrail #1 fails (multi-task): standard multi-task flow with per-task two-stage review.
+- Guardrail #1 fails (multi-task): standard multi-task flow with executor-computed per-task review routing.
 - Guardrail #2 fails (no `**Mode:** mechanical`): single-task dispatched flow with `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
 - Guardrail #4 fails (TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
 
@@ -605,9 +678,9 @@ Before acting on any returned status, update the lifecycle ledger for that sessi
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
-**DONE:** For multi-task plans, proceed to spec compliance review. For single-task plans, mark the task complete (see § Single-Task Plans).
+**DONE:** For multi-task plans, apply the task's effective review route. `spec-and-quality` proceeds to spec-compliance review and then code-quality review; `spec-only` proceeds to spec-compliance review and then marks the task complete after approval; `none-final-only` marks the task complete after implementer self-review and commit. For single-task plans, mark the task complete (see § Single-Task Plans).
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then proceed to spec compliance review; for single-task plans (see § Single-Task Plans), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next step (spec review for multi-task, mark complete for single-task).
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then apply the task's effective review route; for single-task plans (see § Single-Task Plans), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next route step (review for multi-task routes that require it, mark complete for `none-final-only` or single-task paths).
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
@@ -635,7 +708,7 @@ If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and 
 
 ## Example Workflow
 
-See [`references/example-workflow.md`](references/example-workflow.md) for an end-to-end illustration of the multi-task flow (controller plan extraction, per-task implementer dispatch, two-stage review, completion).
+See [`references/example-workflow.md`](references/example-workflow.md) for an end-to-end illustration of the multi-task flow (controller plan extraction, per-task implementer dispatch, effective review route, completion).
 
 ## Advantages
 
@@ -648,7 +721,7 @@ See [`references/advantages.md`](references/advantages.md) for the rationale (vs
 
 ## Red Flags
 
-See [`references/red-flags.md`](references/red-flags.md) for the full list (start-on-main, skipping reviews on multi-task plans, parallel implementer dispatch, ignoring subagent questions, skipping re-review).
+See [`references/red-flags.md`](references/red-flags.md) for the full list (start-on-main, skipping the executor-computed review route, parallel implementer dispatch, ignoring subagent questions, skipping re-review).
 
 ## Integration
 

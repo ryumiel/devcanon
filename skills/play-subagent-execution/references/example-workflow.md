@@ -3,9 +3,12 @@
 An end-to-end illustration of the multi-task subagent-driven flow. The procedure
 itself lives in `SKILL.md` § The Process; this file is illustrative.
 
-The example below shows a multi-task plan with coherent authored tasks, so
-per-task reviewers run after every task. The executor follows the authored plan
-boundaries; it does not do runtime regrouping or batching. For a
+The example below shows a multi-task plan with coherent authored tasks. The
+executor follows the authored plan boundaries; it does not do runtime
+regrouping or batching. Each multi-task task follows the executor-computed
+review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
+tasks may run `spec-only`, and low-risk tasks may use `none-final-only` when
+the final whole-diff review guarantee is present. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
@@ -24,6 +27,10 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Target capability for this run: automatic-close-supported
 
 Task 1: Hook lifecycle
+
+[Compute effective review route]
+Hard-risk trigger detected: install/sync behavior or user-home writes.
+Effective route: `spec-and-quality`.
 
 [Cleanup gate before spawn]
 Ledger: no completed or superseded sessions to close.
@@ -155,6 +162,28 @@ Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/he
 Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
 
 [Mark Task 2 complete]
+
+Task 3: Low-risk reference wording
+
+[Compute effective review route]
+Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
+caller guarantees final whole-diff review through `branch-review --fix` with
+no remaining `Blocking` findings.
+Effective route: `none-final-only`.
+
+[Dispatch implementation subagent with full task text + context]
+Implementer:
+  - Clarified one example sentence in a reference file
+  - Tests not applicable beyond final render/check suite
+  - Self-review: Wording matches the plan and no linked identifiers changed
+  - Committed
+
+[Lifecycle cleanup checkpoint]
+Task 3 implementer: status=DONE, report captured, base/head SHA captured,
+changed files captured, snapshot captured, test state captured, closed=yes
+after the effective route completed.
+
+[Mark Task 3 complete]
 
 ...
 
