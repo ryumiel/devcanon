@@ -58,10 +58,17 @@ describe("rendered phase artifact contracts", () => {
       "nested issue body path rejected: $ISSUE_BODY_PATH",
     );
     expect(workflowBody).toContain(
+      "issue body must not be a symlink: $ISSUE_BODY_PATH",
+    );
+    expect(workflowBody).toContain(
       "nested research brief path rejected: $RESEARCH_BRIEF_PATH",
     );
     expect(workflowBody).toContain("nested design path rejected: $DESIGN_PATH");
+    expect(workflowBody).toContain(
+      "design must not be a symlink: $DESIGN_PATH",
+    );
     expect(workflowBody).toContain("nested plan path rejected: $PLAN_PATH");
+    expect(workflowBody).toContain("plan must not be a symlink: $PLAN_PATH");
     expect(workflowBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
    mkdir -p .ephemeral
@@ -80,7 +87,13 @@ describe("rendered phase artifact contracts", () => {
       "nested issue body path rejected: $ISSUE_BODY_PATH",
     );
     expect(brainstormBody).toContain(
+      "issue body must not be a symlink: $ISSUE_BODY_PATH",
+    );
+    expect(brainstormBody).toContain(
       "nested research brief path rejected: $RESEARCH_BRIEF_PATH",
+    );
+    expect(brainstormBody).toContain(
+      "research brief must not be a symlink: $RESEARCH_BRIEF_PATH",
     );
     expect(brainstormBody).toContain(`\
 DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
@@ -93,6 +106,9 @@ DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
     ).body;
     expect(playPlanningBody).toContain(
       "nested design path rejected: $DESIGN_PATH",
+    );
+    expect(playPlanningBody).toContain(
+      "design must not be a symlink: $DESIGN_PATH",
     );
     expect(playPlanningBody).toContain(`\
 PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
@@ -193,6 +209,9 @@ mkdir -p .ephemeral
     );
     expect(branchReviewBody).toContain(
       "skipped hard-rule judgment-required blocker",
+    );
+    expect(branchReviewBody).toContain(
+      "all pre-fix findings except blockers that were successfully auto-fixed",
     );
     expect(branchReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
@@ -321,6 +340,8 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("not emitted as a conversation-output");
     expect(adr0013).toContain("rejects nested `.ephemeral` subpaths");
     expect(adr0013).toContain("symlinked parent component could escape");
+    expect(adr0013).toContain("require a regular");
+    expect(adr0013).toContain("artifact must not be a symlink");
 
     const implementerPrompt = await readFile(
       path.join(

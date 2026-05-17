@@ -53,11 +53,15 @@ case "$DESIGN_PATH" in
   *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
 esac
 [ "${DESIGN_PATH#*..}" = "$DESIGN_PATH" ] || { echo "path traversal: $DESIGN_PATH" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$DESIGN_PATH" ] || { echo "design must not be a symlink: $DESIGN_PATH" >&2; exit 1; }
+[ -f "$DESIGN_PATH" ] || { echo "design missing or not a regular file: $DESIGN_PATH" >&2; exit 1; }
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-This bash follows the same suffix and traversal checks used by the repository's
-phase-artifact handoff guards, narrowed to the design-document suffix.
+This bash follows the same suffix, traversal, symlink, regular-file, and
+readability checks used by the repository's phase-artifact handoff guards,
+narrowed to the design-document suffix.
 `play-review` findings/nits envelopes add a direct-child `.ephemeral/`
 restriction because those paths are echoed through review output and reused by
 wrappers before read or overwrite; design documents keep the generic

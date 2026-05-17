@@ -55,14 +55,18 @@ case "$PLAN_PATH" in
   *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
 esac
 [ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$PLAN_PATH" ] || { echo "plan must not be a symlink: $PLAN_PATH" >&2; exit 1; }
+[ -f "$PLAN_PATH" ] || { echo "plan missing or not a regular file: $PLAN_PATH" >&2; exit 1; }
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-This bash uses the generic phase-artifact guard shape: narrow the suffix to the
-expected artifact, reject traversal, and verify readability before opening the
-file. `play-review` findings/nits envelopes use a stricter direct-child
-`.ephemeral/` guard because those paths are echoed through review output and
-reused by wrappers before read or overwrite.
+This bash uses the generic phase-artifact read guard shape: narrow the suffix to
+the expected artifact, reject traversal, reject symlinked `.ephemeral` and
+symlinked leaf files, require a regular file, and verify readability before
+opening the file. `play-review` findings/nits envelopes use a stricter
+direct-child `.ephemeral/` guard because those paths are echoed through review
+output and reused by wrappers before read or overwrite.
 
 The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,
@@ -272,8 +276,8 @@ the shared `issue-priming-workflow --auto` Phase 6 path. The parent workflow
 owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
 full branch diff, rerunning it after any Phase 7 commit (auto-fixed blockers
 or mechanical nit fixes) until a run reports zero blocking findings
-auto-fixed, no remaining `Blocking` findings, and no additional mechanical
-nit commits after that review. This covers GitHub and Linear entrypoints
+auto-fixed, no unresolved remaining `Blocking` findings, and no additional
+mechanical nit commits after that review. This covers GitHub and Linear entrypoints
 because both delegate to the shared issue-priming workflow before invoking
 this skill.
 

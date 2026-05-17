@@ -33,15 +33,15 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   `issue-priming-workflow --auto` Phase 6 path with controller-local parent
   state and a valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
   `branch-review --fix` after any auto-fix or mechanical-nit commit until the
-  final run reports zero blocking findings auto-fixed, no remaining `Blocking`
-  findings, and no additional mechanical nit commits
+  final run reports zero blocking findings auto-fixed, no unresolved remaining
+  `Blocking` findings, and no additional mechanical nit commits
 - Single-task plans rely on either the final code-quality reviewer
   (direct/manual) or downstream `branch-review --fix` on the
   `issue-priming-workflow --auto` path
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
-- Reduced review routes remain bounded by a mandatory final whole-diff gate whose final run is after any Phase 7 commits; remaining `Blocking` findings stop the workflow
+- Reduced review routes remain bounded by a mandatory final whole-diff gate whose final run is after any Phase 7 commits; unresolved remaining `Blocking` findings stop the workflow
 
 **Cost:**
 

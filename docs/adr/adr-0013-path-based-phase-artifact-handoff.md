@@ -130,8 +130,9 @@ variant: it recomputes `.ephemeral/<branch_slug>-<head_sha>-findings.json`,
 rejects nested paths, and is used for findings-file consumers. Derived nits
 envelopes use their own direct-child `nits_file` guard because they may end in
 `-nits-pending.json`. Generic phase artifacts narrow the guard to their expected
-suffix and include a `[ -r ]` readability check; a missing or unreadable file is
-a fail-loud signal that the producer notice line was malformed or the file was
+suffix, reject symlinked `.ephemeral` and symlinked leaf files, require a regular
+file, and include a `[ -r ]` readability check; a missing or unreadable file is a
+fail-loud signal that the producer notice line was malformed or the file was
 clobbered.
 
 ```bash
@@ -142,6 +143,9 @@ case "$ARTIFACT_PATH" in
   *) echo "<artifact> path validation failed: $ARTIFACT_PATH" >&2; exit 1 ;;
 esac
 [ "${ARTIFACT_PATH#*..}" = "$ARTIFACT_PATH" ] || { echo "path traversal: $ARTIFACT_PATH" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$ARTIFACT_PATH" ] || { echo "artifact must not be a symlink: $ARTIFACT_PATH" >&2; exit 1; }
+[ -f "$ARTIFACT_PATH" ] || { echo "artifact missing or not a regular file: $ARTIFACT_PATH" >&2; exit 1; }
 [ -r "$ARTIFACT_PATH" ] || { echo "artifact missing or unreadable: $ARTIFACT_PATH" >&2; exit 1; }
 ```
 

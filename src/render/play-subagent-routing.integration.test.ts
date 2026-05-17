@@ -201,6 +201,9 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExecutionBody).toContain(
       "nested plan path rejected: $PLAN_PATH",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "plan must not be a symlink: $PLAN_PATH",
+    );
     expect(playSubagentExecutionBody).toContain("does not regroup");
     expect(playSubagentExecutionBody).toContain(
       "adjacent tasks or runtime-batch by default",
@@ -335,7 +338,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
     expect(normalizedRoutingSection).toContain(
-      "rerunning it after any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits after that review",
+      "rerunning it after any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings, and no additional mechanical nit commits after that review",
     );
     expect(normalizedRoutingSection).toContain(
       "This covers GitHub and Linear entrypoints because both delegate",
@@ -503,13 +506,13 @@ describe("play-subagent planning and routing contracts", () => {
       "`issue-priming/auto-handoff/v1` artifact",
     );
     expect(playSubagentAdvantages).toContain(
-      "zero blocking findings auto-fixed, no remaining `Blocking`",
+      "zero blocking findings auto-fixed, no unresolved remaining",
     );
     expect(playSubagentAdvantages).toContain(
       "no additional mechanical nit commits",
     );
     expect(playSubagentAdvantages).toContain(
-      "remaining `Blocking` findings stop the workflow",
+      "unresolved remaining `Blocking` findings stop the workflow",
     );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
@@ -559,7 +562,7 @@ describe("play-subagent planning and routing contracts", () => {
       "`issue-priming-workflow` Phase 7 runs `branch-review --fix`",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "Branch review: no remaining `Blocking` findings",
+      "Branch review: no unresolved remaining `Blocking` findings",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
@@ -801,7 +804,9 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain(
       "mechanical nit handling creates any commit, rerun this same Branch Review step",
     );
-    expect(issuePhase7Section).toContain('no `severity: "Blocking"` entries');
+    expect(issuePhase7Section).toContain(
+      'no unresolved `severity: "Blocking"` entries',
+    );
     expect(issuePhase7Section).toContain(
       "validate the parsed findings path before reading it",
     );
@@ -860,10 +865,16 @@ describe("play-subagent planning and routing contracts", () => {
       'echo "path traversal: $NITS_PENDING_FILE"',
     );
     expect(issuePhase7Section).toContain(
-      'If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user**',
+      'Ignore `critic: "INVALID"` findings for continuation',
     );
     expect(issuePhase7Section).toContain(
-      'Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`',
+      'Treat `critic: "DOWNGRADE"` findings as non-blocking feedback',
+    );
+    expect(issuePhase7Section).toContain(
+      'If any remaining finding has `severity: "Blocking"` with any other critic value, **stop `--auto` and surface those findings to the user**',
+    );
+    expect(issuePhase7Section).toContain(
+      'set `severity` to `"Nit"`, set `critic` to `null`, and recompute `body`',
     );
 
     const issueModelSelectionStart = issuePrimingWorkflowBody.indexOf(
