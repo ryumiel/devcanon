@@ -166,8 +166,8 @@ Task 3: Low-risk reference wording
 
 [Compute effective review route]
 Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
-caller guarantees final whole-diff review through `branch-review --fix` with
-no remaining `Blocking` findings.
+caller guarantees final whole-diff review through `branch-review --fix`.
+If that later review leaves remaining `Blocking` findings, the workflow stops.
 Effective route: `none-final-only`.
 
 [Dispatch implementation subagent with full task text + context]

@@ -847,7 +847,7 @@ mkdir -p .ephemeral
     );
     expect(playSubagentAdvantages).toContain("none-final-only");
     expect(playSubagentAdvantages).toContain(
-      "no remaining `Blocking` findings",
+      "remaining `Blocking` findings stop the workflow",
     );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");

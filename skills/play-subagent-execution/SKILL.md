@@ -16,7 +16,7 @@ Single-task plans skip per-task review.
 review routing for multi-task plans = high-assurance serial execution with
 isolated implementer context and independent review. Hard-risk and unclear
 multi-task tasks run two-stage review (spec then quality). Reduced per-task
-routes require a final whole-diff no-Blocking guarantee. Single-task plans
+routes require a mandatory final whole-diff gate. Single-task plans
 skip per-task review and rely on the final whole-implementation reviewer for
 direct/manual calls, or downstream `branch-review --fix` on the
 `issue-priming-workflow --auto` path; bounded fast paths for single-task and

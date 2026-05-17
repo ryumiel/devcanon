@@ -36,7 +36,7 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
-- Reduced review routes remain bounded by final whole-diff review with no remaining `Blocking` findings
+- Reduced review routes remain bounded by a mandatory final whole-diff gate; remaining `Blocking` findings stop the workflow
 
 **Cost:**
 
