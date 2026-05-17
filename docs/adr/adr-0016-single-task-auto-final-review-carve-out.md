@@ -43,7 +43,9 @@ single-task implementation path completes.
 
 All other paths remain unchanged:
 
-- multi-task plans keep their existing review behavior
+- multi-task plans kept their existing review behavior at the time of
+  ADR-0016; ADR-0018 later refines that path to risk-based routing with
+  `spec-and-quality` as the hard-risk and fail-closed route
 - direct/manual single-task invocations still run the final
   whole-implementation reviewer
 - ADR-0015's skip-dispatch optimization remains internal to Phase 6; it now

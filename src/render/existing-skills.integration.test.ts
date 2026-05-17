@@ -645,35 +645,61 @@ mkdir -p .ephemeral
     expect(playPlanningBody).toContain(
       "Do not hide dependent implementation units merely to avoid multi-task review",
     );
-    expect(playPlanningBody).toContain(
+    const reviewHintSectionStart = playPlanningBody.indexOf(
       "### Optional Review-Routing Hint Fields",
     );
-    expect(playPlanningBody).toContain("**Execution:** single | composed");
-    expect(playPlanningBody).toContain("**Risk hint:** low | medium | high");
-    expect(playPlanningBody).toContain(
+    const reviewHintSectionEnd = playPlanningBody.indexOf("## No Placeholders");
+    expect(reviewHintSectionStart).toBeGreaterThanOrEqual(0);
+    expect(reviewHintSectionEnd).toBeGreaterThan(reviewHintSectionStart);
+    const reviewHintSection = playPlanningBody.slice(
+      reviewHintSectionStart,
+      reviewHintSectionEnd,
+    );
+    expect(reviewHintSection).toContain("**Execution:** single | composed");
+    expect(reviewHintSection).toContain("**Risk hint:** low | medium | high");
+    expect(reviewHintSection).toContain(
       "**Review hint:** none-final-only | spec-only | spec-and-quality",
     );
-    expect(playPlanningBody).toContain("**Review rationale:**");
-    expect(playPlanningBody).toContain("non-authoritative hints only");
-    expect(playPlanningBody).toContain(
+    expect(reviewHintSection).toContain("**Review rationale:**");
+    expect(reviewHintSection).toContain("non-authoritative hints only");
+
+    const planReviewSectionStart = playPlanningBody.indexOf("## Plan Review");
+    const planReviewSectionEnd = playPlanningBody.indexOf(
+      "## Execution Handoff",
+    );
+    expect(planReviewSectionStart).toBeGreaterThanOrEqual(0);
+    expect(planReviewSectionEnd).toBeGreaterThan(planReviewSectionStart);
+    const planReviewSection = playPlanningBody.slice(
+      planReviewSectionStart,
+      planReviewSectionEnd,
+    );
+    expect(planReviewSection).toContain(
       "High-risk triggers are not under-classified",
     );
-    expect(playPlanningBody).toContain(
+    expect(planReviewSection).toContain(
       "Unclear review classification defaults to `spec-and-quality`",
     );
-    expect(playPlanningBody).toContain(
+    expect(planReviewSection).toContain(
       "Hint field ordering is heading, optional `**Mode:** mechanical`, optional",
     );
-    expect(playPlanningBody).toContain(
+
+    const executionHandoffSectionStart = playPlanningBody.indexOf(
+      "## Execution Handoff",
+    );
+    expect(executionHandoffSectionStart).toBeGreaterThanOrEqual(0);
+    const executionHandoffSection = playPlanningBody.slice(
+      executionHandoffSectionStart,
+    );
+    expect(executionHandoffSection).toContain(
       "I invoke play-subagent-execution for fresh subagents per task and executor-owned risk-based review routing",
     );
-    expect(playPlanningBody).toContain(
+    expect(executionHandoffSection).toContain(
       "Fresh subagent per task + executor-owned risk-based per-task review routing",
     );
-    expect(playPlanningBody).toContain(
+    expect(executionHandoffSection).toContain(
       "Reduced routes require an explicit owning caller contract for the final whole-diff gate",
     );
-    expect(playPlanningBody).not.toContain(
+    expect(executionHandoffSection).not.toContain(
       "Fresh subagent per task + two-stage review",
     );
 
@@ -691,11 +717,13 @@ mkdir -p .ephemeral
     );
     const modeIndex = planningHintExample.indexOf("**Mode:** mechanical");
     const executionIndex = planningHintExample.indexOf("**Execution:** single");
-    expect(planningHintExample).toContain("### Task N: Fix Example Typo");
+    expect(planningHintExample).toContain("### Task N: Rename Example Token");
     expect(planningHintExample).toContain(
-      "Single-sentence typo fix in non-policy example copy with no hard-risk trigger",
+      "Exact single-file identifier replacement with no hard-risk trigger",
     );
     expect(planningHintExample).toContain("- Modify: `examples/demo-note.md`");
+    expect(planningHintExample).toContain("**Replace:** `OldExampleToken`");
+    expect(planningHintExample).toContain("**With:** `NewExampleToken`");
     const riskIndex = planningHintExample.indexOf("**Risk hint:** low");
     const reviewIndex = planningHintExample.indexOf(
       "**Review hint:** none-final-only",
@@ -725,6 +753,33 @@ mkdir -p .ephemeral
     );
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
+    );
+    const processSectionStart =
+      playSubagentExecutionBody.indexOf("## The Process");
+    const processSectionEnd =
+      playSubagentExecutionBody.indexOf("## Model Selection");
+    expect(processSectionStart).toBeGreaterThanOrEqual(0);
+    expect(processSectionEnd).toBeGreaterThan(processSectionStart);
+    const processSection = playSubagentExecutionBody.slice(
+      processSectionStart,
+      processSectionEnd,
+    );
+    expect(processSection).toContain("Compute effective review route");
+    expect(processSection).toContain(
+      '"Implementer agent implements, tests, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"]',
+    );
+    expect(processSection).toContain(
+      '"Compute effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="spec-and-quality or spec-only"]',
+    );
+    expect(processSection).toContain(
+      '"Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"]',
+    );
+    expect(processSection).toContain(
+      "The diagram routes each multi-task task through effective route computation",
+    );
+    expect(processSection).not.toContain("full two-stage branch");
+    expect(processSection).not.toContain(
+      '"Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="multi-task plan"]',
     );
     expect(playSubagentExecutionBody).toContain(
       "## Risk-Based Per-Task Review Routing",
@@ -1051,28 +1106,53 @@ mkdir -p .ephemeral
     );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
 
-    expect(issuePrimingWorkflowBody).toContain(
+    const issuePhase6Start = issuePrimingWorkflowBody.indexOf(
+      "### Phase 6: Implement",
+    );
+    const issuePhase6End = issuePrimingWorkflowBody.indexOf(
+      "### Phase 7: Branch Review",
+    );
+    expect(issuePhase6Start).toBeGreaterThanOrEqual(0);
+    expect(issuePhase6End).toBeGreaterThan(issuePhase6Start);
+    const issuePhase6Section = issuePrimingWorkflowBody.slice(
+      issuePhase6Start,
+      issuePhase6End,
+    );
+    expect(issuePhase6Section).toContain(
       "Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing",
     );
-    expect(issuePrimingWorkflowBody).toContain(
+    expect(issuePhase6Section).toContain(
       "Phase 7 `branch-review --fix` is mandatory",
     );
-    expect(issuePrimingWorkflowBody).toContain(
+    expect(issuePhase6Section).toContain(
       "satisfies the final-review guarantee required by any reduced per-task review route",
     );
-    expect(issuePrimingWorkflowBody).toContain(
-      "Per-task for `spec-and-quality` and `spec-only` routes",
-    );
-    expect(issuePrimingWorkflowBody).toContain(
-      "Per-task for `spec-and-quality`; final/local gates separately",
-    );
-    expect(issuePrimingWorkflowBody).not.toContain(
+    expect(issuePhase6Section).not.toContain(
       "Run all per-task reviews for multi-task plans",
     );
-    expect(issuePrimingWorkflowBody).not.toContain(
+
+    const issueModelSelectionStart = issuePrimingWorkflowBody.indexOf(
+      "### Model selection",
+    );
+    const issueModelSelectionEnd = issuePrimingWorkflowBody.indexOf(
+      "## What This Skill Does NOT Do",
+    );
+    expect(issueModelSelectionStart).toBeGreaterThanOrEqual(0);
+    expect(issueModelSelectionEnd).toBeGreaterThan(issueModelSelectionStart);
+    const issueModelSelectionSection = issuePrimingWorkflowBody.slice(
+      issueModelSelectionStart,
+      issueModelSelectionEnd,
+    );
+    expect(issueModelSelectionSection).toContain(
+      "Per-task for `spec-and-quality` and `spec-only` routes",
+    );
+    expect(issueModelSelectionSection).toContain(
+      "Per-task for `spec-and-quality`; final/local gates separately",
+    );
+    expect(issueModelSelectionSection).not.toContain(
       "Per-task only; runs on multi-task plans",
     );
-    expect(issuePrimingWorkflowBody).not.toContain(
+    expect(issueModelSelectionSection).not.toContain(
       "Per-task (multi-task) + whole-implementation review",
     );
   });

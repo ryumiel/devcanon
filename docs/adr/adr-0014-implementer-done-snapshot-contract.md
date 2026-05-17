@@ -21,12 +21,14 @@ typically re-reads the file(s) the implementer touched to:
 - Extract line numbers for downstream review or commit composition.
 - Confirm content matches the spec.
 
-In multi-task plans (per-task reviewers active per ADR-0007), the
-controller's re-read pressure is highest because line ranges feed the
-spec-compliance and code-quality reviewer dispatches. Each re-read
-pulls full file content into the controller's context. The observed
-failure mode was a medium-sized ADR being re-read across post-commit
-verification, review composition, and nit-fixing steps.
+In multi-task plans where the effective route includes per-task reviewers,
+the controller's re-read pressure is highest because line ranges feed the
+spec-compliance and, for `spec-and-quality`, code-quality reviewer
+dispatches. ADR-0018 later permits reduced routes where line ranges may feed
+only spec review or the final whole-diff gate. Each re-read pulls full file
+content into the controller's context. The observed failure mode was a
+medium-sized ADR being re-read across post-commit verification, review
+composition, and nit-fixing steps.
 
 A naive fix — embed the file content in the DONE report — collides
 with `skills/play-subagent-execution/references/spec-reviewer-prompt.md`

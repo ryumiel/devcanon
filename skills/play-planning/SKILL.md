@@ -189,18 +189,21 @@ Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` betwee
 Example mechanical-task header:
 
 ```markdown
-### Task N: Fix Example Typo
+### Task N: Rename Example Token
 
 **Mode:** mechanical
 
 **Execution:** single
 **Risk hint:** low
 **Review hint:** none-final-only
-**Review rationale:** Single-sentence typo fix in non-policy example copy with no hard-risk trigger; final whole-diff review remains required.
+**Review rationale:** Exact single-file identifier replacement with no hard-risk trigger; final whole-diff review remains required.
 
 **Files:**
 
 - Modify: `examples/demo-note.md`
+
+**Replace:** `OldExampleToken`
+**With:** `NewExampleToken`
 ```
 
 Omit the field for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without the field continue to dispatch with the full implementer template — the field is purely additive.

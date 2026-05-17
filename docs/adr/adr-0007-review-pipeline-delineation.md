@@ -65,10 +65,9 @@ raised from `{{model:standard}}` to `{{model:deep}}` to match the downstream
 `branch-review` / `pr-review` floor, closing the per-task coverage gap
 surfaced by the contradictory-review failure mode on routes that dispatch
 those reviewers.
-The same `code-quality-reviewer` agent is also invoked at the end of
-`play-subagent-execution` for the whole implementation regardless of plan
-size, so the floor raise applies to that dispatch too — see Consequences
-for the cost rationale.
+When the final whole-implementation code-quality reviewer runs, it uses the
+same `code-quality-reviewer` agent, so the floor raise applies to that
+dispatch too — see Consequences for the cost rationale.
 
 This change is internal to `play-subagent-execution`. The
 `issue-priming-workflow` Phase 6 → Phase 7 call sequence (driven by
@@ -109,11 +108,12 @@ unchanged.
   dispatches only spec-compliance, and `none-final-only` dispatches neither
   per-task reviewer). Additionally, the final whole-implementation
   code-quality reviewer at the end of `play-subagent-execution` shares the
-  `code-quality-reviewer` agent and therefore runs at `{{model:deep}}` on
-  every path except the caller-scoped single-task `issue-priming-workflow
---auto` carve-out later introduced by ADR-0016. The increased cost on the
-  remaining paths is justified by the same rationale as `pr-review` and
-  `branch-review`: missing a real bug far outweighs the model cost.
+  `code-quality-reviewer` agent and therefore runs at `{{model:deep}}` on the
+  paths not covered by the caller-scoped single-task
+  `issue-priming-workflow --auto` carve-out later introduced by ADR-0016. The
+  increased cost on the remaining paths is justified by the same rationale as
+  `pr-review` and `branch-review`: missing a real bug far outweighs the model
+  cost.
 
 ## Alternatives considered
 

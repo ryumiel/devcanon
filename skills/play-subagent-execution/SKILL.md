@@ -116,6 +116,7 @@ digraph process {
         "Implementer agent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer agent implements, tests, commits, self-reviews" [shape=box];
+        "Compute effective review route" [shape=diamond];
         "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [shape=box];
         "Spec-compliance-reviewer agent confirms code matches spec?" [shape=diamond];
         "Implementer agent fixes spec gaps" [shape=box];
@@ -146,11 +147,14 @@ digraph process {
     "Answer questions, provide context" -> "Dispatch the implementer agent (references/implementer-prompt.md)";
     "Implementer agent asks questions?" -> "Implementer agent implements, tests, commits, self-reviews" [label="no"];
     "Implementer agent implements, tests, commits, self-reviews" -> "Mark task complete in TodoWrite" [label="single-task plan"];
-    "Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="multi-task plan"];
+    "Implementer agent implements, tests, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
+    "Compute effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="spec-and-quality or spec-only"];
+    "Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"];
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
     "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
     "Implementer agent fixes spec gaps" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes"];
+    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"];
+    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
     "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
     "Code-quality-reviewer agent approves?" -> "Implementer agent fixes quality issues" [label="no"];
     "Implementer agent fixes quality issues" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="re-review"];
@@ -164,10 +168,9 @@ digraph process {
 }
 ```
 
-> The diagram shows the full two-stage branch. For multi-task plans, first
-> compute the task's effective review route as described in "Risk-Based
-> Per-Task Review Routing" below. `spec-and-quality` follows both reviewer
-> boxes, `spec-only` stops after spec-compliance approval, and
+> The diagram routes each multi-task task through effective route computation
+> before reviewer dispatch. `spec-and-quality` follows both reviewer boxes,
+> `spec-only` stops after spec-compliance approval, and
 > `none-final-only` marks the task complete after implementer self-review and
 > commit because the final whole-diff gate is mandatory.
 >

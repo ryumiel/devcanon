@@ -83,6 +83,11 @@ Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/he
 Task 2: Recovery and repair modes
 
 [Get Task 2 text and context (already extracted)]
+[Compute effective review route]
+Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
+control flow, so a hard-risk trigger is present.
+Effective route: `spec-and-quality`.
+
 [Cleanup gate before Task 2 implementer spawn]
 Controller verifies Task 1 completed sessions are already closed before spawning Task 2.
 
