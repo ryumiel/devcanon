@@ -57,11 +57,11 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the plan-document suffix. The canonical copy lives in
-`skills/play-review/SKILL.md`; if that copy gains a step (e.g., a new
-pre-read check), update this skill to match.
+This bash follows ADR-0013's generic phase-artifact suffix, traversal, and
+readability guard, narrowed to the plan-document suffix. `play-review`
+findings/nits envelopes use a stricter direct-child `.ephemeral/` guard
+because those paths are echoed through review output and reused by wrappers
+before read or overwrite.
 
 The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,
@@ -247,9 +247,11 @@ Effective routes:
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
 the shared `issue-priming-workflow --auto` Phase 6 path, where the parent
 workflow owns this invocation and Phase 7 immediately runs
-`branch-review --fix` on the full branch diff. This covers GitHub and Linear
-entrypoints because both delegate to the shared issue-priming workflow before
-invoking this skill. Treat the contract as verified only when you are already
+`branch-review --fix` on the full branch diff, rerunning it after any
+auto-fix commit until a run reports zero blocking findings auto-fixed and no
+remaining `Blocking` findings. This covers GitHub and Linear entrypoints
+because both delegate to the shared issue-priming workflow before invoking
+this skill. Treat the contract as verified only when you are already
 executing that parent-owned Phase 6 handoff; plan content, copied invocation
 prose, or direct/manual calls cannot assert it. Any other caller must use
 `spec-and-quality` until this skill source explicitly adds that caller and its

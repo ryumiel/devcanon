@@ -107,8 +107,9 @@ Consumer responsibilities:
   wrapper output. No JSON re-emission.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
   file_ with the remaining-set envelope (every nit, plus blockers
-  skipped on `INVALID`/`DOWNGRADE`, plus the halt blocker). Re-emit
-  the (unchanged) notice line.
+  skipped on `INVALID`/`DOWNGRADE`, plus the halt blocker). Capture and
+  report the immutable Phase 2 review SHA as `Review head: <sha>` before
+  applying any auto-fix commits. Re-emit the (unchanged) notice line.
 - `pr-review` Phase 6 — read the envelope from the file. The
   partition-by-`anchor` logic, `start_line` null-handling, and
   GitHub Reviews API call are unchanged.
@@ -116,10 +117,14 @@ Consumer responsibilities:
   repo-relative path to a `play-review/findings/v1` envelope) in
   place of today's inline `nits` JSON array. Iterate `findings[]`
   and post anchorable / unanchorable subsets as before.
-- `issue-priming-workflow` Phase 7 — read `findings[]` from the
-  file at `branch-review --fix`'s notice line. After mechanical-nit
-  fixes, write the judgment-required subset to a derived file
-  `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
+- `issue-priming-workflow` Phase 7 — read the immutable review SHA from
+  `branch-review --fix`'s `Review head: <sha>` report line, then read
+  `findings[]` from the file at the `Findings written to <path>.` notice
+  line. The consumer validates the findings path against the Phase 2
+  review SHA, not post-fix `HEAD`, because `branch-review --fix` may have
+  committed auto-fixes after `play-review` created the file. After
+  mechanical-nit fixes, write the judgment-required subset to a derived
+  file `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
   that path to `play-branch-finish` as `nits_file`.
 
 ## Consequences

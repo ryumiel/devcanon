@@ -30,15 +30,16 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   hard-risk and unclear tasks run two-stage review (spec compliance, then
   code quality), while medium-risk tasks may run `spec-only` and low-risk
   tasks may use `none-final-only` only on the verified shared
-  `issue-priming-workflow --auto` Phase 6 path, where Phase 7 guarantees the
-  final whole-diff gate
+  `issue-priming-workflow --auto` Phase 6 path, where Phase 7 reruns
+  `branch-review --fix` after any auto-fix commit until the final run reports
+  zero blocking findings auto-fixed and no remaining `Blocking` findings
 - Single-task plans rely on either the final code-quality reviewer
   (direct/manual) or downstream `branch-review --fix` on the
   `issue-priming-workflow --auto` path
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
-- Reduced review routes remain bounded by a mandatory final whole-diff gate; remaining `Blocking` findings stop the workflow
+- Reduced review routes remain bounded by a mandatory final whole-diff gate whose final run is after any auto-fix commits; remaining `Blocking` findings stop the workflow
 
 **Cost:**
 

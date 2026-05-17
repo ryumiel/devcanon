@@ -180,6 +180,8 @@ EOF
      *) echo "nits_file path validation failed: $NITS_FILE" >&2; exit 1 ;;
    esac
    [ "${NITS_FILE#*..}" = "$NITS_FILE" ] || { echo "path traversal: $NITS_FILE" >&2; exit 1; }
+   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   [ ! -L "$NITS_FILE" ] || { echo "nits_file must not be a symlink: $NITS_FILE" >&2; exit 1; }
    [ -r "$NITS_FILE" ] || { echo "nits_file missing or unreadable: $NITS_FILE" >&2; exit 1; }
    jq -e '.schema == "play-review/findings/v1"' "$NITS_FILE" >/dev/null || { echo "envelope schema mismatch: $NITS_FILE" >&2; exit 1; }
    ```

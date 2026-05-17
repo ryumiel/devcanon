@@ -14,6 +14,10 @@ Task tool (general-purpose):
 
     [FULL TEXT of task from plan - paste it here, don't make subagent read file]
 
+    Review-routing hint fields (`Execution`, `Risk hint`, `Review hint`, and
+    `Review rationale`) are controller-only metadata. Ignore them as task
+    requirements; the controller owns reviewer dispatch.
+
     ## Context
 
     [Scene-setting: where this fits, dependencies, architectural context]

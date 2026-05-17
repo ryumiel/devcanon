@@ -159,7 +159,10 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
    [ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
    ```
 
-   (See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the research-brief suffix.)
+   This follows ADR-0013's generic phase-artifact suffix and traversal
+   guard, narrowed to the research-brief suffix. `play-review`
+   findings/nits envelopes use a stricter direct-child guard because
+   those paths are echoed through review output and reused by wrappers.
 
 3. Apply the symlink guard before the `Write` tool call (per `skills/play-review/SKILL.md` § Output → Write rules):
 
@@ -257,7 +260,10 @@ esac
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-(See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the design suffix.)
+This follows ADR-0013's generic phase-artifact suffix, traversal, and
+readability guard, narrowed to the design-document suffix. `play-review`
+findings/nits envelopes use a stricter direct-child guard because those
+paths are echoed through review output and reused by wrappers.
 
 Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -284,7 +290,10 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-(See [`skills/play-review/SKILL.md`](../play-review/SKILL.md) § Output for the canonical guard and rationale; this is the same pattern narrowed to the plan suffix.)
+This follows ADR-0013's generic phase-artifact suffix, traversal, and
+readability guard, narrowed to the plan-document suffix. `play-review`
+findings/nits envelopes use a stricter direct-child guard because those
+paths are echoed through review output and reused by wrappers.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -293,7 +302,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and Phase 7 `branch-review --fix` is mandatory. That mandatory whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If any Phase 7 run commits auto-fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed and no remaining `Blocking` findings. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <repo-relative-path captured above>
 ```
@@ -302,14 +311,20 @@ All `play-subagent-execution` rules apply (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
 single-task plans skip per-task review). The parent-owned contract above activates
 its narrow single-task final-review carve-out because this workflow
-guarantees Phase 7 `branch-review --fix`; the same mandatory Phase 7 gate is
-also the final whole-diff no-Blocking guarantee for reduced per-task routes.
+guarantees the Phase 7 `branch-review --fix` loop; the same mandatory Phase 7
+loop is also the final whole-diff no-Blocking guarantee for reduced per-task
+routes. If any `branch-review --fix` run commits auto-fixes, rerun Phase 7 on
+the new `HEAD`. Only a run that reports zero blocking findings auto-fixed and
+leaves no remaining `Blocking` findings satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Three runtime guardrails (single-task, `**Mode:** mechanical`, no TDD step-pair) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction.
 
 ### Phase 7: Branch Review
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
+If the run commits any auto-fixes, rerun `branch-review --fix` on the new
+`HEAD`. Continue until a run reports zero blocking findings auto-fixed and the
+remaining findings file contains no `severity: "Blocking"` entries.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If a `Blocking` finding requires design changes or out-of-diff edits, the workflow stops and reports it instead of auto-fixing. `Nit` findings are collected and passed to `play-branch-finish` in Phase 8 for posting as PR review comments after PR creation, not in the description body.
 

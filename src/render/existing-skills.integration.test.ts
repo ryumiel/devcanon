@@ -2,12 +2,15 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
+import {
+  getSkillOutput,
+  listRelativeFiles,
+} from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
-import { getSkillOutput, listRelativeFiles } from "./render-test-helpers.js";
 
 const TOUCHED_SKILLS = new Set([
   "github-issue-priming",

@@ -76,6 +76,9 @@ In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.
 
 ```bash
 REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
+# PLAY_REVIEW_OUTPUT is the captured markdown output from the Phase 2 play-review run.
+FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
+[ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
 REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 ```
 

@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "vitest";
-import type { renderAll } from "./pipeline.js";
+import type { renderAll } from "../render/pipeline.js";
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
 

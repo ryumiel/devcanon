@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "../config/load.js";
-import { parseFrontmatter } from "./frontmatter.js";
-import { renderAll } from "./pipeline.js";
 import {
   expectOrdered,
   getSkillOutput,
   normalizeWhitespace,
-} from "./render-test-helpers.js";
+} from "../__test-helpers__/render.js";
+import { loadConfig } from "../config/load.js";
+import { parseFrontmatter } from "./frontmatter.js";
+import { renderAll } from "./pipeline.js";
 
 describe("play-subagent planning and routing contracts", () => {
   it("pins reviewer prompt snapshot trust-boundary language", async () => {
@@ -270,6 +270,9 @@ describe("play-subagent planning and routing contracts", () => {
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
     expect(normalizedRoutingSection).toContain(
+      "rerunning it after any auto-fix commit until a run reports zero blocking findings auto-fixed and no remaining `Blocking` findings",
+    );
+    expect(normalizedRoutingSection).toContain(
       "This covers GitHub and Linear entrypoints because both delegate",
     );
     expect(normalizedRoutingSection).toContain(
@@ -418,6 +421,9 @@ describe("play-subagent planning and routing contracts", () => {
       "verified shared\n  `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(playSubagentAdvantages).toContain(
+      "zero blocking findings auto-fixed and no remaining `Blocking` findings",
+    );
+    expect(playSubagentAdvantages).toContain(
       "remaining `Blocking` findings stop the workflow",
     );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
@@ -453,7 +459,10 @@ describe("play-subagent planning and routing contracts", () => {
       "Clarified one example sentence in a reference file",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "the verified shared `issue-priming-workflow --auto` Phase 6 path guarantees",
+      "Phase 7 reruns `branch-review --fix` after any auto-fix commit",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "reports zero blocking findings auto-fixed",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "`issue-priming-workflow` Phase 7 runs `branch-review --fix`",
@@ -628,11 +637,15 @@ describe("play-subagent planning and routing contracts", () => {
       "Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing",
     );
     expect(issuePhase6Section).toContain(
-      "Phase 7 `branch-review --fix` is mandatory",
+      "the Phase 7 `branch-review --fix` loop is mandatory",
     );
     expect(issuePhase6Section).toContain(
       "satisfies the final-review guarantee required by any reduced per-task review route",
     );
+    expect(issuePhase6Section).toContain(
+      "If any `branch-review --fix` run commits auto-fixes, rerun Phase 7 on",
+    );
+    expect(issuePhase6Section).toContain("zero blocking findings auto-fixed");
     expect(issuePhase6Section).not.toContain(
       "Run all per-task reviews for multi-task plans",
     );
@@ -652,6 +665,10 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain(
       "Invoke `branch-review --fix` to review the implementation before creating a PR.",
     );
+    expect(issuePhase7Section).toContain(
+      "If the run commits any auto-fixes, rerun `branch-review --fix` on the new",
+    );
+    expect(issuePhase7Section).toContain('no `severity: "Blocking"` entries');
     expect(issuePhase7Section).toContain(
       "validate the parsed findings path before reading it",
     );

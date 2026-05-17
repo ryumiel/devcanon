@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "../config/load.js";
-import { parseFrontmatter } from "./frontmatter.js";
-import { renderAll } from "./pipeline.js";
 import {
   expectOrdered,
   getSkillOutput,
   normalizeWhitespace,
-} from "./render-test-helpers.js";
+} from "../__test-helpers__/render.js";
+import { loadConfig } from "../config/load.js";
+import { parseFrontmatter } from "./frontmatter.js";
+import { renderAll } from "./pipeline.js";
 
 describe("rendered phase artifact contracts", () => {
   it("documents the issue-body path handoff contract in rendered skills and prompt references", async () => {
@@ -118,6 +118,12 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(playBranchFinishBody).toContain(
       "nested nits_file path rejected: $NITS_FILE",
     );
+    expect(playBranchFinishBody).toContain(
+      "nits_file must not be a symlink: $NITS_FILE",
+    );
+    expect(playBranchFinishBody).toContain(
+      ".ephemeral must be a directory, not a symlink",
+    );
     expectOrdered(
       playBranchFinishBody,
       '.ephemeral/*/*) echo "nested nits_file path rejected: $NITS_FILE"',
@@ -130,6 +136,10 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(branchReviewBody).toContain(
       'REVIEW_HEAD_SHA="$(git rev-parse HEAD)"',
     );
+    expect(branchReviewBody).toContain(
+      "FINDINGS_FILE=$(printf '%s\\n' \"$PLAY_REVIEW_OUTPUT\"",
+    );
+    expect(branchReviewBody).toContain("play-review findings notice missing");
     expect(branchReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
       "Review head: `$REVIEW_HEAD_SHA` (the immutable Phase 2 `head_sha`)",
@@ -321,6 +331,12 @@ mkdir -p .ephemeral
       "Snapshot written to <repo-relative-path>.",
     );
     expect(implementerPrompt).toContain("exits nonzero");
+    expect(implementerPrompt).toContain(
+      "Review-routing hint fields (`Execution`, `Risk hint`, `Review hint`, and",
+    );
+    expect(implementerPrompt).toContain(
+      "the controller owns reviewer dispatch",
+    );
     expect(implementerPrompt).not.toContain(
       "One canonical recipe for a single file",
     );
@@ -351,6 +367,12 @@ mkdir -p .ephemeral
       "Snapshot written to <repo-relative-path>.",
     );
     expect(mechanicalImplementerPrompt).toContain("exits nonzero");
+    expect(mechanicalImplementerPrompt).toContain(
+      "Review-routing hint fields (`Execution`, `Risk hint`, `Review hint`, and",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "the controller owns reviewer dispatch",
+    );
     expect(mechanicalImplementerPrompt).not.toContain(
       "Build a JSON envelope conforming to schema",
     );
