@@ -104,9 +104,10 @@ DevCanon-specific checks remain available through two paths:
 - hard-risk tasks keep full per-task spec and code-quality review;
 - reduced per-task routes are covered by the final whole-diff gate, whose last
   run is after any Phase 7 commits (auto-fixed blockers or mechanical nit
-  fixes) and whose reviewers still check contracts, workflow invariants, data
-  safety, documentation alignment, and code quality over the complete
-  implementation diff.
+  fixes). That gate always runs the core correctness and data-safety reviewers
+  over the complete implementation diff; ADR-0017's guarded tiny-diff mode may
+  suppress dynamic documentation, language, test, and architecture reviewers for
+  qualifying tiny low-risk diffs.
 
 The local final whole-implementation code-quality reviewer can cover local
 maintainability, integration, and implementation-quality checks when it runs,

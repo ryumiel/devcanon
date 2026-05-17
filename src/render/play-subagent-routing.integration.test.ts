@@ -374,6 +374,9 @@ describe("play-subagent planning and routing contracts", () => {
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
     );
     expect(routingSection).toContain(
+      'if [ "${ISSUE_PRIMING_AUTO_PARENT_ACTIVE:-false}" = true ]; then',
+    );
+    expect(routingSection).toContain(
       'jq -e --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD"',
     );
     expect(routingSection).toContain('[ -f "$AUTO_HANDOFF_FILE" ]');

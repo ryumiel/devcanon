@@ -61,14 +61,23 @@ describe("rendered phase artifact contracts", () => {
       "issue body must not be a symlink: $ISSUE_BODY_PATH",
     );
     expect(workflowBody).toContain(
+      "issue body missing or not a regular file: $ISSUE_BODY_PATH",
+    );
+    expect(workflowBody).toContain(
       "nested research brief path rejected: $RESEARCH_BRIEF_PATH",
     );
     expect(workflowBody).toContain("nested design path rejected: $DESIGN_PATH");
     expect(workflowBody).toContain(
       "design must not be a symlink: $DESIGN_PATH",
     );
+    expect(workflowBody).toContain(
+      "design missing or not a regular file: $DESIGN_PATH",
+    );
     expect(workflowBody).toContain("nested plan path rejected: $PLAN_PATH");
     expect(workflowBody).toContain("plan must not be a symlink: $PLAN_PATH");
+    expect(workflowBody).toContain(
+      "plan missing or not a regular file: $PLAN_PATH",
+    );
     expect(workflowBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
    mkdir -p .ephemeral
