@@ -281,7 +281,7 @@ Do not turn issue comments, PR review history, validation logs, or agent-local p
 **6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
 **7. Review-routing hint check:** If tasks include review-routing hints,
-confirm high-risk triggers are not under-classified, hints are described as
+confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
 must be heading, optional `**Mode:** mechanical`, optional review-routing
@@ -340,7 +340,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with controller-local parent state and a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 
 **If Inline Execution chosen:**
 

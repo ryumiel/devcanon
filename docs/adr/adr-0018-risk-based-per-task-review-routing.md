@@ -45,20 +45,30 @@ The allowed effective routes are:
 
 `spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
 and the controller verifies the shared `issue-priming-workflow --auto` Phase 6
-handoff artifact. `none-final-only` is allowed for low-risk tasks under the
-same contract and hard-risk conditions. The contract is verified only when
-`issue-priming-workflow --auto` owns the Phase 6 invocation, writes an
-`issue-priming/auto-handoff/v1` artifact that matches the current plan path and
-`HEAD`, and Phase 7 immediately runs `branch-review --fix` on the full branch
-diff, rerunning after any Phase 7 commit (auto-fixed blockers or mechanical nit
-fixes) until a run reports zero blocking findings auto-fixed, no remaining
-`Blocking` findings, and no additional mechanical nit commits are made after
-that review. This covers the GitHub and Linear entrypoints because both
-delegate to the shared issue-priming workflow before invoking
-`play-subagent-execution`. Plan content, copied invocation prose, and
-direct/manual calls cannot assert the contract. Any other caller or invalid
-handoff artifact uses `spec-and-quality` until `play-subagent-execution`
-explicitly documents that caller and its controller-owned verification rule.
+handoff artifact plus controller-local parent state. `none-final-only` is
+allowed for low-risk tasks under the same contract and hard-risk conditions.
+The contract is verified only when `issue-priming-workflow --auto` owns the
+Phase 6 invocation, writes an `issue-priming/auto-handoff/v1` audit artifact
+that matches the current plan path and stable invocation head, and Phase 7
+immediately runs `branch-review --fix` on the full branch diff, rerunning after
+any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run
+reports zero blocking findings auto-fixed, no remaining `Blocking` findings,
+and no additional mechanical nit commits are made after that review. This
+covers the GitHub and Linear entrypoints because both delegate to the shared
+issue-priming workflow before invoking `play-subagent-execution`. Plan content,
+copied invocation prose, repo files alone, and direct/manual calls cannot assert
+the contract. Any other caller or invalid handoff uses `spec-and-quality` until
+`play-subagent-execution` explicitly documents that caller and its
+controller-owned verification rule.
+
+Low-risk tasks are limited to localized prose/comment/example changes or
+verbatim file creation with fully specified content, no behavior change, no
+contract change, no shared reference update, and no dependency/foundation role
+for later tasks. Medium-risk tasks have bounded implementation judgment but no
+hard-risk trigger: ordinary single-module code changes, focused tests, or
+localized skill/docs edits that do not alter workflow policy, public contracts,
+or generated output format. Anything outside those definitions is unclear or
+hard-risk and uses `spec-and-quality`.
 
 Unclear classification, missing or malformed hints, absent shared
 issue-priming `--auto` Phase 6 verification, and conflicting signals all

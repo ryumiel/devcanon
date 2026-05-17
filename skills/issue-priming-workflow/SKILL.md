@@ -297,13 +297,18 @@ paths are echoed through review output and reused by wrappers.
 
 Before invoking `play-subagent-execution`, write a controller-owned auto-mode
 handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
-artifact is the positive signal for reduced per-task review routes; invocation
-prose alone is not enough.
+artifact is audit evidence for reduced per-task review routes; authorization
+also depends on this controller-local parent workflow state, which invocation
+prose or repo files alone cannot provide.
 
 ```bash
-AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-$(git rev-parse HEAD).json"
+ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
+AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-${ISSUE_PRIMING_AUTO_HEAD}.json"
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-jq -n --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)" '{
+mkdir -p .ephemeral
+[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+AUTO_HANDOFF_TMP=$(mktemp ".ephemeral/issue-priming-auto-handoff.XXXXXX") || exit 1
+jq -n --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD" '{
   schema: "issue-priming/auto-handoff/v1",
   phase: "issue-priming-workflow:6",
   mode: "auto",
@@ -311,12 +316,17 @@ jq -n --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)" '{
   head_sha: $head,
   phase7_branch_review_fix_required: true,
   phase7_rerun_after_commits: true
-}' > "$AUTO_HANDOFF_FILE"
+}' > "$AUTO_HANDOFF_TMP"
+mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"
 ```
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <path>` in the invocation prose, NOT as inline
-content. The invocation skeleton:
+content. The artifact is audit evidence; the authorization for reduced routes
+is the controller-local parent state from this active workflow run, which
+direct/manual calls cannot supply. Carry `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true`
+and `ISSUE_PRIMING_AUTO_HEAD` in controller-local state for the executor's
+handoff validation. The invocation skeleton:
 
 ```
 Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.

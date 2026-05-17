@@ -279,11 +279,13 @@ describe("play-subagent planning and routing contracts", () => {
       "shared `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(routingSection).toContain("Auto handoff: <path>");
+    expect(routingSection).toContain("controller-local parent state");
+    expect(routingSection).toContain(".ephemeral/*/*) ;;");
     expect(routingSection).toContain(
-      "nested auto handoff path rejected: $AUTO_HANDOFF_FILE",
+      "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
     );
     expect(routingSection).toContain(
-      'jq -e --arg plan "$PLAN_PATH" --arg head "$(git rev-parse HEAD)"',
+      'jq -e --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD"',
     );
     expect(routingSection).toContain(
       '.schema == "issue-priming/auto-handoff/v1"',
@@ -299,10 +301,13 @@ describe("play-subagent planning and routing contracts", () => {
       "This covers GitHub and Linear entrypoints because both delegate",
     );
     expect(normalizedRoutingSection).toContain(
-      "Plan content, copied invocation prose, or direct/manual calls cannot assert this contract",
+      "repo files alone, or direct/manual calls cannot assert this contract",
     );
     expect(normalizedRoutingSection).toContain(
-      "Any other caller, missing artifact, invalid artifact, or artifact that does not match the current plan path and `HEAD` must use `spec-and-quality`",
+      "artifact that does not match the current plan path and `ISSUE_PRIMING_AUTO_HEAD`",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "These unverified cases do not abort the workflow; they only disable reduced routes",
     );
     expect(normalizedRoutingSection).toContain(
       "If the controller cannot validate the `issue-priming/auto-handoff/v1` artifact, use `spec-and-quality`",
@@ -312,6 +317,12 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(routingSection).toContain(
       "`none-final-only` is allowed for low-risk tasks when no hard-risk trigger",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "Low-risk tasks are limited to localized prose/comment/example changes or verbatim file creation",
+    );
+    expect(normalizedRoutingSection).toContain(
+      "Medium-risk tasks have bounded implementation judgment but no hard-risk trigger",
     );
     expect(routingSection).toContain(
       "Hard-risk, unclear, malformed, conflicting, or untrusted classifications",
@@ -443,6 +454,10 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentAdvantages).toContain(
       "verified shared\n  `issue-priming-workflow --auto` Phase 6 path",
     );
+    expect(playSubagentAdvantages).toContain("controller-local parent");
+    expect(playSubagentAdvantages).toContain(
+      "`issue-priming/auto-handoff/v1` artifact",
+    );
     expect(playSubagentAdvantages).toContain(
       "zero blocking findings auto-fixed, no remaining `Blocking`",
     );
@@ -485,7 +500,10 @@ describe("play-subagent planning and routing contracts", () => {
       "Clarified one example sentence in a reference file",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "valid `issue-priming/auto-handoff/v1` artifact",
+      "`issue-priming/auto-handoff/v1`\nartifact",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "controller-local parent state",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "`branch-review --fix` after any auto-fix or mechanical-nit",
@@ -666,13 +684,29 @@ describe("play-subagent planning and routing contracts", () => {
       "Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing",
     );
     expect(issuePhase6Section).toContain(
-      'AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-$(git rev-parse HEAD).json"',
+      'ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"',
+    );
+    expect(issuePhase6Section).toContain(
+      'AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-${ISSUE_PRIMING_AUTO_HEAD}.json"',
+    );
+    expect(issuePhase6Section).toContain("mkdir -p .ephemeral");
+    expect(issuePhase6Section).toContain(
+      '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
+    );
+    expect(issuePhase6Section).toContain(
+      'AUTO_HANDOFF_TMP=$(mktemp ".ephemeral/issue-priming-auto-handoff.XXXXXX")',
     );
     expect(issuePhase6Section).toContain(
       'schema: "issue-priming/auto-handoff/v1"',
     );
     expect(issuePhase6Section).toContain(
+      'mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"',
+    );
+    expect(issuePhase6Section).toContain(
       "Auto handoff: <repo-relative-path captured above>",
+    );
+    expect(issuePhase6Section).toContain(
+      "ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true",
     );
     expect(issuePhase6Section).toContain(
       "the Phase 7 `branch-review --fix` loop is mandatory",

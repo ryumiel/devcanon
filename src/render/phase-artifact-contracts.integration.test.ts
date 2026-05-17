@@ -268,6 +268,9 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("reject a symlinked");
     expect(adr0013).toContain("`.ephemeral` directory");
     expect(adr0013).toContain("same canonical guard now also applies");
+    expect(adr0013).toContain("`Auto handoff: <repo-relative-path>`");
+    expect(adr0013).toContain("issue-priming/auto-handoff/v1");
+    expect(adr0013).toContain("not a bearer credential");
 
     const implementerPrompt = await readFile(
       path.join(
