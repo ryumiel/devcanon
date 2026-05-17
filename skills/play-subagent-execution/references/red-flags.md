@@ -14,7 +14,7 @@ Behavioral signals that this skill is being violated.
 - Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. Skip-dispatch (see [SKILL.md § Skip-Dispatch Path](../SKILL.md#skip-dispatch-path)) is the explicitly-gated exception: with no dispatched subagent, this Red Flag does not apply on that path.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
-- Move to next task while either review has open issues
+- Move to next task while an executor-required review has open issues
 - Forward implementer-snapshot content into reviewer subagent prompts (the snapshot is for the controller's bookkeeping; reviewers read from disk to remain independent of the implementer's framing)
 - Use implementer-snapshot content as an Edit-tool anchor after subsequent commits (the snapshot becomes stale once a fixup or nit-fix lands; re-read from disk before editing)
 

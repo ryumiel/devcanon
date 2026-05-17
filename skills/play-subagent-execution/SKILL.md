@@ -270,8 +270,7 @@ Hard-risk triggers force `spec-and-quality`:
 - ADR/spec/guideline/skill/agent contract changes;
 - documentation-policy, ownership, procedure, or AFDS workflow changes;
 - manifests, generated files, deletions, renames, file mode changes;
-- test harness or validation behavior changes that can mask regressions;
-- task output that establishes a foundation consumed by later tasks.
+- test harness or validation behavior changes that can mask regressions.
 
 Foundation-producing tasks receive at least `spec-only` before dependent
 tasks start, even when the plan hints `none-final-only`. If a foundation-

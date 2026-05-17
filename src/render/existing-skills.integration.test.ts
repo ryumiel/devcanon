@@ -677,16 +677,25 @@ mkdir -p .ephemeral
       "Fresh subagent per task + two-stage review",
     );
 
+    const planningHintStart = playPlanningBody.indexOf(
+      "Example mechanical-task header:",
+    );
+    const planningHintEnd = playPlanningBody.indexOf(
+      "Omit the field for any task with judgment",
+    );
+    expect(planningHintStart).toBeGreaterThanOrEqual(0);
+    expect(planningHintEnd).toBeGreaterThan(planningHintStart);
     const planningHintExample = playPlanningBody.slice(
-      playPlanningBody.indexOf("Example mechanical-task header:"),
-      playPlanningBody.indexOf("Omit the field for any task with judgment"),
+      planningHintStart,
+      planningHintEnd,
     );
     const modeIndex = planningHintExample.indexOf("**Mode:** mechanical");
     const executionIndex = planningHintExample.indexOf("**Execution:** single");
-    expect(planningHintExample).toContain("### Task N: Fix Reference Typo");
+    expect(planningHintExample).toContain("### Task N: Fix Example Typo");
     expect(planningHintExample).toContain(
-      "Single-sentence typo fix in a reference file with no hard-risk trigger",
+      "Single-sentence typo fix in non-policy example copy with no hard-risk trigger",
     );
+    expect(planningHintExample).toContain("- Modify: `examples/demo-note.md`");
     const riskIndex = planningHintExample.indexOf("**Risk hint:** low");
     const reviewIndex = planningHintExample.indexOf(
       "**Review hint:** none-final-only",
@@ -720,13 +729,19 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "## Risk-Based Per-Task Review Routing",
     );
-    const routingSection = playSubagentExecutionBody.slice(
-      playSubagentExecutionBody.indexOf(
-        "## Risk-Based Per-Task Review Routing",
-      ),
-      playSubagentExecutionBody.indexOf("## Single-Task Plans"),
+    const routingSectionStart = playSubagentExecutionBody.indexOf(
+      "## Risk-Based Per-Task Review Routing",
     );
-    expect(playSubagentExecutionBody).toContain(
+    const routingSectionEnd = playSubagentExecutionBody.indexOf(
+      "## Single-Task Plans",
+    );
+    expect(routingSectionStart).toBeGreaterThanOrEqual(0);
+    expect(routingSectionEnd).toBeGreaterThan(routingSectionStart);
+    const routingSection = playSubagentExecutionBody.slice(
+      routingSectionStart,
+      routingSectionEnd,
+    );
+    expect(routingSection).toContain(
       "`play-subagent-execution` owns reviewer dispatch",
     );
     expect(routingSection).toContain(
@@ -780,12 +795,20 @@ mkdir -p .ephemeral
       "documentation-policy, ownership, procedure, or AFDS workflow changes",
       "manifests, generated files, deletions, renames, file mode changes",
       "test harness or validation behavior changes that can mask regressions",
-      "task output that establishes a foundation consumed by later tasks",
     ]) {
       expect(routingSection).toContain(trigger);
     }
     expect(routingSection).toContain(
       "Foundation-producing tasks receive at least `spec-only` before dependent",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "For plans with **two or more** tasks, the per-task two-stage review",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "two-stage review after each task for multi-task plans",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "all multi-task plans run two-stage review",
     );
     expect(playSubagentExecutionBody).toContain(
       "## Controller Lifecycle Ledger",
@@ -1020,6 +1043,12 @@ mkdir -p .ephemeral
     expect(playSubagentRedFlags).toContain(
       "reduced routes require an explicit owning caller contract",
     );
+    expect(playSubagentRedFlags).toContain(
+      "Move to next task while an executor-required review has open issues",
+    );
+    expect(playSubagentRedFlags).not.toContain(
+      "Move to next task while either review has open issues",
+    );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
 
     expect(issuePrimingWorkflowBody).toContain(
@@ -1031,8 +1060,20 @@ mkdir -p .ephemeral
     expect(issuePrimingWorkflowBody).toContain(
       "satisfies the final-review guarantee required by any reduced per-task review route",
     );
+    expect(issuePrimingWorkflowBody).toContain(
+      "Per-task for `spec-and-quality` and `spec-only` routes",
+    );
+    expect(issuePrimingWorkflowBody).toContain(
+      "Per-task for `spec-and-quality`; final/local gates separately",
+    );
     expect(issuePrimingWorkflowBody).not.toContain(
       "Run all per-task reviews for multi-task plans",
+    );
+    expect(issuePrimingWorkflowBody).not.toContain(
+      "Per-task only; runs on multi-task plans",
+    );
+    expect(issuePrimingWorkflowBody).not.toContain(
+      "Per-task (multi-task) + whole-implementation review",
     );
   });
 

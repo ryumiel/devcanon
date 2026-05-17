@@ -427,8 +427,8 @@ Use `{{model:standard}}` as the floor for agents that make judgment calls during
 | ------------------------ | -------------------- | --------------------------------------------------------------- |
 | Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
 | Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
-| Spec compliance reviewer | `{{model:deep}}`     | Per-task only; runs on multi-task plans                         |
-| Code quality reviewer    | `{{model:deep}}`     | Per-task (multi-task) + whole-implementation review             |
+| Spec compliance reviewer | `{{model:deep}}`     | Per-task for `spec-and-quality` and `spec-only` routes          |
+| Code quality reviewer    | `{{model:deep}}`     | Per-task for `spec-and-quality`; final/local gates separately   |
 | PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 
 ## What This Skill Does NOT Do

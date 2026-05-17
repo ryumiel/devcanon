@@ -69,8 +69,7 @@ Hard-risk triggers force full per-task `spec-and-quality` review:
 - ADR/spec/guideline/skill/agent contract changes;
 - documentation-policy, ownership, procedure, or AFDS workflow changes;
 - manifests, generated files, deletions, renames, file mode changes;
-- test harness or validation behavior changes that can mask regressions;
-- task output that establishes a foundation consumed by later tasks.
+- test harness or validation behavior changes that can mask regressions.
 
 Foundation-producing tasks receive at least per-task spec review before
 dependent tasks start. If a foundation-producing task also matches any
