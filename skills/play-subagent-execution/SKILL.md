@@ -240,9 +240,10 @@ Effective routes:
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
 when the invocation or local workflow guarantees a final whole-diff review
-through `branch-review --fix`, `pr-review`, or shared `play-review`, and that
-review completes with no remaining `Blocking` findings. If that guarantee is
-absent, use `spec-and-quality`.
+through `branch-review --fix`, `pr-review`, or shared `play-review`. If that
+guarantee is absent, use `spec-and-quality`. If the guaranteed final
+whole-diff review later completes with remaining `Blocking` findings, the
+workflow must stop instead of treating the reduced route as safe.
 
 Hard-risk triggers force `spec-and-quality`:
 

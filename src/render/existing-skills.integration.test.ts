@@ -671,6 +671,10 @@ mkdir -p .ephemeral
     );
     const modeIndex = planningHintExample.indexOf("**Mode:** mechanical");
     const executionIndex = planningHintExample.indexOf("**Execution:** single");
+    expect(planningHintExample).toContain("### Task N: Fix Reference Typo");
+    expect(planningHintExample).toContain(
+      "Single-sentence typo fix in a reference file with no hard-risk trigger",
+    );
     const riskIndex = planningHintExample.indexOf("**Risk hint:** low");
     const reviewIndex = planningHintExample.indexOf(
       "**Review hint:** none-final-only",
@@ -744,8 +748,9 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(
       "Foundation-producing tasks receive at least `spec-only` before dependent",
     );
+    expect(playSubagentExecutionBody).toContain("If the guaranteed final");
     expect(playSubagentExecutionBody).toContain(
-      "review completes with no remaining `Blocking` findings",
+      "whole-diff review later completes with remaining `Blocking` findings",
     );
     expect(playSubagentExecutionBody).toContain("branch-review --fix");
     expect(playSubagentExecutionBody).toContain("pr-review");
