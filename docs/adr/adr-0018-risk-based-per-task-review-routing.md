@@ -49,9 +49,11 @@ handoff. `none-final-only` is allowed for low-risk tasks under the same
 contract and hard-risk conditions. The contract is verified only when
 `issue-priming-workflow --auto` owns the Phase 6 invocation and Phase 7
 immediately runs `branch-review --fix` on the full branch diff, rerunning after
-any auto-fix commit until a run reports zero blocking findings auto-fixed and
-no remaining `Blocking` findings. This covers the GitHub and Linear entrypoints
-because both delegate to the shared issue-priming workflow before invoking
+any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run
+reports zero blocking findings auto-fixed, no remaining `Blocking` findings,
+and no additional mechanical nit commits are made after that review. This
+covers the GitHub and Linear entrypoints because both delegate to the shared
+issue-priming workflow before invoking
 `play-subagent-execution`. Plan content, copied invocation prose, and
 direct/manual calls cannot assert the contract. Any other caller uses
 `spec-and-quality` until `play-subagent-execution` explicitly documents that
@@ -86,9 +88,10 @@ DevCanon-specific checks remain available through two paths:
 
 - hard-risk tasks keep full per-task spec and code-quality review;
 - reduced per-task routes are covered by the final whole-diff gate, whose last
-  run is after any auto-fix commits and whose reviewers still check contracts,
-  workflow invariants, data safety, documentation alignment, and code quality
-  over the complete implementation diff.
+  run is after any Phase 7 commits (auto-fixed blockers or mechanical nit
+  fixes) and whose reviewers still check contracts, workflow invariants, data
+  safety, documentation alignment, and code quality over the complete
+  implementation diff.
 
 The local final whole-implementation code-quality reviewer can cover local
 maintainability, integration, and implementation-quality checks when it runs,

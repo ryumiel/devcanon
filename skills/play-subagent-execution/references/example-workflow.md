@@ -8,9 +8,9 @@ executor follows the authored plan boundaries; it does not do runtime regrouping
 review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
 tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
 on the verified shared `issue-priming-workflow --auto` Phase 6 path, where
-Phase 7 reruns `branch-review --fix` after any auto-fix commit until the final
-run reports zero blocking findings auto-fixed and no remaining `Blocking`
-findings. For a
+Phase 7 reruns `branch-review --fix` after any auto-fix or mechanical-nit
+commit until the final run reports zero blocking findings auto-fixed, no
+remaining `Blocking` findings, and no additional mechanical nit commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
@@ -211,7 +211,8 @@ final-code-quality-reviewer: agent_id=final-quality, review scope captured, base
 
 [Caller runs final whole-diff gate]
 `issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
-reports zero blocking findings auto-fixed.
+reports zero blocking findings auto-fixed. If mechanical nit fixes commit
+after that review, Phase 7 reruns on the new `HEAD`.
 Branch review: no remaining `Blocking` findings.
 
 [Caller continues]

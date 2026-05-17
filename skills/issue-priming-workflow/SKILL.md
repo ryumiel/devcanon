@@ -302,7 +302,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If any Phase 7 run commits auto-fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed and no remaining `Blocking` findings. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <repo-relative-path captured above>
 ```
@@ -315,7 +315,8 @@ guarantees the Phase 7 `branch-review --fix` loop; the same mandatory Phase 7
 loop is also the final whole-diff no-Blocking guarantee for reduced per-task
 routes. If any `branch-review --fix` run commits auto-fixes, rerun Phase 7 on
 the new `HEAD`. Only a run that reports zero blocking findings auto-fixed and
-leaves no remaining `Blocking` findings satisfies the final-review guarantee.
+leaves no remaining `Blocking` findings, followed by no mechanical nit commits,
+satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [SKILL.md § Skip-Dispatch Path](../play-subagent-execution/SKILL.md#skip-dispatch-path)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Three runtime guardrails (single-task, `**Mode:** mechanical`, no TDD step-pair) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction.
 
@@ -324,13 +325,15 @@ leaves no remaining `Blocking` findings satisfies the final-review guarantee.
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 If the run commits any auto-fixes, rerun `branch-review --fix` on the new
 `HEAD`. Continue until a run reports zero blocking findings auto-fixed and the
-remaining findings file contains no `severity: "Blocking"` entries.
+remaining findings file contains no `severity: "Blocking"` entries. If later
+mechanical nit handling creates any commit, rerun this same Branch Review step
+on the new `HEAD` before proceeding to Phase 8.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If a `Blocking` finding requires design changes or out-of-diff edits, the workflow stops and reports it instead of auto-fixing. `Nit` findings are collected and passed to `play-branch-finish` in Phase 8 for posting as PR review comments after PR creation, not in the description body.
 
 If a blocking finding requires design changes **or out-of-diff edits**, **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s wrapper-owned `Review head: <sha>` report line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. Then validate the parsed findings path before reading it:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. Then validate the parsed findings path before reading it:
 
 ```bash
 case "$REVIEW_HEAD_SHA" in
@@ -355,6 +358,7 @@ case "$FINDINGS_FILE" in
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
 [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 [ ! -L "$FINDINGS_FILE" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
 jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
 ```
@@ -376,6 +380,7 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#ph
   - **Back-reference (required).** Each commit body must include the literal footer line `Reported by branch-review at <path>:<line>` for every nit the commit addresses, so the audit trail is unambiguous.
   - **Grouping.** Multiple mechanical fixes in the same file at the same scope may be grouped into one commit. When grouping, include one back-reference line per nit, each on its own line in the commit body.
   - **Edit-staleness.** Re-read the target file from disk before applying each Edit. Any implementer snapshot the controller may still be holding from Phase 6 is stale by this point — earlier per-task review fixups and `branch-review --fix` auto-fix commits have already modified the tree, so snapshot content is no longer a reliable Edit anchor. `skills/play-subagent-execution/SKILL.md` § Edit-staleness rule restates the same constraint for the per-task path.
+  - **Post-nit review loop.** If any mechanical nit commit is made, rerun `branch-review --fix` on the new `HEAD` and restart Phase 7 from the Branch Review step. Continue until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits are made after that review.
 - **Judgment-required nits** — leave unfixed. After classification, write the judgment-required subset as a fresh `play-review/findings/v1` envelope (`{"schema": "play-review/findings/v1", "findings": [<judgment-required items>], "carry_forward": []}`) to a sibling file derived from `$FINDINGS_FILE` by replacing the `-findings.json` suffix with `-nits-pending.json` (i.e., `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`). Assert the suffix shape before substituting, so a malformed `$FINDINGS_FILE` does not silently produce a path with `-nits-pending.json` appended; remove any pre-existing symlink at the derived path before writing (per the symlink-guard rule in `skills/play-review/SKILL.md` § Output → Write rules):
 
   ```bash

@@ -142,7 +142,7 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expect(branchReviewBody).toContain("play-review findings notice missing");
     expect(branchReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
-      "Review head: `$REVIEW_HEAD_SHA` (the immutable Phase 2 `head_sha`)",
+      "Exact review-head notice line: `Review head: $REVIEW_HEAD_SHA.`",
     );
     expect(branchReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
@@ -184,6 +184,9 @@ mkdir -p .ephemeral
     );
     expect(prReviewBody).toContain(
       'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(prReviewBody).toContain(
+      ".ephemeral must be a directory, not a symlink",
     );
     expect(prReviewBody).toContain(
       'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
@@ -399,6 +402,13 @@ mkdir -p .ephemeral
     expect(playSubagentExecutionBody).toContain(".ephemeral/*/snapshot-*.json");
     expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
       "snapshot-specific flatness, symlink, and regular-file checks",
+    );
+    expect(playSubagentExecutionBody).toContain("snapshot-specific read guard");
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "intentionally diverges from `play-review`'s findings-file guard",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "starts from the authoritative path-validation guard",
     );
     expect(playSubagentExecutionBody).toContain(
       "snapshot is not a regular file",

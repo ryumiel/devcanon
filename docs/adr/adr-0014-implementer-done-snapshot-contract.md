@@ -244,14 +244,14 @@ esac
 # changed-file list. The snapshot is an optimization, not a workflow gate.
 ```
 
-This bash starts from the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the snapshot suffix and adapted to log-and-fall-back
-disposition (the canonical guard hard-exits because `play-review` has
-no fallback; the snapshot consumer always has committed HEAD blob reads
-available). The snapshot consumer additionally enforces snapshot-
-specific flatness, symlink, and regular-file checks because the consumer
-is read-only and never overwrites the file — the producer-side helper
+This bash is a snapshot-specific read guard. It keeps the generic
+suffix/traversal shape used by phase artifacts but intentionally diverges from
+`play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
+comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
+log-and-fall-back disposition because the snapshot consumer always has
+committed HEAD blob reads available. The snapshot consumer additionally
+enforces snapshot-specific flatness, symlink, and regular-file checks because
+the consumer is read-only and never overwrites the file — the producer-side helper
 writes through a repo-scoped private scratch directory and renames that
 output into place.
 

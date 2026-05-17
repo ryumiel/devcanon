@@ -126,6 +126,7 @@ case "$FINDINGS_FILE" in
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
 [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 ```
 
 Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file. Read consumers MUST also reject a symlink at `$FINDINGS_FILE` and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.

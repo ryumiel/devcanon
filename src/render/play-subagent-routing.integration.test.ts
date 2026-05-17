@@ -270,7 +270,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
     expect(normalizedRoutingSection).toContain(
-      "rerunning it after any auto-fix commit until a run reports zero blocking findings auto-fixed and no remaining `Blocking` findings",
+      "rerunning it after any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero blocking findings auto-fixed, no remaining `Blocking` findings, and no additional mechanical nit commits after that review",
     );
     expect(normalizedRoutingSection).toContain(
       "This covers GitHub and Linear entrypoints because both delegate",
@@ -421,7 +421,10 @@ describe("play-subagent planning and routing contracts", () => {
       "verified shared\n  `issue-priming-workflow --auto` Phase 6 path",
     );
     expect(playSubagentAdvantages).toContain(
-      "zero blocking findings auto-fixed and no remaining `Blocking` findings",
+      "zero blocking findings auto-fixed, no remaining `Blocking`",
+    );
+    expect(playSubagentAdvantages).toContain(
+      "no additional mechanical nit commits",
     );
     expect(playSubagentAdvantages).toContain(
       "remaining `Blocking` findings stop the workflow",
@@ -459,7 +462,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Clarified one example sentence in a reference file",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "Phase 7 reruns `branch-review --fix` after any auto-fix commit",
+      "Phase 7 reruns `branch-review --fix` after any auto-fix or mechanical-nit",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "reports zero blocking findings auto-fixed",
@@ -643,9 +646,12 @@ describe("play-subagent planning and routing contracts", () => {
       "satisfies the final-review guarantee required by any reduced per-task review route",
     );
     expect(issuePhase6Section).toContain(
-      "If any `branch-review --fix` run commits auto-fixes, rerun Phase 7 on",
+      "If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD`",
     );
     expect(issuePhase6Section).toContain("zero blocking findings auto-fixed");
+    expect(issuePhase6Section).toContain(
+      "no additional mechanical nit commits",
+    );
     expect(issuePhase6Section).not.toContain(
       "Run all per-task reviews for multi-task plans",
     );
@@ -668,6 +674,9 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain(
       "If the run commits any auto-fixes, rerun `branch-review --fix` on the new",
     );
+    expect(issuePhase7Section).toContain(
+      "mechanical nit handling creates any commit, rerun this same Branch Review step",
+    );
     expect(issuePhase7Section).toContain('no `severity: "Blocking"` entries');
     expect(issuePhase7Section).toContain(
       "validate the parsed findings path before reading it",
@@ -676,7 +685,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Do not recompute the review SHA from post-review `HEAD`",
     );
     expect(issuePhase7Section).toContain(
-      "wrapper-owned `Review head: <sha>` report line",
+      "exact `Review head: <40-hex-sha>.` notice line",
     );
     expect(issuePhase7Section).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
     expect(issuePhase7Section).toContain(
@@ -694,6 +703,12 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(issuePhase7Section).toContain(
       'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(issuePhase7Section).toContain(
+      ".ephemeral must be a directory, not a symlink",
+    );
+    expect(issuePhase7Section).toContain(
+      "If any mechanical nit commit is made, rerun `branch-review --fix` on the new `HEAD`",
     );
     expect(issuePhase7Section).toContain(
       'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',

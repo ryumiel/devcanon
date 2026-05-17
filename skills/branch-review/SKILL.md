@@ -111,7 +111,7 @@ Nit findings are never auto-fixed. Collect them for the report (including any wi
 After processing — whether the loop completes or halts on the stop rule — report:
 
 - Number of blocking findings auto-fixed
-- Review head: `$REVIEW_HEAD_SHA` (the immutable Phase 2 `head_sha`)
+- Exact review-head notice line: `Review head: $REVIEW_HEAD_SHA.`
 - Remaining nits (left for user), including `Anchor: out-of-diff` nits
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`

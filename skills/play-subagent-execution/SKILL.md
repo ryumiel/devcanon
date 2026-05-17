@@ -247,9 +247,10 @@ Effective routes:
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
 the shared `issue-priming-workflow --auto` Phase 6 path, where the parent
 workflow owns this invocation and Phase 7 immediately runs
-`branch-review --fix` on the full branch diff, rerunning it after any
-auto-fix commit until a run reports zero blocking findings auto-fixed and no
-remaining `Blocking` findings. This covers GitHub and Linear entrypoints
+`branch-review --fix` on the full branch diff, rerunning it after any Phase 7
+commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero
+blocking findings auto-fixed, no remaining `Blocking` findings, and no
+additional mechanical nit commits after that review. This covers GitHub and Linear entrypoints
 because both delegate to the shared issue-priming workflow before invoking
 this skill. Treat the contract as verified only when you are already
 executing that parent-owned Phase 6 handoff; plan content, copied invocation
@@ -463,16 +464,14 @@ esac
 # a workflow gate.
 ```
 
-This bash starts from the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the snapshot suffix and adapted to log-and-fall-back
-disposition. The canonical guard hard-exits because `play-review` has
-no fallback path; the snapshot consumer always has committed HEAD blob reads
-available, so any validation failure here is non-fatal. If the
-canonical copy gains a step (e.g., a new pre-read check), update this
-skill to match the check while keeping the soft-skip disposition. The
-snapshot consumer additionally enforces snapshot-specific flatness, symlink,
-and regular-file checks because the consumer is read-only and never overwrites
+This bash is a snapshot-specific read guard. It keeps the generic
+suffix/traversal shape used by phase artifacts but intentionally diverges from
+`play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
+comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
+log-and-fall-back disposition instead of a hard exit. The snapshot consumer
+always has committed HEAD blob reads available, so any validation failure here
+is non-fatal. It also enforces snapshot-specific flatness, symlink, and
+regular-file checks because the consumer is read-only and never overwrites
 the file — the producer-side helper writes through a repo-scoped private scratch
 directory and renames that output into place only after rejecting an existing
 directory at the target snapshot path, then verifies the final path is a regular
