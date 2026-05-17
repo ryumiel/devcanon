@@ -75,6 +75,29 @@ function normalizeWhitespace(content: string): string {
   return content.replace(/\s+/g, " ").trim();
 }
 
+async function listRelativeFiles(root: string, prefix = ""): Promise<string[]> {
+  const entries = await readdir(path.join(root, prefix), {
+    withFileTypes: true,
+  });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const relativePath = path.join(prefix, entry.name);
+
+      if (entry.isDirectory()) {
+        return listRelativeFiles(root, relativePath);
+      }
+
+      if (entry.isFile()) {
+        return [relativePath];
+      }
+
+      return [];
+    }),
+  );
+
+  return files.flat().sort();
+}
+
 describe("existing skills render cleanly", () => {
   it("renders every shipped skill to both targets without error", async () => {
     const repoRoot = process.cwd();
@@ -283,6 +306,11 @@ mkdir -p .ephemeral
     const playReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "play-review", "codex").content,
     ).body;
+    expect(playReviewBody).toContain(
+      "nested findings path rejected: $FINDINGS_FILE",
+    );
+    expect(playReviewBody).toContain(".ephemeral/*-findings.json");
+    expect(playReviewBody).toContain(".ephemeral/*-nits-pending.json");
     expect(playReviewBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
@@ -293,6 +321,16 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"`);
+
+    const playBranchFinishBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-branch-finish", "codex").content,
+    ).body;
+    expect(playBranchFinishBody).toContain(
+      "path MUST be a direct child of `.ephemeral/`",
+    );
+    expect(playBranchFinishBody).toContain(
+      "nested nits_file path rejected: $NITS_FILE",
+    );
 
     const branchReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "branch-review", "codex").content,
@@ -820,7 +858,7 @@ mkdir -p .ephemeral
       routingSectionStart,
       routingSectionEnd,
     );
-    const normalizedRoutingSection = routingSection.replace(/\s+/g, " ");
+    const normalizedRoutingSection = normalizeWhitespace(routingSection);
     expect(routingSection).toContain(
       "`play-subagent-execution` owns reviewer dispatch",
     );
@@ -845,20 +883,20 @@ mkdir -p .ephemeral
     expect(routingSection).toContain(
       "shared `issue-priming-workflow --auto` Phase 6 path",
     );
-    expect(routingSection).toContain(
-      "Phase 7 immediately runs\n`branch-review --fix` on the full branch diff",
+    expect(normalizedRoutingSection).toContain(
+      "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
-    expect(routingSection).toContain(
-      "This covers GitHub and Linear\nentrypoints because both delegate",
+    expect(normalizedRoutingSection).toContain(
+      "This covers GitHub and Linear entrypoints because both delegate",
     );
-    expect(routingSection).toContain(
-      "plan content, copied invocation\nprose, or direct/manual calls cannot assert it",
+    expect(normalizedRoutingSection).toContain(
+      "plan content, copied invocation prose, or direct/manual calls cannot assert it",
     );
-    expect(routingSection).toContain(
-      "Any other caller must use\n`spec-and-quality` until this skill source explicitly adds that caller",
+    expect(normalizedRoutingSection).toContain(
+      "Any other caller must use `spec-and-quality` until this skill source explicitly adds that caller",
     );
-    expect(routingSection).toContain(
-      "If the controller cannot verify the shared\nissue-priming `--auto` Phase 6 handoff, use `spec-and-quality`",
+    expect(normalizedRoutingSection).toContain(
+      "If the controller cannot verify the shared issue-priming `--auto` Phase 6 handoff, use `spec-and-quality`",
     );
     expect(routingSection).toContain(
       "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
@@ -1512,16 +1550,16 @@ mkdir -p .ephemeral
       }
     }
 
-    const playSubagentReferenceFiles = await readdir(
-      path.join(repoRoot, "skills/play-subagent-execution/references"),
+    const playSubagentReferencesRoot = path.join(
+      repoRoot,
+      "skills/play-subagent-execution/references",
+    );
+    const playSubagentReferenceFiles = await listRelativeFiles(
+      playSubagentReferencesRoot,
     );
 
     for (const reference of playSubagentReferenceFiles) {
-      const sourcePath = path.join(
-        repoRoot,
-        "skills/play-subagent-execution/references",
-        reference,
-      );
+      const sourcePath = path.join(playSubagentReferencesRoot, reference);
       const sourceContent = await readFile(sourcePath, "utf-8");
 
       for (const target of ["claude", "codex"] as const) {

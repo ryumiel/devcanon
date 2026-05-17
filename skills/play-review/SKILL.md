@@ -109,6 +109,7 @@ The path is computed and written by this skill, not by the wrapper. Wrappers loc
 
 ```bash
 case "$FINDINGS_FILE" in
+  .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac

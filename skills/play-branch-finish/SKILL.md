@@ -171,10 +171,11 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the path-validation guard from `skills/play-review/SKILL.md` § Output (path MUST start with `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`) and assert the schema name before partitioning:
+2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the path-validation guard from `skills/play-review/SKILL.md` § Output (path MUST be a direct child of `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`) and assert the schema name before partitioning:
 
    ```bash
    case "$NITS_FILE" in
+     .ephemeral/*/*) echo "nested nits_file path rejected: $NITS_FILE" >&2; exit 1 ;;
      .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
      *) echo "nits_file path validation failed: $NITS_FILE" >&2; exit 1 ;;
    esac
