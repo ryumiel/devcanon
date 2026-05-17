@@ -36,53 +36,35 @@ Task tool (general-purpose):
 
     ## Snapshot Manifest
 
-    After committing, write a side-channel snapshot manifest at
-    `.ephemeral/<branch_slug>-<head_sha>-snapshot.json` so the
-    controller can verify your work without re-reading from disk.
+    After committing and self-reviewing, write the side-channel snapshot
+    manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
 
-    1. `HEAD_SHA=$(git rev-parse HEAD)`.
-    2. Compute `BRANCH_SLUG` using the canonical bash from
-       `skills/play-review/SKILL.md` § Output → Side-channel file → Path
-       (handle detached HEAD as `detached`; sanitize with the `unnamed`
-       fallback for empty / `.` / `..` / leading `-` / leading `.`;
-       `-C "$WORKING_DIRECTORY"` is dropped because the implementer runs
-       in cwd).
-    3. `SNAPSHOT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-snapshot.json"`.
-    4. Canonical `.ephemeral` write guard before writing:
-       `[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }`.
-       `mkdir -p .ephemeral`. `[ -L "$SNAPSHOT_FILE" ] && rm "$SNAPSHOT_FILE"`.
-    5. Build a JSON envelope conforming to schema `implementer/snapshot/v1`
-       using `jq -n --rawfile content <path> ...` (do NOT hand-quote file
-       bytes; do NOT use `$(cat path)` inside `--arg` — command
-       substitution strips trailing newlines). Envelope shape:
-       `{schema, task_id, head_sha, files: [{path, status, lines, bytes, sha256, content}]}`,
-       where `task_id` is the identifier from your task header (e.g.
-       `"Task 3"`). Per file: `status` ∈ {added, modified, deleted};
-       `lines` from `awk 'END{print NR}' <path>` (visible line count;
-       equals `wc -l` for newline-terminated files, one greater for
-       files without a trailing newline); `bytes` from `wc -c`;
-       `sha256` from `shasum -a 256`; `content` is included when
-       `bytes <= 64000`, `status != "deleted"`, and the file is not
-       binary. When `content` is omitted on a non-deleted file, set
-       `"skipped"` to `"size>64KB"` or `"binary"` (drop
-       `--rawfile content` from the jq command and emit
-       `skipped: $skipped` instead). Mutual exclusion: exactly one of
-       `content` / `skipped` per non-deleted file. Deleted files emit
-       neither field. Deletion dominates binary detection: when
-       `status == "deleted"`, emit neither `content` nor `skipped`
-       even if numstat reports the path as binary. Enumerate files with
-       `git diff --name-status --no-renames ${BASE_SHA}..HEAD` (letters:
-       A→added, M→modified, D→deleted; `--no-renames` decomposes any
-       rename into delete+add); detect binary via
-       `git diff --numstat --no-renames ${BASE_SHA}..HEAD`'s `-\t-\t`
-       rows. If `${BASE_SHA}..HEAD` is empty, report BLOCKED rather than
-       writing a snapshot with an empty `files` array.
-    6. Persist to `$SNAPSHOT_FILE` (jq's `>` redirect, or the `Write`
-       tool if you assembled JSON another way). Do not append. Neither
-       option is truly atomic; Step 7's `-s` check is the integrity
-       gate that prevents a half-written file from reaching the
-       controller.
-    7. Verify: `[ -s "$SNAPSHOT_FILE" ] || exit 1`.
+    The controller supplies two resolved paths with this dispatch:
+    - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
+      - Source: `references/snapshot-manifest-recipe.md`
+    - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
+      - Source: `scripts/write-snapshot-manifest.sh`
+
+    Before writing the snapshot, read the recipe file. Then run the helper
+    script with the captured `BASE_SHA` and the task header identifier as
+    `SNAPSHOT_TASK_ID`. The recipe is the canonical contract for the
+    `implementer/snapshot/v1` envelope, and the helper script is the canonical
+    implementation of the path rules, `head_sha`, file metadata, binary and
+    size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
+    write guard, and write-verification check.
+
+    If the dispatch does not include both a readable Snapshot Manifest Recipe
+    path and a readable Snapshot Manifest Helper Script path, report BLOCKED
+    and ask the controller to resend the task with both paths. If the helper
+    exits nonzero, report BLOCKED instead of emitting the notice line. On
+    success, use the helper's notice line as the final report line:
+
+    ```text
+    Snapshot written to <repo-relative-path>.
+    ```
+
+    The controller parses this literal line. Do not reword it, wrap the path in
+    backticks, or omit the trailing period.
 
     ## Report Format
 
