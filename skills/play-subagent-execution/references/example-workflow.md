@@ -27,10 +27,6 @@ Target capability for this run: automatic-close-supported
 
 Task 1: Hook lifecycle
 
-[Compute effective review route]
-Hard-risk trigger detected: install/sync behavior or user-home writes.
-Effective route: `spec-and-quality`.
-
 [Cleanup gate before spawn]
 Ledger: no completed or superseded sessions to close.
 
@@ -55,6 +51,10 @@ You: "User level (~/.config/agent-hooks/)"
 
 [Lifecycle ledger update]
 Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
+
+[Compute effective review route]
+Hard-risk trigger detected: install/sync behavior or user-home writes.
+Effective route: `spec-and-quality`.
 
 [Cleanup gate before Task 1 spec reviewer spawn]
 Controller keeps Task 1 implementer open for possible spec-review fixups.
@@ -83,11 +83,6 @@ Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/he
 Task 2: Recovery and repair modes
 
 [Get Task 2 text and context (already extracted)]
-[Compute effective review route]
-Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
-control flow, so a hard-risk trigger is present.
-Effective route: `spec-and-quality`.
-
 [Cleanup gate before Task 2 implementer spawn]
 Controller verifies Task 1 completed sessions are already closed before spawning Task 2.
 
@@ -102,6 +97,11 @@ Implementer:
 
 [Lifecycle ledger update]
 Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up.
+
+[Compute effective review route]
+Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
+control flow, so a hard-risk trigger is present.
+Effective route: `spec-and-quality`.
 
 [Cleanup gate before Task 2 spec reviewer spawn]
 Controller keeps Task 2 implementer open for possible spec-review fixups.
@@ -167,20 +167,20 @@ Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captu
 
 [Mark Task 2 complete]
 
-Task 3: Low-risk reference wording
+Task 3: Low-risk example copy
+
+[Dispatch implementation subagent with full task text + context]
+Implementer:
+  - Clarified one example sentence in a neutral demo note
+  - Tests not applicable beyond final render/check suite
+  - Self-review: Wording matches the plan and no linked identifiers changed
+  - Committed
 
 [Compute effective review route]
 Plan hints low risk and `none-final-only`; no hard-risk trigger is present;
 the owning caller guarantees final whole-diff review through `branch-review --fix`.
 If that later review leaves remaining `Blocking` findings, the workflow stops.
 Effective route: `none-final-only`.
-
-[Dispatch implementation subagent with full task text + context]
-Implementer:
-  - Clarified one example sentence in a reference file
-  - Tests not applicable beyond final render/check suite
-  - Self-review: Wording matches the plan and no linked identifiers changed
-  - Committed
 
 [Lifecycle cleanup checkpoint]
 Task 3 implementer: status=DONE, report captured, base/head SHA captured,

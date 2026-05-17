@@ -309,7 +309,8 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
 - Review-routing hints, when present, are non-authoritative inputs to
   `play-subagent-execution`
-- High-risk triggers are not under-classified
+- High-risk triggers from `skills/play-subagent-execution/SKILL.md` §
+  Risk-Based Per-Task Review Routing are not under-classified
 - Unclear review classification defaults to `spec-and-quality`
 - Foundation-producing tasks are not marked below `spec-only`
 - Hint field ordering is heading, optional `**Mode:** mechanical`, optional

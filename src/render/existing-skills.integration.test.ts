@@ -674,7 +674,10 @@ mkdir -p .ephemeral
       planReviewSectionEnd,
     );
     expect(planReviewSection).toContain(
-      "High-risk triggers are not under-classified",
+      "High-risk triggers from `skills/play-subagent-execution/SKILL.md` §",
+    );
+    expect(planReviewSection).toContain(
+      "Risk-Based Per-Task Review Routing are not under-classified",
     );
     expect(planReviewSection).toContain(
       "Unclear review classification defaults to `spec-and-quality`",
@@ -778,10 +781,16 @@ mkdir -p .ephemeral
       '"Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"]',
     );
     expect(processSection).toContain(
+      '"Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"]',
+    );
+    expect(processSection).toContain(
       '"Dispatch the code-quality-reviewer agent for entire implementation" -> "Owning caller final whole-diff gate present?"',
     );
     expect(processSection).toContain(
       '"Owning caller final whole-diff gate present?" -> "Return to caller (downstream full-diff review gate runs there)" [label="yes"]',
+    );
+    expect(processSection).toContain(
+      '"Owning caller final whole-diff gate present?" -> "Use play-branch-finish" [label="no"]',
     );
     expect(processSection).toContain(
       "The diagram routes each multi-task task through effective route computation",
@@ -996,6 +1005,18 @@ mkdir -p .ephemeral
       "Effective route: `none-final-only`",
     );
     expect(playSubagentExampleWorkflow).toContain(
+      "Task 3: Low-risk example copy",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "Clarified one example sentence in a neutral demo note",
+    );
+    expect(playSubagentExampleWorkflow).not.toContain(
+      "Task 3: Low-risk reference wording",
+    );
+    expect(playSubagentExampleWorkflow).not.toContain(
+      "Clarified one example sentence in a reference file",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
       "the owning caller guarantees final whole-diff review through `branch-review --fix`",
     );
     expect(playSubagentExampleWorkflow).toContain(
@@ -1008,6 +1029,27 @@ mkdir -p .ephemeral
       "does not do runtime regrouping or batching",
     );
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
+    expect(
+      playSubagentExampleWorkflow.indexOf("Task 1 implementer: status=DONE"),
+    ).toBeLessThan(
+      playSubagentExampleWorkflow.indexOf(
+        "Hard-risk trigger detected: install/sync behavior or user-home writes.",
+      ),
+    );
+    expect(
+      playSubagentExampleWorkflow.indexOf(
+        "Task 2 implementer: agent_id=impl-2, status=DONE",
+      ),
+    ).toBeLessThan(
+      playSubagentExampleWorkflow.indexOf(
+        "Plan hints high risk and `spec-and-quality`; repair-mode behavior changes",
+      ),
+    );
+    expect(playSubagentExampleWorkflow.indexOf("  - Committed")).toBeLessThan(
+      playSubagentExampleWorkflow.indexOf(
+        "Plan hints low risk and `none-final-only`; no hard-risk trigger is present;",
+      ),
+    );
     expect(playSubagentExampleWorkflow).toContain(
       "Lifecycle cleanup checkpoint",
     );
@@ -1148,6 +1190,28 @@ mkdir -p .ephemeral
     );
     expect(issuePhase6Section).not.toContain(
       "Run all per-task reviews for multi-task plans",
+    );
+
+    const issuePhase7Start = issuePrimingWorkflowBody.indexOf(
+      "### Phase 7: Branch Review",
+    );
+    const issuePhase7End = issuePrimingWorkflowBody.indexOf(
+      "### Phase 8: Create PR",
+    );
+    expect(issuePhase7Start).toBeGreaterThanOrEqual(0);
+    expect(issuePhase7End).toBeGreaterThan(issuePhase7Start);
+    const issuePhase7Section = issuePrimingWorkflowBody.slice(
+      issuePhase7Start,
+      issuePhase7End,
+    );
+    expect(issuePhase7Section).toContain(
+      "Invoke `branch-review --fix` to review the implementation before creating a PR.",
+    );
+    expect(issuePhase7Section).toContain(
+      'If any finding has `severity: "Blocking"`, **stop `--auto` and surface those findings to the user**',
+    );
+    expect(issuePhase7Section).toContain(
+      'Only proceed with the per-nit classification flow when every remaining finding has `severity: "Nit"`',
     );
 
     const issueModelSelectionStart = issuePrimingWorkflowBody.indexOf(
