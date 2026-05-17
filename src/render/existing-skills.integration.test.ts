@@ -775,11 +775,26 @@ mkdir -p .ephemeral
       '"Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"]',
     );
     expect(processSection).toContain(
+      '"Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"]',
+    );
+    expect(processSection).toContain(
+      '"Dispatch the code-quality-reviewer agent for entire implementation" -> "Owning caller final whole-diff gate present?"',
+    );
+    expect(processSection).toContain(
+      '"Owning caller final whole-diff gate present?" -> "Return to caller (downstream full-diff review gate runs there)" [label="yes"]',
+    );
+    expect(processSection).toContain(
       "The diagram routes each multi-task task through effective route computation",
     );
     expect(processSection).not.toContain("full two-stage branch");
     expect(processSection).not.toContain(
       '"Implementer agent implements, tests, commits, self-reviews" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="multi-task plan"]',
+    );
+    expect(processSection).not.toContain(
+      '"Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes"]',
+    );
+    expect(processSection).not.toContain(
+      '"Dispatch the code-quality-reviewer agent for entire implementation" -> "Use play-branch-finish"',
     );
     expect(playSubagentExecutionBody).toContain(
       "## Risk-Based Per-Task Review Routing",
@@ -803,6 +818,9 @@ mkdir -p .ephemeral
       "defaults missing, malformed, conflicting, or unclear classifications to",
     );
     expect(routingSection).toContain(
+      "defaults missing, malformed, conflicting, or unclear classifications to\n`spec-and-quality`",
+    );
+    expect(routingSection).toContain(
       "`spec-and-quality`: run the spec-compliance reviewer, then the code-quality",
     );
     expect(routingSection).toContain(
@@ -815,8 +833,9 @@ mkdir -p .ephemeral
       "when an explicit owning caller contract guarantees a final whole-diff review",
     );
     expect(routingSection).toContain(
-      "through `branch-review --fix`, `pr-review`, or shared `play-review`",
+      "through `branch-review --fix`, full-scope `pr-review`, or a documented wrapper",
     );
+    expect(routingSection).toContain("active_diff_range == full_pr_diff_range");
     expect(routingSection).toContain(
       "owning caller must enforce that gate and stop",
     );

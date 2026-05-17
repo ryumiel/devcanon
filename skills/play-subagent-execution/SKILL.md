@@ -131,7 +131,8 @@ digraph process {
     "More tasks remain?" [shape=diamond];
     "Single-task caller-scoped final-review skip applies?" [shape=diamond];
     "Dispatch the code-quality-reviewer agent for entire implementation" [shape=box];
-    "Return to caller (downstream branch-review --fix runs there)" [shape=box];
+    "Owning caller final whole-diff gate present?" [shape=diamond];
+    "Return to caller (downstream full-diff review gate runs there)" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
@@ -162,9 +163,11 @@ digraph process {
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
-    "Single-task caller-scoped final-review skip applies?" -> "Return to caller (downstream branch-review --fix runs there)" [label="yes"];
+    "Single-task caller-scoped final-review skip applies?" -> "Return to caller (downstream full-diff review gate runs there)" [label="yes"];
     "Single-task caller-scoped final-review skip applies?" -> "Dispatch the code-quality-reviewer agent for entire implementation" [label="no"];
-    "Dispatch the code-quality-reviewer agent for entire implementation" -> "Use play-branch-finish";
+    "Dispatch the code-quality-reviewer agent for entire implementation" -> "Owning caller final whole-diff gate present?";
+    "Owning caller final whole-diff gate present?" -> "Return to caller (downstream full-diff review gate runs there)" [label="yes"];
+    "Owning caller final whole-diff gate present?" -> "Use play-branch-finish" [label="no"];
 }
 ```
 
@@ -243,8 +246,9 @@ Effective routes:
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
 when an explicit owning caller contract guarantees a final whole-diff review
-through `branch-review --fix`, `pr-review`, or shared `play-review`. The
-owning caller must enforce that gate and stop if it later completes with
+through `branch-review --fix`, full-scope `pr-review`, or a documented wrapper
+that invokes shared `play-review` with `active_diff_range == full_pr_diff_range`.
+The owning caller must enforce that gate and stop if it later completes with
 remaining `Blocking` findings. If the owning caller contract is absent, use
 `spec-and-quality`; direct/manual invocations without that contract do not use
 reduced per-task routes.

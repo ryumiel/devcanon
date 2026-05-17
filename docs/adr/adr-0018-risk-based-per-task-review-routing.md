@@ -47,8 +47,10 @@ The allowed effective routes are:
 and an explicit owning caller contract guarantees a final whole-diff review.
 `none-final-only` is allowed for low-risk tasks under the same contract and
 hard-risk conditions. The final gate must be `branch-review --fix`,
-`pr-review`, or shared `play-review`. The owning caller must enforce that gate
-and stop if it completes with remaining `Blocking` findings.
+full-scope `pr-review`, or a documented wrapper that invokes shared
+`play-review` with `active_diff_range == full_pr_diff_range`. The owning caller
+must enforce that gate and stop if it completes with remaining `Blocking`
+findings.
 
 Unclear classification, missing or malformed hints, absent owning caller
 contracts for the final whole-diff gate, and conflicting signals all default
