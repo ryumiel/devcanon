@@ -60,7 +60,7 @@ phase-artifact handoff guards, narrowed to the design-document suffix.
 `play-review` findings/nits envelopes add a direct-child `.ephemeral/`
 restriction because those paths are echoed through review output and reused by
 wrappers before read or overwrite; design documents keep the generic
-phase-artifact shape from ADR-0013.
+phase-artifact shape.
 
 ### Inline content (preserved for direct invocations)
 
@@ -310,7 +310,7 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
 - Review-routing hints, when present, are non-authoritative inputs to
   `play-subagent-execution`
-- High-risk triggers from `skills/play-subagent-execution/SKILL.md` §
+- Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §
   Risk-Based Per-Task Review Routing are not under-classified
 - Unclear review classification defaults to `spec-and-quality`
 - Foundation-producing tasks are not marked below `spec-only`

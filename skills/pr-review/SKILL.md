@@ -155,10 +155,17 @@ Include a draft review body preview.
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
+1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Phase 4 MUST capture the immutable review head and notice path before any later posting step:
 
    ```bash
-   HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"  # trusted Phase 4 head_sha input
+   REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
+   REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
+   ```
+
+   Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
+
+   ```bash
+   HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
    RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
    if [ "$RAW_BRANCH" = HEAD ]; then
      BRANCH_SLUG=detached
@@ -169,6 +176,7 @@ Only after user approval:
      esac
    fi
    EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
+   FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
    case "$FINDINGS_FILE" in
      .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
      .ephemeral/*-findings.json) ;;

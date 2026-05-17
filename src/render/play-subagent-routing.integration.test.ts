@@ -95,7 +95,7 @@ describe("play-subagent planning and routing contracts", () => {
       planReviewSectionEnd,
     );
     expect(planReviewSection).toContain(
-      "High-risk triggers from `skills/play-subagent-execution/SKILL.md` §",
+      "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §",
     );
     expect(planReviewSection).toContain(
       "Risk-Based Per-Task Review Routing are not under-classified",

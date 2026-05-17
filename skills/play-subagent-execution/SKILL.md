@@ -57,11 +57,11 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-This bash follows ADR-0013's generic phase-artifact suffix, traversal, and
-readability guard, narrowed to the plan-document suffix. `play-review`
-findings/nits envelopes use a stricter direct-child `.ephemeral/` guard
-because those paths are echoed through review output and reused by wrappers
-before read or overwrite.
+This bash uses the generic phase-artifact guard shape: narrow the suffix to the
+expected artifact, reject traversal, and verify readability before opening the
+file. `play-review` findings/nits envelopes use a stricter direct-child
+`.ephemeral/` guard because those paths are echoed through review output and
+reused by wrappers before read or overwrite.
 
 The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,

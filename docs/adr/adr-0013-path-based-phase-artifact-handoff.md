@@ -71,21 +71,27 @@ mirroring ADR-0012's `Findings written to <path>.` pattern verbatim:
 | `issue-priming-workflow` Phase 3     | `Research brief written to <repo-relative-path>.` |
 | `play-brainstorm`                    | `Design written to <repo-relative-path>.`         |
 | `play-planning`                      | `Plan written to <repo-relative-path>.`           |
-| `issue-priming-workflow` Phase 6     | `Auto handoff: <repo-relative-path>`              |
 
 Controllers parse the path off this exact line. Producers MUST NOT reword.
 
-The `Auto handoff` artifact has schema `issue-priming/auto-handoff/v1`. Unlike
-research/design/plan artifacts, it is audit evidence for
-`play-subagent-execution`'s reduced-route decision, not a bearer credential:
-the executor also needs controller-local parent state from an active
-`issue-priming-workflow --auto` run. Its producer still follows the same
-direct-child `.ephemeral/` write discipline: reject symlinked `.ephemeral`,
-create the directory, reject a symlink at the target file, write a temporary
-file under `.ephemeral/`, then rename it into place. The consumer applies the
-direct-child suffix/traversal/symlink guard before reading it; invalid or
-missing audit evidence disables reduced routes and falls back to
-`spec-and-quality`.
+### Invocation-only child handoff lines
+
+`issue-priming-workflow` Phase 6 also passes `Auto handoff:
+<repo-relative-path>` inside the child invocation prose for
+`play-subagent-execution`. This is not emitted as a conversation-output
+producer notice, and downstream tools MUST NOT treat it as a bearer credential
+or parseable proof of authorization. The referenced artifact has schema
+`issue-priming/auto-handoff/v1` and is audit evidence for
+`play-subagent-execution`'s reduced-route decision; the executor also needs
+controller-local parent state from an active `issue-priming-workflow --auto`
+run.
+
+The Phase 6 producer still follows the same direct-child `.ephemeral/` write
+discipline: reject symlinked `.ephemeral`, create the directory, reject a
+symlink at the target file, write a temporary file under `.ephemeral/`, then
+rename it into place. The consumer applies the direct-child
+suffix/traversal/symlink guard before reading it; invalid or missing audit
+evidence disables reduced routes and falls back to `spec-and-quality`.
 
 `research-agent` itself does not write the brief; `issue-priming-workflow`
 Phase 3 (the dispatching skill) does. The agent stays read-only — its

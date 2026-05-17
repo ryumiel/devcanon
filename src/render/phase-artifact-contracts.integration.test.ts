@@ -196,6 +196,14 @@ mkdir -p .ephemeral
       "Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard",
     );
     expect(prReviewBody).toContain(
+      'REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review',
+    );
+    expect(prReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
+    expect(prReviewBody).toContain(
+      'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting',
+    );
+    expect(prReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
+    expect(prReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
     );
     expect(prReviewBody).toContain(
@@ -268,9 +276,11 @@ mkdir -p .ephemeral
     expect(adr0013).toContain("reject a symlinked");
     expect(adr0013).toContain("`.ephemeral` directory");
     expect(adr0013).toContain("same canonical guard now also applies");
-    expect(adr0013).toContain("`Auto handoff: <repo-relative-path>`");
+    expect(adr0013).toContain("Invocation-only child handoff lines");
+    expect(adr0013).toContain("`Auto handoff:");
+    expect(adr0013).toContain("This is not emitted as a conversation-output");
     expect(adr0013).toContain("issue-priming/auto-handoff/v1");
-    expect(adr0013).toContain("not a bearer credential");
+    expect(adr0013).toContain("not emitted as a conversation-output");
 
     const implementerPrompt = await readFile(
       path.join(

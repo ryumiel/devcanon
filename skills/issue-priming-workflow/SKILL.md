@@ -159,10 +159,10 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
    [ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
    ```
 
-   This follows ADR-0013's generic phase-artifact suffix and traversal
-   guard, narrowed to the research-brief suffix. `play-review`
-   findings/nits envelopes use a stricter direct-child guard because
-   those paths are echoed through review output and reused by wrappers.
+   This uses the generic phase-artifact guard shape: narrow the suffix to the
+   expected artifact and reject traversal before opening the file. `play-review`
+   findings/nits envelopes use a stricter direct-child guard because those
+   paths are echoed through review output and reused by wrappers.
 
 3. Apply the symlink guard before the `Write` tool call (per `skills/play-review/SKILL.md` § Output → Write rules):
 
@@ -260,10 +260,10 @@ esac
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-This follows ADR-0013's generic phase-artifact suffix, traversal, and
-readability guard, narrowed to the design-document suffix. `play-review`
-findings/nits envelopes use a stricter direct-child guard because those
-paths are echoed through review output and reused by wrappers.
+This uses the generic phase-artifact guard shape: narrow the suffix to the
+expected artifact, reject traversal, and verify readability before opening the
+file. `play-review` findings/nits envelopes use a stricter direct-child guard
+because those paths are echoed through review output and reused by wrappers.
 
 Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -290,10 +290,10 @@ esac
 [ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
 ```
 
-This follows ADR-0013's generic phase-artifact suffix, traversal, and
-readability guard, narrowed to the plan-document suffix. `play-review`
-findings/nits envelopes use a stricter direct-child guard because those
-paths are echoed through review output and reused by wrappers.
+This uses the generic phase-artifact guard shape: narrow the suffix to the
+expected artifact, reject traversal, and verify readability before opening the
+file. `play-review` findings/nits envelopes use a stricter direct-child guard
+because those paths are echoed through review output and reused by wrappers.
 
 Before invoking `play-subagent-execution`, write a controller-owned auto-mode
 handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
