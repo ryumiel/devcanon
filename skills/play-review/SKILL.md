@@ -110,13 +110,13 @@ The path is computed and written by this skill, not by the wrapper. Wrappers loc
 ```bash
 case "$FINDINGS_FILE" in
   .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
-  .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
+  .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
-Consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish`, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file.
+Findings-file consumers (`branch-review --fix`, `pr-review` Phase 6, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 

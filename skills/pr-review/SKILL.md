@@ -160,7 +160,7 @@ Only after user approval:
    ```bash
    case "$FINDINGS_FILE" in
      .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
-     .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
+     .ephemeral/*-findings.json) ;;
      *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
    esac
    [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }

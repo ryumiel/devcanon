@@ -15,9 +15,11 @@ const TOUCHED_SKILLS = new Set([
   "issue-worktree-setup",
   "linear-issue-priming",
   "play-brainstorm",
+  "play-branch-finish",
   "pr-review",
   "branch-review",
   "play-review",
+  "play-subagent-execution",
   "pr-merge",
   "play-skill-authoring",
   "play-planning",
@@ -323,11 +325,13 @@ mkdir -p .ephemeral
       "nested findings path rejected: $FINDINGS_FILE",
     );
     expect(playReviewBody).toContain(".ephemeral/*-findings.json");
-    expect(playReviewBody).toContain(".ephemeral/*-nits-pending.json");
+    expect(playReviewBody).not.toContain(
+      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json",
+    );
     expectOrdered(
       playReviewBody,
       '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+      ".ephemeral/*-findings.json)",
     );
     expect(playReviewBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
@@ -364,7 +368,7 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
     expectOrdered(
       branchReviewBody,
       '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+      ".ephemeral/*-findings.json)",
     );
     expect(branchReviewBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
@@ -383,7 +387,7 @@ mkdir -p .ephemeral
     expectOrdered(
       prReviewBody,
       '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
+      ".ephemeral/*-findings.json)",
     );
 
     const gatePrompt = await readFile(
