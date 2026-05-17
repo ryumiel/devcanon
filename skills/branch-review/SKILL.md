@@ -72,6 +72,13 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
+In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.` notice path before applying any auto-fix commits:
+
+```bash
+REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
+REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
+```
+
 ## Phase 3: Dispose
 
 **Without `--fix` (interactive mode):**
@@ -101,6 +108,7 @@ Nit findings are never auto-fixed. Collect them for the report (including any wi
 After processing — whether the loop completes or halts on the stop rule — report:
 
 - Number of blocking findings auto-fixed
+- Review head: `$REVIEW_HEAD_SHA` (the immutable Phase 2 `head_sha`)
 - Remaining nits (left for user), including `Anchor: out-of-diff` nits
 - The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
@@ -108,7 +116,7 @@ After processing — whether the loop completes or halts on the stop rule — re
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening or overwriting `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`, then use the `Write` tool for atomic replacement and reuse the canonical symlink guard from `play-review`'s Write rules before writing:
 
 ```bash
-HEAD_SHA="$(git rev-parse HEAD)"
+HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
 RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$RAW_BRANCH" = HEAD ]; then
   BRANCH_SLUG=detached
@@ -119,6 +127,7 @@ else
   esac
 fi
 EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
 case "$FINDINGS_FILE" in
   .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
   .ephemeral/*-findings.json) ;;

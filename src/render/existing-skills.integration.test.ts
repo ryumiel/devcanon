@@ -369,6 +369,17 @@ HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
       getSkillOutput(outputs, "branch-review", "codex").content,
     ).body;
     expect(branchReviewBody).toContain(
+      'REVIEW_HEAD_SHA="$(git rev-parse HEAD)"',
+    );
+    expect(branchReviewBody).toContain('REVIEW_FINDINGS_FILE="$FINDINGS_FILE"');
+    expect(branchReviewBody).toContain(
+      "Review head: `$REVIEW_HEAD_SHA` (the immutable Phase 2 `head_sha`)",
+    );
+    expect(branchReviewBody).toContain(
+      'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
+    );
+    expect(branchReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
+    expect(branchReviewBody).toContain(
       "nested findings path rejected: $FINDINGS_FILE",
     );
     expect(branchReviewBody).toContain(
@@ -1345,6 +1356,16 @@ mkdir -p .ephemeral
     );
     expect(issuePhase7Section).toContain(
       "validate the parsed findings path before reading it",
+    );
+    expect(issuePhase7Section).toContain(
+      "Do not recompute the review SHA from post-review `HEAD`",
+    );
+    expect(issuePhase7Section).toContain(
+      "wrapper-owned `Review head: <sha>` report line",
+    );
+    expect(issuePhase7Section).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(issuePhase7Section).toContain(
+      'echo "branch-review review head invalid: $REVIEW_HEAD_SHA"',
     );
     expect(issuePhase7Section).toContain(".ephemeral/*-findings.json");
     expect(issuePhase7Section).toContain(
