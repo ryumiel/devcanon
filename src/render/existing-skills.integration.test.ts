@@ -839,17 +839,23 @@ mkdir -p .ephemeral
       "`none-final-only`: run no per-task reviewer for that task; rely on the",
     );
     expect(routingSection).toContain(
-      "when an explicit owning caller contract guarantees a final whole-diff review",
+      "when the controller verifies an allowlisted owning caller contract",
     );
     expect(routingSection).toContain(
-      "through `branch-review --fix`, full-scope `pr-review`, or a documented wrapper",
+      "allowlist is `issue-priming-workflow --auto`",
+    );
+    expect(routingSection).toContain(
+      "`linear-issue-priming --auto` through the same shared",
+    );
+    expect(routingSection).toContain(
+      "full-scope\n`pr-review`, or shared `play-review`",
     );
     expect(routingSection).toContain("active_diff_range == full_pr_diff_range");
     expect(routingSection).toContain(
-      "owning caller must enforce that gate and stop",
+      "If the controller cannot verify\nthe allowlisted caller contract, use `spec-and-quality`",
     );
     expect(routingSection).toContain(
-      "direct/manual invocations without that contract do not use",
+      "direct/manual\ninvocations without that verified contract do not use",
     );
     expect(routingSection).toContain(
       "`spec-only` is allowed for medium-risk tasks when no hard-risk trigger",
@@ -985,6 +991,9 @@ mkdir -p .ephemeral
     );
     expect(playSubagentAdvantages).toContain("none-final-only");
     expect(playSubagentAdvantages).toContain(
+      "only when a verified allowlisted owning",
+    );
+    expect(playSubagentAdvantages).toContain(
       "remaining `Blocking` findings stop the workflow",
     );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
@@ -1000,6 +1009,9 @@ mkdir -p .ephemeral
     expect(playSubagentExampleWorkflow).toContain("coherent authored tasks");
     expect(playSubagentExampleWorkflow).toContain(
       "Each multi-task task follows the executor-computed",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "only\nwhen a verified allowlisted owning caller contract guarantees",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "Effective route: `none-final-only`",
@@ -1029,24 +1041,34 @@ mkdir -p .ephemeral
       "does not do runtime regrouping or batching",
     );
     expect(playSubagentExampleWorkflow).toContain("Task 1: Hook lifecycle");
+    const task1Section = playSubagentExampleWorkflow.slice(
+      playSubagentExampleWorkflow.indexOf("Task 1: Hook lifecycle"),
+      playSubagentExampleWorkflow.indexOf("Task 2: Recovery and repair modes"),
+    );
     expect(
-      playSubagentExampleWorkflow.indexOf("Task 1 implementer: status=DONE"),
+      task1Section.indexOf("Task 1 implementer: status=DONE"),
     ).toBeLessThan(
-      playSubagentExampleWorkflow.indexOf(
+      task1Section.indexOf(
         "Hard-risk trigger detected: install/sync behavior or user-home writes.",
       ),
     );
+    const task2Section = playSubagentExampleWorkflow.slice(
+      playSubagentExampleWorkflow.indexOf("Task 2: Recovery and repair modes"),
+      playSubagentExampleWorkflow.indexOf("Task 3: Low-risk example copy"),
+    );
     expect(
-      playSubagentExampleWorkflow.indexOf(
-        "Task 2 implementer: agent_id=impl-2, status=DONE",
-      ),
+      task2Section.indexOf("Task 2 implementer: agent_id=impl-2, status=DONE"),
     ).toBeLessThan(
-      playSubagentExampleWorkflow.indexOf(
+      task2Section.indexOf(
         "Plan hints high risk and `spec-and-quality`; repair-mode behavior changes",
       ),
     );
-    expect(playSubagentExampleWorkflow.indexOf("  - Committed")).toBeLessThan(
-      playSubagentExampleWorkflow.indexOf(
+    const task3Section = playSubagentExampleWorkflow.slice(
+      playSubagentExampleWorkflow.indexOf("Task 3: Low-risk example copy"),
+      playSubagentExampleWorkflow.indexOf("[Mark Task 3 complete]"),
+    );
+    expect(task3Section.indexOf("  - Committed")).toBeLessThan(
+      task3Section.indexOf(
         "Plan hints low risk and `none-final-only`; no hard-risk trigger is present;",
       ),
     );
@@ -1456,29 +1478,34 @@ mkdir -p .ephemeral
       }
     }
 
-    const snapshotRecipeSourcePath = path.join(
-      repoRoot,
-      "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
-    );
-    const snapshotRecipeSourceContent = await readFile(
-      snapshotRecipeSourcePath,
-      "utf-8",
-    );
+    const playSubagentReferenceFiles = [
+      "snapshot-manifest-recipe.md",
+      "advantages.md",
+      "example-workflow.md",
+      "red-flags.md",
+    ];
 
-    for (const target of ["claude", "codex"] as const) {
-      const generatedPath = path.join(
-        config.library.generatedDir,
-        target,
-        "skills",
-        "play-subagent-execution",
-        "references",
-        "snapshot-manifest-recipe.md",
+    for (const reference of playSubagentReferenceFiles) {
+      const sourcePath = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references",
+        reference,
       );
+      const sourceContent = await readFile(sourcePath, "utf-8");
 
-      expect(await pathExists(generatedPath)).toBe(true);
-      expect(await readFile(generatedPath, "utf-8")).toBe(
-        snapshotRecipeSourceContent,
-      );
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "play-subagent-execution",
+          "references",
+          reference,
+        );
+
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
     }
 
     const snapshotHelperSourcePath = path.join(

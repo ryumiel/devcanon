@@ -44,13 +44,16 @@ The allowed effective routes are:
   required final whole-diff review gate.
 
 `spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
-and an explicit owning caller contract guarantees a final whole-diff review.
+and the controller verifies an allowlisted owning caller contract.
 `none-final-only` is allowed for low-risk tasks under the same contract and
-hard-risk conditions. The final gate must be `branch-review --fix`,
-full-scope `pr-review`, or a documented wrapper that invokes shared
-`play-review` with `active_diff_range == full_pr_diff_range`. The owning caller
-must enforce that gate and stop if it completes with remaining `Blocking`
-findings.
+hard-risk conditions. The allowlist is `issue-priming-workflow --auto` with
+mandatory Phase 7 `branch-review --fix`, `linear-issue-priming --auto` through
+the same shared workflow, or another explicit skill-owned wrapper documented in
+`play-subagent-execution` before use. Any additional wrapper must enforce a
+final whole-diff review by running `branch-review --fix`, full-scope
+`pr-review`, or shared `play-review` with
+`active_diff_range == full_pr_diff_range`, and it must stop if that gate
+completes with remaining `Blocking` findings.
 
 Unclear classification, missing or malformed hints, absent owning caller
 contracts for the final whole-diff gate, and conflicting signals all default

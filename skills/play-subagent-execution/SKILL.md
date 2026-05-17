@@ -245,13 +245,17 @@ Effective routes:
   required final whole-diff gate.
 
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only
-when an explicit owning caller contract guarantees a final whole-diff review
-through `branch-review --fix`, full-scope `pr-review`, or a documented wrapper
-that invokes shared `play-review` with `active_diff_range == full_pr_diff_range`.
-The owning caller must enforce that gate and stop if it later completes with
-remaining `Blocking` findings. If the owning caller contract is absent, use
-`spec-and-quality`; direct/manual invocations without that contract do not use
-reduced per-task routes.
+when the controller verifies an allowlisted owning caller contract. The
+allowlist is `issue-priming-workflow --auto` with mandatory Phase 7
+`branch-review --fix`, `linear-issue-priming --auto` through the same shared
+workflow, or another explicit skill-owned wrapper documented in this skill
+before use. Any wrapper beyond the shared issue-priming workflow must enforce a
+final whole-diff review by running `branch-review --fix`, full-scope
+`pr-review`, or shared `play-review` with
+`active_diff_range == full_pr_diff_range`, and it must stop if that gate later
+completes with remaining `Blocking` findings. If the controller cannot verify
+the allowlisted caller contract, use `spec-and-quality`; direct/manual
+invocations without that verified contract do not use reduced per-task routes.
 
 Eligibility thresholds:
 

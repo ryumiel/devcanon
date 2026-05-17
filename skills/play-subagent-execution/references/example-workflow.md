@@ -6,8 +6,9 @@ itself lives in `SKILL.md` § The Process; this file is illustrative.
 The example below shows a multi-task plan with coherent authored tasks. The
 executor follows the authored plan boundaries; it does not do runtime regrouping or batching. Each multi-task task follows the executor-computed
 review route: hard-risk and unclear tasks run `spec-and-quality`, medium-risk
-tasks may run `spec-only`, and low-risk tasks may use `none-final-only` when
-an explicit owning caller contract guarantees the final whole-diff gate. For a
+tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
+when a verified allowlisted owning caller contract guarantees the final
+whole-diff gate. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
