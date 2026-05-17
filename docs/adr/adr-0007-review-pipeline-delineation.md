@@ -12,6 +12,11 @@ authoritative, but statements below that the final whole-implementation
 reviewer always runs on that caller-scoped path should now be read together
 with ADR-0016.
 
+ADR-0018 later refines the multi-task path described here. The multi-task
+two-stage review policy remains the hard-risk and fail-closed route, but
+multi-task tasks may use reduced per-task routes only under ADR-0018's
+guarded, executor-owned routing conditions.
+
 ## Context
 
 The `github-issue-priming --auto` workflow (and its sibling
@@ -127,3 +132,4 @@ unchanged.
 ## Related
 
 - Follow-up refinement: ADR-0016
+- Follow-up refinement: ADR-0018
