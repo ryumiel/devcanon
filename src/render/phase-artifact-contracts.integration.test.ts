@@ -282,6 +282,7 @@ mkdir -p .ephemeral
     expect(prReviewBody).toContain(
       "Immediately after `play-review` returns and before the Phase 5 user gate",
     );
+    expect(prReviewBody).toContain('HEAD_SHA="$(git rev-parse HEAD)"');
     expect(prReviewBody).toContain(
       'REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review',
     );

@@ -107,6 +107,7 @@ Hand off to `play-review` with these inputs:
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
 
 ```bash
+HEAD_SHA="$(git rev-parse HEAD)"
 REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
 FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
 [ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
