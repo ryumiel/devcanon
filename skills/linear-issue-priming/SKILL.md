@@ -101,18 +101,21 @@ Validate the repo-relative path before writing:
 
 ```bash
 case "$ISSUE_BODY_PATH" in
+  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
   .ephemeral/*-issue-body.md) ;;
   *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
 esac
 [ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
 ```
 
-Apply the symlink guard before the write:
+Apply the write-target guard before the write:
 
 ```bash
 [ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
 mkdir -p "$WORKTREE_PATH/.ephemeral"
 [ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"
+[ ! -d "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path is a directory: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
+[ ! -e "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || [ -f "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
 ```
 
 Write the fetched Linear issue description verbatim to

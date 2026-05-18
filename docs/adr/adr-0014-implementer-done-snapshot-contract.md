@@ -21,12 +21,15 @@ typically re-reads the file(s) the implementer touched to:
 - Extract line numbers for downstream review or commit composition.
 - Confirm content matches the spec.
 
-In multi-task plans (per-task reviewers active per ADR-0007), the
-controller's re-read pressure is highest because line ranges feed the
-spec-compliance and code-quality reviewer dispatches. Each re-read
-pulls full file content into the controller's context. The observed
-failure mode was a medium-sized ADR being re-read across post-commit
-verification, review composition, and nit-fixing steps.
+In multi-task plans where the effective route includes per-task reviewers,
+the controller's re-read pressure is highest because line ranges feed the
+spec-compliance and, for `spec-and-quality`, code-quality reviewer
+dispatches. ADR-0018 later permits reduced routes where line ranges may feed
+only spec review, or no per-task reviewer at all when the final whole-diff
+gate independently reviews the full branch diff. Each re-read pulls full file
+content into the controller's context. The observed failure mode was a
+medium-sized ADR being re-read across post-commit verification, review
+composition, and nit-fixing steps.
 
 A naive fix — embed the file content in the DONE report — collides
 with `skills/play-subagent-execution/references/spec-reviewer-prompt.md`
@@ -241,14 +244,14 @@ esac
 # changed-file list. The snapshot is an optimization, not a workflow gate.
 ```
 
-This bash starts from the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the snapshot suffix and adapted to log-and-fall-back
-disposition (the canonical guard hard-exits because `play-review` has
-no fallback; the snapshot consumer always has committed HEAD blob reads
-available). The snapshot consumer additionally enforces snapshot-
-specific flatness, symlink, and regular-file checks because the consumer
-is read-only and never overwrites the file — the producer-side helper
+This bash is a snapshot-specific read guard. It keeps the generic
+suffix/traversal shape used by phase artifacts but intentionally diverges from
+`play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
+comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
+log-and-fall-back disposition because the snapshot consumer always has
+committed HEAD blob reads available. The snapshot consumer additionally
+enforces snapshot-specific flatness, symlink, and regular-file checks because
+the consumer is read-only and never overwrites the file — the producer-side helper
 writes through a repo-scoped private scratch directory and renames that
 output into place.
 

@@ -31,11 +31,13 @@ Add a caller-scoped carve-out to `play-subagent-execution`.
 
 When all of the following hold:
 
-1. the invocation explicitly states it came from
-   `issue-priming-workflow --auto`
-2. the caller explicitly guarantees downstream `branch-review --fix` is the
+1. the controller is already executing verified controller-local
+   `issue-priming-workflow --auto` state
+2. the invocation carries a validated `issue-priming/auto-handoff/v1` artifact
+   from that same parent state
+3. that parent state guarantees downstream `branch-review --fix` is the
    mandatory next step
-3. the extracted plan has exactly one task
+4. the extracted plan has exactly one task
 
 then `play-subagent-execution` skips its final whole-implementation
 code-quality reviewer and returns directly to the caller after the
@@ -43,16 +45,20 @@ single-task implementation path completes.
 
 All other paths remain unchanged:
 
-- multi-task plans keep their existing review behavior
+- multi-task plans kept their existing review behavior at the time of
+  ADR-0016; ADR-0018 later refines that path to risk-based routing with
+  `spec-and-quality` as the hard-risk and fail-closed route
 - direct/manual single-task invocations still run the final
   whole-implementation reviewer
 - ADR-0015's skip-dispatch optimization remains internal to Phase 6; it now
   inherits this caller-scoped carve-out instead of implying the final
   reviewer runs on every plan
 
-The caller signal is carried in the Phase 6 invocation prose owned by
-`issue-priming-workflow`. No new plan schema field or workflow-side
-plan-shape branching is introduced.
+The caller signal is not bearer prose. ADR-0013 and ADR-0018 harden this
+carve-out so `play-subagent-execution` verifies controller-local parent state
+plus the `issue-priming/auto-handoff/v1` audit artifact before skipping the
+final reviewer. No new plan schema field or workflow-side plan-shape branching
+is introduced.
 
 ## Consequences
 

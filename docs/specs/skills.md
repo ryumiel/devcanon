@@ -102,7 +102,7 @@ description: Multi-agent code review of a local branch's commits against a base 
 
 ```yaml
 # ❌ Procedural summary
-description: Use when implementing — dispatches a subagent per task with two-stage review between tasks.
+description: Use when implementing — dispatches a subagent per task and conditionally routes reviewers between tasks.
 
 # ✅ What + when
 description: Executes an implementation plan by dispatching a fresh subagent per independent task. Use when running a written plan whose tasks have no shared state.

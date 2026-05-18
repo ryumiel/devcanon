@@ -104,7 +104,15 @@ Hand off to `play-review` with these inputs:
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections.
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
+
+```bash
+HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"
+REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
+FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
+[ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
+REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
+```
 
 ## Phase 5: Present (USER GATE)
 
@@ -155,7 +163,36 @@ Include a draft review body preview.
 
 Only after user approval:
 
-1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Do **not** re-parse the human-readable markdown findings — read the JSON envelope directly with `jq` (e.g., `jq '.findings' .ephemeral/<branch_slug>-<head_sha>-findings.json`). The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:
+1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line captured before the Phase 5 user gate. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`:
+
+   ```bash
+   HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
+   RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
+   if [ "$RAW_BRANCH" = HEAD ]; then
+     BRANCH_SLUG=detached
+   else
+     BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+     case "$BRANCH_SLUG" in
+       ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+     esac
+   fi
+   EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
+   FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
+   case "$FINDINGS_FILE" in
+     .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
+     .ephemeral/*-findings.json) ;;
+     *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
+   esac
+   [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+   [ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+   [ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
+   [ ! -L "$FINDINGS_FILE_ABS" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
+   [ -f "$FINDINGS_FILE_ABS" ] || { echo "findings file missing or not a regular file: $FINDINGS_FILE" >&2; exit 1; }
+   jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE_ABS" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
+   ```
+
+   Do **not** re-parse the human-readable markdown findings — read the JSON envelope directly with `jq` (e.g., `jq '.findings' "$FINDINGS_FILE_ABS"`). The JSON `anchor` enum values (`"natural"` / `"missing-file"` / `"out-of-diff"`) match the markdown `Anchor:` values verbatim per the schema — do not normalize one form to the other. For every inline finding, take `path`, `line`, and `start_line` from the finding's structured fields. **Omit the `start_line` key entirely when it is `null`** — the GitHub Reviews API rejects `start_line: null`; the schema permits `null` for shape uniformity, but the wire payload must drop the key. A `jq` filter such as `if .start_line == null then del(.start_line) else . end` applied per comment object enforces this. Partition `findings[]` by `anchor`:
    - `anchor: "natural"` → inline comment using the finding's `path` / `line` / `start_line`; `body` is the finding's pre-rendered `body` field.
    - `anchor: "missing-file"` → inline comment using the finding's `path` / `line` / `start_line` — `play-review` has already resolved them per its priority list; do NOT re-run the priority resolution. Prefix the `body` with _"Missing-file finding (no natural anchor — see body):"_ before passing it through.
    - `anchor: "out-of-diff"` → top-level review comment (single bucket; not inline). Concatenate each finding's pre-rendered `body` field into the review's overall `body`; do not put these in the `comments` array.
@@ -167,7 +204,7 @@ Only after user approval:
      --method POST \
      --silent \
      --input <(jq -n \
-       --arg commit_id "<HEAD SHA>" \
+       --arg commit_id "$REVIEW_HEAD_SHA" \
        --arg body "<overall summary; include out-of-diff findings here>" \
        --arg event "<APPROVE|REQUEST_CHANGES|COMMENT>" \
        --argjson comments '<JSON array of inline comments>' \

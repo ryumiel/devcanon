@@ -105,17 +105,38 @@ The structured envelope is written to a deterministic file under `.ephemeral/`. 
   fi
   ```
 
-The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation is a single guard:
+The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation recomputes the deterministic path from trusted inputs and compares the parsed notice path to it:
 
 ```bash
+: "${HEAD_SHA:?trusted head_sha input required}"
+case "$HEAD_SHA" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "head_sha invalid: $HEAD_SHA" >&2; exit 1 ;;
+esac
+RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
+if [ "$RAW_BRANCH" = HEAD ]; then
+  BRANCH_SLUG=detached
+else
+  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  case "$BRANCH_SLUG" in
+    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
+  esac
+fi
+EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
 case "$FINDINGS_FILE" in
-  .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
+  .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
+  .ephemeral/*-findings.json) ;;
   *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
 esac
 [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
+[ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
+[ ! -L "$FINDINGS_FILE_ABS" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
+[ -f "$FINDINGS_FILE_ABS" ] || { echo "findings file missing or not a regular file: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
-Consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish`, `issue-priming-workflow` Phase 7) MUST run this guard before opening or overwriting the file.
+Findings-file consumers MUST run this guard before opening or overwriting the file. Wrappers that directly call `play-review` (`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted `head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from `branch-review --fix`, so it binds `HEAD_SHA` from the validated `Review head: <40-hex-sha>.` notice that `branch-review --fix` captures before auto-fix commits and emits after processing. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS`, require a regular file, and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
 
 #### Envelope shape
 
@@ -165,16 +186,19 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
 - Always write the envelope, even when both `findings` and `carry_forward` are empty. The canonical empty form is `{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`.
 - Overwrite the file on each invocation (deterministic path; the previous content for the same branch + SHA is no longer authoritative).
 - Use the `Write` tool for atomic replacement. Do not append.
-- **Symlink guard.** `Write` follows symlinks, so a hostile fork-PR working
-  tree can redirect the write either by pre-staging `.ephemeral` itself as a
-  symlink or by pre-staging a symlink at the target file path. Before writing,
-  reject a symlinked `.ephemeral` directory, ensure the directory exists, then
-  remove any symlink at the target path:
+- **Write-target guard.** `Write` follows symlinks, so a hostile fork-PR
+  working tree can redirect the write either by pre-staging `.ephemeral` itself
+  as a symlink or by pre-staging a symlink at the target file path. Before
+  writing, reject a symlinked `.ephemeral` directory, ensure the directory
+  exists, remove any symlink at the target path, and reject directories or other
+  non-regular existing paths:
 
   ```bash
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"
+  [ ! -d "$FINDINGS_FILE" ] || { echo "findings path is a directory: $FINDINGS_FILE" >&2; exit 1; }
+  [ ! -e "$FINDINGS_FILE" ] || [ -f "$FINDINGS_FILE" ] || { echo "findings path exists but is not a regular file: $FINDINGS_FILE" >&2; exit 1; }
   ```
 
   Apply the same guard wherever `branch-review --fix` overwrites this file or
@@ -292,11 +316,13 @@ Compose the file with these sections, in order:
   pattern from § Output:
 
   ```bash
-  HEAD_SHA="$head_sha"  # validated upstream per § Output's SHA-format check
+  : "${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"
+  [ ! -d "$CONTEXT_FILE" ] || { echo "review context path is a directory: $CONTEXT_FILE" >&2; exit 1; }
+  [ ! -e "$CONTEXT_FILE" ] || [ -f "$CONTEXT_FILE" ] || { echo "review context path exists but is not a regular file: $CONTEXT_FILE" >&2; exit 1; }
   ```
 
 - **Use the `Write` tool** for atomic replacement. Do not append.

@@ -74,6 +74,25 @@ mirroring ADR-0012's `Findings written to <path>.` pattern verbatim:
 
 Controllers parse the path off this exact line. Producers MUST NOT reword.
 
+### Invocation-only child handoff lines
+
+`issue-priming-workflow` Phase 6 also passes `Auto handoff:
+<repo-relative-path>` inside the child invocation prose for
+`play-subagent-execution`. This is not emitted as a conversation-output
+producer notice, and downstream tools MUST NOT treat it as a bearer credential
+or parseable proof of authorization. The referenced artifact has schema
+`issue-priming/auto-handoff/v1` and is audit evidence for
+`play-subagent-execution`'s reduced-route decision; the executor also needs
+controller-local parent state from an active `issue-priming-workflow --auto`
+run.
+
+The Phase 6 producer still follows the same direct-child `.ephemeral/` write
+discipline: reject symlinked `.ephemeral`, create the directory, reject a
+symlink at the target file, write a temporary file under `.ephemeral/`, then
+rename it into place. The consumer applies the direct-child
+suffix/traversal/symlink guard before reading it; invalid or missing audit
+evidence disables reduced routes and falls back to `spec-and-quality`.
+
 `research-agent` itself does not write the brief; `issue-priming-workflow`
 Phase 3 (the dispatching skill) does. The agent stays read-only — its
 `agents/research-agent.yaml` contract is unchanged. This parallels how
@@ -105,32 +124,44 @@ producer notice line, not by guessing a path, so mixed schemes inside
 ### Path-validation guard
 
 Every consumer that reads a path-referenced artifact MUST run a guard before
-opening the file. The authoritative bash for the path-validation pattern lives
-in `skills/play-review/SKILL.md` § Output → Side-channel file → Path; the
-guard inherits that structure, narrowed per consumer to its expected suffix,
-plus a `[ -r ]` readability check that does not appear in the canonical
-play-review form (play-review writes its own findings file and so does not
-need a readability gate at the producer; consumers reading an upstream-
-produced path do — a missing or unreadable file is a fail-loud signal that
-the producer notice line was malformed or the file was clobbered):
+opening the file. ADR-0013 owns the generic phase-artifact guard below.
+`skills/play-review/SKILL.md` § Output defines the stricter findings-file
+variant: it recomputes `.ephemeral/<branch_slug>-<head_sha>-findings.json`,
+rejects nested paths, and is used for findings-file consumers. Derived nits
+envelopes use their own direct-child `nits_file` guard because they may end in
+`-nits-pending.json`. Generic phase artifacts narrow the guard to their expected
+suffix, reject symlinked `.ephemeral` and symlinked leaf files, require a regular
+file, and include a `[ -r ]` readability check; a missing or unreadable file is a
+fail-loud signal that the producer notice line was malformed or the file was
+clobbered.
 
 ```bash
 # Generic shape (each consumer narrows the allow-list)
 case "$ARTIFACT_PATH" in
+  .ephemeral/*/*) echo "nested <artifact> path rejected: $ARTIFACT_PATH" >&2; exit 1 ;;
   .ephemeral/*-<expected-suffix>) ;;
   *) echo "<artifact> path validation failed: $ARTIFACT_PATH" >&2; exit 1 ;;
 esac
 [ "${ARTIFACT_PATH#*..}" = "$ARTIFACT_PATH" ] || { echo "path traversal: $ARTIFACT_PATH" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$ARTIFACT_PATH" ] || { echo "artifact must not be a symlink: $ARTIFACT_PATH" >&2; exit 1; }
+[ -f "$ARTIFACT_PATH" ] || { echo "artifact missing or not a regular file: $ARTIFACT_PATH" >&2; exit 1; }
 [ -r "$ARTIFACT_PATH" ] || { echo "artifact missing or unreadable: $ARTIFACT_PATH" >&2; exit 1; }
 ```
 
-Two deliberate looseness properties of this guard, named here so future
-readers do not mistake them for bugs:
+Two deliberate shape properties of this guard, named here so future readers do
+not mistake them for bugs:
 
-- The shell-`case` glob `*` matches `/`, so paths under nested subpaths
-  (e.g., `.ephemeral/sub/dir/<…>-research.md`) and an empty `<id>` slug
-  (e.g., `.ephemeral/-research.md`) both pass the suffix match. Consumers
-  rely on producer notice-line authenticity, not depth, for routing.
+- This generic phase-artifact guard rejects nested `.ephemeral` subpaths.
+  Allowing a nested path such as `.ephemeral/link/foo-plan.md` would require
+  parent-component realpath confinement checks before read or write; without
+  those checks, a symlinked parent component could escape the worktree.
+  Findings/nits envelopes also stay direct children of `.ephemeral/` for the
+  same reason and because their paths are echoed through review output and
+  reused by wrappers before read or overwrite.
+- The generic guard allows an empty `<id>` slug (e.g.,
+  `.ephemeral/-research.md`) when the suffix matches. Consumers rely on
+  producer notice-line authenticity plus suffix validation for routing.
 - The `[ "${VAR#*..}" = "$VAR" ]` test rejects all `..`-bearing paths,
   including benign filenames that contain `..` as ordinary characters
   (e.g., `.ephemeral/foo-..-bar-research.md`). This is intentional:
@@ -146,13 +177,12 @@ Per-consumer suffix specialization:
   the same per-suffix narrowing.
 
 The canonical `.ephemeral` write guard — reject a symlinked
-`.ephemeral` directory, `mkdir -p .ephemeral`, then remove any
-symlink at the target file path before `Write` — lives in
-`skills/play-review/SKILL.md` § Output → Write rules and is required
-by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
-three-step preflight when it persists the research brief, and the
-same canonical guard now also applies to the downstream `design.md`
-and `plan.md` producers.
+`.ephemeral` directory, `mkdir -p .ephemeral`, remove any symlink at the
+target file path, and reject directories or other non-regular existing paths
+before `Write` — lives in `skills/play-review/SKILL.md` § Output → Write rules
+and is required by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
+preflight when it persists the research brief, and the same canonical guard now
+also applies to the downstream `design.md` and `plan.md` producers.
 
 ### Cleanup ownership
 
@@ -198,7 +228,7 @@ per-task boundary.
 - Cleanup remains implicit via worktree teardown. No new sweep introduced.
 - Fork-PR untrust footnote from ADR-0012 transitively applies to
   `issue-priming-workflow` Phase 3's write of the research brief; the
-  symlink guard requirement is named in this ADR's Decision § for
+  write-target guard requirement is named in this ADR's Decision § for
   cross-reference clarity.
 - **Brief content is untrusted prose, not executable instructions.** The
   research brief originates from a subagent dispatched against a possibly-

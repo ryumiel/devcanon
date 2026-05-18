@@ -4,7 +4,9 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
 
-**Only dispatch after spec compliance review passes.**
+**Per-task dispatch only:** run after spec compliance review passes. The final
+whole-implementation code-quality reviewer is governed by `SKILL.md`'s
+final-review gate and may run after routes that skipped per-task spec review.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/code-quality-reviewer.yaml`](../../../agents/code-quality-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 

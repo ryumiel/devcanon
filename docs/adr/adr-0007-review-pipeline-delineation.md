@@ -12,15 +12,21 @@ authoritative, but statements below that the final whole-implementation
 reviewer always runs on that caller-scoped path should now be read together
 with ADR-0016.
 
+ADR-0018 later refines the multi-task path described here. The multi-task
+two-stage review policy remains the hard-risk and fail-closed route, but
+multi-task tasks may use reduced per-task routes only under ADR-0018's
+guarded, executor-owned routing conditions.
+
 ## Context
 
 The `github-issue-priming --auto` workflow (and its sibling
 `linear-issue-priming --auto`) hands off to `issue-priming-workflow`, which
 chains two reviewers on the same diff:
 
-1. `play-subagent-execution` (`issue-priming-workflow` Phase 6) runs a
-   per-task two-stage review (spec-compliance reviewer, then code-quality
-   reviewer) on each task in the plan.
+1. `play-subagent-execution` (`issue-priming-workflow` Phase 6) runs the
+   executor-computed per-task route on each multi-task plan task. ADR-0018
+   later narrows the original two-stage route to hard-risk and fail-closed
+   cases.
 2. `branch-review --fix` (`issue-priming-workflow` Phase 7) runs a
    whole-branch review (correctness, data-safety, dynamic
    language/architecture/docs agents, and a critic verification pass) on
@@ -46,19 +52,22 @@ still ran after the task completed. ADR-0016 later narrowed the
 skipped; outside that caller-scoped carve-out, the final reviewer still
 runs.
 
-For plans with **two or more** tasks, the per-task two-stage review
-(spec-compliance, then code-quality) continues to run. Multi-task plans
-benefit uniquely from per-task spec-compliance checking (catching drift
-before the next task uses the wrong foundation), and that value is not
-replicated by an end-of-branch review. The pipeline structure is unchanged;
-the per-task reviewers' model tier is raised from `{{model:standard}}` to
-`{{model:deep}}` to match the downstream `branch-review` / `pr-review`
-floor, closing the per-task coverage gap surfaced by the contradictory-review
-failure mode.
-The same `code-quality-reviewer` agent is also invoked at the end of
-`play-subagent-execution` for the whole implementation regardless of plan
-size, so the floor raise applies to that dispatch too — see Consequences
-for the cost rationale.
+For plans with **two or more** tasks, `play-subagent-execution` computes the
+task's effective review route. The original per-task two-stage review
+(`spec-and-quality`: spec-compliance, then code-quality) remains the
+hard-risk and fail-closed route. ADR-0018 later permits reduced routes only
+when guarded by executor-owned classification and an explicit final
+whole-diff gate. Multi-task plans still benefit uniquely from per-task
+spec-compliance checking where the effective route includes it (catching
+drift before the next task uses the wrong foundation), and that value is not
+replicated by an end-of-branch review. The per-task reviewers' model tier is
+raised from `{{model:standard}}` to `{{model:deep}}` to match the downstream
+`branch-review` / `pr-review` floor, closing the per-task coverage gap
+surfaced by the contradictory-review failure mode on routes that dispatch
+those reviewers.
+When the final whole-implementation code-quality reviewer runs, it uses the
+same `code-quality-reviewer` agent, so the floor raise applies to that
+dispatch too — see Consequences for the cost rationale.
 
 This change is internal to `play-subagent-execution`. The
 `issue-priming-workflow` Phase 6 → Phase 7 call sequence (driven by
@@ -80,8 +89,8 @@ unchanged.
   reviewer remains the built-in review before commit, and operators may run
   `branch-review` manually for additional whole-diff coverage.
 - The "Skip reviews (spec compliance OR code quality)" Red Flag in
-  `play-subagent-execution` no longer flatly forbids skipping; it now
-  forbids skipping when the plan has 2+ tasks.
+  `play-subagent-execution` no longer flatly forbids skipping; ADR-0018 later
+  narrows it to "skip or weaken the executor-computed review route."
 - ADR-0015 introduces a further optimization within the single-task path: when
   three runtime guardrails (single-task plan, `**Mode:** mechanical`, no TDD
   step-pair markers) plus one upstream precondition (`play-planning`'s
@@ -92,16 +101,19 @@ unchanged.
   downstream `branch-review --fix` is guaranteed.
 - Future changes touching review-pipeline delineation must update this ADR
   per the ADR governance rule.
-- Reviewer cost increases. For multi-task plans the per-task reviewers
-  (spec-compliance and code-quality) run at `{{model:deep}}` instead of
-  `{{model:standard}}`, bounded by N (number of tasks) × 2 reviewers.
-  Additionally, the final whole-implementation code-quality reviewer at the
-  end of `play-subagent-execution` shares the `code-quality-reviewer` agent
-  and therefore runs at `{{model:deep}}` on every path except the
-  caller-scoped single-task `issue-priming-workflow --auto` carve-out later
-  introduced by ADR-0016. The increased cost on the remaining paths is
-  justified by the same rationale as `pr-review` and `branch-review`:
-  missing a real bug far outweighs the model cost.
+- Reviewer cost increases for routes that dispatch per-task reviewers. The
+  spec-compliance and code-quality reviewers run at `{{model:deep}}` instead
+  of `{{model:standard}}`; after ADR-0018, that cost is bounded by the
+  effective route (`spec-and-quality` dispatches both reviewers, `spec-only`
+  dispatches only spec-compliance, and `none-final-only` dispatches neither
+  per-task reviewer). Additionally, the final whole-implementation
+  code-quality reviewer at the end of `play-subagent-execution` shares the
+  `code-quality-reviewer` agent and therefore runs at `{{model:deep}}` on the
+  paths not covered by the caller-scoped single-task
+  `issue-priming-workflow --auto` carve-out later introduced by ADR-0016. The
+  increased cost on the remaining paths is justified by the same rationale as
+  `pr-review` and `branch-review`: missing a real bug far outweighs the model
+  cost.
 
 ## Alternatives considered
 
@@ -122,8 +134,10 @@ unchanged.
 - **Variant -- also drop multi-task per-task code-quality review.** Keep the
   per-task spec reviewer for N>1 plans, drop the per-task code-quality
   reviewer entirely. Rejected as undeclared scope expansion beyond what
-  the decision request covered; a future ADR can revisit if motivated.
+  the decision request covered; ADR-0018 later revisits the idea as guarded
+  risk-based routing rather than an unconditional removal.
 
 ## Related
 
 - Follow-up refinement: ADR-0016
+- Follow-up refinement: ADR-0018

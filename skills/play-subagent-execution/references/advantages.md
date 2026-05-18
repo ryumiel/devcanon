@@ -26,14 +26,28 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 **Quality gates:**
 
 - Self-review catches issues before handoff
-- Two-stage review (spec compliance, then code quality) per task on multi-task plans; single-task plans rely on either the final code-quality reviewer (direct/manual) or downstream `branch-review --fix` on the `issue-priming-workflow --auto` path
+- Executor-owned risk-based review routing per task on multi-task plans:
+  hard-risk and unclear tasks run two-stage review (spec compliance, then
+  code quality), while medium-risk tasks may run `spec-only` and low-risk
+  tasks may use `none-final-only` only on the verified shared
+  `issue-priming-workflow --auto` Phase 6 path with controller-local parent
+  state and a valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
+  `branch-review --fix` after any auto-fix or mechanical-nit commit until the
+  final run reports zero blocking findings auto-fixed, no unresolved remaining
+  `Blocking` findings except findings whose `critic` verdict is `INVALID` or
+  `DOWNGRADE`, and no additional mechanical nit commits
+- Single-task plans rely on either the final code-quality reviewer
+  (direct/manual) or downstream `branch-review --fix` on the
+  `issue-priming-workflow --auto` path
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
+- Reduced review routes remain bounded by a mandatory final whole-diff gate whose final run is after any Phase 7 commits; unresolved remaining `Blocking` findings with any other critic value stop the workflow
 
 **Cost:**
 
-- More subagent invocations (implementer + 2 reviewers per task)
+- More subagent invocations on hard-risk tasks (implementer + 2 reviewers per
+  task), with reduced routes available for lower-risk work
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)

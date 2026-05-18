@@ -171,22 +171,27 @@ EOF
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the path-validation guard from `skills/play-review/SKILL.md` § Output (path MUST start with `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`) and assert the schema name before partitioning:
+2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run this `nits_file` guard (path MUST be a direct child of `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`) and assert the schema name before partitioning:
 
    ```bash
    case "$NITS_FILE" in
+     .ephemeral/*/*) echo "nested nits_file path rejected: $NITS_FILE" >&2; exit 1 ;;
      .ephemeral/*-findings.json|.ephemeral/*-nits-pending.json) ;;
      *) echo "nits_file path validation failed: $NITS_FILE" >&2; exit 1 ;;
    esac
    [ "${NITS_FILE#*..}" = "$NITS_FILE" ] || { echo "path traversal: $NITS_FILE" >&2; exit 1; }
+   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+   [ ! -L "$NITS_FILE" ] || { echo "nits_file must not be a symlink: $NITS_FILE" >&2; exit 1; }
+   [ -f "$NITS_FILE" ] || { echo "nits_file missing or not a regular file: $NITS_FILE" >&2; exit 1; }
    [ -r "$NITS_FILE" ] || { echo "nits_file missing or unreadable: $NITS_FILE" >&2; exit 1; }
    jq -e '.schema == "play-review/findings/v1"' "$NITS_FILE" >/dev/null || { echo "envelope schema mismatch: $NITS_FILE" >&2; exit 1; }
    ```
 
-   Then extract `findings[]` (e.g., `jq -c '.findings' "$NITS_FILE"`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `gh pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `gh pr review --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `gh pr diff` parsing varies by environment (awk, python, jq, gh built-ins). Then serialize the anchorable subset — applying the `"side": "RIGHT"` default and dropping any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range) — into `$ANCHORABLE_NITS_JSON`:
+   Then extract `findings[]` (e.g., `jq -c '.findings' "$NITS_FILE"`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `gh pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `gh pr review --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `gh pr diff` parsing varies by environment (awk, python, jq, gh built-ins). Before serialization, validate the anchorable entries expose only the field types needed by GitHub review comments, then build each API comment from an allowlist (`path`, `line`, optional `start_line`, `body`) and force `"side": "RIGHT"`; never pass through unexpected envelope fields such as `side`, `start_side`, or GitHub API keys. Drop any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range). Serialize into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
-   ANCHORABLE_NITS_JSON=$(jq -c 'map(. + {side: (.side // "RIGHT")} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
+   jq -e 'all(.[]; (.path | type == "string") and (.body | type == "string") and (.line | type == "number") and ((has("start_line") | not) or .start_line == null or (.start_line | type == "number")))' <<<"$ANCHORABLE_NITS" >/dev/null || { echo "invalid nits payload fields" >&2; exit 1; }
+   ANCHORABLE_NITS_JSON=$(jq -c 'map({path, line, start_line, body, side: "RIGHT"} | if .start_line == null then del(.start_line) else . end)' <<<"$ANCHORABLE_NITS")
    ```
 
 3. Post anchorable nits as a single review with `event: "COMMENT"`. Skip this step entirely if `$ANCHORABLE_NITS_JSON` is empty or `[]` — posting an empty review is noise.

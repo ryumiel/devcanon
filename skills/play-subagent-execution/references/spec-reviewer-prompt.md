@@ -58,10 +58,14 @@ Task tool (general-purpose):
 
     **Within-document identifier drift (when changes include `*.md` files):**
 
-    Scope: this check runs only on multi-task plans, where this template is
-    dispatched per task. For single-task plans, equivalent coverage lives
-    in `play-review`'s Docs agent under the same name (invoked by both
-    `branch-review` and `pr-review`).
+    Scope: this check runs only when the effective route dispatches the
+    spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
+    `none-final-only` reduced routes and the `issue-priming-workflow --auto`
+    single-task path, Phase 7 `branch-review --fix` is mandatory, but ADR-0017
+    guarded tiny-diff mode may suppress dynamic Docs-agent dispatch for
+    qualifying tiny low-risk diffs. Direct/manual single-task paths get only the
+    local final reviewer unless the operator also runs `branch-review` or
+    `pr-review`.
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify
@@ -91,11 +95,15 @@ Task tool (general-purpose):
 
     **Substitution audit (when changes include external CLI/API/system invocations):**
 
-    Scope: this check runs only on multi-task plans, where this template is
-    dispatched per task. For single-task plans, equivalent coverage lives
-    in `play-review`'s Correctness agent under the same name. The broader
-    documented-behavior verification (for new or modified invocations that
-    aren't substitutions) is out of scope here and lives in `play-review`
+    Scope: this check runs only when the effective route dispatches the
+    spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
+    `none-final-only` reduced routes and the `issue-priming-workflow --auto`
+    single-task path, equivalent coverage lives in mandatory Phase 7
+    `branch-review --fix` through `play-review`'s Correctness agent under the
+    same name. Direct/manual single-task paths get only the local final
+    reviewer unless the operator also runs `branch-review` or `pr-review`. The
+    broader documented-behavior verification (for new or modified invocations
+    that aren't substitutions) is out of scope here and lives in `play-review`
     only (invoked by both `branch-review` and `pr-review`) — see that skill
     for Sub-check 2.
 

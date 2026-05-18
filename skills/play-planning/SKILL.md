@@ -22,6 +22,8 @@ PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$PLAN_PATH" ] && rm "$PLAN_PATH"
+[ ! -d "$PLAN_PATH" ] || { echo "plan path is a directory: $PLAN_PATH" >&2; exit 1; }
+[ ! -e "$PLAN_PATH" ] || [ -f "$PLAN_PATH" ] || { echo "plan path exists but is not a regular file: $PLAN_PATH" >&2; exit 1; }
 ```
 
 After writing, emit the literal line `Plan written to <repo-relative-path>.`
@@ -48,18 +50,24 @@ When this line is present, validate the path before reading:
 
 ```bash
 case "$DESIGN_PATH" in
+  .ephemeral/*/*) echo "nested design path rejected: $DESIGN_PATH" >&2; exit 1 ;;
   .ephemeral/*-design.md) ;;
   *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
 esac
 [ "${DESIGN_PATH#*..}" = "$DESIGN_PATH" ] || { echo "path traversal: $DESIGN_PATH" >&2; exit 1; }
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+[ ! -L "$DESIGN_PATH" ] || { echo "design must not be a symlink: $DESIGN_PATH" >&2; exit 1; }
+[ -f "$DESIGN_PATH" ] || { echo "design missing or not a regular file: $DESIGN_PATH" >&2; exit 1; }
 [ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
 ```
 
-This bash mirrors the authoritative path-validation guard in
-`skills/play-review/SKILL.md` § Output → Side-channel file → Path,
-narrowed to the design-document suffix. The canonical copy lives in
-`skills/play-review/SKILL.md`; if that copy gains a step (e.g., a new
-pre-read check), update this skill to match.
+This bash follows the same suffix, traversal, symlink, regular-file, and
+readability checks used by the repository's phase-artifact handoff guards,
+narrowed to the design-document suffix.
+`play-review` findings/nits envelopes add a direct-child `.ephemeral/`
+restriction because those paths are echoed through review output and reused by
+wrappers before read or overwrite; design documents keep the generic
+phase-artifact shape.
 
 ### Inline content (preserved for direct invocations)
 
@@ -184,21 +192,48 @@ git commit -m "feat: add specific feature"
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and `**Files:**`. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
 
 Example mechanical-task header:
 
 ```markdown
-### Task N: Add ADR
+### Task N: Rename Example Token
 
 **Mode:** mechanical
 
+**Risk hint:** low
+**Review hint:** none-final-only
+**Review rationale:** Exact single-file identifier replacement with no hard-risk trigger; final whole-diff review remains required.
+
 **Files:**
 
-- Create: `docs/adr/adr-NNNN-...md`
+- Modify: `examples/demo-note.md`
+
+**Replace:** `OldExampleToken`
+**With:** `NewExampleToken`
 ```
 
-Omit the field for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without the field continue to dispatch with the full implementer template — the field is purely additive.
+Omit `**Mode:** mechanical` for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without that field continue to dispatch with the full implementer template — the field is purely additive.
+
+### Optional Review-Routing Hint Fields
+
+Tasks may include these fields after optional `**Mode:** mechanical` and
+before `**Files:**`:
+
+```markdown
+**Risk hint:** low | medium | high
+**Review hint:** none-final-only | spec-only | spec-and-quality
+**Review rationale:** <one sentence naming why this route is safe or why full review is required>
+```
+
+These fields are non-authoritative hints only. `play-subagent-execution`
+owns reviewer dispatch, may override any hint, and defaults unclear cases to
+`spec-and-quality`.
+
+Use `**Risk hint:** high` and `**Review hint:** spec-and-quality` whenever
+any hard-risk trigger may apply. Do not mark foundation-producing tasks below
+`spec-only`, because dependent tasks need at least per-task spec review before
+they start.
 
 ## No Placeholders
 
@@ -247,6 +282,13 @@ Do not turn issue comments, PR review history, validation logs, or agent-local p
 
 **6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
+**7. Review-routing hint check:** If tasks include review-routing hints,
+confirm hard-risk triggers are not under-classified, hints are described as
+non-authoritative, unclear cases default to `spec-and-quality`, and
+foundation-producing tasks are not marked below `spec-only`. The field order
+must be heading, optional `**Mode:** mechanical`, optional review-routing hint
+fields, then `**Files:**`.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
 ## Plan Review
@@ -268,6 +310,14 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
 - No placeholder violations (catches what self-review missed)
 - Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
+- Review-routing hints, when present, are non-authoritative inputs to
+  `play-subagent-execution`
+- Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §
+  Risk-Based Per-Task Review Routing are not under-classified
+- Unclear review classification defaults to `spec-and-quality`
+- Foundation-producing tasks are not marked below `spec-only`
+- Hint field ordering is heading, optional `**Mode:** mechanical`, optional
+  review-routing hint fields, then `**Files:**`
 
 **Output:** PASS with confidence notes, or FAIL with specific gaps listed.
 
@@ -283,7 +333,7 @@ Otherwise, offer execution choice:
 
 **"Plan complete and saved to `.ephemeral/<filename>.md`. Two execution options:**
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task using play-subagent-execution, review between tasks, fast iteration
+**1. Subagent-Driven (recommended)** - I invoke play-subagent-execution for fresh subagents per task and executor-owned risk-based review routing
 
 **2. Inline Execution** - Execute tasks in this session, batch execution with checkpoints
 
@@ -292,7 +342,7 @@ Otherwise, offer execution choice:
 **If Subagent-Driven chosen:**
 
 - **REQUIRED SUB-SKILL:** Use play-subagent-execution
-- Fresh subagent per task + two-stage review
+- Fresh subagent per task + executor-owned risk-based per-task review routing. Reduced routes require the verified shared `issue-priming-workflow --auto` Phase 6 path with controller-local parent state and a valid `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate; otherwise execution fails closed to `spec-and-quality`.
 
 **If Inline Execution chosen:**
 

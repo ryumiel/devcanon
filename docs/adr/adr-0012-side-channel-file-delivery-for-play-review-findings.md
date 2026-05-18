@@ -106,9 +106,15 @@ Consumer responsibilities:
 - `branch-review` Phase 3 (no-`--fix`) — surface the notice line in
   wrapper output. No JSON re-emission.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
-  file_ with the remaining-set envelope (every nit, plus blockers
-  skipped on `INVALID`/`DOWNGRADE`, plus the halt blocker). Re-emit
-  the (unchanged) notice line.
+  file_ with the remaining-set envelope: all pre-fix findings except
+  blockers successfully auto-fixed and committed. This includes every nit,
+  blockers skipped on `INVALID`/`DOWNGRADE`, hard-rule judgment-required
+  blockers preserved in the remaining set from `play-review` Sub-check 1 Safety
+  / Sub-check 2 Contracts, the halt blocker, and any later blockers left
+  unprocessed because an earlier stop-rule finding halted the loop. Capture the
+  immutable Phase 2 review SHA before applying any auto-fix commits, then report
+  it after processing as the exact line
+  `Review head: <40-hex-sha>.`. Re-emit the (unchanged) findings notice line.
 - `pr-review` Phase 6 — read the envelope from the file. The
   partition-by-`anchor` logic, `start_line` null-handling, and
   GitHub Reviews API call are unchanged.
@@ -116,10 +122,14 @@ Consumer responsibilities:
   repo-relative path to a `play-review/findings/v1` envelope) in
   place of today's inline `nits` JSON array. Iterate `findings[]`
   and post anchorable / unanchorable subsets as before.
-- `issue-priming-workflow` Phase 7 — read `findings[]` from the
-  file at `branch-review --fix`'s notice line. After mechanical-nit
-  fixes, write the judgment-required subset to a derived file
-  `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
+- `issue-priming-workflow` Phase 7 — read the immutable review SHA from
+  `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, then
+  read `findings[]` from the file at the `Findings written to <path>.` notice
+  line. The consumer validates the findings path against the Phase 2
+  review SHA, not post-fix `HEAD`, because `branch-review --fix` may have
+  committed auto-fixes after `play-review` created the file. After
+  mechanical-nit fixes, write the judgment-required subset to a derived
+  file `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
   that path to `play-branch-finish` as `nits_file`.
 
 ## Consequences
@@ -169,12 +179,13 @@ Consumer responsibilities:
   `.ephemeral/<…>-findings.json`. Because the `Write` tool follows
   symlinks, an unguarded write would land attacker-chosen content at
   the link's target. `play-review`'s Write rules (see
-  `skills/play-review/SKILL.md` § Output) now require a three-step
+  `skills/play-review/SKILL.md` § Output) now require a write-target
   preflight before writing: reject a symlinked `.ephemeral`
-  directory, `mkdir -p .ephemeral`, then remove any symlink at the
-  target file path. `branch-review --fix` and
-  `issue-priming-workflow` Phase 7 inherit the same requirement when
-  they overwrite or derive a sibling file.
+  directory, `mkdir -p .ephemeral`, remove any symlink at the target
+  file path, and reject directories or other non-regular existing
+  paths. `branch-review --fix` and `issue-priming-workflow` Phase 7
+  inherit the same requirement when they overwrite or derive a sibling
+  file.
 - ADR-0010's "no-I/O boundary" paraphrase is corrected here. The
   remaining wrapper-disposition boundary (no GitHub calls, no auto-fix,
   no worktree mutation) is unchanged and still authoritative for
