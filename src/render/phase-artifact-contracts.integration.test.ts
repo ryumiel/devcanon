@@ -163,6 +163,9 @@ mkdir -p .ephemeral
       'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
     );
     expect(playReviewBody).toContain(
+      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
+    );
+    expect(playReviewBody).toContain(
       'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
     );
     expect(playReviewBody).toContain(

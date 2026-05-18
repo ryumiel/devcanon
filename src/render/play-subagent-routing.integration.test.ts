@@ -173,7 +173,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Example mechanical-task header:",
     );
     const planningHintEnd = playPlanningBody.indexOf(
-      "Omit the field for any task with judgment",
+      "Omit `**Mode:** mechanical` for any task with judgment",
     );
     expect(planningHintStart).toBeGreaterThanOrEqual(0);
     expect(planningHintEnd).toBeGreaterThan(planningHintStart);

@@ -211,7 +211,7 @@ Example mechanical-task header:
 **With:** `NewExampleToken`
 ```
 
-Omit the field for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without the field continue to dispatch with the full implementer template — the field is purely additive.
+Omit `**Mode:** mechanical` for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without that field continue to dispatch with the full implementer template — the field is purely additive.
 
 ### Optional Review-Routing Hint Fields
 
