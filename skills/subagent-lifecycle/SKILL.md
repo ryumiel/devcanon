@@ -23,8 +23,8 @@ The ledger is agent-local/controller-local state; do not write it as durable
 repository documentation and do not pass it to reviewer agents as evidence.
 Reviewers and implementers still read the worktree from disk.
 
-Track one row per active, completed, superseded, cleanup-unavailable, or
-pending session. Each row records:
+Track one row per active, completed, superseded, or pending session. Each row
+records:
 
 - task, phase, or review scope;
 - role;

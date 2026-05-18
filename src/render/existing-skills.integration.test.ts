@@ -510,8 +510,38 @@ describe("existing skills render cleanly", () => {
       researchPromptSourcePath,
       "utf-8",
     );
+    const normalizedResearchPromptSourceContent = normalizeWhitespace(
+      researchPromptSourceContent,
+    );
     expect(researchPromptSourceContent).toContain("subagent-lifecycle");
-    expect(researchPromptSourceContent).toContain("role-specific state");
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "Before dispatching internal research sub-agents",
+    );
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "target capability",
+    );
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "cleanup gate before spawns",
+    );
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "target-honest cleanup outcomes",
+    );
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "slot-limit recovery",
+    );
+    expect(normalizedResearchPromptSourceContent).toContain(
+      "role-specific state",
+    );
+    for (const capturedStateTerm of [
+      "scope",
+      "report",
+      "source references",
+      "blocker state",
+    ]) {
+      expect(normalizedResearchPromptSourceContent).toContain(
+        capturedStateTerm,
+      );
+    }
 
     for (const target of ["claude", "codex"] as const) {
       const generatedPath = path.join(

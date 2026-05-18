@@ -190,7 +190,7 @@ Task 3: Low-risk example copy
 
 [Cleanup gate before Task 3 implementer spawn]
 Controller verifies completed Task 2 sessions are closed or recorded with
-target-honest cleanup-unavailable outcomes before spawning Task 3.
+target-honest `close-unavailable` outcomes before spawning Task 3.
 
 [Dispatch implementation subagent with full task text + context]
 Implementer:

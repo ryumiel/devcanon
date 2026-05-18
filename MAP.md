@@ -68,6 +68,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the system architecture overview? -> [`docs/arch/overview.md`](docs/arch/overview.md)
 - Where are architecture decision records? -> [`docs/adr/`](docs/adr/)
 - Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
+- Where is subagent lifecycle ownership recorded? ->
+  [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---
