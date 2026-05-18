@@ -18,6 +18,20 @@ require_jq() {
   }
 }
 
+require_repo_root() {
+  local git_toplevel
+  local physical_pwd
+  git_toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "failed to determine git repository root" >&2
+    exit 1
+  }
+  physical_pwd="$(pwd -P)"
+  [ "$git_toplevel" = "$physical_pwd" ] || {
+    echo "review-artifacts.sh must run from the repository root" >&2
+    exit 1
+  }
+}
+
 validate_head_sha() {
   require_env HEAD_SHA
   case "$HEAD_SHA" in
@@ -145,17 +159,20 @@ expected_findings_path() {
 
 case "$command_name" in
   validate-findings)
+    require_repo_root
     validate_head_sha
     require_env FINDINGS_FILE
     validate_findings_path_shape "$FINDINGS_FILE"
     assert_readable_envelope "findings file" "$FINDINGS_FILE"
     ;;
   validate-nits-file)
+    require_repo_root
     require_env NITS_FILE
     validate_nits_path_shape "$NITS_FILE"
     assert_readable_envelope "nits_file" "$NITS_FILE"
     ;;
   derive-nits-pending)
+    require_repo_root
     validate_head_sha
     require_env FINDINGS_FILE
     validate_findings_path_shape "$FINDINGS_FILE"
@@ -166,6 +183,7 @@ case "$command_name" in
     printf '%s\n' "$NITS_PENDING_FILE"
     ;;
   prepare-findings-write)
+    require_repo_root
     validate_head_sha
     if [ -z "${FINDINGS_FILE:-}" ]; then
       FINDINGS_FILE="$(expected_findings_path)"

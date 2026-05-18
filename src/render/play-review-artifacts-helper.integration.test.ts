@@ -166,8 +166,31 @@ describe("play-review review artifact helper", () => {
         runHelper(cwd, "prepare-findings-write"),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "failed to determine current git branch",
+          "failed to determine git repository root",
         ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects execution from a repository subdirectory before preparing paths", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    const subdir = path.join(cwd, "subdir");
+    try {
+      await mkdir(subdir);
+
+      await expect(
+        runHelper(subdir, "prepare-findings-write"),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "review-artifacts.sh must run from the repository root",
+        ),
+      });
+      await expect(
+        lstat(path.join(subdir, ".ephemeral")),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
       });
     } finally {
       await cleanupTempDir(cwd);
