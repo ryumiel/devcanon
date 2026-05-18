@@ -31,11 +31,11 @@ task is itself mechanical and fully specified in the plan body.
 ## Decision
 
 Add an internal optimization to `play-subagent-execution`: after plan
-extraction, evaluate four guardrails on the plan; if all hold, the
+extraction, evaluate five guardrails on the plan; if all hold, the
 controller executes the file change inline (Write/Edit + verify + commit),
 skipping the implementer subagent dispatch entirely.
 
-The four conditions (all must hold; #1, #2, and #4 are evaluated at
+The five conditions (all must hold; #1, #2, #4, and #5 are evaluated at
 execution time by the controller, #3 is an upstream precondition rather
 than a runtime check):
 
@@ -49,21 +49,36 @@ than a runtime check):
    upstream. The controller does not re-verify this at execution time;
    for direct invocations of `play-subagent-execution` against a
    hand-written plan with no upstream PASS, this precondition is treated
-   as satisfied and the remaining three runtime guardrails carry the
+   as satisfied and the remaining four runtime guardrails carry the
    load.
-4. **Runtime guardrail.** Task body contains no TDD step-pair markers
-   (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`).
+4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
+   structural task-contract gate. The controller does not re-infer
+   `play-planning` trigger applicability at execution time. The task must have
+   either a structurally complete `**Contract checklist:**` naming trigger
+   criteria, owner/authority, affected consumers/generated outputs,
+   must-preserve, required behavior, spec/procedure work, risk surfaces, and
+   proof obligations with no blank fields or unexplained `N/A` fields, or a
+   task-specific no-trigger omission reason backed by an upstream
+   `play-planning` plan-review PASS for the plan being executed. Direct,
+   hand-written, copied, or older plans without that upstream PASS must include
+   the checklist. If source inspection cannot confirm the checklist's owner,
+   authority, source-of-truth, consumer, generated-output, or evidence surface,
+   the task contract is invalid.
+5. **Runtime guardrail.** Task body contains no TDD expectations or legacy
+   TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write
+minimal implementation`).
 
-If any guardrail fails, the controller falls back to the existing
-dispatched-implementer flow. Template choice is driven by
-`**Mode:** mechanical` in the task header, with one carve-out: when
-guardrail #4 fails (TDD step-pair present), `implementer-prompt.md` is
-used regardless of any `**Mode:** mechanical` hint, since TDD work
-needs the full prompt's judgment scaffolding. The carve-out bites only
-on mismarked plans (a task carrying both `**Mode:** mechanical` and a
-TDD step-pair); the Mechanical Task Taxonomy already excludes TDD
-step-pairs from the mechanical positive shapes, so a correctly authored
-plan never reaches this branch.
+If guardrail #4 fails, the controller stops before implementation and
+reports the missing or invalid task contract. Other guardrail failures fall
+back to the existing dispatched-implementer flow. Template choice is driven
+by `**Mode:** mechanical` in the task header, with one carve-out: when
+guardrail #5 fails (TDD expectation or legacy TDD step-pair present),
+`implementer-prompt.md` is used regardless of any `**Mode:** mechanical`
+hint, since TDD work needs the full prompt's judgment scaffolding. The
+carve-out bites only on mismarked plans (a task carrying both
+`**Mode:** mechanical` and a TDD expectation or legacy TDD step-pair); the
+Mechanical Task Taxonomy already excludes TDD work from the mechanical
+positive shapes, so a correctly authored plan never reaches this branch.
 
 The skill's existing final whole-implementation code-quality reviewer
 (scope explicitly out of ADR-0007 at the time) still runs on the
@@ -84,8 +99,9 @@ here.
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
 - No new coupling is added. Guardrail #3 leans on the existing upstream
-  `play-planning` plan-review PASS, but no new schema field is introduced.
-  Guardrails #1, #2, and #4 read structural signals already present in
+  `play-planning` plan-review PASS, and guardrail #4 reads the task contract
+  emitted by `play-planning`, but no new schema field is introduced.
+  Guardrails #1, #2, #4, and #5 read structural signals already present in
   the plan format.
 - The "Make per-task implementer subagent read the plan file" Red Flag in
   `play-subagent-execution` is amended: skip-dispatch is the

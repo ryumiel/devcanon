@@ -14,7 +14,9 @@ describe("play-subagent planning and routing contracts", () => {
   let repoRoot: string;
   let subagentLifecycleBody: string;
   let playSubagentExecutionBody: string;
+  let playSubagentExecutionClaudeBody: string;
   let playPlanningBody: string;
+  let playPlanningClaudeBody: string;
   let issuePrimingWorkflowBody: string;
 
   beforeAll(async () => {
@@ -30,8 +32,14 @@ describe("play-subagent planning and routing contracts", () => {
     playSubagentExecutionBody = parseFrontmatter(
       getSkillOutput(outputs, "play-subagent-execution", "codex").content,
     ).body;
+    playSubagentExecutionClaudeBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-subagent-execution", "claude").content,
+    ).body;
     playPlanningBody = parseFrontmatter(
       getSkillOutput(outputs, "play-planning", "codex").content,
+    ).body;
+    playPlanningClaudeBody = parseFrontmatter(
+      getSkillOutput(outputs, "play-planning", "claude").content,
     ).body;
     issuePrimingWorkflowBody = parseFrontmatter(
       getSkillOutput(outputs, "issue-priming-workflow", "codex").content,
@@ -63,6 +71,24 @@ describe("play-subagent planning and routing contracts", () => {
     expect(specReviewerPrompt).toContain("Consume any content snapshot");
     expect(specReviewerPrompt).toContain(
       "spec-compliance reviewer (`spec-and-quality` or `spec-only`)",
+    );
+    expect(specReviewerPrompt).toContain(
+      "**Task contract checklist (when present in the requested task):**",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify owner/authority fields against the source files, docs, ADRs",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify must-preserve boundaries and existing workflow/domain contracts",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify required behavior, including preconditions, happy path, failure",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify risk surfaces and proof obligations were addressed",
+    );
+    expect(specReviewerPrompt).toContain(
+      "A blank field, unexplained\n      `N/A`, or unproven proof obligation is a missing requirement",
     );
     expect(specReviewerPrompt).toContain("ADR-0017");
     expect(specReviewerPrompt).toContain(
@@ -100,7 +126,10 @@ describe("play-subagent planning and routing contracts", () => {
       "not as source-authoritative\n    implementation",
     );
     expect(implementerPrompt).toContain(
-      "does not authorize concrete code-like examples, test\n    snippets, shell snippets, command sequences, or commit recipes",
+      "does not authorize concrete code-like examples, test\n    snippets, plan-authored test bodies, shell snippets, shell recipes, command",
+    );
+    expect(implementerPrompt).toContain(
+      "sequences, helper-name prescriptions, line-number edits, or commit recipes",
     );
     expect(implementerPrompt).toContain(
       "Read the relevant source files, existing tests, docs, ADRs, helpers, and\n       referenced contracts directly before choosing concrete implementation",
@@ -109,32 +138,65 @@ describe("play-subagent planning and routing contracts", () => {
       "If the plan appears to require an unapproved code-like example",
     );
     expect(implementerPrompt).toContain(
-      "treat that\n    content as invalid for implementation",
+      "treat that content as invalid for implementation",
     );
     expect(implementerPrompt).toContain(
-      "Stop and report NEEDS_CONTEXT or\n    BLOCKED",
+      "NEEDS_CONTEXT or BLOCKED with the exact conflict",
+    );
+    expect(implementerPrompt).toContain(
+      "If the task includes a contract checklist",
+    );
+    expect(implementerPrompt).toContain(
+      "owner/authority,\n    affected consumers/generated outputs, must-preserve, required behavior",
+    );
+    expect(implementerPrompt).toContain(
+      "field is blank, has an unexplained `N/A`, or names an owner/authority",
+    );
+    expect(normalizeWhitespace(implementerPrompt)).toContain(
+      "source-of-truth, consumer, generated-output, or evidence surface that source inspection cannot confirm",
     );
 
     expect(mechanicalImplementerPrompt).toContain(
       "Mechanical mode is only for approved verbatim artifact work",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "Concrete code-like examples, test\n    snippets, shell snippets, command sequences, or commit recipes are not\n    authoritative",
+      "Concrete code-like examples, test\n    snippets, plan-authored test bodies, shell snippets, shell recipes, command",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "approved verbatim\n    artifact content with an authority source",
+      "sequences, helper-name prescriptions, line-number edits, or commit recipes",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "report BLOCKED or\n    NEEDS_CONTEXT instead of copying it",
+      "affected consumers/generated outputs, must-preserve, required behavior",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "approved\n    verbatim artifact content with an authority source",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "report BLOCKED\n    or NEEDS_CONTEXT instead of copying it",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Satisfy the task's verification expectations",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "Read the relevant source files, existing docs, ADRs, helpers, generated",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "referenced contracts directly before choosing any\n       concrete file operation or verification approach",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "source-owned project docs, config, tests",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Plan-named commands are not authoritative",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "If the task includes a contract checklist",
+    );
+    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+      "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
+    );
+    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+      "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
     );
     expect(mechanicalImplementerPrompt).not.toContain(
       "Verify the change (run any verify command from the plan)",
@@ -157,11 +219,16 @@ describe("play-subagent planning and routing contracts", () => {
       "must read the relevant source\nfiles directly before choosing concrete code, tests, documentation edits, and\nverification commands",
     );
     expect(playPlanningBody).toContain(
-      "Do not include concrete implementation code, test code, shell snippets, exact\ncommand sequences, or commit recipes",
+      "Do not include concrete implementation code, test code, plan-authored test\nbodies, shell snippets, shell recipes, exact command sequences, helper-name",
     );
-    expect(playPlanningBody).toContain("already-approved\nverbatim artifact");
     expect(playPlanningBody).toContain(
-      "label it as approved verbatim artifact content and name its\nauthority source",
+      "prescriptions, line-number edits, or commit recipes",
+    );
+    expect(playPlanningBody).toContain(
+      "already-approved verbatim artifact that the task must reproduce exactly",
+    );
+    expect(playPlanningBody).toContain(
+      "label it as approved verbatim artifact\ncontent and name its authority source",
     );
 
     expect(playPlanningBody).toContain("## Contract-Heavy Work");
@@ -195,6 +262,66 @@ describe("play-subagent planning and routing contracts", () => {
       "does\nnot copy helper implementations or command recipes",
     );
 
+    expect(playPlanningBody).toContain("## Contract Checklist Triggers");
+    const contractChecklistSectionStart = playPlanningBody.indexOf(
+      "## Contract Checklist Triggers",
+    );
+    const contractChecklistSectionEnd = playPlanningBody.indexOf(
+      "## Cohesive Task Composition",
+      contractChecklistSectionStart,
+    );
+    expect(contractChecklistSectionStart).toBeGreaterThanOrEqual(0);
+    expect(contractChecklistSectionEnd).toBeGreaterThan(
+      contractChecklistSectionStart,
+    );
+    const contractChecklistSection = playPlanningBody.slice(
+      contractChecklistSectionStart,
+      contractChecklistSectionEnd,
+    );
+    for (const trigger of [
+      "multi-step implementation",
+      "durable documentation, spec, Architecture Decision Record (ADR)",
+      "cross-skill or cross-agent handoffs",
+      "source-owned policy, schema, interface, bridge, or protocol changes",
+      "generated or derived artifact behavior",
+      "state-machine, failure, retry, cleanup, recovery, or terminal-state behavior",
+      "fail-closed behavior, safety-sensitive behavior, or user-visible error",
+      "compatibility or versioning behavior",
+    ]) {
+      expect(contractChecklistSection).toContain(trigger);
+    }
+    for (const surface of [
+      "**Owner / authority:**",
+      "**Must preserve:**",
+      "**Required behavior:**",
+      "**Spec / procedure work:**",
+      "**Risk surfaces:**",
+      "**Proof obligations:**",
+    ]) {
+      expect(contractChecklistSection).toContain(surface);
+    }
+    expect(contractChecklistSection).toContain(
+      "Blank fields, unreplaced placeholders, and\nunexplained `N/A` entries are plan-review failures",
+    );
+    expect(contractChecklistSection).toContain(
+      "name the blocker or\nassumption instead of inventing a contract",
+    );
+    expect(contractChecklistSection).toContain(
+      "must not prescribe concrete code, test bodies, helper names, shell recipes",
+    );
+    expect(contractChecklistSection).toContain(
+      "line-number edits, or command sequences",
+    );
+    expect(contractChecklistSection).toContain(
+      "Do not require ADR or MAP updates unless their AFDS\ntriggers are met",
+    );
+    expect(contractChecklistSection).toContain(
+      "An ADR trigger means the plan must ask whether the change\ncrosses the durable-decision threshold",
+    );
+    expect(contractChecklistSection).toContain(
+      "it does not mean every feature or spec\nplan needs an ADR",
+    );
+
     expect(playPlanningBody).toContain("## Cohesive Task Composition");
     expect(playPlanningBody).toContain(
       "share the same subsystem or file family",
@@ -223,6 +350,7 @@ describe("play-subagent planning and routing contracts", () => {
       "**Non-goals:**",
       "**Source-of-truth references:**",
       "**Authority surfaces:**",
+      "**Contract checklist:**",
       "**Acceptance criteria:**",
       "**Risks:**",
       "**Dependencies:**",
@@ -233,6 +361,10 @@ describe("play-subagent planning and routing contracts", () => {
     expect(taskStructureSection).toContain(
       "generated outputs are derived evidence, not authority",
     );
+    expect(taskStructureSection).toContain(
+      "required for non-trivial work; otherwise state why no trigger applies",
+    );
+    expect(taskStructureSection).toContain("with task-specific `N/A` reasons");
     expect(taskStructureSection).toContain(
       "Task specs should prefer references to existing behavior",
     );
@@ -285,10 +417,34 @@ describe("play-subagent planning and routing contracts", () => {
       "Contract-heavy work includes the applicable contract table surfaces",
     );
     expect(planReviewSection).toContain(
+      "The contract checklist is present for every triggered task",
+    );
+    expect(planReviewSection).toContain(
+      "Required checklist fields cover trigger criteria, owner/authority",
+    );
+    expect(planReviewSection).toContain(
+      "must-preserve boundaries, affected consumers/generated outputs",
+    );
+    expect(normalizeWhitespace(planReviewSection)).toContain(
+      "must-preserve boundaries, affected consumers/generated outputs, required behavior",
+    );
+    expect(planReviewSection).toContain(
+      "Every checklist field is populated or marked `N/A` with a task-specific",
+    );
+    expect(planReviewSection).toContain(
+      "Unknown owner, authority, source-of-truth, or evidence surfaces are named as",
+    );
+    expect(planReviewSection).toContain(
       "Tasks include purpose, goal, non-goals, acceptance criteria, risks",
     );
     expect(planReviewSection).toContain(
-      "The plan does not include concrete implementation code, test code, shell",
+      "The plan does not include concrete implementation code, test code",
+    );
+    expect(planReviewSection).toContain(
+      "plan-authored test bodies, shell snippets, shell recipes",
+    );
+    expect(planReviewSection).toContain(
+      "helper-name prescriptions, line-number edits, or commit recipes",
     );
     expect(planReviewSection).toContain(
       "Task specs prefer references to existing behavior and source-of-truth files",
@@ -356,6 +512,12 @@ describe("play-subagent planning and routing contracts", () => {
       "Exact single-file identifier replacement with no hard-risk trigger",
     );
     expect(planningHintExample).toContain("- Modify: `examples/demo-note.md`");
+    expect(planningHintExample).toContain(
+      "**Contract checklist:** N/A — this exact token replacement is a single-file",
+    );
+    expect(planningHintExample).toContain(
+      "changes no behavior, authority, generated output,\nfailure route, review rule, documentation navigation, or compatibility surface",
+    );
     expect(planningHintExample).toContain("**Replace:** `OldExampleToken`");
     expect(planningHintExample).toContain("**With:** `NewExampleToken`");
     const riskIndex = planningHintExample.indexOf("**Risk hint:** low");
@@ -369,6 +531,43 @@ describe("play-subagent planning and routing contracts", () => {
     expect(riskIndex).toBeLessThan(reviewIndex);
     expect(reviewIndex).toBeLessThan(rationaleIndex);
     expect(rationaleIndex).toBeLessThan(filesIndex);
+  });
+
+  it("renders contract checklist surfaces for all supported skill targets", () => {
+    for (const body of [playPlanningBody, playPlanningClaudeBody]) {
+      expect(body).toContain("## Contract Checklist Triggers");
+      expect(body).toContain("For non-trivial work, every task must include");
+      expect(body).toContain(
+        "Blank fields, unreplaced placeholders, and\nunexplained `N/A` entries are plan-review failures",
+      );
+      expect(body).toContain(
+        "must not prescribe concrete code, test bodies, helper names, shell recipes",
+      );
+      expect(body).toContain("line-number edits, or command sequences");
+      expect(body).toContain("**Contract checklist:**");
+      expect(body).toContain("Trigger criteria");
+      expect(body).toContain("Triggered tasks must name the trigger criteria");
+      expect(body).toContain("Affected consumers / generated outputs");
+      expect(body).toContain(
+        "The contract checklist is present for every triggered task",
+      );
+    }
+
+    for (const body of [
+      playSubagentExecutionBody,
+      playSubagentExecutionClaudeBody,
+    ]) {
+      expect(body).toContain("When a task includes a contract checklist");
+      expect(normalizeWhitespace(body)).toContain(
+        "they do not make plan-authored implementation mechanics authoritative",
+      );
+      expect(body).toContain(
+        "helper-name prescriptions,\nline-number edits, or commit recipes authoritative",
+      );
+      expect(normalizeWhitespace(body)).toContain(
+        "If a checklist field is blank, an `N/A` lacks a task-specific reason",
+      );
+    }
   });
 
   it("documents play-subagent execution routing and lifecycle contracts", async () => {
@@ -396,17 +595,73 @@ describe("play-subagent planning and routing contracts", () => {
       "bounded fast paths for single-task and mechanical cases",
     );
     expect(playSubagentExecutionBody).toContain(
+      "all five skip-dispatch guardrails pass",
+    );
+    expect(playSubagentExecutionBody).not.toContain(
+      "all four skip-dispatch guardrails pass",
+    );
+    expect(playSubagentExecutionBody).not.toContain("All four guardrails hold");
+    expect(playSubagentExecutionBody).not.toContain(
+      "guardrail #4 fails (TDD expectation present)",
+    );
+    expect(playSubagentExecutionBody).toContain(
       "The plan constrains implementation intent, boundaries, source-of-truth",
     );
     expect(playSubagentExecutionBody).toContain(
-      "It does not\nmake concrete code-like examples, test snippets, shell snippets, command\nsequences, or commit recipes authoritative",
+      "It does not\nmake concrete code-like examples, test snippets, plan-authored test bodies,\nshell snippets, shell recipes, command sequences, helper-name prescriptions",
     );
     expect(playSubagentExecutionBody).toContain(
-      "unless the task explicitly labels\nthat content as approved verbatim artifact content",
+      "line-number edits, or commit recipes authoritative",
     );
     expect(playSubagentExecutionBody).toContain(
-      "Implementers choose concrete code, tests, docs, and verification\ncommands only after reading the relevant source files directly",
+      "labels that content as approved verbatim artifact content and names the\nauthority source",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "Implementers choose concrete code, tests, docs, and\nverification commands only after reading the relevant source files directly",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "When a task includes a contract checklist",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Before any implementer dispatch or inline execution, run a structural",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Do not infer trigger applicability\ninside `play-subagent-execution`",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "A no-trigger\nomission reason is trusted only when this controller can identify an upstream\n`play-planning` plan-review PASS for the plan being executed",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Direct,\nhand-written, copied, or older plans without that upstream PASS must include a\nstructurally complete checklist instead of an omission reason",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "do not dispatch an implementer or execute\ninline against the invalid task contract",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Trigger criteria are durable ADR documentation",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Claude/Codex generated skill outputs marked `N/A`",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "retry/recovery/cleanup/terminal-state behavior marked `N/A`",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "owner/authority,\naffected consumers/generated outputs, must-preserve, required behavior",
+    );
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "they do not make plan-authored implementation mechanics authoritative",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "helper-name prescriptions,\nline-number edits, or commit recipes authoritative",
+    );
+    expect(normalizeWhitespace(playSubagentExecutionBody)).toContain(
+      "If a checklist field is blank, an `N/A` lacks a task-specific reason",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "fail closed: report\nBLOCKED/NEEDS_CONTEXT with the exact contract gap",
+    );
+    expect(playSubagentExecutionBody).not.toContain("fuller review path");
     expect(playSubagentExecutionBody).toContain(
       "This model-selection category is separate\nfrom `**Mode:** mechanical`",
     );
@@ -478,6 +733,43 @@ describe("play-subagent planning and routing contracts", () => {
     expect(skipDispatchSection).not.toContain("caller says");
     expect(skipDispatchSection).not.toContain("prose-only");
 
+    const skipDispatchConditionsStart =
+      playSubagentExecutionBody.indexOf("### Conditions");
+    const skipDispatchConditionsEnd = playSubagentExecutionBody.indexOf(
+      "### Inline execution sequence",
+      skipDispatchConditionsStart,
+    );
+    expect(skipDispatchConditionsStart).toBeGreaterThanOrEqual(0);
+    expect(skipDispatchConditionsEnd).toBeGreaterThan(
+      skipDispatchConditionsStart,
+    );
+    const skipDispatchConditionsSection = playSubagentExecutionBody.slice(
+      skipDispatchConditionsStart,
+      skipDispatchConditionsEnd,
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "The controller evaluates five conditions",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "If condition #4 fails, stop before implementation and\nreport BLOCKED/NEEDS_CONTEXT for the task contract",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "Other misses fall back to\nthe dispatched-implementer flow",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "Task contract gate is satisfied",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "The task passes the structural task-contract gate",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "The controller does not re-infer `play-planning` trigger applicability here",
+    );
+    expect(skipDispatchConditionsSection).toContain(
+      "Direct, hand-written, copied, or older plans without that upstream PASS must include the checklist",
+    );
+    expect(skipDispatchConditionsSection).not.toContain("all four");
+
     const fallbackSectionStart =
       playSubagentExecutionBody.indexOf("### Fallback");
     const fallbackSectionEnd = playSubagentExecutionBody.indexOf(
@@ -492,9 +784,21 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(fallbackSection).toContain("`**TDD expectation:**`");
     expect(fallbackSection).toContain("legacy TDD step-pair");
-    expect(fallbackSection).toContain(
-      "use\n`implementer-prompt.md` regardless of any `**Mode:** mechanical` hint",
+    expect(normalizeWhitespace(fallbackSection)).toContain(
+      "use `implementer-prompt.md` regardless of any `**Mode:** mechanical` hint",
     );
+    expect(fallbackSection).toContain("Guardrail #4 fails");
+    expect(fallbackSection).toContain("missing or invalid contract checklist");
+    expect(fallbackSection).toContain(
+      "stop before implementation and report BLOCKED/NEEDS_CONTEXT",
+    );
+    expect(fallbackSection).toContain(
+      "unconfirmed owner, authority, source-of-truth, consumer, generated-output, or evidence surface",
+    );
+    expect(fallbackSection).toContain(
+      "Do not dispatch a mechanical implementer or run inline execution against an invalid contract",
+    );
+    expect(fallbackSection).not.toContain("all four");
 
     const processSectionStart =
       playSubagentExecutionBody.indexOf("## The Process");
@@ -506,6 +810,31 @@ describe("play-subagent planning and routing contracts", () => {
       processSectionStart,
       processSectionEnd,
     );
+    expect(processSection).toContain(
+      '"Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Task contract structurally valid?"',
+    );
+    expect(processSection).toContain(
+      '"Task contract structurally valid?" -> "Stop: report BLOCKED/NEEDS_CONTEXT for task contract" [label="no"]',
+    );
+    expect(processSection).toContain(
+      '"Task contract structurally valid?" -> "Plan has exactly one task?" [label="yes"]',
+    );
+    expect(processSection).toContain(
+      '"Plan has exactly one task?" -> "Contract checklist requirement missing or invalid?" [label="yes (skip per-task review)"]',
+    );
+    expect(processSection).toContain(
+      '"Contract checklist requirement missing or invalid?" -> "Stop: report BLOCKED/NEEDS_CONTEXT for task contract" [label="yes"]',
+    );
+    expect(processSection).toContain(
+      '"Contract checklist requirement missing or invalid?" -> "Remaining skip-dispatch guardrails all pass?" [label="no"]',
+    );
+    expect(processSection).toContain(
+      '"Remaining skip-dispatch guardrails all pass?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no (fallback for non-contract guardrail miss)"]',
+    );
+    expect(processSection).not.toContain(
+      '"Skip-dispatch guardrails all pass?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no (fallback)"]',
+    );
+    expect(processSection).not.toContain("all four");
     expect(processSection).toContain("Compute effective review route");
     expect(processSection).toContain(
       '"Implementer agent implements, tests, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"]',
@@ -1070,7 +1399,7 @@ describe("play-subagent planning and routing contracts", () => {
     );
   });
 
-  it("documents issue-priming implementation and review handoffs", () => {
+  it("documents issue-priming implementation and review handoffs", async () => {
     const issuePhase6Start = issuePrimingWorkflowBody.indexOf(
       "### Phase 6: Implement",
     );
@@ -1148,6 +1477,16 @@ AUTO_HANDOFF_FILE=$(
     expect(issuePhase6Section).toContain(
       "If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD`",
     );
+    expect(issuePhase6Section).toContain(
+      "Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers)",
+    );
+    expect(issuePhase6Section).toContain(
+      "A missing or invalid required contract checklist stops before implementation",
+    );
+    expect(issuePhase6Section).not.toContain("Three runtime guardrails");
+    expect(issuePhase6Section).not.toContain(
+      "single-task, `**Mode:** mechanical`, no TDD step-pair",
+    );
     expect(issuePhase6Section).toContain("zero blocking findings auto-fixed");
     expect(issuePhase6Section).toContain(
       "except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
@@ -1158,6 +1497,54 @@ AUTO_HANDOFF_FILE=$(
     expect(issuePhase6Section).not.toContain(
       "Run all per-task reviews for multi-task plans",
     );
+
+    const adr0007 = await readFile(
+      path.join(repoRoot, "docs/adr/adr-0007-review-pipeline-delineation.md"),
+      "utf-8",
+    );
+    const adr0015 = await readFile(
+      path.join(
+        repoRoot,
+        "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+      ),
+      "utf-8",
+    );
+    expect(adr0007).toContain(
+      "four runtime guardrails (single-task plan, `**Mode:** mechanical`, structural",
+    );
+    expect(adr0007).toContain(
+      "task-contract gate satisfied, no TDD expectations or legacy TDD step-pair",
+    );
+    expect(adr0007).not.toContain("three runtime guardrails");
+    expect(adr0015).toContain(
+      "evaluate five guardrails on the plan; if all hold",
+    );
+    expect(adr0015).toContain(
+      "**Runtime guardrail.** The task passes `play-subagent-execution`'s",
+    );
+    expect(adr0015).toContain(
+      "The controller does not re-infer\n   `play-planning` trigger applicability at execution time",
+    );
+    expect(adr0015).toContain(
+      "trigger\n   criteria, owner/authority, affected consumers/generated outputs",
+    );
+    expect(adr0015).toContain(
+      "task-specific no-trigger omission reason backed by an upstream\n   `play-planning` plan-review PASS",
+    );
+    expect(adr0015).toContain(
+      "Direct,\n   hand-written, copied, or older plans without that upstream PASS must include\n   the checklist",
+    );
+    expect(adr0015).toContain(
+      "If source inspection cannot confirm the checklist's owner,\n   authority, source-of-truth, consumer, generated-output, or evidence surface",
+    );
+    expect(adr0015).toContain(
+      "If guardrail #4 fails, the controller stops before implementation",
+    );
+    expect(adr0015).not.toContain(
+      "if any `play-planning` contract checklist trigger applies",
+    );
+    expect(adr0015).not.toContain("evaluate four guardrails");
+    expect(adr0015).not.toContain("remaining three runtime guardrails");
 
     const issuePhase7Start = issuePrimingWorkflowBody.indexOf(
       "### Phase 7: Branch Review",

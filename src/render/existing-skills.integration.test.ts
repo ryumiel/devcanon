@@ -445,7 +445,54 @@ describe("existing skills render cleanly", () => {
         );
 
         expect(await pathExists(generatedPath)).toBe(true);
-        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+        const generatedContent = await readFile(generatedPath, "utf-8");
+        expect(generatedContent).toBe(sourceContent);
+
+        if (reference === "implementer-prompt.md") {
+          expect(generatedContent).toContain(
+            "If the task includes a contract checklist",
+          );
+          expect(generatedContent).toContain(
+            "owner/authority,\n    affected consumers/generated outputs, must-preserve, required behavior",
+          );
+          expect(normalizeWhitespace(generatedContent)).toContain(
+            "source-of-truth, consumer, generated-output, or evidence surface that source inspection cannot confirm",
+          );
+          expect(generatedContent).toContain(
+            "helper-name prescriptions, line-number edits, or commit recipes",
+          );
+        }
+        if (reference === "mechanical-implementer-prompt.md") {
+          expect(generatedContent).toContain(
+            "helper-name prescriptions, line-number edits, or commit recipes",
+          );
+          expect(generatedContent).toContain(
+            "affected consumers/generated outputs, must-preserve, required behavior",
+          );
+          expect(generatedContent).toContain(
+            "Read the relevant source files, existing docs, ADRs, helpers, generated",
+          );
+          expect(normalizeWhitespace(generatedContent)).toContain(
+            "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
+          );
+          expect(normalizeWhitespace(generatedContent)).toContain(
+            "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
+          );
+        }
+        if (reference === "spec-reviewer-prompt.md") {
+          expect(generatedContent).toContain(
+            "**Task contract checklist (when present in the requested task):**",
+          );
+          expect(generatedContent).toContain(
+            "Verify owner/authority fields against the source files, docs, ADRs",
+          );
+          expect(generatedContent).toContain(
+            "Verify affected consumers and generated outputs named by the task",
+          );
+          expect(generatedContent).toContain(
+            "Verify risk surfaces and proof obligations were addressed",
+          );
+        }
       }
     }
 

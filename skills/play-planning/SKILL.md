@@ -18,11 +18,12 @@ files directly before choosing concrete code, tests, documentation edits, and
 verification commands. The plan constrains the work; it does not substitute for
 source inspection.
 
-Do not include concrete implementation code, test code, shell snippets, exact
-command sequences, or commit recipes unless the content is an already-approved
-verbatim artifact that the task must reproduce exactly. When verbatim artifact
-content is required, label it as approved verbatim artifact content and name its
-authority source.
+Do not include concrete implementation code, test code, plan-authored test
+bodies, shell snippets, shell recipes, exact command sequences, helper-name
+prescriptions, line-number edits, or commit recipes unless the content is an
+already-approved verbatim artifact that the task must reproduce exactly. When
+verbatim artifact content is required, label it as approved verbatim artifact
+content and name its authority source.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -129,6 +130,82 @@ Cover the applicable surfaces:
 Keep the table concise. It records invariants and authority surfaces; it does
 not copy helper implementations or command recipes.
 
+## Contract Checklist Triggers
+
+For non-trivial work, every task must include a contract checklist. Non-trivial
+means the work matches at least one of these triggers:
+
+- multi-step implementation;
+- durable documentation, spec, Architecture Decision Record (ADR),
+  architecture, Inter-Process Communication (IPC), contract, guideline,
+  roadmap, or MAP navigation changes;
+- cross-skill or cross-agent handoffs;
+- source-owned policy, schema, interface, bridge, or protocol changes;
+- generated or derived artifact behavior;
+- state-machine, failure, retry, cleanup, recovery, or terminal-state behavior;
+- fail-closed behavior, safety-sensitive behavior, or user-visible error
+  handling;
+- compatibility or versioning behavior.
+
+For trivial work, the plan may omit the contract checklist only when the task
+states why none of the trigger conditions apply. A bare `N/A` is not enough.
+
+When the checklist is required, every field must either be filled in or marked
+`N/A` with a task-specific reason. Blank fields, unreplaced placeholders, and
+unexplained `N/A` entries are plan-review failures. If the owner, authority,
+source of truth, or required evidence cannot be identified, name the blocker or
+assumption instead of inventing a contract.
+
+The checklist records executable contracts, not implementation mechanics. It
+must not prescribe concrete code, test bodies, helper names, shell recipes,
+line-number edits, or command sequences unless the content is explicitly
+labeled as already-approved verbatim artifact content with an authority source.
+
+Use the target repository's own authority vocabulary after reading its entry
+documents, such as `AGENTS.md`, `MAP.md`, contract registries, and spec or
+documentation guidelines. If the repository lacks an authority model, state that
+assumption instead of silently inventing one.
+
+Required checklist surfaces for qualifying work:
+
+- **Trigger criteria:** the specific non-trivial checklist trigger(s) that make
+  the checklist required for this task, or the task-specific reason no trigger
+  applies.
+- **Owner / authority:** behavior owner, contract owner, code owner,
+  documentation owner, source of truth if artifacts conflict, and consumer repo
+  authority vocabulary used.
+- **Affected consumers / generated outputs:** downstream skills, agents,
+  prompts, generated Claude/Codex outputs, installed outputs, docs, workflows,
+  or external callers that must observe the contract; state task-specific `N/A`
+  when no generated or downstream consumer surface is affected.
+- **Must preserve:** boundary invariants, existing workflow or domain
+  contracts, current/target/draft/deferred behavior labels when applicable, and
+  compatibility constraints.
+- **Required behavior:** preconditions, happy path, failure classes,
+  retry/recovery behavior, cleanup ownership, terminal states, and re-entry or
+  re-review behavior.
+- **Spec / procedure work:** for specs, procedures, ADRs, architecture docs,
+  contract docs, IPC docs, guidelines, or roadmap items, identify the owning
+  artifact category, behavior status labels, fact ownership, conflict
+  precedence, normative expectations, example or fixture validation
+  expectations, cross-document drift risks, and review-blocking semantic risks.
+- **Risk surfaces:** include only relevant risks, such as persistence or data
+  loss, bridge/protocol drift, external input validation, path/file safety,
+  secrets or credential disclosure, prompt/log disclosure, compatibility or
+  versioning, and user-facing error surfaces.
+- **Proof obligations:** tests or fixtures that must exist or be updated,
+  generated-output or mirrored-reference evidence, documentation/spec/ADR/MAP
+  updates required by trigger, manual verification required, and branch-review
+  focus areas.
+
+Documentation impact stays trigger-based. If the change alters durable workflow
+policy, contract ownership, verification expectations, navigation, or
+architectural decision state, update the owning AFDS artifact in the same PR or
+name the follow-up blocker. Do not require ADR or MAP updates unless their AFDS
+triggers are met. An ADR trigger means the plan must ask whether the change
+crosses the durable-decision threshold; it does not mean every feature or spec
+plan needs an ADR.
+
 ## Cohesive Task Composition
 
 Compose related implementation steps into one authored task when they form a
@@ -204,6 +281,8 @@ before starting.
 
 **Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
 
+**Contract checklist:** <required for non-trivial work; otherwise state why no trigger applies. Include trigger criteria, owner/authority, affected consumers/generated outputs, must-preserve, required behavior, spec/procedure work, risk surfaces, and proof obligations, with task-specific `N/A` reasons for irrelevant fields>
+
 **Acceptance criteria:** <observable requirements for completion>
 
 **Risks:** <behavioral, compatibility, migration, or review risks>
@@ -248,6 +327,10 @@ Example mechanical-task header:
 **Source-of-truth references:** The approved issue requirement for this exact rename.
 
 **Authority surfaces:** `examples/demo-note.md`
+
+**Contract checklist:** N/A — this exact token replacement is a single-file
+mechanical example that changes no behavior, authority, generated output,
+failure route, review rule, documentation navigation, or compatibility surface.
 
 **Acceptance criteria:** `OldExampleToken` is absent from the file and `NewExampleToken` appears in the same locations.
 
@@ -294,11 +377,15 @@ Every task spec must contain the actual contract an engineer needs. These are
 - "Similar to Task N" without restating the task-specific contract
 - Tasks that describe desired change without purpose, boundaries, acceptance criteria, authority surfaces, or verification expectations
 - References to source-of-truth files, functions, methods, ADRs, specs, or helpers that do not exist unless the task is explicitly responsible for creating them
+- Required contract checklist fields left blank, marked only `N/A`, or filled
+  with generic text that does not explain the task-specific reason
 
 ## Remember
 
 - Exact file paths always
 - Complete task contracts, not implementation sketches
+- Contract checklists for triggered work, or a task-specific reason the
+  checklist does not apply
 - Source-of-truth references over copied logic
 - Authority surfaces and dependencies made explicit
 - Verification expectations without command recipes
@@ -321,19 +408,32 @@ schema or interface authority, execution cwd assumptions, or fail-closed
 behavior, does the plan include a short contract table covering the applicable
 surfaces? Fix missing contract surfaces before task planning.
 
-**5. Prohibited detail scan:** Confirm the plan does not include concrete
-implementation code, test code, shell snippets, exact command sequences, or
-commit recipes unless the content is explicitly labeled as already-approved
-verbatim artifact content with an authority source.
+**5. Contract checklist trigger check:** For every task, determine whether any
+non-trivial trigger applies. Triggered tasks must name the trigger criteria and
+include owner/authority, affected consumers/generated outputs, must-preserve,
+required behavior, spec/procedure work, risk surfaces, and proof obligations.
+Trivial tasks may omit the checklist only when they state why no trigger applies.
 
-**6. Citation verification:** For any task reference that purports to cite
+**6. Contract checklist completeness:** For every required checklist, confirm
+each field is populated or marked `N/A` with a task-specific reason. Blank
+fields, unreplaced placeholders, and unexplained `N/A` entries are failures.
+If owner, authority, source of truth, or evidence cannot be identified, the plan
+must name the blocker or assumption instead of inventing a contract.
+
+**7. Prohibited detail scan:** Confirm the plan does not include concrete
+implementation code, test code, plan-authored test bodies, shell snippets,
+shell recipes, exact command sequences, helper-name prescriptions, line-number
+edits, or commit recipes unless the content is explicitly labeled as
+already-approved verbatim artifact content with an authority source.
+
+**8. Citation verification:** For any task reference that purports to cite
 existing code, files, behavior, docs, history, issue or PR numbers, ADRs,
 helpers, or generated paths, verify the cited artifact exists and supports the
 claim. Forward-looking files in `Files: Create:` blocks are not subject to this
 check. Concrete-looking specifics that turn out to be fabricated are the most
 common silent defect class in plans.
 
-**7. Documentation impact tasks:** Same-PR documentation impact is normal
+**9. Documentation impact tasks:** Same-PR documentation impact is normal
 implementation work when the design changes durable truth. AFDS repositories
 should provide the canonical trigger list at
 `docs/guidelines/documentation-standard.md` §5.2; common examples include
@@ -348,9 +448,9 @@ follow
 
 Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
 
-**8. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**10. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
-**9. Review-routing hint check:** If tasks include review-routing hints,
+**11. Review-routing hint check:** If tasks include review-routing hints,
 confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
@@ -386,12 +486,25 @@ scope, PASS/FAIL result, confidence notes, and specific gaps when present.
 - No placeholder violations (catches what self-review missed)
 - Contract-heavy work includes the applicable contract table surfaces before
   task planning
+- The contract checklist is present for every triggered task, or the task gives
+  a specific reason no trigger applies
+- Required checklist fields cover trigger criteria, owner/authority,
+  must-preserve boundaries, affected consumers/generated outputs, required
+  behavior including state and failure behavior, spec/procedure work, risk
+  surfaces, and proof obligations
+- Every checklist field is populated or marked `N/A` with a task-specific
+  reason; blank fields, unreplaced placeholders, and unexplained `N/A` entries
+  are failures
+- Unknown owner, authority, source-of-truth, or evidence surfaces are named as
+  blockers or assumptions rather than invented
 - Tasks include purpose, goal, non-goals, acceptance criteria, risks,
   dependencies, source-of-truth references, authority surfaces, and
   verification expectations
-- The plan does not include concrete implementation code, test code, shell
-  snippets, exact command sequences, or commit recipes unless explicitly
-  labeled as already-approved verbatim artifact content with an authority source
+- The plan does not include concrete implementation code, test code,
+  plan-authored test bodies, shell snippets, shell recipes, exact command
+  sequences, helper-name prescriptions, line-number edits, or commit recipes
+  unless explicitly labeled as already-approved verbatim artifact content with
+  an authority source
 - Task specs prefer references to existing behavior and source-of-truth files
   over copied logic
 - Every "Documentation impact" item from the issue, design, or owning source
