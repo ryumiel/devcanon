@@ -92,10 +92,11 @@ unchanged.
   `play-subagent-execution` no longer flatly forbids skipping; ADR-0018 later
   narrows it to "skip or weaken the executor-computed review route."
 - ADR-0015 introduces a further optimization within the single-task path: when
-  three runtime guardrails (single-task plan, `**Mode:** mechanical`, no TDD
-  step-pair markers) plus one upstream precondition (`play-planning`'s
-  plan-review PASS) all hold, the implementer dispatch itself is also skipped —
-  the controller executes Write/Edit + verify + commit inline. ADR-0016
+  four runtime guardrails (single-task plan, `**Mode:** mechanical`, structural
+  task-contract gate satisfied, no TDD expectations or legacy TDD step-pair
+  markers) plus one upstream precondition (`play-planning`'s plan-review PASS)
+  all hold, the implementer dispatch itself is also skipped — the controller
+  executes Write/Edit + verify + commit inline. ADR-0016
   later narrows the `issue-priming-workflow --auto` single-task subset of
   that path further by skipping the final whole-implementation reviewer when
   downstream `branch-review --fix` is guaranteed.

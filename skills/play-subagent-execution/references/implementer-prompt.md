@@ -21,9 +21,21 @@ Task tool (general-purpose):
     Treat the task text as a task specification, not as source-authoritative
     implementation. It constrains intent, boundaries, references, acceptance,
     and verification; it does not authorize concrete code-like examples, test
-    snippets, shell snippets, command sequences, or commit recipes unless they
-    are explicitly labeled as approved verbatim artifact content with an
-    authority source.
+    snippets, plan-authored test bodies, shell snippets, shell recipes, command
+    sequences, helper-name prescriptions, line-number edits, or commit recipes
+    unless they are explicitly labeled as approved verbatim artifact content
+    with an authority source.
+
+    If the task includes a contract checklist, treat its owner/authority,
+    affected consumers/generated outputs, must-preserve, required behavior,
+    spec/procedure work, risk surfaces, and proof obligations as constraints you
+    must satisfy after reading source.
+    Do not treat those fields as permission to skip source inspection or to
+    follow plan-authored implementation mechanics. If a required checklist
+    field is blank, has an unexplained `N/A`, or names an owner/authority,
+    source-of-truth, consumer, generated-output, or evidence surface that source
+    inspection cannot confirm, report NEEDS_CONTEXT or BLOCKED with the exact
+    contract gap.
 
     ## Context
 
@@ -61,9 +73,11 @@ Task tool (general-purpose):
     It's always OK to pause and clarify. Don't guess or make assumptions.
 
     If the plan appears to require an unapproved code-like example, test
-    snippet, shell snippet, command sequence, or commit recipe, treat that
-    content as invalid for implementation. Stop and report NEEDS_CONTEXT or
-    BLOCKED with the exact conflict instead of copying or adapting it.
+    snippet, plan-authored test body, shell snippet, shell recipe, command
+    sequence, helper-name prescription, line-number edit, or commit recipe,
+    treat that content as invalid for implementation. Stop and report
+    NEEDS_CONTEXT or BLOCKED with the exact conflict instead of copying or
+    adapting it.
 
     ## Code Organization
 

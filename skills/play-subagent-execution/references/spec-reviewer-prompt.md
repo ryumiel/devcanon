@@ -56,6 +56,29 @@ Task tool (general-purpose):
     - Did they solve the wrong problem?
     - Did they implement the right feature but wrong way?
 
+    **Task contract checklist (when present in the requested task):**
+    - Verify owner/authority fields against the source files, docs, ADRs,
+      schemas, renderers, prompts, or policies that actually own the behavior.
+      If the task names an owner or authority that the repository does not
+      support, report it as a spec-compliance issue.
+    - Verify must-preserve boundaries and existing workflow/domain contracts
+      were preserved, including compatibility constraints and current/target
+      behavior labels when the task uses them.
+    - Verify affected consumers and generated outputs named by the task were
+      updated, intentionally left unchanged with a task-specific reason, or
+      proven by generated-output evidence when required.
+    - Verify required behavior, including preconditions, happy path, failure
+      classes, retry/recovery behavior, cleanup ownership, terminal states, and
+      re-entry or re-review behavior when the task includes those fields.
+    - Verify spec/procedure work requirements against the owning artifact
+      category, fact ownership, conflict precedence, normative expectations,
+      example or fixture validation expectations, cross-document drift risks,
+      and review-blocking semantic risks named in the task.
+    - Verify risk surfaces and proof obligations were addressed by source
+      changes, tests, generated-output evidence, documentation updates, or
+      stated blockers as required by the task. A blank field, unexplained
+      `N/A`, or unproven proof obligation is a missing requirement.
+
     **Within-document identifier drift (when changes include `*.md` files):**
 
     Scope: this check runs only when the effective route dispatches the

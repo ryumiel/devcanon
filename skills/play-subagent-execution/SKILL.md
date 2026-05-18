@@ -31,11 +31,39 @@ separate policy change, not an implicit optimization.
 
 The plan constrains implementation intent, boundaries, source-of-truth
 references, acceptance criteria, and verification expectations. It does not
-make concrete code-like examples, test snippets, shell snippets, command
-sequences, or commit recipes authoritative unless the task explicitly labels
-that content as approved verbatim artifact content and names the authority
-source. Implementers choose concrete code, tests, docs, and verification
-commands only after reading the relevant source files directly.
+make concrete code-like examples, test snippets, plan-authored test bodies,
+shell snippets, shell recipes, command sequences, helper-name prescriptions,
+line-number edits, or commit recipes authoritative unless the task explicitly
+labels that content as approved verbatim artifact content and names the
+authority source. Implementers choose concrete code, tests, docs, and
+verification commands only after reading the relevant source files directly.
+
+When a task includes a contract checklist, treat its owner/authority,
+affected consumers/generated outputs, must-preserve, required behavior,
+spec/procedure work, risk surfaces, and proof obligations as task constraints.
+These fields constrain what the implementation must satisfy; they do not make
+plan-authored implementation mechanics authoritative. If a checklist field is
+blank, an `N/A` lacks a task-specific reason, or the task appears to invent an
+owner, authority, source of truth, consumer, generated-output, or evidence
+surface that source inspection cannot confirm, fail closed: report
+BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
+the missing contract as satisfied.
+
+Before any implementer dispatch or inline execution, run a structural
+task-contract gate against the task text. Do not infer trigger applicability
+inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy. The
+gate verifies either a structurally complete `**Contract checklist:**` field or
+an explicit task-specific reason no checklist trigger applies. A no-trigger
+omission reason is trusted only when this controller can identify an upstream
+`play-planning` plan-review PASS for the plan being executed. Direct,
+hand-written, copied, or older plans without that upstream PASS must include a
+structurally complete checklist instead of an omission reason. When a checklist
+is present, it must explicitly name trigger criteria, owner/authority, affected
+consumers/generated outputs, must-preserve, required behavior, spec/procedure
+work, risk surfaces, and proof obligations, with no blank field or unexplained
+`N/A`. If this structural gate fails, stop before implementation and report
+BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch an implementer or execute
+inline against the invalid task contract.
 
 ## Inputs
 
@@ -165,12 +193,19 @@ digraph process {
     "Return to caller (downstream full-diff review gate runs there)" [shape=box];
     "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Plan has exactly one task?";
+    "Read plan (resolve Plan: <path> reference if present), extract all tasks with full text, note context, create TodoWrite" -> "Task contract structurally valid?";
+    "Task contract structurally valid?" [shape=diamond];
+    "Task contract structurally valid?" -> "Stop: report BLOCKED/NEEDS_CONTEXT for task contract" [label="no"];
+    "Task contract structurally valid?" -> "Plan has exactly one task?" [label="yes"];
     "Plan has exactly one task?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no"];
-    "Plan has exactly one task?" -> "Skip-dispatch guardrails all pass?" [label="yes (skip per-task review)"];
-    "Skip-dispatch guardrails all pass?" [shape=diamond];
-    "Skip-dispatch guardrails all pass?" -> "Controller executes Write/Edit + verify + commit inline" [label="yes"];
-    "Skip-dispatch guardrails all pass?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no (fallback)"];
+    "Plan has exactly one task?" -> "Contract checklist requirement missing or invalid?" [label="yes (skip per-task review)"];
+    "Contract checklist requirement missing or invalid?" [shape=diamond];
+    "Contract checklist requirement missing or invalid?" -> "Stop: report BLOCKED/NEEDS_CONTEXT for task contract" [label="yes"];
+    "Contract checklist requirement missing or invalid?" -> "Remaining skip-dispatch guardrails all pass?" [label="no"];
+    "Remaining skip-dispatch guardrails all pass?" [shape=diamond];
+    "Remaining skip-dispatch guardrails all pass?" -> "Controller executes Write/Edit + verify + commit inline" [label="yes"];
+    "Remaining skip-dispatch guardrails all pass?" -> "Dispatch the implementer agent (references/implementer-prompt.md)" [label="no (fallback for non-contract guardrail miss)"];
+    "Stop: report BLOCKED/NEEDS_CONTEXT for task contract" [shape=box];
     "Controller executes Write/Edit + verify + commit inline" [shape=box];
     "Controller executes Write/Edit + verify + commit inline" -> "Mark task complete in TodoWrite";
     "Dispatch the implementer agent (references/implementer-prompt.md)" -> "Implementer agent asks questions?";
@@ -219,7 +254,7 @@ digraph process {
 > the implementer reads the canonical recipe and runs the helper instead of
 > carrying the construction procedure inline.
 >
-> When the plan has exactly one task and all four skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
+> When the plan has exactly one task and all five skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
 
 ## Model Selection
 
@@ -650,18 +685,24 @@ review skip described in § Single-Task Plans above.
 
 ### Conditions
 
-The controller evaluates four conditions after plan extraction. **All must hold;** any miss falls back to the dispatched-implementer flow. Conditions #1, #2, and #4 are runtime guardrails the controller checks against the plan body; #3 is an upstream precondition that the controller does not re-check at execution time.
+The controller evaluates five conditions after plan extraction. **All must hold**
+for inline execution. If condition #4 fails, stop before implementation and
+report BLOCKED/NEEDS_CONTEXT for the task contract. Other misses fall back to
+the dispatched-implementer flow. Conditions #1, #2, #4, and #5 are runtime
+guardrails the controller checks against the plan body; #3 is an upstream
+precondition that the controller does not re-check at execution time.
 
-| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                      |
-| --- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Plan is single-task                           | Task count from plan extraction = 1                                                                                                                                                                                                                                                                                   |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical` (covers both positive shapes from § Mechanical Task Hint above: approved verbatim file create, and unambiguous identifier replacement)                                                                                                                                     |
-| 3   | No clarifying questions could plausibly arise | Implicit: `play-planning`'s plan-review subagent (`{{model:deep}}`) returned PASS upstream. No new check is added — the existing PASS gate is the precondition. For direct invocations of this skill against a hand-written plan with no upstream PASS, treat this guardrail as PASS and rely on the remaining three. |
-| 4   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                    |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical` (covers both positive shapes from § Mechanical Task Hint above: approved verbatim file create, and unambiguous identifier replacement)                                                                                                                                                                                                                                                                                                                 |
+| 3   | No clarifying questions could plausibly arise | Implicit: `play-planning`'s plan-review subagent (`{{model:deep}}`) returned PASS upstream. No new check is added — the existing PASS gate is the precondition. For direct invocations of this skill against a hand-written plan with no upstream PASS, treat this guardrail as PASS and rely on the remaining four.                                                                                                                                                                              |
+| 4   | Task contract gate is satisfied               | The task passes the structural task-contract gate from § The Process: it has either a structurally complete `**Contract checklist:**` naming every required checklist surface, or a task-specific no-trigger omission reason backed by an upstream `play-planning` plan-review PASS for the plan being executed. The controller does not re-infer `play-planning` trigger applicability here. Direct, hand-written, copied, or older plans without that upstream PASS must include the checklist. |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                                                                                                                                                                                                |
 
 ### Inline execution sequence
 
-When all four guardrails hold:
+When all five guardrails hold:
 
 1. **Write/Edit.** Apply the file change as the plan specifies. For approved verbatim file create (the canonical positive shape), this is a single `Write` call. For unambiguous identifier replacement, one or more `Edit` calls with exact before/after strings from the plan.
 2. **Verify.** Satisfy the task's `**Verification expectations:**` field by
@@ -685,16 +726,20 @@ There is no DONE-report step. The plan body is itself the snapshot — the contr
 
 ### Fallback
 
-If any guardrail fails, dispatch normally. Template choice is driven by
-`**Mode:** mechanical` in the task header — except when guardrail #4 fails
-(`**TDD expectation:**` field or legacy TDD step-pair present), in which case use
-`implementer-prompt.md` regardless of any `**Mode:** mechanical` hint, since
-TDD work needs the full prompt's judgment scaffolding.
+If guardrail #4 fails, stop before implementation and report the contract gap;
+do not execute inline, dispatch a mechanical implementer, or dispatch a full
+implementer against a missing or invalid task contract. Other guardrail misses
+fall back to dispatched implementation. Template choice for those fallback cases
+is driven by `**Mode:** mechanical` in the task header — except when guardrail #5
+fails (`**TDD expectation:**` field or legacy TDD step-pair present), in which
+case use `implementer-prompt.md` regardless of any `**Mode:** mechanical` hint,
+since TDD work needs the full prompt's judgment scaffolding.
 Specifically:
 
 - Guardrail #1 fails (multi-task): standard multi-task flow with executor-computed per-task review routing.
 - Guardrail #2 fails (no `**Mode:** mechanical`): single-task dispatched flow with `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
-- Guardrail #4 fails (`**TDD expectation:**` field or legacy TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
+- Guardrail #4 fails (missing or invalid contract checklist): stop before implementation and report BLOCKED/NEEDS_CONTEXT with the exact missing checklist, unexplained `N/A`, or unconfirmed owner, authority, source-of-truth, consumer, generated-output, or evidence surface. Do not dispatch a mechanical implementer or run inline execution against an invalid contract.
+- Guardrail #5 fails (`**TDD expectation:**` field or legacy TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
 
 ### Skip-Dispatch Examples
 
@@ -713,6 +758,18 @@ The two fixtures below illustrate when the path fires and when it falls back. Th
 
 **Approved verbatim artifact content:** ADR body approved by the issue owner.
 
+**Contract checklist:** Trigger criteria are durable ADR documentation and
+generated/derived navigation proof obligations; owner/authority is the approved
+issue owner for the ADR body and `docs/adr/` for the artifact profile; affected
+consumers/generated outputs are ADR readers plus any source-owned navigation,
+with Claude/Codex generated skill outputs marked `N/A` because no generated
+skill artifact consumes this ADR; must-preserve is exact approved content with
+no surrounding workflow changes; required behavior is creating the approved ADR
+only, with retry/recovery/cleanup/terminal-state behavior marked `N/A` because
+the task is a single source-document create; spec/procedure work follows the ADR
+profile; risk is cross-document drift; proof obligation is source-owned
+verification of the new ADR artifact and any triggered navigation/doc updates.
+
 ```markdown
 # ADR-0042: Example Decision
 
@@ -720,7 +777,7 @@ The two fixtures below illustrate when the path fires and when it falls back. Th
 ```
 ````
 
-All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream PASS implicit; 4: no TDD markers). The controller writes the file, commits, and marks the task complete. No implementer subagent is dispatched.
+All five guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream PASS implicit; 4: required contract checklist present; 5: no TDD markers). The controller writes the file, commits, and marks the task complete. No implementer subagent is dispatched.
 
 **Negative (skip-dispatch falls back).** A single-task plan whose Task 1 lacks `**Mode:** mechanical` and includes a TDD expectation:
 
@@ -736,7 +793,7 @@ All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream
 style before implementing the validator.
 ```
 
-Guardrail #1 holds (single-task), but guardrail #2 fails (no `**Mode:** mechanical`) and guardrail #4 fails (TDD expectation present). The controller falls back to dispatched mode, using `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
+Guardrail #1 holds (single-task), but guardrail #2 fails (no `**Mode:** mechanical`) and guardrail #5 fails (TDD expectation present). The controller falls back to dispatched mode, using `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
 
 The two fixtures together lock the heuristic by showing both branches.
 

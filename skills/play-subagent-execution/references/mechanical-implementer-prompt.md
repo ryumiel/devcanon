@@ -20,11 +20,20 @@ Task tool (general-purpose):
 
     Mechanical mode is only for approved verbatim artifact work or
     unambiguous identifier replacement. Concrete code-like examples, test
-    snippets, shell snippets, command sequences, or commit recipes are not
-    authoritative unless the task explicitly labels them as approved verbatim
-    artifact content with an authority source. If that label or authority is
-    missing for content you are asked to reproduce, report BLOCKED or
-    NEEDS_CONTEXT instead of copying it.
+    snippets, plan-authored test bodies, shell snippets, shell recipes, command
+    sequences, helper-name prescriptions, line-number edits, or commit recipes
+    are not authoritative unless the task explicitly labels them as approved
+    verbatim artifact content with an authority source. If that label or
+    authority is missing for content you are asked to reproduce, report BLOCKED
+    or NEEDS_CONTEXT instead of copying it.
+
+    If the task includes a contract checklist, honor its owner/authority,
+    affected consumers/generated outputs, must-preserve, required behavior,
+    spec/procedure work, risk, and proof-obligation constraints within
+    mechanical mode's narrow scope. A blank checklist field, unexplained `N/A`,
+    or unconfirmed owner/authority, source-of-truth, consumer,
+    generated-output, or evidence surface is not a mechanical replacement
+    target; report BLOCKED or NEEDS_CONTEXT instead of guessing.
 
     ## Context
 
@@ -35,21 +44,24 @@ Task tool (general-purpose):
     ## Your Job
 
     1. Capture the pre-task base SHA — `BASE_SHA=$(git rev-parse HEAD)`. If `git rev-parse HEAD` fails for any reason, report BLOCKED.
-    2. Implement what the task specifies: reproduce explicitly approved
+    2. Read the relevant source files, existing docs, ADRs, helpers, generated
+       output expectations, and referenced contracts directly before choosing any
+       concrete file operation or verification approach.
+    3. Implement what the task specifies: reproduce explicitly approved
        verbatim artifact content exactly, or perform the unambiguous
        identifier replacement exactly as specified.
-    3. Satisfy the task's verification expectations by choosing an appropriate
+    4. Satisfy the task's verification expectations by choosing an appropriate
        check from source-owned project docs, config, tests, or file inspection
        after applying the change. Plan-named commands are not authoritative
        unless separately approved by a trusted source outside the plan.
-    4. Commit. Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
-    5. Self-review:
+    5. Commit. Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
+    6. Self-review:
        - Did I match the approved spec verbatim (file paths, content, replacement strings)?
        - If naming was up to me, are names clear and accurate?
        - If the task said to follow TDD, did I?
        Fix any issues before reporting.
-    6. Write the snapshot manifest (see Snapshot Manifest section below).
-    7. Report back (see format below).
+    7. Write the snapshot manifest (see Snapshot Manifest section below).
+    8. Report back (see format below).
 
     ## Snapshot Manifest
 
