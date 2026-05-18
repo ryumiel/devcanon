@@ -363,6 +363,13 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-vs-spec alignment before offering execution options. This catches spec coverage gaps and scope drift that self-review may miss.
 
+Before dispatching the plan-review agent, use `subagent-lifecycle` for the
+controller-local lifecycle ledger, target lifecycle capability classification,
+cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
+recovery. Capture the plan-review session's role-specific state before
+closing or superseding it: plan path or inline plan scope, source spec/design
+scope, PASS/FAIL result, confidence notes, and specific gaps when present.
+
 **Subagent contract:**
 
 - **Model:** `{{model:deep}}`

@@ -15,6 +15,13 @@ You write test cases (pressure scenarios with subagents), watch them fail (basel
 
 **Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing.
 
+When dispatching pressure-scenario subagents, use `subagent-lifecycle` for the
+controller-local lifecycle ledger, target lifecycle capability classification,
+cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
+recovery. Capture each pressure-scenario subagent's prompt, baseline/pass
+result, observed rationalizations, and pressure conditions before closing or
+superseding the session.
+
 **REQUIRED BACKGROUND:** You MUST understand play-tdd before using this skill. That skill defines the fundamental RED-GREEN-REFACTOR cycle. This skill adapts TDD to documentation.
 
 **Official guidance:** For Anthropic's official skill authoring best practices, see `references/anthropic-best-practices.md`. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.

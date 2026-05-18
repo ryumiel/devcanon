@@ -414,6 +414,15 @@ line count is small but the change class is risky.
 
 ## Phase 3: Spawn agents
 
+Before spawning Phase 3 reviewer agents, use `subagent-lifecycle` for the
+controller-local lifecycle ledger, target lifecycle capability classification,
+cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
+recovery. Capture each reviewer session's role-specific state before closing
+or superseding it: review scope, active diff range, base/head SHA, report,
+concrete findings, and any output envelope state needed by downstream
+consumers. Critic verdicts are captured with the critic session in Phase 5,
+after the critic has been spawned and has produced those verdicts.
+
 **Core agents (always spawned):**
 
 | Agent       | Focus                                                                                                                          |
@@ -598,6 +607,12 @@ When the trigger fires:
 See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
 
 ## Phase 5: Critic verification
+
+Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate
+for completed or superseded reviewer sessions, then record the critic session
+in the controller-local lifecycle ledger. Capture the critic's role-specific
+state before closing or superseding it: review scope, merged findings input,
+critic report, verdicts, and any carry-forward state.
 
 Spawn a critic agent with all findings merged. The critic reads actual
 code in `working_directory` and tags each **blocking** finding:

@@ -1,7 +1,10 @@
 # Example Workflow — `play-subagent-execution`
 
-An end-to-end illustration of the multi-task subagent-driven flow. The procedure
-itself lives in `SKILL.md` § The Process; this file is illustrative.
+An end-to-end illustration of the multi-task subagent-driven flow. The
+execution procedure itself lives in `SKILL.md` § The Process; the generic
+lifecycle ledger, target capability classes, cleanup gate, target-honest
+cleanup outcomes, and slot-limit recovery live in `subagent-lifecycle`. This
+file is illustrative.
 
 The example below shows a multi-task plan with coherent authored tasks. The
 executor follows the authored plan boundaries; it does not do runtime regrouping or batching. Each multi-task task follows the executor-computed
@@ -28,7 +31,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 [Read plan file once: .ephemeral/feature-plan.md]
 [Extract all 3 coherent authored tasks with full text and context]
 [Create TodoWrite with all tasks]
-[Detect target lifecycle capability]
+[Use subagent-lifecycle to detect target lifecycle capability]
 Target capability for this run: automatic-close-supported
 
 Task 1: Hook lifecycle
@@ -185,6 +188,10 @@ Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captu
 
 Task 3: Low-risk example copy
 
+[Cleanup gate before Task 3 implementer spawn]
+Controller verifies completed Task 2 sessions are closed or recorded with
+target-honest `close-unavailable` outcomes before spawning Task 3.
+
 [Dispatch implementation subagent with full task text + context]
 Implementer:
   - Clarified one example sentence in a neutral demo note
@@ -237,10 +244,12 @@ Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 [Alternative target capability examples - separate runs, not the automatic-close run above]
 
 [Inventory-only target variant]
+Using `subagent-lifecycle` target capability guidance:
 Target capability for this separate run: inventory-only: target exposes session inventory but no close operation
 Controller first captures each completed session's role-specific state, records open inventory (`impl-1`, `spec-1`, `quality-1`), and records `close-unavailable: inventory-only; no close operation` instead of claiming closed=yes before dispatching the next agent.
 
 [Slot-limit spawn failure on cleanup-unavailable target - separate run]
+Using `subagent-lifecycle` slot-limit recovery:
 Target capability for this separate run: cleanup-unavailable: target exposes neither inventory nor close operation
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
 Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
