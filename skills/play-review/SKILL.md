@@ -417,10 +417,11 @@ line count is small but the change class is risky.
 Before spawning Phase 3 reviewer agents, use `subagent-lifecycle` for the
 controller-local lifecycle ledger, target lifecycle capability classification,
 cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
-recovery. Capture each reviewer or critic session's role-specific state
-before closing or superseding it: review scope, active diff range, base/head
-SHA, report, concrete findings, critic verdicts, and any output envelope state
-needed by downstream consumers.
+recovery. Capture each reviewer session's role-specific state before closing
+or superseding it: review scope, active diff range, base/head SHA, report,
+concrete findings, and any output envelope state needed by downstream
+consumers. Critic verdicts are captured with the critic session in Phase 5,
+after the critic has been spawned and has produced those verdicts.
 
 **Core agents (always spawned):**
 

@@ -501,6 +501,33 @@ describe("existing skills render cleanly", () => {
       expect(await pathExists(generatedPath)).toBe(true);
       expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
     }
+
+    const researchPromptSourcePath = path.join(
+      repoRoot,
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const researchPromptSourceContent = await readFile(
+      researchPromptSourcePath,
+      "utf-8",
+    );
+    expect(researchPromptSourceContent).toContain("subagent-lifecycle");
+    expect(researchPromptSourceContent).toContain("role-specific state");
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "issue-priming-workflow",
+        "references",
+        "research-agent-prompt.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(
+        researchPromptSourceContent,
+      );
+    }
   });
 
   it("documents the write-product-requirements PRD boundaries", async () => {
@@ -605,6 +632,7 @@ describe("existing skills render cleanly", () => {
     const playReviewBody = bodyFor("play-review");
     const playPlanningBody = bodyFor("play-planning");
     const playAgentDispatchBody = bodyFor("play-agent-dispatch");
+    const playSkillAuthoringBody = bodyFor("play-skill-authoring");
     const prMergeBody = bodyFor("pr-merge");
 
     const expectSharedLifecycleReference = (
@@ -683,7 +711,10 @@ describe("existing skills render cleanly", () => {
       "Before spawning Phase 3 reviewer agents",
     );
     expect(playReviewPhase3Section).toContain("review scope");
-    expect(playReviewPhase3Section).toContain("critic verdicts");
+    expect(playReviewPhase3Section).toContain("concrete findings");
+    expect(playReviewPhase3Section).toContain(
+      "Critic verdicts are captured with the critic session in Phase 5",
+    );
 
     const playReviewCriticStart = playReviewBody.indexOf(
       "## Phase 5: Critic verification",
@@ -699,6 +730,8 @@ describe("existing skills render cleanly", () => {
     expect(playReviewCriticSection).toContain(
       "Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate",
     );
+    expect(playReviewCriticSection).toContain("critic report");
+    expect(playReviewCriticSection).toContain("verdicts");
 
     const playPlanningReviewStart = playPlanningBody.indexOf("## Plan Review");
     const playPlanningReviewEnd = playPlanningBody.indexOf(
@@ -748,6 +781,31 @@ describe("existing skills render cleanly", () => {
     );
     expect(normalizedPlayAgentDispatchSection).toContain(
       "After each returned session is integrated, run the `subagent-lifecycle` cleanup gate before keeping or spawning any additional agent sessions",
+    );
+
+    const playSkillAuthoringStart =
+      playSkillAuthoringBody.indexOf("## Overview");
+    const playSkillAuthoringEnd = playSkillAuthoringBody.indexOf(
+      "## What is a Skill?",
+    );
+    expect(playSkillAuthoringStart).toBeGreaterThanOrEqual(0);
+    expect(playSkillAuthoringEnd).toBeGreaterThan(playSkillAuthoringStart);
+    const playSkillAuthoringSection = playSkillAuthoringBody.slice(
+      playSkillAuthoringStart,
+      playSkillAuthoringEnd,
+    );
+    const normalizedPlaySkillAuthoringSection = normalizeWhitespace(
+      playSkillAuthoringSection,
+    );
+    expectSharedLifecycleReference(
+      playSkillAuthoringSection,
+      "play-skill-authoring pressure scenarios",
+    );
+    expect(normalizedPlaySkillAuthoringSection).toContain(
+      "When dispatching pressure-scenario subagents",
+    );
+    expect(normalizedPlaySkillAuthoringSection).toContain(
+      "Capture each pressure-scenario subagent's prompt, baseline/pass result, observed rationalizations, and pressure conditions before closing or superseding the session",
     );
 
     const prMergeInvestigationStart = prMergeBody.indexOf(
