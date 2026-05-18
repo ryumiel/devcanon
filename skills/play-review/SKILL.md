@@ -88,55 +88,60 @@ The structured envelope is written to a deterministic file under `.ephemeral/`. 
 .ephemeral/<branch_slug>-<head_sha>-findings.json
 ```
 
-- `<head_sha>` — the required `head_sha` input. Full 40-character SHA, lowercased. MUST match the regex `^[0-9a-f]{40}$`.
-- `<branch_slug>` — derived from the current branch with the bash below. `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD` for detached-HEAD checkouts (e.g., `pr-review` fork PRs that use `gh pr checkout --detach`), so explicit detection is required:
+`<head_sha>` is the required `head_sha` input: a full 40-character lowercase
+SHA matching `^[0-9a-f]{40}$`. `<branch_slug>` is derived by the canonical
+helper from the actual repository branch in the current git state; detached
+HEAD maps to `detached`, and unsafe or empty slugs map to `unnamed`.
 
-  ```bash
-  RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
-  if [ "$RAW_BRANCH" = HEAD ]; then
-    BRANCH_SLUG=detached
-  else
-    BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
-    # Substitute `unnamed` for slugs that would widen the path-interpretation
-    # surface: empty after stripping, bare `.` / `..`, or starting with `-` or `.`.
-    case "$BRANCH_SLUG" in
-      ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
-    esac
-  fi
-  ```
-
-The path is computed and written by this skill, not by the wrapper. Wrappers locate the file by reading the notice line below, then **MUST validate the parsed path before opening or overwriting it** — a prompt-injected `play-review` run (e.g., adversarial markdown in the diff under review) could otherwise redirect the path. The validation recomputes the deterministic path from trusted inputs and compares the parsed notice path to it:
+The path is computed and written by this skill with the installed helper, not by
+the wrapper. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill
+bundle, not the repository under review. Bind
+`PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"`, then run
+the helper from the repository root so it can enforce repo-root `.ephemeral`
+semantics. Do not use a repo-relative helper path inside the target repository.
+Run with `HEAD_SHA` set to the trusted `head_sha` input:
 
 ```bash
-: "${HEAD_SHA:?trusted head_sha input required}"
-case "$HEAD_SHA" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-  *) echo "head_sha invalid: $HEAD_SHA" >&2; exit 1 ;;
-esac
-RAW_BRANCH=$(git -C "$WORKING_DIRECTORY" rev-parse --abbrev-ref HEAD)
-if [ "$RAW_BRANCH" = HEAD ]; then
-  BRANCH_SLUG=detached
-else
-  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
-  case "$BRANCH_SLUG" in
-    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
-  esac
-fi
-EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
-case "$FINDINGS_FILE" in
-  .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
-  .ephemeral/*-findings.json) ;;
-  *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
-esac
-[ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
-[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
-[ -L "$WORKING_DIRECTORY/.ephemeral" ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"
-[ ! -L "$FINDINGS_FILE_ABS" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
-[ -f "$FINDINGS_FILE_ABS" ] || { echo "findings file missing or not a regular file: $FINDINGS_FILE" >&2; exit 1; }
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+cd "$WORKING_DIRECTORY"
+FINDINGS_FILE=$(
+  HEAD_SHA="$HEAD_SHA" \
+    bash "$PLAY_REVIEW_HELPER" prepare-findings-write
+)
 ```
 
-Findings-file consumers MUST run this guard before opening or overwriting the file. Wrappers that directly call `play-review` (`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted `head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from `branch-review --fix`, so it binds `HEAD_SHA` from the validated `Review head: <40-hex-sha>.` notice that `branch-review --fix` captures before auto-fix commits and emits after processing. Read consumers MUST also reject a symlink at `$FINDINGS_FILE_ABS`, require a regular file, and assert `schema == "play-review/findings/v1"` before consuming `findings[]`. Derived nits-file consumers such as `play-branch-finish` use their own `nits_file` guard, which accepts `-nits-pending.json`.
+The helper enforces repository-root execution, validates the 40-hex `HEAD_SHA`,
+derives the deterministic `.ephemeral/<branch_slug>-<head_sha>-findings.json`
+path from actual git state, rejects unsafe paths and symlinked `.ephemeral`,
+prepares the write target, and prints the repo-relative path on stdout.
+
+Wrappers locate the file by reading the notice line below, then **MUST validate
+the parsed path before opening or overwriting it** — a prompt-injected
+`play-review` run (e.g., adversarial markdown in the diff under review) could
+otherwise redirect the path. Validation is the same helper with
+`validate-findings`:
+
+```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+HEAD_SHA="$REVIEW_HEAD_SHA" \
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+  bash "$PLAY_REVIEW_HELPER" validate-findings
+```
+
+The helper recomputes the deterministic path from trusted inputs, compares it
+to the parsed notice path, rejects traversal, nested paths, symlinks, non-files,
+unreadable files, and schema mismatches, and exits nonzero on any contract
+violation. Findings-file consumers fail closed before opening, overwriting, or
+posting from the file. Wrappers that directly call `play-review`
+(`branch-review --fix`, `pr-review` Phase 6) bind `HEAD_SHA` from the trusted
+`head_sha` input. `issue-priming-workflow` Phase 7 is one level downstream from
+`branch-review --fix`, so it binds `HEAD_SHA` from the validated
+`Review head: <40-hex-sha>.` notice that `branch-review --fix` captures before
+auto-fix commits and emits after processing. Derived nits-file consumers such as
+`play-branch-finish` use `validate-nits-file`, which accepts
+`-nits-pending.json`.
 
 #### Envelope shape
 
@@ -163,21 +168,21 @@ Findings-file consumers MUST run this guard before opening or overwriting the fi
 
 Per-field contract:
 
-| Field            | Type                                                                                                                  | Notes                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`         | string literal `"play-review/findings/v1"`                                                                            | Pinned. Additive changes (new optional fields) stay on `v1`. Renames, removals, or type changes require a major bump (`v2`).                                                                                                                                                                                                                                   |
-| `findings`       | array                                                                                                                 | One object per finding emitted in this report.                                                                                                                                                                                                                                                                                                                 |
-| `carry_forward`  | array (same per-finding shape as `findings`)                                                                          | Follow-up `pr-review` only; otherwise the empty array `[]`.                                                                                                                                                                                                                                                                                                    |
-| `path`           | string, repo-relative                                                                                                 | Same shape consumers (`play-branch-finish`, GitHub Reviews API) expect.                                                                                                                                                                                                                                                                                        |
-| `line`           | integer, HEAD-side absolute line                                                                                      | Matches `play-branch-finish`'s `line` field and the GitHub Reviews API.                                                                                                                                                                                                                                                                                        |
-| `start_line`     | integer or `null`                                                                                                     | `null` when single-line; integer for multi-line ranges (matches GitHub Reviews API).                                                                                                                                                                                                                                                                           |
-| `severity`       | `"Blocking"` \| `"Nit"`                                                                                               | Verbatim from the markdown `Severity:` value.                                                                                                                                                                                                                                                                                                                  |
-| `category`       | `"Logic"` \| `"Safety"` \| `"Architecture"` \| `"Tests"` \| `"Maintainability"` \| `"Documentation"` \| `"Contracts"` | Verbatim from the markdown `Category:` value.                                                                                                                                                                                                                                                                                                                  |
-| `critic`         | `"VALID"` \| `"INVALID"` \| `"DOWNGRADE"` \| `null`                                                                   | `null` for nits — they skip critic verification (see Phase 5: "Nits skip critic verification."). This is the one field where the JSON value is not verbatim from the markdown: the markdown writes `Critic: (skipped — nit)`, the JSON writes `null`.                                                                                                          |
-| `anchor`         | `"natural"` \| `"missing-file"` \| `"out-of-diff"`                                                                    | Verbatim from the markdown `Anchor:` value.                                                                                                                                                                                                                                                                                                                    |
-| `why`            | string, plain text                                                                                                    | The why-clause from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                               |
-| `recommendation` | string, plain text                                                                                                    | The concrete suggestion from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                      |
-| `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through. |
+| Field            | Type                                                                                                                  | Notes                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`         | string literal `"play-review/findings/v1"`                                                                            | Pinned. Additive changes (new optional fields) stay on `v1`. Renames, removals, or type changes require a major bump (`v2`).                                                                                                                                                                                                                                                       |
+| `findings`       | array                                                                                                                 | One object per finding emitted in this report.                                                                                                                                                                                                                                                                                                                                     |
+| `carry_forward`  | array (same per-finding shape as `findings`)                                                                          | Follow-up `pr-review` only; otherwise the empty array `[]`.                                                                                                                                                                                                                                                                                                                        |
+| `path`           | string, repo-relative                                                                                                 | Same shape consumers (`play-branch-finish`, GitHub Reviews API) expect.                                                                                                                                                                                                                                                                                                            |
+| `line`           | integer, HEAD-side absolute line                                                                                      | Matches `play-branch-finish`'s `line` field and the GitHub Reviews API.                                                                                                                                                                                                                                                                                                            |
+| `start_line`     | integer or `null`                                                                                                     | `null` when single-line; integer for multi-line ranges (matches GitHub Reviews API).                                                                                                                                                                                                                                                                                               |
+| `severity`       | `"Blocking"` \| `"Nit"`                                                                                               | Verbatim from the markdown `Severity:` value.                                                                                                                                                                                                                                                                                                                                      |
+| `category`       | `"Logic"` \| `"Safety"` \| `"Architecture"` \| `"Tests"` \| `"Maintainability"` \| `"Documentation"` \| `"Contracts"` | Verbatim from the markdown `Category:` value.                                                                                                                                                                                                                                                                                                                                      |
+| `critic`         | `"VALID"` \| `"INVALID"` \| `"DOWNGRADE"` \| `null`                                                                   | `null` for nits — they skip critic verification (see Phase 5: "Nits skip critic verification.") — and for blocking findings only when the critic phase failed and findings are reported without verdicts. This is the one field where the JSON value is not always verbatim from the markdown: the markdown writes `Critic: (skipped — nit)` for nits, and the JSON writes `null`. |
+| `anchor`         | `"natural"` \| `"missing-file"` \| `"out-of-diff"`                                                                    | Verbatim from the markdown `Anchor:` value.                                                                                                                                                                                                                                                                                                                                        |
+| `why`            | string, plain text                                                                                                    | The why-clause from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                                                   |
+| `recommendation` | string, plain text                                                                                                    | The concrete suggestion from the markdown finding (no markdown wrappers).                                                                                                                                                                                                                                                                                                          |
+| `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through.                     |
 
 The schema omits a `side` field (all findings are HEAD-side; consumers default themselves) and the markdown finding's evidence code (consumers re-read the file using `path` + `line` + `start_line`).
 
@@ -188,22 +193,12 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
 - Use the `Write` tool for atomic replacement. Do not append.
 - **Write-target guard.** `Write` follows symlinks, so a hostile fork-PR
   working tree can redirect the write either by pre-staging `.ephemeral` itself
-  as a symlink or by pre-staging a symlink at the target file path. Before
-  writing, reject a symlinked `.ephemeral` directory, ensure the directory
-  exists, remove any symlink at the target path, and reject directories or other
-  non-regular existing paths:
-
-  ```bash
-  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-  mkdir -p .ephemeral
-  [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"
-  [ ! -d "$FINDINGS_FILE" ] || { echo "findings path is a directory: $FINDINGS_FILE" >&2; exit 1; }
-  [ ! -e "$FINDINGS_FILE" ] || [ -f "$FINDINGS_FILE" ] || { echo "findings path exists but is not a regular file: $FINDINGS_FILE" >&2; exit 1; }
-  ```
-
-  Apply the same guard wherever `branch-review --fix` overwrites this file or
-  `issue-priming-workflow` Phase 7 derives the sibling
-  `-nits-pending.json` path.
+  as a symlink or by pre-staging a symlink at the target file path. Always run
+  `prepare-findings-write` immediately before this skill writes the findings
+  file, and before `branch-review --fix` overwrites it with the remaining-set
+  envelope. Use `derive-nits-pending` before `issue-priming-workflow` Phase 7
+  writes the sibling `-nits-pending.json` file. These helpers own the symlink,
+  directory, unsafe-path, and non-regular-file write guards.
 
 ### 4. One-line notice (consumer hook)
 
@@ -281,8 +276,10 @@ phase scaffolding, not a consumer contract. The file lives under
 .ephemeral/<branch_slug>-<head_sha>-review-context.md
 ```
 
-`<branch_slug>` is derived identically to the findings envelope —
-reuse the `BRANCH_SLUG` shell binding computed in § Output.
+`<branch_slug>` is the same slug embedded in the findings envelope path. Derive
+this context path from the `$FINDINGS_FILE` path returned by
+`prepare-findings-write` by replacing the `-findings.json` suffix with
+`-review-context.md`; do not recompute a separate branch slug.
 `<head_sha>` is the `head_sha` skill input, validated per § Output's
 SHA-format constraint (`^[0-9a-f]{40}$`).
 
@@ -312,12 +309,20 @@ Compose the file with these sections, in order:
 
 - **Symlink guard before write.** `Write` follows symlinks; an attacker
   pre-staging a link at the target would redirect the write (see § Output
-  for the fork-PR scenario this guard defends against). Reuse the guard
-  pattern from § Output:
+  for the fork-PR scenario this guard defends against). Ensure `$FINDINGS_FILE`
+  has already been bound by § Output's `prepare-findings-write` helper, derive
+  the context path from that value, and run this context-specific write guard:
 
   ```bash
   : "${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
-  CONTEXT_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-review-context.md"
+  : "${FINDINGS_FILE:?findings file required}"
+  case "$FINDINGS_FILE" in
+    .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
+    .ephemeral/*-findings.json) ;;
+    *) echo "findings path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
+  esac
+  [ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
+  CONTEXT_FILE="${FINDINGS_FILE%-findings.json}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"

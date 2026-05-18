@@ -316,28 +316,30 @@ Before invoking `play-subagent-execution`, write a controller-owned auto-mode
 handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
 artifact is audit evidence for reduced per-task review routes; authorization
 also depends on this controller-local parent workflow state, which invocation
-prose or repo files alone cannot provide.
+prose or repo files alone cannot provide. `ISSUE_PRIMING_WORKFLOW_DIR` must
+resolve to the installed `issue-priming-workflow` skill bundle, not the issue
+worktree. Bind
+`AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`
+and invoke it from the issue worktree root so it can enforce repo-root
+`.ephemeral` semantics.
 
 ```bash
+ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
+AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
 ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
-AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-${ISSUE_PRIMING_AUTO_HEAD}.json"
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-mkdir -p .ephemeral
-[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE" >&2; exit 1; }
-[ ! -d "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path is a directory: $AUTO_HANDOFF_FILE" >&2; exit 1; }
-[ ! -e "$AUTO_HANDOFF_FILE" ] || [ -f "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path exists but is not a regular file: $AUTO_HANDOFF_FILE" >&2; exit 1; }
-AUTO_HANDOFF_TMP=$(mktemp ".ephemeral/issue-priming-auto-handoff.XXXXXX") || exit 1
-jq -n --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD" '{
-  schema: "issue-priming/auto-handoff/v1",
-  phase: "issue-priming-workflow:6",
-  mode: "auto",
-  plan_path: $plan,
-  head_sha: $head,
-  phase7_branch_review_fix_required: true,
-  phase7_rerun_after_commits: true
-}' > "$AUTO_HANDOFF_TMP"
-mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"
+AUTO_HANDOFF_FILE=$(
+  PLAN_PATH="$PLAN_PATH" \
+    bash "$AUTO_HANDOFF_HELPER"
+)
 ```
+
+The helper writes the `issue-priming/auto-handoff/v1` artifact for phase
+`issue-priming-workflow:6` in `mode: "auto"`, records `plan_path`,
+`head_sha`, `phase7_branch_review_fix_required: true`, and
+`phase7_rerun_after_commits: true`, enforces unsafe-path and repository-root
+checks, guards symlink and non-regular-file targets, creates `.ephemeral` when
+needed, and prints the repo-relative artifact path. Treat a nonzero helper exit
+as a contract failure; do not invoke `play-subagent-execution`.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT
@@ -385,35 +387,18 @@ on the new `HEAD` before proceeding to Phase 8.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If any remaining `Blocking` finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and report to the user**. This includes Safety / Contracts hard-rule blockers, design-change blockers, and out-of-diff blockers. `Nit` findings and `DOWNGRADE` findings are collected and passed through the classification flow below for Phase 8 PR review comments when they are judgment-required.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. Then validate the parsed findings path before reading it:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the issue worktree; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the issue worktree root. Then validate the parsed findings path before reading it with the canonical helper:
 
 ```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 case "$REVIEW_HEAD_SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
   *) echo "branch-review review head invalid: $REVIEW_HEAD_SHA" >&2; exit 1 ;;
 esac
 HEAD_SHA="$REVIEW_HEAD_SHA"
-RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$RAW_BRANCH" = HEAD ]; then
-  BRANCH_SLUG=detached
-else
-  BRANCH_SLUG=$(printf '%s' "$RAW_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]._-')
-  case "$BRANCH_SLUG" in
-    ''|.|..|-*|.*) BRANCH_SLUG=unnamed ;;
-  esac
-fi
-EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
-case "$FINDINGS_FILE" in
-  .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
-  .ephemeral/*-findings.json) ;;
-  *) echo "play-review path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
-esac
-[ "${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
-[ "$FINDINGS_FILE" = "$EXPECTED_FINDINGS_FILE" ] || { echo "findings path mismatch: $FINDINGS_FILE" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$FINDINGS_FILE" ] || { echo "findings file must not be a symlink: $FINDINGS_FILE" >&2; exit 1; }
-[ -f "$FINDINGS_FILE" ] || { echo "findings file missing or not a regular file: $FINDINGS_FILE" >&2; exit 1; }
-jq -e '.schema == "play-review/findings/v1"' "$FINDINGS_FILE" >/dev/null || { echo "envelope schema mismatch: $FINDINGS_FILE" >&2; exit 1; }
+HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
+  bash "$PLAY_REVIEW_HELPER" validate-findings
 ```
 
 After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
@@ -434,25 +419,13 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#ph
   - **Grouping.** Multiple mechanical fixes in the same file at the same scope may be grouped into one commit. When grouping, include one back-reference line per nit, each on its own line in the commit body.
   - **Edit-staleness.** Re-read the target file from disk before applying each Edit. Any implementer snapshot the controller may still be holding from Phase 6 is stale by this point — earlier per-task review fixups and `branch-review --fix` auto-fix commits have already modified the tree, so snapshot content is no longer a reliable Edit anchor. `skills/play-subagent-execution/SKILL.md` § Edit-staleness rule restates the same constraint for the per-task path.
   - **Post-nit review loop.** If any mechanical nit commit is made, rerun `branch-review --fix` on the new `HEAD` and restart Phase 7 from the Branch Review step. Continue until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit commits are made after that review.
-- **Judgment-required nits and downgraded findings** — leave unfixed. After classification, write the judgment-required subset as a fresh `play-review/findings/v1` envelope (`{"schema": "play-review/findings/v1", "findings": [<judgment-required items>], "carry_forward": []}`) to a sibling file derived from `$FINDINGS_FILE` by replacing the `-findings.json` suffix with `-nits-pending.json` (i.e., `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`). When carrying a `critic: "DOWNGRADE"` finding into this derived nits envelope, normalize only the derived copy to non-blocking postable form: set `severity` to `"Nit"`, set `critic` to `null`, and recompute `body` from `why` and `recommendation` as `**Nit | <category>** — <why>\n\n**Recommendation:** <recommendation>`. Assert the suffix shape before substituting, so a malformed `$FINDINGS_FILE` does not silently produce a path with `-nits-pending.json` appended; remove any pre-existing symlink and reject directories/non-regular paths at the derived path before writing (per the write-target guard in `skills/play-review/SKILL.md` § Output → Write rules):
+- **Judgment-required nits and downgraded findings** — leave unfixed. After classification, write the judgment-required subset as a fresh `play-review/findings/v1` envelope (`{"schema": "play-review/findings/v1", "findings": [<judgment-required items>], "carry_forward": []}`) to the canonical `-nits-pending.json` sibling path derived from `$FINDINGS_FILE` (i.e., `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`). When carrying a `critic: "DOWNGRADE"` finding into this derived nits envelope, normalize only the derived copy to non-blocking postable form: set `severity` to `"Nit"`, set `critic` to `null`, and recompute `body` from `why` and `recommendation` as `**Nit | <category>** — <why>\n\n**Recommendation:** <recommendation>`. Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path:
 
   ```bash
-  case "$FINDINGS_FILE" in
-    .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
-    .ephemeral/*-findings.json) NITS_PENDING_FILE="${FINDINGS_FILE%-findings.json}-nits-pending.json" ;;
-    *) echo "FINDINGS_FILE shape unexpected: $FINDINGS_FILE" >&2; exit 1 ;;
-  esac
-  case "$NITS_PENDING_FILE" in
-    .ephemeral/*/*) echo "nested nits path rejected: $NITS_PENDING_FILE" >&2; exit 1 ;;
-    .ephemeral/*-nits-pending.json) ;;
-    *) echo "NITS_PENDING_FILE shape unexpected: $NITS_PENDING_FILE" >&2; exit 1 ;;
-  esac
-  [ "${NITS_PENDING_FILE#*..}" = "$NITS_PENDING_FILE" ] || { echo "path traversal: $NITS_PENDING_FILE" >&2; exit 1; }
-  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-  mkdir -p .ephemeral
-  [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"
-  [ ! -d "$NITS_PENDING_FILE" ] || { echo "nits pending path is a directory: $NITS_PENDING_FILE" >&2; exit 1; }
-  [ ! -e "$NITS_PENDING_FILE" ] || [ -f "$NITS_PENDING_FILE" ] || { echo "nits pending path exists but is not a regular file: $NITS_PENDING_FILE" >&2; exit 1; }
+  NITS_PENDING_FILE=$(
+    HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
+      bash "$PLAY_REVIEW_HELPER" derive-nits-pending
+  )
   ```
 
   The Phase 8 step "Pass nits to `play-branch-finish`" passes `$NITS_PENDING_FILE` as `nits_file`. If the judgment-required set is empty, skip the file write — Phase 8 will omit `nits_file` entirely.

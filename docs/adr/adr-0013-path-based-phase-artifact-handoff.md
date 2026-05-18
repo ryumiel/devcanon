@@ -184,6 +184,11 @@ and is required by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
 preflight when it persists the research brief, and the same canonical guard now
 also applies to the downstream `design.md` and `plan.md` producers.
 
+The generic guard shape remains the policy baseline for phase artifacts. When a
+guard becomes complex, reusable, or shared across multiple skills, ADR-0019
+requires the owning skill to move the executable mechanics into a tested helper
+script and keep only the invocation contract in `SKILL.md`.
+
 ### Cleanup ownership
 
 Inherits ADR-0012 § Consequences's policy: cleanup is implicit via worktree
