@@ -36,6 +36,19 @@ async function makeWorkspace(): Promise<string> {
   return dir;
 }
 
+async function makeGitWorkspace(): Promise<string> {
+  const cwd = await makeWorkspace();
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "README.md"], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  return cwd;
+}
+
 async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
   await writeFile(
     path.join(cwd, relPath),
@@ -101,29 +114,40 @@ describe("play-review review artifact helper", () => {
     }
   });
 
-  it("computes and prepares the findings write path from BRANCH_NAME", async () => {
-    const cwd = await makeWorkspace();
+  it("computes and prepares the findings write path from the checked-out git branch", async () => {
+    const cwd = await makeGitWorkspace();
     try {
-      const { stdout } = await runHelper(cwd, "prepare-findings-write", {
-        BRANCH_NAME: "topic",
-      });
-      expect(stdout.trim()).toBe(findingsFile);
-
       const branchSlugCases = [
+        ["topic", "topic"],
         ["Feature/ABC.1_2", "Feature-ABC.1_2"],
-        ["!!!", "unnamed"],
-        [".hidden", "unnamed"],
-        ["-flag", "unnamed"],
       ] as const;
       for (const [branchName, slug] of branchSlugCases) {
+        await execFileAsync("git", ["switch", "-C", branchName], { cwd });
         await expect(
           runHelper(cwd, "prepare-findings-write", {
-            BRANCH_NAME: branchName,
+            BRANCH_NAME: "caller-override-must-not-apply",
           }),
         ).resolves.toMatchObject({
           stdout: `.ephemeral/${slug}-${headSha}-findings.json\n`,
         });
       }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("uses the detached slug when HEAD is detached", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await execFileAsync("git", ["checkout", "--detach", "HEAD"], { cwd });
+
+      await expect(
+        runHelper(cwd, "prepare-findings-write", {
+          BRANCH_NAME: "caller-override-must-not-apply",
+        }),
+      ).resolves.toMatchObject({
+        stdout: `.ephemeral/detached-${headSha}-findings.json\n`,
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

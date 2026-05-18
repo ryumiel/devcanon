@@ -154,15 +154,11 @@ case "$command_name" in
   prepare-findings-write)
     validate_head_sha
     if [ -z "${FINDINGS_FILE:-}" ]; then
-      if [ -n "${BRANCH_NAME:-}" ]; then
-        BRANCH_SLUG="$(slug_branch "$BRANCH_NAME")"
+      RAW_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
+      if [ "$RAW_BRANCH" = "HEAD" ]; then
+        BRANCH_SLUG="detached"
       else
-        BRANCH_NAME="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
-        if [ "$BRANCH_NAME" = "HEAD" ]; then
-          BRANCH_SLUG="detached"
-        else
-          BRANCH_SLUG="$(slug_branch "$BRANCH_NAME")"
-        fi
+        BRANCH_SLUG="$(slug_branch "$RAW_BRANCH")"
       fi
       FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
     fi
