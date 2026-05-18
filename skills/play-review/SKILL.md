@@ -5,6 +5,11 @@ claude:
   model: "{{model:deep}}"
   user-invocable: false
 codex_sidecar:
+  interface:
+    display_name: "Play Review"
+    short_description: "Run the internal shared review pipeline"
+    icon_small: "./assets/review-small.svg"
+    brand_color: "#16a34a"
   policy:
     allow_implicit_invocation: false
 ---

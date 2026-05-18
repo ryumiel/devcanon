@@ -1,6 +1,12 @@
 ---
 name: play-branch-finish
 description: Guides closing out a development branch via squash merge, push and PR, or discard cleanup. Use when implementation is complete, tests pass, and the branch is ready to integrate.
+codex_sidecar:
+  interface:
+    display_name: "Branch Finish"
+    short_description: "Close out completed development branches"
+    icon_small: "./assets/git-small.svg"
+    brand_color: "#7c3aed"
 ---
 
 # Finishing a Development Branch

@@ -1,6 +1,12 @@
 ---
 name: pr-merge
 description: PR merge automation with CI polling and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
+codex_sidecar:
+  interface:
+    display_name: "PR Merge"
+    short_description: "Check CI and merge ready pull requests"
+    icon_small: "./assets/git-small.svg"
+    brand_color: "#7c3aed"
 ---
 
 # PR Merge

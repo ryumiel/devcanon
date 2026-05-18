@@ -1,6 +1,12 @@
 ---
 name: play-debug
 description: Systematic root-cause debugging that blocks fixes until the cause is identified. Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes.
+codex_sidecar:
+  interface:
+    display_name: "Debug"
+    short_description: "Find root causes before fixes"
+    icon_small: "./assets/debug-small.svg"
+    brand_color: "#ea580c"
 ---
 
 # Systematic Debugging

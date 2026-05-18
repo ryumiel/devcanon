@@ -1,6 +1,12 @@
 ---
 name: play-skill-authoring
 description: TDD-style skill authoring with subagent pressure scenarios for baseline testing and loophole closure. Use when creating new skills, editing existing skills, or verifying skills work before deployment.
+codex_sidecar:
+  interface:
+    display_name: "Skill Authoring"
+    short_description: "Author and pressure-test Codex skills"
+    icon_small: "./assets/verification-small.svg"
+    brand_color: "#0f766e"
 ---
 
 # Writing Skills

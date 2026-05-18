@@ -1,6 +1,12 @@
 ---
 name: play-tdd
 description: Test-driven development discipline for tests-before-implementation. Use when implementing any feature or bugfix, before writing implementation code.
+codex_sidecar:
+  interface:
+    display_name: "TDD"
+    short_description: "Drive implementation with tests first"
+    icon_small: "./assets/verification-small.svg"
+    brand_color: "#0f766e"
 ---
 
 # Test-Driven Development (TDD)

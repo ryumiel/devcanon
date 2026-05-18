@@ -1,6 +1,12 @@
 ---
 name: write-product-requirements
 description: Product requirements authoring workflow for durable product intent before behavior specs or issue slicing. Use when creating, updating, drafting, reviewing, or shaping docs/product-requirements content. Do not use for acceptance-ready behavior specs, roadmap sequencing, architecture decisions, implementation plans, or live issue tracking.
+codex_sidecar:
+  interface:
+    display_name: "Write Product Requirements"
+    short_description: "Shape durable product requirement docs"
+    icon_small: "./assets/docs-small.svg"
+    brand_color: "#2563eb"
 ---
 
 # Write Product Requirements

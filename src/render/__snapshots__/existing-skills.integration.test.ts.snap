@@ -24,6 +24,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#24292f",
     "display_name": "GitHub Issue Priming",
+    "icon_small": "./assets/issue-small.svg",
     "short_description": "Research and stage a GitHub issue for implementation",
   },
 }
@@ -40,6 +41,12 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-priming-workflow-sidecar 1`] = `
 {
+  "interface": {
+    "brand_color": "#dc2626",
+    "display_name": "Issue Priming Workflow",
+    "icon_small": "./assets/issue-small.svg",
+    "short_description": "Continue normalized issue priming handoffs",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -70,6 +77,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#5e6ad2",
     "display_name": "Linear Issue Priming",
+    "icon_small": "./assets/issue-small.svg",
     "short_description": "Research and stage a Linear issue for implementation",
   },
 }
@@ -77,6 +85,12 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > play-review-sidecar 1`] = `
 {
+  "interface": {
+    "brand_color": "#16a34a",
+    "display_name": "Play Review",
+    "icon_small": "./assets/review-small.svg",
+    "short_description": "Run the internal shared review pipeline",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -88,6 +102,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#0969da",
     "display_name": "PR Review",
+    "icon_small": "./assets/review-small.svg",
     "short_description": "Run a multi-agent review of a GitHub pull request",
   },
 }
@@ -109,6 +124,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#0f766e",
     "display_name": "Report Shared Issue",
+    "icon_small": "./assets/issue-small.svg",
     "short_description": "Draft and post reusable shared-work issues to DevCanon",
   },
 }

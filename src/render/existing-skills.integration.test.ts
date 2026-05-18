@@ -13,20 +13,27 @@ import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
 const TOUCHED_SKILLS = new Set([
+  "branch-review",
+  "doc-gardening",
+  "git-workspace-cleanup",
   "github-issue-priming",
   "issue-priming-workflow",
   "issue-slicing",
   "issue-worktree-setup",
   "linear-issue-priming",
+  "play-agent-dispatch",
   "play-brainstorm",
   "play-branch-finish",
-  "pr-review",
-  "branch-review",
-  "play-review",
-  "play-subagent-execution",
-  "pr-merge",
-  "play-skill-authoring",
+  "play-debug",
   "play-planning",
+  "play-review",
+  "play-review-response",
+  "play-skill-authoring",
+  "pr-review",
+  "play-subagent-execution",
+  "play-tdd",
+  "play-verification",
+  "pr-merge",
   "report-devcanon-shared-issue",
   "spec-readiness-review",
   "write-product-requirements",
@@ -170,6 +177,7 @@ describe("existing skills render cleanly", () => {
         interface: {
           display_name: expect.any(String),
           short_description: expect.any(String),
+          icon_small: expect.stringMatching(/^\.\/assets\/.+-small\.svg$/),
           brand_color: expect.any(String),
         },
       });
@@ -192,10 +200,51 @@ describe("existing skills render cleanly", () => {
       const parsed = parseYaml(sidecar) as Record<string, unknown>;
 
       expect(parsed).toMatchObject({
+        interface: {
+          display_name: expect.any(String),
+          short_description: expect.any(String),
+          icon_small: expect.stringMatching(/^\.\/assets\/.+-small\.svg$/),
+          brand_color: expect.any(String),
+        },
         policy: { allow_implicit_invocation: false },
       });
-      expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
+    }
+  });
+
+  it("renders a local Codex icon sidecar and mirrored SVG asset for every shipped skill", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    await renderAll(config, true);
+
+    const skillEntries = await readdir(path.join(repoRoot, "skills"));
+    const skillDirs = skillEntries.filter((e) => !e.startsWith("."));
+
+    for (const skillName of skillDirs) {
+      const skillDir = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        skillName,
+      );
+      const sidecarPath = path.join(skillDir, "agents", "openai.yaml");
+
+      expect(await pathExists(sidecarPath)).toBe(true);
+
+      const sidecar = await readFile(sidecarPath, "utf-8");
+      const parsed = parseYaml(sidecar) as {
+        interface?: { icon_small?: string };
+      };
+      const iconSmall = parsed.interface?.icon_small;
+
+      expect(iconSmall).toMatch(/^\.\/assets\/.+-small\.svg$/);
+      if (!iconSmall) throw new Error(`Missing icon_small for ${skillName}`);
+      expect(
+        await pathExists(path.join(skillDir, iconSmall.replace("./", ""))),
+      ).toBe(true);
     }
   });
 

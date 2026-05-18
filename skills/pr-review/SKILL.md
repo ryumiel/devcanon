@@ -5,6 +5,7 @@ codex_sidecar:
   interface:
     display_name: PR Review
     short_description: Run a multi-agent review of a GitHub pull request
+    icon_small: "./assets/review-small.svg"
     brand_color: "#0969da"
 ---
 

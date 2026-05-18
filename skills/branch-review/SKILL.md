@@ -1,6 +1,12 @@
 ---
 name: branch-review
 description: Multi-agent code review of a local branch's commits against a base ref. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
+codex_sidecar:
+  interface:
+    display_name: "Branch Review"
+    short_description: "Review local branch changes before PRs"
+    icon_small: "./assets/review-small.svg"
+    brand_color: "#16a34a"
 ---
 
 # Branch Review

@@ -9,6 +9,7 @@ codex_sidecar:
   interface:
     display_name: Report Shared Issue
     short_description: Draft and post reusable shared-work issues to DevCanon
+    icon_small: "./assets/issue-small.svg"
     brand_color: "#0f766e"
 ---
 

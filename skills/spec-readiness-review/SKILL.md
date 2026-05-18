@@ -1,6 +1,12 @@
 ---
 name: spec-readiness-review
 description: Read-only readiness review for durable AFDS artifacts before issue slicing. Use when checking whether a PRD, behavior spec, roadmap item, guideline, ADR, or source-owner artifact is ready to become executable work. Do not use for implementation-vs-spec review.
+codex_sidecar:
+  interface:
+    display_name: "Spec Readiness Review"
+    short_description: "Check durable specs before issue slicing"
+    icon_small: "./assets/review-small.svg"
+    brand_color: "#16a34a"
 ---
 
 # Spec Readiness Review

@@ -1,6 +1,12 @@
 ---
 name: write-product-spec
 description: Behavior-spec authoring workflow for durable product and workflow behavior under docs/specs. Use when writing, creating, updating, drafting, reviewing, or shaping acceptance-ready behavior requirements. Do not use for broad product intent or PRDs; use write-product-requirements for docs/product-requirements work.
+codex_sidecar:
+  interface:
+    display_name: "Write Product Spec"
+    short_description: "Write acceptance-ready behavior specs"
+    icon_small: "./assets/docs-small.svg"
+    brand_color: "#2563eb"
 ---
 
 # Write Product Spec

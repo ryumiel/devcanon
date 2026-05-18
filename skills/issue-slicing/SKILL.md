@@ -1,6 +1,12 @@
 ---
 name: issue-slicing
 description: Drafts provider-neutral executable issue bodies from durable AFDS evidence. Use when slicing a PRD, behavior spec, roadmap item, guideline, ADR, source-owner artifact, or readiness review into GitHub Issues or Linear work.
+codex_sidecar:
+  interface:
+    display_name: "Issue Slicing"
+    short_description: "Draft executable issues from durable AFDS evidence"
+    icon_small: "./assets/issue-small.svg"
+    brand_color: "#dc2626"
 ---
 
 # Issue Slicing

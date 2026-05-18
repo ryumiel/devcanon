@@ -138,6 +138,49 @@ codex_sidecar:
     brand_color: "#0969da"
 ```
 
+#### Codex skill icons
+
+DevCanon source skills use a small projectile icon family for Codex UI
+scannability. The shared shape is a colored flying projectile with one
+integrated tail and a simple white category symbol inside the projectile.
+
+Use an existing category whenever possible:
+
+| Category       | Projectile color | Symbol          | Use for                                      |
+| -------------- | ---------------- | --------------- | -------------------------------------------- |
+| `review`       | `#16a34a`        | checkmark       | branch, PR, and spec review workflows        |
+| `docs`         | `#2563eb`        | document        | documentation and product/spec writing       |
+| `issue`        | `#dc2626`        | tag             | issue priming, slicing, and shared reporting |
+| `git`          | `#7c3aed`        | branch          | worktree, branch, PR merge, and cleanup work |
+| `planning`     | `#4f46e5`        | plan lines      | brainstorming, planning, and dispatch flows  |
+| `debug`        | `#ea580c`        | spark           | root-cause investigation                     |
+| `verification` | `#0f766e`        | shield or check | TDD, verification, and skill pressure tests  |
+
+Place the icon at `skills/<name>/assets/<category>-small.svg` and wire it
+through the Codex sidecar:
+
+```yaml
+codex_sidecar:
+  interface:
+    display_name: Example Skill
+    short_description: Short Codex UI description
+    icon_small: "./assets/planning-small.svg"
+    brand_color: "#4f46e5"
+```
+
+SVG constraints:
+
+- Use `viewBox="0 0 16 16"`.
+- Keep the projectile silhouette filled with the category color.
+- Keep the internal mark white, large, and readable at 16px.
+- Use one tail only. Do not add separate launch effects.
+- Do not use gradients, shadows, text, raster images, external CSS, or remote
+  assets.
+
+For new categories, start from
+[`examples/codex-skill-icon-template.svg`](examples/codex-skill-icon-template.svg)
+and add a category only when the distinction is reusable across future skills.
+
 ## 4. Description Style
 
 The `description` field is what both Claude and Codex pre-load into context to

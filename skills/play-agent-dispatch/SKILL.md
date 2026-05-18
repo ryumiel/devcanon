@@ -1,6 +1,12 @@
 ---
 name: play-agent-dispatch
 description: Dispatches independent tasks to parallel subagents with isolated context. Use when facing 2+ tasks that can be worked on without shared state or sequential dependencies. Do not use when executing a written implementation plan — use play-subagent-execution instead.
+codex_sidecar:
+  interface:
+    display_name: "Agent Dispatch"
+    short_description: "Dispatch independent tasks to parallel agents"
+    icon_small: "./assets/planning-small.svg"
+    brand_color: "#4f46e5"
 ---
 
 # Dispatching Parallel Agents

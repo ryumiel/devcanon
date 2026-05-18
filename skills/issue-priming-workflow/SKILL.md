@@ -5,6 +5,11 @@ claude:
   model: "{{model:deep}}"
   user-invocable: false
 codex_sidecar:
+  interface:
+    display_name: "Issue Priming Workflow"
+    short_description: "Continue normalized issue priming handoffs"
+    icon_small: "./assets/issue-small.svg"
+    brand_color: "#dc2626"
   policy:
     allow_implicit_invocation: false
 ---

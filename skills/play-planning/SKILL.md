@@ -1,6 +1,12 @@
 ---
 name: play-planning
 description: Writes a comprehensive implementation plan as bite-sized tasks for an engineer with no codebase context, saved to `.ephemeral/`. Use when working from a spec or design for a multi-step task, before touching code. Do not use to brainstorm requirements — start with play-brainstorm.
+codex_sidecar:
+  interface:
+    display_name: "Planning"
+    short_description: "Write detailed implementation plans"
+    icon_small: "./assets/planning-small.svg"
+    brand_color: "#4f46e5"
 ---
 
 # Writing Plans

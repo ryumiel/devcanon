@@ -11,6 +11,7 @@ codex_sidecar:
   interface:
     display_name: GitHub Issue Priming
     short_description: Research and stage a GitHub issue for implementation
+    icon_small: "./assets/issue-small.svg"
     brand_color: "#24292f"
 ---
 

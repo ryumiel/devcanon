@@ -1,6 +1,12 @@
 ---
 name: play-brainstorm
 description: Guides executable ideas into approved designs saved to `.ephemeral/`, or emits a durable owner referral notice for non-executable work. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
+codex_sidecar:
+  interface:
+    display_name: "Brainstorm"
+    short_description: "Turn executable ideas into approved designs"
+    icon_small: "./assets/planning-small.svg"
+    brand_color: "#4f46e5"
 ---
 
 # Brainstorming Ideas Into Designs

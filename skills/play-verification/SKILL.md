@@ -1,6 +1,12 @@
 ---
 name: play-verification
 description: Evidence-backed completion gate that blocks unverified status claims. Use when about to claim work is complete, fixed, or passing, before committing or creating PRs.
+codex_sidecar:
+  interface:
+    display_name: "Verification"
+    short_description: "Gate completion with evidence"
+    icon_small: "./assets/verification-small.svg"
+    brand_color: "#0f766e"
 ---
 
 # Verification Before Completion

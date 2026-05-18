@@ -1,6 +1,12 @@
 ---
 name: issue-worktree-setup
 description: Provisions an isolated worktree for issue work as the single source of truth for worktree-setup policy across consumer skills. Use when a workflow needs an issue worktree from either the primary checkout or a managed worktree.
+codex_sidecar:
+  interface:
+    display_name: "Issue Worktree Setup"
+    short_description: "Provision isolated worktrees for issue work"
+    icon_small: "./assets/git-small.svg"
+    brand_color: "#7c3aed"
 ---
 
 # Issue Worktree Setup

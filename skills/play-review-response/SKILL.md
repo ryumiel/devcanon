@@ -1,6 +1,12 @@
 ---
 name: play-review-response
 description: Verification-first response to code review feedback. Use when receiving code review feedback, especially if feedback seems unclear or technically questionable.
+codex_sidecar:
+  interface:
+    display_name: "Review Response"
+    short_description: "Verify and address code review feedback"
+    icon_small: "./assets/review-small.svg"
+    brand_color: "#16a34a"
 ---
 
 # Code Review Reception

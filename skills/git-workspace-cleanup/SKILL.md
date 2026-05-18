@@ -1,6 +1,12 @@
 ---
 name: git-workspace-cleanup
 description: Deterministic cleanup of Git worktrees and local branches back to the remote default branch. Use when the user asks to clean all linked worktrees, return the primary checkout to the remote default branch, or delete local branches after work is complete.
+codex_sidecar:
+  interface:
+    display_name: "Git Workspace Cleanup"
+    short_description: "Clean worktrees and local branches"
+    icon_small: "./assets/git-small.svg"
+    brand_color: "#7c3aed"
 ---
 
 # Git Workspace Cleanup

@@ -1,6 +1,12 @@
 ---
 name: doc-gardening
 description: Audits a repository's documentation against the repository's own documentation standard, surfaces findings by severity, and applies user-selected fixes. Use when explicitly invoked with phrases like "garden docs", "documentation audit", "doc rot check", or "documentation health check". Do not use for incidental doc edits, prose rewrites, ADR drafting, or deciding what should be documented.
+codex_sidecar:
+  interface:
+    display_name: "Doc Gardening"
+    short_description: "Audit repository documentation health"
+    icon_small: "./assets/docs-small.svg"
+    brand_color: "#2563eb"
 ---
 
 # Doc Gardening

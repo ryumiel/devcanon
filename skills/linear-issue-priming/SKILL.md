@@ -11,6 +11,7 @@ codex_sidecar:
   interface:
     display_name: Linear Issue Priming
     short_description: Research and stage a Linear issue for implementation
+    icon_small: "./assets/issue-small.svg"
     brand_color: "#5e6ad2"
 ---
 
