@@ -91,13 +91,10 @@ describe("rendered phase artifact contracts", () => {
     expect(workflowBody).toContain(
       "research brief path exists but is not a regular file: $RESEARCH_BRIEF_PATH",
     );
-    expect(workflowBody).toContain(`\
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-  mkdir -p .ephemeral
-  [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"`);
     expect(workflowBody).toContain(
-      "nits pending path exists but is not a regular file: $NITS_PENDING_FILE",
+      "skills/play-review/scripts/review-artifacts.sh",
     );
+    expect(workflowBody).toContain("derive-nits-pending");
     expect(workflowBody).toContain(
       "assumptions comment path exists but is not a regular file: $ASSUMPTIONS_COMMENT_FILE",
     );
@@ -150,33 +147,22 @@ mkdir -p .ephemeral
       getSkillOutput(outputs, "play-review", "codex").content,
     ).body;
     expect(playReviewBody).toContain(
-      "nested findings path rejected: $FINDINGS_FILE",
+      "skills/play-review/scripts/review-artifacts.sh",
     );
-    expect(playReviewBody).toContain(".ephemeral/*-findings.json");
+    expect(playReviewBody).toContain("prepare-findings-write");
+    expect(playReviewBody).toContain("validate-findings");
+    expect(playReviewBody).toContain("play-review/findings/v1");
     expect(playReviewBody).toContain(
-      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
-    );
-    expect(playReviewBody).toContain(
-      'echo "findings path mismatch: $FINDINGS_FILE"',
+      ".ephemeral/<branch_slug>-<head_sha>-findings.json",
     );
     expect(playReviewBody).not.toContain(
       ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json",
     );
-    expectOrdered(
-      playReviewBody,
-      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json)",
-    );
-    expect(playReviewBody).toContain(`\
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-  mkdir -p .ephemeral
-  [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
-    expect(playReviewBody).toContain(
-      "findings path exists but is not a regular file: $FINDINGS_FILE",
-    );
+    expect(playReviewBody).not.toContain("EXPECTED_FINDINGS_FILE=");
+    expect(playReviewBody).not.toContain("BRANCH_SLUG=$(printf");
     expect(playReviewBody).toContain(`\
 : "\${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
-  CONTEXT_FILE=".ephemeral/\${BRANCH_SLUG}-\${HEAD_SHA}-review-context.md"
+  CONTEXT_FILE="\${FINDINGS_FILE%-findings.json}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"`);
@@ -186,34 +172,19 @@ mkdir -p .ephemeral
     expect(playReviewBody).toContain(
       ': "${HEAD_SHA:?trusted head_sha input required}"',
     );
-    expect(playReviewBody).toContain(
-      'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
-    );
-    expect(playReviewBody).toContain(
-      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
-    );
-    expect(playReviewBody).toContain(
-      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
-    );
-    expect(playReviewBody).toContain(
-      "captures before auto-fix commits and emits after processing",
-    );
+    expect(playReviewBody).toContain("`Review head: <40-hex-sha>.` notice");
 
     const playBranchFinishBody = parseFrontmatter(
       getSkillOutput(outputs, "play-branch-finish", "codex").content,
     ).body;
     expect(playBranchFinishBody).toContain(
+      "skills/play-review/scripts/review-artifacts.sh",
+    );
+    expect(playBranchFinishBody).toContain("validate-nits-file");
+    expect(playBranchFinishBody).toContain(
       "path MUST be a direct child of `.ephemeral/`",
     );
-    expect(playBranchFinishBody).toContain(
-      "nested nits_file path rejected: $NITS_FILE",
-    );
-    expect(playBranchFinishBody).toContain(
-      "nits_file must not be a symlink: $NITS_FILE",
-    );
-    expect(playBranchFinishBody).toContain(
-      "nits_file missing or not a regular file: $NITS_FILE",
-    );
+    expect(playBranchFinishBody).toContain("play-review/findings/v1");
     expect(playBranchFinishBody).toContain(
       "build each API comment from an allowlist",
     );
@@ -221,14 +192,6 @@ mkdir -p .ephemeral
       'map({path, line, start_line, body, side: "RIGHT"}',
     );
     expect(playBranchFinishBody).toContain("invalid nits payload fields");
-    expect(playBranchFinishBody).toContain(
-      ".ephemeral must be a directory, not a symlink",
-    );
-    expectOrdered(
-      playBranchFinishBody,
-      '.ephemeral/*/*) echo "nested nits_file path rejected: $NITS_FILE"',
-      ".ephemeral/*-findings.json|.ephemeral/*-nits-pending.json)",
-    );
 
     const branchReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "branch-review", "codex").content,
@@ -248,6 +211,11 @@ mkdir -p .ephemeral
     expect(branchReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
     );
+    expect(branchReviewBody).toContain(
+      "skills/play-review/scripts/review-artifacts.sh",
+    );
+    expect(branchReviewBody).toContain("validate-findings");
+    expect(branchReviewBody).toContain("prepare-findings-write");
     expect(branchReviewBody).toContain("Sub-check 1 (substitution audit) or");
     expect(branchReviewBody).toContain(
       "Sub-check 2\n     (documented-behavior verification)",
@@ -255,44 +223,13 @@ mkdir -p .ephemeral
     expect(branchReviewBody).toContain(
       "Hard-rule judgment-required blockers preserved in the remaining set",
     );
-    expect(branchReviewBody).toContain(
-      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
-    );
-    expect(branchReviewBody).toContain(
-      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
-    );
+    expect(branchReviewBody).toContain("play-review/findings/v1");
     expect(branchReviewBody).toContain(
       "all pre-fix findings except blockers that were successfully auto-fixed",
     );
     expect(branchReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(branchReviewBody).toContain(
-      "nested findings path rejected: $FINDINGS_FILE",
-    );
-    expect(branchReviewBody).toContain(
-      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
-    );
-    expect(branchReviewBody).toContain(
-      'echo "findings path mismatch: $FINDINGS_FILE"',
-    );
-    expectOrdered(
-      branchReviewBody,
-      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json)",
-    );
-    expect(branchReviewBody).toContain(
-      ".ephemeral must be a directory, not a symlink",
-    );
-    expect(branchReviewBody).toContain(
-      'echo "findings file missing or unreadable: $FINDINGS_FILE"',
-    );
-    expect(branchReviewBody).toContain(
       "After computing the remaining-set envelope from the validated file",
-    );
-    expect(branchReviewBody).toContain(
-      '[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"',
-    );
-    expect(branchReviewBody).toContain(
-      "findings path exists but is not a regular file: $FINDINGS_FILE",
     );
     expect(branchReviewBody).toContain(
       "Re-emit the (unchanged) `Findings written to <path>.` notice line",
@@ -307,7 +244,7 @@ mkdir -p .ephemeral
       getSkillOutput(outputs, "pr-review", "codex").content,
     ).body;
     expect(prReviewBody).toContain(
-      "Before opening `$FINDINGS_FILE`, run the canonical parsed-path guard",
+      "Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper",
     );
     expect(prReviewBody).toContain(
       "Immediately after `play-review` returns and before the Phase 5 user gate",
@@ -326,37 +263,11 @@ mkdir -p .ephemeral
     expect(prReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(prReviewBody).toContain('--arg commit_id "$REVIEW_HEAD_SHA"');
     expect(prReviewBody).toContain(
-      "nested findings path rejected: $FINDINGS_FILE",
+      "skills/play-review/scripts/review-artifacts.sh",
     );
-    expect(prReviewBody).toContain(
-      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
-    );
-    expect(prReviewBody).toContain(
-      'echo "findings path mismatch: $FINDINGS_FILE"',
-    );
-    expect(prReviewBody).toContain(
-      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
-    );
-    expect(prReviewBody).toContain(
-      'echo "findings file missing or not a regular file: $FINDINGS_FILE"',
-    );
-    expect(prReviewBody).toContain(
-      'FINDINGS_FILE_ABS="$WORKING_DIRECTORY/$FINDINGS_FILE"',
-    );
-    expect(prReviewBody).toContain(
-      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE_ABS"',
-    );
-    expect(prReviewBody).toContain(
-      ".ephemeral must be a directory, not a symlink",
-    );
-    expect(prReviewBody).toContain(
-      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE_ABS"',
-    );
-    expectOrdered(
-      prReviewBody,
-      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json)",
-    );
+    expect(prReviewBody).toContain("validate-findings");
+    expect(prReviewBody).toContain("play-review/findings/v1");
+    expect(prReviewBody).toContain("fail closed before posting");
 
     const gatePrompt = await readFile(
       path.join(

@@ -837,46 +837,22 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase6Section).toContain(
       'ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"',
     );
+    expect(issuePhase6Section).toContain('PLAN_PATH="$PLAN_PATH"');
     expect(issuePhase6Section).toContain(
-      'AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-${ISSUE_PRIMING_AUTO_HEAD}.json"',
-    );
-    expect(issuePhase6Section).toContain("mkdir -p .ephemeral");
-    expect(issuePhase6Section).toContain(
-      '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
+      'bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"',
     );
     expect(issuePhase6Section).toContain(
-      '[ ! -d "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path is a directory: $AUTO_HANDOFF_FILE"',
+      "prints the repo-relative artifact path",
     );
-    expect(issuePhase6Section).toContain(
-      '[ ! -e "$AUTO_HANDOFF_FILE" ] || [ -f "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path exists but is not a regular file: $AUTO_HANDOFF_FILE"',
-    );
-    expectOrdered(
-      issuePhase6Section,
-      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
-      "mkdir -p .ephemeral",
-    );
-    expectOrdered(
-      issuePhase6Section,
-      "mkdir -p .ephemeral",
-      '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
-    );
-    expect(issuePhase6Section).toContain(
-      'AUTO_HANDOFF_TMP=$(mktemp ".ephemeral/issue-priming-auto-handoff.XXXXXX")',
-    );
-    expect(issuePhase6Section).toContain(
-      'schema: "issue-priming/auto-handoff/v1"',
-    );
-    expect(issuePhase6Section).toContain('phase: "issue-priming-workflow:6"');
-    expect(issuePhase6Section).toContain('mode: "auto"');
-    expect(issuePhase6Section).toContain("plan_path: $plan");
-    expect(issuePhase6Section).toContain("head_sha: $head");
+    expect(issuePhase6Section).toContain("unsafe-path and repository-root");
+    expect(issuePhase6Section).toContain("`issue-priming/auto-handoff/v1`");
+    expect(issuePhase6Section).toContain("`issue-priming-workflow:6`");
     expect(issuePhase6Section).toContain(
       "phase7_branch_review_fix_required: true",
     );
     expect(issuePhase6Section).toContain("phase7_rerun_after_commits: true");
-    expect(issuePhase6Section).toContain(
-      'mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"',
-    );
+    expect(issuePhase6Section).not.toContain("AUTO_HANDOFF_TMP=");
+    expect(issuePhase6Section).not.toContain('mv "$AUTO_HANDOFF_TMP"');
     expect(issuePhase6Section).toContain("Plan: <PLAN_PATH captured above>");
     expect(issuePhase6Section).toContain("Auto handoff: <repo-relative-path>");
     expect(normalizeWhitespace(issuePhase6Section)).toContain(
@@ -942,49 +918,17 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain(
       'echo "branch-review review head invalid: $REVIEW_HEAD_SHA"',
     );
-    expect(issuePhase7Section).toContain(".ephemeral/*-findings.json");
     expect(issuePhase7Section).toContain(
-      "nested findings path rejected: $FINDINGS_FILE",
+      "skills/play-review/scripts/review-artifacts.sh",
     );
+    expect(issuePhase7Section).toContain("validate-findings");
+    expect(issuePhase7Section).toContain("derive-nits-pending");
+    expect(issuePhase7Section).toContain("play-review/findings/v1");
     expect(issuePhase7Section).toContain(
-      'EXPECTED_FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"',
-    );
-    expect(issuePhase7Section).toContain(
-      'echo "findings path mismatch: $FINDINGS_FILE"',
-    );
-    expect(issuePhase7Section).toContain(
-      'echo "findings file must not be a symlink: $FINDINGS_FILE"',
-    );
-    expect(issuePhase7Section).toContain(
-      ".ephemeral must be a directory, not a symlink",
+      "canonical `-nits-pending.json` sibling path",
     );
     expect(issuePhase7Section).toContain(
       "If any mechanical nit commit is made, rerun `branch-review --fix` on the new `HEAD`",
-    );
-    expect(issuePhase7Section).toContain(
-      'jq -e \'.schema == "play-review/findings/v1"\' "$FINDINGS_FILE"',
-    );
-    expectOrdered(
-      issuePhase7Section,
-      '.ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE"',
-      ".ephemeral/*-findings.json) ;;",
-    );
-    expect(issuePhase7Section).toContain(
-      'echo "play-review path validation failed: $FINDINGS_FILE"',
-    );
-    expect(issuePhase7Section).toContain(
-      'echo "path traversal: $FINDINGS_FILE"',
-    );
-    expect(issuePhase7Section).toContain(
-      "nested nits path rejected: $NITS_PENDING_FILE",
-    );
-    expectOrdered(
-      issuePhase7Section,
-      '.ephemeral/*/*) echo "nested nits path rejected: $NITS_PENDING_FILE"',
-      ".ephemeral/*-nits-pending.json) ;;",
-    );
-    expect(issuePhase7Section).toContain(
-      'echo "path traversal: $NITS_PENDING_FILE"',
     );
     expect(issuePhase7Section).toContain(
       'Ignore `critic: "INVALID"` findings for continuation',
