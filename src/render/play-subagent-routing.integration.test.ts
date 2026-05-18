@@ -846,6 +846,18 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(issuePhase6Section).toContain("AUTO_HANDOFF_HELPER");
     expect(issuePhase6Section).toContain('bash "$AUTO_HANDOFF_HELPER"');
+    const autoHandoffSnippet = `\
+ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
+AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
+ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
+AUTO_HANDOFF_FILE=$(
+  PLAN_PATH="$PLAN_PATH" \\
+    bash "$AUTO_HANDOFF_HELPER"
+)`;
+    expect(issuePhase6Section).toContain(autoHandoffSnippet);
+    expect(issuePhase6Section.indexOf(autoHandoffSnippet)).toBeLessThan(
+      issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
+    );
     expect(issuePhase6Section).toContain(
       "prints the repo-relative artifact path",
     );
@@ -930,6 +942,33 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain("PLAY_REVIEW_HELPER");
     expect(issuePhase7Section).toContain("validate-findings");
     expect(issuePhase7Section).toContain("derive-nits-pending");
+    const phase7ValidateSnippet = `\
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+case "$REVIEW_HEAD_SHA" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+  *) echo "branch-review review head invalid: $REVIEW_HEAD_SHA" >&2; exit 1 ;;
+esac
+HEAD_SHA="$REVIEW_HEAD_SHA"
+HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\
+  bash "$PLAY_REVIEW_HELPER" validate-findings`;
+    const phase7DeriveSnippet = `\
+NITS_PENDING_FILE=$(
+    HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\
+      bash "$PLAY_REVIEW_HELPER" derive-nits-pending
+  )`;
+    expect(issuePhase7Section).toContain(phase7ValidateSnippet);
+    expect(issuePhase7Section).toContain(phase7DeriveSnippet);
+    expectOrdered(
+      issuePhase7Section,
+      phase7ValidateSnippet,
+      "After the guard passes, load `findings[]` from the file",
+    );
+    expectOrdered(
+      issuePhase7Section,
+      phase7DeriveSnippet,
+      'The Phase 8 step "Pass nits to `play-branch-finish`"',
+    );
     expect(issuePhase7Section).toContain("play-review/findings/v1");
     expect(issuePhase7Section).toContain(
       "canonical `-nits-pending.json` sibling path",

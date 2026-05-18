@@ -20,6 +20,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
+const mkfifoAvailable = await commandAvailable("mkfifo");
 const helperScript = path.join(
   process.cwd(),
   "skills/play-review/scripts/review-artifacts.sh",
@@ -66,6 +67,30 @@ async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
   );
 }
 
+async function writeRawEnvelope(
+  cwd: string,
+  relPath: string,
+  envelope: unknown,
+): Promise<void> {
+  await writeFile(path.join(cwd, relPath), JSON.stringify(envelope));
+}
+
+function finding(overrides: Record<string, unknown> = {}) {
+  return {
+    path: "skills/play-review/SKILL.md",
+    line: 42,
+    start_line: null,
+    severity: "Blocking",
+    category: "Contracts",
+    critic: "VALID",
+    anchor: "natural",
+    why: "The contract would otherwise be ambiguous.",
+    recommendation: "Keep the helper contract explicit.",
+    body: "**Blocking | Contracts** - The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
+    ...overrides,
+  };
+}
+
 async function runHelper(
   cwd: string,
   command: string,
@@ -90,8 +115,24 @@ describe("play-review review artifact helper", () => {
   it("validates findings and nits envelopes", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
-      await writeEnvelope(cwd, findingsFile);
-      await writeEnvelope(cwd, nitsFile);
+      const nonEmptyEnvelope = {
+        schema: "play-review/findings/v1",
+        findings: [finding()],
+        carry_forward: [
+          finding({
+            line: 44,
+            start_line: 40,
+            severity: "Nit",
+            category: "Tests",
+            critic: null,
+            why: "The coverage should prove non-empty carry-forward entries.",
+            recommendation: "Keep this positive fixture.",
+            body: "**Nit | Tests** - The coverage should prove non-empty carry-forward entries.\n\n**Recommendation:** Keep this positive fixture.",
+          }),
+        ],
+      };
+      await writeRawEnvelope(cwd, findingsFile, nonEmptyEnvelope);
+      await writeRawEnvelope(cwd, nitsFile, nonEmptyEnvelope);
 
       await expect(
         runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
@@ -305,6 +346,60 @@ describe("play-review review artifact helper", () => {
     }
   });
 
+  it("rejects malformed envelope shapes before consumers read them", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    const malformedEnvelopes = [
+      {
+        schema: "play-review/findings/v1",
+        findings: "not-array",
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: {},
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [
+          {
+            ...finding(),
+            body: undefined,
+          },
+        ],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [finding({ path: "../../outside" })],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [finding({ severity: "Nit", critic: "VALID" })],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [finding({ severity: "Blocking", critic: null })],
+        carry_forward: [],
+      },
+    ];
+
+    try {
+      for (const envelope of malformedEnvelopes) {
+        await writeRawEnvelope(cwd, findingsFile, envelope);
+        await expect(
+          runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("envelope shape mismatch"),
+        });
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it.skipIf(!symlinkAvailable)(
     "rejects a symlinked .ephemeral directory",
     async () => {
@@ -412,48 +507,48 @@ describe("play-review review artifact helper", () => {
     }
   });
 
-  it("rejects non-regular findings write targets when mkfifo is available", async () => {
-    if (!(await commandAvailable("mkfifo"))) {
-      return;
-    }
+  it.skipIf(!mkfifoAvailable)(
+    "rejects non-regular findings write targets when mkfifo is available",
+    async () => {
+      const cwd = await makeTopicGitWorkspace();
+      try {
+        await execFileAsync("mkfifo", [path.join(cwd, findingsFile)]);
 
-    const cwd = await makeTopicGitWorkspace();
-    try {
-      await execFileAsync("mkfifo", [path.join(cwd, findingsFile)]);
+        await expect(
+          runHelper(cwd, "prepare-findings-write", {
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings path exists but is not a regular file",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
-      await expect(
-        runHelper(cwd, "prepare-findings-write", {
-          FINDINGS_FILE: findingsFile,
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "findings path exists but is not a regular file",
-        ),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+  it.skipIf(!mkfifoAvailable)(
+    "rejects non-regular derived nits-pending targets when mkfifo is available",
+    async () => {
+      const cwd = await makeTopicGitWorkspace();
+      try {
+        await writeEnvelope(cwd, findingsFile);
+        await execFileAsync("mkfifo", [path.join(cwd, nitsFile)]);
 
-  it("rejects non-regular derived nits-pending targets when mkfifo is available", async () => {
-    if (!(await commandAvailable("mkfifo"))) {
-      return;
-    }
-
-    const cwd = await makeTopicGitWorkspace();
-    try {
-      await writeEnvelope(cwd, findingsFile);
-      await execFileAsync("mkfifo", [path.join(cwd, nitsFile)]);
-
-      await expect(
-        runHelper(cwd, "derive-nits-pending", { FINDINGS_FILE: findingsFile }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "nits pending path exists but is not a regular file",
-        ),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        await expect(
+          runHelper(cwd, "derive-nits-pending", {
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "nits pending path exists but is not a regular file",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 });

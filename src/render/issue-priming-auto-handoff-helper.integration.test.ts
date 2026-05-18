@@ -195,6 +195,9 @@ describe("issue-priming auto-handoff helper", () => {
     try {
       await chmod(absolutePlanPath, 0o000);
       try {
+        await readFile(absolutePlanPath);
+        return;
+      } catch {
         await expect(runHelper(cwd)).rejects.toMatchObject({
           stderr: expect.stringContaining("plan missing or unreadable"),
         });

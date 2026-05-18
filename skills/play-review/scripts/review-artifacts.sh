@@ -107,8 +107,39 @@ assert_readable_envelope() {
     echo "$label missing or unreadable: $file" >&2
     exit 1
   }
-  jq -e '.schema == "play-review/findings/v1"' "$file" >/dev/null || {
-    echo "envelope schema mismatch: $file" >&2
+  jq -e '
+    def one_of($values; $value): ($values | index($value)) != null;
+    def positive_integer:
+      type == "number" and . == floor and . >= 1;
+    def repo_relative_path:
+      type == "string"
+      and length > 0
+      and (startswith("/") | not)
+      and (split("/") | all(. != "" and . != "." and . != ".."));
+    def valid_critic:
+      if .severity == "Nit" then
+        .critic == null
+      else
+        one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
+      end;
+    def valid_finding:
+      type == "object"
+      and (.path | repo_relative_path)
+      and (.line | positive_integer)
+      and (.start_line == null or (.start_line | positive_integer))
+      and one_of(["Blocking", "Nit"]; .severity)
+      and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
+      and valid_critic
+      and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
+      and (.why | type == "string")
+      and (.recommendation | type == "string")
+      and (.body | type == "string");
+    .schema == "play-review/findings/v1"
+    and (.findings | type == "array")
+    and (.carry_forward | type == "array")
+    and ((.findings + .carry_forward) | all(.[]; valid_finding))
+  ' "$file" >/dev/null || {
+    echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
     exit 1
   }
 }

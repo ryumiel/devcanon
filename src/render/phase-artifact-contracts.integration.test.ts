@@ -155,6 +155,29 @@ mkdir -p .ephemeral
     expect(playReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(playReviewBody).toContain("prepare-findings-write");
     expect(playReviewBody).toContain("validate-findings");
+    const prepareFindingsSnippet = `\
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+FINDINGS_FILE=$(
+  HEAD_SHA="$HEAD_SHA" \\
+    bash "$PLAY_REVIEW_HELPER" prepare-findings-write
+)`;
+    const validateFindingsSnippet = `\
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+HEAD_SHA="$REVIEW_HEAD_SHA" \\
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \\
+  bash "$PLAY_REVIEW_HELPER" validate-findings`;
+    expect(playReviewBody).toContain(prepareFindingsSnippet);
+    expect(playReviewBody).toContain(validateFindingsSnippet);
+    expect(playReviewBody.indexOf(prepareFindingsSnippet)).toBeLessThan(
+      playReviewBody.indexOf("The helper enforces repository-root execution"),
+    );
+    expect(playReviewBody.indexOf(validateFindingsSnippet)).toBeLessThan(
+      playReviewBody.indexOf(
+        "Findings-file consumers fail closed before opening",
+      ),
+    );
     expect(playReviewBody).toContain("play-review/findings/v1");
     expect(playReviewBody).toContain(
       ".ephemeral/<branch_slug>-<head_sha>-findings.json",
@@ -224,6 +247,38 @@ mkdir -p .ephemeral
     expect(branchReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(branchReviewBody).toContain("validate-findings");
     expect(branchReviewBody).toContain("prepare-findings-write");
+    const branchReviewValidateSnippet = `\
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
+HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\
+  bash "$PLAY_REVIEW_HELPER" validate-findings`;
+    const branchReviewPrepareSnippet = `\
+HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\
+  bash "$PLAY_REVIEW_HELPER" prepare-findings-write`;
+    expect(branchReviewBody).toContain(branchReviewValidateSnippet);
+    expect(branchReviewBody).toContain(branchReviewPrepareSnippet);
+    expectOrdered(
+      branchReviewBody,
+      "Then **overwrite the side-channel findings file in place**",
+      branchReviewValidateSnippet,
+    );
+    expectOrdered(
+      branchReviewBody,
+      branchReviewValidateSnippet,
+      "After computing the remaining-set envelope from the validated file",
+    );
+    expectOrdered(
+      branchReviewBody,
+      "After computing the remaining-set envelope from the validated file",
+      branchReviewPrepareSnippet,
+    );
+    expectOrdered(
+      branchReviewBody,
+      branchReviewPrepareSnippet,
+      "The remaining-set `findings[]` contains all pre-fix findings",
+    );
     expect(branchReviewBody).toContain("Sub-check 1 (substitution audit) or");
     expect(branchReviewBody).toContain(
       "Sub-check 2\n     (documented-behavior verification)",
