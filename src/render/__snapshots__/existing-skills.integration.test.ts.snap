@@ -109,6 +109,8 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#0f766e",
     "display_name": "Report Shared Issue",
+    "icon_large": "./assets/devcanon-skill-icon-large.png",
+    "icon_small": "./assets/devcanon-skill-icon-small.png",
     "short_description": "Draft and post reusable shared-work issues to DevCanon",
   },
 }
