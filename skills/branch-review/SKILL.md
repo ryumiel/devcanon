@@ -129,7 +129,7 @@ Then report:
 - Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
   1 Safety or Sub-check 2 Contracts)
 
-Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening or overwriting `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`, then use the `Write` tool for atomic replacement and reuse the canonical symlink guard from `play-review`'s Write rules before writing:
+Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening or overwriting `$FINDINGS_FILE`, run the canonical parsed-path guard from `play-review`, then use the `Write` tool for atomic replacement and reuse the canonical write-target guard from `play-review`'s Write rules before writing:
 
 ```bash
 HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
@@ -165,6 +165,8 @@ leaf that appeared after the read guard:
 
 ```bash
 [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"
+[ ! -d "$FINDINGS_FILE" ] || { echo "findings path is a directory: $FINDINGS_FILE" >&2; exit 1; }
+[ ! -e "$FINDINGS_FILE" ] || [ -f "$FINDINGS_FILE" ] || { echo "findings path exists but is not a regular file: $FINDINGS_FILE" >&2; exit 1; }
 ```
 
 The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.

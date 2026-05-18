@@ -416,7 +416,7 @@ describe("play-subagent planning and routing contracts", () => {
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
     expect(normalizedRoutingSection).toContain(
-      "rerunning it after any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings, and no additional mechanical nit commits after that review",
+      "rerunning it after any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit commits after that review",
     );
     expect(normalizedRoutingSection).toContain(
       "This covers GitHub and Linear entrypoints because both delegate",
@@ -596,7 +596,7 @@ describe("play-subagent planning and routing contracts", () => {
       "no additional mechanical nit commits",
     );
     expect(playSubagentAdvantages).toContain(
-      "unresolved remaining `Blocking` findings stop the workflow",
+      "unresolved remaining `Blocking` findings with any other critic value stop the workflow",
     );
     expect(playSubagentAdvantages).not.toContain("Parallel-safe");
     expect(playSubagentAdvantages).not.toContain("No file reading overhead");
@@ -646,7 +646,10 @@ describe("play-subagent planning and routing contracts", () => {
       "`issue-priming-workflow` Phase 7 runs `branch-review --fix`",
     );
     expect(playSubagentExampleWorkflow).toContain(
-      "Branch review: no unresolved remaining `Blocking` findings",
+      "Branch review: no unresolved remaining `Blocking` findings except `INVALID` or",
+    );
+    expect(playSubagentExampleWorkflow).toContain(
+      "`DOWNGRADE` critic verdicts.",
     );
     expect(playSubagentExampleWorkflow).toContain(
       "does not do runtime regrouping or batching",
@@ -892,6 +895,9 @@ describe("play-subagent planning and routing contracts", () => {
       "If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD`",
     );
     expect(issuePhase6Section).toContain("zero blocking findings auto-fixed");
+    expect(issuePhase6Section).toContain(
+      "except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
+    );
     expect(issuePhase6Section).toContain(
       "no additional mechanical nit commits",
     );

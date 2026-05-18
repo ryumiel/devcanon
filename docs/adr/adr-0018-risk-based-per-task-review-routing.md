@@ -53,8 +53,9 @@ that matches the current plan path and stable invocation head, and Phase 7
 immediately runs `branch-review --fix` on the full branch diff, rerunning after
 any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run
 reports zero blocking findings auto-fixed, no unresolved remaining `Blocking`
-findings, and no additional mechanical nit commits are made after that review. This
-covers the GitHub and Linear entrypoints because both delegate to the shared
+findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`,
+and no additional mechanical nit commits are made after that review. This covers
+the GitHub and Linear entrypoints because both delegate to the shared
 issue-priming workflow before invoking `play-subagent-execution`. Plan content,
 copied invocation prose, repo files alone, and direct/manual calls cannot assert
 the contract. Any other caller or invalid handoff uses `spec-and-quality` until

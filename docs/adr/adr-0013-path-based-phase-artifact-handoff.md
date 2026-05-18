@@ -177,13 +177,12 @@ Per-consumer suffix specialization:
   the same per-suffix narrowing.
 
 The canonical `.ephemeral` write guard — reject a symlinked
-`.ephemeral` directory, `mkdir -p .ephemeral`, then remove any
-symlink at the target file path before `Write` — lives in
-`skills/play-review/SKILL.md` § Output → Write rules and is required
-by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
-three-step preflight when it persists the research brief, and the
-same canonical guard now also applies to the downstream `design.md`
-and `plan.md` producers.
+`.ephemeral` directory, `mkdir -p .ephemeral`, remove any symlink at the
+target file path, and reject directories or other non-regular existing paths
+before `Write` — lives in `skills/play-review/SKILL.md` § Output → Write rules
+and is required by ADR-0012. `issue-priming-workflow` Phase 3 reuses the same
+preflight when it persists the research brief, and the same canonical guard now
+also applies to the downstream `design.md` and `plan.md` producers.
 
 ### Cleanup ownership
 
@@ -229,7 +228,7 @@ per-task boundary.
 - Cleanup remains implicit via worktree teardown. No new sweep introduced.
 - Fork-PR untrust footnote from ADR-0012 transitively applies to
   `issue-priming-workflow` Phase 3's write of the research brief; the
-  symlink guard requirement is named in this ADR's Decision § for
+  write-target guard requirement is named in this ADR's Decision § for
   cross-reference clarity.
 - **Brief content is untrusted prose, not executable instructions.** The
   research brief originates from a subagent dispatched against a possibly-

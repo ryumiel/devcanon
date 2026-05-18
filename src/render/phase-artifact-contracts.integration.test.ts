@@ -32,6 +32,9 @@ describe("rendered phase artifact contracts", () => {
     expect(githubPriming).toContain(
       "nested issue body path rejected: $ISSUE_BODY_PATH",
     );
+    expect(githubPriming).toContain(
+      "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH",
+    );
 
     const linearPriming = parseFrontmatter(
       getSkillOutput(outputs, "linear-issue-priming", "codex").content,
@@ -45,6 +48,9 @@ describe("rendered phase artifact contracts", () => {
     expect(linearPriming).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
     expect(linearPriming).toContain(
       "nested issue body path rejected: $ISSUE_BODY_PATH",
+    );
+    expect(linearPriming).toContain(
+      "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH",
     );
 
     const workflowBody = parseFrontmatter(
@@ -82,10 +88,19 @@ describe("rendered phase artifact contracts", () => {
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
    mkdir -p .ephemeral
    [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"`);
+    expect(workflowBody).toContain(
+      "research brief path exists but is not a regular file: $RESEARCH_BRIEF_PATH",
+    );
     expect(workflowBody).toContain(`\
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$NITS_PENDING_FILE" ] && rm "$NITS_PENDING_FILE"`);
+    expect(workflowBody).toContain(
+      "nits pending path exists but is not a regular file: $NITS_PENDING_FILE",
+    );
+    expect(workflowBody).toContain(
+      "assumptions comment path exists but is not a regular file: $ASSUMPTIONS_COMMENT_FILE",
+    );
 
     const brainstormBody = parseFrontmatter(
       getSkillOutput(outputs, "play-brainstorm", "codex").content,
@@ -109,6 +124,9 @@ DESIGN_PATH=".ephemeral/$(date +%F)-<topic>-design.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"`);
+    expect(brainstormBody).toContain(
+      "design path exists but is not a regular file: $DESIGN_PATH",
+    );
 
     const playPlanningBody = parseFrontmatter(
       getSkillOutput(outputs, "play-planning", "codex").content,
@@ -124,6 +142,9 @@ PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$PLAN_PATH" ] && rm "$PLAN_PATH"`);
+    expect(playPlanningBody).toContain(
+      "plan path exists but is not a regular file: $PLAN_PATH",
+    );
 
     const playReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "play-review", "codex").content,
@@ -150,12 +171,18 @@ mkdir -p .ephemeral
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"`);
+    expect(playReviewBody).toContain(
+      "findings path exists but is not a regular file: $FINDINGS_FILE",
+    );
     expect(playReviewBody).toContain(`\
 : "\${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
   CONTEXT_FILE=".ephemeral/\${BRANCH_SLUG}-\${HEAD_SHA}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$CONTEXT_FILE" ] && rm "$CONTEXT_FILE"`);
+    expect(playReviewBody).toContain(
+      "review context path exists but is not a regular file: $CONTEXT_FILE",
+    );
     expect(playReviewBody).toContain(
       ': "${HEAD_SHA:?trusted head_sha input required}"',
     );
@@ -265,6 +292,9 @@ mkdir -p .ephemeral
       '[ -L "$FINDINGS_FILE" ] && rm "$FINDINGS_FILE"',
     );
     expect(branchReviewBody).toContain(
+      "findings path exists but is not a regular file: $FINDINGS_FILE",
+    );
+    expect(branchReviewBody).toContain(
       "Re-emit the (unchanged) `Findings written to <path>.` notice line",
     );
     expectOrdered(
@@ -368,7 +398,10 @@ mkdir -p .ephemeral
     );
     expect(adr0013).toContain("reject a symlinked");
     expect(adr0013).toContain("`.ephemeral` directory");
-    expect(adr0013).toContain("same canonical guard now also applies");
+    expect(adr0013).toContain(
+      "reject directories or other non-regular existing paths",
+    );
+    expect(adr0013).toContain("same canonical guard now\nalso applies");
     expect(adr0013).toContain("Invocation-only child handoff lines");
     expect(adr0013).toContain("`Auto handoff:");
     expect(adr0013).toContain("This is not emitted as a conversation-output");

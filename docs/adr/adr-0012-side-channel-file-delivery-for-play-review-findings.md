@@ -179,12 +179,13 @@ Consumer responsibilities:
   `.ephemeral/<…>-findings.json`. Because the `Write` tool follows
   symlinks, an unguarded write would land attacker-chosen content at
   the link's target. `play-review`'s Write rules (see
-  `skills/play-review/SKILL.md` § Output) now require a three-step
+  `skills/play-review/SKILL.md` § Output) now require a write-target
   preflight before writing: reject a symlinked `.ephemeral`
-  directory, `mkdir -p .ephemeral`, then remove any symlink at the
-  target file path. `branch-review --fix` and
-  `issue-priming-workflow` Phase 7 inherit the same requirement when
-  they overwrite or derive a sibling file.
+  directory, `mkdir -p .ephemeral`, remove any symlink at the target
+  file path, and reject directories or other non-regular existing
+  paths. `branch-review --fix` and `issue-priming-workflow` Phase 7
+  inherit the same requirement when they overwrite or derive a sibling
+  file.
 - ADR-0010's "no-I/O boundary" paraphrase is corrected here. The
   remaining wrapper-disposition boundary (no GitHub calls, no auto-fix,
   no worktree mutation) is unchanged and still authoritative for

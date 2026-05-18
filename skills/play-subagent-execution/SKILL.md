@@ -278,10 +278,10 @@ the shared `issue-priming-workflow --auto` Phase 6 path. The parent workflow
 owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
 full branch diff, rerunning it after any Phase 7 commit (auto-fixed blockers
 or mechanical nit fixes) until a run reports zero blocking findings
-auto-fixed, no unresolved remaining `Blocking` findings, and no additional
-mechanical nit commits after that review. This covers GitHub and Linear entrypoints
-because both delegate to the shared issue-priming workflow before invoking
-this skill.
+auto-fixed, no unresolved remaining `Blocking` findings except findings whose
+`critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit
+commits after that review. This covers GitHub and Linear entrypoints because
+both delegate to the shared issue-priming workflow before invoking this skill.
 
 Treat the reduced-route contract as verified only when this controller is
 already executing an active parent-owned `issue-priming-workflow --auto` Phase

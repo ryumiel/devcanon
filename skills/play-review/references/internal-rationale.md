@@ -12,7 +12,7 @@ internal to `play-review`: only Phase 3 agents dispatched by this skill
 read it, and the path is computed and embedded in their prompts by this
 skill — never parsed off conversation prose by an external caller. No
 consumer-side validation is needed _as long as_ this file remains
-internal to `play-review`'s Phase 3 dispatch; the symlink guard at write
+internal to `play-review`'s Phase 3 dispatch; the write-target guard at write
 time is sufficient under that invariant. If a future change exposes the
 shared review-context file to external readers, restore the validation
 guard described in § Output.

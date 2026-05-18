@@ -22,6 +22,8 @@ PLAN_PATH=".ephemeral/$(date +%F)-<feature-name>-plan.md"
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ -L "$PLAN_PATH" ] && rm "$PLAN_PATH"
+[ ! -d "$PLAN_PATH" ] || { echo "plan path is a directory: $PLAN_PATH" >&2; exit 1; }
+[ ! -e "$PLAN_PATH" ] || [ -f "$PLAN_PATH" ] || { echo "plan path exists but is not a regular file: $PLAN_PATH" >&2; exit 1; }
 ```
 
 After writing, emit the literal line `Plan written to <repo-relative-path>.`

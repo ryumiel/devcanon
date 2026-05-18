@@ -278,6 +278,8 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral
   [ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"
+  [ ! -d "$DESIGN_PATH" ] || { echo "design path is a directory: $DESIGN_PATH" >&2; exit 1; }
+  [ ! -e "$DESIGN_PATH" ] || [ -f "$DESIGN_PATH" ] || { echo "design path exists but is not a regular file: $DESIGN_PATH" >&2; exit 1; }
   ```
 
 - After writing, emit the literal line `Design written to <repo-relative-path>.` to the conversation. This is the contract surface `play-planning` reads — do not reword it.
