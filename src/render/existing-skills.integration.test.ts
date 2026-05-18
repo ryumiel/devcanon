@@ -606,21 +606,18 @@ describe("existing skills render cleanly", () => {
     const playAgentDispatchBody = bodyFor("play-agent-dispatch");
     const prMergeBody = bodyFor("pr-merge");
 
-    for (const [skillName, body] of [
-      ["issue-priming-workflow", issuePrimingWorkflowBody],
-      ["play-review", playReviewBody],
-      ["play-planning", playPlanningBody],
-      ["play-agent-dispatch", playAgentDispatchBody],
-      ["pr-merge", prMergeBody],
-    ] as const) {
+    const expectSharedLifecycleReference = (
+      section: string,
+      sectionName: string,
+    ) => {
       expect(
-        body,
-        `${skillName} should reference subagent-lifecycle`,
+        section,
+        `${sectionName} should reference subagent-lifecycle`,
       ).toContain("subagent-lifecycle");
-      expect(body).toContain("target-honest cleanup outcomes");
-      expect(body).toContain("slot-limit");
-      expect(body).toContain("recovery");
-    }
+      expect(section).toContain("target-honest cleanup outcomes");
+      expect(section).toContain("slot-limit");
+      expect(section).toContain("recovery");
+    };
 
     const issueLifecycleStart = issuePrimingWorkflowBody.indexOf(
       "## Subagent Lifecycle",
@@ -633,6 +630,10 @@ describe("existing skills render cleanly", () => {
     const issueLifecycleSection = issuePrimingWorkflowBody.slice(
       issueLifecycleStart,
       issueLifecycleEnd,
+    );
+    expectSharedLifecycleReference(
+      issueLifecycleSection,
+      "issue-priming-workflow lifecycle section",
     );
     expect(issueLifecycleSection).toContain(
       "Before dispatching the Phase 2 gate agent",
@@ -653,6 +654,7 @@ describe("existing skills render cleanly", () => {
       issuePhase6Start,
       issuePhase6End,
     );
+    expect(issuePhase6Section).toContain("subagent-lifecycle");
     expect(issuePhase6Section).toContain(
       "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
     );
@@ -672,6 +674,10 @@ describe("existing skills render cleanly", () => {
       playReviewPhase3Start,
       playReviewPhase3End,
     );
+    expectSharedLifecycleReference(
+      playReviewPhase3Section,
+      "play-review Phase 3",
+    );
     expect(playReviewPhase3Section).toContain(
       "Before spawning Phase 3 reviewer agents",
     );
@@ -688,6 +694,7 @@ describe("existing skills render cleanly", () => {
       playReviewCriticStart,
       playReviewCriticEnd,
     );
+    expect(playReviewCriticSection).toContain("subagent-lifecycle");
     expect(playReviewCriticSection).toContain(
       "Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate",
     );
@@ -701,6 +708,10 @@ describe("existing skills render cleanly", () => {
     const playPlanningReviewSection = playPlanningBody.slice(
       playPlanningReviewStart,
       playPlanningReviewEnd,
+    );
+    expectSharedLifecycleReference(
+      playPlanningReviewSection,
+      "play-planning Plan Review",
     );
     expect(playPlanningReviewSection).toContain(
       "Before dispatching the plan-review agent",
@@ -719,6 +730,10 @@ describe("existing skills render cleanly", () => {
     const playAgentDispatchSection = playAgentDispatchBody.slice(
       playAgentDispatchStart,
       playAgentDispatchEnd,
+    );
+    expectSharedLifecycleReference(
+      playAgentDispatchSection,
+      "play-agent-dispatch parallel dispatch",
     );
     expect(playAgentDispatchSection).toContain("Before parallel dispatch");
     expect(playAgentDispatchSection).toContain(
@@ -742,6 +757,10 @@ describe("existing skills render cleanly", () => {
     const prMergeInvestigationSection = prMergeBody.slice(
       prMergeInvestigationStart,
       prMergeInvestigationEnd,
+    );
+    expectSharedLifecycleReference(
+      prMergeInvestigationSection,
+      "pr-merge CI investigation",
     );
     expect(prMergeInvestigationSection).toContain(
       "Before dispatching the CI investigation agent",

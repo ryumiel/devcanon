@@ -997,6 +997,10 @@ describe("play-subagent planning and routing contracts", () => {
   });
 
   it("pins the rendered subagent-lifecycle owner contract", () => {
+    const normalizedSubagentLifecycleBody = normalizeWhitespace(
+      subagentLifecycleBody,
+    );
+
     expect(subagentLifecycleBody).toContain("## Controller Lifecycle Ledger");
     expect(subagentLifecycleBody).toContain(
       "agent-local/controller-local state",
@@ -1009,11 +1013,11 @@ describe("play-subagent planning and routing contracts", () => {
     expect(subagentLifecycleBody).toContain(
       "fixup count or blocker state when relevant",
     );
-    expect(subagentLifecycleBody).toContain(
-      "one cleanup outcome: `closed=yes`, `closed=no`, or\n  `close-unavailable: <reason>`",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Role-specific captured state is whatever the owning workflow needs before it\ncan safely close, supersede, or replace that role",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Role-specific captured state is whatever the owning workflow needs before it can safely close, supersede, or replace that role",
     );
 
     expect(subagentLifecycleBody).toContain("## Target Lifecycle Capability");
@@ -1029,34 +1033,34 @@ describe("play-subagent planning and routing contracts", () => {
     expect(subagentLifecycleBody).toContain(
       "close-unavailable: no inventory or close operation",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Do not infer\nsupport from another target",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Do not infer support from another target",
     );
 
     expect(subagentLifecycleBody).toContain("## Cleanup Gate Before Spawns");
     expect(subagentLifecycleBody).toContain("Before every new subagent spawn");
-    expect(subagentLifecycleBody).toContain(
-      "Capture the role-specific state needed by the owning workflow before\n   closing or superseding any session",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Capture the role-specific state needed by the owning workflow before closing or superseding any session",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Keep sessions open when the owning workflow still requires same-session\n   follow-up",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Keep sessions open when the owning workflow still requires same-session follow-up",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Never record\n`closed=yes` unless the current target actually exposed stable ids plus a close\noperation",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Never record `closed=yes` unless the current target actually exposed stable ids plus a close operation",
     );
 
     expect(subagentLifecycleBody).toContain("## Slot-Limit Recovery");
     expect(subagentLifecycleBody).toContain(
       "orchestration resource exhaustion",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Wait for operator confirmation that\n   manual cleanup is complete before continuing",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Wait for operator confirmation that manual cleanup is complete before continuing",
     );
     expect(subagentLifecycleBody).toContain(
       "Reconstruct active workflow state from the lifecycle ledger",
     );
-    expect(subagentLifecycleBody).toContain(
-      "Retry the spawn exactly once after automatic cleanup completes or after the\n   operator confirms manual cleanup",
+    expect(normalizedSubagentLifecycleBody).toContain(
+      "Retry the spawn exactly once after automatic cleanup completes or after the operator confirms manual cleanup",
     );
     expect(subagentLifecycleBody).toContain(
       "Repeated failures after the single retry are not permission to keep spawning",
