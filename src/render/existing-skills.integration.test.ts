@@ -21,6 +21,7 @@ const TOUCHED_SKILLS = new Set([
   "linear-issue-priming",
   "play-brainstorm",
   "play-branch-finish",
+  "play-agent-dispatch",
   "pr-review",
   "branch-review",
   "play-review",
