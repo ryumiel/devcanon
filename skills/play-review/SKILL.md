@@ -414,6 +414,14 @@ line count is small but the change class is risky.
 
 ## Phase 3: Spawn agents
 
+Before spawning Phase 3 reviewer agents, use `subagent-lifecycle` for the
+controller-local lifecycle ledger, target lifecycle capability classification,
+cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
+recovery. Capture each reviewer or critic session's role-specific state
+before closing or superseding it: review scope, active diff range, base/head
+SHA, report, concrete findings, critic verdicts, and any output envelope state
+needed by downstream consumers.
+
 **Core agents (always spawned):**
 
 | Agent       | Focus                                                                                                                          |

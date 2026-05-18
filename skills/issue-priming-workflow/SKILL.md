@@ -95,6 +95,17 @@ goes missing or unreadable.
 
 **If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard). A durable owner referral notice is a "don't implement" conclusion for this workflow.
 
+## Subagent Lifecycle
+
+Before dispatching the Phase 2 gate agent, the Phase 3 research agent, or any
+other direct subagent, use `subagent-lifecycle` for the controller-local
+lifecycle ledger, target lifecycle capability classification, cleanup gate
+before spawns, target-honest cleanup outcomes, and slot-limit recovery.
+Capture role-specific state before closing or superseding sessions: gate
+result and reason for the gate agent, research brief path and synthesized
+report for the research agent, and any blocker or context request needed to
+continue the workflow.
+
 ## Phase 2: Complexity Gate
 
 The gate is **always evaluated** — it is not optional. Only the research phase (Phase 3) is conditional based on the gate's output.
@@ -340,6 +351,12 @@ The helper writes the `issue-priming/auto-handoff/v1` artifact for phase
 checks, guards symlink and non-regular-file targets, creates `.ephemeral` when
 needed, and prints the repo-relative artifact path. Treat a nonzero helper exit
 as a contract failure; do not invoke `play-subagent-execution`.
+
+Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate for
+completed or superseded gate and research sessions. Capture their
+role-specific state first, then close them when the target is
+`automatic-close-supported`, or record the target-honest
+`close-unavailable` outcome before invoking `play-subagent-execution`.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT

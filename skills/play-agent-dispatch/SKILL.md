@@ -69,6 +69,12 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
+Before parallel dispatch, use `subagent-lifecycle` for the controller-local
+lifecycle ledger, target lifecycle capability classification, cleanup gate
+before spawns, target-honest cleanup outcomes, and slot-limit recovery. Record
+one pending ledger row per planned agent with its problem domain, expected
+output, constraints, and any source-state anchor relevant to that domain.
+
 Dispatch one specialist agent per failing test file in parallel. Each agent gets a focused scope (one test file or subsystem) and returns a summary of findings and fixes.
 
 ### 4. Review and Integrate
@@ -76,9 +82,13 @@ Dispatch one specialist agent per failing test file in parallel. Each agent gets
 When agents return:
 
 - Read each summary
+- Update the `subagent-lifecycle` ledger with each returned session's
+  role-specific state before closing or superseding it
 - Verify fixes don't conflict
 - Run full test suite
 - Integrate all changes
+- After each returned session is integrated, run the `subagent-lifecycle`
+  cleanup gate before keeping or spawning any additional agent sessions
 
 ## Agent Prompt Structure
 

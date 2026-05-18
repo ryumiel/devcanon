@@ -194,6 +194,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Git workspace cleanup script? -> [`skills/git-workspace-cleanup/scripts/git-workspace-cleanup.sh`](skills/git-workspace-cleanup/scripts/git-workspace-cleanup.sh)
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where is the shared review pipeline? -> [`skills/play-review/SKILL.md`](skills/play-review/SKILL.md)
+- Where is the shared subagent lifecycle procedure? -> [`skills/subagent-lifecycle/SKILL.md`](skills/subagent-lifecycle/SKILL.md)
 - Where is the subagent execution workflow? -> [`skills/play-subagent-execution/SKILL.md`](skills/play-subagent-execution/SKILL.md)
 - Where is the implementer snapshot manifest recipe? ->
   [`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`](skills/play-subagent-execution/references/snapshot-manifest-recipe.md)
