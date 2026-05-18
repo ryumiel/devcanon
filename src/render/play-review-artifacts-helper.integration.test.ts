@@ -159,6 +159,21 @@ describe("play-review review artifact helper", () => {
     }
   });
 
+  it("fails loudly when preparing a findings write path outside a git repository", async () => {
+    const cwd = await makeWorkspace();
+    try {
+      await expect(
+        runHelper(cwd, "prepare-findings-write"),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "failed to determine current git branch",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("validates findings against the full current branch-derived path", async () => {
     const cwd = await makeTopicGitWorkspace();
     const wrongBranchFindingsFile = `.ephemeral/wrong-${headSha}-findings.json`;
@@ -208,7 +223,7 @@ describe("play-review review artifact helper", () => {
   });
 
   it("rejects malformed paths, nesting, traversal, schema mismatch, and head mismatch", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await writeEnvelope(cwd, findingsFile);
       await mkdir(path.join(cwd, ".ephemeral/nested"));

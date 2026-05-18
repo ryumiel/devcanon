@@ -131,7 +131,10 @@ slug_branch() {
 expected_findings_path() {
   local raw_branch
   local branch_slug
-  raw_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
+  raw_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || {
+    echo "failed to determine current git branch" >&2
+    exit 1
+  }
   if [ "$raw_branch" = "HEAD" ]; then
     branch_slug="detached"
   else
