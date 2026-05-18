@@ -1,8 +1,11 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  parseRenderedMarkdownArtifact,
+  parseRenderedTomlArtifact,
+} from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
 const SHIPPED_AGENTS = [
@@ -12,6 +15,62 @@ const SHIPPED_AGENTS = [
   "research-agent",
 ] as const;
 
+type ShippedAgent = (typeof SHIPPED_AGENTS)[number];
+type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
+type ShippedAgentExpectations = Record<
+  ShippedAgent,
+  {
+    claude: { model?: string; effort?: string };
+    codex: {
+      model?: string;
+      model_reasoning_effort?: string;
+      sandbox_mode: string;
+    };
+  }
+>;
+
+const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
+  implementer: {
+    claude: {
+      model: "claude-sonnet-4-6",
+      effort: "high",
+    },
+    codex: {
+      model: "gpt-5.5",
+      model_reasoning_effort: "medium",
+      sandbox_mode: "workspace-write",
+    },
+  },
+  "spec-compliance-reviewer": {
+    claude: {
+      model: "claude-opus-4-7",
+      effort: "xhigh",
+    },
+    codex: {
+      model: "gpt-5.5",
+      model_reasoning_effort: "high",
+      sandbox_mode: "read-only",
+    },
+  },
+  "code-quality-reviewer": {
+    claude: {
+      model: "claude-opus-4-7",
+      effort: "xhigh",
+    },
+    codex: {
+      model: "gpt-5.5",
+      model_reasoning_effort: "high",
+      sandbox_mode: "read-only",
+    },
+  },
+  "research-agent": {
+    claude: {},
+    codex: {
+      sandbox_mode: "read-only",
+    },
+  },
+};
+
 async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
   const config = await loadConfig(
     path.join(process.cwd(), "devcanon.config.yaml"),
@@ -19,6 +78,23 @@ async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
   config.targets.claude.skillsHome = "/test/claude/skills";
   config.targets.codex.skillsHome = "/test/codex/skills";
   return config;
+}
+
+function getAgentOutput(
+  outputs: RenderOutput[],
+  name: ShippedAgent,
+  target: "claude" | "codex",
+) {
+  const output = outputs.find(
+    (candidate) =>
+      candidate.type === "agent" &&
+      candidate.name === name &&
+      candidate.target === target,
+  );
+  if (!output) {
+    throw new Error(`Missing rendered ${target} output for agent ${name}`);
+  }
+  return output;
 }
 
 describe("shipped agents render cleanly", () => {
@@ -34,108 +110,51 @@ describe("shipped agents render cleanly", () => {
     }
   });
 
-  it("resolves model tiers on both targets and snapshots output", async () => {
+  it("renders parseable target-native role settings for every shipped agent", async () => {
     const config = await loadConfigWithFixedSkillsHome();
 
     const { outputs } = await renderAll(config, false);
 
-    const STANDARD_AGENTS = ["implementer"] as const;
-    const DEEP_AGENTS = [
-      "spec-compliance-reviewer",
-      "code-quality-reviewer",
-    ] as const;
-    const MODEL_UNSET_AGENTS = ["research-agent"] as const;
+    expect(Object.keys(SHIPPED_AGENT_EXPECTATIONS).sort()).toEqual(
+      [...SHIPPED_AGENTS].sort(),
+    );
 
-    expect(
-      [...STANDARD_AGENTS, ...DEEP_AGENTS, ...MODEL_UNSET_AGENTS].sort(),
-    ).toEqual([...SHIPPED_AGENTS].sort());
+    for (const name of SHIPPED_AGENTS) {
+      const expected = SHIPPED_AGENT_EXPECTATIONS[name];
+      const claudeOutput = getAgentOutput(outputs, name, "claude");
+      const codexOutput = getAgentOutput(outputs, name, "codex");
 
-    for (const name of STANDARD_AGENTS) {
-      const claudeOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "claude" && o.name === name,
-      );
-      const codexOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "codex" && o.name === name,
-      );
-      if (!claudeOutput || !codexOutput) {
-        throw new Error(`Missing rendered output for shipped agent ${name}`);
-      }
-
-      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
-        claudeOutput.content,
-      );
+      const { frontmatter: claudeFrontmatter, body: claudeBody } =
+        parseRenderedMarkdownArtifact(claudeOutput.content);
       expect(claudeFrontmatter).toMatchObject({
         name,
-        model: "claude-sonnet-4-6",
-        effort: "high",
+        ...expected.claude,
       });
-      expect(claudeOutput.content).not.toContain("{{model:");
-      expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
-
-      expect(codexOutput.content).toContain(`name = "${name}"`);
-      expect(codexOutput.content).toContain('model = "gpt-5.5"');
-      expect(codexOutput.content).toContain(
-        'model_reasoning_effort = "medium"',
-      );
-      expect(codexOutput.content).not.toContain("{{model:");
-      expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
-    }
-
-    for (const name of DEEP_AGENTS) {
-      const claudeOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "claude" && o.name === name,
-      );
-      const codexOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "codex" && o.name === name,
-      );
-      if (!claudeOutput || !codexOutput) {
-        throw new Error(`Missing rendered output for shipped agent ${name}`);
+      if (expected.claude.model === undefined) {
+        expect(claudeFrontmatter).not.toHaveProperty("model");
       }
+      if (expected.claude.effort === undefined) {
+        expect(claudeFrontmatter).not.toHaveProperty("effort");
+      }
+      expect(claudeBody.trim()).not.toHaveLength(0);
+      expect(claudeOutput.content).not.toContain("{{model:");
 
-      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
-        claudeOutput.content,
-      );
-      expect(claudeFrontmatter).toMatchObject({
+      const codexToml = parseRenderedTomlArtifact(codexOutput.content);
+      expect(codexToml).toMatchObject({
         name,
-        model: "claude-opus-4-7",
-        effort: "xhigh",
+        ...expected.codex,
       });
-      expect(claudeOutput.content).not.toContain("{{model:");
-      expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
-
-      expect(codexOutput.content).toContain(`name = "${name}"`);
-      expect(codexOutput.content).toContain('model = "gpt-5.5"');
-      expect(codexOutput.content).toContain('model_reasoning_effort = "high"');
-      expect(codexOutput.content).not.toContain("{{model:");
-      expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
-    }
-
-    for (const name of MODEL_UNSET_AGENTS) {
-      const claudeOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "claude" && o.name === name,
-      );
-      const codexOutput = outputs.find(
-        (o) => o.type === "agent" && o.target === "codex" && o.name === name,
-      );
-      if (!claudeOutput || !codexOutput) {
-        throw new Error(`Missing rendered output for shipped agent ${name}`);
+      if (expected.codex.model === undefined) {
+        expect(codexToml).not.toHaveProperty("model");
       }
-
-      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
-        claudeOutput.content,
-      );
-      expect(claudeFrontmatter).not.toHaveProperty("model");
-      expect(claudeFrontmatter).not.toHaveProperty("effort");
-      expect(claudeOutput.content).not.toContain("{{model:");
-      expect(claudeOutput.content).not.toMatch(/^model:/m);
-      expect(claudeOutput.content).toMatchSnapshot(`${name}-claude`);
-
-      expect(codexOutput.content).toContain(`name = "${name}"`);
-      expect(codexOutput.content).toContain('sandbox_mode = "read-only"');
-      expect(codexOutput.content).not.toMatch(/^model = /m);
-      expect(codexOutput.content).not.toMatch(/^model_reasoning_effort = /m);
+      if (expected.codex.model_reasoning_effort === undefined) {
+        expect(codexToml).not.toHaveProperty("model_reasoning_effort");
+      }
+      expect(codexToml.developer_instructions).toEqual(expect.any(String));
+      expect(
+        (codexToml.developer_instructions as string).trim(),
+      ).not.toHaveLength(0);
       expect(codexOutput.content).not.toContain("{{model:");
-      expect(codexOutput.content).toMatchSnapshot(`${name}-codex`);
     }
   });
 });
