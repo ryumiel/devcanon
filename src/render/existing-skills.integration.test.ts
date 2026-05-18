@@ -640,7 +640,7 @@ describe("existing skills render cleanly", () => {
       "Before dispatching the Phase 2 gate agent",
     );
     expect(issueLifecycleSection).toContain("Phase 3 research agent");
-    expect(issueLifecycleSection).toContain("gate\nresult");
+    expect(normalizeWhitespace(issueLifecycleSection)).toContain("gate result");
     expect(issueLifecycleSection).toContain("research brief path");
 
     const issuePhase6Start = issuePrimingWorkflowBody.indexOf(
