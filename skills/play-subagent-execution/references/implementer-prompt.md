@@ -18,6 +18,13 @@ Task tool (general-purpose):
     rationale`) are controller-only metadata. Ignore them as task requirements;
     the controller owns reviewer dispatch.
 
+    Treat the task text as a task specification, not as source-authoritative
+    implementation. It constrains intent, boundaries, references, acceptance,
+    and verification; it does not authorize concrete code-like examples, test
+    snippets, shell snippets, command sequences, or commit recipes unless they
+    are explicitly labeled as approved verbatim artifact content with an
+    authority source.
+
     ## Context
 
     [Scene-setting: where this fits, dependencies, architectural context]
@@ -36,18 +43,27 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; the Snapshot Manifest step uses it to enumerate files changed during this task. (If `git rev-parse HEAD` fails for any reason — empty branch, corrupted ref, non-git directory — report BLOCKED. The snapshot contract requires a known base.)
-    2. Implement exactly what the task specifies
-    3. Write tests (following TDD if task says to)
-    4. Verify implementation works
-    5. Commit your work (see Committing section below)
-    6. Self-review (see below)
-    7. Write the snapshot manifest (see Snapshot Manifest section below)
-    8. Report back
+    2. Read the relevant source files, existing tests, docs, ADRs, helpers, and
+       referenced contracts directly before choosing concrete implementation
+       code, tests, docs, or verification commands.
+    3. Implement exactly what the task specifies within those source-owned
+       constraints.
+    4. Write tests (following TDD if task says to)
+    5. Verify implementation works
+    6. Commit your work (see Committing section below)
+    7. Self-review (see below)
+    8. Write the snapshot manifest (see Snapshot Manifest section below)
+    9. Report back
 
     Work from: [directory]
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
+
+    If the plan appears to require an unapproved code-like example, test
+    snippet, shell snippet, command sequence, or commit recipe, treat that
+    content as invalid for implementation. Stop and report NEEDS_CONTEXT or
+    BLOCKED with the exact conflict instead of copying or adapting it.
 
     ## Code Organization
 

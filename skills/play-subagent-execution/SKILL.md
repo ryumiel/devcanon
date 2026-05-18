@@ -29,6 +29,14 @@ and, for multi-task plans, the executor-computed per-task review route. The exec
 adjacent tasks or runtime-batch by default; runtime batching would be a
 separate policy change, not an implicit optimization.
 
+The plan constrains implementation intent, boundaries, source-of-truth
+references, acceptance criteria, and verification expectations. It does not
+make concrete code-like examples, test snippets, shell snippets, command
+sequences, or commit recipes authoritative unless the task explicitly labels
+that content as approved verbatim artifact content and names the authority
+source. Implementers choose concrete code, tests, docs, and verification
+commands only after reading the relevant source files directly.
+
 ## Inputs
 
 This skill accepts a plan document in either of two shapes inside its
@@ -201,7 +209,7 @@ digraph process {
 > `none-final-only` marks the task complete after implementer self-review and
 > commit because the final whole-diff gate is mandatory.
 >
-> The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md`. See "Mechanical Task Hint" below.
+> The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md` only after the skip-dispatch fallback rules confirm no TDD expectation or legacy TDD step-pair overrides the hint. See "Mechanical Task Hint" and "Skip-Dispatch Path" below.
 >
 > When assembling either implementer dispatch prompt, include a readable
 > Snapshot Manifest Recipe path sourced from
@@ -217,7 +225,10 @@ digraph process {
 
 Use the least powerful model that can handle each role to conserve cost and increase speed.
 
-**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
+**Straightforward implementation tasks** (isolated functions, clear specs,
+1-2 files): use a fast, cheap model. This model-selection category is separate
+from `**Mode:** mechanical`; the mechanical task hint below is limited to
+approved verbatim artifact work and unambiguous identifier replacement.
 
 **Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
 
@@ -231,7 +242,13 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 ## Mechanical Task Hint
 
-A task whose entire deliverable is "reproduce this verbatim text into a file and commit" doesn't need the full implementer scaffolding (escalation prose, ask-if-unclear reminders, code-organization advice). Plans can mark such tasks with `**Mode:** mechanical` in the task header. When this hint is present, dispatch with [`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md) instead of the default [`references/implementer-prompt.md`](references/implementer-prompt.md).
+A task whose entire deliverable is "reproduce this approved verbatim artifact
+content into a file and commit" doesn't need the full implementer scaffolding
+(escalation prose, ask-if-unclear reminders, code-organization advice). Plans
+can mark such tasks with `**Mode:** mechanical` in the task header. When this
+hint is present, dispatch with
+[`references/mechanical-implementer-prompt.md`](references/mechanical-implementer-prompt.md)
+instead of the default [`references/implementer-prompt.md`](references/implementer-prompt.md).
 
 The default template is used when the hint is absent. There is no runtime auto-detection of plan structure — the plan author marks mechanical tasks explicitly.
 
@@ -241,12 +258,19 @@ When you set `**Mode:** mechanical`, you typically also want the cheap model fro
 
 Use the hint when the task fits one of these positive shapes:
 
-- **Verbatim file create.** Single-file create from content fully specified in the plan (e.g., adding an ADR file when the plan inlines the full ADR body, or a template/snippet file with content provided verbatim).
+- **Approved verbatim file create.** Single-file create from content fully
+  specified in the plan, explicitly labeled as approved verbatim artifact
+  content with its authority source (e.g., adding an ADR file when the plan
+  inlines the full approved ADR body, or a template/snippet file with content
+  provided verbatim).
 - **Unambiguous identifier replacement.** Single-file rename where the plan provides exact before/after strings and there is only one correct substitution.
 
 Do **not** use the hint for these negative shapes — the default template applies:
 
-- **TDD step pair.** Any task with `Step 1: Write the failing test` and `Step 3: Write minimal implementation` — the implementer must write code that satisfies a test, which is judgment.
+- **TDD work.** Any task with a `**TDD expectation:**` field, or legacy
+  `Step 1: Write the failing test` and `Step 3: Write minimal implementation`
+  markers — the implementer must read source and write concrete tests and code,
+  which is judgment.
 - **Multi-file coordinated change.** Several files where the relationship between edits is non-trivial.
 - **New module or public interface.** Naming, boundary, or API decisions the implementer would need to make.
 - **Plans containing the words "design", "decide", or "choose."**
@@ -682,7 +706,11 @@ snapshot-parsing logic to the skip-dispatch path.
 
 ## Skip-Dispatch Path
 
-For the single-task subset of plans that are also fully mechanical and verbatim, the implementer dispatch itself is skipped — the controller executes Write/Edit + verify + commit inline. This sits on top of the single-task review skip described in § Single-Task Plans above.
+For the single-task subset of plans that are also fully mechanical approved
+verbatim artifact work or unambiguous identifier replacement, the implementer
+dispatch itself is skipped — the controller executes Write/Edit + satisfy
+verification expectations + commit inline. This sits on top of the single-task
+review skip described in § Single-Task Plans above.
 
 ### Conditions
 
@@ -691,16 +719,22 @@ The controller evaluates four conditions after plan extraction. **All must hold;
 | #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                      |
 | --- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Plan is single-task                           | Task count from plan extraction = 1                                                                                                                                                                                                                                                                                   |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical` (covers both positive shapes from § Mechanical Task Hint above: verbatim file create, and unambiguous identifier replacement)                                                                                                                                              |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical` (covers both positive shapes from § Mechanical Task Hint above: approved verbatim file create, and unambiguous identifier replacement)                                                                                                                                     |
 | 3   | No clarifying questions could plausibly arise | Implicit: `play-planning`'s plan-review subagent (`{{model:deep}}`) returned PASS upstream. No new check is added — the existing PASS gate is the precondition. For direct invocations of this skill against a hand-written plan with no upstream PASS, treat this guardrail as PASS and rely on the remaining three. |
-| 4   | No tests need to be authored                  | Task body contains no TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                                                               |
+| 4   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers (`Step 1: Write the failing test` / `Step 3: Write minimal implementation`)                                                                                                                                                    |
 
 ### Inline execution sequence
 
 When all four guardrails hold:
 
-1. **Write/Edit.** Apply the file change as the plan specifies. For verbatim file create (the canonical positive shape), this is a single `Write` call. For unambiguous identifier replacement, one or more `Edit` calls with exact before/after strings from the plan.
-2. **Verify.** Run any verify command the plan task specifies. If the plan has no verify command, the verify step is a no-op — verbatim doc-only writes typically have nothing to run beyond whatever the project's pre-commit hook handles.
+1. **Write/Edit.** Apply the file change as the plan specifies. For approved verbatim file create (the canonical positive shape), this is a single `Write` call. For unambiguous identifier replacement, one or more `Edit` calls with exact before/after strings from the plan.
+2. **Verify.** Satisfy the task's `**Verification expectations:**` field by
+   choosing an appropriate check from source-owned project docs, config, tests,
+   or file inspection after applying the change. Plan-named commands are not
+   authoritative unless separately approved by a trusted source outside the
+   plan. Treat verification as unnecessary only when the task explicitly says no
+   additional verification is required and the controller can justify that from
+   the task contract.
 3. **Commit.** Glob for `**/commit-guideline*.md` and follow it; otherwise use Conventional Commits in imperative mood.
 4. **Mark task complete in TodoWrite.** Same as the dispatched path.
 
@@ -715,17 +749,22 @@ There is no DONE-report step. The plan body is itself the snapshot — the contr
 
 ### Fallback
 
-If any guardrail fails, dispatch normally. Template choice is driven by `**Mode:** mechanical` in the task header — except when guardrail #4 fails (TDD step-pair present), in which case use `implementer-prompt.md` regardless of any `**Mode:** mechanical` hint, since TDD work needs the full prompt's judgment scaffolding (a mismarked plan with both `**Mode:** mechanical` and a TDD step-pair is the only case where this carve-out bites). Specifically:
+If any guardrail fails, dispatch normally. Template choice is driven by
+`**Mode:** mechanical` in the task header — except when guardrail #4 fails
+(`**TDD expectation:**` field or legacy TDD step-pair present), in which case use
+`implementer-prompt.md` regardless of any `**Mode:** mechanical` hint, since
+TDD work needs the full prompt's judgment scaffolding.
+Specifically:
 
 - Guardrail #1 fails (multi-task): standard multi-task flow with executor-computed per-task review routing.
 - Guardrail #2 fails (no `**Mode:** mechanical`): single-task dispatched flow with `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
-- Guardrail #4 fails (TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
+- Guardrail #4 fails (`**TDD expectation:**` field or legacy TDD step-pair present): single-task dispatched flow with `implementer-prompt.md`, overriding any `**Mode:** mechanical` hint on the task.
 
 ### Skip-Dispatch Examples
 
 The two fixtures below illustrate when the path fires and when it falls back. They are documentation, not executable tests.
 
-**Positive (skip-dispatch fires).** A single-task plan whose Task 1 header includes `**Mode:** mechanical` and whose body specifies a docs-only ADR file write with the full content inlined and no TDD step pairs:
+**Positive (skip-dispatch fires).** A single-task plan whose Task 1 header includes `**Mode:** mechanical` and whose body specifies a docs-only ADR file write with the full approved verbatim artifact content inlined and no TDD expectations or legacy TDD step pairs:
 
 ````markdown
 ### Task 1: Add ADR-0042
@@ -736,27 +775,20 @@ The two fixtures below illustrate when the path fires and when it falls back. Th
 
 - Create: `docs/adr/adr-0042-example-decision.md`
 
-- [ ] **Step 1: Write the ADR file**
+**Approved verbatim artifact content:** ADR body approved by the issue owner.
 
 ```markdown
 # ADR-0042: Example Decision
 
 ... (full content) ...
 ```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/adr/adr-0042-example-decision.md
-git commit -m "docs(adr): add ADR-0042 example decision"
-```
 ````
 
-All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream PASS implicit; 4: no TDD markers). The controller writes the file, runs `git add` + `git commit`, and marks the task complete. No implementer subagent is dispatched.
+All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream PASS implicit; 4: no TDD markers). The controller writes the file, commits, and marks the task complete. No implementer subagent is dispatched.
 
-**Negative (skip-dispatch falls back).** A single-task plan whose Task 1 lacks `**Mode:** mechanical` and includes a TDD step-pair:
+**Negative (skip-dispatch falls back).** A single-task plan whose Task 1 lacks `**Mode:** mechanical` and includes a TDD expectation:
 
-````markdown
+```markdown
 ### Task 1: Add validation helper
 
 **Files:**
@@ -764,27 +796,11 @@ All four guardrails hold (1: single-task; 2: `**Mode:** mechanical`; 3: upstream
 - Create: `src/utils/validate.ts`
 - Test: `tests/utils/validate.test.ts`
 
-- [ ] **Step 1: Write the failing test**
-
-```typescript
-import { validate } from "../../src/utils/validate";
-test("rejects empty input", () => {
-  expect(() => validate("")).toThrow();
-});
+**TDD expectation:** Cover empty-input rejection in the existing utility test
+style before implementing the validator.
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-- [ ] **Step 3: Write minimal implementation**
-
-```typescript
-export function validate(input: string): void {
-  if (!input) throw new Error("empty input");
-}
-```
-````
-
-Guardrail #1 holds (single-task), but guardrail #2 fails (no `**Mode:** mechanical`) and guardrail #4 fails (TDD step-pair present). The controller falls back to dispatched mode, using `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
+Guardrail #1 holds (single-task), but guardrail #2 fails (no `**Mode:** mechanical`) and guardrail #4 fails (TDD expectation present). The controller falls back to dispatched mode, using `implementer-prompt.md` (no per-task review applies, since this is a single-task plan).
 
 The two fixtures together lock the heuristic by showing both branches.
 
