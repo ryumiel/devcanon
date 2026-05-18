@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseRenderedMarkdownArtifact } from "../__test-helpers__/render.js";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
@@ -27,11 +28,11 @@ describe("renderClaudeSkill", () => {
       make({ name: "x", description: "d" }, "# body\n"),
       GLOSSARY,
     );
+    const parsed = parseRenderedMarkdownArtifact(out);
     expect(out.startsWith("---\n")).toBe(true);
     expect(out).not.toContain("Managed by DevCanon");
-    expect(out).toContain("name: x");
-    expect(out).toContain("description: d");
-    expect(out).toContain("# body");
+    expect(parsed.frontmatter).toMatchObject({ name: "x", description: "d" });
+    expect(parsed.body).toContain("# body");
   });
 
   it("includes the allowed-tools key when provided", () => {
@@ -46,7 +47,8 @@ describe("renderClaudeSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out).toContain("allowed-tools: Bash Read");
+    const { frontmatter } = parseRenderedMarkdownArtifact(out);
+    expect(frontmatter["allowed-tools"]).toBe("Bash Read");
   });
 
   it("normalizes allowed-tools arrays to a space-joined string", () => {
@@ -61,7 +63,8 @@ describe("renderClaudeSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out).toContain("allowed-tools: Bash Read");
+    const { frontmatter } = parseRenderedMarkdownArtifact(out);
+    expect(frontmatter["allowed-tools"]).toBe("Bash Read");
     expect(out).not.toContain("- Bash");
   });
 
@@ -79,12 +82,13 @@ describe("renderClaudeSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out).toContain("model: opus");
-    expect(out).toContain("effort: high");
-    expect(out).not.toContain("license");
-    expect(out).not.toContain("display_name");
-    expect(out).not.toMatch(/^codex:/m);
-    expect(out).not.toMatch(/^codex_sidecar:/m);
+    const { frontmatter } = parseRenderedMarkdownArtifact(out);
+    expect(frontmatter.model).toBe("opus");
+    expect(frontmatter.effort).toBe("high");
+    expect(frontmatter).not.toHaveProperty("license");
+    expect(frontmatter).not.toHaveProperty("display_name");
+    expect(frontmatter).not.toHaveProperty("codex");
+    expect(frontmatter).not.toHaveProperty("codex_sidecar");
   });
 
   it("substitutes {{model:*}} placeholders in body and in override string values", () => {
@@ -99,8 +103,9 @@ describe("renderClaudeSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out).toContain("model: opus");
-    expect(out).toContain("use opus for synthesis.");
+    const { frontmatter, body } = parseRenderedMarkdownArtifact(out);
+    expect(frontmatter.model).toBe("opus");
+    expect(body).toContain("use opus for synthesis.");
   });
 
   it("matches snapshot for a representative skill", () => {
@@ -122,6 +127,18 @@ describe("renderClaudeSkill", () => {
       ),
       GLOSSARY,
     );
+    const { frontmatter, body } = parseRenderedMarkdownArtifact(out);
+    expect(frontmatter).toMatchObject({
+      name: "snap-skill",
+      description: "Snapshot fixture skill.",
+      "allowed-tools": "Bash Read",
+      model: "opus",
+      effort: "high",
+      when_to_use: "Use when synthesizing.",
+    });
+    expect(frontmatter).not.toHaveProperty("license");
+    expect(frontmatter).not.toHaveProperty("codex_sidecar");
+    expect(body).toBe("Use opus for synthesis.\n");
     expect(out).toMatchSnapshot();
   });
 });

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import { parseRenderedMarkdownArtifact } from "../__test-helpers__/render.js";
 import { CLAUDE_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import { renderClaudeAgent } from "./claude.js";
@@ -98,11 +99,13 @@ describe("renderClaudeAgent", () => {
 
   it("includes frontmatter with name, description, tools, model", () => {
     const result = renderClaudeAgent(agent, emptySkills, config);
-    const content = result.content;
-    expect(content).toContain("name: test-agent");
-    expect(content).toContain('description: "A test agent for unit testing."');
-    expect(content).toContain("tools: Read, Grep, Bash");
-    expect(content).toContain("model: sonnet");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).toMatchObject({
+      name: "test-agent",
+      description: "A test agent for unit testing.",
+      tools: "Read, Grep, Bash",
+      model: "sonnet",
+    });
   });
 
   it("renders every supported claude target field", () => {
@@ -112,15 +115,15 @@ describe("renderClaudeAgent", () => {
       tools: ["Read", "Grep", "Bash"],
     });
     const result = renderClaudeAgent(fullAgent, emptySkills, config);
-    const content = result.content;
-    const expectedFragments = {
-      model: "model: claude-sonnet-4-6",
-      effort: "effort: high",
-      tools: "tools: Read, Grep, Bash",
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    const expectedValues = {
+      model: "claude-sonnet-4-6",
+      effort: "high",
+      tools: "Read, Grep, Bash",
     } satisfies Record<(typeof CLAUDE_TARGET_FIELDS)[number], string>;
 
     for (const field of CLAUDE_TARGET_FIELDS) {
-      expect(content).toContain(expectedFragments[field]);
+      expect(frontmatter[field]).toBe(expectedValues[field]);
     }
   });
 
@@ -130,8 +133,9 @@ describe("renderClaudeAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("model: claude-sonnet-4-6");
-    expect(result.content).toContain("effort: medium");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.model).toBe("claude-sonnet-4-6");
+    expect(frontmatter.effort).toBe("medium");
   });
 
   it("prefers an explicit claude effort over the tier profile default", () => {
@@ -143,9 +147,9 @@ describe("renderClaudeAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("model: claude-sonnet-4-6");
-    expect(result.content).toContain("effort: high");
-    expect(result.content).not.toContain("effort: medium");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.model).toBe("claude-sonnet-4-6");
+    expect(frontmatter.effort).toBe("high");
   });
 
   it("throws when claude.model contains the placeholder prefix but is not a valid placeholder", () => {
@@ -190,6 +194,7 @@ describe("renderClaudeAgent", () => {
     expect(result.installedPath).toBe(
       path.join("~/.claude/agents", "test-agent.md"),
     );
+    expect(result.contentHash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
@@ -211,7 +216,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('experimental_mode: "beta"');
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.experimental_mode).toBe("beta");
     expect(warnings).toEqual([]);
   });
 
@@ -225,9 +231,10 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("temperature: 0.7");
-    expect(result.content).toContain("eager: true");
-    expect(result.content).toContain("opt_out: null");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.temperature).toBe(0.7);
+    expect(frontmatter.eager).toBe(true);
+    expect(frontmatter.opt_out).toBeNull();
   });
 
   it("emits unknown string array as JSON flow form", () => {
@@ -236,7 +243,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('mcp_servers: ["fs", "web"]');
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.mcp_servers).toEqual(["fs", "web"]);
   });
 
   it("emits unknown number and boolean arrays bare", () => {
@@ -245,8 +253,9 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("weights: [1, 2, 3]");
-    expect(result.content).toContain("flags: [true, false]");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.weights).toEqual([1, 2, 3]);
+    expect(frontmatter.flags).toEqual([true, false]);
   });
 
   it("emits empty unknown array as []", () => {
@@ -255,7 +264,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("mcp_servers: []");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.mcp_servers).toEqual([]);
     expect(warnings).toEqual([]);
   });
 
@@ -280,7 +290,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^nested:/m);
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).not.toHaveProperty("nested");
     expect(warnings.some((w) => w.includes('"nested"'))).toBe(true);
     expect(warnings.some((w) => w.includes("object"))).toBe(true);
   });
@@ -291,7 +302,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^mixed:/m);
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).not.toHaveProperty("mixed");
     expect(warnings.some((w) => w.includes('"mixed"'))).toBe(true);
   });
 
@@ -301,7 +313,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^bad:/m);
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).not.toHaveProperty("bad");
     expect(warnings.some((w) => w.includes('"bad"'))).toBe(true);
   });
 
@@ -311,7 +324,8 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toContain("bad key!");
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter).not.toHaveProperty("bad key!");
     expect(warnings.some((w) => w.includes('"bad key!"'))).toBe(true);
   });
 
@@ -323,9 +337,10 @@ describe("renderClaudeAgent passthrough", () => {
     );
     const modelLines = result.content.match(/^model:/gm) ?? [];
     const toolsLines = result.content.match(/^tools:/gm) ?? [];
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
     expect(modelLines).toHaveLength(1);
     expect(toolsLines).toHaveLength(1);
-    expect(result.content).toContain("tools: Read, Grep, Bash");
+    expect(frontmatter.tools).toBe("Read, Grep, Bash");
   });
 
   it("JSON-quotes strings containing frontmatter-hostile characters", () => {
@@ -334,6 +349,7 @@ describe("renderClaudeAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('note: "has \\"quotes\\": and #hash"');
+    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
+    expect(frontmatter.note).toBe('has "quotes": and #hash');
   });
 });

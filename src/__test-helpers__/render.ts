@@ -1,6 +1,12 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { expect } from "vitest";
+import { parse as parseYaml } from "yaml";
+import {
+  type ParsedFrontmatter,
+  parseFrontmatter,
+} from "../render/frontmatter.js";
 import type { renderAll } from "../render/pipeline.js";
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
@@ -24,6 +30,29 @@ export function getSkillOutput(
 
 export function normalizeWhitespace(content: string): string {
   return content.replace(/\s+/g, " ").trim();
+}
+
+export function parseRenderedMarkdownArtifact(
+  content: string,
+): ParsedFrontmatter {
+  return parseFrontmatter(content);
+}
+
+export function parseRenderedTomlArtifact(
+  content: string,
+): Record<string, unknown> {
+  return parseToml(content) as Record<string, unknown>;
+}
+
+export function parseRenderedYamlArtifact(
+  content: string,
+): Record<string, unknown> {
+  const parsed = parseYaml(content);
+  if (parsed === null || parsed === undefined) return {};
+  if (typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Rendered YAML artifact must parse to a mapping");
+  }
+  return parsed as Record<string, unknown>;
 }
 
 export function expectOrdered(

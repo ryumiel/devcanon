@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parse as parseYaml } from "yaml";
+import {
+  parseRenderedMarkdownArtifact,
+  parseRenderedYamlArtifact,
+} from "../__test-helpers__/render.js";
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderCodexSkill } from "./skill-codex.js";
@@ -28,10 +31,11 @@ describe("renderCodexSkill", () => {
       make({ name: "x", description: "d" }, "# body\n"),
       GLOSSARY,
     );
+    const parsed = parseRenderedMarkdownArtifact(out.skillMd);
     expect(out.skillMd.startsWith("---\n")).toBe(true);
     expect(out.skillMd).not.toContain("Managed by DevCanon");
-    expect(out.skillMd).toContain("name: x");
-    expect(out.skillMd).toContain("description: d");
+    expect(parsed.frontmatter).toMatchObject({ name: "x", description: "d" });
+    expect(parsed.body).toBe("# body\n");
     expect(out.sidecar).toBeNull();
   });
 
@@ -49,10 +53,13 @@ describe("renderCodexSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out.skillMd).toContain("license: MIT");
-    expect(out.skillMd).toContain("metadata:\n  short-description: blurb");
-    expect(out.skillMd).not.toContain("model: opus");
-    expect(out.skillMd).not.toContain("display_name");
+    const { frontmatter } = parseRenderedMarkdownArtifact(out.skillMd);
+    expect(frontmatter.license).toBe("MIT");
+    expect(frontmatter.metadata).toEqual({ "short-description": "blurb" });
+    expect(frontmatter).not.toHaveProperty("model");
+    expect(frontmatter).not.toHaveProperty("display_name");
+    expect(frontmatter).not.toHaveProperty("claude");
+    expect(frontmatter).not.toHaveProperty("codex_sidecar");
   });
 
   it("emits a sidecar when codex_sidecar is present", () => {
@@ -72,7 +79,7 @@ describe("renderCodexSkill", () => {
       GLOSSARY,
     );
     expect(out.sidecar).not.toBeNull();
-    const parsed = parseYaml(out.sidecar as string) as Record<string, unknown>;
+    const parsed = parseRenderedYamlArtifact(out.sidecar as string);
     expect(parsed.interface).toMatchObject({
       display_name: "X",
       brand_color: "#00ccff",
@@ -89,7 +96,8 @@ describe("renderCodexSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out.skillMd).toContain("use gpt-5.4-mini for cleanup.");
+    const { body } = parseRenderedMarkdownArtifact(out.skillMd);
+    expect(body).toContain("use gpt-5.4-mini for cleanup.");
   });
 
   it("normalizes allowed-tools arrays to a space-joined string", () => {
@@ -104,7 +112,8 @@ describe("renderCodexSkill", () => {
       ),
       GLOSSARY,
     );
-    expect(out.skillMd).toContain("allowed-tools: Bash Read");
+    const { frontmatter } = parseRenderedMarkdownArtifact(out.skillMd);
+    expect(frontmatter["allowed-tools"]).toBe("Bash Read");
     expect(out.skillMd).not.toContain("- Bash");
   });
 
@@ -134,6 +143,28 @@ describe("renderCodexSkill", () => {
       ),
       GLOSSARY,
     );
+    const { frontmatter, body } = parseRenderedMarkdownArtifact(out.skillMd);
+    const sidecar = parseRenderedYamlArtifact(out.sidecar as string);
+    expect(frontmatter).toMatchObject({
+      name: "snap-skill",
+      description: "Snapshot fixture skill.",
+      "allowed-tools": "Bash Read",
+      license: "MIT",
+      metadata: { "short-description": "Snapshot blurb" },
+    });
+    expect(frontmatter).not.toHaveProperty("model");
+    expect(frontmatter).not.toHaveProperty("claude");
+    expect(frontmatter).not.toHaveProperty("codex_sidecar");
+    expect(body).toBe("Use gpt-5.4 for synthesis.\n");
+    expect(sidecar).toEqual({
+      interface: {
+        display_name: "Snap",
+        short_description: "Snapshot blurb",
+        brand_color: "#00ccff",
+      },
+      policy: { allow_implicit_invocation: true },
+      dependencies: { tools: ["fs", "web"] },
+    });
     expect(out.skillMd).toMatchSnapshot("skillMd");
     expect(out.sidecar).toMatchSnapshot("sidecar");
   });
