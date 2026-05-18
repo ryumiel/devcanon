@@ -607,6 +607,12 @@ See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-s
 
 ## Phase 5: Critic verification
 
+Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate
+for completed or superseded reviewer sessions, then record the critic session
+in the controller-local lifecycle ledger. Capture the critic's role-specific
+state before closing or superseding it: review scope, merged findings input,
+critic report, verdicts, and any carry-forward state.
+
 Spawn a critic agent with all findings merged. The critic reads actual
 code in `working_directory` and tags each **blocking** finding:
 
