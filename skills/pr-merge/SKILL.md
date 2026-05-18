@@ -247,6 +247,14 @@ gh run view <run-id> --log-failed
 
 ### 4b. Dispatch investigation agent
 
+Before dispatching the CI investigation agent, use `subagent-lifecycle` for
+the controller-local lifecycle ledger, target lifecycle capability
+classification, cleanup gate before spawns, target-honest cleanup outcomes,
+and slot-limit recovery. Capture the investigation session's role-specific
+state before closing or superseding it: CI run/check identifiers, failing
+workflow/job names, reproduced command evidence, in-scope/out-of-scope
+classification, fix summary, and any blocker that requires manual resolution.
+
 Dispatch a **dedicated investigation agent**. The investigation agent:
 
 1. Reads `.github/workflows/*.yml` to understand what CI runs and what commands to reproduce locally
@@ -339,14 +347,6 @@ Read `.github/workflows/*.yml` to discover what CI actually runs. Do NOT assume 
 ### Investigating in the main session
 
 Always dispatch a **dedicated agent** for investigation. Reading CI logs and debugging pollutes the main session's context. The investigation agent starts fresh and reports back a summary.
-
-Before dispatching the CI investigation agent, use `subagent-lifecycle` for
-the controller-local lifecycle ledger, target lifecycle capability
-classification, cleanup gate before spawns, target-honest cleanup outcomes,
-and slot-limit recovery. Capture the investigation session's role-specific
-state before closing or superseding it: CI run/check identifiers, failing
-workflow/job names, reproduced command evidence, in-scope/out-of-scope
-classification, fix summary, and any blocker that requires manual resolution.
 
 ### Polling too frequently
 
