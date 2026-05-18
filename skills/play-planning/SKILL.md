@@ -7,9 +7,22 @@ description: Writes a comprehensive implementation plan as bite-sized tasks for 
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write comprehensive task-spec plans assuming the engineer has zero context for
+our codebase. Plans are authoritative for intent, boundaries, invariants,
+acceptance criteria, task order, dependencies, source-of-truth references,
+authority surfaces, and verification expectations. Plans are not prewritten
+implementations.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+Assume the implementer is a skilled developer who must read the relevant source
+files directly before choosing concrete code, tests, documentation edits, and
+verification commands. The plan constrains the work; it does not substitute for
+source inspection.
+
+Do not include concrete implementation code, test code, shell snippets, exact
+command sequences, or commit recipes unless the content is an already-approved
+verbatim artifact that the task must reproduce exactly. When verbatim artifact
+content is required, label it as approved verbatim artifact content and name its
+authority source.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -84,14 +97,37 @@ If the spec covers multiple independent subsystems, it should have been broken i
 
 ## File Structure
 
-Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+Before defining tasks, map out which files will be created or modified and what
+each one is responsible for. This is where decomposition decisions get locked
+in.
 
 - Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
 - You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
 - Files that change together should live together. Split by responsibility, not by technical layer.
 - In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
 
-This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
+This structure informs the task decomposition. Each task should produce
+self-contained changes that make sense independently.
+
+## Contract-Heavy Work
+
+For contract-heavy work, write a short contract table before task planning. Use
+it when the plan depends on cross-skill handoffs, generated or derived paths,
+helper scripts, source-owned policy, schema or interface authority, execution
+cwd assumptions, or fail-closed behavior.
+
+Cover the applicable surfaces:
+
+- Inputs
+- Execution cwd
+- Script or helper locations
+- Source-of-truth files
+- Derived paths
+- Allowed overrides
+- Failure modes
+
+Keep the table concise. It records invariants and authority surfaces; it does
+not copy helper implementations or command recipes.
 
 ## Cohesive Task Composition
 
@@ -107,22 +143,21 @@ self-contained implementation unit. Prefer one task when the work:
 Related steps should share the same subsystem or file family before they are
 composed into one authored task.
 
-Composition changes task boundaries, not step quality. A composed task still
-uses exact executable checkbox steps with code, commands, and expected output.
-Do not replace executable checkbox steps with vague high-level subtasks.
+Composition changes task boundaries, not task-spec quality. A composed task
+still names the purpose, goal, boundaries, acceptance criteria, risks,
+dependencies, source-of-truth references, authority surfaces, and verification
+expectations needed for independent implementation.
 
 Do not compose unrelated work just to reduce dispatch count. Do not hide dependent implementation units merely to avoid multi-task review. If separate
 units need independent review, rollback, or verification, keep them as separate tasks.
 
 ## Bite-Sized Task Granularity
 
-**Each step is one action (2-5 minutes):**
-
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+Each task should be small enough for one implementer to complete with a clear
+working context and one coherent verification route. Split tasks when they have
+different source-of-truth authorities, different risk profiles, different
+verification routes, or dependency boundaries that later tasks need reviewed
+before starting.
 
 ## Plan Document Header
 
@@ -131,7 +166,7 @@ units need independent review, rollback, or verification, keep them as separate 
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use play-subagent-execution (recommended) to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use play-subagent-execution (recommended) to implement this plan task-by-task. Tasks are execution contracts; implementers read source files directly and choose concrete code, tests, and docs within each task's constraints.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -142,57 +177,52 @@ units need independent review, rollback, or verification, keep them as separate 
 ---
 ```
 
-## Commit Messages
-
-When writing commit steps in plans, glob for `**/commit-guideline*.md` in the repository. If found, follow its header format, allowed types, and scope rules in all commit message examples. If no guideline is found, default to Conventional Commits: `type(scope): subject`.
-
 ## Task Structure
 
-````markdown
+```markdown
 ### Task N: [Component Name]
+
+<!-- Optional review-routing hints, when present, go here:
+**Risk hint:** low | medium | high
+**Review hint:** none-final-only | spec-only | spec-and-quality
+**Review rationale:** <one sentence naming why this route is safe or why full review is required>
+-->
 
 **Files:**
 
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+- Create: `exact/path/to/file`
+- Modify: `exact/path/to/existing`
+- Test: `tests/exact/path/to/test`
 
-- [ ] **Step 1: Write the failing test**
+**Purpose:** <why this task exists>
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
+**Goal:** <the completed state this task must produce>
+
+**Non-goals:** <scope boundaries and forbidden expansions>
+
+**Source-of-truth references:** <issue, design, ADR, spec, guideline, source file, or existing behavior authority>
+
+**Authority surfaces:** <which source files, contracts, schemas, helpers, renderers, install/sync flows, or policies own the behavior; generated outputs are derived evidence, not authority>
+
+**Acceptance criteria:** <observable requirements for completion>
+
+**Risks:** <behavioral, compatibility, migration, or review risks>
+
+**Dependencies:** <prior tasks or external prerequisites, or "None">
+
+**Verification expectations:** <what evidence must prove the task is complete, without prescribing exact command sequences>
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
-
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
-````
+Task specs should prefer references to existing behavior, source files,
+contracts, tests, ADRs, and guidelines over copied logic. If a task needs
+TDD, say which behavior must be covered and where similar tests already live;
+the implementer writes the concrete test after reading source. Use a clear
+`**TDD expectation:**` field for this so `play-subagent-execution` can treat the
+task as one where tests need to be authored.
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. This is a non-authoritative hint; `play-subagent-execution` owns route validation and may reject or override it. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
 
 Example mechanical-task header:
 
@@ -208,6 +238,24 @@ Example mechanical-task header:
 **Files:**
 
 - Modify: `examples/demo-note.md`
+
+**Purpose:** Rename an example token without changing example behavior.
+
+**Goal:** Every occurrence of the old token in the named file uses the new token.
+
+**Non-goals:** Do not change surrounding prose, example behavior, or additional files.
+
+**Source-of-truth references:** The approved issue requirement for this exact rename.
+
+**Authority surfaces:** `examples/demo-note.md`
+
+**Acceptance criteria:** `OldExampleToken` is absent from the file and `NewExampleToken` appears in the same locations.
+
+**Risks:** Accidental replacement outside the approved file or context.
+
+**Dependencies:** None.
+
+**Verification expectations:** Confirm the approved before/after token replacement in the named file.
 
 **Replace:** `OldExampleToken`
 **With:** `NewExampleToken`
@@ -237,21 +285,23 @@ they start.
 
 ## No Placeholders
 
-Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+Every task spec must contain the actual contract an engineer needs. These are
+**plan failures** — never write them:
 
 - "TBD", "TODO", "implement later", "fill in details"
 - "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" (without actual test code)
-- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
-- Steps that describe what to do without showing how (code blocks required for code steps)
-- References to types, functions, or methods not defined in any task
+- "Write tests for the above" without naming the behavior and verification expectation
+- "Similar to Task N" without restating the task-specific contract
+- Tasks that describe desired change without purpose, boundaries, acceptance criteria, authority surfaces, or verification expectations
+- References to source-of-truth files, functions, methods, ADRs, specs, or helpers that do not exist unless the task is explicitly responsible for creating them
 
 ## Remember
 
 - Exact file paths always
-- Complete code in every step — if a step changes code, show the code
-- Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
+- Complete task contracts, not implementation sketches
+- Source-of-truth references over copied logic
+- Authority surfaces and dependencies made explicit
+- Verification expectations without command recipes
 
 ## Self-Review
 
@@ -261,11 +311,29 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
 
-**3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+**3. Task-spec contract:** Does every task include purpose, goal, non-goals,
+acceptance criteria, risks, dependencies, source-of-truth references, authority
+surfaces, and verification expectations? Fix any missing field.
 
-**4. Example verification:** For any worked example, code snippet annotation, or scenario reference _that purports to cite existing code, files, or history_ in the plan that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking task definitions (new files in `Files: Create:` blocks, function names being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples. Note: this complements the existing Plan Review subagent, which independently checks that file paths in the plan reference real locations; this self-review item additionally verifies citations inside worked examples and prose.
+**4. Contract-heavy table check:** If the work depends on cross-skill
+handoffs, generated or derived paths, helper scripts, source-owned policy,
+schema or interface authority, execution cwd assumptions, or fail-closed
+behavior, does the plan include a short contract table covering the applicable
+surfaces? Fix missing contract surfaces before task planning.
 
-**5. Documentation impact tasks:** Same-PR documentation impact is normal
+**5. Prohibited detail scan:** Confirm the plan does not include concrete
+implementation code, test code, shell snippets, exact command sequences, or
+commit recipes unless the content is explicitly labeled as already-approved
+verbatim artifact content with an authority source.
+
+**6. Citation verification:** For any task reference that purports to cite
+existing code, files, behavior, docs, history, issue or PR numbers, ADRs,
+helpers, or generated paths, verify the cited artifact exists and supports the
+claim. Forward-looking files in `Files: Create:` blocks are not subject to this
+check. Concrete-looking specifics that turn out to be fabricated are the most
+common silent defect class in plans.
+
+**7. Documentation impact tasks:** Same-PR documentation impact is normal
 implementation work when the design changes durable truth. AFDS repositories
 should provide the canonical trigger list at
 `docs/guidelines/documentation-standard.md` §5.2; common examples include
@@ -280,9 +348,9 @@ follow
 
 Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
 
-**6. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD step pairs, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**8. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
-**7. Review-routing hint check:** If tasks include review-routing hints,
+**9. Review-routing hint check:** If tasks include review-routing hints,
 confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
@@ -306,10 +374,21 @@ After self-review, dispatch a dedicated `{{model:deep}}` agent to validate plan-
 - Every spec requirement maps to at least one task
 - No tasks that aren't justified by the spec (scope creep)
 - Task ordering respects dependencies
-- Verification commands exist and cover acceptance criteria
+- Verification expectations exist and cover acceptance criteria
 - File paths reference real locations (the agent can search, pattern-match, and read project files to verify)
 - No placeholder violations (catches what self-review missed)
-- Every "Documentation impact" item from the design (if the section exists) maps to at least one task in the plan
+- Contract-heavy work includes the applicable contract table surfaces before
+  task planning
+- Tasks include purpose, goal, non-goals, acceptance criteria, risks,
+  dependencies, source-of-truth references, authority surfaces, and
+  verification expectations
+- The plan does not include concrete implementation code, test code, shell
+  snippets, exact command sequences, or commit recipes unless explicitly
+  labeled as already-approved verbatim artifact content with an authority source
+- Task specs prefer references to existing behavior and source-of-truth files
+  over copied logic
+- Every "Documentation impact" item from the issue, design, or owning source
+  artifact maps to at least one task in the plan
 - Review-routing hints, when present, are non-authoritative inputs to
   `play-subagent-execution`
 - Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §

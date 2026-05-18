@@ -73,17 +73,170 @@ describe("play-subagent planning and routing contracts", () => {
     );
   });
 
-  it("documents planning composition and hint contracts", () => {
+  it("pins implementer source-read and invalid example contracts", async () => {
+    const implementerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/implementer-prompt.md",
+      ),
+      "utf-8",
+    );
+    const mechanicalImplementerPrompt = await readFile(
+      path.join(
+        repoRoot,
+        "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+      ),
+      "utf-8",
+    );
+
+    expect(implementerPrompt).toContain(
+      "Treat the task text as a task specification",
+    );
+    expect(implementerPrompt).toContain(
+      "not as source-authoritative\n    implementation",
+    );
+    expect(implementerPrompt).toContain(
+      "does not authorize concrete code-like examples, test\n    snippets, shell snippets, command sequences, or commit recipes",
+    );
+    expect(implementerPrompt).toContain(
+      "Read the relevant source files, existing tests, docs, ADRs, helpers, and\n       referenced contracts directly before choosing concrete implementation",
+    );
+    expect(implementerPrompt).toContain(
+      "If the plan appears to require an unapproved code-like example",
+    );
+    expect(implementerPrompt).toContain(
+      "treat that\n    content as invalid for implementation",
+    );
+    expect(implementerPrompt).toContain(
+      "Stop and report NEEDS_CONTEXT or\n    BLOCKED",
+    );
+
+    expect(mechanicalImplementerPrompt).toContain(
+      "Mechanical mode is only for approved verbatim artifact work",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "Concrete code-like examples, test\n    snippets, shell snippets, command sequences, or commit recipes are not\n    authoritative",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "approved verbatim\n    artifact content with an authority source",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "report BLOCKED or\n    NEEDS_CONTEXT instead of copying it",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "Satisfy the task's verification expectations",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "source-owned project docs, config, tests",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "Plan-named commands are not authoritative",
+    );
+    expect(mechanicalImplementerPrompt).not.toContain(
+      "Verify the change (run any verify command from the plan)",
+    );
+  });
+
+  it("documents task-spec planning and hint contracts", () => {
+    expect(playPlanningBody).toContain("comprehensive task-spec plans");
+    expect(playPlanningBody).toContain(
+      "Plans are authoritative for intent, boundaries, invariants",
+    );
+    expect(playPlanningBody).toContain(
+      "acceptance criteria, task order, dependencies, source-of-truth references",
+    );
+    expect(playPlanningBody).toContain(
+      "authority surfaces, and verification expectations",
+    );
+    expect(playPlanningBody).toContain("Plans are not prewritten");
+    expect(playPlanningBody).toContain(
+      "must read the relevant source\nfiles directly before choosing concrete code, tests, documentation edits, and\nverification commands",
+    );
+    expect(playPlanningBody).toContain(
+      "Do not include concrete implementation code, test code, shell snippets, exact\ncommand sequences, or commit recipes",
+    );
+    expect(playPlanningBody).toContain("already-approved\nverbatim artifact");
+    expect(playPlanningBody).toContain(
+      "label it as approved verbatim artifact content and name its\nauthority source",
+    );
+
+    expect(playPlanningBody).toContain("## Contract-Heavy Work");
+    const contractHeavySectionStart = playPlanningBody.indexOf(
+      "## Contract-Heavy Work",
+    );
+    const contractHeavySectionEnd = playPlanningBody.indexOf(
+      "## Cohesive Task Composition",
+      contractHeavySectionStart,
+    );
+    expect(contractHeavySectionStart).toBeGreaterThanOrEqual(0);
+    expect(contractHeavySectionEnd).toBeGreaterThan(contractHeavySectionStart);
+    const contractHeavySection = playPlanningBody.slice(
+      contractHeavySectionStart,
+      contractHeavySectionEnd,
+    );
+    expect(contractHeavySection).toContain("write a short contract table");
+    for (const surface of [
+      "Inputs",
+      "Execution cwd",
+      "Script or helper locations",
+      "Source-of-truth files",
+      "Derived paths",
+      "Allowed overrides",
+      "Failure modes",
+    ]) {
+      expect(contractHeavySection).toContain(surface);
+    }
+    expect(contractHeavySection).toContain("authority surfaces");
+    expect(contractHeavySection).toContain(
+      "does\nnot copy helper implementations or command recipes",
+    );
+
     expect(playPlanningBody).toContain("## Cohesive Task Composition");
     expect(playPlanningBody).toContain(
       "share the same subsystem or file family",
     );
     expect(playPlanningBody).toContain(
-      "Do not replace executable checkbox steps with vague high-level subtasks",
+      "Composition changes task boundaries, not task-spec quality",
     );
     expect(playPlanningBody).toContain(
       "Do not hide dependent implementation units merely to avoid multi-task review",
     );
+
+    const taskStructureStart = playPlanningBody.indexOf("## Task Structure");
+    const taskStructureEnd = playPlanningBody.indexOf(
+      "### Optional `**Mode:**` field",
+      taskStructureStart,
+    );
+    expect(taskStructureStart).toBeGreaterThanOrEqual(0);
+    expect(taskStructureEnd).toBeGreaterThan(taskStructureStart);
+    const taskStructureSection = playPlanningBody.slice(
+      taskStructureStart,
+      taskStructureEnd,
+    );
+    for (const field of [
+      "**Purpose:**",
+      "**Goal:**",
+      "**Non-goals:**",
+      "**Source-of-truth references:**",
+      "**Authority surfaces:**",
+      "**Acceptance criteria:**",
+      "**Risks:**",
+      "**Dependencies:**",
+      "**Verification expectations:**",
+    ]) {
+      expect(taskStructureSection).toContain(field);
+    }
+    expect(taskStructureSection).toContain(
+      "generated outputs are derived evidence, not authority",
+    );
+    expect(taskStructureSection).toContain(
+      "Task specs should prefer references to existing behavior",
+    );
+    expect(taskStructureSection).toContain("over copied logic");
+    expect(taskStructureSection).toContain(
+      "the implementer writes the concrete test after reading source",
+    );
+
     const reviewHintSectionStart = playPlanningBody.indexOf(
       "### Optional Review-Routing Hint Fields",
     );
@@ -123,6 +276,18 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(planReviewSection).toContain(
       "Hint field ordering is heading, optional `**Mode:** mechanical`, optional",
+    );
+    expect(planReviewSection).toContain(
+      "Contract-heavy work includes the applicable contract table surfaces",
+    );
+    expect(planReviewSection).toContain(
+      "Tasks include purpose, goal, non-goals, acceptance criteria, risks",
+    );
+    expect(planReviewSection).toContain(
+      "The plan does not include concrete implementation code, test code, shell",
+    );
+    expect(planReviewSection).toContain(
+      "Task specs prefer references to existing behavior and source-of-truth files",
     );
 
     const executionHandoffSectionStart = playPlanningBody.indexOf(
@@ -226,6 +391,24 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExecutionBody).toContain(
       "bounded fast paths for single-task and mechanical cases",
     );
+    expect(playSubagentExecutionBody).toContain(
+      "The plan constrains implementation intent, boundaries, source-of-truth",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "It does not\nmake concrete code-like examples, test snippets, shell snippets, command\nsequences, or commit recipes authoritative",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "unless the task explicitly labels\nthat content as approved verbatim artifact content",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "Implementers choose concrete code, tests, docs, and verification\ncommands only after reading the relevant source files directly",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "This model-selection category is separate\nfrom `**Mode:** mechanical`",
+    );
+    expect(playSubagentExecutionBody).toContain(
+      "satisfy\nverification expectations + commit inline",
+    );
 
     const singleTaskSectionStart = playSubagentExecutionBody.indexOf(
       "## Single-Task Plans",
@@ -270,6 +453,16 @@ describe("play-subagent planning and routing contracts", () => {
       skipDispatchSectionEnd,
     );
     expect(skipDispatchSection).toContain(
+      "Satisfy the task's `**Verification expectations:**` field",
+    );
+    expect(skipDispatchSection).toContain(
+      "source-owned project docs, config, tests",
+    );
+    expect(skipDispatchSection).toContain("Plan-named commands are not");
+    expect(skipDispatchSection).not.toContain(
+      "If the plan has no verify command, the verify step is a no-op",
+    );
+    expect(skipDispatchSection).toContain(
       "validates both controller-local parent state",
     );
     expect(skipDispatchSection).toContain(
@@ -280,6 +473,24 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(skipDispatchSection).not.toContain("caller says");
     expect(skipDispatchSection).not.toContain("prose-only");
+
+    const fallbackSectionStart =
+      playSubagentExecutionBody.indexOf("### Fallback");
+    const fallbackSectionEnd = playSubagentExecutionBody.indexOf(
+      "### Skip-Dispatch Examples",
+      fallbackSectionStart,
+    );
+    expect(fallbackSectionStart).toBeGreaterThanOrEqual(0);
+    expect(fallbackSectionEnd).toBeGreaterThan(fallbackSectionStart);
+    const fallbackSection = playSubagentExecutionBody.slice(
+      fallbackSectionStart,
+      fallbackSectionEnd,
+    );
+    expect(fallbackSection).toContain("`**TDD expectation:**`");
+    expect(fallbackSection).toContain("legacy TDD step-pair");
+    expect(fallbackSection).toContain(
+      "use\n`implementer-prompt.md` regardless of any `**Mode:** mechanical` hint",
+    );
 
     const processSectionStart =
       playSubagentExecutionBody.indexOf("## The Process");
