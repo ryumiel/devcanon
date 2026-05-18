@@ -31,6 +31,7 @@ validate_head_sha() {
 
 validate_findings_path_shape() {
   local findings_file="$1"
+  local expected_findings_file
   case "$findings_file" in
     .ephemeral/*/*)
       echo "nested findings path rejected: $findings_file" >&2
@@ -46,13 +47,11 @@ validate_findings_path_shape() {
     echo "path traversal: $findings_file" >&2
     exit 1
   }
-  case "$findings_file" in
-    .ephemeral/*-"$HEAD_SHA"-findings.json) ;;
-    *)
-      echo "findings path mismatch: $findings_file" >&2
-      exit 1
-      ;;
-  esac
+  expected_findings_file="$(expected_findings_path)"
+  [ "$findings_file" = "$expected_findings_file" ] || {
+    echo "findings path mismatch: $findings_file" >&2
+    exit 1
+  }
 }
 
 validate_nits_path_shape() {
@@ -129,6 +128,18 @@ slug_branch() {
   printf '%s\n' "$slug"
 }
 
+expected_findings_path() {
+  local raw_branch
+  local branch_slug
+  raw_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
+  if [ "$raw_branch" = "HEAD" ]; then
+    branch_slug="detached"
+  else
+    branch_slug="$(slug_branch "$raw_branch")"
+  fi
+  printf '.ephemeral/%s-%s-findings.json\n' "$branch_slug" "$HEAD_SHA"
+}
+
 case "$command_name" in
   validate-findings)
     validate_head_sha
@@ -154,13 +165,7 @@ case "$command_name" in
   prepare-findings-write)
     validate_head_sha
     if [ -z "${FINDINGS_FILE:-}" ]; then
-      RAW_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
-      if [ "$RAW_BRANCH" = "HEAD" ]; then
-        BRANCH_SLUG="detached"
-      else
-        BRANCH_SLUG="$(slug_branch "$RAW_BRANCH")"
-      fi
-      FINDINGS_FILE=".ephemeral/${BRANCH_SLUG}-${HEAD_SHA}-findings.json"
+      FINDINGS_FILE="$(expected_findings_path)"
     fi
     validate_findings_path_shape "$FINDINGS_FILE"
     prepare_write_target "findings" "$FINDINGS_FILE"

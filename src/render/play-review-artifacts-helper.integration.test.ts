@@ -49,6 +49,12 @@ async function makeGitWorkspace(): Promise<string> {
   return cwd;
 }
 
+async function makeTopicGitWorkspace(): Promise<string> {
+  const cwd = await makeGitWorkspace();
+  await execFileAsync("git", ["switch", "-C", "topic"], { cwd });
+  return cwd;
+}
+
 async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
   await writeFile(
     path.join(cwd, relPath),
@@ -82,7 +88,7 @@ async function commandAvailable(command: string): Promise<boolean> {
 
 describe("play-review review artifact helper", () => {
   it("validates findings and nits envelopes", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await writeEnvelope(cwd, findingsFile);
       await writeEnvelope(cwd, nitsFile);
@@ -102,7 +108,7 @@ describe("play-review review artifact helper", () => {
   });
 
   it("derives and prepares the nits-pending write path", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await writeEnvelope(cwd, findingsFile);
       const { stdout } = await runHelper(cwd, "derive-nits-pending", {
@@ -153,8 +159,30 @@ describe("play-review review artifact helper", () => {
     }
   });
 
+  it("validates findings against the full current branch-derived path", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    const wrongBranchFindingsFile = `.ephemeral/wrong-${headSha}-findings.json`;
+    try {
+      await writeEnvelope(cwd, findingsFile);
+      await writeEnvelope(cwd, wrongBranchFindingsFile);
+
+      await expect(
+        runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          FINDINGS_FILE: wrongBranchFindingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("findings path mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("prepares an explicit findings write path and removes a symlinked leaf", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     const outside = path.join(cwd, "outside-target");
     try {
       if (symlinkAvailable) {
@@ -242,7 +270,7 @@ describe("play-review review artifact helper", () => {
   it.skipIf(!symlinkAvailable)(
     "rejects a symlinked .ephemeral directory",
     async () => {
-      const cwd = await makeWorkspace();
+      const cwd = await makeTopicGitWorkspace();
       const outside = path.join(cwd, "outside-ephemeral");
       try {
         await rm(path.join(cwd, ".ephemeral"), {
@@ -270,7 +298,7 @@ describe("play-review review artifact helper", () => {
   it.skipIf(!symlinkAvailable)(
     "rejects symlinked leaf files when reading",
     async () => {
-      const cwd = await makeWorkspace();
+      const cwd = await makeTopicGitWorkspace();
       const outside = path.join(cwd, "outside-findings.json");
       try {
         await writeEnvelope(cwd, findingsFile);
@@ -292,7 +320,7 @@ describe("play-review review artifact helper", () => {
   );
 
   it("rejects missing files and directory targets", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await expect(
         runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
@@ -323,7 +351,7 @@ describe("play-review review artifact helper", () => {
   });
 
   it("rejects unreadable files where the platform enforces chmod permissions", async () => {
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     const absoluteFindingsFile = path.join(cwd, findingsFile);
     try {
       await writeEnvelope(cwd, findingsFile);
@@ -351,7 +379,7 @@ describe("play-review review artifact helper", () => {
       return;
     }
 
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await execFileAsync("mkfifo", [path.join(cwd, findingsFile)]);
 
@@ -374,7 +402,7 @@ describe("play-review review artifact helper", () => {
       return;
     }
 
-    const cwd = await makeWorkspace();
+    const cwd = await makeTopicGitWorkspace();
     try {
       await writeEnvelope(cwd, findingsFile);
       await execFileAsync("mkfifo", [path.join(cwd, nitsFile)]);
