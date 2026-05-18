@@ -151,7 +151,9 @@ describe("shipped agents render cleanly", () => {
         expect(codexToml).not.toHaveProperty("model_reasoning_effort");
       }
       expect(codexToml.developer_instructions).toEqual(expect.any(String));
-      expect(codexToml.developer_instructions).not.toHaveLength(0);
+      expect(
+        (codexToml.developer_instructions as string).trim(),
+      ).not.toHaveLength(0);
       expect(codexOutput.content).not.toContain("{{model:");
     }
   });
