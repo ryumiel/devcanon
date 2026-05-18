@@ -322,6 +322,8 @@ AUTO_HANDOFF_FILE=".ephemeral/issue-priming-auto-handoff-${ISSUE_PRIMING_AUTO_HE
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
 mkdir -p .ephemeral
 [ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+[ ! -d "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path is a directory: $AUTO_HANDOFF_FILE" >&2; exit 1; }
+[ ! -e "$AUTO_HANDOFF_FILE" ] || [ -f "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path exists but is not a regular file: $AUTO_HANDOFF_FILE" >&2; exit 1; }
 AUTO_HANDOFF_TMP=$(mktemp ".ephemeral/issue-priming-auto-handoff.XXXXXX") || exit 1
 jq -n --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD" '{
   schema: "issue-priming/auto-handoff/v1",
@@ -373,7 +375,8 @@ satisfies the final-review guarantee.
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 If the run commits any auto-fixes, rerun `branch-review --fix` on the new
 `HEAD`. Continue until a run reports zero blocking findings auto-fixed and the
-remaining findings file contains no unresolved `severity: "Blocking"` entries.
+remaining findings file contains no unresolved `severity: "Blocking"` entries
+except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
 If later mechanical nit handling creates any commit, rerun this same Branch Review step
 on the new `HEAD` before proceeding to Phase 8.
 

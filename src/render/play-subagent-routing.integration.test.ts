@@ -841,6 +841,12 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase6Section).toContain(
       '[ ! -L "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff must not be a symlink: $AUTO_HANDOFF_FILE"',
     );
+    expect(issuePhase6Section).toContain(
+      '[ ! -d "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path is a directory: $AUTO_HANDOFF_FILE"',
+    );
+    expect(issuePhase6Section).toContain(
+      '[ ! -e "$AUTO_HANDOFF_FILE" ] || [ -f "$AUTO_HANDOFF_FILE" ] || { echo "auto handoff path exists but is not a regular file: $AUTO_HANDOFF_FILE"',
+    );
     expectOrdered(
       issuePhase6Section,
       '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink"',
@@ -915,7 +921,7 @@ describe("play-subagent planning and routing contracts", () => {
       "mechanical nit handling creates any commit, rerun this same Branch Review step",
     );
     expect(issuePhase7Section).toContain(
-      'no unresolved `severity: "Blocking"` entries',
+      'no unresolved `severity: "Blocking"` entries\nexcept findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
     );
     expect(issuePhase7Section).toContain(
       "validate the parsed findings path before reading it",
