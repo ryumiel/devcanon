@@ -706,19 +706,22 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExecutionBody).not.toContain(
       "all multi-task plans run two-stage review",
     );
+    const normalizedPlaySubagentExecutionBody = normalizeWhitespace(
+      playSubagentExecutionBody,
+    );
     expect(playSubagentExecutionBody).toContain("## Subagent Lifecycle");
     expect(playSubagentExecutionBody).toContain("Use `subagent-lifecycle`");
-    expect(playSubagentExecutionBody).toContain(
-      "generic controller lifecycle ledger, target\nlifecycle capability classification, cleanup gate before spawns, target-honest\ncleanup outcomes, and slot-limit recovery",
+    expect(normalizedPlaySubagentExecutionBody).toContain(
+      "generic controller lifecycle ledger, target lifecycle capability classification, cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit recovery",
     );
-    expect(playSubagentExecutionBody).toContain(
-      "role-specific captured state includes implementer reports,\nchanged files, test results, snapshot state, reviewer scope, reviewer report,\nconcrete findings, routing target, re-review target, task base/head SHA,\nfixup count, and blocker state",
+    expect(normalizedPlaySubagentExecutionBody).toContain(
+      "role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, re-review target, task base/head SHA, fixup count, and blocker state",
     );
-    expect(playSubagentExecutionBody).toContain(
-      "same-session\nspec-compliance or code-quality reviewer fix loops may still route fixups back\nto that implementer session",
+    expect(normalizedPlaySubagentExecutionBody).toContain(
+      "same-session spec-compliance or code-quality reviewer fix loops may still route fixups back to that implementer session",
     );
-    expect(playSubagentExecutionBody).toContain(
-      "preserve the implementer\nsession until every reviewer loop required by the task's effective route\npasses",
+    expect(normalizedPlaySubagentExecutionBody).toContain(
+      "preserve the implementer session until every reviewer loop required by the task's effective route passes",
     );
     expect(playSubagentExecutionBody).not.toContain(
       "## Controller Lifecycle Ledger",
@@ -1119,8 +1122,8 @@ AUTO_HANDOFF_FILE=$(
     expect(issuePhase6Section).toContain(
       "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
     );
-    expect(issuePhase6Section).toContain(
-      "close them when the target is\n`automatic-close-supported`, or record the target-honest\n`close-unavailable` outcome before invoking `play-subagent-execution`",
+    expect(normalizeWhitespace(issuePhase6Section)).toContain(
+      "close them when the target is `automatic-close-supported`, or record the target-honest `close-unavailable` outcome before invoking `play-subagent-execution`",
     );
     expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
       issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),

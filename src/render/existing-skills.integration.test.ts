@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import {
   getSkillOutput,
   listRelativeFiles,
+  normalizeWhitespace,
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
@@ -731,6 +732,9 @@ describe("existing skills render cleanly", () => {
       playAgentDispatchStart,
       playAgentDispatchEnd,
     );
+    const normalizedPlayAgentDispatchSection = normalizeWhitespace(
+      playAgentDispatchSection,
+    );
     expectSharedLifecycleReference(
       playAgentDispatchSection,
       "play-agent-dispatch parallel dispatch",
@@ -739,11 +743,11 @@ describe("existing skills render cleanly", () => {
     expect(playAgentDispatchSection).toContain(
       "one pending ledger row per planned agent",
     );
-    expect(playAgentDispatchSection).toContain(
-      "Update the `subagent-lifecycle` ledger with each returned session's\n  role-specific state before closing or superseding it",
+    expect(normalizedPlayAgentDispatchSection).toContain(
+      "Update the `subagent-lifecycle` ledger with each returned session's role-specific state before closing or superseding it",
     );
-    expect(playAgentDispatchSection).toContain(
-      "After each returned session is integrated, run the `subagent-lifecycle`\n  cleanup gate before keeping or spawning any additional agent sessions",
+    expect(normalizedPlayAgentDispatchSection).toContain(
+      "After each returned session is integrated, run the `subagent-lifecycle` cleanup gate before keeping or spawning any additional agent sessions",
     );
 
     const prMergeInvestigationStart = prMergeBody.indexOf(
@@ -758,6 +762,9 @@ describe("existing skills render cleanly", () => {
       prMergeInvestigationStart,
       prMergeInvestigationEnd,
     );
+    const normalizedPrMergeInvestigationSection = normalizeWhitespace(
+      prMergeInvestigationSection,
+    );
     expectSharedLifecycleReference(
       prMergeInvestigationSection,
       "pr-merge CI investigation",
@@ -766,8 +773,8 @@ describe("existing skills render cleanly", () => {
       "Before dispatching the CI investigation agent",
     );
     expect(prMergeInvestigationSection).toContain("CI run/check identifiers");
-    expect(prMergeInvestigationSection).toContain(
-      "in-scope/out-of-scope\nclassification",
+    expect(normalizedPrMergeInvestigationSection).toContain(
+      "in-scope/out-of-scope classification",
     );
   });
 });
