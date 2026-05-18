@@ -316,13 +316,19 @@ Before invoking `play-subagent-execution`, write a controller-owned auto-mode
 handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
 artifact is audit evidence for reduced per-task review routes; authorization
 also depends on this controller-local parent workflow state, which invocation
-prose or repo files alone cannot provide.
+prose or repo files alone cannot provide. `ISSUE_PRIMING_WORKFLOW_DIR` must
+resolve to the installed `issue-priming-workflow` skill bundle, not the issue
+worktree. Bind
+`AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`
+and invoke it from the issue worktree root so it can enforce repo-root
+`.ephemeral` semantics.
 
 ```bash
+AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
 ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
 AUTO_HANDOFF_FILE=$(
   PLAN_PATH="$PLAN_PATH" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
+    bash "$AUTO_HANDOFF_HELPER"
 )
 ```
 
@@ -380,16 +386,17 @@ on the new `HEAD` before proceeding to Phase 8.
 
 This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If any remaining `Blocking` finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and report to the user**. This includes Safety / Contracts hard-rule blockers, design-change blockers, and out-of-diff blockers. `Nit` findings and `DOWNGRADE` findings are collected and passed through the classification flow below for Phase 8 PR review comments when they are judgment-required.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. Then validate the parsed findings path before reading it with the canonical helper:
+**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the issue worktree; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the issue worktree root. Then validate the parsed findings path before reading it with the canonical helper:
 
 ```bash
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 case "$REVIEW_HEAD_SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
   *) echo "branch-review review head invalid: $REVIEW_HEAD_SHA" >&2; exit 1 ;;
 esac
 HEAD_SHA="$REVIEW_HEAD_SHA"
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "skills/play-review/scripts/review-artifacts.sh" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings
 ```
 
 After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
@@ -415,7 +422,7 @@ See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#ph
   ```bash
   NITS_PENDING_FILE=$(
     HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-      bash "skills/play-review/scripts/review-artifacts.sh" derive-nits-pending
+      bash "$PLAY_REVIEW_HELPER" derive-nits-pending
   )
   ```
 

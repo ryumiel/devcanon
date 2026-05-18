@@ -91,9 +91,8 @@ describe("rendered phase artifact contracts", () => {
     expect(workflowBody).toContain(
       "research brief path exists but is not a regular file: $RESEARCH_BRIEF_PATH",
     );
-    expect(workflowBody).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(workflowBody).toContain("installed `play-review` skill");
+    expect(workflowBody).toContain("PLAY_REVIEW_HELPER");
     expect(workflowBody).toContain("derive-nits-pending");
     expect(workflowBody).toContain(
       "assumptions comment path exists but is not a regular file: $ASSUMPTIONS_COMMENT_FILE",
@@ -146,9 +145,8 @@ mkdir -p .ephemeral
     const playReviewBody = parseFrontmatter(
       getSkillOutput(outputs, "play-review", "codex").content,
     ).body;
-    expect(playReviewBody).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(playReviewBody).toContain("installed `play-review` skill");
+    expect(playReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(playReviewBody).toContain("prepare-findings-write");
     expect(playReviewBody).toContain("validate-findings");
     expect(playReviewBody).toContain("play-review/findings/v1");
@@ -177,9 +175,8 @@ mkdir -p .ephemeral
     const playBranchFinishBody = parseFrontmatter(
       getSkillOutput(outputs, "play-branch-finish", "codex").content,
     ).body;
-    expect(playBranchFinishBody).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(playBranchFinishBody).toContain("installed `play-review` skill");
+    expect(playBranchFinishBody).toContain("PLAY_REVIEW_HELPER");
     expect(playBranchFinishBody).toContain("validate-nits-file");
     expect(playBranchFinishBody).toContain(
       "path MUST be a direct child of `.ephemeral/`",
@@ -211,9 +208,8 @@ mkdir -p .ephemeral
     expect(branchReviewBody).toContain(
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
     );
-    expect(branchReviewBody).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(branchReviewBody).toContain("installed `play-review` skill");
+    expect(branchReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(branchReviewBody).toContain("validate-findings");
     expect(branchReviewBody).toContain("prepare-findings-write");
     expect(branchReviewBody).toContain("Sub-check 1 (substitution audit) or");
@@ -262,9 +258,8 @@ mkdir -p .ephemeral
     );
     expect(prReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(prReviewBody).toContain('--arg commit_id "$REVIEW_HEAD_SHA"');
-    expect(prReviewBody).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(prReviewBody).toContain("installed `play-review` skill");
+    expect(prReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(prReviewBody).toContain("validate-findings");
     expect(prReviewBody).toContain("play-review/findings/v1");
     expect(prReviewBody).toContain("fail closed before posting");

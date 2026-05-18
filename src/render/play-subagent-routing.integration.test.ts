@@ -839,8 +839,10 @@ describe("play-subagent planning and routing contracts", () => {
     );
     expect(issuePhase6Section).toContain('PLAN_PATH="$PLAN_PATH"');
     expect(issuePhase6Section).toContain(
-      'bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"',
+      "installed `issue-priming-workflow` skill",
     );
+    expect(issuePhase6Section).toContain("AUTO_HANDOFF_HELPER");
+    expect(issuePhase6Section).toContain('bash "$AUTO_HANDOFF_HELPER"');
     expect(issuePhase6Section).toContain(
       "prints the repo-relative artifact path",
     );
@@ -918,9 +920,8 @@ describe("play-subagent planning and routing contracts", () => {
     expect(issuePhase7Section).toContain(
       'echo "branch-review review head invalid: $REVIEW_HEAD_SHA"',
     );
-    expect(issuePhase7Section).toContain(
-      "skills/play-review/scripts/review-artifacts.sh",
-    );
+    expect(issuePhase7Section).toContain("installed `play-review` skill");
+    expect(issuePhase7Section).toContain("PLAY_REVIEW_HELPER");
     expect(issuePhase7Section).toContain("validate-findings");
     expect(issuePhase7Section).toContain("derive-nits-pending");
     expect(issuePhase7Section).toContain("play-review/findings/v1");

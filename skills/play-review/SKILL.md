@@ -93,15 +93,19 @@ SHA matching `^[0-9a-f]{40}$`. `<branch_slug>` is derived by the canonical
 helper from the actual repository branch in the current git state; detached
 HEAD maps to `detached`, and unsafe or empty slugs map to `unnamed`.
 
-The path is computed and written by this skill with
-`skills/play-review/scripts/review-artifacts.sh prepare-findings-write`, not by
-the wrapper. Run it from the repository root with `HEAD_SHA` set to the trusted
-`head_sha` input:
+The path is computed and written by this skill with the installed helper, not by
+the wrapper. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill
+bundle, not the repository under review. Bind
+`PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"`, then run
+the helper from the repository root so it can enforce repo-root `.ephemeral`
+semantics. Do not use a repo-relative helper path inside the target repository.
+Run with `HEAD_SHA` set to the trusted `head_sha` input:
 
 ```bash
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 FINDINGS_FILE=$(
   HEAD_SHA="$HEAD_SHA" \
-    bash "skills/play-review/scripts/review-artifacts.sh" prepare-findings-write
+    bash "$PLAY_REVIEW_HELPER" prepare-findings-write
 )
 ```
 
@@ -117,9 +121,10 @@ otherwise redirect the path. Validation is the same helper with
 `validate-findings`:
 
 ```bash
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA" \
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-  bash "skills/play-review/scripts/review-artifacts.sh" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings
 ```
 
 The helper recomputes the deterministic path from trusted inputs, compares it

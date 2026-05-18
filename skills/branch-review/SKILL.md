@@ -129,13 +129,14 @@ Then report:
 - Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
   1 Safety or Sub-check 2 Contracts)
 
-Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`. Immediately before overwriting, run the same helper with `prepare-findings-write`. Both commands run from the repository root, fail closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head.
+Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`. Immediately before overwriting, run the same helper with `prepare-findings-write`. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root. Both commands fail closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head.
 
 ```bash
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "skills/play-review/scripts/review-artifacts.sh" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings
 ```
 
 After computing the remaining-set envelope from the validated file, and
@@ -144,7 +145,7 @@ write-target preparation for the same immutable review head and same file:
 
 ```bash
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "skills/play-review/scripts/review-artifacts.sh" prepare-findings-write
+  bash "$PLAY_REVIEW_HELPER" prepare-findings-write
 ```
 
 The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
