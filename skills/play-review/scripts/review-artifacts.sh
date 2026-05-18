@@ -20,13 +20,18 @@ require_jq() {
 
 require_repo_root() {
   local git_toplevel
+  local physical_toplevel
   local physical_pwd
   git_toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || {
     echo "failed to determine git repository root" >&2
     exit 1
   }
+  physical_toplevel="$(cd "$git_toplevel" && pwd -P)" || {
+    echo "failed to resolve git repository root" >&2
+    exit 1
+  }
   physical_pwd="$(pwd -P)"
-  [ "$git_toplevel" = "$physical_pwd" ] || {
+  [ "$physical_toplevel" = "$physical_pwd" ] || {
     echo "review-artifacts.sh must run from the repository root" >&2
     exit 1
   }
@@ -120,7 +125,7 @@ assert_readable_envelope() {
       if .severity == "Nit" then
         .critic == null
       else
-        one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
+        .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
       end;
     def valid_finding:
       type == "object"

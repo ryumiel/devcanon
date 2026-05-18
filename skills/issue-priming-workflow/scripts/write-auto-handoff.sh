@@ -20,8 +20,12 @@ GIT_TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "failed to determine git repository root" >&2
   exit 1
 }
+PHYSICAL_TOPLEVEL="$(cd "$GIT_TOPLEVEL" && pwd -P)" || {
+  echo "failed to resolve git repository root" >&2
+  exit 1
+}
 PHYSICAL_PWD="$(pwd -P)"
-[ "$GIT_TOPLEVEL" = "$PHYSICAL_PWD" ] || {
+[ "$PHYSICAL_TOPLEVEL" = "$PHYSICAL_PWD" ] || {
   echo "write-auto-handoff.sh must run from the repository root" >&2
   exit 1
 }

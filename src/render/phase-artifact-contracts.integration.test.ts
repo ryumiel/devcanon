@@ -158,6 +158,7 @@ mkdir -p .ephemeral
     const prepareFindingsSnippet = `\
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+cd "$WORKING_DIRECTORY"
 FINDINGS_FILE=$(
   HEAD_SHA="$HEAD_SHA" \\
     bash "$PLAY_REVIEW_HELPER" prepare-findings-write
@@ -189,6 +190,13 @@ FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \\
     expect(playReviewBody).not.toContain("BRANCH_SLUG=$(printf");
     expect(playReviewBody).toContain(`\
 : "\${HEAD_SHA:?trusted head_sha input required}"  # validated per § Output's SHA-format check
+  : "\${FINDINGS_FILE:?findings file required}"
+  case "$FINDINGS_FILE" in
+    .ephemeral/*/*) echo "nested findings path rejected: $FINDINGS_FILE" >&2; exit 1 ;;
+    .ephemeral/*-findings.json) ;;
+    *) echo "findings path validation failed: $FINDINGS_FILE" >&2; exit 1 ;;
+  esac
+  [ "\${FINDINGS_FILE#*..}" = "$FINDINGS_FILE" ] || { echo "path traversal: $FINDINGS_FILE" >&2; exit 1; }
   CONTEXT_FILE="\${FINDINGS_FILE%-findings.json}-review-context.md"
   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
   mkdir -p .ephemeral

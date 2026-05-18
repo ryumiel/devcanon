@@ -20,6 +20,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
+const jqAvailable = await commandAvailable("jq");
 const mkfifoAvailable = await commandAvailable("mkfifo");
 const helperScript = path.join(
   process.cwd(),
@@ -111,13 +112,22 @@ async function commandAvailable(command: string): Promise<boolean> {
   }
 }
 
-describe("play-review review artifact helper", () => {
+describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
   it("validates findings and nits envelopes", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       const nonEmptyEnvelope = {
         schema: "play-review/findings/v1",
-        findings: [finding()],
+        findings: [
+          finding(),
+          finding({
+            line: 43,
+            critic: null,
+            why: "The critic phase failed before verdicts were available.",
+            recommendation: "Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** - The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+          }),
+        ],
         carry_forward: [
           finding({
             line: 44,
@@ -381,7 +391,7 @@ describe("play-review review artifact helper", () => {
       },
       {
         schema: "play-review/findings/v1",
-        findings: [finding({ severity: "Blocking", critic: null })],
+        findings: [finding({ path: "/absolute/path" })],
         carry_forward: [],
       },
     ];

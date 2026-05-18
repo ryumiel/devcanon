@@ -20,6 +20,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
+const jqAvailable = await commandAvailable("jq");
 const mkfifoAvailable = await commandAvailable("mkfifo");
 const helperScript = path.join(
   process.cwd(),
@@ -65,7 +66,7 @@ async function commandAvailable(command: string): Promise<boolean> {
   }
 }
 
-describe("issue-priming auto-handoff helper", () => {
+describe.skipIf(!jqAvailable)("issue-priming auto-handoff helper", () => {
   it("writes the auto-handoff artifact for a valid plan path", async () => {
     const cwd = await initializeRepo();
     try {
