@@ -218,6 +218,7 @@ describe("renderClaudeAgent passthrough", () => {
     );
     const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
     expect(frontmatter.experimental_mode).toBe("beta");
+    expect(result.content).toContain('experimental_mode: "beta"');
     expect(warnings).toEqual([]);
   });
 
@@ -351,5 +352,6 @@ describe("renderClaudeAgent passthrough", () => {
     );
     const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
     expect(frontmatter.note).toBe('has "quotes": and #hash');
+    expect(result.content).toContain('note: "has \\"quotes\\": and #hash"');
   });
 });
