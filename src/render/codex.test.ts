@@ -3,6 +3,7 @@ import { parse } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeCodexSource } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import { parseRenderedTomlArtifact } from "../__test-helpers__/render.js";
 import { CODEX_TARGET_FIELDS, type ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent, LoadedSkill } from "../models/types.js";
 import {
@@ -105,25 +106,28 @@ describe("renderCodexAgent", () => {
 
   it("includes name, description, and sandbox_mode fields", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content;
-    expect(content).toContain('name = "test-agent"');
-    expect(content).toContain('description = "A test agent for unit testing."');
-    expect(content).toContain('sandbox_mode = "read-only"');
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).toMatchObject({
+      name: "test-agent",
+      description: "A test agent for unit testing.",
+      sandbox_mode: "read-only",
+    });
   });
 
   it("uses triple-quoted basic strings for developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
     const content = result.content;
+    const parsed = parseRenderedTomlArtifact(content);
     expect(content).toMatch(/developer_instructions = """\n[\s\S]*\n"""/);
-    expect(content).toContain("## Step One");
-    expect(content).toContain("## Step Two");
+    expect(parsed.developer_instructions).toContain("## Step One");
+    expect(parsed.developer_instructions).toContain("## Step Two");
   });
 
   it("includes skills section in developer_instructions", () => {
     const result = renderCodexAgent(agent, emptySkills, config);
-    const content = result.content;
-    expect(content).toContain("## Skills");
-    expect(content).toContain(
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed.developer_instructions).toContain("## Skills");
+    expect(parsed.developer_instructions).toContain(
       "- **test-skill** (`~/.agents/skills/test-skill`)",
     );
   });
@@ -152,18 +156,25 @@ describe("renderCodexAgent", () => {
     };
 
     const result = renderCodexAgent(fullAgent, emptySkills, config);
-    const content = result.content;
-    const expectedFragments = {
-      model: 'model = "gpt-5.4"',
-      model_reasoning_effort: 'model_reasoning_effort = "high"',
-      sandbox_mode: 'sandbox_mode = "danger-full-access"',
-      nickname_candidates: 'nickname_candidates = ["builder", "reviewer"]',
-      approval_policy:
-        "approval_policy = { granular = { mcp_elicitations = true, request_permissions = false, rules = true, sandbox_approval = true, skill_approval = false } }",
-    } satisfies Record<(typeof CODEX_TARGET_FIELDS)[number], string>;
+    const parsed = parseRenderedTomlArtifact(result.content);
+    const expectedValues = {
+      model: "gpt-5.4",
+      model_reasoning_effort: "high",
+      sandbox_mode: "danger-full-access",
+      nickname_candidates: ["builder", "reviewer"],
+      approval_policy: {
+        granular: {
+          mcp_elicitations: true,
+          request_permissions: false,
+          rules: true,
+          sandbox_approval: true,
+          skill_approval: false,
+        },
+      },
+    } satisfies Record<(typeof CODEX_TARGET_FIELDS)[number], unknown>;
 
     for (const field of CODEX_TARGET_FIELDS) {
-      expect(content).toContain(expectedFragments[field]);
+      expect(parsed[field]).toEqual(expectedValues[field]);
     }
   });
 
@@ -179,8 +190,8 @@ describe("renderCodexAgent", () => {
     };
 
     const result = renderCodexAgent(stringApprovalAgent, emptySkills, config);
-    const content = result.content;
-    expect(content).toContain('approval_policy = "on-failure"');
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed.approval_policy).toBe("on-failure");
   });
 
   it("resolves a tier placeholder to the target-native model and reasoning effort", () => {
@@ -191,8 +202,9 @@ describe("renderCodexAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('model = "gpt-5.4"');
-    expect(result.content).toContain('model_reasoning_effort = "medium"');
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed.model).toBe("gpt-5.4");
+    expect(parsed.model_reasoning_effort).toBe("medium");
   });
 
   it("prefers an explicit codex reasoning effort over the tier profile default", () => {
@@ -204,9 +216,9 @@ describe("renderCodexAgent", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('model = "gpt-5.4"');
-    expect(result.content).toContain('model_reasoning_effort = "high"');
-    expect(result.content).not.toContain('model_reasoning_effort = "medium"');
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed.model).toBe("gpt-5.4");
+    expect(parsed.model_reasoning_effort).toBe("high");
   });
 
   it("throws when codex.model contains the placeholder prefix but is not a valid placeholder", () => {
@@ -234,6 +246,7 @@ describe("renderCodexAgent", () => {
     expect(result.installedPath).toBe(
       path.join("~/.codex/agents", "test-agent.toml"),
     );
+    expect(result.contentHash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
@@ -422,7 +435,7 @@ describe("Codex TOML renderer round-trip", () => {
     };
 
     const result = renderCodexAgent(fixture, emptySkills, config);
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
 
     expect(parsed.name).toBe(fixture.source.name);
     expect(parsed.description).toBe(fixture.source.description);
@@ -459,7 +472,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     const di = parsed.developer_instructions as string;
     expect(di).toContain("pre");
     expect(di).toContain("mid");
@@ -476,7 +489,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.developer_instructions).toBe('pre\n"""\nmid\n"""\npost\n');
   });
 
@@ -487,7 +500,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.developer_instructions).toBe('a\\b\n"c\nd"""e\n');
   });
 
@@ -498,7 +511,7 @@ describe("Codex TOML renderer round-trip", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.developer_instructions).toBe("line1\r\nline2\tcol\n");
   });
 });
@@ -521,8 +534,7 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain('future_flag = "x"');
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.future_flag).toBe("x");
     expect(warnings).toEqual([]);
   });
@@ -533,9 +545,7 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).toContain("temperature = 0.7");
-    expect(result.content).toContain("eager = true");
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.temperature).toBe(0.7);
     expect(parsed.eager).toBe(true);
   });
@@ -546,7 +556,7 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.extra_servers).toEqual(["a", 'with"quote']);
   });
 
@@ -556,7 +566,7 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.weights).toEqual([1, 2, 3]);
     expect(parsed.flags).toEqual([true, false]);
   });
@@ -568,7 +578,7 @@ describe("renderCodexAgent passthrough", () => {
       config,
     );
     expect(result.content).toContain("extra_servers = []");
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.extra_servers).toEqual([]);
     expect(warnings).toEqual([]);
   });
@@ -595,7 +605,8 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toContain("opt_out");
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("opt_out");
     expect(warnings.some((w) => w.includes('"opt_out"'))).toBe(true);
     expect(warnings.some((w) => w.includes("TOML has no null"))).toBe(true);
   });
@@ -606,7 +617,8 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^nested /m);
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("nested");
     expect(warnings.some((w) => w.includes('"nested"'))).toBe(true);
     expect(warnings.some((w) => w.includes("object"))).toBe(true);
   });
@@ -617,7 +629,8 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^mixed /m);
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("mixed");
     expect(warnings.some((w) => w.includes('"mixed"'))).toBe(true);
   });
 
@@ -627,7 +640,8 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toMatch(/^bad /m);
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("bad");
     expect(warnings.some((w) => w.includes('"bad"'))).toBe(true);
   });
 
@@ -637,7 +651,8 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    expect(result.content).not.toContain("bad key!");
+    const parsed = parseRenderedTomlArtifact(result.content);
+    expect(parsed).not.toHaveProperty("bad key!");
     expect(warnings.some((w) => w.includes('"bad key!"'))).toBe(true);
   });
 
@@ -651,9 +666,10 @@ describe("renderCodexAgent passthrough", () => {
       config,
     );
     const approvalLines = result.content.match(/^approval_policy =/gm) ?? [];
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(approvalLines).toHaveLength(1);
-    expect(result.content).toContain('approval_policy = "on-request"');
-    expect(result.content).toContain("alpha = 1");
+    expect(parsed.approval_policy).toBe("on-request");
+    expect(parsed.alpha).toBe(1);
   });
 
   it("TOML round-trip: parser accepts all passthrough output", () => {
@@ -668,7 +684,7 @@ describe("renderCodexAgent passthrough", () => {
       emptySkills,
       config,
     );
-    const parsed = parse(result.content) as Record<string, unknown>;
+    const parsed = parseRenderedTomlArtifact(result.content);
     expect(parsed.str_field).toBe("hello");
     expect(parsed.num_field).toBe(42);
     expect(parsed.bool_field).toBe(true);
