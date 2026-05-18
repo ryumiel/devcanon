@@ -132,6 +132,7 @@ Then report:
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`. Immediately before overwriting, run the same helper with `prepare-findings-write`. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root. Both commands fail closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head.
 
 ```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE"

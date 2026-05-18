@@ -102,6 +102,7 @@ semantics. Do not use a repo-relative helper path inside the target repository.
 Run with `HEAD_SHA` set to the trusted `head_sha` input:
 
 ```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 FINDINGS_FILE=$(
   HEAD_SHA="$HEAD_SHA" \
@@ -121,6 +122,7 @@ otherwise redirect the path. Validation is the same helper with
 `validate-findings`:
 
 ```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA" \
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \

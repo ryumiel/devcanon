@@ -174,6 +174,7 @@ EOF
 2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the canonical `play-review` helper command `validate-nits-file` before partitioning. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root. The helper enforces that the path MUST be a direct child of `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`, MUST NOT be a symlink, MUST be a readable regular file, and MUST carry schema `play-review/findings/v1`. Treat any nonzero exit as a contract failure and stop before posting:
 
    ```bash
+   PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    NITS_FILE="$NITS_FILE" \
      bash "$PLAY_REVIEW_HELPER" validate-nits-file

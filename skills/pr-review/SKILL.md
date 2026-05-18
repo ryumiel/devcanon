@@ -166,6 +166,7 @@ Only after user approval:
 1. **Post review with inline comments** via the REST API. Read the `play-review/findings/v1` envelope from the side-channel file `play-review` wrote in Phase 4 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, the path that appears on `play-review`'s `Findings written to <path>.` notice line captured before the Phase 5 user gate. Schema and side-channel transport: `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings` and fail closed before posting if validation fails. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target worktree root:
 
    ```bash
+   PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
    FINDINGS_FILE="$REVIEW_FINDINGS_FILE"

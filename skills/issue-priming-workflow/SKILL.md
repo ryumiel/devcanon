@@ -324,6 +324,7 @@ and invoke it from the issue worktree root so it can enforce repo-root
 `.ephemeral` semantics.
 
 ```bash
+ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
 AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
 ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
 AUTO_HANDOFF_FILE=$(
@@ -389,6 +390,7 @@ This runs the full multi-agent review (correctness, data-safety, language-specif
 **Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the issue worktree; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the issue worktree root. Then validate the parsed findings path before reading it with the canonical helper:
 
 ```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 case "$REVIEW_HEAD_SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;

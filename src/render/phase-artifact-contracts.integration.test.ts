@@ -92,6 +92,9 @@ describe("rendered phase artifact contracts", () => {
       "research brief path exists but is not a regular file: $RESEARCH_BRIEF_PATH",
     );
     expect(workflowBody).toContain("installed `play-review` skill");
+    expect(workflowBody).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
     expect(workflowBody).toContain("PLAY_REVIEW_HELPER");
     expect(workflowBody).toContain("derive-nits-pending");
     expect(workflowBody).toContain(
@@ -146,6 +149,9 @@ mkdir -p .ephemeral
       getSkillOutput(outputs, "play-review", "codex").content,
     ).body;
     expect(playReviewBody).toContain("installed `play-review` skill");
+    expect(playReviewBody).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
     expect(playReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(playReviewBody).toContain("prepare-findings-write");
     expect(playReviewBody).toContain("validate-findings");
@@ -176,6 +182,9 @@ mkdir -p .ephemeral
       getSkillOutput(outputs, "play-branch-finish", "codex").content,
     ).body;
     expect(playBranchFinishBody).toContain("installed `play-review` skill");
+    expect(playBranchFinishBody).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
     expect(playBranchFinishBody).toContain("PLAY_REVIEW_HELPER");
     expect(playBranchFinishBody).toContain("validate-nits-file");
     expect(playBranchFinishBody).toContain(
@@ -209,6 +218,9 @@ mkdir -p .ephemeral
       'HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits',
     );
     expect(branchReviewBody).toContain("installed `play-review` skill");
+    expect(branchReviewBody).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
     expect(branchReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(branchReviewBody).toContain("validate-findings");
     expect(branchReviewBody).toContain("prepare-findings-write");
@@ -259,6 +271,9 @@ mkdir -p .ephemeral
     expect(prReviewBody).toContain('FINDINGS_FILE="$REVIEW_FINDINGS_FILE"');
     expect(prReviewBody).toContain('--arg commit_id "$REVIEW_HEAD_SHA"');
     expect(prReviewBody).toContain("installed `play-review` skill");
+    expect(prReviewBody).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
     expect(prReviewBody).toContain("PLAY_REVIEW_HELPER");
     expect(prReviewBody).toContain("validate-findings");
     expect(prReviewBody).toContain("play-review/findings/v1");
