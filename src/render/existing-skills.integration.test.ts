@@ -521,6 +521,43 @@ describe("existing skills render cleanly", () => {
       );
     }
 
+    const skillEntries = await readdir(path.join(repoRoot, "skills"), {
+      withFileTypes: true,
+    });
+    const skillDirs = skillEntries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name);
+
+    for (const skillName of skillDirs) {
+      const sourceScriptsRoot = path.join(
+        repoRoot,
+        "skills",
+        skillName,
+        "scripts",
+      );
+      if (!(await pathExists(sourceScriptsRoot))) continue;
+
+      const scriptFiles = await listRelativeFiles(sourceScriptsRoot);
+      for (const scriptFile of scriptFiles) {
+        const sourcePath = path.join(sourceScriptsRoot, scriptFile);
+        const sourceContent = await readFile(sourcePath, "utf-8");
+
+        for (const target of ["claude", "codex"] as const) {
+          const generatedPath = path.join(
+            config.library.generatedDir,
+            target,
+            "skills",
+            skillName,
+            "scripts",
+            scriptFile,
+          );
+
+          expect(await pathExists(generatedPath)).toBe(true);
+          expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+        }
+      }
+    }
+
     const sourcePath = path.join(
       repoRoot,
       "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
