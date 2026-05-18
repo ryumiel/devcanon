@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -118,6 +119,31 @@ describe("issue-priming auto-handoff helper", () => {
         runHelper(cwd, { PLAN_PATH: ".ephemeral/directory-plan.md" }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("plan missing or not a regular file"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects execution from a repository subdirectory before validating local .ephemeral paths", async () => {
+    const cwd = await initializeRepo();
+    const subdir = path.join(cwd, "subdir");
+    try {
+      await mkdir(path.join(subdir, ".ephemeral"), { recursive: true });
+      await writeFile(path.join(subdir, planPath), "# Subdir Plan\n");
+      const head = await headSha(cwd);
+      const subdirTarget = path.join(
+        subdir,
+        `.ephemeral/issue-priming-auto-handoff-${head}.json`,
+      );
+
+      await expect(runHelper(subdir)).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "write-auto-handoff.sh must run from the repository root",
+        ),
+      });
+      await expect(lstat(subdirTarget)).rejects.toMatchObject({
+        code: "ENOENT",
       });
     } finally {
       await cleanupTempDir(cwd);

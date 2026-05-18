@@ -16,6 +16,16 @@ command -v jq >/dev/null 2>&1 || {
   exit 1
 }
 
+GIT_TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "failed to determine git repository root" >&2
+  exit 1
+}
+PHYSICAL_PWD="$(pwd -P)"
+[ "$GIT_TOPLEVEL" = "$PHYSICAL_PWD" ] || {
+  echo "write-auto-handoff.sh must run from the repository root" >&2
+  exit 1
+}
+
 case "$PLAN_PATH" in
   .ephemeral/*/*)
     echo "nested plan path rejected: $PLAN_PATH" >&2
