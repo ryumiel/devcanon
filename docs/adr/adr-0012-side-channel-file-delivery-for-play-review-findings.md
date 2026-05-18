@@ -84,10 +84,12 @@ Path scheme:
   checkouts (e.g., `pr-review` fork PRs that use
   `gh pr checkout --detach`). The slug also substitutes `unnamed` for
   shapes that would widen the path-interpretation surface (empty after
-  stripping, bare `.`/`..`, or starting with `-`/`.`). The authoritative
-  bash lives in `skills/play-review/SKILL.md` § Output → Side-channel
-  file → Path; consumers MUST also run the path-validation guard from
-  the same section before opening or overwriting the file.
+  stripping, bare `.`/`..`, or starting with `-`/`.`).
+
+The path scheme and consumer responsibilities in this ADR remain authoritative.
+Reusable executable mechanics for findings and derived nits artifacts live in
+the owning `play-review` helper script, with `SKILL.md` carrying the invocation
+contract and workflow policy per ADR-0019.
 
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
