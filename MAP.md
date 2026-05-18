@@ -151,6 +151,12 @@ Quick navigation index for the DevCanon repository.
 
 ---
 
+## Skill Contract Tests
+
+- Where are source-level skill contract tests? -> [`src/skill-contracts/`](src/skill-contracts/)
+
+---
+
 ## Install and sync
 
 - Where is the sync orchestration? -> [`src/install/sync.ts`](src/install/sync.ts)

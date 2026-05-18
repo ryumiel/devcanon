@@ -206,66 +206,6 @@ describe("existing skills render cleanly", () => {
     }
   });
 
-  it("documents the write-product-spec behavior-spec boundaries", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    const { outputs } = await renderAll(config, false);
-    const writeProductSpecBody = parseFrontmatter(
-      getSkillOutput(outputs, "write-product-spec", "codex").content,
-    ).body;
-
-    expect(writeProductSpecBody).toContain("docs/specs/<topic>.md");
-    expect(writeProductSpecBody).toContain("root `SPEC.md`");
-    expect(writeProductSpecBody).toContain("routine bug fixes");
-    expect(writeProductSpecBody).toContain("dependency audits");
-    expect(writeProductSpecBody).toContain("review-feedback patches");
-    expect(writeProductSpecBody).toContain("docs gardening");
-    expect(writeProductSpecBody).toContain("behavior-preserving refactors");
-    expect(writeProductSpecBody).toContain("live issue status");
-    expect(writeProductSpecBody).toContain("assignees");
-    expect(writeProductSpecBody).toContain("PR lists");
-    expect(writeProductSpecBody).toContain("single-PR execution plans");
-    expect(writeProductSpecBody).toContain("contract authority");
-    expect(writeProductSpecBody).toContain("source-owned schemas");
-    expect(writeProductSpecBody).toContain(
-      "references/behavior-spec-evidence-routing.md",
-    );
-    expect(writeProductSpecBody).toContain(
-      "Repo-local AFDS docs are optional project context",
-    );
-    expect(writeProductSpecBody).toContain("required runtime inputs");
-    expect(writeProductSpecBody).toContain("evidence pointer");
-    expect(writeProductSpecBody).toContain("durable team, system, role");
-    expect(writeProductSpecBody).not.toContain(
-      "docs/guidelines/portable-afds-user-procedure-map.md",
-    );
-    expect(writeProductSpecBody).not.toContain(
-      "docs/guidelines/behavior-spec-evidence-routing.md",
-    );
-    expect(writeProductSpecBody).not.toContain(
-      "docs/specs/afds-workflow-routing.md",
-    );
-    expect(writeProductSpecBody).not.toContain("EVID-001");
-    expect(writeProductSpecBody).toContain("readiness review");
-    expect(writeProductSpecBody).toContain("unapproved follow-up");
-    expect(writeProductSpecBody).toContain("spec-readiness-review");
-    expect(writeProductSpecBody).toContain("issue-slicing");
-    expect(writeProductSpecBody.indexOf("spec-readiness-review")).toBeLessThan(
-      writeProductSpecBody.indexOf("issue-slicing"),
-    );
-    expect(writeProductSpecBody).not.toContain("slice-issues");
-    expect(writeProductSpecBody).toContain("doc-impact-review");
-    expect(writeProductSpecBody).toContain("post-merge-gardener");
-    expect(writeProductSpecBody).toContain("new agent");
-    expect(writeProductSpecBody).toContain("roles");
-    expect(writeProductSpecBody).toContain("write-product-requirements");
-    expect(writeProductSpecBody).toContain("docs/product-requirements/");
-    expect(writeProductSpecBody).toContain("product intent");
-  });
-
   it("documents behavior-spec evidence routing as a durable procedure-map owner", async () => {
     const repoRoot = process.cwd();
 
