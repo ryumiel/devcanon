@@ -105,9 +105,11 @@ When a spawn fails because of a slot/session limit:
    ledger.
 2. Run the cleanup gate for all completed or superseded sessions.
 3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup
-   guidance. Include open-agent inventory when the target exposes it; otherwise
-   state that inventory is unavailable. Wait for operator confirmation that
-   manual cleanup is complete before continuing.
+   guidance. Include only sanitized open-agent inventory when the target exposes
+   it; otherwise state that inventory is unavailable. Use the same field
+   allowlist and redaction rule described for retry-failure escalation below.
+   Wait for operator confirmation that manual cleanup is complete before
+   continuing.
 4. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
