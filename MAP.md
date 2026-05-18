@@ -60,6 +60,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Biome config? -> [`biome.json`](biome.json)
 - Where is the Vitest config? -> [`vitest.config.ts`](vitest.config.ts)
 - Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
+- Where are direct skill helper script runtime tests? -> [`src/skill-scripts/`](src/skill-scripts/)
 
 ---
 
