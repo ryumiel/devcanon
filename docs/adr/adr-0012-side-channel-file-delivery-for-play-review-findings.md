@@ -87,9 +87,10 @@ Path scheme:
   stripping, bare `.`/`..`, or starting with `-`/`.`).
 
 The path scheme and consumer responsibilities in this ADR remain authoritative.
-Reusable executable mechanics for findings and derived nits artifacts live in
-the owning `play-review` helper script, with `SKILL.md` carrying the invocation
-contract and workflow policy per ADR-0019.
+Per ADR-0019, reusable executable mechanics for findings and derived nits
+artifacts should move to the owning `play-review` helper script when this
+contract is extracted from prompt-embedded shell. `SKILL.md` carries the
+invocation contract and workflow policy.
 
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
