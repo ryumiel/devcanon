@@ -115,3 +115,11 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   },
 }
 `;
+
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > subagent-lifecycle-sidecar 1`] = `
+{
+  "policy": {
+    "allow_implicit_invocation": false,
+  },
+}
+`;

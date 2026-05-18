@@ -29,6 +29,7 @@ const TOUCHED_SKILLS = new Set([
   "play-planning",
   "report-devcanon-shared-issue",
   "spec-readiness-review",
+  "subagent-lifecycle",
   "write-product-requirements",
   "write-product-spec",
 ]);
@@ -50,7 +51,11 @@ const SKILLS_WITH_METADATA = {
     "pr-review",
     "report-devcanon-shared-issue",
   ] as const,
-  policySidecar: ["issue-priming-workflow", "play-review"] as const,
+  policySidecar: [
+    "issue-priming-workflow",
+    "play-review",
+    "subagent-lifecycle",
+  ] as const,
 };
 
 const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
@@ -581,6 +586,169 @@ describe("existing skills render cleanly", () => {
     );
     expect(redFlags).toContain(
       "You treated line count alone as enough to suppress the dynamic fanout",
+    );
+  });
+
+  it("documents subagent-lifecycle references in direct spawning workflows", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const bodyFor = (skillName: string) =>
+      parseFrontmatter(getSkillOutput(outputs, skillName, "codex").content)
+        .body;
+
+    const issuePrimingWorkflowBody = bodyFor("issue-priming-workflow");
+    const playReviewBody = bodyFor("play-review");
+    const playPlanningBody = bodyFor("play-planning");
+    const playAgentDispatchBody = bodyFor("play-agent-dispatch");
+    const prMergeBody = bodyFor("pr-merge");
+
+    for (const [skillName, body] of [
+      ["issue-priming-workflow", issuePrimingWorkflowBody],
+      ["play-review", playReviewBody],
+      ["play-planning", playPlanningBody],
+      ["play-agent-dispatch", playAgentDispatchBody],
+      ["pr-merge", prMergeBody],
+    ] as const) {
+      expect(
+        body,
+        `${skillName} should reference subagent-lifecycle`,
+      ).toContain("subagent-lifecycle");
+      expect(body).toContain("target-honest cleanup outcomes");
+      expect(body).toContain("slot-limit");
+      expect(body).toContain("recovery");
+    }
+
+    const issueLifecycleStart = issuePrimingWorkflowBody.indexOf(
+      "## Subagent Lifecycle",
+    );
+    const issueLifecycleEnd = issuePrimingWorkflowBody.indexOf(
+      "## Phase 2: Complexity Gate",
+    );
+    expect(issueLifecycleStart).toBeGreaterThanOrEqual(0);
+    expect(issueLifecycleEnd).toBeGreaterThan(issueLifecycleStart);
+    const issueLifecycleSection = issuePrimingWorkflowBody.slice(
+      issueLifecycleStart,
+      issueLifecycleEnd,
+    );
+    expect(issueLifecycleSection).toContain(
+      "Before dispatching the Phase 2 gate agent",
+    );
+    expect(issueLifecycleSection).toContain("Phase 3 research agent");
+    expect(issueLifecycleSection).toContain("gate\nresult");
+    expect(issueLifecycleSection).toContain("research brief path");
+
+    const issuePhase6Start = issuePrimingWorkflowBody.indexOf(
+      "### Phase 6: Implement",
+    );
+    const issuePhase6End = issuePrimingWorkflowBody.indexOf(
+      "### Phase 7: Branch Review",
+    );
+    expect(issuePhase6Start).toBeGreaterThanOrEqual(0);
+    expect(issuePhase6End).toBeGreaterThan(issuePhase6Start);
+    const issuePhase6Section = issuePrimingWorkflowBody.slice(
+      issuePhase6Start,
+      issuePhase6End,
+    );
+    expect(issuePhase6Section).toContain(
+      "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
+    );
+    expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
+      issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
+    );
+
+    const playReviewPhase3Start = playReviewBody.indexOf(
+      "## Phase 3: Spawn agents",
+    );
+    const playReviewPhase3End = playReviewBody.indexOf(
+      "**Core agents (always spawned):**",
+    );
+    expect(playReviewPhase3Start).toBeGreaterThanOrEqual(0);
+    expect(playReviewPhase3End).toBeGreaterThan(playReviewPhase3Start);
+    const playReviewPhase3Section = playReviewBody.slice(
+      playReviewPhase3Start,
+      playReviewPhase3End,
+    );
+    expect(playReviewPhase3Section).toContain(
+      "Before spawning Phase 3 reviewer agents",
+    );
+    expect(playReviewPhase3Section).toContain("review scope");
+    expect(playReviewPhase3Section).toContain("critic verdicts");
+
+    const playReviewCriticStart = playReviewBody.indexOf(
+      "## Phase 5: Critic verification",
+    );
+    const playReviewCriticEnd = playReviewBody.indexOf("## Hard Rules");
+    expect(playReviewCriticStart).toBeGreaterThanOrEqual(0);
+    expect(playReviewCriticEnd).toBeGreaterThan(playReviewCriticStart);
+    const playReviewCriticSection = playReviewBody.slice(
+      playReviewCriticStart,
+      playReviewCriticEnd,
+    );
+    expect(playReviewCriticSection).toContain(
+      "Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate",
+    );
+
+    const playPlanningReviewStart = playPlanningBody.indexOf("## Plan Review");
+    const playPlanningReviewEnd = playPlanningBody.indexOf(
+      "## Execution Handoff",
+    );
+    expect(playPlanningReviewStart).toBeGreaterThanOrEqual(0);
+    expect(playPlanningReviewEnd).toBeGreaterThan(playPlanningReviewStart);
+    const playPlanningReviewSection = playPlanningBody.slice(
+      playPlanningReviewStart,
+      playPlanningReviewEnd,
+    );
+    expect(playPlanningReviewSection).toContain(
+      "Before dispatching the plan-review agent",
+    );
+    expect(playPlanningReviewSection).toContain("PASS/FAIL result");
+    expect(playPlanningReviewSection).toContain("specific gaps");
+
+    const playAgentDispatchStart = playAgentDispatchBody.indexOf(
+      "### 3. Dispatch in Parallel",
+    );
+    const playAgentDispatchEnd = playAgentDispatchBody.indexOf(
+      "## Agent Prompt Structure",
+    );
+    expect(playAgentDispatchStart).toBeGreaterThanOrEqual(0);
+    expect(playAgentDispatchEnd).toBeGreaterThan(playAgentDispatchStart);
+    const playAgentDispatchSection = playAgentDispatchBody.slice(
+      playAgentDispatchStart,
+      playAgentDispatchEnd,
+    );
+    expect(playAgentDispatchSection).toContain("Before parallel dispatch");
+    expect(playAgentDispatchSection).toContain(
+      "one pending ledger row per planned agent",
+    );
+    expect(playAgentDispatchSection).toContain(
+      "Update the `subagent-lifecycle` ledger with each returned session's\n  role-specific state before closing or superseding it",
+    );
+    expect(playAgentDispatchSection).toContain(
+      "After each returned session is integrated, run the `subagent-lifecycle`\n  cleanup gate before keeping or spawning any additional agent sessions",
+    );
+
+    const prMergeInvestigationStart = prMergeBody.indexOf(
+      "### 4b. Dispatch investigation agent",
+    );
+    const prMergeInvestigationEnd = prMergeBody.indexOf(
+      '### 4c. "In scope" definition',
+    );
+    expect(prMergeInvestigationStart).toBeGreaterThanOrEqual(0);
+    expect(prMergeInvestigationEnd).toBeGreaterThan(prMergeInvestigationStart);
+    const prMergeInvestigationSection = prMergeBody.slice(
+      prMergeInvestigationStart,
+      prMergeInvestigationEnd,
+    );
+    expect(prMergeInvestigationSection).toContain(
+      "Before dispatching the CI investigation agent",
+    );
+    expect(prMergeInvestigationSection).toContain("CI run/check identifiers");
+    expect(prMergeInvestigationSection).toContain(
+      "in-scope/out-of-scope\nclassification",
     );
   });
 });
