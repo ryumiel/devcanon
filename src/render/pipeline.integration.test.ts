@@ -1002,17 +1002,18 @@ describe("renderLoaded", () => {
     );
     expect(agentOutput?.content).toContain('name = "loaded-agent"');
     expect(await pathExists(agentOutput?.generatedPath ?? "")).toBe(true);
-    expect(
-      await pathExists(
-        path.join(
-          config.library.generatedDir,
-          "codex",
-          "skills",
-          "loaded-skill",
-          "SKILL.md",
-        ),
-      ),
-    ).toBe(true);
+    const generatedSkillPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "loaded-skill",
+      "SKILL.md",
+    );
+    expect(await pathExists(generatedSkillPath)).toBe(true);
+    const generatedSkillContent = await readFile(generatedSkillPath, "utf-8");
+    expect(generatedSkillContent).toContain("A test skill.");
+    expect(generatedSkillContent).not.toContain("Mutated source");
+    expect(generatedSkillContent).not.toContain("# changed");
   });
 
   it("requires mirrored subdirs to remain source-backed for loaded skills", async () => {
@@ -1136,6 +1137,10 @@ describe("renderLoaded", () => {
       },
     );
     const agents = loadedAgents.filter((agent) => agent.name === "agent-only");
+    await rm(path.join(config.library.skillsDir, "referenced-skill"), {
+      recursive: true,
+      force: true,
+    });
 
     const result = await renderLoaded({
       config,
@@ -1541,5 +1546,37 @@ describe("renderLoaded", () => {
         targetFilter: "codex",
       }),
     ).rejects.toThrow(UserError);
+  });
+
+  it("rejects symlinked generated agent cleanup directories before listing", async () => {
+    const externalDir = path.join(tempDir, "external-cleanup-agents");
+    await mkdir(externalDir, { recursive: true });
+    await mkdir(path.join(config.library.generatedDir, "codex"), {
+      recursive: true,
+    });
+    await symlink(
+      externalDir,
+      path.join(config.library.generatedDir, "codex", "agents"),
+    );
+
+    await expect(renderAll(config, true, false, "codex")).rejects.toThrow(
+      UserError,
+    );
+  });
+
+  it("rejects symlinked generated skill cleanup directories before listing", async () => {
+    const externalDir = path.join(tempDir, "external-cleanup-skills");
+    await mkdir(externalDir, { recursive: true });
+    await mkdir(path.join(config.library.generatedDir, "codex"), {
+      recursive: true,
+    });
+    await symlink(
+      externalDir,
+      path.join(config.library.generatedDir, "codex", "skills"),
+    );
+
+    await expect(renderAll(config, true, false, "codex")).rejects.toThrow(
+      UserError,
+    );
   });
 });

@@ -183,6 +183,11 @@ async function renderLoadedInternal({
         target,
         "agents",
       );
+      await assertNoSymlinkPathComponents(
+        config.library.generatedDir,
+        agentsDir,
+        `Generated agents directory for "${target}"`,
+      );
       let entries: string[];
       try {
         entries = await readdir(agentsDir);
@@ -218,6 +223,11 @@ async function renderLoadedInternal({
         target,
         "skills",
       );
+      await assertNoSymlinkPathComponents(
+        config.library.generatedDir,
+        skillsGeneratedDir,
+        `Generated skills directory for "${target}"`,
+      );
       let skillEntries: string[];
       try {
         skillEntries = await readdir(skillsGeneratedDir);
@@ -249,7 +259,7 @@ function validateLoadedInputs(
 ): void {
   const validatedSkillNames = new Set<string>();
   for (const skill of validatedSkills) {
-    validateLoadedSkill(config, skill, validatedSkillNames);
+    validateLoadedSkillReference(skill, validatedSkillNames);
   }
   const renderedSkillNames = new Set<string>();
   for (const skill of skills) {
@@ -323,14 +333,7 @@ function validateLoadedSkill(
   skill: LoadedSkill,
   names: Set<string>,
 ): void {
-  const result = SkillSourceSchema.safeParse(skill.source);
-  if (!result.success || skill.name !== skill.source.name) {
-    throw new UserError(`Loaded skill "${skill.name}" is not validated.`);
-  }
-  if (names.has(skill.name)) {
-    throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
-  }
-  names.add(skill.name);
+  validateLoadedSkillReference(skill, names);
   assertDirectNamedPathInside(
     config.library.skillsDir,
     skill.name,
@@ -348,6 +351,20 @@ function validateLoadedSkill(
       `Loaded skill "${skill.name}" mirrored subdir "${subdir}"`,
     );
   }
+}
+
+function validateLoadedSkillReference(
+  skill: LoadedSkill,
+  names: Set<string>,
+): void {
+  const result = SkillSourceSchema.safeParse(skill.source);
+  if (!result.success || skill.name !== skill.source.name) {
+    throw new UserError(`Loaded skill "${skill.name}" is not validated.`);
+  }
+  if (names.has(skill.name)) {
+    throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
+  }
+  names.add(skill.name);
 }
 
 function assertDirectNamedPathInside(
