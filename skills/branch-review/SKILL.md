@@ -53,24 +53,25 @@ else
   BASE=main
 fi
 
-# Follow-up mode is explicit and fail-closed.
+# Follow-up mode requires paired inputs and validated prior findings.
 if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
   if [[ -z "${LAST_REVIEWED_SHA:-}" || -z "${PRIOR_FINDINGS_FILE:-}" ]]; then
     echo "--last-reviewed and --prior-findings must be supplied together" >&2
     exit 1
   fi
-  [[ "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid --last-reviewed SHA" >&2; exit 1; }
-  git cat-file -e "$LAST_REVIEWED_SHA^{commit}" || { echo "--last-reviewed does not resolve" >&2; exit 1; }
-  git merge-base --is-ancestor "$LAST_REVIEWED_SHA" HEAD || { echo "--last-reviewed is not an ancestor of HEAD" >&2; exit 1; }
 
   PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
   PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-  HEAD_SHA="$LAST_REVIEWED_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
+  PRIOR_FINDINGS_HEAD_SHA="$(printf '%s\n' "$PRIOR_FINDINGS_FILE" | sed -n 's/^\.ephemeral\/.*-\([0-9a-f]\{40\}\)-findings\.json$/\1/p')"
+  [ -n "$PRIOR_FINDINGS_HEAD_SHA" ] || { echo "prior findings path must include a 40-character review head" >&2; exit 1; }
+  HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" validate-findings
 fi
 
 FULL_DIFF_RANGE="$BASE...HEAD"
-if [[ -n "${LAST_REVIEWED_SHA:-}" ]]; then
+if [[ "${LAST_REVIEWED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] &&
+  git cat-file -e "${LAST_REVIEWED_SHA:-}^{commit}" &&
+  git merge-base --is-ancestor "${LAST_REVIEWED_SHA:-}" HEAD; then
   CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
 else
   CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
@@ -85,11 +86,10 @@ git diff "$FULL_DIFF_RANGE" --stat
 If the diff is empty, report "no changes to review" and stop.
 
 Follow-up input is invalid and stops before invoking `play-review` when only
-one follow-up argument is supplied, `--last-reviewed` is not a 40-character
-SHA, the SHA does not resolve, the SHA is not an ancestor of `HEAD`, the prior
-findings path is unsafe, or the installed `play-review` helper rejects the
-prior findings file. The prior findings file is local review context, not
-GitHub thread state, and this skill still performs no GitHub posting.
+one follow-up argument is supplied, the prior findings path is unsafe, or the
+installed `play-review` helper rejects the prior findings file. The prior
+findings file is local review context, not GitHub thread state, and this skill
+still performs no GitHub posting.
 
 In follow-up mode, choose the active range conservatively:
 
@@ -104,6 +104,8 @@ In follow-up mode, choose the active range conservatively:
 Escalate back to full branch review when any of these are true:
 
 - More than 5 files changed since `--last-reviewed`.
+- `--last-reviewed` is not a 40-character SHA, does not resolve, or is not an
+  ancestor of `HEAD`.
 - New public API functions or types are introduced.
 - Logic is restructured beyond previously flagged lines or adjacent changed
   lines.
