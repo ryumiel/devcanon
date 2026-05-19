@@ -575,7 +575,9 @@ describe("phase artifact source contracts", () => {
     expect(playSubagentExecution).toContain(
       "Snapshot Manifest Recipe path sourced from",
     );
-    expect(playSubagentExecution).toContain("instead of duplicating");
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "conditional-use contract instead of duplicating",
+    );
     expect(playSubagentExecution).toContain(
       "inlining the shell implementation",
     );
@@ -645,13 +647,17 @@ describe("phase artifact source contracts", () => {
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("readable helper script path");
-    expect(adr0014).toContain("mandatory-use contract");
+    expect(adr0014).toContain("conditional-use contract");
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
-    expect(adr0014).toContain("missing-snapshot fallback contract");
+    expect(adr0014).toContain("fallback contract");
+    expect(adr0014).toContain("trigger-based");
+    expect(normalizeWhitespace(adr0014)).toContain(
+      "Plan text may contain snapshot hints",
+    );
     expect(adr0014).toContain("committed HEAD blob reads");
     expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
     expect(adr0014).toContain("repository-controlled and untrusted");
-    expect(adr0014).toContain(
+    expect(normalizeWhitespace(adr0014)).toContain(
       "the helper script is authoritative for executable snapshot",
     );
     expect(adr0014).toContain(

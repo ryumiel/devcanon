@@ -57,10 +57,49 @@ contract introduced here must explicitly exclude the skip-dispatch path.
 
 ## Decision
 
-### Producer (implementer)
+Implementer snapshot manifests are **trigger-based**, not mandatory for every
+dispatched implementer. ADR-0014 is the policy authority for when snapshots are
+part of the DONE-report contract. `play-subagent-execution` owns execution-time
+classification and request/skip decisions; the implementer follows the request
+state it receives in the assembled prompt contract. Plan text may contain
+snapshot hints, but those hints are advisory and non-authoritative.
 
-After the implementer commits its work, before reporting, it writes a
-side-channel snapshot manifest. The path:
+When `play-subagent-execution` classifies a dispatched task, it requests a
+snapshot for:
+
+- Durable ADR, behavior-spec, product-requirements, roadmap, or
+  workflow-policy updates.
+- Source-owned policy, procedure, prompt contract, generated-output behavior,
+  manifest, executable helper, config, or tests guarding those surfaces.
+- Failure-routing or incident-boundary changes where downstream consumers need
+  precise post-DONE evidence.
+- Prompt contract implications, including changes that affect implementer,
+  reviewer, or controller handoff behavior.
+- Broad, multi-file, cross-module, or cross-skill tasks; deletes, renames, or
+  file-mode changes.
+- Any explicit controller request for audit or review coordination.
+- Any unclear classification.
+
+Unclear cases fail closed to the higher-assurance path: request a snapshot. Low
+risk localized tasks do not require a snapshot when the controller can rely on
+the default DONE fields plus disk/git fallback. When no snapshot is requested,
+the DONE report must still include status, summary, tests, files changed, base
+SHA, and head SHA; concerns may be included as usual.
+
+If a snapshot was requested, a missing, unreadable, malformed, or mismatched
+snapshot is an incident and the controller records that disposition before
+falling back to its own changed-file list and committed `HEAD:<path>` blob reads.
+If no snapshot was requested, absence of the literal snapshot notice is valid
+and is not an incident. An emitted snapshot remains an optimization, never
+reviewer evidence.
+
+The affected consumers are `play-subagent-execution`, implementer prompt
+templates, and rendered Codex/Claude skill outputs generated from those sources.
+
+### Producer (implementer, when requested)
+
+When the controller requests a snapshot, after the implementer commits its work
+and before reporting, it writes a side-channel snapshot manifest. The path:
 
 ```text
 .ephemeral/snapshot-<head_sha>.json
@@ -75,9 +114,9 @@ snapshot-manifest recipe under
 the executable construction procedure lives in
 `skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`. The
 controller supplies both a readable recipe path and a readable helper script path
-with each implementer dispatch, and the implementer prompts carry a compact
-mandatory-use contract while preserving the same notice line and
-missing-snapshot fallback contract.
+with each snapshot-requesting implementer dispatch, and the implementer prompts
+carry a compact conditional-use contract while preserving the same notice line
+for requested snapshots and the same fallback contract.
 
 The helper has a hard runtime prerequisite on `jq`. If `jq` is unavailable, the
 helper exits nonzero and the implementer reports `BLOCKED` rather than
@@ -85,12 +124,14 @@ hand-rolling JSON assembly. This is accepted because the helper is now the
 authority for executable snapshot behavior, and byte-faithful JSON construction
 is part of that behavior.
 
-Authority model: the helper script is authoritative for executable snapshot
-behavior; the recipe is authoritative for implementer-facing operating
-instructions; this ADR is authoritative for policy intent and accepted behavior
-changes; prompt text is only the compact handoff to those sources. If these
-surfaces conflict, update the lower-authority surface to match the helper's
-behavior and this ADR's policy intent.
+Authority model: this ADR is authoritative for policy intent, trigger
+conditions, and accepted behavior changes; `play-subagent-execution` is the
+execution-policy owner for classification and request/skip propagation; the
+helper script is authoritative for executable snapshot construction behavior;
+the recipe is authoritative for implementer-facing operating instructions; and
+prompt text is only the compact handoff to those sources. If these surfaces
+conflict, update the lower-authority surface to match this ADR's policy intent
+and the helper's executable behavior.
 
 The snapshot path shares `play-review`'s post-commit `head_sha` anchor, not its
 full findings-file path scheme. ADR-0013 explicitly noted that brainstorm/plan
@@ -184,8 +225,8 @@ detection: when `status == "deleted"`, the file emits neither
 
 ### Notice line
 
-After writing the file, the implementer appends exactly one literal
-line to its DONE report:
+After writing a requested snapshot file, the implementer appends exactly one
+literal line to its DONE report:
 
 ```
 Snapshot written to <repo-relative-path>.
@@ -195,15 +236,16 @@ The notice line is the controller's contract surface. The existing
 `Files changed` bullet stays — it is human-scannable and
 non-redundant with the structured notice. The implementer reports
 `BLOCKED` if the snapshot write fails — never emit the notice line
-for an absent file. The producer fails loud; the consumer's fallback
-(next subsection) covers downstream consumers that encounter a missing
-or corrupt snapshot.
+for an absent file. The producer fails loud for requested snapshots; the
+consumer's fallback (next subsection) covers downstream consumers that encounter
+a missing or corrupt requested snapshot. When no snapshot was requested, the
+implementer does not run the helper and does not emit the notice line.
 
 ### Size threshold (64 KB)
 
 The snapshot contract uses a 64 KB byte threshold, specified by the canonical
 snapshot-manifest recipe and enforced by the helper script that the controller
-supplies with each implementer dispatch.
+supplies with each snapshot-requesting implementer dispatch.
 
 - A byte threshold (vs. line threshold) is uniform across file types
   and avoids gaming via long lines.
@@ -217,10 +259,21 @@ supplies with each implementer dispatch.
 
 ### Consumer (controller in `play-subagent-execution`)
 
-After the implementer reports DONE (or DONE_WITH_CONCERNS), the
-controller parses the literal `Snapshot written to <repo-relative-path>.`
-line off the report and validates the parsed path with the canonical
-guard narrowed to the `snapshot-*.json` name:
+After the implementer reports DONE (or DONE_WITH_CONCERNS), the controller
+first consults its recorded request state:
+
+- `requested`: the report is expected to include the literal
+  `Snapshot written to <repo-relative-path>.` line. Missing, unreadable,
+  malformed, or mismatched snapshots are incidents; the controller records the
+  incident and falls back to committed `HEAD:<path>` blob reads.
+- `skipped`: the report is expected to omit the snapshot notice and include the
+  default no-snapshot fields: status, summary, tests, files changed, base SHA,
+  and head SHA. The controller uses those fields, its own `git diff`, commit
+  state, and disk/git verification results.
+
+For requested snapshots, the controller parses the literal notice line off the
+report and validates the parsed path with the canonical guard narrowed to the
+`snapshot-*.json` name:
 
 ```bash
 SNAPSHOT_OK=true
@@ -239,21 +292,23 @@ esac
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -f "$SNAPSHOT_FILE" ] || { echo "snapshot is not a regular file: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-# Validation failure is non-fatal: the controller logs and falls back
-# to committed HEAD blob reads for every file in the controller-computed
-# changed-file list. The snapshot is an optimization, not a workflow gate.
+# Validation failure is non-fatal to fallback: the controller records an
+# incident when a snapshot was requested, then falls back to committed HEAD blob
+# reads for every file in the controller-computed changed-file list. The
+# snapshot is an optimization, not reviewer evidence.
 ```
 
 This bash is a snapshot-specific read guard. It keeps the generic
 suffix/traversal shape used by phase artifacts but intentionally diverges from
 `play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
 comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
-log-and-fall-back disposition because the snapshot consumer always has
-committed HEAD blob reads available. The snapshot consumer additionally
-enforces snapshot-specific flatness, symlink, and regular-file checks because
-the consumer is read-only and never overwrites the file — the producer-side helper
-writes through a repo-scoped private scratch directory and renames that
-output into place.
+record-incident-and-fall-back disposition for requested snapshots because the
+snapshot consumer always has committed HEAD blob reads available. When no
+snapshot was requested, there is no snapshot path to validate and no incident.
+The snapshot consumer additionally enforces snapshot-specific flatness, symlink,
+and regular-file checks because the consumer is read-only and never overwrites
+the file — the producer-side helper writes through a repo-scoped private scratch
+directory and renames that output into place.
 
 After parsing the JSON, the controller compares the snapshot's
 `head_sha` to its own view of the worktree (`git rev-parse HEAD`); a
@@ -286,8 +341,10 @@ The controller MAY use snapshot `content` for:
 For files with `content` omitted (`skipped` set), the controller falls
 back to a committed HEAD blob read for that file only. If validation
 fails, the JSON is malformed, or `head_sha` doesn't match the
-controller's view, the controller fails loud and falls back to committed
-HEAD blob reads for the controller-computed changed-file list.
+controller's view for a requested snapshot, the controller fails loud by
+recording a snapshot incident and falls back to committed HEAD blob reads for the
+controller-computed changed-file list. If no snapshot was requested, the same
+fallback path is the default path and absence of snapshot data is valid.
 
 ### Trust-boundary rule (load-bearing)
 
@@ -338,39 +395,42 @@ confuse the two paths.
 ### Single-task plan interaction
 
 Per ADR-0007, single-task plans skip per-task spec-compliance and
-code-quality reviewers. The implementer still emits a snapshot — the
-contract is on the implementer, not the controller. The controller's
-reuse is opportunistic; the cost is one notice line and one
-`.ephemeral/` file torn down with the worktree.
+code-quality reviewers. A dispatched single-task implementer emits a snapshot
+only when `play-subagent-execution` requests one under the trigger criteria
+above. The controller's reuse is opportunistic; the default no-snapshot path is
+status, summary, tests, files changed, base SHA, head SHA, and disk/git fallback.
 
 ## Consequences
 
-- Token cost on the implementer-DONE → controller hop drops by the
-  size of any file the controller would otherwise re-read 1–3 times
-  during post-DONE verification, line-range extraction, or
-  reviewer-dispatch composition.
+- Token cost on the implementer-DONE → controller hop drops for triggered cases
+  by the size of any file the controller would otherwise re-read 1–3 times
+  during post-DONE verification, line-range extraction, or reviewer-dispatch
+  composition, without imposing helper overhead on low-risk localized tasks.
 - The phase-handoff substrate gains a fifth deterministic
   `.ephemeral/` artifact (research, design, plan, findings,
-  snapshot). Cleanup remains implicit via worktree teardown.
-- The controller's existing post-DONE behavior is unchanged when the
-  notice line is absent: it falls back to committed HEAD blob reads.
-  Older plans running through the same prompts gain the snapshot-write step
-  automatically once the prompt updates land. No version flag is
-  needed.
+  snapshot) when classification requests it. Cleanup remains implicit via
+  worktree teardown.
+- The controller's post-DONE behavior is explicit for both paths: requested
+  snapshots are validated and incident-recorded on failure, while skipped
+  snapshots use the default DONE fields plus committed HEAD blob reads. No
+  version flag is needed because request state is carried by
+  `play-subagent-execution` and the assembled prompt contract.
 - The trust boundary between controller and reviewers is now
   explicit on both sides: controller-side via Red Flag, reviewer-side
   via prompt restatement. The reviewer prompts already mandated disk
   reads ("Read the actual code"); this ADR closes the
   what-about-snapshots gap explicitly.
 - Edit-staleness is documented as a discipline rule, not enforced by
-  code. The implementer doesn't ratchet or invalidate prior
-  snapshots; old files remain in `.ephemeral/` until worktree
-  teardown.
+  code. The implementer doesn't ratchet or invalidate prior snapshots; old files
+  remain in `.ephemeral/` until worktree teardown when snapshots are requested.
+- Policy drift risk moves to the ADR/controller/prompt boundary. ADR-0014 owns
+  the accepted trigger policy, `play-subagent-execution` owns classification,
+  and downstream prompt/controller updates must preserve that precedence.
 - **Data residency.** Snapshot content can include source code from
   the diff under review, identical to ADR-0012's findings-file
-  residency posture. The file is git-ignored
-  (`.gitignore` `.ephemeral/`) and lives under default umask. Same
-  guidance applies — never embed secret values verbatim; describe
+  residency posture. This exposure exists only when a snapshot is requested.
+  The file is git-ignored (`.gitignore` `.ephemeral/`) and lives under default
+  umask. Same guidance applies — never embed secret values verbatim; describe
   them.
 - **Fork-PR working trees.** Pre-staged symlinks at `.ephemeral`
   itself or at the snapshot path could redirect helper output. The
@@ -386,6 +446,15 @@ reuse is opportunistic; the cost is one notice line and one
 
 ## Alternatives considered
 
+- **Mandatory snapshots for every dispatched implementer.** This was the
+  original ADR-0014 decision and remains the high-assurance fallback for unclear
+  cases. Rejected as the default because it imposes helper/runtime overhead on
+  low-risk localized tasks where status, summary, tests, files changed, base
+  SHA, head SHA, and committed-blob fallback are sufficient.
+- **Fully optional snapshots by implementer judgment.** Rejected because it
+  places policy in the least authoritative actor, creates inconsistent DONE
+  reports, and risks silent loss of needed post-DONE evidence. Implementers
+  follow the controller-supplied request state instead.
 - **Inline snapshot in DONE-report body.** Implementer's report grows
   a `## Files (verified)` section with fenced blocks per file.
   Controller parses inline, skips re-read. Rejected: zero new
@@ -418,12 +487,13 @@ reuse is opportunistic; the cost is one notice line and one
 ## Related
 
 - [ADR-0007](adr-0007-review-pipeline-delineation.md) — single-task
-  per-task reviewer skip; this contract still applies in single-task
-  plans (implementer always emits) but the cost benefit is small
-  there.
+  per-task reviewer skip; dispatched single-task plans use the same
+  trigger-based request policy, but the cost benefit is usually small there.
 - [ADR-0012](adr-0012-side-channel-file-delivery-for-play-review-findings.md)
   — established the side-channel file pattern this ADR extends to a
   new producer.
 - [ADR-0013](adr-0013-path-based-phase-artifact-handoff.md) — the
   upstream symmetry argument for the substrate; the path-validation
   guard pattern; the untrusted-prose framing.
+- [ADR-0015](adr-0015-skip-dispatch-for-trivial-single-task-plans.md) —
+  excludes skip-dispatch from dispatched-implementer DONE-report contracts.

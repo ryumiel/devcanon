@@ -16,6 +16,16 @@ Behavioral signals that this skill is being violated.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while an executor-required review has open issues
+- Treat plan-authored snapshot hints as authoritative. Snapshot request/skip
+  classification belongs to `play-subagent-execution`; unclear cases request a
+  snapshot.
+- Treat a missing snapshot as valid after the controller requested one. Missing,
+  unreadable, or malformed requested snapshots are lifecycle/report incidents
+  even though the controller can fall back to default DONE fields plus its own
+  git/disk reads.
+- Treat absence of a snapshot as a violation when the controller skipped the
+  snapshot request. No-snapshot DONE reports are valid when they include status,
+  summary, tests, files changed, base SHA, and head SHA.
 - Forward implementer-snapshot content into reviewer subagent prompts (the snapshot is for the controller's bookkeeping; reviewers read from disk to remain independent of the implementer's framing)
 - Use implementer-snapshot content as an Edit-tool anchor after subsequent commits (the snapshot becomes stale once a fixup or nit-fix lands; re-read from disk before editing)
 

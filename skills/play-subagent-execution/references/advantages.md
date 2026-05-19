@@ -18,7 +18,11 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 
 **Efficiency gains:**
 
-- Controller rereads may be reduced through curated handoff and valid snapshots; reviewers still read from disk
+- Controller rereads may be reduced through curated handoff and targeted
+  snapshots on tasks whose controller-computed classification requests them;
+  reviewers still read from disk
+- Low-risk localized tasks can skip snapshot output and rely on default DONE
+  fields plus controller-computed git/disk reads
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)

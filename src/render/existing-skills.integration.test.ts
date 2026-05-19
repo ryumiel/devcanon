@@ -243,6 +243,83 @@ describe("existing skills render cleanly", () => {
     ).toBe(false);
   });
 
+  it("renders play-subagent implementer prompts with conditional snapshot behavior", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, true);
+
+    const promptReferences = [
+      "implementer-prompt.md",
+      "mechanical-implementer-prompt.md",
+    ];
+
+    for (const target of ["claude", "codex"] as const) {
+      const output = getSkillOutput(outputs, "play-subagent-execution", target);
+      expect(output.content).toContain("Controller skipped the snapshot");
+      expect(output.content).toContain(
+        "Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS",
+      );
+      expect(output.content).toContain(
+        "Record snapshot state as `malformed`; surface the requested-snapshot contract violation",
+      );
+
+      const skillRoot = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "play-subagent-execution",
+      );
+
+      const recipePath = path.join(
+        skillRoot,
+        "references",
+        "snapshot-manifest-recipe.md",
+      );
+      const helperPath = path.join(
+        skillRoot,
+        "scripts",
+        "write-snapshot-manifest.sh",
+      );
+
+      expect(await pathExists(recipePath)).toBe(true);
+      expect(await readFile(recipePath, "utf-8")).toContain(
+        "implementer/snapshot/v1",
+      );
+      expect(await pathExists(helperPath)).toBe(true);
+      expect(await readFile(helperPath, "utf-8")).toContain(
+        "Snapshot written to",
+      );
+
+      for (const promptReference of promptReferences) {
+        const promptPath = path.join(skillRoot, "references", promptReference);
+        const prompt = await readFile(promptPath, "utf-8");
+
+        expect(prompt).toContain(
+          "Only write a side-channel snapshot manifest when the",
+        );
+        expect(prompt).toContain(
+          "controller explicitly requests one for this task.",
+        );
+        expect(prompt).toContain(
+          "If the controller did not request a snapshot, do not append any snapshot",
+        );
+        expect(prompt).toContain(
+          "default fields: status, summary, tests, files changed, base SHA, head SHA.",
+        );
+        expect(prompt).toContain(
+          "If the helper exits nonzero, report BLOCKED instead of emitting the notice",
+        );
+        expect(prompt).toContain("Snapshot written to <repo-relative-path>.");
+        expect(prompt).not.toContain(
+          "After committing and self-reviewing, write the side-channel snapshot\n    manifest before reporting",
+        );
+      }
+    }
+  });
+
   it("mirrors bundled references and scripts to both targets", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(

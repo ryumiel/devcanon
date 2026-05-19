@@ -54,7 +54,7 @@ Task tool (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; the Snapshot Manifest step uses it to enumerate files changed during this task. (If `git rev-parse HEAD` fails for any reason — empty branch, corrupted ref, non-git directory — report BLOCKED. The snapshot contract requires a known base.)
+    1. Capture the pre-task base SHA — run `BASE_SHA=$(git rev-parse HEAD)` and remember the value; requested snapshot manifests and default no-snapshot DONE reports use it to enumerate files changed during this task. (If `git rev-parse HEAD` fails for any reason — empty branch, corrupted ref, non-git directory — report BLOCKED. The task report requires a known base.)
     2. Read the relevant source files, existing tests, docs, ADRs, helpers, and
        referenced contracts directly before choosing concrete implementation
        code, tests, docs, or verification commands.
@@ -64,7 +64,7 @@ Task tool (general-purpose):
     5. Verify implementation works
     6. Commit your work (see Committing section below)
     7. Self-review (see below)
-    8. Write the snapshot manifest (see Snapshot Manifest section below)
+    8. Follow the controller's snapshot request state (see Snapshot Manifest section below)
     9. Report back
 
     Work from: [directory]
@@ -143,10 +143,14 @@ Task tool (general-purpose):
 
     ## Snapshot Manifest
 
-    After committing and self-reviewing, write the side-channel snapshot
-    manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
+    After committing and self-reviewing, follow the controller's snapshot
+    request state exactly. Only write a side-channel snapshot manifest when the
+    controller explicitly requests one for this task. If the controller does
+    not request a snapshot, do not read the recipe, do not run the helper, and
+    do not emit the snapshot notice line.
 
-    The controller supplies two resolved paths with this dispatch:
+    When the controller requests a snapshot, it supplies two resolved paths with
+    this dispatch:
     - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
       - Source: `references/snapshot-manifest-recipe.md`
     - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
@@ -160,11 +164,11 @@ Task tool (general-purpose):
     size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
     write guard, and write-verification check.
 
-    If the dispatch does not include both a readable Snapshot Manifest Recipe
-    path and a readable Snapshot Manifest Helper Script path, report BLOCKED
-    and ask the controller to resend the task with both paths. If the helper
-    exits nonzero, report BLOCKED instead of emitting the notice line. On
-    success, use the helper's notice line as the final report line:
+    If a requested snapshot dispatch does not include both a readable Snapshot
+    Manifest Recipe path and a readable Snapshot Manifest Helper Script path,
+    report BLOCKED and ask the controller to resend the task with both paths.
+    If the helper exits nonzero, report BLOCKED instead of emitting the notice
+    line. On success, use the helper's notice line as the final report line:
 
     ```text
     Snapshot written to <repo-relative-path>.
@@ -180,11 +184,14 @@ Task tool (general-purpose):
     - What you implemented (or what you attempted, if blocked)
     - What you tested and test results
     - Files changed
+    - Base SHA
+    - Head SHA
     - Self-review findings (if any)
     - Any issues or concerns
 
-    Then, on the final line of the report (DONE / DONE_WITH_CONCERNS only),
-    append exactly one literal line naming the snapshot manifest path:
+    If the controller requested a snapshot and the helper succeeded, append
+    exactly one literal line naming the snapshot manifest path as the final line
+    of the report (DONE / DONE_WITH_CONCERNS only):
 
     ```
     Snapshot written to <repo-relative-path>.
@@ -194,6 +201,10 @@ Task tool (general-purpose):
     do not wrap in backticks, do not omit the trailing period. If the
     supplied helper exits nonzero, report BLOCKED instead — never emit the
     notice line for an absent file.
+
+    If the controller did not request a snapshot, do not append any snapshot
+    notice line. Your DONE / DONE_WITH_CONCERNS report must include these
+    default fields: status, summary, tests, files changed, base SHA, head SHA.
 
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need

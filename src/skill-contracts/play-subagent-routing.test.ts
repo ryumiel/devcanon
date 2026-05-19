@@ -405,7 +405,7 @@ describe("play subagent routing source contracts", () => {
       "`play-subagent-execution` owns only the execution-specific lifecycle details below",
     );
     expect(normalizedLifecycle).toContain(
-      "role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, re-review target, task base/head SHA, fixup count, and blocker state",
+      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, routing target, re-review target, task base/head SHA, fixup count, and blocker state",
     );
     expect(normalizedLifecycle).toContain(
       "Run the shared cleanup gate before dispatching the next implementer, reviewer, re-reviewer, or final reviewer",
@@ -422,7 +422,13 @@ describe("play subagent routing source contracts", () => {
       "Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides",
     );
     expect(normalizedHandlingStatus).toContain(
-      "For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot, changed-file list, base/head SHA, and test result before dispatching reviewers",
+      "For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), changed-file list, base/head SHA, and test result before dispatching reviewers",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "When snapshot state is `skipped`, use the default DONE fields plus controller-computed git/disk reads",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "When snapshot state is `malformed`, surface the incident and still fall back to the default DONE fields plus controller-computed git/disk reads",
     );
     expect(normalizedHandlingStatus).toContain(
       "For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context request, `agent_id`, and any available base/head SHA",
@@ -477,7 +483,7 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(normalizeWhitespace(task1Section)).toContain(
-      "status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up",
+      "status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
       "Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.",
@@ -485,6 +491,10 @@ describe("play subagent routing source contracts", () => {
     expect(task1Section).toContain("base/head SHA captured (head pending)");
     expect(task1Section).toContain("Lifecycle cleanup checkpoint");
     expect(task1Section).toContain("closed=yes after PASS verdict recorded");
+    expect(task3Section).toContain("snapshot state=skipped");
+    expect(normalizeWhitespace(task3Section)).toContain(
+      "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
+    );
 
     expect(task2Section).toContain(
       "Cleanup gate before Task 2 spec reviewer spawn",
@@ -508,7 +518,7 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("re-review target=spec-2-rereview");
     expect(task2Section).toContain("report refreshed");
     expect(task2Section).toContain("test state refreshed");
-    expect(task2Section).toContain("snapshot refreshed");
+    expect(task2Section).toContain("snapshot state=emitted");
     expect(task2Section).toContain("[Revalidate effective review route]");
     expect(task2Section).toContain(
       "Controller compares the original Task 2 base SHA to the refreshed task head",
