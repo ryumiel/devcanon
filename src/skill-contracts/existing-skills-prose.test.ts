@@ -306,15 +306,21 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedCommitPolicy).toContain("review continuity");
 
     expect(normalizedThreadClosure).toMatch(
-      /verify.*current review comments.*implement.*run.*checks.*commit.*push.*re-fetch.*thread state.*reply in-thread.*resolve.*eligible threads/i,
+      /verify.*current review comments.*implement.*run.*checks.*commit.*push.*re-fetch.*thread state.*confirm.*github writes.*reply in-thread.*re-fetch.*thread state.*resolve.*eligible threads/i,
     );
     expect(normalizedThreadClosure).toMatch(
-      /re-fetch.*after.*push.*before.*resolution/i,
+      /re-fetch.*after.*push.*before.*reply/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /re-fetch.*after.*reply.*immediately before.*resolution/i,
     );
     expect(normalizedThreadClosure).toContain("Safe-to-resolve criteria");
 
     for (const requiredCriterion of [
-      "latest fetched thread is still unresolved",
+      "GitHub writes are permitted",
+      "explicit user approval",
+      "approved posting gate",
+      "latest fetched thread after the reply is still unresolved",
       "same concern",
       "pushed branch contains the fix",
       "reply explains why no code change is required",
@@ -327,6 +333,7 @@ describe("existing skills source prose contracts", () => {
 
     for (const requiredDisposition of [
       "Explanation-only",
+      "post-reply fetched thread",
       "Stale or outdated",
       "Already-resolved",
       "unclear, partially fixed, or newly conflicting",

@@ -168,27 +168,32 @@ already-pushed or reviewed PR branch:
 4. Commit the response work with a follow-up commit when the branch is already
    pushed or reviewed.
 5. Push normally.
-6. Re-fetch PR review thread state after the push and before any reply or
-   resolution.
-7. Reply in-thread with concise fix or explanation evidence.
-8. Resolve only eligible threads.
+6. Re-fetch PR review thread state after the push and before any reply.
+7. Confirm GitHub writes are permitted by explicit user approval or the active
+   workflow's approved posting gate.
+8. Reply in-thread with concise fix or explanation evidence.
+9. Re-fetch PR review thread state again after the reply and immediately before
+   any resolution.
+10. Resolve only eligible threads.
 
 Safe-to-resolve criteria:
 
-- The latest fetched thread is still unresolved.
+- GitHub writes are permitted by explicit user approval or the active
+  workflow's approved posting gate.
+- The latest fetched thread after the reply is still unresolved.
 - The thread maps to the same concern that you verified and addressed.
 - The pushed branch contains the fix, or the in-thread reply explains why no
   code change is required.
 - The relevant checks have passed.
 - The current actor has permission to resolve the thread.
-- Resolving does not bypass `pr-review`'s user-gated posting/resolution
-  workflow when that workflow is the active owner.
+- Replying or resolving does not bypass `pr-review`'s user-gated
+  posting/resolution workflow when that workflow is the active owner.
 
 Edge dispositions:
 
 - Explanation-only comments get an in-thread reply, then resolution only when
-  the reply fully addresses the concern and the latest fetched thread is still
-  unresolved.
+  the reply fully addresses the concern and the post-reply fetched thread is
+  still unresolved.
 - Stale or outdated threads are not resolved merely because they are outdated.
   Re-fetch current thread state and verify the underlying concern first.
 - Already-resolved threads are left alone. Do not add duplicate replies unless
