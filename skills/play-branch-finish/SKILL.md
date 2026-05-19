@@ -216,7 +216,7 @@ EOF
 
    Nit bodies may contain backticks, `$`, embedded newlines, and `"` — passing through `--body-file -` (rather than a `-b` argument) prevents the shell from expanding command substitutions or word-splitting before `gh` sees the bytes.
 
-5. If `gh api` posting fails after `gh pr create` succeeded, surface the error and the unposted nits to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
+5. If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
 Then: Cleanup worktree (Step 5)
 
