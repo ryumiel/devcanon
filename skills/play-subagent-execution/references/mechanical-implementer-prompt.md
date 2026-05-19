@@ -60,15 +60,21 @@ Task tool (general-purpose):
        - If naming was up to me, are names clear and accurate?
        - If the task said to follow TDD, did I?
        Fix any issues before reporting.
-    7. Write the snapshot manifest (see Snapshot Manifest section below).
+    7. Follow the controller's snapshot request state (see Snapshot Manifest section below).
     8. Report back (see format below).
 
     ## Snapshot Manifest
 
-    After committing and self-reviewing, write the side-channel snapshot
-    manifest before reporting `DONE` or `DONE_WITH_CONCERNS`.
+    Snapshot request: <SNAPSHOT_REQUEST_STATE: requested|skipped>
 
-    The controller supplies two resolved paths with this dispatch:
+    After committing and self-reviewing, follow the controller's snapshot
+    request state exactly. Only write a side-channel snapshot manifest when the
+    snapshot request state is `requested`. If the snapshot request state is
+    `skipped`, do not read the recipe, do not run the helper, and do not emit
+    the snapshot notice line.
+
+    When the snapshot request state is `requested`, the controller supplies two
+    resolved paths with this dispatch:
     - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
       - Source: `references/snapshot-manifest-recipe.md`
     - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
@@ -82,11 +88,12 @@ Task tool (general-purpose):
     size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
     write guard, and write-verification check.
 
-    If the dispatch does not include both a readable Snapshot Manifest Recipe
-    path and a readable Snapshot Manifest Helper Script path, report BLOCKED
-    and ask the controller to resend the task with both paths. If the helper
-    exits nonzero, report BLOCKED instead of emitting the notice line. On
-    success, use the helper's notice line as the final report line:
+    If the snapshot request state is `requested` but the dispatch does not
+    include both a readable Snapshot Manifest Recipe path and a readable
+    Snapshot Manifest Helper Script path, report BLOCKED and ask the controller
+    to resend the task with both paths. If the helper exits nonzero, report
+    BLOCKED instead of emitting the notice line. On success, use the helper's
+    notice line as the final report line:
 
     ```text
     Snapshot written to <repo-relative-path>.
@@ -101,9 +108,12 @@ Task tool (general-purpose):
     - What you changed
     - What you verified
     - Files changed
+    - Base SHA
+    - Head SHA
 
-    On the final line of the report (DONE / DONE_WITH_CONCERNS only), append
-    exactly one literal line naming the snapshot manifest path:
+    If the snapshot request state is `requested` and the helper succeeded,
+    append exactly one literal line naming the snapshot manifest path as the
+    final line of the report (DONE / DONE_WITH_CONCERNS only):
 
     ```
     Snapshot written to <repo-relative-path>.
@@ -112,6 +122,14 @@ Task tool (general-purpose):
     The controller parses this literal line. Do not reword, do not wrap in
     backticks, do not omit the trailing period. If the snapshot write failed,
     report BLOCKED instead — never emit the notice line for an absent file.
+
+    If the snapshot request state is `skipped`, do not append any snapshot notice
+    line. Your DONE / DONE_WITH_CONCERNS report must include these default
+    fields: status, summary, tests, files changed, base SHA, head SHA.
+    After committing, capture `HEAD_SHA=$(git rev-parse HEAD)`. For skipped
+    snapshots, compute the changed-file list with
+    `git diff --name-status --no-renames "$BASE_SHA..HEAD"` and report that list
+    alongside the captured `BASE_SHA` and `HEAD_SHA`.
 
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if information is missing.
 ````

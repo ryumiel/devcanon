@@ -2,7 +2,8 @@
 
 This is the canonical construction recipe for the dispatched implementer
 `implementer/snapshot/v1` side-channel manifest. Implementer prompts require
-this recipe before reporting `DONE` or `DONE_WITH_CONCERNS`.
+this recipe only when the controller's concrete snapshot request state is
+`requested`.
 
 ## Required Inputs
 
@@ -22,9 +23,10 @@ the implementer reports `BLOCKED`.
 
 ## Recipe
 
-Use the readable helper script supplied by the controller. Normal dispatches
-must report `BLOCKED` if the helper script is unavailable; do not hand-roll the
-snapshot procedure from this recipe.
+Use the readable helper script supplied by the controller. Snapshot-requesting
+dispatches must report `BLOCKED` if the helper script is unavailable; do not
+hand-roll the snapshot procedure from this recipe. Snapshot-skipped dispatches
+do not read this recipe or run the helper.
 
 ```bash
 BASE_SHA="$BASE_SHA" SNAPSHOT_TASK_ID="$SNAPSHOT_TASK_ID" bash "$SNAPSHOT_HELPER_SCRIPT"
@@ -131,12 +133,13 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 ## Persist and Verify
 
-In normal dispatches, the helper owns persistence and verification. It creates a
-private scratch directory under `.ephemeral`, writes all helper scratch files and
-the envelope temp file inside that directory, rechecks that `.ephemeral` is not a
-symlink, rejects an existing directory at `$SNAPSHOT_FILE`, renames the temp file
-to `$SNAPSHOT_FILE`, verifies the result is a regular non-empty file, and prints
-the success notice. Do not assemble or write the snapshot manually.
+In snapshot-requesting dispatches, the helper owns persistence and verification.
+It creates a private scratch directory under `.ephemeral`, writes all helper
+scratch files and the envelope temp file inside that directory, rechecks that
+`.ephemeral` is not a symlink, rejects an existing directory at `$SNAPSHOT_FILE`,
+renames the temp file to `$SNAPSHOT_FILE`, verifies the result is a regular
+non-empty file, and prints the success notice. Do not assemble or write the
+snapshot manually.
 
 Because the helper is authoritative for executable snapshot behavior, do not
 substitute a dispatch-local fallback contract when the helper is unavailable.

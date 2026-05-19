@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   normalizeWhitespace,
   readRepoFile,
   readSkillSource,
@@ -465,7 +466,7 @@ describe("phase artifact source contracts", () => {
     expect(snapshotRecipe).toContain("post-write regular-file and size checks");
     expect(snapshotRecipe).toContain("non-regular");
     expect(snapshotRecipe).toContain(
-      "In normal dispatches, the helper owns persistence and verification",
+      "In snapshot-requesting dispatches, the helper owns persistence and verification",
     );
     expect(snapshotRecipe).toContain("controller-computed changed-file list");
     expect(snapshotRecipe).toContain(
@@ -510,6 +511,10 @@ describe("phase artifact source contracts", () => {
       "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
     expect(implementerPrompt).toContain("script with the captured `BASE_SHA`");
+    expect(implementerPrompt).toContain("HEAD_SHA=$(git rev-parse HEAD)");
+    expect(implementerPrompt).toContain(
+      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
+    );
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
@@ -546,6 +551,12 @@ describe("phase artifact source contracts", () => {
       "script with the captured `BASE_SHA`",
     );
     expect(mechanicalImplementerPrompt).toContain(
+      "HEAD_SHA=$(git rev-parse HEAD)",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
+    );
+    expect(mechanicalImplementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
     expect(mechanicalImplementerPrompt).toContain("exits nonzero");
@@ -564,6 +575,9 @@ describe("phase artifact source contracts", () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
     );
+    const normalizedPlaySubagentExecution = normalizeWhitespace(
+      playSubagentExecution,
+    );
 
     expect(playSubagentExecution).toContain(
       "references/snapshot-manifest-recipe.md",
@@ -575,12 +589,20 @@ describe("phase artifact source contracts", () => {
     expect(playSubagentExecution).toContain(
       "Snapshot Manifest Recipe path sourced from",
     );
-    expect(playSubagentExecution).toContain("instead of duplicating");
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "conditional-use contract instead of duplicating",
+    );
     expect(playSubagentExecution).toContain(
       "inlining the shell implementation",
     );
     expect(playSubagentExecution).toContain("hard helper prerequisite");
     expect(playSubagentExecution).toContain("snapshot notice line");
+    expect(normalizedPlaySubagentExecution).toContain(
+      "This parse and validation path applies only when the controller recorded snapshot state as `requested`",
+    );
+    expect(normalizedPlaySubagentExecution).toContain(
+      "If snapshot state is `skipped`, do not parse or expect a notice line",
+    );
     expect(playSubagentExecution).toContain(".ephemeral/*/snapshot-*.json");
     expect(normalizeWhitespace(playSubagentExecution)).toContain(
       "snapshot-specific flatness, symlink, and regular-file checks",
@@ -635,6 +657,9 @@ describe("phase artifact source contracts", () => {
     const adr0014 = await readRepoFile(
       "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
     );
+    const adr0015 = await readRepoFile(
+      "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+    );
 
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
@@ -645,13 +670,25 @@ describe("phase artifact source contracts", () => {
     expect(adr0014).toContain("snapshot-manifest recipe");
     expect(adr0014).toContain("readable recipe path");
     expect(adr0014).toContain("readable helper script path");
-    expect(adr0014).toContain("mandatory-use contract");
+    expect(adr0014).toContain("conditional-use contract");
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
-    expect(adr0014).toContain("missing-snapshot fallback contract");
+    expect(adr0014).toContain("fallback contract");
+    expect(adr0014).toContain("trigger-based");
+    const normalizedAdr0014 = normalizeWhitespace(adr0014);
+    for (const trigger of SNAPSHOT_REQUEST_TRIGGER_CONTRACTS) {
+      expect(normalizedAdr0014).toContain(trigger.adrPhrase);
+    }
+    expect(normalizeWhitespace(adr0014)).toContain(
+      "Plan text may contain snapshot hints",
+    );
+    expect(adr0014).not.toContain("the plan body is itself the snapshot");
+    expect(adr0015).toContain("no implementer snapshot artifact");
+    expect(adr0015).toContain("not DONE-report evidence");
+    expect(adr0015).not.toContain("the plan body is itself the snapshot");
     expect(adr0014).toContain("committed HEAD blob reads");
     expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
     expect(adr0014).toContain("repository-controlled and untrusted");
-    expect(adr0014).toContain(
+    expect(normalizeWhitespace(adr0014)).toContain(
       "the helper script is authoritative for executable snapshot",
     );
     expect(adr0014).toContain(

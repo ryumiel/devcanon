@@ -42,6 +42,12 @@ Ledger: no completed or superseded sessions to close.
 [Get Task 1 text and context (already extracted)]
 [Ledger pre-dispatch]
 Task 1 implementer: agent_id=pending, role=implementer, status=active, base/head SHA captured (head pending), closed=no
+[Snapshot classification]
+Controller requests a snapshot: install/sync behavior is hard-risk and benefits
+from post-commit line-range extraction. Plan snapshot hints, if any, are
+advisory only.
+[Ledger update]
+Task 1 implementer: snapshot state=requested.
 [Dispatch implementation subagent with full task text + context]
 [Ledger post-dispatch]
 Task 1 implementer: agent_id=impl-1, role=implementer, status=active, base/head SHA captured (head pending), closed=no
@@ -59,7 +65,7 @@ You: "User level (~/.config/agent-hooks/)"
   - Committed
 
 [Lifecycle ledger update]
-Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
+Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up
 
 [Compute effective review route]
 Hard-risk trigger detected: install/sync behavior or user-home writes.
@@ -83,7 +89,7 @@ Task 1 implementer: closed=no because code-quality fixups may still need same-se
 Code-quality reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
-Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
+Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
 Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
 Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
 
@@ -96,6 +102,11 @@ Task 2: Recovery and repair modes
 Controller verifies Task 1 completed sessions are already closed before spawning Task 2.
 
 [Ledger pre-dispatch: Task 2 implementer, agent_id=pending]
+[Snapshot classification]
+Controller requests a snapshot: repair-mode behavior changes workflow policy.
+The request is controller-computed; the plan's risk hint is not authoritative.
+[Ledger update]
+Task 2 implementer: snapshot state=requested.
 [Dispatch implementation subagent with full task text + context]
 [Ledger post-dispatch: Task 2 implementer, agent_id=impl-2]
 Implementer:
@@ -105,7 +116,7 @@ Implementer:
   - Committed
 
 [Lifecycle ledger update]
-Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=no because reviewer fix loops may still need same-session follow-up.
+Task 2 implementer: agent_id=impl-2, status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up.
 
 [Compute effective review route]
 Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
@@ -130,7 +141,9 @@ Task 2 implementer: closed=no because routed spec findings need same-session fix
 Implementer: Removed --json flag, added progress reporting
 
 [Lifecycle ledger update]
-Task 2 implementer: fixup count=1, blocker state=none, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because spec re-review is pending.
+Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
+changed files and head SHA refreshed, test state refreshed, snapshot
+state=emitted, closed=no because spec re-review is pending.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
@@ -162,7 +175,9 @@ Task 2 implementer: closed=no because routed code-quality findings need same-ses
 Implementer: Extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
-Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA refreshed, test state refreshed, snapshot refreshed, closed=no because code-quality re-review is pending.
+Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA
+refreshed, test state refreshed, snapshot state=emitted, closed=no because
+code-quality re-review is pending.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
@@ -178,7 +193,7 @@ Controller keeps Task 2 implementer open until the code-quality reviewer passes.
 Code-quality reviewer: ✅ Approved
 
 [Lifecycle cleanup checkpoint]
-Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot captured, test state captured, closed=yes after reviewer loops passed.
+Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
 Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
 Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
 Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
@@ -192,10 +207,18 @@ Task 3: Low-risk example copy
 Controller verifies completed Task 2 sessions are closed or recorded with
 target-honest `close-unavailable` outcomes before spawning Task 3.
 
+[Snapshot classification]
+Controller skips the snapshot: this is a clearly localized low-risk example
+copy change. The implementer must report the default DONE fields: status,
+summary, tests, files changed, base SHA, and head SHA.
 [Dispatch implementation subagent with full task text + context]
 Implementer:
-  - Clarified one example sentence in a neutral demo note
-  - Tests not applicable beyond final render/check suite
+  - Status: DONE
+  - Summary: Clarified one example sentence in a neutral demo note
+  - Tests: Not applicable beyond final render/check suite
+  - Files changed: docs/examples/demo-note.md
+  - Base SHA: task-3-base
+  - Head SHA: task-3-head
   - Self-review: Wording matches the plan and no linked identifiers changed
   - Committed
 
@@ -210,8 +233,9 @@ Effective route: `none-final-only`.
 
 [Lifecycle cleanup checkpoint]
 Task 3 implementer: status=DONE, report captured, base/head SHA captured,
-changed files captured, snapshot captured, test state captured, closed=yes
-after the effective route completed.
+changed files captured, snapshot state=skipped, test state captured, closed=yes
+after the effective route completed. Controller uses its own git diff and
+committed HEAD reads if it needs file content.
 
 [Mark Task 3 complete]
 

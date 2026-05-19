@@ -116,7 +116,8 @@ here.
   reviewer or downstream `branch-review --fix` on the ADR-0016 path.
 - The implementer DONE-report snapshot contract (ADR-0014) does not
   apply on the skip-dispatch path: with no dispatched implementer, there
-  is no DONE-report boundary. The plan body is itself the snapshot.
+  is no DONE-report boundary and no implementer snapshot artifact. The
+  plan remains upstream implementation context, not DONE-report evidence.
   ADR-0014's `play-subagent-execution` § Implementer Snapshot Consumption
   → Skip-dispatch exclusion subsection states this exclusion explicitly.
 - ADR-0018 refines multi-task per-task review routing only. This ADR remains

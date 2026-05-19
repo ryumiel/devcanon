@@ -65,6 +65,11 @@ work, risk surfaces, and proof obligations, with no blank field or unexplained
 BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch an implementer or execute
 inline against the invalid task contract.
 
+This structural task-contract gate is separate from DONE-report snapshot
+classification. Snapshot request/skip classification is owned by
+`play-subagent-execution`, and plan-authored snapshot hints are
+non-authoritative.
+
 ## Inputs
 
 This skill accepts a plan document in either of two shapes inside its
@@ -246,13 +251,15 @@ digraph process {
 >
 > The "Dispatch the implementer agent" boxes above use `references/implementer-prompt.md` by default; when the task header carries `**Mode:** mechanical`, swap in `references/mechanical-implementer-prompt.md` only after the skip-dispatch fallback rules confirm no TDD expectation or legacy TDD step-pair overrides the hint. See "Mechanical Task Hint" and "Skip-Dispatch Path" below.
 >
-> When assembling either implementer dispatch prompt, include a readable
-> Snapshot Manifest Recipe path sourced from
+> Before assembling either implementer dispatch prompt, classify whether this
+> task requires a DONE-report snapshot. When the controller requests one,
+> include a readable Snapshot Manifest Recipe path sourced from
 > `references/snapshot-manifest-recipe.md` and a readable Snapshot Manifest
-> Helper Script path sourced from `scripts/write-snapshot-manifest.sh`. The
-> prompt templates intentionally keep only the compact mandatory-use contract;
-> the implementer reads the canonical recipe and runs the helper instead of
-> carrying the construction procedure inline.
+> Helper Script path sourced from `scripts/write-snapshot-manifest.sh`; the
+> implementer reads the canonical recipe and runs the helper instead of carrying
+> the construction procedure inline. When the controller skips the snapshot,
+> require the default DONE fields instead: status, summary, tests, files
+> changed, base SHA, and head SHA.
 >
 > When the plan has exactly one task and all five skip-dispatch guardrails pass, the controller executes the file change inline instead of dispatching an implementer subagent at all. See "Skip-Dispatch Path" below for the guardrails and the inline execution sequence.
 
@@ -489,11 +496,11 @@ cleanup outcomes, and slot-limit recovery. `play-subagent-execution` owns only
 the execution-specific lifecycle details below.
 
 For this workflow, role-specific captured state includes implementer reports,
-changed files, test results, snapshot state, reviewer scope, reviewer report,
-concrete findings, routing target, re-review target, task base/head SHA,
-fixup count, and blocker state when applicable. Run the shared cleanup gate
-before dispatching the next implementer, reviewer, re-reviewer, or final
-reviewer.
+changed files, test results, snapshot state (`requested`, `emitted`, `skipped`,
+or `malformed`), reviewer scope, reviewer report, concrete findings, routing
+target, re-review target, task base/head SHA, fixup count, and blocker state
+when applicable. Run the shared cleanup gate before dispatching the next
+implementer, reviewer, re-reviewer, or final reviewer.
 
 The cleanup gate must not close a task implementer while same-session
 spec-compliance or code-quality reviewer fix loops may still route fixups back
@@ -504,30 +511,77 @@ can receive the complete captured state.
 
 ## Implementer Snapshot Consumption
 
-Every dispatched implementer agent emits a literal
+`play-subagent-execution` owns the snapshot request/skip classification for
+each dispatched implementer task. Plan-provided snapshot hints are advisory
+only: they may inform the controller's classification, but they are never
+authoritative. If the classification is unclear, fail closed by requesting a
+snapshot.
+
+Request a snapshot when the task changes durable ADR, behavior-spec,
+product-requirements, roadmap, guideline, skill, agent, procedure, or
+workflow-policy text; source-owned policy; failure routing; lifecycle or
+terminal-state behavior; prompt/report contracts; cross-agent or cross-skill
+handoff behavior; governed outputs; generated-output behavior; schema or type
+contracts; manifests; executable helpers; config; path-validation,
+filesystem-safety, or other security-sensitive behavior; or tests guarding
+those surfaces. Also request a snapshot for broad, multi-file, cross-module, or
+cross-skill tasks; deletes, renames, or file-mode changes; any explicit
+controller audit or review-coordination request; and unclear classification.
+Skip snapshots only for clearly localized, low-risk work where the default DONE
+fields plus controller-computed git/disk reads are sufficient.
+
+When a snapshot is requested, the dispatched implementer emits a literal
 `Snapshot written to <repo-relative-path>.` line at the end of its DONE
 or DONE_WITH_CONCERNS report. The path points at a side-channel
 `implementer/snapshot/v1` envelope under `.ephemeral/`. The controller
-uses the snapshot to avoid re-reading files for post-commit
-verification and line-range extraction.
+uses the snapshot to reduce rereads for post-commit verification and line-range
+extraction. When no snapshot is requested, absence of the notice line is valid;
+the DONE report must instead include the default fields: status, summary, tests,
+files changed, base SHA, and head SHA.
 
 The producer-side contract lives in `references/snapshot-manifest-recipe.md`,
 and the executable construction helper lives in
-`scripts/write-snapshot-manifest.sh`. When dispatching an implementer, the
-controller supplies both paths with the task prompt; the prompt source itself
-carries a compact mandatory-use contract instead of duplicating the recipe or
-inlining the shell implementation into every dispatch.
+`scripts/write-snapshot-manifest.sh`. When dispatching an implementer with a
+snapshot request, the controller supplies both paths with the task prompt; the
+prompt source itself carries a compact conditional-use contract instead of
+duplicating the recipe or inlining the shell implementation into every
+dispatch.
 
-The helper script is authoritative for executable snapshot construction. `jq`
-is a hard helper prerequisite because byte-faithful JSON assembly is part of the
-contract. If the helper script is missing, unreadable, or exits nonzero for any
-reason (including missing `jq`), the implementer reports `BLOCKED` without
-emitting the snapshot notice line.
+When assembling the implementer prompt, include a concrete snapshot request
+state line:
+
+```text
+Snapshot request: requested
+```
+
+or:
+
+```text
+Snapshot request: skipped
+```
+
+When the state is `requested`, include the resolved recipe and helper script
+paths. When the state is `skipped`, omit those paths; the implementer reports the
+default DONE fields instead of running the helper. The source prompt templates
+use placeholders for both branches, but the assembled prompt must make exactly
+one state concrete before dispatch so the implementer never infers policy.
+
+The helper script is authoritative for executable snapshot construction when a
+snapshot is requested. `jq` is a hard helper prerequisite because byte-faithful
+JSON assembly is part of the contract. If the helper script is missing,
+unreadable, or exits nonzero for any reason (including missing `jq`), the
+implementer reports `BLOCKED` without emitting the snapshot notice line. If no
+snapshot is requested, the implementer does not read the recipe or run the
+helper.
 
 ### Parse and validate the path
 
-Parse the path off the literal notice line, then run the canonical
-guard narrowed to the snapshot suffix:
+This parse and validation path applies only when the controller recorded
+snapshot state as `requested`. If snapshot state is `skipped`, do not parse or
+expect a notice line; record snapshot state as `skipped` and use the default DONE
+fields plus controller-computed git/disk reads. When a snapshot was requested,
+parse the path off the literal notice line, then run the canonical guard narrowed
+to the snapshot suffix:
 
 ```bash
 SNAPSHOT_OK=true
@@ -546,11 +600,11 @@ esac
 [ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -f "$SNAPSHOT_FILE" ] || { echo "snapshot is not a regular file: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
 [ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-# If $SNAPSHOT_OK == false, skip snapshot consumption for this task and
-# fall back to committed HEAD blob reads for every file in the controller's
-# own changed-file list from git diff -z --name-status --no-renames BASE..HEAD.
-# Do not abort the controller workflow — the snapshot is an optimization, not
-# a workflow gate.
+# If $SNAPSHOT_OK == false, record snapshot state as malformed and fall back
+# to committed HEAD blob reads for every file in the controller's own
+# changed-file list from git diff -z --name-status --no-renames BASE..HEAD.
+# Do not abort the controller workflow solely because the snapshot cannot be
+# consumed, but surface the malformed state when a snapshot was requested.
 ```
 
 This bash is a snapshot-specific read guard. It keeps the generic
@@ -558,8 +612,9 @@ suffix/traversal shape used by phase artifacts but intentionally diverges from
 `play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
 comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
 log-and-fall-back disposition instead of a hard exit. The snapshot consumer
-always has committed HEAD blob reads available, so any validation failure here
-is non-fatal. It also enforces snapshot-specific flatness, symlink, and
+always has default DONE fields plus committed HEAD blob reads available, so
+fallback remains possible even when a requested snapshot is malformed. It also
+enforces snapshot-specific flatness, symlink, and
 regular-file checks because the consumer is read-only and never overwrites
 the file — the producer-side helper writes through a repo-scoped private scratch
 directory and renames that output into place only after rejecting an existing
@@ -656,24 +711,27 @@ rule.
 
 ### Failure modes
 
-| Scenario                                                           | Action                                                                                                                                                 |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Path validation fails                                              | Surface failure; treat the implementer report as malformed and fall back to committed HEAD blob reads using the controller-computed changed-file list. |
-| Snapshot file missing / unreadable / non-regular after notice line | Same as above (the fail-loud guard prevents silent skew and special-file reads).                                                                       |
-| JSON malformed                                                     | Same as above.                                                                                                                                         |
-| `files[]` path/status set validation fails                         | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path or status.                                      |
-| Implementer reports DONE without notice line                       | Backward-compat: fall back to committed HEAD blob reads. The controller does not enforce a notice line.                                                |
-| Per-file `content` omitted, `status == "deleted"`                  | No `HEAD:<path>` blob exists — treat `status` as authoritative, no content read. Rest of files use snapshot content.                                   |
-| Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`) | Read that file from the committed HEAD blob; rest of files use snapshot content.                                                                       |
-| `head_sha` in snapshot doesn't match controller's view             | Log and fall back to committed HEAD blob reads; signals an unexpected commit between DONE and consumption.                                             |
+| Scenario                                                              | Action                                                                                                                                                                           |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Controller requested a snapshot                                       | Record snapshot state as `requested` before dispatch and require either a valid notice line or a `BLOCKED` report from the implementer if the helper cannot write the manifest.  |
+| Controller skipped the snapshot                                       | Record snapshot state as `skipped`; absence of a notice line is valid. Use the default DONE fields plus controller-computed `git diff -z --name-status --no-renames BASE..HEAD`. |
+| Requested snapshot notice line is emitted and validates               | Record snapshot state as `emitted`; snapshot content may be consumed within the trust boundary below.                                                                            |
+| Path validation fails                                                 | Record snapshot state as `malformed`; surface the incident and fall back to committed HEAD blob reads using the controller-computed changed-file list.                           |
+| Snapshot file missing / unreadable / non-regular after notice line    | Same as above (the fail-loud guard prevents silent skew and special-file reads).                                                                                                 |
+| JSON malformed                                                        | Same as above.                                                                                                                                                                   |
+| `files[]` path/status set validation fails                            | Same as above; use the controller-computed changed-file list for fallback reads, not the snapshot path or status.                                                                |
+| Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS | Record snapshot state as `malformed`; surface the requested-snapshot contract violation and fall back to default DONE fields plus controller-computed git/disk reads.            |
+| Per-file `content` omitted, `status == "deleted"`                     | No `HEAD:<path>` blob exists — treat `status` as authoritative, no content read. Rest of files use snapshot content.                                                             |
+| Per-file `content` omitted, `"skipped"` set (`size>64KB`/`binary`)    | Read that file from the committed HEAD blob; rest of files use snapshot content.                                                                                                 |
+| `head_sha` in snapshot doesn't match controller's view                | Record snapshot state as `malformed`; log and fall back to committed HEAD blob reads; signals an unexpected commit between DONE and consumption.                                 |
 
 ### Skip-dispatch exclusion
 
 The contract scope is the dispatched-implementer path only. The
 skip-dispatch path for trivial single-task plans does not invoke this
 contract because no implementer is dispatched and no DONE report
-exists; the plan body is itself the snapshot. Do not apply
-snapshot-parsing logic to the skip-dispatch path.
+exists. Do not request, require, or parse a DONE-report snapshot on the
+skip-dispatch path.
 
 ## Skip-Dispatch Path
 
@@ -722,7 +780,10 @@ run came from `issue-priming-workflow --auto` and that downstream
 Otherwise, dispatch the existing final whole-implementation code-quality
 reviewer as it does on the dispatched path.
 
-There is no DONE-report step. The plan body is itself the snapshot — the controller already holds the full file content in context, so the report-back hop the dispatched path needs is unnecessary. No DONE-report contract applies here because there is no dispatched implementer to report from.
+There is no DONE-report step and no DONE-report snapshot request. The
+controller already holds the approved task content in context, so the report-
+back hop the dispatched path needs is unnecessary. No DONE-report contract
+applies here because there is no dispatched implementer to report from.
 
 ### Fallback
 
@@ -799,7 +860,21 @@ The two fixtures together lock the heuristic by showing both branches.
 
 ## Handling Implementer Status
 
-Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides. For `DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot, changed-file list, base/head SHA, and test result before dispatching reviewers. For `NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context request, `agent_id`, and any available base/head SHA; do not wait for snapshot, changed-file, or test artifacts that were not produced. Run the cleanup gate before dispatching the next reviewer, re-reviewer, implementer, or final reviewer. The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session.
+Before acting on any returned status, update the lifecycle ledger for that
+session with the status and the artifacts that status actually provides. For
+`DONE` and `DONE_WITH_CONCERNS`, capture the report, snapshot state
+(`requested`, `emitted`, `skipped`, or `malformed`), changed-file list,
+base/head SHA, and test result before dispatching reviewers. When snapshot
+state is `skipped`, use the default DONE fields plus controller-computed git/disk
+reads. When snapshot state is `malformed`, surface the incident and still fall
+back to the default DONE fields plus controller-computed git/disk reads. For
+`NEEDS_CONTEXT` and `BLOCKED`, capture the status, report or blocker/context
+request, `agent_id`, and any available base/head SHA; do not wait for snapshot,
+changed-file, or test artifacts that were not produced. Run the cleanup gate
+before dispatching the next reviewer, re-reviewer, implementer, or final
+reviewer. The cleanup gate must not close the task implementer while the
+multi-task spec-compliance or code-quality reviewer loops may still route fixups
+back to that same implementer session.
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
