@@ -5,6 +5,7 @@ BASE_ARG=""
 FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
+GOVERNED_PATH_PATTERN='^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/|skills/|src/|scripts/)'
 
 emit_line() {
   local key="$1"
@@ -147,8 +148,8 @@ FOLLOWUP_SHA_USABLE=false
 CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
 
 if [[ "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] &&
-  git cat-file -e "$LAST_REVIEWED_SHA^{commit}" &&
-  git merge-base --is-ancestor "$LAST_REVIEWED_SHA" HEAD; then
+  git cat-file -e "$LAST_REVIEWED_SHA^{commit}" 2>/dev/null &&
+  git merge-base --is-ancestor "$LAST_REVIEWED_SHA" HEAD 2>/dev/null; then
   FOLLOWUP_MODE=true
   FOLLOWUP_SHA_USABLE=true
   CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
@@ -163,7 +164,7 @@ if [[ "$FOLLOWUP_MODE" = true ]]; then
     ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}file-count"
   fi
   if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-    grep -E '^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/|skills/|src/(render|install|skill-contracts|skill-scripts|models|validate)/|src/config/schema\.ts$|scripts/)' >/dev/null; then
+    grep -E "$GOVERNED_PATH_PATTERN" >/dev/null; then
     ESCALATE_FULL=true
     ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}governance-path"
   fi

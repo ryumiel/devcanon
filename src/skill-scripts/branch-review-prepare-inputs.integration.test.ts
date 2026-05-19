@@ -66,18 +66,22 @@ async function writeFindingsEnvelope(cwd: string, headSha: string) {
   return findingsFile;
 }
 
-async function runHelper(cwd: string, args: string[] = []) {
-  const result = await execFileAsync("bash", [helperScript, ...args], {
-    cwd,
-    env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
-  });
+function parseHelperOutput(stdout: string) {
   const values: Record<string, string> = {};
-  for (const line of result.stdout.trim().split("\n")) {
+  for (const line of stdout.trim().split("\n")) {
     const separator = line.indexOf("=");
     if (separator === -1) continue;
     values[line.slice(0, separator)] = line.slice(separator + 1);
   }
   return values;
+}
+
+async function runHelper(cwd: string, args: string[] = []) {
+  const result = await execFileAsync("bash", [helperScript, ...args], {
+    cwd,
+    env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+  });
+  return parseHelperOutput(result.stdout);
 }
 
 describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
@@ -108,7 +112,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
       ).stdout.trim();
       const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
-      await commitFile(cwd, "src/app.ts", "export const value = 2;\n");
+      await commitFile(cwd, "notes/followup.md", "narrow\n");
 
       const values = await runHelper(cwd, [
         "--fix",
@@ -171,7 +175,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     }
   });
 
-  it("escalates follow-up review to the full branch for skill and generated-output contract paths", async () => {
+  it("escalates follow-up review to the full branch for source, skill, and generated-output contract paths", async () => {
     const cwd = await makeGitWorkspace();
     try {
       const lastReviewedSha = (
@@ -185,9 +189,16 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       );
       await mkdir(path.join(cwd, "src/render"), { recursive: true });
       await writeFile(path.join(cwd, "src/render/pipeline.ts"), "render\n");
+      await mkdir(path.join(cwd, "src/cli/commands"), { recursive: true });
+      await writeFile(path.join(cwd, "src/cli/commands/foo.ts"), "api\n");
       await execFileAsync(
         "git",
-        ["add", "skills/branch-review/SKILL.md", "src/render/pipeline.ts"],
+        [
+          "add",
+          "skills/branch-review/SKILL.md",
+          "src/render/pipeline.ts",
+          "src/cli/commands/foo.ts",
+        ],
         { cwd },
       );
       await execFileAsync(
@@ -207,6 +218,39 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.ESCALATE_FULL).toBe("true");
       expect(values.ESCALATION_REASON).toContain("governance-path");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("escalates unusable follow-up SHAs without emitting git probe noise", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const missingSha = "b".repeat(40);
+      const findingsFile = await writeFindingsEnvelope(cwd, missingSha);
+      await commitFile(cwd, "notes/followup.md", "fallback\n");
+
+      const result = await execFileAsync(
+        "bash",
+        [
+          helperScript,
+          "--last-reviewed",
+          missingSha,
+          "--prior-findings",
+          findingsFile,
+        ],
+        {
+          cwd,
+          env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+        },
+      );
+      const values = parseHelperOutput(result.stdout);
+
+      expect(result.stderr).toBe("");
+      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.ESCALATE_FULL).toBe("true");
+      expect(values.ESCALATION_REASON).toBe("last-reviewed-unusable");
     } finally {
       await cleanupTempDir(cwd);
     }

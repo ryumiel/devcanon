@@ -159,8 +159,10 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain(
       'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
     );
+    expect(branchReviewHelper).toContain("GOVERNED_PATH_PATTERN='^(docs/");
     expect(branchReviewHelper).toContain("|skills/|");
-    expect(branchReviewHelper).toContain("src/(render|install|");
+    expect(branchReviewHelper).toContain("|src/|");
+    expect(branchReviewHelper).toContain("2>/dev/null");
     expect(branchReviewHelper).toContain("ESCALATE_FULL=false");
     expect(branchReviewHelper).toContain(
       'ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"',
