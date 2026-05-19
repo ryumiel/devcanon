@@ -11,7 +11,7 @@ Behavioral signals that this skill is being violated.
 - Autosquash a shared, already-pushed, open PR, reviewed, or otherwise
   non-local branch without separate explicit shared-branch rewrite approval
 - Autosquash commits whose granular history carries review or audit value
-- Push after autosquash when the post-autosquash tree is not unchanged
+- Push after autosquash when the post-autosquash tree changed
 - Remove a worktree outside `<MAIN_ROOT>/.worktrees/`
 - Run `git worktree remove` from inside the target worktree
 - Skip `git worktree prune` after removing a repo-managed worktree

@@ -163,13 +163,14 @@ test -z "$(git status --porcelain)" || {
 AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)
 PRE_AUTOSQUASH_HEAD=$(git rev-parse HEAD)
 PRE_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
-if ! GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
+AUTOSQUASH_NOOP_EDITOR='node -e "process.exit(0)"'
+if ! GIT_SEQUENCE_EDITOR="$AUTOSQUASH_NOOP_EDITOR" GIT_EDITOR="$AUTOSQUASH_NOOP_EDITOR" git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
   echo "autosquash failed; run git rebase --abort before push" >&2
   echo "if you resolve and continue instead, rerun the tree and marker checks before push" >&2
   exit 1
 fi
 REMAINING_AUTOSQUASH_MARKERS=$(
-  git log --format=%s "$AUTOSQUASH_BASE"..HEAD | sed -n '/^\(fixup\|squash\)!/p'
+  git log --format=%s "$AUTOSQUASH_BASE"..HEAD | sed -n -e '/^fixup!/p' -e '/^squash!/p'
 )
 [ -z "$REMAINING_AUTOSQUASH_MARKERS" ] || {
   git reset --hard "$PRE_AUTOSQUASH_HEAD"

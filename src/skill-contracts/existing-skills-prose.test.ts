@@ -462,8 +462,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
     expect(normalizedOption2).toContain('test -z "$(git status --porcelain)"');
     expect(normalizedOption2).toContain(
-      'GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"',
+      "AUTOSQUASH_NOOP_EDITOR='node -e \"process.exit(0)\"'",
     );
+    expect(normalizedOption2).toContain(
+      'GIT_SEQUENCE_EDITOR="$AUTOSQUASH_NOOP_EDITOR" GIT_EDITOR="$AUTOSQUASH_NOOP_EDITOR" git rebase -i --autosquash "$AUTOSQUASH_BASE"',
+    );
+    expect(normalizedOption2).not.toContain("GIT_SEQUENCE_EDITOR=:");
     expect(normalizedOption2).toContain("git rebase --abort");
     expect(normalizedOption2).toContain(
       'git reset --hard "$PRE_AUTOSQUASH_HEAD"',
@@ -471,6 +475,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain("REMAINING_AUTOSQUASH_MARKERS=");
     expect(normalizedOption2).toContain(
       'git log --format=%s "$AUTOSQUASH_BASE"..HEAD',
+    );
+    expect(normalizedOption2).toContain(
+      "sed -n -e '/^fixup!/p' -e '/^squash!/p'",
     );
     expect(normalizedOption2).toMatch(/fixup!.*squash!|squash!.*fixup!/i);
     expect(normalizedOption2).toMatch(
