@@ -57,6 +57,14 @@ handling, retry/fix/re-review loops, cleanup rules, escalation paths, failure
 classification, failure routing, normative examples, or tests and assertions
 for procedural behavior.
 
+For governance or workflow policy changes, reviewers should also use the
+Adjacent Governance Policy Set in
+`docs/guidelines/documentation-checklists.md` as a review-time backstop. Check
+whether the diff introduces contradictions across the named adjacent authority
+surfaces, and verify that any missing, inapplicable, or intentionally unchanged
+surface is named with a reason instead of inferred from generated output or
+issue/comment evidence.
+
 Do not apply this lens to editorial-only documentation cleanup or ordinary
 wording changes that do not alter actor handoff, order, resource lifetime,
 failure routing, ownership, or target-supported capabilities.
@@ -161,6 +169,8 @@ Before opening a PR, the author should verify:
 - [ ] No `Blocking` findings remain in changed files
 - [ ] Architecture, docs, and contract changes stay aligned where the diff
       touches them
+- [ ] Governance or workflow policy changes were checked against the Adjacent
+      Governance Policy Set in `docs/guidelines/documentation-checklists.md`
 - [ ] Tests exist for new behavior; bug fixes have regression tests
 - [ ] PR description follows the PR guideline (see
       `docs/guidelines/pr-guideline.md`)

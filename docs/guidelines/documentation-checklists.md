@@ -4,6 +4,30 @@ Quick operational checklists that complement
 [documentation-standard.md](documentation-standard.md). Keep policy and
 rationale in that doc; use this file for fast review and gardening lookup.
 
+## Adjacent Governance Policy Set
+
+Use the **Adjacent Governance Policy Set** when a change affects governance,
+workflow policy, contribution rules, review procedure, ADR procedure, durable
+documentation ownership, or reusable skill/agent procedure. The set is a
+checklist for identifying and comparing adjacent authority surfaces; it does not
+copy policy content or make derived artifacts authoritative.
+
+Compare the touched policy with these adjacent surfaces, and name any missing or
+inapplicable surface with a short reason:
+
+- `CONTRIBUTING.md`
+- `docs/guidelines/pr-guideline.md`
+- `.github/pull_request_template.md`
+- `WORKFLOW.md`
+- `docs/adr/adr-template.md` plus affected accepted ADRs
+- `docs/guidelines/documentation-standard.md`
+- `docs/guidelines/documentation-checklists.md`
+- relevant source skills and agents, especially under `skills/` and `agents/`
+
+Generated outputs, installed managed outputs, PR descriptions, issues, comments,
+and `.ephemeral/` notes can provide evidence for the change, but they are not
+authority surfaces for this set.
+
 ## Change Review Checklist
 
 - Zod schemas or types changed: update validation logic, related tests, and
@@ -26,6 +50,10 @@ rationale in that doc; use this file for fast review and gardening lookup.
   module boundaries, architecture, workflow, reusable agent procedure, and
   verification expectations either did not change or their owning artifact is
   updated in the same PR.
+- Governance or workflow policy changed: use the Adjacent Governance Policy Set
+  above to identify adjacent authority surfaces, compare them for
+  contradictions, update intentionally coupled owned surfaces in the same PR,
+  and record any out-of-scope or inapplicable surface with a reason.
 - Root entry or workflow changed: update `AGENTS.md` for entry-point guidance
   and `WORKFLOW.md` for procedural flow changes.
 - CLI command added or changed: update `AGENTS.md` command table and

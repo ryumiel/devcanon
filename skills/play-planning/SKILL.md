@@ -155,6 +155,13 @@ it when the plan depends on cross-skill handoffs, generated or derived paths,
 helper scripts, source-owned policy, schema or interface authority, execution
 cwd assumptions, or fail-closed behavior.
 
+When contract-heavy work changes governance or workflow policy, include the
+adjacent governance surfaces identified from the named Adjacent Governance
+Policy Set owned by `docs/guidelines/documentation-checklists.md`. The table
+should name the owner of each relevant surface, the source of truth when
+surfaces conflict, and any inapplicable adjacent surface with a task-specific
+reason. Reference the checklist owner instead of copying the full set.
+
 Cover the applicable surfaces:
 
 - Inputs
@@ -227,13 +234,17 @@ Required checklist surfaces for qualifying work:
   artifact category, behavior status labels, fact ownership, conflict
   precedence, normative expectations, example or fixture validation
   expectations, cross-document drift risks, and review-blocking semantic risks.
+  For governance or workflow-policy changes, include the adjacent governance
+  surfaces triggered by `docs/guidelines/documentation-checklists.md`'s named
+  Adjacent Governance Policy Set.
 - **Risk surfaces:** include only relevant risks, such as persistence or data
   loss, bridge/protocol drift, external input validation, path/file safety,
   secrets or credential disclosure, prompt/log disclosure, compatibility or
   versioning, and user-facing error surfaces.
 - **Proof obligations:** tests or fixtures that must exist or be updated,
   generated-output or mirrored-reference evidence, documentation/spec/ADR/MAP
-  updates required by trigger, manual verification required, and branch-review
+  updates required by trigger, adjacent governance surface checks required by
+  the named set when triggered, manual verification required, and branch-review
   focus areas.
 
 Documentation impact stays trigger-based. If the change alters durable workflow
@@ -243,6 +254,16 @@ name the follow-up blocker. Do not require ADR or MAP updates unless their AFDS
 triggers are met. An ADR trigger means the plan must ask whether the change
 crosses the durable-decision threshold; it does not mean every feature or spec
 plan needs an ADR.
+
+For governance or workflow-policy changes, planning must carry forward the
+adjacent governance surfaces named by `play-brainstorm` and reconcile them
+against the Adjacent Governance Policy Set owned by
+`docs/guidelines/documentation-checklists.md`. Include relevant adjacent
+surfaces in contract tables, task contract checklists, and proof obligations.
+Do not require PR guideline, PR template, `WORKFLOW.md`, ADR, MAP, generated
+output, or installed-output updates unless the repository's existing AFDS
+triggers apply; when a surface is not updated, the plan should state why it is
+not in scope.
 
 ## Cohesive Task Composition
 
@@ -451,13 +472,18 @@ surfaces, and verification expectations? Fix any missing field.
 handoffs, generated or derived paths, helper scripts, source-owned policy,
 schema or interface authority, execution cwd assumptions, or fail-closed
 behavior, does the plan include a short contract table covering the applicable
-surfaces? Fix missing contract surfaces before task planning.
+surfaces? For governance or workflow-policy changes, does it include adjacent
+governance surfaces from the named set owned by
+`docs/guidelines/documentation-checklists.md`? Fix missing contract surfaces
+before task planning.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
 include owner/authority, affected consumers/generated outputs, must-preserve,
 required behavior, spec/procedure work, risk surfaces, and proof obligations.
 Trivial tasks may omit the checklist only when they state why no trigger applies.
+For governance or workflow-policy changes, confirm triggered tasks include the
+relevant adjacent governance surfaces in the applicable checklist fields.
 
 **6. Contract checklist completeness:** For every required checklist, confirm
 each field is populated or marked `N/A` with a task-specific reason. Blank

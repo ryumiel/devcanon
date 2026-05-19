@@ -277,10 +277,15 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
 
 **Exploring approaches:**
 
+- For governance or workflow-policy changes, scan the named Adjacent Governance
+  Policy Set owned by `docs/guidelines/documentation-checklists.md` before
+  selecting approaches. Use that set to identify adjacent governance surfaces
+  whose policy claims may need comparison or same-PR updates; do not duplicate
+  the full set in this skill.
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
-- For each approach, note its **documentation impact** per AFDS v2: would it require a new ADR (architecture decisions, technology adoption/removal, boundary changes, major rejected alternatives — see `docs/guidelines/documentation-standard.md` §3.5), a `docs/arch/` update (system shape change), or a `MAP.md` update (file moves or new major path)? Approaches with no impact say so explicitly.
+- For each approach, note its **documentation impact** per AFDS v2: would it require a new ADR (architecture decisions, technology adoption/removal, boundary changes, major rejected alternatives — see `docs/guidelines/documentation-standard.md` §3.5), a `docs/arch/` update (system shape change), or a `MAP.md` update (file moves or new major path)? For governance or workflow-policy changes, also name the adjacent governance surfaces from `docs/guidelines/documentation-checklists.md` that the approach touches, updates, compares, or intentionally leaves out of scope. Approaches with no impact say so explicitly.
 
 **Presenting the design:**
 
@@ -330,7 +335,7 @@ After writing the design document, look at it with fresh eyes:
 3. **Scope check:** Is this focused enough for a single implementation plan, or does it need decomposition?
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
 5. **Example verification:** For any worked example, illustrative scenario, or reference _that purports to cite existing code, files, or history_ in the design that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking design proposals (new modules, paths, or APIs being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples.
-6. **Documentation impact:** If any approach was flagged ADR/arch/MAP-relevant during exploration, the chosen design must include a "Documentation impact" subsection naming each affected file. This subsection becomes the structured hand-off to `play-planning`, which generates corresponding documentation tasks. If no approach has documentation impact, omit the subsection.
+6. **Documentation impact:** If any approach was flagged ADR/arch/MAP-relevant during exploration, or if the design changes governance or workflow policy, the chosen design must include a "Documentation impact" subsection. For ADR/arch/MAP impact, name each affected file. For governance or workflow-policy changes, name touched adjacent governance surfaces from the Adjacent Governance Policy Set owned by `docs/guidelines/documentation-checklists.md`, including any inapplicable surfaces and the reason they are out of scope. This subsection becomes the structured hand-off to `play-planning`, which generates corresponding documentation tasks. If no approach has documentation impact and no governance/workflow-policy surface is touched, omit the subsection.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
@@ -343,7 +348,7 @@ This prompt is the interactive User Review Gate, distinct from the producer noti
 
 Wait for the user's response. If they request changes, make them and re-run the design review loop. Only proceed once the user approves.
 
-**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. For durable owner referrals, emit the durable owner referral notice and stop before this design-writing step.
+**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. For governance or workflow-policy changes, record the assumptions produced by scanning the Adjacent Governance Policy Set unless that scan leaves two equally valid executable designs; if two equally valid designs remain, stop for human choice instead of silently selecting one. For durable owner referrals, emit the durable owner referral notice and stop before this design-writing step.
 
 **Implementation:**
 

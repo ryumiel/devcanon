@@ -228,10 +228,19 @@ read them, don't just list paths:
 - `**/code-review*.md`, `**/review-*.md` — review checklists
 - `**/error-handling*.md` — error discipline
 - `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
-- `AGENTS.md`, `CONTRIBUTING.md` — project conventions
+- `**/pr-guideline.md`, `.github/pull_request_template.md` — PR authoring and review policy
+- `WORKFLOW.md`, `AGENTS.md`, `CONTRIBUTING.md` — root workflow and project conventions
+- `docs/adr/adr-template.md`, `docs/adr/adr-[0-9]*.md` — ADR template and accepted ADR corpus
 
 No guidelines found? Proceed with agents' built-in knowledge, note it in
 the report.
+
+When the diff touches governance or workflow policy, use
+`docs/guidelines/documentation-checklists.md` as the owner of the named
+Adjacent Governance Policy Set and compare the discovered adjacent surfaces for
+contradictions. This review-time check is a backstop for the earlier
+`play-brainstorm` and `play-planning` gates; it must not replace those gates or
+change the findings schema/output contract.
 
 ## Phase 2: Doc-impact summary
 
