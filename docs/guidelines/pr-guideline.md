@@ -77,7 +77,9 @@ The description body MUST NOT contain:
 - **File-by-file changelogs that just restate the diff.** Group by behavior or subsystem, not by file.
 - **Diff restatement.** The description should add context beyond what `gh pr diff` already shows, not re-narrate it.
 
-Unaddressed review feedback belongs in PR review comments anchored to the relevant lines, not in the description body.
+Unaddressed review feedback belongs in PR review comments, not in the
+description body. Anchor feedback inline when it maps to relevant diff lines;
+otherwise post it as a top-level PR review comment.
 
 ## 4. Key Rules
 
