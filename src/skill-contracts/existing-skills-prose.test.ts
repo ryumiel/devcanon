@@ -1,0 +1,421 @@
+import { describe, expect, it } from "vitest";
+import {
+  getMarkdownSection,
+  normalizeWhitespace,
+  readRepoFile,
+  readSkillSource,
+} from "../__test-helpers__/skill-contracts.js";
+
+function sliceBetween(content: string, start: string, end: string): string {
+  const startIndex = content.indexOf(start);
+  const endIndex = content.indexOf(end);
+
+  expect(startIndex).toBeGreaterThanOrEqual(0);
+  expect(endIndex).toBeGreaterThan(startIndex);
+
+  return content.slice(startIndex, endIndex);
+}
+
+function expectSharedLifecycleReference(section: string): void {
+  expect(section).toContain("subagent-lifecycle");
+  expect(section).toContain("target-honest cleanup outcomes");
+  expect(section).toContain("slot-limit");
+  expect(section).toContain("recovery");
+}
+
+describe("existing skills source prose contracts", () => {
+  it("keeps behavior-spec evidence routing owned by durable guideline sources", async () => {
+    const procedureMap = await readRepoFile(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    const routingGuideline = await readRepoFile(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+
+    expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
+    expect(procedureMap).toContain("durable source of origin");
+    expect(procedureMap).toContain(
+      "`spec-readiness-review`, then `issue-slicing`",
+    );
+
+    expect(routingGuideline).toContain("The durable source of origin");
+    expect(routingGuideline).toContain(
+      "`docs/specs/afds-workflow-routing.md` `EVID-001`",
+    );
+    expect(routingGuideline).toContain("Runtime excerpt from `EVID-001`");
+    expect(routingGuideline).toContain(
+      "checked requirement, route, execution contract, or owner",
+    );
+    expect(routingGuideline).toContain("blocker or follow-up owner");
+    expect(routingGuideline).toContain("contract to behavior-spec authoring");
+
+    for (const section of [
+      "Evidence Pointers",
+      "Readiness Before Slicing",
+      "Storage Boundary",
+    ]) {
+      expect(routingGuideline).toContain(section);
+    }
+  });
+
+  it("keeps the spec-readiness-review status and owner-link contract in source", async () => {
+    const skillSource = await readSkillSource("spec-readiness-review");
+    const reviewProcedure = getMarkdownSection(skillSource, "Review Procedure");
+    const outputFormat = getMarkdownSection(skillSource, "Output Format");
+
+    expect(outputFormat).toContain(
+      "**Status:** <one of: Ready, Needs revision, Blocked>",
+    );
+    expect(outputFormat).toContain(
+      "Final status: <repeat the same single status>",
+    );
+    expect(outputFormat).not.toContain(
+      "**Status:** Ready | Needs revision | Blocked",
+    );
+    expect(outputFormat).not.toContain(
+      "Final status: Ready | Needs revision | Blocked",
+    );
+
+    expect(reviewProcedure).toContain(
+      "references/pre-slicing-procedure-map.md",
+    );
+    expect(reviewProcedure).toContain("references/routing-and-evidence.md");
+    expect(reviewProcedure).toContain(
+      "artifact, durable team, system, or role",
+    );
+    expect(reviewProcedure).toContain("do not accept");
+    expect(reviewProcedure).toContain("person names, assignees");
+    expect(reviewProcedure).toContain("live tracker ownership");
+    expect(reviewProcedure).toContain("Repo-local project docs are optional");
+    expect(reviewProcedure).toContain(
+      "Do not treat repo-local docs as required",
+    );
+    expect(skillSource).toContain("does not approve implementation");
+
+    expect(skillSource).not.toContain("docs/specs/afds-workflow-routing.md");
+    expect(skillSource).not.toContain("MAP.md");
+    expect(skillSource).not.toContain("docs/guidelines/");
+  });
+
+  it("keeps the issue-slicing draft-only provider-neutral contract in source", async () => {
+    const skillSource = await readSkillSource("issue-slicing");
+    const procedure = getMarkdownSection(skillSource, "Procedure");
+    const evidencePointers = getMarkdownSection(
+      skillSource,
+      "Evidence Pointers",
+    );
+    const outputFormat = getMarkdownSection(skillSource, "Output Format");
+
+    expect(outputFormat).toContain("MODE=draft");
+    expect(outputFormat).toContain("MODE=blocked");
+    expect(skillSource).toContain("GitHub Issues or Linear");
+    expect(procedure).toContain(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+
+    for (const forbiddenMutation of [
+      "Do not create live issues",
+      "assign users",
+      "set status",
+      "mutate labels",
+      "duplicate live tracker state",
+    ]) {
+      expect(skillSource).toContain(forbiddenMutation);
+    }
+
+    expect(evidencePointers).toContain(
+      "At least one evidence pointer must name the owning durable artifact",
+    );
+    expect(skillSource).toContain(
+      "<owning durable artifact>: <stable reference>",
+    );
+    expect(outputFormat).not.toContain(
+      "Final mode: <repeat MODE=draft or MODE=blocked>",
+    );
+  });
+
+  it("keeps the write-product-requirements PRD boundaries in source", async () => {
+    const skillSource = await readSkillSource("write-product-requirements");
+    const overview = getMarkdownSection(skillSource, "Overview");
+    const procedure = getMarkdownSection(skillSource, "Procedure");
+    const shape = getMarkdownSection(skillSource, "Product Requirements Shape");
+    const boundaryChecklist = getMarkdownSection(
+      skillSource,
+      "Boundary Checklist",
+    );
+
+    expect(procedure).toContain("docs/product-requirements/<topic>.md");
+    expect(procedure).toContain("profile gate");
+    expect(overview).toContain("product intent");
+    expect(skillSource).toContain("live issue state");
+    expect(procedure).toContain("PR state");
+    expect(procedure).toContain("agent-local execution detail");
+    expect(boundaryChecklist).toContain("contract authority");
+    expect(boundaryChecklist).toContain("links to contract authority");
+    expect(boundaryChecklist).toContain("source-owned schemas");
+    expect(shape).toContain("Readiness criteria");
+    expect(shape).toContain("Product validation criteria");
+    expect(shape).toContain("Expected follow-up artifact references");
+    expect(shape).toContain("Non-goals and out-of-scope items");
+    expect(skillSource).toContain("immediate next owning artifact");
+    expect(procedure).toContain("Portable AFDS Toolkit PRD");
+    expect(procedure).toContain("root `PRD.md`");
+    expect(shape).toContain("Stable requirement IDs");
+    expect(shape).toContain("line-number references");
+    expect(procedure).toContain("write-product-spec");
+    expect(procedure).toContain("docs/specs/<topic>.md");
+  });
+
+  it("keeps guarded tiny-diff review routing constraints in play-review source", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const tinyDiffSection = getMarkdownSection(
+      skillSource,
+      "Phase 2.75: Guarded tiny-diff mode",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-review/references/red-flags.md",
+    );
+
+    for (const phrase of [
+      "Guarded tiny-diff mode",
+      "at most 2 files",
+      "at most 20 total lines",
+      "Correctness, Data-safety, and critic verification remain",
+      "safe tiny diff example",
+      "Result: tiny-diff mode may suppress the",
+      "dynamic fanout; Correctness, Data-safety, and critic still run.",
+      "small-but-risky diff example",
+      "Result: normal full dynamic fanout",
+      "If any check is ambiguous, fall back to the normal full dynamic fanout.",
+      "`is_followup_narrow` is **false**",
+      "docs/specs/**",
+      "reviewer-routing policy",
+      "docs/guidelines/*.md",
+      "references/red-flags.md",
+    ]) {
+      expect(tinyDiffSection).toContain(phrase);
+    }
+
+    expect(tinyDiffSection).not.toContain("skills/**/SKILL.md");
+    expect(redFlags).toContain(
+      "You treated line count alone as enough to suppress the dynamic fanout",
+    );
+  });
+
+  it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const playReview = await readSkillSource("play-review");
+    const playPlanning = await readSkillSource("play-planning");
+    const playAgentDispatch = await readSkillSource("play-agent-dispatch");
+    const playSkillAuthoring = await readSkillSource("play-skill-authoring");
+    const prMerge = await readSkillSource("pr-merge");
+
+    const issueLifecycleSection = sliceBetween(
+      issuePrimingWorkflow,
+      "## Subagent Lifecycle",
+      "## Phase 2: Complexity Gate",
+    );
+    expectSharedLifecycleReference(issueLifecycleSection);
+    expect(issueLifecycleSection).toContain(
+      "Before dispatching the Phase 2 gate agent",
+    );
+    expect(issueLifecycleSection).toContain("Phase 3 research agent");
+    expect(normalizeWhitespace(issueLifecycleSection)).toContain("gate result");
+    expect(issueLifecycleSection).toContain("research brief path");
+
+    const issuePhase6Section = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    expect(issuePhase6Section).toContain("subagent-lifecycle");
+    expect(issuePhase6Section).toContain(
+      "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
+    );
+    expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
+      issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
+    );
+
+    const playReviewPhase3Section = sliceBetween(
+      playReview,
+      "## Phase 3: Spawn agents",
+      "**Core agents (always spawned):**",
+    );
+    expectSharedLifecycleReference(playReviewPhase3Section);
+    expect(playReviewPhase3Section).toContain(
+      "Before spawning Phase 3 reviewer agents",
+    );
+    expect(playReviewPhase3Section).toContain("review scope");
+    expect(playReviewPhase3Section).toContain("concrete findings");
+    expect(playReviewPhase3Section).toContain(
+      "Critic verdicts are captured with the critic session in Phase 5",
+    );
+
+    const playReviewCriticSection = sliceBetween(
+      playReview,
+      "## Phase 5: Critic verification",
+      "## Hard Rules",
+    );
+    expect(playReviewCriticSection).toContain("subagent-lifecycle");
+    expect(playReviewCriticSection).toContain(
+      "Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate",
+    );
+    expect(playReviewCriticSection).toContain("critic report");
+    expect(playReviewCriticSection).toContain("verdicts");
+
+    const playPlanningReviewSection = sliceBetween(
+      playPlanning,
+      "## Plan Review",
+      "## Execution Handoff",
+    );
+    expectSharedLifecycleReference(playPlanningReviewSection);
+    expect(playPlanningReviewSection).toContain(
+      "Before dispatching the plan-review agent",
+    );
+    expect(playPlanningReviewSection).toContain("PASS/FAIL result");
+    expect(playPlanningReviewSection).toContain("specific gaps");
+
+    const playAgentDispatchSection = sliceBetween(
+      playAgentDispatch,
+      "### 3. Dispatch in Parallel",
+      "## Agent Prompt Structure",
+    );
+    const normalizedPlayAgentDispatchSection = normalizeWhitespace(
+      playAgentDispatchSection,
+    );
+    expectSharedLifecycleReference(playAgentDispatchSection);
+    expect(playAgentDispatchSection).toContain("Before parallel dispatch");
+    expect(playAgentDispatchSection).toContain(
+      "one pending ledger row per planned agent",
+    );
+    expect(normalizedPlayAgentDispatchSection).toContain(
+      "Update the `subagent-lifecycle` ledger with each returned session's role-specific state before closing or superseding it",
+    );
+    expect(normalizedPlayAgentDispatchSection).toContain(
+      "After each returned session is integrated, run the `subagent-lifecycle` cleanup gate before keeping or spawning any additional agent sessions",
+    );
+
+    const playSkillAuthoringSection = sliceBetween(
+      playSkillAuthoring,
+      "## Overview",
+      "## What is a Skill?",
+    );
+    const normalizedPlaySkillAuthoringSection = normalizeWhitespace(
+      playSkillAuthoringSection,
+    );
+    expectSharedLifecycleReference(playSkillAuthoringSection);
+    expect(normalizedPlaySkillAuthoringSection).toContain(
+      "When dispatching pressure-scenario subagents",
+    );
+    expect(normalizedPlaySkillAuthoringSection).toContain(
+      "Capture each pressure-scenario subagent's prompt, baseline/pass result, observed rationalizations, and pressure conditions before closing or superseding the session",
+    );
+
+    const prMergeInvestigationSection = sliceBetween(
+      prMerge,
+      "### 4b. Dispatch investigation agent",
+      '### 4c. "In scope" definition',
+    );
+    expectSharedLifecycleReference(prMergeInvestigationSection);
+    expect(prMergeInvestigationSection).toContain(
+      "Before dispatching the CI investigation agent",
+    );
+    expect(prMergeInvestigationSection).toContain("CI run/check identifiers");
+    expect(normalizeWhitespace(prMergeInvestigationSection)).toContain(
+      "in-scope/out-of-scope classification",
+    );
+  });
+
+  it("keeps bundled prompt and runtime-reference prose contracts in source", async () => {
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const writeProductSpecRouting = await readRepoFile(
+      "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+
+    expect(implementerPrompt).toContain(
+      "If the task includes a contract checklist",
+    );
+    expect(normalizeWhitespace(implementerPrompt)).toContain(
+      "owner/authority, affected consumers/generated outputs, must-preserve, required behavior",
+    );
+    expect(normalizeWhitespace(implementerPrompt)).toContain(
+      "source-of-truth, consumer, generated-output, or evidence surface that source inspection cannot confirm",
+    );
+    expect(implementerPrompt).toContain(
+      "helper-name prescriptions, line-number edits, or commit recipes",
+    );
+
+    expect(mechanicalImplementerPrompt).toContain(
+      "helper-name prescriptions, line-number edits, or commit recipes",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "affected consumers/generated outputs, must-preserve, required behavior",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "Read the relevant source files, existing docs, ADRs, helpers, generated",
+    );
+    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+      "A blank checklist field, unexplained `N/A`, or unconfirmed owner/authority",
+    );
+    expect(normalizeWhitespace(mechanicalImplementerPrompt)).toContain(
+      "source-of-truth, consumer, generated-output, or evidence surface is not a mechanical replacement target",
+    );
+
+    expect(specReviewerPrompt).toContain(
+      "**Task contract checklist (when present in the requested task):**",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify owner/authority fields against the source files, docs, ADRs",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify affected consumers and generated outputs named by the task",
+    );
+    expect(specReviewerPrompt).toContain(
+      "Verify risk surfaces and proof obligations were addressed",
+    );
+
+    expect(writeProductSpecRouting).toContain("packaged runtime reference");
+    expect(writeProductSpecRouting).toContain("minimum evidence pointer");
+    expect(writeProductSpecRouting).toContain(
+      "durable team, system, role, or artifact",
+    );
+    expect(writeProductSpecRouting).not.toContain(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    expect(writeProductSpecRouting).not.toContain(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    expect(writeProductSpecRouting).not.toContain("EVID-001");
+    expect(writeProductSpecRouting).not.toContain("source of origin");
+
+    const normalizedResearchPrompt = normalizeWhitespace(researchPrompt);
+    expect(researchPrompt).toContain("subagent-lifecycle");
+    for (const phrase of [
+      "Before dispatching internal research sub-agents",
+      "target capability",
+      "cleanup gate before spawns",
+      "target-honest cleanup outcomes",
+      "slot-limit recovery",
+      "role-specific state",
+      "scope",
+      "report",
+      "source references",
+      "blocker state",
+    ]) {
+      expect(normalizedResearchPrompt).toContain(phrase);
+    }
+  });
+});
