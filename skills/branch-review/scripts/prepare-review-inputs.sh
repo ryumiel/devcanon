@@ -5,7 +5,8 @@ BASE_ARG=""
 FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
-GOVERNED_PATH_PATTERN='^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/|skills/|src/|scripts/)'
+GOVERNED_PATH_PATTERN='^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
+CONFIGURED_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
 
 emit_line() {
   local key="$1"
@@ -126,8 +127,47 @@ compute_language_hints() {
     paste -sd ',' -
 }
 
+validate_optional_path_pattern() {
+  if [[ -z "$CONFIGURED_PATH_PATTERN" ]]; then
+    return
+  fi
+
+  set +e
+  grep -E "$CONFIGURED_PATH_PATTERN" /dev/null >/dev/null 2>&1
+  local status=$?
+  set -e
+  if [[ "$status" -gt 1 ]]; then
+    echo "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN must be a valid extended regular expression" >&2
+    exit 1
+  fi
+}
+
+append_escalation_reason() {
+  local reason="$1"
+
+  ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}$reason"
+}
+
+write_changed_files_file() {
+  local range="$1"
+
+  if [[ -L ".ephemeral" ]]; then
+    echo ".ephemeral must not be a symlink" >&2
+    exit 1
+  fi
+  if [[ -e ".ephemeral" && ! -d ".ephemeral" ]]; then
+    echo ".ephemeral exists but is not a directory" >&2
+    exit 1
+  fi
+  mkdir -p ".ephemeral"
+
+  CHANGED_FILES_FILE="$(mktemp ".ephemeral/branch-review-changed-files.XXXXXX")"
+  git diff --name-only "$range" >"$CHANGED_FILES_FILE"
+}
+
 require_repo_root
 parse_args "$@"
+validate_optional_path_pattern
 
 if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
   if [[ -z "$LAST_REVIEWED_SHA" || -z "$PRIOR_FINDINGS_FILE" ]]; then
@@ -146,6 +186,7 @@ FULL_DIFF_RANGE="$BASE...HEAD"
 FOLLOWUP_MODE=false
 FOLLOWUP_SHA_USABLE=false
 CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+CHANGED_FILE_COUNT=0
 
 if [[ "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] &&
   git cat-file -e "$LAST_REVIEWED_SHA^{commit}" 2>/dev/null &&
@@ -157,16 +198,22 @@ fi
 
 ESCALATE_FULL=false
 ESCALATION_REASON=""
+CHANGED_FILE_COUNT="$(git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" | wc -l | tr -d ' ')"
 if [[ "$FOLLOWUP_MODE" = true ]]; then
-  CHANGED_FILE_COUNT="$(git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" | wc -l | tr -d ' ')"
   if [[ "$CHANGED_FILE_COUNT" -gt 5 ]]; then
     ESCALATE_FULL=true
-    ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}file-count"
+    append_escalation_reason "file-count"
   fi
   if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
     grep -E "$GOVERNED_PATH_PATTERN" >/dev/null; then
     ESCALATE_FULL=true
-    ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}governance-path"
+    append_escalation_reason "governance-path"
+  fi
+  if [[ -n "$CONFIGURED_PATH_PATTERN" ]] &&
+    git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
+      grep -E "$CONFIGURED_PATH_PATTERN" >/dev/null; then
+    ESCALATE_FULL=true
+    append_escalation_reason "configured-path"
   fi
 else
   ESCALATE_FULL=true
@@ -178,23 +225,27 @@ else
 fi
 
 if [[ "$FOLLOWUP_MODE" = true && "$FOLLOWUP_SHA_USABLE" = true && "$ESCALATE_FULL" = false ]]; then
-  ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
-  IS_FOLLOWUP_NARROW=true
+  MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
+  MECHANICAL_IS_FOLLOWUP_NARROW=true
 else
-  ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-  IS_FOLLOWUP_NARROW=false
+  MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  MECHANICAL_IS_FOLLOWUP_NARROW=false
 fi
 
-LANGUAGE_HINTS="$(compute_language_hints "$ACTIVE_DIFF_RANGE")"
+LANGUAGE_HINTS="$(compute_language_hints "$MECHANICAL_ACTIVE_DIFF_RANGE")"
+write_changed_files_file "$CANDIDATE_ACTIVE_DIFF_RANGE"
 
 emit_line "BASE" "$BASE"
 emit_line "FIX_MODE" "$FIX_MODE"
 emit_line "FULL_DIFF_RANGE" "$FULL_DIFF_RANGE"
 emit_line "CANDIDATE_ACTIVE_DIFF_RANGE" "$CANDIDATE_ACTIVE_DIFF_RANGE"
-emit_line "ACTIVE_DIFF_RANGE" "$ACTIVE_DIFF_RANGE"
-emit_line "IS_FOLLOWUP_NARROW" "$IS_FOLLOWUP_NARROW"
-emit_line "ESCALATE_FULL" "$ESCALATE_FULL"
-emit_line "ESCALATION_REASON" "$ESCALATION_REASON"
+emit_line "MECHANICAL_ACTIVE_DIFF_RANGE" "$MECHANICAL_ACTIVE_DIFF_RANGE"
+emit_line "MECHANICAL_IS_FOLLOWUP_NARROW" "$MECHANICAL_IS_FOLLOWUP_NARROW"
+emit_line "MECHANICAL_ESCALATE_FULL" "$ESCALATE_FULL"
+emit_line "MECHANICAL_ESCALATION_REASON" "$ESCALATION_REASON"
+emit_line "FOLLOWUP_SHA_USABLE" "$FOLLOWUP_SHA_USABLE"
+emit_line "CHANGED_FILE_COUNT" "$CHANGED_FILE_COUNT"
+emit_line "CHANGED_FILES_FILE" "$CHANGED_FILES_FILE"
 emit_line "LANGUAGE_HINTS" "$LANGUAGE_HINTS"
 emit_line "LAST_REVIEWED_SHA" "$LAST_REVIEWED_SHA"
 emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"

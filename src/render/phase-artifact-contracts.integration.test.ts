@@ -134,6 +134,16 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("candidate_active_diff_range");
       expect(branchReview).toContain("ACTIVE_DIFF_RANGE");
       expect(branchReview).toContain("IS_FOLLOWUP_NARROW");
+      expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
+      expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
+      expect(branchReview).toContain("CHANGED_FILES_FILE");
+      expect(branchReview).toContain("Upstream Review-Scope Handoff");
+      expect(branchReview).toContain("planning/execution categorization");
+      expect(branchReview).toContain("non-authoritative context");
+      expect(normalizedBranchReview).toContain("may only preserve or escalate");
+      expect(normalizedBranchReview).toContain(
+        "configured repo-owned path triggers",
+      );
       expect(branchReview).toContain("full_pr_diff_range");
       expect(branchReview).toContain("Escalate back to full branch review");
       expect(normalizedBranchReview).toContain(

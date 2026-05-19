@@ -57,10 +57,13 @@ while IFS= read -r line; do
     FIX_MODE) FIX_MODE=$value ;;
     FULL_DIFF_RANGE) FULL_DIFF_RANGE=$value ;;
     CANDIDATE_ACTIVE_DIFF_RANGE) CANDIDATE_ACTIVE_DIFF_RANGE=$value ;;
-    ACTIVE_DIFF_RANGE) ACTIVE_DIFF_RANGE=$value ;;
-    IS_FOLLOWUP_NARROW) IS_FOLLOWUP_NARROW=$value ;;
-    ESCALATE_FULL) ESCALATE_FULL=$value ;;
-    ESCALATION_REASON) ESCALATION_REASON=$value ;;
+    MECHANICAL_ACTIVE_DIFF_RANGE) MECHANICAL_ACTIVE_DIFF_RANGE=$value ;;
+    MECHANICAL_IS_FOLLOWUP_NARROW) MECHANICAL_IS_FOLLOWUP_NARROW=$value ;;
+    MECHANICAL_ESCALATE_FULL) MECHANICAL_ESCALATE_FULL=$value ;;
+    MECHANICAL_ESCALATION_REASON) MECHANICAL_ESCALATION_REASON=$value ;;
+    FOLLOWUP_SHA_USABLE) FOLLOWUP_SHA_USABLE=$value ;;
+    CHANGED_FILE_COUNT) CHANGED_FILE_COUNT=$value ;;
+    CHANGED_FILES_FILE) CHANGED_FILES_FILE=$value ;;
     LANGUAGE_HINTS) LANGUAGE_HINTS=$value ;;
     LAST_REVIEWED_SHA) LAST_REVIEWED_SHA=$value ;;
     PRIOR_BRANCH_FINDINGS) PRIOR_BRANCH_FINDINGS=$value ;;
@@ -80,9 +83,10 @@ If the diff is empty, report "no changes to review" and stop.
 `prepare-review-inputs.sh` is the authoritative implementation for
 deterministic Phase 1 mechanics: argument parsing, base resolution, paired
 follow-up input validation, installed `play-review` helper validation, prior
-findings review-head matching, deterministic escalation checks, selected range
-assignment, and language-hint extraction. The helper must run from the
-repository root.
+findings review-head matching, candidate range computation, portable mechanical
+escalation checks, changed-file fact emission, and initial language-hint
+extraction. The helper must run from the repository root. It is not
+authoritative for semantic review scope.
 
 The helper writes `KEY=VALUE` lines to stdout:
 
@@ -90,10 +94,13 @@ The helper writes `KEY=VALUE` lines to stdout:
 - `FIX_MODE`
 - `FULL_DIFF_RANGE`
 - `CANDIDATE_ACTIVE_DIFF_RANGE`
-- `ACTIVE_DIFF_RANGE`
-- `IS_FOLLOWUP_NARROW`
-- `ESCALATE_FULL`
-- `ESCALATION_REASON`
+- `MECHANICAL_ACTIVE_DIFF_RANGE`
+- `MECHANICAL_IS_FOLLOWUP_NARROW`
+- `MECHANICAL_ESCALATE_FULL`
+- `MECHANICAL_ESCALATION_REASON`
+- `FOLLOWUP_SHA_USABLE`
+- `CHANGED_FILE_COUNT`
+- `CHANGED_FILES_FILE`
 - `LANGUAGE_HINTS`
 - `LAST_REVIEWED_SHA`
 - `PRIOR_BRANCH_FINDINGS`
@@ -115,23 +122,55 @@ Missing values stop with `--last-reviewed requires a SHA` or
 context, not GitHub thread state, and this skill still performs no GitHub
 posting.
 
-In follow-up mode, choose the active range conservatively:
+The helper's built-in mechanical escalation triggers are intentionally portable:
+More than 5 files changed since `--last-reviewed`, unusable follow-up SHAs,
+root governance files (`MAP.md`, `AGENTS.md`, `CONTRIBUTING.md`), and
+conventional AFDS documentation paths (`docs/adr/**`, `docs/arch/**`,
+`docs/specs/**`, `docs/guidelines/**`). Repositories may provide configured repo-owned path triggers through
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`; matching paths force mechanical full
+review. Missing configured repo-owned path triggers never prove a narrow review
+is safe. Do not add shared defaults such as `src/**`; source layout belongs to
+the repository or upstream handoff, not this reusable helper.
+
+## Upstream Review-Scope Handoff
+
+If this branch-review run is reached from planning or `play-subagent-execution`,
+consume that planning/execution categorization as non-authoritative context.
+Useful handoff facts include risk route, hard-risk trigger labels, affected
+consumers or generated outputs, source-owned contract surfaces, base/head SHAs,
+changed files observed by the executor, and whether the context came from a
+verified auto handoff or a direct/manual claim.
+
+The handoff can justify full review, but it cannot by itself justify narrow
+review. Match the handoff to the current branch and follow-up diff before using
+it. Missing, stale, malformed, conflicting, or untrusted handoff data fails
+closed to full branch review. This mirrors `play-subagent-execution`: plan hints
+are inputs, the executor/reviewer owns the effective route, and revalidation may only preserve or escalate.
+
+In follow-up mode, finalize the active range conservatively:
 
 - `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
   documentation impact.
 - `candidate_active_diff_range = "$LAST_REVIEWED_SHA..HEAD"` for possible
   incremental re-review after `--last-reviewed` passes paired input and
   lowercase hex validation.
-- `active_diff_range = candidate_active_diff_range` only when the escalation
-  checks below all pass.
-- `is_followup_narrow = true` only when the narrow candidate range is selected.
-- The Phase 1 control flow must assign both `ACTIVE_DIFF_RANGE` and
-  `IS_FOLLOWUP_NARROW`; do not leave them implicit in prose.
+- Start from `MECHANICAL_ACTIVE_DIFF_RANGE`, then inspect
+  `CHANGED_FILES_FILE`, any upstream handoff, and the current follow-up diff.
+- `active_diff_range = candidate_active_diff_range` only when the mechanical
+  and semantic escalation checks below all pass.
+- `is_followup_narrow = true` only when the final selected range is narrow.
+- The Phase 1 control flow must assign both final `ACTIVE_DIFF_RANGE` and
+  `IS_FOLLOWUP_NARROW` after semantic classification; do not pass the helper's
+  mechanical range to `play-review` as if it were final.
 
 Escalate back to full branch review when any of these are true:
 
-- More than 5 files changed since `--last-reviewed`.
-- `--last-reviewed` does not resolve or is not an ancestor of `HEAD`.
+- `MECHANICAL_ESCALATE_FULL=true` because more than 5 files changed since
+  `--last-reviewed`, `--last-reviewed` does not resolve or is not an ancestor of `HEAD`, a portable governance path changed, or configured repo-owned path
+  triggers matched.
+- Upstream planning/execution categorization marks the work hard-risk.
+- Upstream planning/execution categorization is missing, stale, malformed,
+  conflicting, or untrusted and would be needed to justify a narrow review.
 - New public API functions or types are introduced.
 - Logic is restructured beyond previously flagged lines or adjacent changed
   lines.
@@ -144,15 +183,26 @@ Escalate back to full branch review when any of these are true:
   generated-output renderers, or generated-output contracts.
 - Scope classification is ambiguous.
 
-When escalation fires, set `ACTIVE_DIFF_RANGE="$BASE...HEAD"` and
+Before finalizing a narrow review, read `CHANGED_FILES_FILE` and inspect the
+candidate diff. The helper writes repo-relative paths from the candidate active
+range to a direct child under `.ephemeral/`; treat the file as facts to classify,
+not as proof that the range is safe. If the file cannot be read or the
+classification is unclear, escalate.
+
+When escalation fires, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"` and
 `IS_FOLLOWUP_NARROW=false`, but still pass the validated prior findings to
 `play-review` so the critic can evaluate carry-forward items. When every
-escalation check clearly passes, set
-`ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"` and
-`IS_FOLLOWUP_NARROW=true`. `LANGUAGE_HINTS` is computed from changed file
-extensions in the selected active diff (e.g., `*.ts`, `*.rs`, `*.md`). The set
-drives `play-review`'s dynamic-agent triggers; deriving it from the full branch
-during a narrow follow-up would defeat the follow-up scope.
+mechanical and semantic escalation check clearly passes, set
+`ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"` and
+`IS_FOLLOWUP_NARROW=true`.
+
+After final range selection, compute `LANGUAGE_HINTS` from changed file
+extensions in `ACTIVE_DIFF_RANGE` (e.g., `*.ts`, `*.rs`, `*.md`). The helper's
+`LANGUAGE_HINTS` is only an initial mechanical hint. Recompute after semantic
+escalation so dynamic-agent triggers match the selected review scope; deriving
+the final hints from the full branch during a narrow follow-up would defeat the
+follow-up scope, while keeping narrow hints after full escalation would hide
+review-relevant languages.
 
 ## Phase 2: Invoke the play-review skill workflow
 

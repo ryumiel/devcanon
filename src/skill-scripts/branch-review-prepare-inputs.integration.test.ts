@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -76,12 +76,21 @@ function parseHelperOutput(stdout: string) {
   return values;
 }
 
-async function runHelper(cwd: string, args: string[] = []) {
+async function runHelper(
+  cwd: string,
+  args: string[] = [],
+  env: Record<string, string> = {},
+) {
   const result = await execFileAsync("bash", [helperScript, ...args], {
     cwd,
-    env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+    env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir, ...env },
   });
   return parseHelperOutput(result.stdout);
+}
+
+async function readChangedFiles(cwd: string, changedFilesFile: string) {
+  const content = await readFile(path.join(cwd, changedFilesFile), "utf8");
+  return content.trim().split("\n").filter(Boolean);
 }
 
 describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
@@ -95,11 +104,17 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.BASE).toBe("main");
       expect(values.FIX_MODE).toBe("false");
       expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.ESCALATE_FULL).toBe("true");
-      expect(values.ESCALATION_REASON).toBe("not-followup");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("not-followup");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("false");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
       expect(values.LANGUAGE_HINTS).toBe("ts");
+      expect(path.dirname(values.CHANGED_FILES_FILE)).toBe(".ephemeral");
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["src/app.ts"]);
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -129,10 +144,17 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.CANDIDATE_ACTIVE_DIFF_RANGE).toBe(
         `${lastReviewedSha}..HEAD`,
       );
-      expect(values.ACTIVE_DIFF_RANGE).toBe(`${lastReviewedSha}..HEAD`);
-      expect(values.IS_FOLLOWUP_NARROW).toBe("true");
-      expect(values.ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
+        `${lastReviewedSha}..HEAD`,
+      );
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
       expect(values.PRIOR_BRANCH_FINDINGS).toBe(findingsFile);
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["notes/followup.md"]);
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -165,46 +187,27 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         findingsFile,
       ]);
 
-      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.ESCALATE_FULL).toBe("true");
-      expect(values.ESCALATION_REASON).toContain("file-count");
-      expect(values.ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toContain("file-count");
+      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
     } finally {
       await cleanupTempDir(cwd);
     }
   });
 
-  it("escalates follow-up review to the full branch for source, skill, and generated-output contract paths", async () => {
+  it("does not treat src as a built-in mechanical escalation path", async () => {
     const cwd = await makeGitWorkspace();
     try {
       const lastReviewedSha = (
         await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
       ).stdout.trim();
       const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
-      await mkdir(path.join(cwd, "skills/branch-review"), { recursive: true });
-      await writeFile(
-        path.join(cwd, "skills/branch-review/SKILL.md"),
-        "policy\n",
-      );
-      await mkdir(path.join(cwd, "src/render"), { recursive: true });
-      await writeFile(path.join(cwd, "src/render/pipeline.ts"), "render\n");
-      await mkdir(path.join(cwd, "src/cli/commands"), { recursive: true });
-      await writeFile(path.join(cwd, "src/cli/commands/foo.ts"), "api\n");
-      await execFileAsync(
-        "git",
-        [
-          "add",
-          "skills/branch-review/SKILL.md",
-          "src/render/pipeline.ts",
-          "src/cli/commands/foo.ts",
-        ],
-        { cwd },
-      );
-      await execFileAsync(
-        "git",
-        ["commit", "-m", "test: governed path change"],
-        { cwd },
+      await commitFile(
+        cwd,
+        "src/cli/commands/foo.ts",
+        "export const foo = 1;\n",
       );
 
       const values = await runHelper(cwd, [
@@ -214,10 +217,40 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         findingsFile,
       ]);
 
-      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.ESCALATE_FULL).toBe("true");
-      expect(values.ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
+        `${lastReviewedSha}..HEAD`,
+      );
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["src/cli/commands/foo.ts"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("escalates follow-up review when a repo-owned path trigger matches", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(cwd, "app/workflow.ts", "export const value = 1;\n");
+
+      const values = await runHelper(
+        cwd,
+        ["--last-reviewed", lastReviewedSha, "--prior-findings", findingsFile],
+        {
+          BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "^app/",
+        },
+      );
+
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -247,10 +280,12 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       const values = parseHelperOutput(result.stdout);
 
       expect(result.stderr).toBe("");
-      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.ESCALATE_FULL).toBe("true");
-      expect(values.ESCALATION_REASON).toBe("last-reviewed-unusable");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "last-reviewed-unusable",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }

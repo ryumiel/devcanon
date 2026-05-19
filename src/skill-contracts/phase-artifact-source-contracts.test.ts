@@ -160,25 +160,46 @@ describe("phase artifact source contracts", () => {
       'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
     );
     expect(branchReviewHelper).toContain("GOVERNED_PATH_PATTERN='^(docs/");
-    expect(branchReviewHelper).toContain("|skills/|");
-    expect(branchReviewHelper).toContain("|src/|");
+    expect(branchReviewHelper).toContain(
+      "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+    );
+    expect(branchReviewHelper).not.toContain("|src/|");
     expect(branchReviewHelper).toContain("2>/dev/null");
     expect(branchReviewHelper).toContain("ESCALATE_FULL=false");
     expect(branchReviewHelper).toContain(
-      'ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"',
+      'MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"',
     );
     expect(branchReviewHelper).toContain(
-      'ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"',
+      'MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"',
     );
-    expect(branchReviewHelper).toContain("IS_FOLLOWUP_NARROW=true");
-    expect(branchReviewHelper).toContain("IS_FOLLOWUP_NARROW=false");
+    expect(branchReviewHelper).toContain("MECHANICAL_IS_FOLLOWUP_NARROW=true");
+    expect(branchReviewHelper).toContain("MECHANICAL_IS_FOLLOWUP_NARROW=false");
+    expect(branchReviewHelper).toContain("CHANGED_FILE_COUNT");
+    expect(branchReviewHelper).toContain("CHANGED_FILES_FILE");
+    expect(branchReviewHelper).toContain("FOLLOWUP_SHA_USABLE");
     expect(branchReviewHelper).toContain('emit_line "BASE" "$BASE"');
     expect(branchReviewHelper).toContain(
-      'emit_line "ACTIVE_DIFF_RANGE" "$ACTIVE_DIFF_RANGE"',
+      'emit_line "MECHANICAL_ACTIVE_DIFF_RANGE" "$MECHANICAL_ACTIVE_DIFF_RANGE"',
+    );
+    expect(branchReviewHelper).toContain(
+      'emit_line "MECHANICAL_ESCALATE_FULL" "$ESCALATE_FULL"',
+    );
+    expect(branchReviewHelper).toContain(
+      'emit_line "CHANGED_FILES_FILE" "$CHANGED_FILES_FILE"',
     );
     expect(branchReviewHelper).toContain(
       'emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"',
     );
+    expect(branchReview).toContain("Upstream Review-Scope Handoff");
+    expect(branchReview).toContain("planning/execution categorization");
+    expect(branchReview).toContain("non-authoritative context");
+    expect(normalizedBranchReview).toContain("may only preserve or escalate");
+    expect(normalizedBranchReview).toContain(
+      "configured repo-owned path triggers",
+    );
+    expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
+    expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
+    expect(branchReview).toContain("CHANGED_FILES_FILE");
     expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
     expect(branchReview).toContain(
       "active_diff_range = candidate_active_diff_range",
@@ -186,7 +207,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("is_followup_narrow = true");
     expect(branchReview).toContain("Escalate back to full branch review");
     expect(branchReview).toContain("More than 5 files changed");
-    expect(branchReview).toContain(
+    expect(normalizedBranchReview).toContain(
       "`--last-reviewed` does not resolve or is not an ancestor of `HEAD`",
     );
     expect(branchReview).toContain("New public API functions or types");
