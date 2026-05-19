@@ -111,6 +111,7 @@ describe("phase artifact source contracts", () => {
     expect(issuePrimingWorkflow).toContain(
       "Present comment evidence introduces ambiguity, risk, or a design choice",
     );
+    expect(issuePrimingWorkflow).toContain("forced by --research");
 
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",

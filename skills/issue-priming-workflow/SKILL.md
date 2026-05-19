@@ -134,7 +134,8 @@ continue the workflow.
 
 ## Phase 2: Complexity Gate
 
-The gate is **always evaluated** — it is not optional. Only the research phase (Phase 3) is conditional based on the gate's output.
+The gate is evaluated for `payload.research = gated`. Only the research phase
+(Phase 3) is conditional based on the gate's output.
 
 Dispatch a **dedicated exploration agent** using the prompt template in `references/gate-agent-prompt.md`. The agent reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and checks `AGENTS.md` for relevant rules. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for issues with ambiguous scope or multiple conflicting signals.
 
@@ -150,7 +151,9 @@ placeholder with `(none)`.
 
 **Gate returns:** `RESEARCH_NEEDED` or `SKIP_RESEARCH` with a one-line reason.
 
-**Override:** If the user passed `--research` in the skill args, skip the gate and go directly to research.
+**Override:** If the user passed `--research` in the skill args
+(`payload.research = forced`), skip the gate and go directly to research with
+the synthetic gate reason `forced by --research`.
 
 ### Gate Signals
 
@@ -182,7 +185,8 @@ Dispatch the **`research-agent`** agent using the prompt template in `references
 - Issue-body path
 - Comment-evidence path, only when present
 - Repository root path
-- Gate agent's reasoning (so it knows why research was triggered)
+- Gate agent's reasoning, or `forced by --research` when `payload.research =
+forced` (so it knows why research was triggered)
 
 When comment evidence is absent, replace the research prompt's
 comment-evidence placeholder with `(none)`.
