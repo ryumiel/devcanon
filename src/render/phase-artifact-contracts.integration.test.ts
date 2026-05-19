@@ -137,6 +137,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
       expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
       expect(branchReview).toContain("CHANGED_FILES_FILE");
+      expect(branchReview).toContain('BASE) BASE="$value"');
+      expect(branchReview).toContain(
+        'FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"',
+      );
       expect(branchReview).toContain("Upstream Review-Scope Handoff");
       expect(branchReview).toContain("planning/execution categorization");
       expect(branchReview).toContain("non-authoritative context");

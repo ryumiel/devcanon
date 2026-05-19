@@ -163,6 +163,11 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain(
       "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
     );
+    expect(branchReviewHelper).toContain(
+      'grep -E -- "$CONFIGURED_PATH_PATTERN"',
+    );
+    expect(branchReview).toContain('BASE) BASE="$value"');
+    expect(branchReview).toContain('FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"');
     expect(branchReviewHelper).not.toContain("|src/|");
     expect(branchReviewHelper).toContain("2>/dev/null");
     expect(branchReviewHelper).toContain("ESCALATE_FULL=false");

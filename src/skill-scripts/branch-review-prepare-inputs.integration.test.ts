@@ -46,7 +46,7 @@ async function commitFile(
 ): Promise<void> {
   await mkdir(path.dirname(path.join(cwd, filePath)), { recursive: true });
   await writeFile(path.join(cwd, filePath), content);
-  await execFileAsync("git", ["add", filePath], { cwd });
+  await execFileAsync("git", ["add", "--", filePath], { cwd });
   await execFileAsync("git", ["commit", "-m", `test: add ${filePath}`], {
     cwd,
   });
@@ -273,6 +273,32 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         ["--last-reviewed", lastReviewedSha, "--prior-findings", findingsFile],
         {
           BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "^app/",
+        },
+      );
+
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("treats option-like repo-owned path triggers as regex patterns", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(cwd, "-review/path.md", "configured\n");
+
+      const values = await runHelper(
+        cwd,
+        ["--last-reviewed", lastReviewedSha, "--prior-findings", findingsFile],
+        {
+          BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "-review/",
         },
       );
 

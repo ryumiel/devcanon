@@ -133,7 +133,7 @@ validate_optional_path_pattern() {
   fi
 
   set +e
-  grep -E "$CONFIGURED_PATH_PATTERN" /dev/null >/dev/null 2>&1
+  grep -E -- "$CONFIGURED_PATH_PATTERN" /dev/null >/dev/null 2>&1
   local status=$?
   set -e
   if [[ "$status" -gt 1 ]]; then
@@ -205,13 +205,13 @@ if [[ "$FOLLOWUP_MODE" = true ]]; then
     append_escalation_reason "file-count"
   fi
   if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-    grep -E "$GOVERNED_PATH_PATTERN" >/dev/null; then
+    grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
     ESCALATE_FULL=true
     append_escalation_reason "governance-path"
   fi
   if [[ -n "$CONFIGURED_PATH_PATTERN" ]] &&
     git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-      grep -E "$CONFIGURED_PATH_PATTERN" >/dev/null; then
+      grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
     ESCALATE_FULL=true
     append_escalation_reason "configured-path"
   fi
