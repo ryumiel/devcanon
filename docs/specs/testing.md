@@ -50,9 +50,17 @@ and agent bodies. Use structured artifact assertions and source-level contract
 tests instead.
 
 Source-contract tests should pin load-bearing invariants, not every reviewer
-quoted phrase. During review response, add the smallest source-owned assertion
-set that would fail for a real contract regression and leave non-load-bearing
-wording to source review.
+quoted phrase. Test durable behavior boundaries: required inputs and outputs,
+authority/ownership rules, handoff schemas and notice lines, path and trust
+boundaries, fail-closed behavior, required helper/script references, routing
+decisions, and compatibility promises. Do not test explanatory prose, examples,
+section narration, repeated wording, reviewer-quoted snippets, or every guard
+message unless changing that text would break a consumer, safety property, or
+documented contract.
+
+During review response, add the smallest source-owned assertion set that would
+fail for a real contract regression and leave non-load-bearing wording to
+source review.
 
 ---
 
