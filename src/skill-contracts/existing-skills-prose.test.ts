@@ -219,6 +219,67 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps review-response commit continuity policy in source", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const implementationOrderIndex = skillSource.indexOf(
+      "## Implementation Order",
+    );
+    const commitPolicyIndex = skillSource.indexOf(
+      "## PR Branch Commit Continuity",
+    );
+    const pushBackIndex = skillSource.indexOf("## When To Push Back");
+
+    expect(implementationOrderIndex).toBeGreaterThanOrEqual(0);
+    expect(commitPolicyIndex).toBeGreaterThan(implementationOrderIndex);
+    expect(pushBackIndex).toBeGreaterThan(commitPolicyIndex);
+
+    const implementationOrder = getMarkdownSection(
+      skillSource,
+      "Implementation Order",
+    );
+    const commitPolicy = getMarkdownSection(
+      skillSource,
+      "PR Branch Commit Continuity",
+    );
+    const normalizedCommitPolicy = normalizeWhitespace(commitPolicy);
+    const githubReplies = getMarkdownSection(
+      skillSource,
+      "GitHub Thread Replies",
+    );
+    const normalizedGithubReplies = normalizeWhitespace(githubReplies);
+
+    expect(implementationOrder).toContain("After verification");
+    expect(implementationOrder).toContain(
+      "already-pushed or reviewed PR branch",
+    );
+    expect(implementationOrder).toContain("follow-up commit");
+    expect(implementationOrder).toContain("plain push");
+
+    for (const phrase of [
+      "Pre-push local cleanup is allowed",
+      "already been pushed",
+      "review has started",
+      "use normal follow-up commits",
+      "plain push",
+      "Do not amend",
+      "Do not force-push",
+      "user explicitly asks",
+      "repository workflow explicitly requires rewritten history",
+      "review continuity",
+      "Acceptable pre-push cleanup",
+      "Incorrect post-review rewrite",
+      "Correct post-review response",
+    ]) {
+      expect(normalizedCommitPolicy).toContain(phrase);
+    }
+
+    expect(normalizedGithubReplies).toContain("reply in the comment thread");
+    expect(normalizedGithubReplies).toContain("follow-up commit or fix");
+    expect(normalizedGithubReplies).toContain(
+      "preserving the existing thread context",
+    );
+  });
+
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
