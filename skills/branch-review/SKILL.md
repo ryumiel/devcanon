@@ -39,10 +39,44 @@ into an incremental review.
 Detect the base branch, validate any follow-up inputs, and collect the diff:
 
 ```bash
-# Determine base: explicit argument wins; otherwise resolve from origin/HEAD,
-# falling back to main then master if origin/HEAD is unset.
-if [[ -n "${1:-}" ]]; then
-  BASE="$1"
+# Parse arguments. Flags may appear before or after the optional base.
+# At most one positional base is accepted.
+BASE_ARG=""
+FIX_MODE=false
+LAST_REVIEWED_SHA=""
+PRIOR_FINDINGS_FILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fix)
+      FIX_MODE=true
+      shift
+      ;;
+    --last-reviewed)
+      [ -n "${2:-}" ] || { echo "--last-reviewed requires a SHA" >&2; exit 1; }
+      LAST_REVIEWED_SHA="$2"
+      shift 2
+      ;;
+    --prior-findings)
+      [ -n "${2:-}" ] || { echo "--prior-findings requires a path" >&2; exit 1; }
+      PRIOR_FINDINGS_FILE="$2"
+      shift 2
+      ;;
+    --*)
+      echo "unknown branch-review argument: $1" >&2
+      exit 1
+      ;;
+    *)
+      [ -z "$BASE_ARG" ] || { echo "multiple base arguments supplied" >&2; exit 1; }
+      BASE_ARG="$1"
+      shift
+      ;;
+  esac
+done
+
+# Determine base: explicit base argument wins; otherwise resolve from
+# origin/HEAD, falling back to main then master if origin/HEAD is unset.
+if [[ -n "$BASE_ARG" ]]; then
+  BASE="$BASE_ARG"
 elif symbolic_ref=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); then
   BASE="${symbolic_ref#origin/}"
 elif git show-ref --verify --quiet refs/remotes/origin/main; then
@@ -64,6 +98,7 @@ if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
   PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
   PRIOR_FINDINGS_HEAD_SHA="$(printf '%s\n' "$PRIOR_FINDINGS_FILE" | sed -n 's/^\.ephemeral\/.*-\([0-9a-f]\{40\}\)-findings\.json$/\1/p')"
   [ -n "$PRIOR_FINDINGS_HEAD_SHA" ] || { echo "prior findings path must include a 40-character review head" >&2; exit 1; }
+  [ "$PRIOR_FINDINGS_HEAD_SHA" = "$LAST_REVIEWED_SHA" ] || { echo "--prior-findings review head must match --last-reviewed" >&2; exit 1; }
   HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" validate-findings
 fi
@@ -85,11 +120,14 @@ git diff "$FULL_DIFF_RANGE" --stat
 
 If the diff is empty, report "no changes to review" and stop.
 
+Flags may appear before or after the optional base argument. Accept at most one
+positional base; unknown flags or multiple base arguments stop before review.
 Follow-up input is invalid and stops before invoking `play-review` when only
-one follow-up argument is supplied, the prior findings path is unsafe, or the
-installed `play-review` helper rejects the prior findings file. The prior
-findings file is local review context, not GitHub thread state, and this skill
-still performs no GitHub posting.
+one follow-up argument is supplied, the prior findings path is unsafe, the
+40-character review head embedded in `--prior-findings` does not exactly match
+`--last-reviewed`, or the installed `play-review` helper rejects the prior
+findings file. The prior findings file is local review context, not GitHub
+thread state, and this skill still performs no GitHub posting.
 
 In follow-up mode, choose the active range conservatively:
 
@@ -201,6 +239,7 @@ Then report:
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 - Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
   1 Safety or Sub-check 2 Contracts)
+- Follow-up `carry_forward[]` entries preserved from `play-review`, if any
 
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`; that command fails closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head. Immediately before overwriting, run the same helper with `prepare-findings-write`; that command prepares the write target but is not a substitute for read/schema validation. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root.
 
@@ -222,9 +261,35 @@ HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
   bash "$PLAY_REVIEW_HELPER" prepare-findings-write
 ```
 
-The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
+The remaining-set `findings[]` contains all pre-fix findings except blockers
+that were successfully auto-fixed and committed. That includes every nit
+(regardless of anchor), blockers skipped because the critic flagged `INVALID`
+or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining
+set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered
+the halt (if any), and any later blockers left unprocessed because an earlier
+stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're
+already committed in the worktree. In follow-up runs, preserve
+`carry_forward[]` from the validated `play-review` envelope unchanged; these
+entries are unresolved prior blockers, not auto-fix targets from the current
+`findings[]` loop. If the remaining set is empty and `carry_forward[]` is also
+empty, still write the canonical empty envelope
+(`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) —
+never leave the file from `play-review`'s pre-fix run unchanged, and never
+delete it. If `findings[]` is empty but `carry_forward[]` is non-empty, the
+post-`--fix` envelope must keep those carry-forward entries. Re-emit the
+(unchanged) `Findings written to <path>.` notice line in conversation so
+callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
+classify nits and produce `play-branch-finish`'s `nits_file`.
 
-**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict subset of the pre-fix one: this skill only removes auto-fixed blockers from `findings[]`; it never adds new entries, never re-anchors lines, and never edits `body` / `why` / `recommendation` text. Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7) cannot tell from the file alone whether they are reading the pre-fix or post-`--fix` version — the order is workflow-determined (Phase 7 always runs after `branch-review --fix`). The schema does not carry a `source` discriminator; the contract above is what guarantees consumers do not need one.
+**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
+subset of the pre-fix one: this skill only removes auto-fixed blockers from
+`findings[]`; it preserves `carry_forward[]` unchanged, never adds new entries,
+never re-anchors lines, and never edits `body` / `why` / `recommendation` text.
+Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
+cannot tell from the file alone whether they are reading the pre-fix or
+post-`--fix` version — the order is workflow-determined (Phase 7 always runs
+after `branch-review --fix`). The schema does not carry a `source`
+discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Quick Reference
 

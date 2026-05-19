@@ -665,12 +665,13 @@ See [`references/red-flags.md`](references/red-flags.md) for behavioral signals 
 
 ## Error Handling
 
-| Scenario                                                                              | Action                                                                                 |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Required input missing                                                                | Stop, report which input the wrapper failed to provide                                 |
-| `working_directory` empty or invalid                                                  | Stop, report                                                                           |
-| Diff at `active_diff_range` is empty                                                  | Report "no changes to review", emit empty findings                                     |
-| No guidelines found                                                                   | Note in the findings preamble, proceed with built-in knowledge                         |
-| Agent fails / times out                                                               | Report partial results in findings; mark missing agents                                |
-| Critic fails                                                                          | Report findings without critic verdicts; mark them as such                             |
-| Phase 2.5 shared review-context write fails (`[ -s "$CONTEXT_FILE" ]` exits non-zero) | Stop, report the path; do NOT dispatch Phase 3 agents — they would read an absent file |
+| Scenario                                                                                   | Action                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Required input missing                                                                     | Stop, report which input the wrapper failed to provide                                                                                                                                |
+| `working_directory` empty or invalid                                                       | Stop, report                                                                                                                                                                          |
+| Diff at `active_diff_range` is empty and no follow-up context exists                       | Report "no changes to review", emit empty findings                                                                                                                                    |
+| Diff at `active_diff_range` is empty and `prior_threads` or `prior_branch_findings` exists | Run the carry-forward check against the prior context before emitting output; preserve unresolved prior blockers in `carry_forward[]` rather than silently emitting an empty envelope |
+| No guidelines found                                                                        | Note in the findings preamble, proceed with built-in knowledge                                                                                                                        |
+| Agent fails / times out                                                                    | Report partial results in findings; mark missing agents                                                                                                                               |
+| Critic fails                                                                               | Report findings without critic verdicts; mark them as such                                                                                                                            |
+| Phase 2.5 shared review-context write fails (`[ -s "$CONTEXT_FILE" ]` exits non-zero)      | Stop, report the path; do NOT dispatch Phase 3 agents — they would read an absent file                                                                                                |
