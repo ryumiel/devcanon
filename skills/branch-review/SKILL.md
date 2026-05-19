@@ -14,7 +14,7 @@ for the local-diff case.
 digraph branch_review {
   rankdir=TB;
   gather [label="1. Gather\ngit diff + log"];
-  delegate [label="2. Run play-review\n(shared review pipeline)"];
+  delegate [label="2. Invoke play-review skill workflow\n(shared review pipeline)"];
   dispose [label="3. Dispose\npresent or --fix"];
 
   gather -> delegate -> dispose;
@@ -57,7 +57,7 @@ If the diff is empty, report "no changes to review" and stop.
 
 Compute language hints from changed file extensions (e.g., `*.ts`, `*.rs`, `*.md`). The set drives `play-review`'s dynamic-agent triggers.
 
-## Phase 2: Run play-review
+## Phase 2: Invoke the play-review skill workflow
 
 Hand off to `play-review` with these inputs (compose them into the briefing prose that invokes the skill):
 
