@@ -258,11 +258,15 @@ describe("existing skills source prose contracts", () => {
     const commitPolicyIndex = skillSource.indexOf(
       "## PR Branch Commit Continuity",
     );
+    const threadClosureIndex = skillSource.indexOf(
+      "## Pushed-Fix Inline Thread Closure",
+    );
     const pushBackIndex = skillSource.indexOf("## When To Push Back");
 
     expect(implementationOrderIndex).toBeGreaterThanOrEqual(0);
     expect(commitPolicyIndex).toBeGreaterThan(implementationOrderIndex);
-    expect(pushBackIndex).toBeGreaterThan(commitPolicyIndex);
+    expect(threadClosureIndex).toBeGreaterThan(commitPolicyIndex);
+    expect(pushBackIndex).toBeGreaterThan(threadClosureIndex);
 
     const implementationOrder = getMarkdownSection(
       skillSource,
@@ -273,6 +277,11 @@ describe("existing skills source prose contracts", () => {
       "PR Branch Commit Continuity",
     );
     const normalizedCommitPolicy = normalizeWhitespace(commitPolicy);
+    const threadClosure = getMarkdownSection(
+      skillSource,
+      "Pushed-Fix Inline Thread Closure",
+    );
+    const normalizedThreadClosure = normalizeWhitespace(threadClosure);
     const githubReplies = getMarkdownSection(
       skillSource,
       "GitHub Thread Replies",
@@ -296,9 +305,49 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedCommitPolicy).toContain("review continuity");
 
+    expect(normalizedThreadClosure).toMatch(
+      /verify.*current review comments.*implement.*run.*checks.*commit.*push.*re-fetch.*thread state.*confirm.*github writes.*reply in-thread.*re-fetch.*thread state.*resolve.*eligible threads/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /re-fetch.*after.*push.*before.*reply/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /re-fetch.*after.*reply.*immediately before.*resolution/i,
+    );
+    expect(normalizedThreadClosure).toContain("Safe-to-resolve criteria");
+
+    for (const requiredCriterion of [
+      "GitHub writes are permitted",
+      "explicit user approval",
+      "approved posting gate",
+      "latest fetched thread after the reply is still unresolved",
+      "same concern",
+      "pushed branch contains the fix",
+      "reply explains why no code change is required",
+      "relevant checks",
+      "permission to resolve",
+      "active owner",
+    ]) {
+      expect(normalizedThreadClosure).toContain(requiredCriterion);
+    }
+
+    for (const requiredDisposition of [
+      "Explanation-only",
+      "post-reply fetched thread",
+      "Stale or outdated",
+      "Already-resolved",
+      "unclear, partially fixed, or newly conflicting",
+      "stay unresolved",
+    ]) {
+      expect(normalizedThreadClosure).toContain(requiredDisposition);
+    }
+
     expect(normalizedGithubReplies).toMatch(/comment thread/i);
     expect(normalizedGithubReplies).toMatch(/follow-up commit or fix/i);
     expect(normalizedGithubReplies).toMatch(/thread context/i);
+    expect(normalizedGithubReplies).toContain(
+      "Pushed-Fix Inline Thread Closure",
+    );
   });
 
   it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {

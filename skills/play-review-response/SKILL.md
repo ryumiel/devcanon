@@ -156,6 +156,51 @@ Correct post-review response:
   You fix it with a follow-up commit and `git push`.
 ```
 
+## Pushed-Fix Inline Thread Closure
+
+Use this sequence after addressing inline GitHub review feedback on an
+already-pushed or reviewed PR branch:
+
+1. Verify the current review comments before changing code.
+2. Implement the fix, or prepare the explanation when no code change is
+   required.
+3. Run the relevant checks.
+4. Commit the response work with a follow-up commit when the branch is already
+   pushed or reviewed.
+5. Push normally.
+6. Re-fetch PR review thread state after the push and before any reply.
+7. Confirm GitHub writes are permitted by explicit user approval or the active
+   workflow's approved posting gate.
+8. Reply in-thread with concise fix or explanation evidence.
+9. Re-fetch PR review thread state again after the reply and immediately before
+   any resolution.
+10. Resolve only eligible threads.
+
+Safe-to-resolve criteria:
+
+- GitHub writes are permitted by explicit user approval or the active
+  workflow's approved posting gate.
+- The latest fetched thread after the reply is still unresolved.
+- The thread maps to the same concern that you verified and addressed.
+- The pushed branch contains the fix, or the in-thread reply explains why no
+  code change is required.
+- The relevant checks have passed.
+- The current actor has permission to resolve the thread.
+- Replying or resolving does not bypass `pr-review`'s user-gated
+  posting/resolution workflow when that workflow is the active owner.
+
+Edge dispositions:
+
+- Explanation-only comments get an in-thread reply, then resolution only when
+  the reply fully addresses the concern and the post-reply fetched thread is
+  still unresolved.
+- Stale or outdated threads are not resolved merely because they are outdated.
+  Re-fetch current thread state and verify the underlying concern first.
+- Already-resolved threads are left alone. Do not add duplicate replies unless
+  new information is needed.
+- Threads with unclear, partially fixed, or newly conflicting feedback stay
+  unresolved and are reported to the user.
+
 ## When To Push Back
 
 Push back when:
@@ -259,7 +304,8 @@ You understand 1,2,3,6. Unclear on 4,5.
 When replying to inline review comments on GitHub, reply in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
-existing thread context. Do not resolve continuity by replacing reviewed history
+existing thread context. Follow `Pushed-Fix Inline Thread Closure` before
+resolving any thread. Do not resolve continuity by replacing reviewed history
 unless the user explicitly asked for that cleanup or the repository workflow
 requires rewritten history.
 
