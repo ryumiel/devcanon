@@ -2,6 +2,7 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
+import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
@@ -44,14 +45,16 @@ const sliceRenderedSection = (
 
 describe("rendered phase artifact smoke coverage", () => {
   let bodies: RenderedBodies;
+  let generatedDir: string;
 
   beforeAll(async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
     );
+    generatedDir = config.library.generatedDir;
 
-    const { outputs } = await renderAll(config, false);
+    const { outputs } = await renderAll(config, true);
     bodies = {};
 
     for (const skillName of PHASE_ARTIFACT_SKILLS) {
@@ -161,6 +164,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("scripts/review-artifacts.sh");
       expect(phase7).toContain("validate-findings");
       expect(normalizedPhase7).toContain(
+        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+      );
+      expect(normalizedPhase7).toContain(
+        "invoke it from the issue worktree root",
+      );
+      expect(normalizedPhase7).toContain(
+        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+      );
+      expect(normalizedPhase7).toContain(
         "After the guard passes, load `findings[]` from the file",
       );
       expect(normalizedPhase7).toContain(
@@ -177,6 +189,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("-nits-pending.json");
       expect(phase7).toContain("NITS_PENDING_FILE");
       expect(phase7).toContain("derive-nits-pending");
+      expect(normalizedPhase7).toContain(
+        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+      );
       expect(normalizedPhase7).toContain(
         "passes `$NITS_PENDING_FILE` as `nits_file`",
       );
@@ -298,6 +313,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(option2).toContain("scripts/review-artifacts.sh");
       expect(option2).toContain("validate-nits-file");
       expect(normalizedOption2).toContain(
+        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+      );
+      expect(normalizedOption2).toContain(
+        "invoke it from the target repository root",
+      );
+      expect(normalizedOption2).toContain(
+        'NITS_FILE="$NITS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-nits-file',
+      );
+      expect(normalizedOption2).toContain(
         "Treat any nonzero exit as a contract failure and stop before posting",
       );
       expect(option2).toContain("ANCHORABLE_NITS_JSON");
@@ -319,6 +343,21 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedCleanup).toContain(
         "Option 2 reaches Step 5 only after PR creation and any requested assumptions-comment or nit-posting steps complete without error",
       );
+    }
+  });
+
+  it("mirrors the play-review helper script required by rendered Phase 7 and Phase 8 contracts", async () => {
+    for (const target of ["claude", "codex"] as const) {
+      const helperPath = path.join(
+        generatedDir,
+        target,
+        "skills",
+        "play-review",
+        "scripts",
+        "review-artifacts.sh",
+      );
+
+      expect(await pathExists(helperPath)).toBe(true);
     }
   });
 
