@@ -511,6 +511,10 @@ describe("phase artifact source contracts", () => {
       "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
     expect(implementerPrompt).toContain("script with the captured `BASE_SHA`");
+    expect(implementerPrompt).toContain("HEAD_SHA=$(git rev-parse HEAD)");
+    expect(implementerPrompt).toContain(
+      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
+    );
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
@@ -545,6 +549,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(mechanicalImplementerPrompt).toContain(
       "script with the captured `BASE_SHA`",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "HEAD_SHA=$(git rev-parse HEAD)",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",

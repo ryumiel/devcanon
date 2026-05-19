@@ -126,6 +126,10 @@ Task tool (general-purpose):
     If the snapshot request state is `skipped`, do not append any snapshot notice
     line. Your DONE / DONE_WITH_CONCERNS report must include these default
     fields: status, summary, tests, files changed, base SHA, head SHA.
+    After committing, capture `HEAD_SHA=$(git rev-parse HEAD)`. For skipped
+    snapshots, compute the changed-file list with
+    `git diff --name-status --no-renames "$BASE_SHA..HEAD"` and report that list
+    alongside the captured `BASE_SHA` and `HEAD_SHA`.
 
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if information is missing.
 ````
