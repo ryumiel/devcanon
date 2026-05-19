@@ -23,14 +23,20 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg      | Effect                                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `<base>` | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)   |
-| `--fix`  | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints. |
+| Arg                       | Effect                                                                                                                                                                                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<base>`                  | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                 |
+| `--fix`                   | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                               |
+| `--last-reviewed <sha>`   | Enter follow-up mode using the immutable 40-character commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing.    |
+| `--prior-findings <path>` | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward. |
+
+`--fix` without follow-up arguments keeps the existing full-diff default used
+by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
+into an incremental review.
 
 ## Phase 1: Gather
 
-Detect the base branch and collect the diff:
+Detect the base branch, validate any follow-up inputs, and collect the diff:
 
 ```bash
 # Determine base: explicit argument wins; otherwise resolve from origin/HEAD,
@@ -47,15 +53,76 @@ else
   BASE=main
 fi
 
+# Follow-up mode is explicit and fail-closed.
+if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
+  if [[ -z "${LAST_REVIEWED_SHA:-}" || -z "${PRIOR_FINDINGS_FILE:-}" ]]; then
+    echo "--last-reviewed and --prior-findings must be supplied together" >&2
+    exit 1
+  fi
+  [[ "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid --last-reviewed SHA" >&2; exit 1; }
+  git cat-file -e "$LAST_REVIEWED_SHA^{commit}" || { echo "--last-reviewed does not resolve" >&2; exit 1; }
+  git merge-base --is-ancestor "$LAST_REVIEWED_SHA" HEAD || { echo "--last-reviewed is not an ancestor of HEAD" >&2; exit 1; }
+
+  PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+  PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+  HEAD_SHA="$LAST_REVIEWED_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
+    bash "$PLAY_REVIEW_HELPER" validate-findings
+fi
+
+FULL_DIFF_RANGE="$BASE...HEAD"
+if [[ -n "${LAST_REVIEWED_SHA:-}" ]]; then
+  CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
+else
+  CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+fi
+
 # Get the diff and commit log
-git diff "$BASE"...HEAD
-git log "$BASE"...HEAD --oneline
-git diff "$BASE"...HEAD --stat
+git diff "$FULL_DIFF_RANGE"
+git log "$FULL_DIFF_RANGE" --oneline
+git diff "$FULL_DIFF_RANGE" --stat
 ```
 
 If the diff is empty, report "no changes to review" and stop.
 
-Compute language hints from changed file extensions (e.g., `*.ts`, `*.rs`, `*.md`). The set drives `play-review`'s dynamic-agent triggers.
+Follow-up input is invalid and stops before invoking `play-review` when only
+one follow-up argument is supplied, `--last-reviewed` is not a 40-character
+SHA, the SHA does not resolve, the SHA is not an ancestor of `HEAD`, the prior
+findings path is unsafe, or the installed `play-review` helper rejects the
+prior findings file. The prior findings file is local review context, not
+GitHub thread state, and this skill still performs no GitHub posting.
+
+In follow-up mode, choose the active range conservatively:
+
+- `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
+  documentation impact.
+- `candidate_active_diff_range = "$LAST_REVIEWED_SHA..HEAD"` for possible
+  incremental re-review.
+- `active_diff_range = candidate_active_diff_range` only when the escalation
+  checks below all pass.
+- `is_followup_narrow = true` only when the narrow candidate range is selected.
+
+Escalate back to full branch review when any of these are true:
+
+- More than 5 files changed since `--last-reviewed`.
+- New public API functions or types are introduced.
+- Logic is restructured beyond previously flagged lines or adjacent changed
+  lines.
+- The increment touches architecture surfaces, shared workflow policy,
+  source-owned contracts, generated-output behavior, safety boundaries, or
+  broad file/module scope.
+- The increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`,
+  `CONTRIBUTING.md`, `agents/**`, reviewer-routing policy, output schemas,
+  install/sync behavior, path-validation guards, external-invocation guards,
+  generated-output renderers, or generated-output contracts.
+- Scope classification is ambiguous.
+
+When escalation fires, set `active_diff_range = "$BASE...HEAD"` and
+`is_followup_narrow = false`, but still pass the validated prior findings to
+`play-review` so the critic can evaluate carry-forward items. Compute
+language hints from the changed file extensions in the selected active diff
+(e.g., `*.ts`, `*.rs`, `*.md`). The set drives `play-review`'s dynamic-agent
+triggers; deriving it from the full branch during a narrow follow-up would
+defeat the follow-up scope.
 
 ## Phase 2: Invoke the play-review skill workflow
 
@@ -63,12 +130,16 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 
 - `working_directory` = repo root (the current working directory)
 - `base_ref` = `$BASE`
-- `active_diff_range` = `"$BASE...HEAD"`
-- `full_pr_diff_range` = `"$BASE...HEAD"` (same — no follow-up scope)
+- `active_diff_range` = the selected active range from Phase 1
+- `full_pr_diff_range` = `"$BASE...HEAD"` (always, including follow-up mode)
 - `head_sha` = `$(git rev-parse HEAD)`
 - `mode` = `"fix"` if `--fix` is set, else `"present"`
-- `language_hints` = computed in Phase 1
-- `prior_threads` = (none); `last_reviewed_sha` = (none); `is_followup_narrow` = `false`
+- `language_hints` = computed from the selected active diff in Phase 1
+- `prior_threads` = (none)
+- `prior_branch_findings` = the validated `--prior-findings` envelope path
+  (follow-up only)
+- `last_reviewed_sha` = `--last-reviewed` (follow-up only)
+- `is_followup_narrow` = computed in Phase 1
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
