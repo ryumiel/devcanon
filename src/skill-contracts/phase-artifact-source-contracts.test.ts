@@ -13,6 +13,14 @@ describe("phase artifact source contracts", () => {
       expect(skillSource).toContain("worktree path must be absolute");
       expect(skillSource).toContain("nested issue body path rejected");
       expect(skillSource).toContain(
+        '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
+      );
+      expect(skillSource).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+      expect(skillSource).toContain(
+        '[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"',
+      );
+      expect(skillSource).toContain("issue body path is a directory");
+      expect(skillSource).toContain(
         "issue body path exists but is not a regular file",
       );
     }

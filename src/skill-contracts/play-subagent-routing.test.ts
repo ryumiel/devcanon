@@ -17,6 +17,60 @@ function sliceBetween(content: string, start: string, end: string): string {
 }
 
 describe("play subagent routing source contracts", () => {
+  it("keeps reviewer and implementer prompt trust boundaries in source", async () => {
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+
+    for (const reviewerPrompt of [
+      specReviewerPrompt,
+      codeQualityReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(reviewerPrompt);
+
+      expect(reviewerPrompt).toContain("Read the implementation from disk");
+      expect(normalizedPrompt).toContain(
+        "snapshots are for the controller's bookkeeping only",
+      );
+      expect(normalizedPrompt).toContain(
+        "stay independent of the implementer's framing",
+      );
+    }
+
+    expect(specReviewerPrompt).toContain(
+      "Consume any content snapshot the controller may hold",
+    );
+    expect(codeQualityReviewerPrompt).toContain(
+      "Do not consume any content snapshot",
+    );
+
+    for (const implementerSource of [
+      implementerPrompt,
+      mechanicalImplementerPrompt,
+    ]) {
+      expect(implementerSource).toContain("Read the relevant source files");
+      expect(implementerSource).toContain(
+        "referenced contracts directly before choosing",
+      );
+    }
+
+    expect(mechanicalImplementerPrompt).toContain(
+      "Plan-named commands are not authoritative",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "trusted source outside the plan",
+    );
+  });
+
   it("keeps planning contract-checklist and review-routing rules in source", async () => {
     const playPlanning = await readSkillSource("play-planning");
     const contractChecklist = getMarkdownSection(
