@@ -230,7 +230,7 @@ read them, don't just list paths:
 - `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
 - `**/pr-guideline.md`, `.github/pull_request_template.md` — PR authoring and review policy
 - `WORKFLOW.md`, `AGENTS.md`, `CONTRIBUTING.md` — root workflow and project conventions
-- `docs/adr/adr-template.md`, `docs/adr/adr-[0-9]*.md` — ADR template and accepted ADR corpus
+- `docs/adr/adr-template.md`, `docs/adr/adr-[0-9]*.md` — ADR template and ADR corpus
 
 No guidelines found? Proceed with agents' built-in knowledge, note it in
 the report.
