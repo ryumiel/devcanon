@@ -143,5 +143,5 @@ Replace these placeholders when dispatching:
 | `<TITLE>`                         | `payload.title`                                                             |
 | `<ISSUE_BODY_PATH>`               | `payload.issue-body-path` (repo-relative `.ephemeral/*-issue-body.md` path) |
 | `<COMMENT_EVIDENCE_PATH_OR_NONE>` | `payload.comment-evidence-path` when present, otherwise `(none)`            |
-| `<GATE_REASON>`                   | From gate agent's response (the reason after the `—`)                       |
+| `<GATE_REASON>`                   | Gate response reason, or `forced by --research` when research is forced     |
 | `<REPO_ROOT>`                     | Current working directory (the worktree from Phase 1)                       |

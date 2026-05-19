@@ -125,9 +125,15 @@ describe("phase artifact source contracts", () => {
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
     );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
     expect(gatePrompt).toContain("Issue body or comment evidence contains");
     expect(gatePrompt).toContain(
       "No present comment evidence introduces ambiguity, risk, or a design choice",
+    );
+    expect(researchPrompt).toContain(
+      "Gate response reason, or `forced by --research`",
     );
   });
 
