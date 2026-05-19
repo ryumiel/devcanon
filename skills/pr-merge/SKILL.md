@@ -230,7 +230,23 @@ fi
 | Verify `MERGED` AND local tip = PR head before `branch -D` | GitHub state confirms the merge; tip-equality refuses to discard unpushed local commits |
 | `--ff-only` pull                                           | Fails loudly if main diverged — no silent merge commits                                 |
 
-Report the merge to the user with the PR URL. Done.
+### Final report contract
+
+After the remote merge succeeds, the final report must distinguish merge success
+from local cleanup results. Do not report the task as fully clean just because
+GitHub accepted the merge.
+
+Include:
+
+- Remote merge: merged successfully, with the PR URL.
+- Worktree cleanup: removed, skipped, or failed. Include the worktree path when
+  one was detected, and include the reason when cleanup was skipped or failed.
+- Base checkout/pull: state whether the base checkout and `git pull --ff-only`
+  were attempted, and whether they succeeded, were skipped, or failed.
+- Local branch cleanup: deleted, retained, or skipped. Include the branch name
+  and the reason when the branch was retained or skipped.
+- Manual cleanup: name any remaining manual cleanup action required, or say that
+  none remains.
 
 ## Step 4: Investigate and Fix Failures
 

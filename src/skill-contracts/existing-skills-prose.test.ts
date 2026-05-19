@@ -301,6 +301,29 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedGithubReplies).toMatch(/thread context/i);
   });
 
+  it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {
+    const skillSource = await readSkillSource("pr-merge");
+    const cleanupSection = getMarkdownSection(
+      skillSource,
+      "Step 3b: Post-Merge Cleanup",
+    );
+    const normalizedCleanupSection = normalizeWhitespace(cleanupSection);
+
+    expect(cleanupSection).toContain("Final report contract");
+    expect(normalizedCleanupSection).toMatch(/remote merge.*PR URL.*cleanup/i);
+    expect(normalizedCleanupSection).toMatch(
+      /worktree.*removed, skipped, or failed.*path.*reason/i,
+    );
+    expect(normalizedCleanupSection).toMatch(/base checkout\/pull.*attempted/i);
+    expect(normalizedCleanupSection).toMatch(
+      /local branch.*deleted, retained, or skipped.*reason/i,
+    );
+    expect(normalizedCleanupSection).toMatch(/manual cleanup.*required.*none/i);
+    expect(normalizedCleanupSection).not.toContain(
+      "Report the merge to the user with the PR URL. Done.",
+    );
+  });
+
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
