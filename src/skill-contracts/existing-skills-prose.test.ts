@@ -34,7 +34,9 @@ async function git(args: string[], cwd: string): Promise<void> {
   await execFileAsync("git", args, { cwd });
 }
 
-async function createAutosquashFixture(): Promise<string> {
+async function createAutosquashFixture(
+  squashSubject = "squash! feat: update note",
+): Promise<string> {
   const repoDir = await mkdtemp(path.join(tmpdir(), "devcanon-autosquash-"));
 
   await git(["init", "-q", "-b", "main"], repoDir);
@@ -56,7 +58,7 @@ async function createAutosquashFixture(): Promise<string> {
     "utf-8",
   );
   await git(["add", "note.txt"], repoDir);
-  await git(["commit", "-q", "-m", "squash! feat: update note"], repoDir);
+  await git(["commit", "-q", "-m", squashSubject], repoDir);
 
   return repoDir;
 }
@@ -455,6 +457,11 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       'git reset --hard "$PRE_AUTOSQUASH_HEAD"',
     );
+    expect(normalizedOption2).toContain("REMAINING_AUTOSQUASH_MARKERS=");
+    expect(normalizedOption2).toContain(
+      'git log --format=%s "$AUTOSQUASH_BASE"..HEAD',
+    );
+    expect(normalizedOption2).toMatch(/fixup!.*squash!|squash!.*fixup!/i);
     expect(normalizedOption2).toMatch(
       /post-autosquash tree.*unchanged.*before push/i,
     );
@@ -527,6 +534,41 @@ describe("existing skills source prose contracts", () => {
       expect(postTree.trim()).toBe(preTree.trim());
       expect(log).not.toContain("squash!");
       expect(log.trim().split("\n")).toHaveLength(1);
+    } finally {
+      await rm(repoDir, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps unmatched autosquash markers detectable after rebase", async () => {
+    const repoDir = await createAutosquashFixture("squash! feat: base");
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+
+      await execFileAsync(
+        "git",
+        ["rebase", "-i", "--autosquash", mergeBase.trim()],
+        {
+          cwd: repoDir,
+          env: {
+            ...process.env,
+            GIT_SEQUENCE_EDITOR: ":",
+            GIT_EDITOR: ":",
+          },
+        },
+      );
+
+      const { stdout: remainingMarkers } = await execFileAsync(
+        "git",
+        ["log", "--format=%s", `${mergeBase.trim()}..HEAD`],
+        { cwd: repoDir },
+      );
+
+      expect(remainingMarkers).toContain("squash! feat: base");
     } finally {
       await rm(repoDir, { force: true, recursive: true });
     }

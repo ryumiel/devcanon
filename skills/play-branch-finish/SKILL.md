@@ -164,9 +164,18 @@ AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)
 PRE_AUTOSQUASH_HEAD=$(git rev-parse HEAD)
 PRE_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
 if ! GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
-  echo "autosquash failed; resolve it or run git rebase --abort before push" >&2
+  echo "autosquash failed; run git rebase --abort before push" >&2
+  echo "if you resolve and continue instead, rerun the tree and marker checks before push" >&2
   exit 1
 fi
+REMAINING_AUTOSQUASH_MARKERS=$(
+  git log --format=%s "$AUTOSQUASH_BASE"..HEAD | sed -n '/^\(fixup\|squash\)!/p'
+)
+[ -z "$REMAINING_AUTOSQUASH_MARKERS" ] || {
+  git reset --hard "$PRE_AUTOSQUASH_HEAD"
+  echo "autosquash could not match all markers in the local range; branch restored, stop before push" >&2
+  exit 1
+}
 POST_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
 [ "$POST_AUTOSQUASH_TREE" = "$PRE_AUTOSQUASH_TREE" ] || {
   git reset --hard "$PRE_AUTOSQUASH_HEAD"
