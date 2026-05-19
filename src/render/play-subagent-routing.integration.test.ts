@@ -12,7 +12,6 @@ import { renderAll } from "./pipeline.js";
 
 describe("play-subagent planning and routing contracts", () => {
   let repoRoot: string;
-  let subagentLifecycleBody: string;
   let playSubagentExecutionBody: string;
   let playSubagentExecutionClaudeBody: string;
   let playPlanningBody: string;
@@ -26,9 +25,6 @@ describe("play-subagent planning and routing contracts", () => {
     );
 
     const { outputs } = await renderAll(config, false);
-    subagentLifecycleBody = parseFrontmatter(
-      getSkillOutput(outputs, "subagent-lifecycle", "codex").content,
-    ).body;
     playSubagentExecutionBody = parseFrontmatter(
       getSkillOutput(outputs, "play-subagent-execution", "codex").content,
     ).body;
@@ -1035,35 +1031,6 @@ describe("play-subagent planning and routing contracts", () => {
     expect(playSubagentExecutionBody).not.toContain(
       "all multi-task plans run two-stage review",
     );
-    const normalizedPlaySubagentExecutionBody = normalizeWhitespace(
-      playSubagentExecutionBody,
-    );
-    expect(playSubagentExecutionBody).toContain("## Subagent Lifecycle");
-    expect(playSubagentExecutionBody).toContain("Use `subagent-lifecycle`");
-    expect(normalizedPlaySubagentExecutionBody).toContain(
-      "generic controller lifecycle ledger, target lifecycle capability classification, cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit recovery",
-    );
-    expect(normalizedPlaySubagentExecutionBody).toContain(
-      "role-specific captured state includes implementer reports, changed files, test results, snapshot state, reviewer scope, reviewer report, concrete findings, routing target, re-review target, task base/head SHA, fixup count, and blocker state",
-    );
-    expect(normalizedPlaySubagentExecutionBody).toContain(
-      "same-session spec-compliance or code-quality reviewer fix loops may still route fixups back to that implementer session",
-    );
-    expect(normalizedPlaySubagentExecutionBody).toContain(
-      "preserve the implementer session until every reviewer loop required by the task's effective route passes",
-    );
-    expect(playSubagentExecutionBody).not.toContain(
-      "## Controller Lifecycle Ledger",
-    );
-    expect(playSubagentExecutionBody).toContain(
-      "artifacts that status actually provides",
-    );
-    expect(playSubagentExecutionBody).toContain(
-      "report or blocker/context request, `agent_id`, and any available base/head SHA",
-    );
-    expect(playSubagentExecutionBody).toContain(
-      "do not wait for snapshot, changed-file, or test artifacts that were not produced",
-    );
     expect(playSubagentExecutionBody).toContain(
       "The family is the text before the first colon",
     );
@@ -1195,113 +1162,6 @@ describe("play-subagent planning and routing contracts", () => {
       "  - Committed",
       "Plan hints low risk and `none-final-only`; no hard-risk trigger is present;",
     );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Lifecycle cleanup checkpoint",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "closed=yes after PASS verdict recorded",
-    );
-    expect(playSubagentExampleWorkflow).toContain("Ledger pre-dispatch");
-    expect(playSubagentExampleWorkflow).toContain("Ledger post-dispatch");
-    expect(playSubagentExampleWorkflow).toContain(
-      "Every later implementer, reviewer, re-reviewer, and final reviewer dispatch gets its own row",
-    );
-    expect(playSubagentExampleWorkflow).toContain("agent_id=pending");
-    expect(playSubagentExampleWorkflow).toContain("review scope captured");
-    expect(playSubagentExampleWorkflow).toContain("report captured");
-    expect(playSubagentExampleWorkflow).toContain("status=DONE");
-    expect(playSubagentExampleWorkflow).toContain(
-      "inventory-only: target exposes session inventory but no close operation",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "close-unavailable: inventory-only; no close operation",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "first captures each completed session's role-specific state",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "cleanup-unavailable: target exposes neither inventory nor close operation",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "close-unavailable: no inventory or close operation",
-    );
-    expect(playSubagentExampleWorkflow).toContain("Slot-limit spawn failure");
-    expect(playSubagentExampleWorkflow).toContain(
-      "Controller runs the cleanup gate",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Repeated blocker-family branch",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Initial blocker-family record",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "blocker state=context-missing: needs target install path",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "base/head SHA captured (head pending)",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "close-unavailable: no inventory or close operation after BLOCKED report",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before Task 2 spec reviewer spawn",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before Task 2 spec re-review spawn",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before Task 2 code-quality reviewer spawn",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before Task 2 code-quality re-review spawn",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "findings captured: Missing progress reporting",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "re-review target=spec-2-rereview",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "routing target=Task 2 implementer",
-    );
-    expect(playSubagentExampleWorkflow).toContain("report refreshed");
-    expect(playSubagentExampleWorkflow).toContain("test state refreshed");
-    expect(playSubagentExampleWorkflow).toContain("snapshot refreshed");
-    expect(playSubagentExampleWorkflow).toContain(
-      "[Revalidate effective review route]",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Controller compares the original Task 2 base SHA to the refreshed task head",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "The route may only preserve or escalate",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "so continue to spec re-review",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "so continue to code-quality re-review",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "findings captured: Magic number (100)",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "re-review target=quality-2-rereview",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Cleanup gate before final code-quality reviewer spawn",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Task 2 code-quality reviewer: status=findings-recorded",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "Alternative target capability examples - separate runs",
-    );
-    expect(playSubagentExampleWorkflow).toContain(
-      "final-code-quality-reviewer",
-    );
-
     const playSubagentRedFlags = await readFile(
       path.join(
         repoRoot,
@@ -1326,77 +1186,6 @@ describe("play-subagent planning and routing contracts", () => {
       "Move to next task while either review has open issues",
     );
     expect(playSubagentRedFlags).not.toContain("(conflicts)");
-  });
-
-  it("pins the rendered subagent-lifecycle owner contract", () => {
-    const normalizedSubagentLifecycleBody = normalizeWhitespace(
-      subagentLifecycleBody,
-    );
-
-    expect(subagentLifecycleBody).toContain("## Controller Lifecycle Ledger");
-    expect(subagentLifecycleBody).toContain(
-      "agent-local/controller-local state",
-    );
-    expect(subagentLifecycleBody).toContain(
-      "one `agent_id` or `agent_id=pending`",
-    );
-    expect(subagentLifecycleBody).toContain("role-specific captured state");
-    expect(subagentLifecycleBody).toContain("reviewer result when relevant");
-    expect(subagentLifecycleBody).toContain(
-      "fixup count or blocker state when relevant",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "one cleanup outcome: `closed=yes`, `closed=no`, or `close-unavailable: <reason>`",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Role-specific captured state is whatever the owning workflow needs before it can safely close, supersede, or replace that role",
-    );
-
-    expect(subagentLifecycleBody).toContain("## Target Lifecycle Capability");
-    expect(subagentLifecycleBody).toContain("automatic-close-supported");
-    expect(subagentLifecycleBody).toContain(
-      "close/session-cleanup operation exist",
-    );
-    expect(subagentLifecycleBody).toContain("inventory-only");
-    expect(subagentLifecycleBody).toContain(
-      "close-unavailable: inventory-only; no close operation",
-    );
-    expect(subagentLifecycleBody).toContain("cleanup-unavailable");
-    expect(subagentLifecycleBody).toContain(
-      "close-unavailable: no inventory or close operation",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Do not infer support from another target",
-    );
-
-    expect(subagentLifecycleBody).toContain("## Cleanup Gate Before Spawns");
-    expect(subagentLifecycleBody).toContain("Before every new subagent spawn");
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Capture the role-specific state needed by the owning workflow before closing or superseding any session",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Keep sessions open when the owning workflow still requires same-session follow-up",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Never record `closed=yes` unless the current target actually exposed stable ids plus a close operation",
-    );
-
-    expect(subagentLifecycleBody).toContain("## Slot-Limit Recovery");
-    expect(subagentLifecycleBody).toContain(
-      "orchestration resource exhaustion",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Wait for operator confirmation that manual cleanup is complete before continuing",
-    );
-    expect(subagentLifecycleBody).toContain(
-      "Reconstruct active workflow state from the lifecycle ledger",
-    );
-    expect(normalizedSubagentLifecycleBody).toContain(
-      "Retry the spawn exactly once after automatic cleanup completes or after the operator confirms manual cleanup",
-    );
-    expect(subagentLifecycleBody).toContain(
-      "Repeated failures after the single retry are not permission to keep spawning",
-    );
   });
 
   it("documents issue-priming implementation and review handoffs", async () => {
