@@ -133,6 +133,10 @@ if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
     echo "--last-reviewed and --prior-findings must be supplied together" >&2
     exit 1
   fi
+  if [[ ! "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "--last-reviewed requires a 40-character lowercase hex SHA" >&2
+    exit 1
+  fi
   validate_prior_findings
 fi
 

@@ -223,6 +223,26 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
           [
             helperScript,
             "--last-reviewed",
+            lastReviewedSha.toUpperCase(),
+            "--prior-findings",
+            findingsFile,
+          ],
+          {
+            cwd,
+            env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+          },
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "--last-reviewed requires a 40-character lowercase hex SHA",
+        ),
+      });
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            helperScript,
+            "--last-reviewed",
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--prior-findings",
             findingsFile,

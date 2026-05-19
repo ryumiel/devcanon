@@ -118,6 +118,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("--last-reviewed");
       expect(branchReview).toContain("--prior-findings");
       expect(branchReview).toContain("--last-reviewed requires a SHA");
+      expect(branchReview).toContain(
+        "--last-reviewed requires a 40-character lowercase hex SHA",
+      );
       expect(branchReview).toContain("--prior-findings requires a path");
       expect(branchReview).toContain("unknown branch-review argument");
       expect(branchReview).toContain("multiple base arguments supplied");
@@ -133,6 +136,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("IS_FOLLOWUP_NARROW");
       expect(branchReview).toContain("full_pr_diff_range");
       expect(branchReview).toContain("Escalate back to full branch review");
+      expect(normalizedBranchReview).toContain(
+        "`--last-reviewed` does not resolve or is not an ancestor of `HEAD`",
+      );
       expect(branchReview).toContain("path-validation guards");
       expect(branchReview).toContain("prior_branch_findings");
       expect(branchReview).toContain("carry_forward[]");

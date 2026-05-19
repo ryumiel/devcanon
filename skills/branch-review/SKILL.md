@@ -23,12 +23,12 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg                       | Effect                                                                                                                                                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<base>`                  | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                 |
-| `--fix`                   | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                               |
-| `--last-reviewed <sha>`   | Enter follow-up mode using the immutable 40-character commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing.    |
-| `--prior-findings <path>` | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward. |
+| Arg                       | Effect                                                                                                                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<base>`                  | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
+| `--fix`                   | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                                          |
+| `--last-reviewed <sha>`   | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
+| `--prior-findings <path>` | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
 
 `--fix` without follow-up arguments keeps the existing full-diff default used
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
@@ -103,11 +103,12 @@ For base resolution, an explicit base argument wins; otherwise resolve from
 Flags may appear before or after the optional base argument. At most one positional base is accepted. Unknown flags or multiple base arguments stop before review.
 Follow-up input is invalid and stops before invoking `play-review` when only
 one follow-up argument is supplied, the prior findings path is unsafe, the
-40-character review head embedded in `--prior-findings` does not exactly match
-`--last-reviewed`, or the installed `play-review` helper rejects the prior
-findings file. A mismatched review head stops with
-`--prior-findings review head must match --last-reviewed`. Missing values stop
-with `--last-reviewed requires a SHA` or
+40-character lowercase hex review head embedded in `--prior-findings` does not
+exactly match `--last-reviewed`, or the installed `play-review` helper rejects
+the prior findings file. Malformed follow-up SHAs stop with
+`--last-reviewed requires a 40-character lowercase hex SHA`. A mismatched review
+head stops with `--prior-findings review head must match --last-reviewed`.
+Missing values stop with `--last-reviewed requires a SHA` or
 `--prior-findings requires a path`; unknown flags stop with
 `unknown branch-review argument`; duplicate positional bases stop with
 `multiple base arguments supplied`. The prior findings file is local review
@@ -119,7 +120,8 @@ In follow-up mode, choose the active range conservatively:
 - `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
   documentation impact.
 - `candidate_active_diff_range = "$LAST_REVIEWED_SHA..HEAD"` for possible
-  incremental re-review.
+  incremental re-review after `--last-reviewed` passes paired input and
+  lowercase hex validation.
 - `active_diff_range = candidate_active_diff_range` only when the escalation
   checks below all pass.
 - `is_followup_narrow = true` only when the narrow candidate range is selected.
@@ -129,8 +131,7 @@ In follow-up mode, choose the active range conservatively:
 Escalate back to full branch review when any of these are true:
 
 - More than 5 files changed since `--last-reviewed`.
-- `--last-reviewed` is not a 40-character SHA, does not resolve, or is not an
-  ancestor of `HEAD`.
+- `--last-reviewed` does not resolve or is not an ancestor of `HEAD`.
 - New public API functions or types are introduced.
 - Logic is restructured beyond previously flagged lines or adjacent changed
   lines.
@@ -162,7 +163,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `active_diff_range` = the selected active range from Phase 1
 - `full_pr_diff_range` = `"$BASE...HEAD"` (always, including follow-up mode)
 - `head_sha` = `$(git rev-parse HEAD)`
-- `mode` = `"fix"` if `--fix` is set, else `"present"`
+- `mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`
 - `language_hints` = computed from the selected active diff in Phase 1
 - `prior_threads` = (none)
 - `prior_branch_findings` = the validated `--prior-findings` envelope path

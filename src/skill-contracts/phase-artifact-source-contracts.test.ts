@@ -107,6 +107,9 @@ describe("phase artifact source contracts", () => {
 
     expect(branchReview).toContain("| `--last-reviewed <sha>`");
     expect(branchReview).toContain("| `--prior-findings <path>`");
+    expect(normalizedBranchReview).toContain(
+      "40-character lowercase hex commit SHA",
+    );
     expect(branchReviewHelper).toContain(
       "--last-reviewed and --prior-findings must be supplied together",
     );
@@ -123,6 +126,9 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
     expect(branchReview).toContain("PLAY_REVIEW_DIR");
     expect(branchReviewHelper).toContain("--last-reviewed requires a SHA");
+    expect(branchReviewHelper).toContain(
+      "--last-reviewed requires a 40-character lowercase hex SHA",
+    );
     expect(branchReviewHelper).toContain("--prior-findings requires a path");
     expect(branchReviewHelper).toContain("unknown branch-review argument");
     expect(branchReviewHelper).toContain("multiple base arguments supplied");
@@ -145,6 +151,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "installed `play-review` helper rejects the prior findings file",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Malformed follow-up SHAs stop with `--last-reviewed requires a 40-character lowercase hex SHA`",
     );
     expect(branchReviewHelper).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
     expect(branchReviewHelper).toContain(
@@ -173,6 +182,9 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("is_followup_narrow = true");
     expect(branchReview).toContain("Escalate back to full branch review");
     expect(branchReview).toContain("More than 5 files changed");
+    expect(branchReview).toContain(
+      "`--last-reviewed` does not resolve or is not an ancestor of `HEAD`",
+    );
     expect(branchReview).toContain("New public API functions or types");
     expect(branchReview).toContain(
       "Logic is restructured beyond previously flagged lines",
@@ -189,6 +201,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
+    );
+    expect(branchReview).toContain(
+      '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
