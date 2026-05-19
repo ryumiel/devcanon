@@ -654,6 +654,7 @@ describe("phase artifact source contracts", () => {
     expect(normalizeWhitespace(adr0014)).toContain(
       "Plan text may contain snapshot hints",
     );
+    expect(adr0014).not.toContain("the plan body is itself the snapshot");
     expect(adr0014).toContain("committed HEAD blob reads");
     expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
     expect(adr0014).toContain("repository-controlled and untrusted");

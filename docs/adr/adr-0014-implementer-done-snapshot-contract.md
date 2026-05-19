@@ -52,8 +52,8 @@ The trust boundary distinguishes two read paths:
 A separate concern: the lean mechanical implementer path and the
 skip-dispatch path for trivial single-task plans interact. The lean
 mechanical path still dispatches an implementer; the skip-dispatch path
-does not — the plan body is itself the snapshot in that path. Any
-contract introduced here must explicitly exclude the skip-dispatch path.
+does not dispatch an implementer and has no implementer DONE-report boundary.
+Any contract introduced here must explicitly exclude the skip-dispatch path.
 
 ## Decision
 

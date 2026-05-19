@@ -524,11 +524,9 @@ terminal-state behavior; prompt/report contracts; cross-skill handoff behavior;
 generated-output behavior; manifests; executable helpers; config; or tests
 guarding those surfaces. Also request a snapshot for broad, multi-file,
 cross-module, or cross-skill tasks; deletes, renames, or file-mode changes; any
-explicit controller audit or review-coordination request; and any other surface
-where downstream controller line-range extraction or prompt composition is
-likely to benefit from a side-channel manifest. Skip snapshots only for clearly
-localized, low-risk work where the default DONE fields plus controller-computed
-git/disk reads are sufficient.
+explicit controller audit or review-coordination request; and unclear
+classification. Skip snapshots only for clearly localized, low-risk work where
+the default DONE fields plus controller-computed git/disk reads are sufficient.
 
 When a snapshot is requested, the dispatched implementer emits a literal
 `Snapshot written to <repo-relative-path>.` line at the end of its DONE
