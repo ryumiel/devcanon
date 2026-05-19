@@ -307,11 +307,11 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
+    expect(branchReview).toContain("same-invariant grouping pass");
     expect(branchReview).toContain("Iterate over blocking findings");
     expect(branchReview.indexOf("same-invariant grouping pass")).toBeLessThan(
       branchReview.indexOf("Iterate over blocking findings"),
     );
-    expect(branchReview).toContain("same-invariant grouping pass");
     expect(branchReview).toContain("adjacent same-invariant surfaces");
     expect(normalizedBranchReview).toContain("shared root invariant");
     expect(normalizedBranchReview).toContain(
