@@ -307,6 +307,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
+    expect(branchReview).toContain("Iterate over blocking findings");
     expect(branchReview.indexOf("same-invariant grouping pass")).toBeLessThan(
       branchReview.indexOf("Iterate over blocking findings"),
     );
@@ -314,7 +315,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("adjacent same-invariant surfaces");
     expect(normalizedBranchReview).toContain("shared root invariant");
     expect(normalizedBranchReview).toContain(
-      "over critic-valid blocking findings",
+      "over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`)",
     );
     expect(normalizedBranchReview).toContain(
       "using only the existing finding text, evidence, anchors, classifications, and active diff context",
@@ -333,6 +334,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "only when every included finding independently passes the existing stop-rule checks",
+    );
+    expect(normalizedBranchReview).toContain(
+      "The grouped edit set as a whole must also satisfy the same stop-rule constraints",
+    );
+    expect(normalizedBranchReview).toContain(
+      "if any included finding or the combined grouped edit would trigger a stop rule",
     );
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
