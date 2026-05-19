@@ -163,7 +163,7 @@ if [[ "$FOLLOWUP_MODE" = true ]]; then
     ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}file-count"
   fi
   if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-    grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/)' >/dev/null; then
+    grep -E '^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/|skills/|src/(render|install|skill-contracts|skill-scripts|models|validate)/|src/config/schema\.ts$|scripts/)' >/dev/null; then
     ESCALATE_FULL=true
     ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}governance-path"
   fi

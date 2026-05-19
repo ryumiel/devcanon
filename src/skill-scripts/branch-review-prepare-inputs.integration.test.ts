@@ -171,6 +171,47 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     }
   });
 
+  it("escalates follow-up review to the full branch for skill and generated-output contract paths", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await mkdir(path.join(cwd, "skills/branch-review"), { recursive: true });
+      await writeFile(
+        path.join(cwd, "skills/branch-review/SKILL.md"),
+        "policy\n",
+      );
+      await mkdir(path.join(cwd, "src/render"), { recursive: true });
+      await writeFile(path.join(cwd, "src/render/pipeline.ts"), "render\n");
+      await execFileAsync(
+        "git",
+        ["add", "skills/branch-review/SKILL.md", "src/render/pipeline.ts"],
+        { cwd },
+      );
+      await execFileAsync(
+        "git",
+        ["commit", "-m", "test: governed path change"],
+        { cwd },
+      );
+
+      const values = await runHelper(cwd, [
+        "--last-reviewed",
+        lastReviewedSha,
+        "--prior-findings",
+        findingsFile,
+      ]);
+
+      expect(values.ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.ESCALATE_FULL).toBe("true");
+      expect(values.ESCALATION_REASON).toContain("governance-path");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("fails closed for malformed follow-up inputs and parser errors", async () => {
     const cwd = await makeGitWorkspace();
     try {
