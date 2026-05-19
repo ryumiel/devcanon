@@ -115,6 +115,12 @@ describe("phase artifact source contracts", () => {
       "--prior-findings review head must match --last-reviewed",
     );
     expect(branchReview).toContain(
+      'HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \\',
+    );
+    expect(normalizedBranchReview).toMatch(
+      /HEAD_SHA="\$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="\$PRIOR_FINDINGS_FILE" \\ bash "\$PLAY_REVIEW_HELPER" validate-findings \|\| exit 1/,
+    );
+    expect(branchReview).toContain(
       'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
     );
     expect(normalizedBranchReview).toContain(
@@ -210,6 +216,32 @@ describe("phase artifact source contracts", () => {
     );
     expect(playReview).toContain(
       "do NOT dispatch Phase 3 agents — they would read an absent file",
+    );
+    expect(playReview).toContain(
+      "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
+    );
+    expect(playReview).toContain(
+      "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
+    );
+    expect(normalizedPlayReview).toContain(
+      "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
+    );
+    expect(playReview).toContain('git diff --name-only "$FULL_PR_DIFF_RANGE"');
+    expect(playReview).toContain("Changed files (active diff)");
+    expect(playReview).toContain('git diff --name-status "$ACTIVE_DIFF_RANGE"');
+    expect(playReview).toContain(
+      'Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"`',
+    );
+
+    const playReviewAgentBriefing = await readRepoFile(
+      "skills/play-review/references/agent-briefing-template.md",
+    );
+
+    expect(playReviewAgentBriefing).toContain(
+      "Active diff: run `git diff <active_diff_range>`",
+    );
+    expect(playReviewAgentBriefing).toContain(
+      "| `<active_diff_range>`    | `active_diff_range` skill input",
     );
   });
 

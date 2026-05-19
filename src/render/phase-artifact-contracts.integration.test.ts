@@ -129,6 +129,23 @@ describe("rendered phase artifact smoke coverage", () => {
 
       const playReview = bodies[`play-review:${target}`];
 
+      expect(playReview).toContain(
+        "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
+      );
+      expect(playReview).toContain(
+        "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
+      );
+      expect(playReview).toContain("Always run against\n`full_pr_diff_range`");
+      expect(playReview).toContain(
+        'git diff --name-only "$FULL_PR_DIFF_RANGE"',
+      );
+      expect(playReview).toContain("Changed files (active diff)");
+      expect(playReview).toContain(
+        'git diff --name-status "$ACTIVE_DIFF_RANGE"',
+      );
+      expect(playReview).toContain(
+        'Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"`',
+      );
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
         "Branch review context from a validated local `play-review/findings/v1` envelope path",
