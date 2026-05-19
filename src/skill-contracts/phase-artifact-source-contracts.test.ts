@@ -327,6 +327,9 @@ describe("phase artifact source contracts", () => {
       "scan adjacent same-invariant surfaces in the active diff before editing",
     );
     expect(normalizedBranchReview).toContain(
+      "form one cohesive bounded grouped blocker set",
+    );
+    expect(normalizedBranchReview).toContain(
       "does not add or require fields in the `play-review/findings/v1` envelope",
     );
     expect(normalizedBranchReview).toContain(
@@ -340,6 +343,24 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "if any included finding or the combined grouped edit would trigger a stop rule",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Each unit is either one ungrouped blocking finding verified by the critic",
+    );
+    expect(normalizedBranchReview).toContain(
+      "one same-invariant grouped blocker set formed above",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Do not also process grouped members as individual findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "every included finding counts as auto-fixed",
+    );
+    expect(normalizedBranchReview).toContain(
+      "is removed from the post-`--fix` remaining-set envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "that exception covers every included finding in the grouped blocker set",
     );
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
