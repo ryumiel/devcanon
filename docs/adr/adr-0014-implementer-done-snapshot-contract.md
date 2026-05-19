@@ -70,13 +70,13 @@ snapshot for:
 - Durable ADR, behavior-spec, product-requirements, roadmap, or
   workflow-policy updates.
 - Source-owned policy, procedure, prompt contract, schema or type contract,
-  generated-output behavior, manifest, executable helper, config, or tests
-  guarding those surfaces.
+  governed output, generated-output behavior, manifest, executable helper,
+  config, or tests guarding those surfaces.
 - Path-validation, filesystem-safety, or other security-sensitive behavior.
 - Failure-routing or incident-boundary changes where downstream consumers need
   precise post-DONE evidence.
 - Prompt contract implications, including changes that affect implementer,
-  reviewer, or controller handoff behavior.
+  reviewer, controller, cross-agent, or cross-skill handoff behavior.
 - Broad, multi-file, cross-module, or cross-skill tasks; deletes, renames, or
   file-mode changes.
 - Any explicit controller request for audit or review coordination.

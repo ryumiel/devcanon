@@ -520,15 +520,15 @@ snapshot.
 Request a snapshot when the task changes durable ADR, behavior-spec,
 product-requirements, roadmap, guideline, skill, agent, procedure, or
 workflow-policy text; source-owned policy; failure routing; lifecycle or
-terminal-state behavior; prompt/report contracts; cross-skill handoff behavior;
-generated-output behavior; schema or type contracts; manifests; executable
-helpers; config; path-validation, filesystem-safety, or other
-security-sensitive behavior; or tests guarding those surfaces. Also request a
-snapshot for broad, multi-file, cross-module, or cross-skill tasks; deletes,
-renames, or file-mode changes; any explicit controller audit or
-review-coordination request; and unclear classification. Skip snapshots only for
-clearly localized, low-risk work where the default DONE fields plus
-controller-computed git/disk reads are sufficient.
+terminal-state behavior; prompt/report contracts; cross-agent or cross-skill
+handoff behavior; governed outputs; generated-output behavior; schema or type
+contracts; manifests; executable helpers; config; path-validation,
+filesystem-safety, or other security-sensitive behavior; or tests guarding
+those surfaces. Also request a snapshot for broad, multi-file, cross-module, or
+cross-skill tasks; deletes, renames, or file-mode changes; any explicit
+controller audit or review-coordination request; and unclear classification.
+Skip snapshots only for clearly localized, low-risk work where the default DONE
+fields plus controller-computed git/disk reads are sufficient.
 
 When a snapshot is requested, the dispatched implementer emits a literal
 `Snapshot written to <repo-relative-path>.` line at the end of its DONE

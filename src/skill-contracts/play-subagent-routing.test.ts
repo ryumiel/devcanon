@@ -159,9 +159,19 @@ describe("play subagent routing source contracts", () => {
     const normalizedSnapshotConsumption =
       normalizeWhitespace(snapshotConsumption);
 
+    expect(normalizedSnapshotConsumption).toContain("governed outputs");
+    expect(normalizedSnapshotConsumption).toContain(
+      "generated-output behavior",
+    );
     expect(normalizedSnapshotConsumption).toContain("schema or type contracts");
     expect(normalizedSnapshotConsumption).toContain(
+      "cross-agent or cross-skill handoff behavior",
+    );
+    expect(normalizedSnapshotConsumption).toContain(
       "path-validation, filesystem-safety, or other security-sensitive behavior",
+    );
+    expect(normalizedSnapshotConsumption).toContain(
+      "explicit controller audit",
     );
     expect(normalizedSnapshotConsumption).toContain("unclear classification");
     expect(normalizedSnapshotConsumption).toContain(
