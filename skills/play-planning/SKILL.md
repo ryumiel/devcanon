@@ -265,6 +265,41 @@ output, or installed-output updates unless the repository's existing AFDS
 triggers apply; when a surface is not updated, the plan should state why it is
 not in scope.
 
+## Requirements Traceability
+
+For plans based on designs with hard requirements, the plan must include a
+`## Traceability Matrix` before task planning. This applies when the input
+design contains a `## Hard Requirements` ledger. This matrix complements the
+contract-heavy table and task contract checklists; it does not replace either
+one.
+
+Use this shape:
+
+```md
+## Traceability Matrix
+
+| Requirement | Task coverage | Acceptance criteria              | Proof obligation                             |
+| ----------- | ------------- | -------------------------------- | -------------------------------------------- |
+| R1          | Task 1        | <observable acceptance coverage> | <test, inspection, or verification evidence> |
+```
+
+Every hard-requirements ledger row must map to task coverage, acceptance
+criteria, and proof or verification obligation. Missing rows, blank coverage,
+or vague proof coverage are plan-review failures. The matrix is driven by the
+design ledger, not by incidental modal verbs in examples, quoted issue text,
+shell snippets, or explanatory prose outside the ledger.
+
+A plan-review result must fail when any hard-requirements ledger row lacks
+explicit task coverage, acceptance criteria, or proof coverage.
+
+For governance or workflow-policy changes, carry forward the adjacent
+governance surfaces from the design and reconcile them against the Adjacent
+Governance Policy Set owned by
+`docs/guidelines/documentation-checklists.md`. If the issue or design names
+conditional adjacent guidance such as `docs/guidelines/writing-skills.md`,
+inspect it and either update it for a concrete contradiction or record why the
+owning source skill remains the right surface.
+
 ## Cohesive Task Composition
 
 Compose related implementation steps into one authored task when they form a
@@ -526,9 +561,15 @@ follow
 
 Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
 
-**11. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**11. Requirements traceability check:** If the input design has a
+`## Hard Requirements` ledger, confirm the plan has a
+`## Traceability Matrix` and that every ledger row has explicit task coverage,
+acceptance criteria, and proof coverage. Missing rows, missing coverage, or
+coverage that only points at general prose are plan-review failures.
 
-**12. Review-routing hint check:** If tasks include review-routing hints,
+**12. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+
+**13. Review-routing hint check:** If tasks include review-routing hints,
 confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
@@ -587,6 +628,9 @@ scope, PASS/FAIL result, confidence notes, and specific gaps when present.
   over copied logic
 - Every "Documentation impact" item from the issue, design, or owning source
   artifact maps to at least one task in the plan
+- When the design includes a `## Hard Requirements` ledger, the plan includes a
+  `## Traceability Matrix`, and every hard requirement has explicit task
+  coverage, acceptance criteria, and proof coverage
 - Review-routing hints, when present, are non-authoritative inputs to
   `play-subagent-execution`
 - Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §

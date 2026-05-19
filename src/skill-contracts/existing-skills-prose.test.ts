@@ -24,6 +24,56 @@ function expectSharedLifecycleReference(section: string): void {
 }
 
 describe("existing skills source prose contracts", () => {
+  it("keeps design-to-plan requirement traceability contracts in source", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const playPlanning = await readSkillSource("play-planning");
+    const hardRequirements = getMarkdownSection(
+      playBrainstorm,
+      "Hard Requirements Ledger",
+    );
+    const traceability = getMarkdownSection(
+      playPlanning,
+      "Requirements Traceability",
+    );
+    const normalizedHardRequirements = normalizeWhitespace(hardRequirements);
+    const normalizedTraceability = normalizeWhitespace(traceability);
+
+    expect(hardRequirements).toContain("## Hard Requirements");
+    expect(normalizedHardRequirements).toContain(
+      "non-trivial executable designs when normative requirements must be preserved across planning",
+    );
+    expect(normalizedHardRequirements.toLowerCase()).toContain(
+      "trivial, mechanical, or requirement-light work",
+    );
+    expect(normalizedHardRequirements.toLowerCase()).toContain(
+      "the ledger, not incidental modal verbs in examples, quoted issue text, shell snippets, or explanatory prose, is the executable traceability contract",
+    );
+    expect(normalizedHardRequirements).toContain(
+      "| ID | Requirement | Source | Rationale |",
+    );
+    expect(normalizeWhitespace(playBrainstorm)).toContain(
+      "missing or ambiguous hard-requirements ledger",
+    );
+
+    expect(traceability).toContain("## Traceability Matrix");
+    expect(traceability).toContain(
+      "plans based on designs with hard requirements",
+    );
+    expect(normalizedTraceability).toContain(
+      "task coverage, acceptance criteria, and proof or verification obligation",
+    );
+    expect(normalizedTraceability).toContain(
+      "| Requirement | Task coverage | Acceptance criteria | Proof obligation |",
+    );
+    expect(normalizedTraceability).toContain("plan-review failures");
+    expect(normalizedTraceability).toContain(
+      "lacks explicit task coverage, acceptance criteria, or proof coverage",
+    );
+    expect(normalizedTraceability).toContain(
+      "docs/guidelines/writing-skills.md",
+    );
+  });
+
   it("keeps generated/reference coverage triggers owned by the skill writing guideline", async () => {
     const guideline = await readRepoFile("docs/guidelines/writing-skills.md");
     const coverageRule = getMarkdownSection(
