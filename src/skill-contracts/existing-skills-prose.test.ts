@@ -33,11 +33,11 @@ describe("existing skills source prose contracts", () => {
     expect(skillSource).toContain("consumer repo names, owners, orgs");
     expect(skillSource).toContain("Ask one question at a time");
     expect(skillSource).toContain(
-      "Never post an issue without showing the exact draft first",
+      "Never post an issue without showing the exact draft first and receiving explicit confirmation.",
     );
     expect(skillSource).toContain("MODE=draft");
     expect(skillSource).toContain(
-      "If GitHub access to `ryumiel/devcanon` is unavailable",
+      "If GitHub access to `ryumiel/devcanon` is unavailable, return `MODE=draft` and stop without attempting to post.",
     );
   });
 
