@@ -60,11 +60,14 @@ describe("rendered phase artifact smoke coverage", () => {
     for (const skillName of ["github-issue-priming", "linear-issue-priming"]) {
       const body = bodyFor(skillName);
       expect(body).toContain("issue-body-path");
+      expect(body).toContain("comment-evidence-path");
       expect(body).toContain("worktree-path");
     }
 
     const issuePrimingWorkflow = bodyFor("issue-priming-workflow");
     expect(issuePrimingWorkflow).toContain("Issue body:");
+    expect(issuePrimingWorkflow).toContain("Comment evidence:");
+    expect(issuePrimingWorkflow).toContain("comment-evidence-path");
     expect(issuePrimingWorkflow).toContain("Research brief:");
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
@@ -74,11 +77,13 @@ describe("rendered phase artifact smoke coverage", () => {
 
     const playBrainstorm = bodyFor("play-brainstorm");
     expect(playBrainstorm).toContain("Issue body:");
+    expect(playBrainstorm).toContain("Comment evidence:");
     expect(playBrainstorm).toContain("Research brief:");
     expect(playBrainstorm).toContain("Design written to");
 
     const playPlanning = bodyFor("play-planning");
     expect(playPlanning).toContain("Design:");
+    expect(playPlanning).toContain("Comment evidence:");
     expect(playPlanning).toContain("Plan written to");
 
     const playReview = bodyFor("play-review");
