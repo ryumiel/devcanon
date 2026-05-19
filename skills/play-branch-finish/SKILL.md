@@ -114,6 +114,81 @@ The file is a `play-review/findings/v1` envelope. This skill iterates every entr
 
 **Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
 
+**Optional pre-push autosquash checkpoint.** This checkpoint lives inside
+Option 2; do not add a fifth top-level option. Offer it only after tests pass,
+after the base branch is resolved, and before `git push`. Autosquash is
+opt-in, never the default, and requires exact affirmative approval to proceed.
+Declines, unclear answers, ineligible branches, or missing markers continue to
+the plain push/PR flow without autosquash.
+
+Before offering autosquash, inspect the local commit range against the resolved
+base branch:
+
+```bash
+git log --oneline <base-branch>..HEAD
+```
+
+Offer autosquash only when every commit to be rewritten is local to the feature
+branch, the range contains explicit `fixup!` or `squash!` markers, and the
+granular commits do not carry review/audit value. If commits preserve distinct
+review evidence, durable decisions, generated review-fix traceability, or any
+other useful audit context, skip autosquash.
+
+Refuse default autosquash for shared, already-pushed, open PR, reviewed, or
+otherwise non-local branches. Shared-branch rewrites are outside the default
+path unless the user separately gives explicit shared-branch rewrite approval;
+do not suggest force-push or force-with-lease as part of this autosquash
+checkpoint.
+
+Use this neutral prompt only when the branch is eligible:
+
+```text
+Optional: local autosquash is available before pushing this branch.
+
+This rewrites only local feature-branch commits and is not required.
+Proceed with autosquash? (yes/no)
+```
+
+Only `yes` proceeds. Any other response leaves the branch as-is and continues
+to push/PR creation. When approved, require a clean worktree, capture the
+pre-autosquash commit and tree, compute the merge-base for the resolved base,
+run autosquash noninteractively against that local commit range, and verify the
+post-autosquash tree is unchanged before push:
+
+```bash
+test -z "$(git status --porcelain)" || {
+  echo "worktree must be clean before autosquash" >&2
+  exit 1
+}
+AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)
+PRE_AUTOSQUASH_HEAD=$(git rev-parse HEAD)
+PRE_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
+AUTOSQUASH_NOOP_EDITOR='node -e "process.exit(0)"'
+if ! GIT_SEQUENCE_EDITOR="$AUTOSQUASH_NOOP_EDITOR" GIT_EDITOR="$AUTOSQUASH_NOOP_EDITOR" git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
+  echo "autosquash failed; run git rebase --abort before push" >&2
+  echo "if you resolve and continue instead, rerun the tree and marker checks before push" >&2
+  exit 1
+fi
+REMAINING_AUTOSQUASH_MARKERS=$(
+  git log --format=%s "$AUTOSQUASH_BASE"..HEAD | sed -n -e '/^fixup!/p' -e '/^squash!/p'
+)
+[ -z "$REMAINING_AUTOSQUASH_MARKERS" ] || {
+  git reset --hard "$PRE_AUTOSQUASH_HEAD"
+  echo "autosquash could not match all markers in the local range; branch restored, stop before push" >&2
+  exit 1
+}
+POST_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
+[ "$POST_AUTOSQUASH_TREE" = "$PRE_AUTOSQUASH_TREE" ] || {
+  git reset --hard "$PRE_AUTOSQUASH_HEAD"
+  echo "post-autosquash tree changed; branch restored, stop before push" >&2
+  exit 1
+}
+```
+
+The PR title and description remain final-state oriented. Do not add
+commit-history narration, autosquash chronology, review-history notes, or
+originally/now wording to the PR body.
+
 ```bash
 # Push branch
 git push -u origin <feature-branch>

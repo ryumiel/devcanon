@@ -1,10 +1,26 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import {
   getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
+
+const execFileAsync = promisify(execFile);
+
+function quoteShellArg(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function nodeNoopCommand(): string {
+  return `${quoteShellArg(process.execPath)} -e "process.exit(0)"`;
+}
 
 function sliceBetween(content: string, start: string, end: string): string {
   const startIndex = content.indexOf(start);
@@ -21,6 +37,51 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("target-honest cleanup outcomes");
   expect(section).toContain("slot-limit");
   expect(section).toContain("recovery");
+}
+
+async function git(args: string[], cwd: string): Promise<void> {
+  await execFileAsync("git", args, { cwd });
+}
+
+type AutosquashFixtureOptions = {
+  initDefaultBranch?: string;
+  squashSubject?: string;
+};
+
+async function createAutosquashFixture({
+  initDefaultBranch,
+  squashSubject = "squash! feat: update note",
+}: AutosquashFixtureOptions = {}): Promise<string> {
+  const repoDir = await mkdtemp(path.join(tmpdir(), "devcanon-autosquash-"));
+
+  const initArgs = initDefaultBranch
+    ? ["-c", `init.defaultBranch=${initDefaultBranch}`, "init", "-q"]
+    : ["init", "-q"];
+
+  await git(initArgs, repoDir);
+  await git(["checkout", "-q", "-B", "main"], repoDir);
+  await git(["config", "user.name", "DevCanon Test"], repoDir);
+  await git(["config", "user.email", "devcanon@example.test"], repoDir);
+  await git(["config", "commit.gpgSign", "false"], repoDir);
+
+  await writeFile(path.join(repoDir, "note.txt"), "base\n", "utf-8");
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", "feat: base"], repoDir);
+
+  await git(["checkout", "-q", "-b", "feature/autosquash"], repoDir);
+  await writeFile(path.join(repoDir, "note.txt"), "base\nfeature\n", "utf-8");
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", "feat: update note"], repoDir);
+
+  await writeFile(
+    path.join(repoDir, "note.txt"),
+    "base\nfeature\nsquash follow-up\n",
+    "utf-8",
+  );
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", squashSubject], repoDir);
+
+  return repoDir;
 }
 
 describe("existing skills source prose contracts", () => {
@@ -371,6 +432,202 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedCleanupSection).not.toContain(
       "Report the merge to the user with the PR URL. Done.",
     );
+  });
+
+  it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+
+    expect(skillSource).toContain("Present exactly these 4 options");
+    expect(normalizedOption2).toContain(
+      "Optional pre-push autosquash checkpoint",
+    );
+    expect(normalizedOption2).toMatch(
+      /after tests pass.*base branch.*resolved.*before.*git push/i,
+    );
+    expect(normalizedOption2).toContain(
+      "git log --oneline <base-branch>..HEAD",
+    );
+    expect(normalizedOption2).toContain("fixup!");
+    expect(normalizedOption2).toContain("squash!");
+    expect(normalizedOption2).toMatch(
+      /opt-in.*never.*default.*exact affirmative/i,
+    );
+    expect(normalizedOption2).toContain(
+      "This rewrites only local feature-branch commits and is not required.",
+    );
+    expect(normalizedOption2).toContain(
+      "AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)",
+    );
+    expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
+    expect(normalizedOption2).toContain('test -z "$(git status --porcelain)"');
+    expect(normalizedOption2).toContain(
+      "AUTOSQUASH_NOOP_EDITOR='node -e \"process.exit(0)\"'",
+    );
+    expect(normalizedOption2).toContain(
+      'GIT_SEQUENCE_EDITOR="$AUTOSQUASH_NOOP_EDITOR" GIT_EDITOR="$AUTOSQUASH_NOOP_EDITOR" git rebase -i --autosquash "$AUTOSQUASH_BASE"',
+    );
+    expect(normalizedOption2).not.toContain("GIT_SEQUENCE_EDITOR=:");
+    expect(normalizedOption2).toContain("git rebase --abort");
+    expect(normalizedOption2).toContain(
+      'git reset --hard "$PRE_AUTOSQUASH_HEAD"',
+    );
+    expect(normalizedOption2).toContain("REMAINING_AUTOSQUASH_MARKERS=");
+    expect(normalizedOption2).toContain(
+      'git log --format=%s "$AUTOSQUASH_BASE"..HEAD',
+    );
+    expect(normalizedOption2).toContain(
+      "sed -n -e '/^fixup!/p' -e '/^squash!/p'",
+    );
+    expect(normalizedOption2).toMatch(/fixup!.*squash!|squash!.*fixup!/i);
+    expect(normalizedOption2).toMatch(
+      /post-autosquash tree.*unchanged.*before push/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /shared.*already-pushed.*open PR.*reviewed.*non-local/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /separate.*explicit shared-branch rewrite approval/i,
+    );
+    expect(normalizedOption2).toMatch(/granular.*review\/audit value.*skip/i);
+    expect(normalizedOption2).toMatch(
+      /PR (title and description|body).*final-state oriented/i,
+    );
+    expect(normalizedOption2).toContain("commit-history narration");
+
+    expect(normalizedOption2).not.toMatch(
+      /autosquash[^.]{0,80}(reduces?|improves?)[^.]{0,80}branch-review/i,
+    );
+    expect(normalizedOption2).not.toMatch(
+      /branch-review[^.]{0,80}(cost|efficiency)/i,
+    );
+
+    expect(redFlags).toMatch(/autosquash/i);
+    expect(redFlags).toMatch(/shared|already-pushed|open PR|reviewed/i);
+    expect(redFlags).toMatch(/audit/i);
+    expect(commonMistakes).toMatch(/autosquash/i);
+    expect(commonMistakes).toMatch(/unchanged tree|tree.*unchanged/i);
+    expect(commonMistakes).toMatch(/commit-history narration/i);
+  });
+
+  it("keeps the documented autosquash command noninteractive for squash markers", async () => {
+    const repoDir = await createAutosquashFixture();
+    const editorCommand = nodeNoopCommand();
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+      const { stdout: preTree } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD^{tree}"],
+        { cwd: repoDir },
+      );
+
+      await execFileAsync(
+        "git",
+        ["rebase", "-i", "--autosquash", mergeBase.trim()],
+        {
+          cwd: repoDir,
+          env: {
+            ...process.env,
+            GIT_SEQUENCE_EDITOR: editorCommand,
+            GIT_EDITOR: editorCommand,
+          },
+        },
+      );
+
+      const { stdout: postTree } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD^{tree}"],
+        { cwd: repoDir },
+      );
+      const { stdout: log } = await execFileAsync(
+        "git",
+        ["log", "--oneline", "main..HEAD"],
+        { cwd: repoDir },
+      );
+
+      expect(postTree.trim()).toBe(preTree.trim());
+      expect(log).not.toContain("squash!");
+      expect(log.trim().split("\n")).toHaveLength(1);
+    } finally {
+      await cleanupTempDir(repoDir);
+    }
+  });
+
+  it("keeps unmatched autosquash markers detectable after rebase", async () => {
+    const repoDir = await createAutosquashFixture({
+      squashSubject: "squash! feat: base",
+    });
+    const editorCommand = nodeNoopCommand();
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+
+      await execFileAsync(
+        "git",
+        ["rebase", "-i", "--autosquash", mergeBase.trim()],
+        {
+          cwd: repoDir,
+          env: {
+            ...process.env,
+            GIT_SEQUENCE_EDITOR: editorCommand,
+            GIT_EDITOR: editorCommand,
+          },
+        },
+      );
+
+      const { stdout: remainingMarkers } = await execFileAsync(
+        "git",
+        ["log", "--format=%s", `${mergeBase.trim()}..HEAD`],
+        { cwd: repoDir },
+      );
+
+      expect(remainingMarkers).toContain("squash! feat: base");
+    } finally {
+      await cleanupTempDir(repoDir);
+    }
+  });
+
+  it("keeps the autosquash fixture stable when git init defaults to main", async () => {
+    const repoDir = await createAutosquashFixture({
+      initDefaultBranch: "main",
+    });
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+      const { stdout: log } = await execFileAsync(
+        "git",
+        ["log", "--oneline", `${mergeBase.trim()}..HEAD`],
+        { cwd: repoDir },
+      );
+
+      expect(log.trim().split("\n")).toHaveLength(2);
+    } finally {
+      await cleanupTempDir(repoDir);
+    }
   });
 
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
