@@ -1,6 +1,7 @@
 import { cp, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
+import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -8,6 +9,7 @@ import type {
   RenderedOutput,
   RenderedSkill,
 } from "../models/types.js";
+import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import { loadAndValidateSkills } from "../validate/skills.js";
@@ -26,6 +28,7 @@ export interface RenderLoadedOptions {
   skills: LoadedSkill[];
   agents: LoadedAgent[];
   writeToGenerated?: boolean;
+  cleanStaleGenerated?: boolean;
   targetFilter?: "claude" | "codex";
 }
 
@@ -46,6 +49,7 @@ export async function renderAll(
     skills,
     agents,
     writeToGenerated,
+    cleanStaleGenerated: writeToGenerated,
     targetFilter,
   });
 }
@@ -54,9 +58,12 @@ export async function renderLoaded({
   config,
   skills,
   agents,
-  writeToGenerated = true,
+  writeToGenerated = false,
+  cleanStaleGenerated = false,
   targetFilter,
 }: RenderLoadedOptions): Promise<RenderResult> {
+  validateLoadedInputs(skills, agents);
+
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
   const targets = ["claude", "codex"] as const;
@@ -83,6 +90,8 @@ export async function renderLoaded({
         target,
         config,
       );
+      assertRenderedOutputPath(config, rendered);
+
       outputs.push(rendered);
 
       if (writeToGenerated) {
@@ -98,6 +107,11 @@ export async function renderLoaded({
           rendered.content,
         );
         for (const [filePath, fileContent] of extraFiles) {
+          assertPathInside(
+            rendered.generatedPath,
+            filePath,
+            `Skill "${skill.name}" extra generated file`,
+          );
           await ensureDir(path.dirname(filePath));
           await writeTextFile(filePath, fileContent);
         }
@@ -116,12 +130,15 @@ export async function renderLoaded({
   // Write agent outputs to generated/ directory
   if (writeToGenerated) {
     for (const output of outputs) {
+      assertRenderedOutputPath(config, output);
       if (output.type === "agent") {
         await ensureDir(path.dirname(output.generatedPath));
         await writeTextFile(output.generatedPath, output.content);
       }
     }
+  }
 
+  if (writeToGenerated && cleanStaleGenerated) {
     // Remove stale generated files that no longer have corresponding sources
     const currentGeneratedPaths = new Set(
       outputs
@@ -184,4 +201,82 @@ export async function renderLoaded({
   }
 
   return { outputs, skills, agents };
+}
+
+function validateLoadedInputs(
+  skills: readonly LoadedSkill[],
+  agents: readonly LoadedAgent[],
+): void {
+  const skillNames = new Set<string>();
+  for (const skill of skills) {
+    const result = SkillSourceSchema.safeParse(skill.source);
+    if (!result.success || skill.name !== skill.source.name) {
+      throw new UserError(`Loaded skill "${skill.name}" is not validated.`);
+    }
+    if (skillNames.has(skill.name)) {
+      throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
+    }
+    skillNames.add(skill.name);
+    for (const subdir of skill.subdirs) {
+      if (!["assets", "examples", "references", "scripts"].includes(subdir)) {
+        throw new UserError(
+          `Loaded skill "${skill.name}" has invalid mirrored subdir "${subdir}".`,
+        );
+      }
+    }
+  }
+
+  const agentNames = new Set<string>();
+  for (const agent of agents) {
+    const result = AgentSourceSchema.safeParse(agent.source);
+    if (!result.success || agent.name !== agent.source.name) {
+      throw new UserError(`Loaded agent "${agent.name}" is not validated.`);
+    }
+    if (agentNames.has(agent.name)) {
+      throw new UserError(`Loaded agent "${agent.name}" is duplicated.`);
+    }
+    agentNames.add(agent.name);
+    for (const skillRef of agent.source.skills) {
+      if (!skillNames.has(skillRef)) {
+        throw new UserError(
+          `Loaded agent "${agent.name}" references unknown skill "${skillRef}".`,
+        );
+      }
+    }
+  }
+}
+
+function assertRenderedOutputPath(
+  config: ResolvedConfig,
+  output: RenderedOutput,
+): void {
+  const root = path.join(
+    config.library.generatedDir,
+    output.target,
+    output.type === "agent" ? "agents" : "skills",
+  );
+  assertPathInside(
+    root,
+    output.generatedPath,
+    `${output.type} "${output.name}"`,
+  );
+}
+
+function assertPathInside(
+  root: string,
+  candidate: string,
+  label: string,
+): void {
+  const resolvedRoot = path.resolve(root);
+  const resolvedCandidate = path.resolve(candidate);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative)
+  ) {
+    throw new UserError(
+      `${label} generated path escapes generated output root: ${candidate}`,
+    );
+  }
 }

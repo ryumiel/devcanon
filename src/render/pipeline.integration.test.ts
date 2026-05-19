@@ -952,6 +952,8 @@ describe("renderLoaded", () => {
         modelTiers: config.modelTiers,
       },
     );
+    await rm(config.library.skillsDir, { recursive: true, force: true });
+    await rm(config.library.agentsDir, { recursive: true, force: true });
 
     const result = await renderLoaded({
       config,
@@ -1016,6 +1018,83 @@ describe("renderLoaded", () => {
     });
 
     expect(result.outputs).toHaveLength(4);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("does not remove unrelated generated outputs for partial loaded input", async () => {
+    await createSkillFixture(config.library.skillsDir, "kept-skill");
+    await createSkillFixture(config.library.skillsDir, "omitted-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "kept-agent",
+      makeAgentYaml("kept-agent", { skills: ["kept-skill"] }),
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      "omitted-agent",
+      makeAgentYaml("omitted-agent", { skills: ["omitted-skill"] }),
+    );
+
+    const fullRender = await renderAll(config, true, false, "codex");
+    const omittedPaths = fullRender.outputs
+      .filter((output) => output.name.startsWith("omitted-"))
+      .map((output) =>
+        output.type === "skill"
+          ? path.join(output.generatedPath, "SKILL.md")
+          : output.generatedPath,
+      );
+    for (const omittedPath of omittedPaths) {
+      expect(await pathExists(omittedPath)).toBe(true);
+    }
+
+    const loadedSkills = await loadAndValidateSkills(config.library.skillsDir);
+    const loadedAgents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      loadedSkills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+    const skills = loadedSkills.filter((skill) => skill.name === "kept-skill");
+    const agents = loadedAgents.filter((agent) => agent.name === "kept-agent");
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: true,
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs.map((output) => output.name).sort()).toEqual([
+      "kept-agent",
+      "kept-skill",
+    ]);
+    for (const omittedPath of omittedPaths) {
+      expect(await pathExists(omittedPath)).toBe(true);
+    }
+  });
+
+  it("rejects unvalidated loaded inputs before writing generated output", async () => {
+    await createSkillFixture(config.library.skillsDir, "safe-skill");
+    const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [
+          {
+            ...skill,
+            name: "../escape",
+            source: { ...skill.source, name: "../escape" },
+          },
+        ],
+        agents: [],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
     expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 });
