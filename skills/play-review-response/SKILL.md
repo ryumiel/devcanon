@@ -113,6 +113,47 @@ FOR multi-item feedback:
      - Complex fixes (refactoring, logic)
   3. Test each fix individually
   4. Verify no regressions
+  5. After verification, commit review-response work:
+     - If this is an already-pushed or reviewed PR branch, use a follow-up commit and plain push
+     - If the branch has not been pushed or reviewed, local cleanup is allowed
+```
+
+## PR Branch Commit Continuity
+
+Preserve review continuity. Once a PR branch has already been pushed or review
+has started, use normal follow-up commits and a plain push by default.
+
+Pre-push local cleanup is allowed. Before a branch is pushed or reviewed, you
+may amend, squash, rebase, or otherwise clean local history according to the
+repo's normal workflow.
+
+For an already-pushed or reviewed PR branch:
+
+- Use normal follow-up commits for review-response fixes.
+- Use a plain push after verification.
+- Do not amend already-pushed commits by default.
+- Do not force-push by default.
+- Amend or force-push only when the user explicitly asks for cleanup/squash, or
+  when the repository workflow explicitly requires rewritten history.
+
+Why: reviewers need stable history and review continuity. Rewriting a reviewed
+branch can hide what changed since the last review, invalidate comment context,
+or make incremental review harder.
+
+Examples:
+
+```text
+Acceptable pre-push cleanup:
+  You fix local review nits before opening or updating a PR for the first time.
+  You amend the local commit, then push the cleaned branch.
+
+Incorrect post-review rewrite:
+  A reviewer comments on an already-pushed PR branch.
+  You fix it with `git commit --amend` and `git push --force`.
+
+Correct post-review response:
+  A reviewer comments on an already-pushed PR branch.
+  You fix it with a follow-up commit and `git push`.
 ```
 
 ## When To Push Back
@@ -216,6 +257,11 @@ You understand 1,2,3,6. Unclear on 4,5.
 ## GitHub Thread Replies
 
 When replying to inline review comments on GitHub, reply in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
+
+Reference the follow-up commit or fix in that reply while preserving the
+existing thread context. Do not resolve continuity by replacing reviewed history
+unless the user explicitly asked for that cleanup or the repository workflow
+requires rewritten history.
 
 ## The Bottom Line
 

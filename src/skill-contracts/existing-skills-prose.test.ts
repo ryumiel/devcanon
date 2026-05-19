@@ -219,6 +219,57 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps review-response commit continuity policy in source", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const implementationOrderIndex = skillSource.indexOf(
+      "## Implementation Order",
+    );
+    const commitPolicyIndex = skillSource.indexOf(
+      "## PR Branch Commit Continuity",
+    );
+    const pushBackIndex = skillSource.indexOf("## When To Push Back");
+
+    expect(implementationOrderIndex).toBeGreaterThanOrEqual(0);
+    expect(commitPolicyIndex).toBeGreaterThan(implementationOrderIndex);
+    expect(pushBackIndex).toBeGreaterThan(commitPolicyIndex);
+
+    const implementationOrder = getMarkdownSection(
+      skillSource,
+      "Implementation Order",
+    );
+    const commitPolicy = getMarkdownSection(
+      skillSource,
+      "PR Branch Commit Continuity",
+    );
+    const normalizedCommitPolicy = normalizeWhitespace(commitPolicy);
+    const githubReplies = getMarkdownSection(
+      skillSource,
+      "GitHub Thread Replies",
+    );
+    const normalizedGithubReplies = normalizeWhitespace(githubReplies);
+
+    expect(normalizeWhitespace(implementationOrder)).toMatch(
+      /verification.*already-pushed or reviewed PR branch.*follow-up commit.*plain push/,
+    );
+
+    expect(normalizedCommitPolicy).toMatch(
+      /pushed.*review.*follow-up commit.*plain push/i,
+    );
+    expect(normalizedCommitPolicy).toMatch(/do not amend.*do not force-push/i);
+    expect(normalizedCommitPolicy).toMatch(
+      /user explicitly asks.*repository workflow/i,
+    );
+    expect(normalizedCommitPolicy).toMatch(/pre-push.*cleanup.*allowed/i);
+    expect(normalizedCommitPolicy).toMatch(
+      /```text.*pre-push.*amend.*post-review.*force.*post-review.*follow-up commit.*```/i,
+    );
+    expect(normalizedCommitPolicy).toContain("review continuity");
+
+    expect(normalizedGithubReplies).toMatch(/comment thread/i);
+    expect(normalizedGithubReplies).toMatch(/follow-up commit or fix/i);
+    expect(normalizedGithubReplies).toMatch(/thread context/i);
+  });
+
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
