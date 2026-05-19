@@ -112,11 +112,11 @@ Run with `HEAD_SHA` set to the trusted `head_sha` input:
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-cd "$WORKING_DIRECTORY"
+cd "$WORKING_DIRECTORY" || exit 1
 FINDINGS_FILE=$(
   HEAD_SHA="$HEAD_SHA" \
-    bash "$PLAY_REVIEW_HELPER" prepare-findings-write
-)
+    bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
+) || exit 1
 ```
 
 The helper enforces repository-root execution, validates the 40-hex `HEAD_SHA`,
@@ -135,7 +135,7 @@ PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA" \
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 ```
 
 The helper recomputes the deterministic path from trusted inputs, compares it
