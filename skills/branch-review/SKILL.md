@@ -244,18 +244,20 @@ After the human-readable findings, surface `play-review`'s `Findings written to 
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
-Before the per-fix-unit auto-fix loop, run a same-invariant grouping pass over
-blocking findings verified by the critic (i.e., not `Critic: INVALID` or
-`DOWNGRADE`). Inspect the eligible blockers for a shared root invariant using
-only the existing finding text, evidence, anchors, classifications, and active
-diff context. This is controller planning only: it does not add or require
-fields in the `play-review/findings/v1` envelope, and individual finding
-anchors and classifications remain authoritative for classification, reporting,
-and stop-rule evaluation.
+Before the per-fix-unit auto-fix loop, filter blocking findings tagged
+`Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility; note them in the
+report but do not group, iterate, auto-fix, or halt on them. Then run a
+same-invariant grouping pass over the remaining blocking findings verified by
+the critic. Inspect the eligible blockers for a shared root invariant using only
+the existing finding text, evidence, anchors, classifications, and active diff
+context. This is controller planning only: it does not add or require fields in
+the `play-review/findings/v1` envelope, and individual finding anchors and
+classifications remain authoritative for classification, reporting, and
+stop-rule evaluation.
 
-When multiple blocking findings share one invariant, name that shared root
-invariant in the report, scan adjacent same-invariant surfaces in the active
-diff before editing, and form one cohesive bounded grouped blocker set.
+When multiple blocking findings have the same shared root invariant, name that
+shared root invariant in the report, scan adjacent same-invariant surfaces in
+the active diff before editing, and form one cohesive bounded grouped blocker set.
 Grouping never expands auto-fix authorization: a grouped fix may proceed only
 when every included finding independently passes the existing stop-rule checks
 below. Edits may include adjacent same-invariant active-diff surfaces identified
@@ -277,13 +279,11 @@ process grouped members as individual findings. For each unit:
      `Blocking | Safety` from Correctness Sub-check 1 (substitution audit) or
      `Blocking | Contracts` from Correctness Sub-check 2
      (documented-behavior verification), or
-   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the flagged lines.
+   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit.
 
    Halting here is a contract with the caller: `issue-priming-workflow --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
 
 2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually.
-
-Skip blocking findings tagged `Critic: INVALID` or `DOWNGRADE` — the critic disagrees with the agent. Note them in the report but do not auto-fix and do not halt.
 
 Nit findings are never auto-fixed. Collect them for the report (including any with `Anchor: out-of-diff`).
 

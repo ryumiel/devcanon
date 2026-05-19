@@ -315,7 +315,13 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("adjacent same-invariant surfaces");
     expect(normalizedBranchReview).toContain("shared root invariant");
     expect(normalizedBranchReview).toContain(
-      "over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`)",
+      "filter blocking findings tagged `Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility",
+    );
+    expect(normalizedBranchReview).toContain(
+      "do not group, iterate, auto-fix, or halt on them",
+    );
+    expect(normalizedBranchReview).toContain(
+      "over the remaining blocking findings verified by the critic",
     );
     expect(normalizedBranchReview).toContain(
       "Before the per-fix-unit auto-fix loop",
@@ -325,6 +331,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "name that shared root invariant in the report",
+    );
+    expect(normalizedBranchReview).toContain(
+      "have the same shared root invariant",
     );
     expect(normalizedBranchReview).toContain(
       "scan adjacent same-invariant surfaces in the active diff before editing",
@@ -364,6 +373,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "Do not also process grouped members as individual findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit",
     );
     expect(normalizedBranchReview).toContain(
       "every included finding counts as auto-fixed",
