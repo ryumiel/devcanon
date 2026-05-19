@@ -162,13 +162,14 @@ placeholder with `(none)`.
 | New module or public API | Issue describes adding a component, crate, or public interface that doesn't exist yet            |
 | No covering ADR          | Scan of `docs/adr/` finds no existing decision covering this domain                              |
 | Conflicting guidelines   | Existing policies or ADRs pull in different directions for this issue                            |
-| Explicit request         | Issue description contains "brainstorm", "design decision", or "choose between"                  |
+| Explicit request         | Issue body or comment evidence contains "brainstorm", "design decision", or "choose between"     |
 
 **Skip research if ALL of:**
 
 - Single-module, single-file change
 - Clear precedent exists in the codebase
 - Covering ADR or guideline prescribes the approach
+- No present comment evidence introduces ambiguity, risk, or a design choice
 
 ## Phase 3: Research (Conditional)
 

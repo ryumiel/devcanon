@@ -41,12 +41,19 @@ describe("phase artifact source contracts", () => {
   it("keeps issue body and worktree path-safety contracts in source skills", async () => {
     for (const skillName of ["github-issue-priming", "linear-issue-priming"]) {
       const skillSource = await readSkillSource(skillName);
+      const normalizedSkillSource = normalizeWhitespace(skillSource);
 
       expect(skillSource).toContain("worktree path must be absolute");
       expect(skillSource).toContain("nested issue body path rejected");
       expect(skillSource).toContain("comment-evidence-path");
       expect(skillSource).toContain("nested comment evidence path rejected");
       expect(skillSource).toContain(".ephemeral/*-comment-evidence.md");
+      expect(skillSource).toContain(
+        "rationale, constraints, scope changes, examples, implementation",
+      );
+      expect(normalizedSkillSource).toContain(
+        "must include author, timestamp, source URL or permalink",
+      );
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
       );
@@ -98,6 +105,17 @@ describe("phase artifact source contracts", () => {
 
     expect(issuePrimingWorkflow).toContain("worktree path must be absolute");
     expect(issuePrimingWorkflow).toContain('cd "$WORKTREE_PATH" ||');
+    expect(issuePrimingWorkflow).toContain(
+      "Issue body or comment evidence contains",
+    );
+
+    const gatePrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/gate-agent-prompt.md",
+    );
+    expect(gatePrompt).toContain("Issue body or comment evidence contains");
+    expect(gatePrompt).toContain(
+      "No present comment evidence introduces ambiguity, risk, or a design choice",
+    );
   });
 
   it("keeps immutable review-head findings validation handoffs in source skills", async () => {

@@ -51,12 +51,14 @@ Agent(
     - Issue adds a new component, crate, or public interface
     - No ADR in `docs/adr/` covers this domain
     - Existing policies/ADRs conflict for this issue
-    - Issue body contains "brainstorm", "design decision", or "choose between"
+    - Issue body or comment evidence contains "brainstorm", "design decision",
+      or "choose between"
 
     Return `SKIP_RESEARCH` if ALL of:
     - Single-module, single-file change
     - Clear precedent exists in the codebase
     - A covering ADR or guideline prescribes the approach
+    - No present comment evidence introduces ambiguity, risk, or a design choice
 
     ## Output Format
 
