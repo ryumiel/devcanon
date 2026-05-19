@@ -1,8 +1,9 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
-import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
@@ -45,16 +46,14 @@ const sliceRenderedSection = (
 
 describe("rendered phase artifact smoke coverage", () => {
   let bodies: RenderedBodies;
-  let generatedDir: string;
 
   beforeAll(async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
     );
-    generatedDir = config.library.generatedDir;
 
-    const { outputs } = await renderAll(config, true);
+    const { outputs } = await renderAll(config, false);
     bodies = {};
 
     for (const skillName of PHASE_ARTIFACT_SKILLS) {
@@ -351,17 +350,48 @@ describe("rendered phase artifact smoke coverage", () => {
   });
 
   it("mirrors the play-review helper script required by rendered Phase 7 and Phase 8 contracts", async () => {
-    for (const target of ["claude", "codex"] as const) {
-      const helperPath = path.join(
-        generatedDir,
-        target,
-        "skills",
-        "play-review",
-        "scripts",
-        "review-artifacts.sh",
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+      const sourceHelper = await readFile(
+        path.join(
+          repoRoot,
+          "skills",
+          "play-review",
+          "scripts",
+          "review-artifacts.sh",
+        ),
+        "utf-8",
       );
 
-      expect(await pathExists(helperPath)).toBe(true);
+      for (const target of ["claude", "codex"] as const) {
+        const helperPath = path.join(
+          generatedDir,
+          target,
+          "skills",
+          "play-review",
+          "scripts",
+          "review-artifacts.sh",
+        );
+
+        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
