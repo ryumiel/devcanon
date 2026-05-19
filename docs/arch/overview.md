@@ -58,7 +58,8 @@ The render module exposes two orchestration levels:
   agent source definitions, does not write generated output by default, and
   does not perform stale generated-output cleanup. When writing skills with
   mirrored subdirectories, it still reads those subdirectories from
-  `LoadedSkill.dirPath`.
+  `LoadedSkill.dirPath`. Agent-only or skill-omitting partial renders must pass
+  `validatedSkills` with the full already-validated skill reference universe.
 
 Generated-output cleanup is a full-library operation. Partial loaded-input
 renders may write the supplied outputs when explicitly requested, but omitted

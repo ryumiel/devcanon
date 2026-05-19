@@ -1,3 +1,4 @@
+import { lstatSync } from "node:fs";
 import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
@@ -342,6 +343,10 @@ function validateLoadedSkill(
         `Loaded skill "${skill.name}" has invalid mirrored subdir "${subdir}".`,
       );
     }
+    assertExistingDirectory(
+      path.join(skill.dirPath, subdir),
+      `Loaded skill "${skill.name}" mirrored subdir "${subdir}"`,
+    );
   }
 }
 
@@ -357,6 +362,7 @@ function assertDirectNamedPathInside(
       `${label} must resolve to "${path.join(root, expectedLeaf)}": ${candidate}`,
     );
   }
+  assertExistingDirectory(candidate, label);
 }
 
 function assertDirectYamlPathInside(
@@ -373,6 +379,7 @@ function assertDirectYamlPathInside(
       `${label} must be a direct .yaml child of "${root}": ${candidate}`,
     );
   }
+  assertExistingFile(candidate, label);
 }
 
 async function assertNoSymlinkPathComponents(
@@ -384,12 +391,27 @@ async function assertNoSymlinkPathComponents(
 
   const resolvedRoot = path.resolve(root);
   const resolvedCandidate = path.resolve(candidate);
-  const relative = path.relative(resolvedRoot, resolvedCandidate);
-  const parts = relative.split(path.sep).filter(Boolean);
   let current = resolvedRoot;
 
-  for (const part of ["", ...parts]) {
-    if (part !== "") current = path.join(current, part);
+  while (true) {
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink()) {
+        throw new UserError(`${label} crosses symlinked path: ${current}`);
+      }
+      break;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") throw err;
+      const parent = path.dirname(current);
+      if (parent === current) return;
+      current = parent;
+    }
+  }
+
+  const parts = path.relative(current, resolvedCandidate).split(path.sep);
+  for (const part of parts.filter(Boolean)) {
+    current = path.join(current, part);
     try {
       const stat = await lstat(current);
       if (stat.isSymbolicLink()) {
@@ -421,10 +443,39 @@ function deepEqual(a: unknown, b: unknown): boolean {
   }
   const aRecord = a as Record<string, unknown>;
   const bRecord = b as Record<string, unknown>;
-  const aKeys = Object.keys(aRecord);
-  const bKeys = Object.keys(bRecord);
+  const aKeys = Object.keys(aRecord).sort();
+  const bKeys = Object.keys(bRecord).sort();
   if (aKeys.length !== bKeys.length) return false;
+  for (const [index, key] of aKeys.entries()) {
+    if (key !== bKeys[index]) return false;
+  }
   return aKeys.every((key) => deepEqual(aRecord[key], bRecord[key]));
+}
+
+function assertExistingDirectory(candidate: string, label: string): void {
+  const stat = lstatExisting(candidate, label);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new UserError(`${label} must be a real directory: ${candidate}`);
+  }
+}
+
+function assertExistingFile(candidate: string, label: string): void {
+  const stat = lstatExisting(candidate, label);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new UserError(`${label} must be a real file: ${candidate}`);
+  }
+}
+
+function lstatExisting(candidate: string, label: string) {
+  try {
+    return lstatSync(candidate);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      throw new UserError(`${label} does not exist: ${candidate}`);
+    }
+    throw err;
+  }
 }
 
 function assertRenderedOutputPath(
