@@ -17,6 +17,85 @@ function sliceBetween(content: string, start: string, end: string): string {
 }
 
 describe("play subagent routing source contracts", () => {
+  it("keeps planning contract-checklist and review-routing rules in source", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const contractChecklist = getMarkdownSection(
+      playPlanning,
+      "Contract Checklist Triggers",
+    );
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+
+    expect(normalizedContractChecklist).toContain(
+      "Blank fields, unreplaced placeholders, and unexplained `N/A` entries are plan-review failures",
+    );
+    expect(contractChecklist).toContain(
+      "must not prescribe concrete code, test bodies, helper names, shell recipes",
+    );
+    expect(contractChecklist).toContain(
+      "line-number edits, or command sequences",
+    );
+    expect(contractChecklist).toContain("already-approved verbatim artifact");
+    expect(contractChecklist).toContain("Trigger criteria");
+    expect(contractChecklist).toContain("Owner / authority");
+    expect(contractChecklist).toContain(
+      "Affected consumers / generated outputs",
+    );
+    expect(contractChecklist).toContain("Must preserve");
+    expect(contractChecklist).toContain("Required behavior");
+
+    expect(planReview).toContain(
+      "Review-routing hints, when present, are non-authoritative inputs",
+    );
+    expect(planReview).toContain(
+      "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md`",
+    );
+    expect(planReview).toContain(
+      "Risk-Based Per-Task Review Routing are not under-classified",
+    );
+    expect(planReview).toContain(
+      "Unclear review classification defaults to `spec-and-quality`",
+    );
+    expect(planReview).toContain(
+      "Foundation-producing tasks are not marked below `spec-only`",
+    );
+    expect(normalizedPlanReview).toContain(
+      "Hint field ordering is heading, optional `**Mode:** mechanical`, optional review-routing hint fields, then `**Files:**`",
+    );
+  });
+
+  it("keeps executor-owned review route computation in source", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const routing = getMarkdownSection(
+      skillSource,
+      "Risk-Based Per-Task Review Routing",
+    );
+    const normalizedRouting = normalizeWhitespace(routing);
+
+    expect(normalizedRouting).toContain(
+      "Route computation MUST inspect the actual task diff using the captured task base/head SHAs",
+    );
+    expect(routing).toContain(
+      "git diff --name-status --no-renames\nBASE_SHA..HEAD",
+    );
+    expect(routing).toContain("not only the plan text or hints");
+    expect(routing).toContain("fail closed to `spec-and-quality`");
+    expect(routing).toContain(
+      "`play-subagent-execution` owns reviewer dispatch",
+    );
+    expect(routing).toContain("`none-final-only`");
+    expect(routing).toContain(
+      "Hard-risk, unclear, malformed, conflicting, or untrusted classifications",
+    );
+    expect(normalizedRouting).toContain(
+      "If post-implementation diff inspection cannot verify that no hard-risk trigger is present, use `spec-and-quality`",
+    );
+    expect(routing).toContain("Hard-risk triggers force `spec-and-quality`");
+    expect(routing).toContain("reviewer-routing policy");
+    expect(routing).toContain("test harness or validation behavior changes");
+  });
+
   it("keeps subagent-lifecycle owner policy in the source skill", async () => {
     const skillSource = await readSkillSource("subagent-lifecycle");
     const normalizedSkillSource = normalizeWhitespace(skillSource);
