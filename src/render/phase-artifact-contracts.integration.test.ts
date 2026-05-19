@@ -113,6 +113,7 @@ describe("rendered phase artifact smoke coverage", () => {
   it("keeps rendered branch-review and play-review follow-up contract surfaces", () => {
     for (const target of ["claude", "codex"] as const) {
       const branchReview = bodies[`branch-review:${target}`];
+      const normalizedBranchReview = normalizeRenderedWhitespace(branchReview);
 
       expect(branchReview).toContain("--last-reviewed");
       expect(branchReview).toContain("--prior-findings");
@@ -120,17 +121,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("--prior-findings requires a path");
       expect(branchReview).toContain("unknown branch-review argument");
       expect(branchReview).toContain("multiple base arguments supplied");
-      expect(branchReview).toContain(
-        "--last-reviewed and --prior-findings must be supplied together",
-      );
-      expect(branchReview).toContain(
+      expect(branchReview).toContain("prepare-review-inputs.sh");
+      expect(branchReview).toContain("PREPARE_INPUTS_HELPER");
+      expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
+      expect(branchReview).toContain("supplying only one follow-up argument");
+      expect(normalizedBranchReview).toContain(
         "--prior-findings review head must match --last-reviewed",
-      );
-      expect(branchReview).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
-      );
-      expect(branchReview).toContain(
-        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
       );
       expect(branchReview).toContain("candidate_active_diff_range");
       expect(branchReview).toContain("ACTIVE_DIFF_RANGE");

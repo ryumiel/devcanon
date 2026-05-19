@@ -36,109 +36,38 @@ into an incremental review.
 
 ## Phase 1: Gather
 
-Detect the base branch, validate any follow-up inputs, and collect the diff:
+Detect the base branch, validate any follow-up inputs, compute the review
+ranges, and collect the full branch diff.
 
 ```bash
-# Parse arguments. Flags may appear before or after the optional base.
-# At most one positional base is accepted.
-BASE_ARG=""
-FIX_MODE=false
-LAST_REVIEWED_SHA=""
-PRIOR_FINDINGS_FILE=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --fix)
-      FIX_MODE=true
-      shift
-      ;;
-    --last-reviewed)
-      [ -n "${2:-}" ] || { echo "--last-reviewed requires a SHA" >&2; exit 1; }
-      LAST_REVIEWED_SHA="$2"
-      shift 2
-      ;;
-    --prior-findings)
-      [ -n "${2:-}" ] || { echo "--prior-findings requires a path" >&2; exit 1; }
-      PRIOR_FINDINGS_FILE="$2"
-      shift 2
-      ;;
-    --*)
-      echo "unknown branch-review argument: $1" >&2
-      exit 1
-      ;;
-    *)
-      [ -z "$BASE_ARG" ] || { echo "multiple base arguments supplied" >&2; exit 1; }
-      BASE_ARG="$1"
-      shift
-      ;;
+BRANCH_REVIEW_DIR="<installed-branch-review-skill-bundle>"
+PREPARE_INPUTS_HELPER="$BRANCH_REVIEW_DIR/scripts/prepare-review-inputs.sh"
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+
+BRANCH_REVIEW_INPUTS=$(
+  PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
+    bash "$PREPARE_INPUTS_HELPER" "$@"
+) || exit 1
+
+while IFS= read -r line; do
+  key=${line%%=*}
+  value=${line#*=}
+  case "$key" in
+    BASE) BASE=$value ;;
+    FIX_MODE) FIX_MODE=$value ;;
+    FULL_DIFF_RANGE) FULL_DIFF_RANGE=$value ;;
+    CANDIDATE_ACTIVE_DIFF_RANGE) CANDIDATE_ACTIVE_DIFF_RANGE=$value ;;
+    ACTIVE_DIFF_RANGE) ACTIVE_DIFF_RANGE=$value ;;
+    IS_FOLLOWUP_NARROW) IS_FOLLOWUP_NARROW=$value ;;
+    ESCALATE_FULL) ESCALATE_FULL=$value ;;
+    ESCALATION_REASON) ESCALATION_REASON=$value ;;
+    LANGUAGE_HINTS) LANGUAGE_HINTS=$value ;;
+    LAST_REVIEWED_SHA) LAST_REVIEWED_SHA=$value ;;
+    PRIOR_BRANCH_FINDINGS) PRIOR_BRANCH_FINDINGS=$value ;;
   esac
-done
-
-# Determine base: explicit base argument wins; otherwise resolve from
-# origin/HEAD, falling back to main then master if origin/HEAD is unset.
-if [[ -n "$BASE_ARG" ]]; then
-  BASE="$BASE_ARG"
-elif symbolic_ref=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); then
-  BASE="${symbolic_ref#origin/}"
-elif git show-ref --verify --quiet refs/remotes/origin/main; then
-  BASE=main
-elif git show-ref --verify --quiet refs/remotes/origin/master; then
-  BASE=master
-else
-  BASE=main
-fi
-
-# Follow-up mode requires paired inputs and validated prior findings.
-if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
-  if [[ -z "${LAST_REVIEWED_SHA:-}" || -z "${PRIOR_FINDINGS_FILE:-}" ]]; then
-    echo "--last-reviewed and --prior-findings must be supplied together" >&2
-    exit 1
-  fi
-
-  PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
-  PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-  PRIOR_FINDINGS_HEAD_SHA="$(printf '%s\n' "$PRIOR_FINDINGS_FILE" | sed -n 's/^\.ephemeral\/.*-\([0-9a-f]\{40\}\)-findings\.json$/\1/p')"
-  [ -n "$PRIOR_FINDINGS_HEAD_SHA" ] || { echo "prior findings path must include a 40-character review head" >&2; exit 1; }
-  [ "$PRIOR_FINDINGS_HEAD_SHA" = "$LAST_REVIEWED_SHA" ] || { echo "--prior-findings review head must match --last-reviewed" >&2; exit 1; }
-  HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
-    bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
-fi
-
-FULL_DIFF_RANGE="$BASE...HEAD"
-FOLLOWUP_MODE=false
-FOLLOWUP_SHA_USABLE=false
-if [[ "${LAST_REVIEWED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] &&
-  git cat-file -e "${LAST_REVIEWED_SHA:-}^{commit}" &&
-  git merge-base --is-ancestor "${LAST_REVIEWED_SHA:-}" HEAD; then
-  FOLLOWUP_MODE=true
-  FOLLOWUP_SHA_USABLE=true
-  CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
-else
-  CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-fi
-
-ESCALATE_FULL=false
-if [[ "$FOLLOWUP_MODE" = true ]]; then
-  CHANGED_FILE_COUNT="$(git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" | wc -l | tr -d ' ')"
-  if [[ "$CHANGED_FILE_COUNT" -gt 5 ]]; then
-    ESCALATE_FULL=true
-  fi
-  if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-    grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/)' >/dev/null; then
-    ESCALATE_FULL=true
-  fi
-  # Apply the remaining prose escalation checks below. If any check is
-  # ambiguous, set ESCALATE_FULL=true.
-else
-  ESCALATE_FULL=true
-fi
-
-if [[ "$FOLLOWUP_MODE" = true && "$FOLLOWUP_SHA_USABLE" = true && "$ESCALATE_FULL" = false ]]; then
-  ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
-  IS_FOLLOWUP_NARROW=true
-else
-  ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-  IS_FOLLOWUP_NARROW=false
-fi
+done <<EOF
+$BRANCH_REVIEW_INPUTS
+EOF
 
 # Get the diff and commit log
 git diff "$FULL_DIFF_RANGE"
@@ -148,14 +77,42 @@ git diff "$FULL_DIFF_RANGE" --stat
 
 If the diff is empty, report "no changes to review" and stop.
 
-Flags may appear before or after the optional base argument. Accept at most one
-positional base; unknown flags or multiple base arguments stop before review.
+`prepare-review-inputs.sh` is the authoritative implementation for
+deterministic Phase 1 mechanics: argument parsing, base resolution, paired
+follow-up input validation, installed `play-review` helper validation, prior
+findings review-head matching, deterministic escalation checks, selected range
+assignment, and language-hint extraction. The helper must run from the
+repository root.
+
+The helper writes `KEY=VALUE` lines to stdout:
+
+- `BASE`
+- `FIX_MODE`
+- `FULL_DIFF_RANGE`
+- `CANDIDATE_ACTIVE_DIFF_RANGE`
+- `ACTIVE_DIFF_RANGE`
+- `IS_FOLLOWUP_NARROW`
+- `ESCALATE_FULL`
+- `ESCALATION_REASON`
+- `LANGUAGE_HINTS`
+- `LAST_REVIEWED_SHA`
+- `PRIOR_BRANCH_FINDINGS`
+
+For base resolution, an explicit base argument wins; otherwise resolve from
+`origin/HEAD`, then `origin/main`, then `origin/master`, then `main`.
+Flags may appear before or after the optional base argument. At most one positional base is accepted. Unknown flags or multiple base arguments stop before review.
 Follow-up input is invalid and stops before invoking `play-review` when only
 one follow-up argument is supplied, the prior findings path is unsafe, the
 40-character review head embedded in `--prior-findings` does not exactly match
 `--last-reviewed`, or the installed `play-review` helper rejects the prior
-findings file. The prior findings file is local review context, not GitHub
-thread state, and this skill still performs no GitHub posting.
+findings file. A mismatched review head stops with
+`--prior-findings review head must match --last-reviewed`. Missing values stop
+with `--last-reviewed requires a SHA` or
+`--prior-findings requires a path`; unknown flags stop with
+`unknown branch-review argument`; duplicate positional bases stop with
+`multiple base arguments supplied`. The prior findings file is local review
+context, not GitHub thread state, and this skill still performs no GitHub
+posting.
 
 In follow-up mode, choose the active range conservatively:
 
@@ -191,7 +148,7 @@ When escalation fires, set `ACTIVE_DIFF_RANGE="$BASE...HEAD"` and
 `play-review` so the critic can evaluate carry-forward items. When every
 escalation check clearly passes, set
 `ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"` and
-`IS_FOLLOWUP_NARROW=true`. Compute language hints from the changed file
+`IS_FOLLOWUP_NARROW=true`. `LANGUAGE_HINTS` is computed from changed file
 extensions in the selected active diff (e.g., `*.ts`, `*.rs`, `*.md`). The set
 drives `play-review`'s dynamic-agent triggers; deriving it from the full branch
 during a narrow follow-up would defeat the follow-up scope.
@@ -209,8 +166,8 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `language_hints` = computed from the selected active diff in Phase 1
 - `prior_threads` = (none)
 - `prior_branch_findings` = the validated `--prior-findings` envelope path
-  (follow-up only)
-- `last_reviewed_sha` = `--last-reviewed` (follow-up only)
+  (`$PRIOR_BRANCH_FINDINGS`, follow-up only)
+- `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
 - `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).

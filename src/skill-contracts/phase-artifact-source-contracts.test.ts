@@ -98,55 +98,74 @@ describe("phase artifact source contracts", () => {
 
   it("keeps branch-review follow-up input, range, escalation, and fix-preservation contracts", async () => {
     const branchReview = await readSkillSource("branch-review");
+    const branchReviewHelper = await readRepoFile(
+      "skills/branch-review/scripts/prepare-review-inputs.sh",
+    );
     const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedBranchReviewHelper =
+      normalizeWhitespace(branchReviewHelper);
 
     expect(branchReview).toContain("| `--last-reviewed <sha>`");
     expect(branchReview).toContain("| `--prior-findings <path>`");
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain(
       "--last-reviewed and --prior-findings must be supplied together",
     );
     expect(branchReview).toContain("Flags may appear before or after");
-    expect(branchReview).toContain("At most one positional base is accepted");
+    expect(normalizedBranchReview).toContain(
+      "At most one positional base is accepted",
+    );
     expect(branchReview).toContain(
       "explicit base argument wins; otherwise resolve from",
     );
-    expect(branchReview).toContain("--last-reviewed requires a SHA");
-    expect(branchReview).toContain("--prior-findings requires a path");
-    expect(branchReview).toContain("unknown branch-review argument");
-    expect(branchReview).toContain("multiple base arguments supplied");
-    expect(branchReview).toContain("PRIOR_FINDINGS_HEAD_SHA");
-    expect(branchReview).toContain(
+    expect(branchReview).toContain("prepare-review-inputs.sh");
+    expect(branchReview).toContain("KEY=VALUE");
+    expect(branchReview).toContain("PREPARE_INPUTS_HELPER");
+    expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
+    expect(branchReview).toContain("PLAY_REVIEW_DIR");
+    expect(branchReviewHelper).toContain("--last-reviewed requires a SHA");
+    expect(branchReviewHelper).toContain("--prior-findings requires a path");
+    expect(branchReviewHelper).toContain("unknown branch-review argument");
+    expect(branchReviewHelper).toContain("multiple base arguments supplied");
+    expect(branchReviewHelper).toContain("PRIOR_FINDINGS_HEAD_SHA");
+    expect(normalizedBranchReview).toContain(
       "--prior-findings review head must match --last-reviewed",
     );
-    expect(branchReview).toContain(
-      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
-    );
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain("PLAY_REVIEW_DIR is required");
+    expect(branchReviewHelper).toContain(
       'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
     );
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain(
       'HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \\',
     );
-    expect(normalizedBranchReview).toMatch(
+    expect(normalizedBranchReviewHelper).toMatch(
       /HEAD_SHA="\$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="\$PRIOR_FINDINGS_FILE" \\ bash "\$PLAY_REVIEW_HELPER" validate-findings \|\| exit 1/,
     );
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain(
       'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
     );
     expect(normalizedBranchReview).toContain(
       "installed `play-review` helper rejects the prior findings file",
     );
-    expect(branchReview).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
+    expect(branchReviewHelper).toContain(
       'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
     );
-    expect(branchReview).toContain("ESCALATE_FULL=false");
-    expect(branchReview).toContain(
+    expect(branchReviewHelper).toContain("ESCALATE_FULL=false");
+    expect(branchReviewHelper).toContain(
       'ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"',
     );
-    expect(branchReview).toContain('ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"');
-    expect(branchReview).toContain("IS_FOLLOWUP_NARROW=true");
-    expect(branchReview).toContain("IS_FOLLOWUP_NARROW=false");
+    expect(branchReviewHelper).toContain(
+      'ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"',
+    );
+    expect(branchReviewHelper).toContain("IS_FOLLOWUP_NARROW=true");
+    expect(branchReviewHelper).toContain("IS_FOLLOWUP_NARROW=false");
+    expect(branchReviewHelper).toContain('emit_line "BASE" "$BASE"');
+    expect(branchReviewHelper).toContain(
+      'emit_line "ACTIVE_DIFF_RANGE" "$ACTIVE_DIFF_RANGE"',
+    );
+    expect(branchReviewHelper).toContain(
+      'emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"',
+    );
     expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
     expect(branchReview).toContain(
       "active_diff_range = candidate_active_diff_range",
