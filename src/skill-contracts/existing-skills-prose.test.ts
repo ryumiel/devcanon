@@ -42,13 +42,23 @@ async function git(args: string[], cwd: string): Promise<void> {
   await execFileAsync("git", args, { cwd });
 }
 
-async function createAutosquashFixture(
+type AutosquashFixtureOptions = {
+  initDefaultBranch?: string;
+  squashSubject?: string;
+};
+
+async function createAutosquashFixture({
+  initDefaultBranch,
   squashSubject = "squash! feat: update note",
-): Promise<string> {
+}: AutosquashFixtureOptions = {}): Promise<string> {
   const repoDir = await mkdtemp(path.join(tmpdir(), "devcanon-autosquash-"));
 
-  await git(["init", "-q"], repoDir);
-  await git(["checkout", "-q", "-b", "main"], repoDir);
+  const initArgs = initDefaultBranch
+    ? ["-c", `init.defaultBranch=${initDefaultBranch}`, "init", "-q"]
+    : ["init", "-q"];
+
+  await git(initArgs, repoDir);
+  await git(["checkout", "-q", "-B", "main"], repoDir);
   await git(["config", "user.name", "DevCanon Test"], repoDir);
   await git(["config", "user.email", "devcanon@example.test"], repoDir);
   await git(["config", "commit.gpgSign", "false"], repoDir);
@@ -559,7 +569,9 @@ describe("existing skills source prose contracts", () => {
   });
 
   it("keeps unmatched autosquash markers detectable after rebase", async () => {
-    const repoDir = await createAutosquashFixture("squash! feat: base");
+    const repoDir = await createAutosquashFixture({
+      squashSubject: "squash! feat: base",
+    });
     const editorCommand = nodeNoopCommand();
 
     try {
@@ -589,6 +601,29 @@ describe("existing skills source prose contracts", () => {
       );
 
       expect(remainingMarkers).toContain("squash! feat: base");
+    } finally {
+      await rm(repoDir, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps the autosquash fixture stable when git init defaults to main", async () => {
+    const repoDir = await createAutosquashFixture({
+      initDefaultBranch: "main",
+    });
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+      const { stdout: log } = await execFileAsync(
+        "git",
+        ["log", "--oneline", `${mergeBase.trim()}..HEAD`],
+        { cwd: repoDir },
+      );
+
+      expect(log.trim().split("\n")).toHaveLength(2);
     } finally {
       await rm(repoDir, { force: true, recursive: true });
     }
