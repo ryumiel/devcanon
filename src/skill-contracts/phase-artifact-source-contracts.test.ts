@@ -226,6 +226,15 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPlayReview).toContain(
       "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
     );
+    expect(playReview).toContain(
+      'ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \\',
+    );
+    expect(playReview).toContain(
+      'NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \\',
+    );
+    expect(playReview).toContain(
+      'MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \\',
+    );
     expect(playReview).toContain('git diff --name-only "$FULL_PR_DIFF_RANGE"');
     expect(playReview).toContain("Changed files (active diff)");
     expect(playReview).toContain('git diff --name-status "$ACTIVE_DIFF_RANGE"');

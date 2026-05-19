@@ -20,6 +20,9 @@ const PHASE_ARTIFACT_SKILLS = [
 
 type RenderedBodies = Record<string, string>;
 
+const normalizeRenderedWhitespace = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
+
 describe("rendered phase artifact smoke coverage", () => {
   let bodies: RenderedBodies;
 
@@ -135,7 +138,19 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReview).toContain(
         "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
       );
-      expect(playReview).toContain("Always run against\n`full_pr_diff_range`");
+      const normalizedPlayReview = normalizeRenderedWhitespace(playReview);
+      expect(normalizedPlayReview).toContain(
+        "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
+      );
+      expect(playReview).toContain(
+        'ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \\',
+      );
+      expect(playReview).toContain(
+        'NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \\',
+      );
+      expect(playReview).toContain(
+        'MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \\',
+      );
       expect(playReview).toContain(
         'git diff --name-only "$FULL_PR_DIFF_RANGE"',
       );
