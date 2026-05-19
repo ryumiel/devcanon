@@ -318,6 +318,9 @@ describe("phase artifact source contracts", () => {
       "over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`)",
     );
     expect(normalizedBranchReview).toContain(
+      "Before the per-fix-unit auto-fix loop",
+    );
+    expect(normalizedBranchReview).toContain(
       "using only the existing finding text, evidence, anchors, classifications, and active diff context",
     );
     expect(normalizedBranchReview).toContain(
@@ -333,10 +336,19 @@ describe("phase artifact source contracts", () => {
       "does not add or require fields in the `play-review/findings/v1` envelope",
     );
     expect(normalizedBranchReview).toContain(
-      "individual finding anchors and classifications remain authoritative",
+      "individual finding anchors and classifications remain authoritative for classification, reporting, and stop-rule evaluation",
     );
     expect(normalizedBranchReview).toContain(
       "only when every included finding independently passes the existing stop-rule checks",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Edits may include adjacent same-invariant active-diff surfaces identified during the scan",
+    );
+    expect(normalizedBranchReview).toContain(
+      "only when they are needed for the shared root invariant",
+    );
+    expect(normalizedBranchReview).toContain(
+      "remain bounded by the included finding classifications, active diff, and stop-rule constraints",
     );
     expect(normalizedBranchReview).toContain(
       "The grouped edit set as a whole must also satisfy the same stop-rule constraints",

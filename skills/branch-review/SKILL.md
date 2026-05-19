@@ -244,24 +244,27 @@ After the human-readable findings, surface `play-review`'s `Findings written to 
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
-Before the per-finding auto-fix loop, run a same-invariant grouping pass over
+Before the per-fix-unit auto-fix loop, run a same-invariant grouping pass over
 blocking findings verified by the critic (i.e., not `Critic: INVALID` or
 `DOWNGRADE`). Inspect the eligible blockers for a shared root invariant using
 only the existing finding text, evidence, anchors, classifications, and active
 diff context. This is controller planning only: it does not add or require
 fields in the `play-review/findings/v1` envelope, and individual finding
-anchors and classifications remain authoritative.
+anchors and classifications remain authoritative for classification, reporting,
+and stop-rule evaluation.
 
 When multiple blocking findings share one invariant, name that shared root
 invariant in the report, scan adjacent same-invariant surfaces in the active
 diff before editing, and form one cohesive bounded grouped blocker set.
 Grouping never expands auto-fix authorization: a grouped fix may proceed only
 when every included finding independently passes the existing stop-rule checks
-below, and every fix remains bounded to the individual finding anchors,
-classifications, and active-diff surfaces. The grouped edit set as a whole must
-also satisfy the same stop-rule constraints; if any included finding or the
-combined grouped edit would trigger a stop rule, halt `--fix` under the existing
-stop-rule contract instead of applying the grouped fix.
+below. Edits may include adjacent same-invariant active-diff surfaces identified
+during the scan, but only when they are needed for the shared root invariant and
+remain bounded by the included finding classifications, active diff, and
+stop-rule constraints. The grouped edit set as a whole must also satisfy the
+same stop-rule constraints; if any included finding or the combined grouped edit
+would trigger a stop rule, halt `--fix` under the existing stop-rule contract
+instead of applying the grouped fix.
 
 Iterate over blocking findings as fix units. Each unit is either one ungrouped
 blocking finding verified by the critic (i.e., not `Critic: INVALID` or
