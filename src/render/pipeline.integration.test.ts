@@ -1076,6 +1076,38 @@ describe("renderLoaded", () => {
     }
   });
 
+  it("renders an agent-only partial input after full validation", async () => {
+    await createSkillFixture(config.library.skillsDir, "referenced-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "agent-only",
+      makeAgentYaml("agent-only", { skills: ["referenced-skill"] }),
+    );
+    const loadedSkills = await loadAndValidateSkills(config.library.skillsDir);
+    const loadedAgents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      loadedSkills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+    const agents = loadedAgents.filter((agent) => agent.name === "agent-only");
+
+    const result = await renderLoaded({
+      config,
+      skills: [],
+      agents,
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("agent-only");
+    expect(result.outputs[0].type).toBe("agent");
+    expect(result.outputs[0].content).toContain("referenced-skill");
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
   it("rejects unvalidated loaded inputs before writing generated output", async () => {
     await createSkillFixture(config.library.skillsDir, "safe-skill");
     const [skill] = await loadAndValidateSkills(config.library.skillsDir);
@@ -1091,6 +1123,51 @@ describe("renderLoaded", () => {
           },
         ],
         agents: [],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("rejects loaded skill paths outside the configured skills root", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "safe-skill",
+      undefined,
+      ["scripts"],
+    );
+    const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+    const externalSkillDir = path.join(tempDir, "external-skill");
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [{ ...skill, dirPath: externalSkillDir }],
+        agents: [],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("rejects loaded agent paths outside the configured agents root", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [{ ...agent, filePath: path.join(tempDir, "safe-agent.yaml") }],
         writeToGenerated: true,
       }),
     ).rejects.toThrow(UserError);

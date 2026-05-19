@@ -28,7 +28,6 @@ export interface RenderLoadedOptions {
   skills: LoadedSkill[];
   agents: LoadedAgent[];
   writeToGenerated?: boolean;
-  cleanStaleGenerated?: boolean;
   targetFilter?: "claude" | "codex";
 }
 
@@ -44,25 +43,35 @@ export async function renderAll(
     modelTiers: config.modelTiers,
   });
 
-  return renderLoaded({
+  return renderLoadedInternal({
     config,
     skills,
     agents,
     writeToGenerated,
-    cleanStaleGenerated: writeToGenerated,
     targetFilter,
+    cleanStaleGenerated: writeToGenerated,
   });
 }
 
-export async function renderLoaded({
+export async function renderLoaded(
+  options: RenderLoadedOptions,
+): Promise<RenderResult> {
+  return renderLoadedInternal({ ...options, cleanStaleGenerated: false });
+}
+
+interface RenderLoadedInternalOptions extends RenderLoadedOptions {
+  cleanStaleGenerated: boolean;
+}
+
+async function renderLoadedInternal({
   config,
   skills,
   agents,
   writeToGenerated = false,
   cleanStaleGenerated = false,
   targetFilter,
-}: RenderLoadedOptions): Promise<RenderResult> {
-  validateLoadedInputs(skills, agents);
+}: RenderLoadedInternalOptions): Promise<RenderResult> {
+  validateLoadedInputs(config, skills, agents);
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
@@ -204,6 +213,7 @@ export async function renderLoaded({
 }
 
 function validateLoadedInputs(
+  config: ResolvedConfig,
   skills: readonly LoadedSkill[],
   agents: readonly LoadedAgent[],
 ): void {
@@ -217,6 +227,12 @@ function validateLoadedInputs(
       throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
     }
     skillNames.add(skill.name);
+    assertNamedPathInside(
+      config.library.skillsDir,
+      skill.name,
+      skill.dirPath,
+      `Loaded skill "${skill.name}" directory`,
+    );
     for (const subdir of skill.subdirs) {
       if (!["assets", "examples", "references", "scripts"].includes(subdir)) {
         throw new UserError(
@@ -236,13 +252,26 @@ function validateLoadedInputs(
       throw new UserError(`Loaded agent "${agent.name}" is duplicated.`);
     }
     agentNames.add(agent.name);
-    for (const skillRef of agent.source.skills) {
-      if (!skillNames.has(skillRef)) {
-        throw new UserError(
-          `Loaded agent "${agent.name}" references unknown skill "${skillRef}".`,
-        );
-      }
-    }
+    assertNamedPathInside(
+      config.library.agentsDir,
+      `${agent.name}.yaml`,
+      agent.filePath,
+      `Loaded agent "${agent.name}" file`,
+    );
+  }
+}
+
+function assertNamedPathInside(
+  root: string,
+  expectedLeaf: string,
+  candidate: string,
+  label: string,
+): void {
+  assertPathInside(root, candidate, label);
+  if (path.basename(candidate) !== expectedLeaf) {
+    throw new UserError(
+      `${label} must be named "${expectedLeaf}": ${candidate}`,
+    );
   }
 }
 

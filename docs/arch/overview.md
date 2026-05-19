@@ -44,6 +44,24 @@ utils -> (none)
 `cli/` has the broadest dependency fan-out. `models/` and `utils/` are leaf
 modules with no internal dependencies.
 
+### Render Pipeline Boundary
+
+The render module exposes two orchestration levels:
+
+- `renderAll()` is the source-driven full-library facade. It loads and
+  validates skills and agents from the configured source directories, renders
+  the selected targets, and when writing generated output, removes stale
+  generated files for the selected full source set.
+- `renderLoaded()` is the loaded-input core. It consumes already-loaded and
+  validated `LoadedSkill[]` and `LoadedAgent[]` values, so validation-owning
+  callers can render cached or partial input sets. It does not load source
+  files, does not write generated output by default, and does not perform stale
+  generated-output cleanup.
+
+Generated-output cleanup is a full-library operation. Partial loaded-input
+renders may write the supplied outputs when explicitly requested, but omitted
+skills or agents are not treated as stale.
+
 ---
 
 ## Data Flow
@@ -163,7 +181,10 @@ Unmanaged files are never overwritten unless explicitly forced.
 
 ## Generated Output Rules
 
-- Rendering is deterministic and produces full regeneration each time
+- Source-driven `renderAll()` rendering is deterministic and produces full
+  regeneration each time
+- Loaded-input `renderLoaded()` rendering is deterministic for the supplied
+  already-validated inputs and may render partial sets without stale cleanup
 - Generated files are not intended to be hand-edited
 - Renderer normalizes: trailing newlines, line endings, indentation, multiline
   formatting, and field ordering
