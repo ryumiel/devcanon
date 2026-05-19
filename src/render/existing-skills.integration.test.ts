@@ -315,8 +315,8 @@ describe("existing skills render cleanly", () => {
           "If the helper exits nonzero, report BLOCKED instead of emitting the notice",
         );
         expect(prompt).toContain("Snapshot written to <repo-relative-path>.");
-        expect(prompt).not.toContain(
-          "After committing and self-reviewing, write the side-channel snapshot\n    manifest before reporting",
+        expect(normalizedPrompt).not.toContain(
+          "After committing and self-reviewing, write the side-channel snapshot manifest before reporting",
         );
       }
     }

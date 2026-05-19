@@ -576,8 +576,12 @@ helper.
 
 ### Parse and validate the path
 
-Parse the path off the literal notice line, then run the canonical
-guard narrowed to the snapshot suffix:
+This parse and validation path applies only when the controller recorded
+snapshot state as `requested`. If snapshot state is `skipped`, do not parse or
+expect a notice line; record snapshot state as `skipped` and use the default DONE
+fields plus controller-computed git/disk reads. When a snapshot was requested,
+parse the path off the literal notice line, then run the canonical guard narrowed
+to the snapshot suffix:
 
 ```bash
 SNAPSHOT_OK=true

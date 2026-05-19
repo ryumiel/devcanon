@@ -565,6 +565,9 @@ describe("phase artifact source contracts", () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
     );
+    const normalizedPlaySubagentExecution = normalizeWhitespace(
+      playSubagentExecution,
+    );
 
     expect(playSubagentExecution).toContain(
       "references/snapshot-manifest-recipe.md",
@@ -584,6 +587,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(playSubagentExecution).toContain("hard helper prerequisite");
     expect(playSubagentExecution).toContain("snapshot notice line");
+    expect(normalizedPlaySubagentExecution).toContain(
+      "This parse and validation path applies only when the controller recorded snapshot state as `requested`",
+    );
+    expect(normalizedPlaySubagentExecution).toContain(
+      "If snapshot state is `skipped`, do not parse or expect a notice line",
+    );
     expect(playSubagentExecution).toContain(".ephemeral/*/snapshot-*.json");
     expect(normalizeWhitespace(playSubagentExecution)).toContain(
       "snapshot-specific flatness, symlink, and regular-file checks",
