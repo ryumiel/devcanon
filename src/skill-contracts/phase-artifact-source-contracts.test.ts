@@ -96,6 +96,123 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain("fail closed before posting");
   });
 
+  it("keeps branch-review follow-up input, range, escalation, and fix-preservation contracts", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(branchReview).toContain("| `--last-reviewed <sha>`");
+    expect(branchReview).toContain("| `--prior-findings <path>`");
+    expect(branchReview).toContain(
+      "--last-reviewed and --prior-findings must be supplied together",
+    );
+    expect(branchReview).toContain("Flags may appear before or after");
+    expect(branchReview).toContain("At most one positional base is accepted");
+    expect(branchReview).toContain(
+      "explicit base argument wins; otherwise resolve from",
+    );
+    expect(branchReview).toContain("PRIOR_FINDINGS_HEAD_SHA");
+    expect(branchReview).toContain(
+      "--prior-findings review head must match --last-reviewed",
+    );
+    expect(branchReview).toContain(
+      'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
+    );
+    expect(normalizedBranchReview).toContain(
+      "installed `play-review` helper rejects the prior findings file",
+    );
+    expect(branchReview).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
+    expect(branchReview).toContain(
+      'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
+    );
+    expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
+    expect(branchReview).toContain(
+      "active_diff_range = candidate_active_diff_range",
+    );
+    expect(branchReview).toContain("is_followup_narrow = true");
+    expect(branchReview).toContain("Escalate back to full branch review");
+    expect(branchReview).toContain("More than 5 files changed");
+    expect(branchReview).toContain("New public API functions or types");
+    expect(branchReview).toContain(
+      "Logic is restructured beyond previously flagged lines",
+    );
+    expect(branchReview).toContain(
+      "architecture surfaces, shared workflow policy",
+    );
+    expect(branchReview).toContain("generated-output behavior");
+    expect(branchReview).toContain("path-validation guards");
+    expect(branchReview).toContain("generated-output contracts");
+    expect(branchReview).toContain("Scope classification is ambiguous");
+    expect(branchReview).toContain(
+      "still pass the validated prior findings to",
+    );
+    expect(branchReview).toContain(
+      "prior_branch_findings` = the validated `--prior-findings` envelope path",
+    );
+    expect(branchReview).toContain(
+      "Follow-up `carry_forward[]` entries preserved from `play-review`",
+    );
+    expect(normalizedBranchReview).toContain(
+      "preserve `carry_forward[]` from the validated `play-review` envelope unchanged",
+    );
+    expect(branchReview).toContain(
+      "If `findings[]` is empty but `carry_forward[]` is non-empty",
+    );
+    expect(branchReview).toContain("it preserves `carry_forward[]` unchanged");
+  });
+
+  it("keeps play-review branch follow-up context, carry-forward, and fail-closed helper contracts", async () => {
+    const playReview = await readSkillSource("play-review");
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+
+    expect(playReview).toContain("`prior_branch_findings`");
+    expect(playReview).toContain(
+      "Branch review context from a validated local `play-review/findings/v1` envelope path",
+    );
+    expect(playReview).toContain(
+      "prior_branch_findings` is accepted only as already-validated wrapper input",
+    );
+    expect(playReview).toContain("validate-findings` before passing it here");
+    expect(playReview).toContain(
+      "does not treat branch findings as GitHub threads",
+    );
+    expect(playReview).toContain("## Carry-forward");
+    expect(playReview).toContain(
+      "populated from unresolved `prior_threads` or validated `prior_branch_findings`",
+    );
+    expect(playReview).toContain("Prior review context");
+    expect(normalizedPlayReview).toContain(
+      "include the validated `play-review/findings/v1` envelope content",
+    );
+    expect(normalizedPlayReview).toContain(
+      "branch-local prior findings rather than GitHub threads",
+    );
+    expect(playReview).toContain(
+      "prior review context from PR threads or branch-local prior findings",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Diff at `active_diff_range` is empty and `prior_threads` or `prior_branch_findings` exists",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Run the carry-forward check against the prior context before emitting output",
+    );
+    expect(normalizedPlayReview).toContain(
+      "preserve unresolved prior blockers in `carry_forward[]` rather than silently emitting an empty envelope",
+    );
+    expect(playReview).toContain(
+      'bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1',
+    );
+    expect(playReview).toContain(
+      'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
+    );
+    expect(playReview).toContain("Findings-file consumers fail closed");
+    expect(playReview).toContain(
+      '[ -s "$CONTEXT_FILE" ] || { echo "shared review-context write failed: $CONTEXT_FILE" >&2; exit 1; }',
+    );
+    expect(playReview).toContain(
+      "do NOT dispatch Phase 3 agents — they would read an absent file",
+    );
+  });
+
   it("keeps the snapshot manifest recipe contract in its reference source", async () => {
     const snapshotRecipe = await readRepoFile(
       "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
