@@ -163,7 +163,7 @@ git diff --quiet && git diff --cached --quiet || {
 AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)
 PRE_AUTOSQUASH_HEAD=$(git rev-parse HEAD)
 PRE_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
-if ! GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
+if ! GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
   echo "autosquash failed; resolve it or run git rebase --abort before push" >&2
   exit 1
 fi

@@ -1,3 +1,8 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
   getMarkdownSection,
@@ -5,6 +10,8 @@ import {
   readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
+
+const execFileAsync = promisify(execFile);
 
 function sliceBetween(content: string, start: string, end: string): string {
   const startIndex = content.indexOf(start);
@@ -21,6 +28,37 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("target-honest cleanup outcomes");
   expect(section).toContain("slot-limit");
   expect(section).toContain("recovery");
+}
+
+async function git(args: string[], cwd: string): Promise<void> {
+  await execFileAsync("git", args, { cwd });
+}
+
+async function createAutosquashFixture(): Promise<string> {
+  const repoDir = await mkdtemp(path.join(tmpdir(), "devcanon-autosquash-"));
+
+  await git(["init", "-q", "-b", "main"], repoDir);
+  await git(["config", "user.name", "DevCanon Test"], repoDir);
+  await git(["config", "user.email", "devcanon@example.test"], repoDir);
+
+  await writeFile(path.join(repoDir, "note.txt"), "base\n", "utf-8");
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", "feat: base"], repoDir);
+
+  await git(["checkout", "-q", "-b", "feature/autosquash"], repoDir);
+  await writeFile(path.join(repoDir, "note.txt"), "base\nfeature\n", "utf-8");
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", "feat: update note"], repoDir);
+
+  await writeFile(
+    path.join(repoDir, "note.txt"),
+    "base\nfeature\nsquash follow-up\n",
+    "utf-8",
+  );
+  await git(["add", "note.txt"], repoDir);
+  await git(["commit", "-q", "-m", "squash! feat: update note"], repoDir);
+
+  return repoDir;
 }
 
 describe("existing skills source prose contracts", () => {
@@ -411,7 +449,7 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
     expect(normalizedOption2).toContain(
-      'GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"',
+      'GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"',
     );
     expect(normalizedOption2).toContain("git rebase --abort");
     expect(normalizedOption2).toContain(
@@ -445,6 +483,53 @@ describe("existing skills source prose contracts", () => {
     expect(commonMistakes).toMatch(/autosquash/i);
     expect(commonMistakes).toMatch(/unchanged tree|tree.*unchanged/i);
     expect(commonMistakes).toMatch(/commit-history narration/i);
+  });
+
+  it("keeps the documented autosquash command noninteractive for squash markers", async () => {
+    const repoDir = await createAutosquashFixture();
+
+    try {
+      const { stdout: mergeBase } = await execFileAsync(
+        "git",
+        ["merge-base", "main", "HEAD"],
+        { cwd: repoDir },
+      );
+      const { stdout: preTree } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD^{tree}"],
+        { cwd: repoDir },
+      );
+
+      await execFileAsync(
+        "git",
+        ["rebase", "-i", "--autosquash", mergeBase.trim()],
+        {
+          cwd: repoDir,
+          env: {
+            ...process.env,
+            GIT_SEQUENCE_EDITOR: ":",
+            GIT_EDITOR: ":",
+          },
+        },
+      );
+
+      const { stdout: postTree } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD^{tree}"],
+        { cwd: repoDir },
+      );
+      const { stdout: log } = await execFileAsync(
+        "git",
+        ["log", "--oneline", "main..HEAD"],
+        { cwd: repoDir },
+      );
+
+      expect(postTree.trim()).toBe(preTree.trim());
+      expect(log).not.toContain("squash!");
+      expect(log.trim().split("\n")).toHaveLength(1);
+    } finally {
+      await rm(repoDir, { force: true, recursive: true });
+    }
   });
 
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
