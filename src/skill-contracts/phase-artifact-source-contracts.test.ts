@@ -200,6 +200,8 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
     expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
     expect(branchReview).toContain("CHANGED_FILES_FILE");
+    expect(branchReview).toContain("docs/product-requirements/**");
+    expect(branchReviewHelper).toContain("product-requirements");
     expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
     expect(branchReview).toContain(
       "active_diff_range = candidate_active_diff_range",

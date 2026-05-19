@@ -140,6 +140,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("Upstream Review-Scope Handoff");
       expect(branchReview).toContain("planning/execution categorization");
       expect(branchReview).toContain("non-authoritative context");
+      expect(branchReview).toContain("docs/product-requirements/**");
       expect(normalizedBranchReview).toContain("may only preserve or escalate");
       expect(normalizedBranchReview).toContain(
         "configured repo-owned path triggers",

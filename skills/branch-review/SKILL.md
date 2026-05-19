@@ -126,7 +126,8 @@ The helper's built-in mechanical escalation triggers are intentionally portable:
 More than 5 files changed since `--last-reviewed`, unusable follow-up SHAs,
 root governance files (`MAP.md`, `AGENTS.md`, `CONTRIBUTING.md`), and
 conventional AFDS documentation paths (`docs/adr/**`, `docs/arch/**`,
-`docs/specs/**`, `docs/guidelines/**`). Repositories may provide configured repo-owned path triggers through
+`docs/product-requirements/**`, `docs/specs/**`, `docs/guidelines/**`).
+Repositories may provide configured repo-owned path triggers through
 `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`; matching paths force mechanical full
 review. Missing configured repo-owned path triggers never prove a narrow review
 is safe. Do not add shared defaults such as `src/**`; source layout belongs to

@@ -5,7 +5,7 @@ BASE_ARG=""
 FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
-GOVERNED_PATH_PATTERN='^(docs/(adr|arch|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
+GOVERNED_PATH_PATTERN='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
 CONFIGURED_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
 
 emit_line() {

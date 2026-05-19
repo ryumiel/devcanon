@@ -197,6 +197,35 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     }
   });
 
+  it("escalates follow-up review for product requirements changes", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(
+        cwd,
+        "docs/product-requirements/new-product.md",
+        "intent\n",
+      );
+
+      const values = await runHelper(cwd, [
+        "--last-reviewed",
+        lastReviewedSha,
+        "--prior-findings",
+        findingsFile,
+      ]);
+
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("does not treat src as a built-in mechanical escalation path", async () => {
     const cwd = await makeGitWorkspace();
     try {
