@@ -169,6 +169,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase7).toContain(
         "invoke it from the issue worktree root",
       );
+      expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
       expect(normalizedPhase7).toContain(
         'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
       );
@@ -189,6 +190,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("-nits-pending.json");
       expect(phase7).toContain("NITS_PENDING_FILE");
       expect(phase7).toContain("derive-nits-pending");
+      expect(normalizedPhase7).toContain(
+        'NITS_PENDING_FILE=$( HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending )',
+      );
       expect(normalizedPhase7).toContain(
         'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
       );
