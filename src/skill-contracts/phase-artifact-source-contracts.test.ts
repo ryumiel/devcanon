@@ -637,6 +637,9 @@ describe("phase artifact source contracts", () => {
     const adr0014 = await readRepoFile(
       "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
     );
+    const adr0015 = await readRepoFile(
+      "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+    );
 
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
@@ -659,6 +662,9 @@ describe("phase artifact source contracts", () => {
       "Plan text may contain snapshot hints",
     );
     expect(adr0014).not.toContain("the plan body is itself the snapshot");
+    expect(adr0015).toContain("no implementer snapshot artifact");
+    expect(adr0015).toContain("not DONE-report evidence");
+    expect(adr0015).not.toContain("the plan body is itself the snapshot");
     expect(adr0014).toContain("committed HEAD blob reads");
     expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
     expect(adr0014).toContain("repository-controlled and untrusted");
