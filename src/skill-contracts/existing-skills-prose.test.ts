@@ -13,6 +13,14 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+function quoteShellArg(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function nodeNoopCommand(): string {
+  return `${quoteShellArg(process.execPath)} -e "process.exit(0)"`;
+}
+
 function sliceBetween(content: string, start: string, end: string): string {
   const startIndex = content.indexOf(start);
   const endIndex = content.indexOf(end);
@@ -39,9 +47,11 @@ async function createAutosquashFixture(
 ): Promise<string> {
   const repoDir = await mkdtemp(path.join(tmpdir(), "devcanon-autosquash-"));
 
-  await git(["init", "-q", "-b", "main"], repoDir);
+  await git(["init", "-q"], repoDir);
+  await git(["checkout", "-q", "-b", "main"], repoDir);
   await git(["config", "user.name", "DevCanon Test"], repoDir);
   await git(["config", "user.email", "devcanon@example.test"], repoDir);
+  await git(["config", "commit.gpgSign", "false"], repoDir);
 
   await writeFile(path.join(repoDir, "note.txt"), "base\n", "utf-8");
   await git(["add", "note.txt"], repoDir);
@@ -450,6 +460,7 @@ describe("existing skills source prose contracts", () => {
       "AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)",
     );
     expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
+    expect(normalizedOption2).toContain('test -z "$(git status --porcelain)"');
     expect(normalizedOption2).toContain(
       'GIT_SEQUENCE_EDITOR=: GIT_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"',
     );
@@ -494,6 +505,7 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps the documented autosquash command noninteractive for squash markers", async () => {
     const repoDir = await createAutosquashFixture();
+    const editorCommand = nodeNoopCommand();
 
     try {
       const { stdout: mergeBase } = await execFileAsync(
@@ -514,8 +526,8 @@ describe("existing skills source prose contracts", () => {
           cwd: repoDir,
           env: {
             ...process.env,
-            GIT_SEQUENCE_EDITOR: ":",
-            GIT_EDITOR: ":",
+            GIT_SEQUENCE_EDITOR: editorCommand,
+            GIT_EDITOR: editorCommand,
           },
         },
       );
@@ -541,6 +553,7 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps unmatched autosquash markers detectable after rebase", async () => {
     const repoDir = await createAutosquashFixture("squash! feat: base");
+    const editorCommand = nodeNoopCommand();
 
     try {
       const { stdout: mergeBase } = await execFileAsync(
@@ -556,8 +569,8 @@ describe("existing skills source prose contracts", () => {
           cwd: repoDir,
           env: {
             ...process.env,
-            GIT_SEQUENCE_EDITOR: ":",
-            GIT_EDITOR: ":",
+            GIT_SEQUENCE_EDITOR: editorCommand,
+            GIT_EDITOR: editorCommand,
           },
         },
       );

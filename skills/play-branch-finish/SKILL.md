@@ -156,7 +156,7 @@ run autosquash noninteractively against that local commit range, and verify the
 post-autosquash tree is unchanged before push:
 
 ```bash
-git diff --quiet && git diff --cached --quiet || {
+test -z "$(git status --porcelain)" || {
   echo "worktree must be clean before autosquash" >&2
   exit 1
 }
