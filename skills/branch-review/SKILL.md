@@ -104,12 +104,40 @@ if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
 fi
 
 FULL_DIFF_RANGE="$BASE...HEAD"
+FOLLOWUP_MODE=false
+FOLLOWUP_SHA_USABLE=false
 if [[ "${LAST_REVIEWED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] &&
   git cat-file -e "${LAST_REVIEWED_SHA:-}^{commit}" &&
   git merge-base --is-ancestor "${LAST_REVIEWED_SHA:-}" HEAD; then
+  FOLLOWUP_MODE=true
+  FOLLOWUP_SHA_USABLE=true
   CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
 else
   CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+fi
+
+ESCALATE_FULL=false
+if [[ "$FOLLOWUP_MODE" = true ]]; then
+  CHANGED_FILE_COUNT="$(git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" | wc -l | tr -d ' ')"
+  if [[ "$CHANGED_FILE_COUNT" -gt 5 ]]; then
+    ESCALATE_FULL=true
+  fi
+  if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
+    grep -E '^(docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$|agents/)' >/dev/null; then
+    ESCALATE_FULL=true
+  fi
+  # Apply the remaining prose escalation checks below. If any check is
+  # ambiguous, set ESCALATE_FULL=true.
+else
+  ESCALATE_FULL=true
+fi
+
+if [[ "$FOLLOWUP_MODE" = true && "$FOLLOWUP_SHA_USABLE" = true && "$ESCALATE_FULL" = false ]]; then
+  ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
+  IS_FOLLOWUP_NARROW=true
+else
+  ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  IS_FOLLOWUP_NARROW=false
 fi
 
 # Get the diff and commit log
@@ -138,6 +166,8 @@ In follow-up mode, choose the active range conservatively:
 - `active_diff_range = candidate_active_diff_range` only when the escalation
   checks below all pass.
 - `is_followup_narrow = true` only when the narrow candidate range is selected.
+- The Phase 1 control flow must assign both `ACTIVE_DIFF_RANGE` and
+  `IS_FOLLOWUP_NARROW`; do not leave them implicit in prose.
 
 Escalate back to full branch review when any of these are true:
 
@@ -156,13 +186,15 @@ Escalate back to full branch review when any of these are true:
   generated-output renderers, or generated-output contracts.
 - Scope classification is ambiguous.
 
-When escalation fires, set `active_diff_range = "$BASE...HEAD"` and
-`is_followup_narrow = false`, but still pass the validated prior findings to
-`play-review` so the critic can evaluate carry-forward items. Compute
-language hints from the changed file extensions in the selected active diff
-(e.g., `*.ts`, `*.rs`, `*.md`). The set drives `play-review`'s dynamic-agent
-triggers; deriving it from the full branch during a narrow follow-up would
-defeat the follow-up scope.
+When escalation fires, set `ACTIVE_DIFF_RANGE="$BASE...HEAD"` and
+`IS_FOLLOWUP_NARROW=false`, but still pass the validated prior findings to
+`play-review` so the critic can evaluate carry-forward items. When every
+escalation check clearly passes, set
+`ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"` and
+`IS_FOLLOWUP_NARROW=true`. Compute language hints from the changed file
+extensions in the selected active diff (e.g., `*.ts`, `*.rs`, `*.md`). The set
+drives `play-review`'s dynamic-agent triggers; deriving it from the full branch
+during a narrow follow-up would defeat the follow-up scope.
 
 ## Phase 2: Invoke the play-review skill workflow
 
@@ -179,7 +211,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `prior_branch_findings` = the validated `--prior-findings` envelope path
   (follow-up only)
 - `last_reviewed_sha` = `--last-reviewed` (follow-up only)
-- `is_followup_narrow` = computed in Phase 1
+- `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
@@ -266,25 +298,31 @@ that were successfully auto-fixed and committed. That includes every nit
 (regardless of anchor), blockers skipped because the critic flagged `INVALID`
 or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining
 set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered
-the halt (if any), and any later blockers left unprocessed because an earlier
-stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're
-already committed in the worktree. In follow-up runs, preserve
-`carry_forward[]` from the validated `play-review` envelope unchanged; these
-entries are unresolved prior blockers, not auto-fix targets from the current
-`findings[]` loop. If the remaining set is empty and `carry_forward[]` is also
-empty, still write the canonical empty envelope
+the halt (if any), any later blockers left unprocessed because an earlier
+stop-rule finding halted the loop, and unresolved blocking `carry_forward[]`
+entries from follow-up review. Auto-fixed blockers do NOT appear — they're
+already committed in the worktree. In follow-up runs, also preserve
+`carry_forward[]` from the validated `play-review` envelope unchanged for audit
+continuity; unresolved blocking carry-forward entries must additionally be
+copied into the post-`--fix` remaining `findings[]` so downstream consumers that
+gate on `findings[]` do not mistake the run for clean. If the remaining set is
+empty and `carry_forward[]` is also empty, still write the canonical empty envelope
 (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) —
 never leave the file from `play-review`'s pre-fix run unchanged, and never
-delete it. If `findings[]` is empty but `carry_forward[]` is non-empty, the
-post-`--fix` envelope must keep those carry-forward entries. Re-emit the
+delete it. If current-run findings are empty but `carry_forward[]` is
+non-empty, the post-`--fix` envelope must keep those carry-forward entries and
+mirror unresolved blocking carry-forward entries into `findings[]`. Re-emit the
 (unchanged) `Findings written to <path>.` notice line in conversation so
 callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
-classify nits and produce `play-branch-finish`'s `nits_file`.
+detect remaining blockers, classify nits, and produce `play-branch-finish`'s
+`nits_file`.
 
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
-subset of the pre-fix one: this skill only removes auto-fixed blockers from
-`findings[]`; it preserves `carry_forward[]` unchanged, never adds new entries,
-never re-anchors lines, and never edits `body` / `why` / `recommendation` text.
+subset of the pre-fix findings plus carry-forward set: this skill only removes
+auto-fixed blockers from `findings[]`; it preserves `carry_forward[]` unchanged,
+mirrors unresolved blocking carry-forward entries into `findings[]` for
+downstream blocker gates, never invents new entries, never re-anchors lines, and
+never edits `body` / `why` / `recommendation` text.
 Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
 cannot tell from the file alone whether they are reading the pre-fix or
 post-`--fix` version — the order is workflow-determined (Phase 7 always runs
