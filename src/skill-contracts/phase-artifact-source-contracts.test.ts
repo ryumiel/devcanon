@@ -307,6 +307,18 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
+    expect(branchReview).toContain("same-invariant grouping pass");
+    expect(branchReview).toContain("adjacent same-invariant surfaces");
+    expect(normalizedBranchReview).toContain("shared root invariant");
+    expect(normalizedBranchReview).toContain(
+      "does not add or require fields in the `play-review/findings/v1` envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "individual finding anchors and classifications remain authoritative",
+    );
+    expect(normalizedBranchReview).toContain(
+      "only when every included finding independently passes the existing stop-rule checks",
+    );
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
     );
