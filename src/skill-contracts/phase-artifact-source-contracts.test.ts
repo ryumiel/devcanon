@@ -307,9 +307,24 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
+    expect(branchReview.indexOf("same-invariant grouping pass")).toBeLessThan(
+      branchReview.indexOf("Iterate over blocking findings"),
+    );
     expect(branchReview).toContain("same-invariant grouping pass");
     expect(branchReview).toContain("adjacent same-invariant surfaces");
     expect(normalizedBranchReview).toContain("shared root invariant");
+    expect(normalizedBranchReview).toContain(
+      "over critic-valid blocking findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "using only the existing finding text, evidence, anchors, classifications, and active diff context",
+    );
+    expect(normalizedBranchReview).toContain(
+      "name that shared root invariant in the report",
+    );
+    expect(normalizedBranchReview).toContain(
+      "scan adjacent same-invariant surfaces in the active diff before editing",
+    );
     expect(normalizedBranchReview).toContain(
       "does not add or require fields in the `play-review/findings/v1` envelope",
     );
