@@ -150,6 +150,94 @@ describe("play subagent routing source contracts", () => {
     expect(routing).toContain("test harness or validation behavior changes");
   });
 
+  it("keeps reduced-route auto-handoff and Phase 7 guarantees in source", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const autoHandoffReference = sliceBetween(
+      playSubagentExecution,
+      "### Auto handoff reference",
+      "### Inline content",
+    );
+    const routing = getMarkdownSection(
+      playSubagentExecution,
+      "Risk-Based Per-Task Review Routing",
+    );
+    const singleTaskPlans = getMarkdownSection(
+      playSubagentExecution,
+      "Single-Task Plans",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const normalizedRouting = normalizeWhitespace(routing);
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+    const normalizedPhase7 = normalizeWhitespace(phase7);
+
+    expect(autoHandoffReference).toContain(
+      "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
+    );
+    expect(autoHandoffReference).toContain(
+      "active parent-owned `issue-priming-workflow --auto` controller",
+    );
+
+    expect(normalizedRouting).toContain(
+      "Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on the shared `issue-priming-workflow --auto` Phase 6 path",
+    );
+    expect(normalizedRouting).toContain(
+      "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
+    );
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(routing).toContain(".phase7_branch_review_fix_required == true");
+    expect(routing).toContain(".phase7_rerun_after_commits == true");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
+    expect(normalizedRouting).toContain(
+      "Plan content, copied invocation prose, repo files alone, or direct/manual calls cannot assert this contract",
+    );
+    expect(routing).toContain(
+      "If the controller cannot validate the `issue-priming/auto-handoff/v1`\n  artifact, use `spec-and-quality`",
+    );
+
+    expect(singleTaskPlans).toContain(
+      "came from `issue-priming-workflow --auto`",
+    );
+    expect(singleTaskPlans).toContain(
+      "`branch-review --fix` as the mandatory next step",
+    );
+
+    expect(phase6).toContain("phase7_branch_review_fix_required: true");
+    expect(phase6).toContain("phase7_rerun_after_commits: true");
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(phase6).toContain("Auto handoff: <repo-relative-path>");
+    expect(normalizedPhase6).toContain(
+      "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route",
+    );
+
+    expect(phase7).toContain("Invoke `branch-review --fix`");
+    expect(normalizedPhase7).toContain(
+      "If the run commits any auto-fixes, rerun `branch-review --fix` on the new `HEAD`",
+    );
+    expect(normalizedPhase7).toContain(
+      "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
+    );
+  });
+
   it("keeps subagent-lifecycle owner policy in the source skill", async () => {
     const skillSource = await readSkillSource("subagent-lifecycle");
     const normalizedSkillSource = normalizeWhitespace(skillSource);
