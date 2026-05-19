@@ -1,5 +1,5 @@
 ---
-name: report-devcanon-shared-issue
+name: report-devcanon-issue
 description: Drafts an upstream DevCanon issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.
 codex:
   license: MIT
@@ -24,7 +24,7 @@ Do not use this skill for project-local prompt tweaks, domain-specific wording, 
 
 Turn a fuzzy cross-repo discovery into a clean upstream GitHub issue draft for `DevCanon` without leaking unsafe material.
 
-The upstream GitHub repository for issue search and posting is `ryumiel/agent-manager`.
+The upstream GitHub repository for issue search and posting is `ryumiel/devcanon`.
 
 ## Scope: What to Describe
 
@@ -59,7 +59,7 @@ The following are never required and must not appear in the issue body or title:
 - Never post an issue without showing the exact draft first and receiving explicit confirmation.
 - If the user declines posting, keep the exact draft available for manual reuse.
 - If posting fails, preserve the drafted title and body and explain what failed.
-- If GitHub access to `ryumiel/agent-manager` is unavailable, return `MODE=draft` and stop without attempting to post.
+- If GitHub access to `ryumiel/devcanon` is unavailable, return `MODE=draft` and stop without attempting to post.
 
 ## Minimum Payload
 
@@ -83,7 +83,7 @@ Capture:
 - blocker issue IDs, if known
 - optional proposed direction
 
-This is the data to gather. The body shape it maps into is canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/agent-manager/blob/main/WORKFLOW.md#creating-an-issue).
+This is the data to gather. The body shape it maps into is canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/WORKFLOW.md#creating-an-issue).
 
 If the reporter cannot provide a complete reproduction, continue with an
 incomplete issue draft and explicitly call out what is still missing.
@@ -100,7 +100,7 @@ If a safe verbatim excerpt is not possible, use a summary-only reproduction and 
 
 ## Duplicate Check
 
-Before presenting a new draft, search open `ryumiel/agent-manager` issues for likely duplicates using the affected skill or agent name plus sanitized summary and reproduction terms.
+Before presenting a new draft, search open `ryumiel/devcanon` issues for likely duplicates using the affected skill or agent name plus sanitized summary and reproduction terms.
 
 Never use raw consumer repository names, usernames, hostnames, or local path fragments in duplicate-search queries.
 
@@ -121,7 +121,7 @@ Title:
 - `new agent` -> `feat(agent): ...` with `enhancement`
 - the `(scope)` slot must reference an upstream `DevCanon` component (`skill`, `agent`, `render`, `install`, `docs`, `cli`) — never a consumer repo, customer, codename, or ticket ID
 
-Body sections: use the body shape canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/agent-manager/blob/main/WORKFLOW.md#creating-an-issue).
+Body sections: use the body shape canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/WORKFLOW.md#creating-an-issue).
 
 If blocker issue IDs are known, apply the GitHub `blocked by` relationship after issue creation instead of only mentioning blockers in the body text.
 

@@ -196,7 +196,7 @@ Quick navigation index for the DevCanon repository.
   [`skills/spec-readiness-review/SKILL.md`](skills/spec-readiness-review/SKILL.md)
 - Where is the issue-slicing skill? ->
   [`skills/issue-slicing/SKILL.md`](skills/issue-slicing/SKILL.md)
-- Where is the shared issue reporting skill? -> [`skills/report-devcanon-shared-issue/SKILL.md`](skills/report-devcanon-shared-issue/SKILL.md)
+- Where is the shared issue reporting skill? -> [`skills/report-devcanon-issue/SKILL.md`](skills/report-devcanon-issue/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the issue worktree setup script? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
 - Where is Git workspace cleanup policy? -> [`skills/git-workspace-cleanup/SKILL.md`](skills/git-workspace-cleanup/SKILL.md)
