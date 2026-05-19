@@ -31,5 +31,5 @@ Failure modes the skill exists to prevent.
 
 **Putting branch-review nits in the description body**
 
-- **Problem:** Nits become locked into the durable description instead of being resolvable line-anchored review comments
+- **Problem:** Nits become locked into the durable description instead of being resolvable inline or top-level PR review comments
 - **Fix:** When a caller passes a `nits_file` arg, post anchorable nits via `gh api repos/.../pulls/<N>/reviews` with `event: "COMMENT"` and unanchorable nits via `gh pr review --comment --body-file -`. The description body stays free of review chatter
