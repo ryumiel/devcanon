@@ -23,39 +23,187 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg      | Effect                                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `<base>` | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)   |
-| `--fix`  | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints. |
+| Arg                       | Effect                                                                                                                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<base>`                  | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
+| `--fix`                   | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                                          |
+| `--last-reviewed <sha>`   | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
+| `--prior-findings <path>` | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
+
+`--fix` without follow-up arguments keeps the existing full-diff default used
+by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
+into an incremental review.
 
 ## Phase 1: Gather
 
-Detect the base branch and collect the diff:
+Detect the base branch, validate any follow-up inputs, compute the review
+ranges, and collect the full branch diff.
 
 ```bash
-# Determine base: explicit argument wins; otherwise resolve from origin/HEAD,
-# falling back to main then master if origin/HEAD is unset.
-if [[ -n "${1:-}" ]]; then
-  BASE="$1"
-elif symbolic_ref=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); then
-  BASE="${symbolic_ref#origin/}"
-elif git show-ref --verify --quiet refs/remotes/origin/main; then
-  BASE=main
-elif git show-ref --verify --quiet refs/remotes/origin/master; then
-  BASE=master
-else
-  BASE=main
-fi
+BRANCH_REVIEW_DIR="<installed-branch-review-skill-bundle>"
+PREPARE_INPUTS_HELPER="$BRANCH_REVIEW_DIR/scripts/prepare-review-inputs.sh"
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+
+BRANCH_REVIEW_INPUTS=$(
+  PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
+    bash "$PREPARE_INPUTS_HELPER" "$@"
+) || exit 1
+
+while IFS= read -r line; do
+  key=${line%%=*}
+  value=${line#*=}
+  case "$key" in
+    BASE) BASE="$value" ;;
+    FIX_MODE) FIX_MODE="$value" ;;
+    FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value" ;;
+    CANDIDATE_ACTIVE_DIFF_RANGE) CANDIDATE_ACTIVE_DIFF_RANGE="$value" ;;
+    MECHANICAL_ACTIVE_DIFF_RANGE) MECHANICAL_ACTIVE_DIFF_RANGE="$value" ;;
+    MECHANICAL_IS_FOLLOWUP_NARROW) MECHANICAL_IS_FOLLOWUP_NARROW="$value" ;;
+    MECHANICAL_ESCALATE_FULL) MECHANICAL_ESCALATE_FULL="$value" ;;
+    MECHANICAL_ESCALATION_REASON) MECHANICAL_ESCALATION_REASON="$value" ;;
+    FOLLOWUP_SHA_USABLE) FOLLOWUP_SHA_USABLE="$value" ;;
+    CHANGED_FILE_COUNT) CHANGED_FILE_COUNT="$value" ;;
+    CHANGED_FILES_FILE) CHANGED_FILES_FILE="$value" ;;
+    LANGUAGE_HINTS) LANGUAGE_HINTS="$value" ;;
+    LAST_REVIEWED_SHA) LAST_REVIEWED_SHA="$value" ;;
+    PRIOR_BRANCH_FINDINGS) PRIOR_BRANCH_FINDINGS="$value" ;;
+  esac
+done <<EOF
+$BRANCH_REVIEW_INPUTS
+EOF
 
 # Get the diff and commit log
-git diff "$BASE"...HEAD
-git log "$BASE"...HEAD --oneline
-git diff "$BASE"...HEAD --stat
+git diff "$FULL_DIFF_RANGE"
+git log "$FULL_DIFF_RANGE" --oneline
+git diff "$FULL_DIFF_RANGE" --stat
 ```
 
 If the diff is empty, report "no changes to review" and stop.
 
-Compute language hints from changed file extensions (e.g., `*.ts`, `*.rs`, `*.md`). The set drives `play-review`'s dynamic-agent triggers.
+`prepare-review-inputs.sh` is the authoritative implementation for
+deterministic Phase 1 mechanics: argument parsing, base resolution, paired
+follow-up input validation, installed `play-review` helper validation, prior
+findings review-head matching, candidate range computation, portable mechanical
+escalation checks, changed-file fact emission, and initial language-hint
+extraction. The helper must run from the repository root. It is not
+authoritative for semantic review scope.
+
+The helper writes `KEY=VALUE` lines to stdout:
+
+- `BASE`
+- `FIX_MODE`
+- `FULL_DIFF_RANGE`
+- `CANDIDATE_ACTIVE_DIFF_RANGE`
+- `MECHANICAL_ACTIVE_DIFF_RANGE`
+- `MECHANICAL_IS_FOLLOWUP_NARROW`
+- `MECHANICAL_ESCALATE_FULL`
+- `MECHANICAL_ESCALATION_REASON`
+- `FOLLOWUP_SHA_USABLE`
+- `CHANGED_FILE_COUNT`
+- `CHANGED_FILES_FILE`
+- `LANGUAGE_HINTS`
+- `LAST_REVIEWED_SHA`
+- `PRIOR_BRANCH_FINDINGS`
+
+For base resolution, an explicit base argument wins; otherwise resolve from
+`origin/HEAD`, then `origin/main`, then `origin/master`, then `main`.
+Flags may appear before or after the optional base argument. At most one positional base is accepted. Unknown flags or multiple base arguments stop before review.
+Follow-up input is invalid and stops before invoking `play-review` when only
+one follow-up argument is supplied, the prior findings path is unsafe, the
+40-character lowercase hex review head embedded in `--prior-findings` does not
+exactly match `--last-reviewed`, or the installed `play-review` helper rejects
+the prior findings file. Malformed follow-up SHAs stop with
+`--last-reviewed requires a 40-character lowercase hex SHA`. A mismatched review
+head stops with `--prior-findings review head must match --last-reviewed`.
+Missing values stop with `--last-reviewed requires a SHA` or
+`--prior-findings requires a path`; unknown flags stop with
+`unknown branch-review argument`; duplicate positional bases stop with
+`multiple base arguments supplied`. The prior findings file is local review
+context, not GitHub thread state, and this skill still performs no GitHub
+posting.
+
+The helper's built-in mechanical escalation triggers are intentionally portable:
+More than 5 files changed since `--last-reviewed`, unusable follow-up SHAs,
+root governance files (`MAP.md`, `AGENTS.md`, `CONTRIBUTING.md`), and
+conventional AFDS documentation paths (`docs/adr/**`, `docs/arch/**`,
+`docs/product-requirements/**`, `docs/specs/**`, `docs/guidelines/**`).
+Repositories may provide configured repo-owned path triggers through
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`; matching paths force mechanical full
+review. Missing configured repo-owned path triggers never prove a narrow review
+is safe. Do not add shared defaults such as `src/**`; source layout belongs to
+the repository or upstream handoff, not this reusable helper.
+
+## Upstream Review-Scope Handoff
+
+If this branch-review run is reached from planning or `play-subagent-execution`,
+consume that planning/execution categorization as non-authoritative context.
+Useful handoff facts include risk route, hard-risk trigger labels, affected
+consumers or generated outputs, source-owned contract surfaces, base/head SHAs,
+changed files observed by the executor, and whether the context came from a
+verified auto handoff or a direct/manual claim.
+
+The handoff can justify full review, but it cannot by itself justify narrow
+review. Match the handoff to the current branch and follow-up diff before using
+it. Missing, stale, malformed, conflicting, or untrusted handoff data fails
+closed to full branch review. This mirrors `play-subagent-execution`: plan hints
+are inputs, the executor/reviewer owns the effective route, and revalidation may only preserve or escalate.
+
+In follow-up mode, finalize the active range conservatively:
+
+- `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
+  documentation impact.
+- `candidate_active_diff_range = "$LAST_REVIEWED_SHA..HEAD"` for possible
+  incremental re-review after `--last-reviewed` passes paired input and
+  lowercase hex validation.
+- Start from `MECHANICAL_ACTIVE_DIFF_RANGE`, then inspect
+  `CHANGED_FILES_FILE`, any upstream handoff, and the current follow-up diff.
+- `active_diff_range = candidate_active_diff_range` only when the mechanical
+  and semantic escalation checks below all pass.
+- `is_followup_narrow = true` only when the final selected range is narrow.
+- The Phase 1 control flow must assign both final `ACTIVE_DIFF_RANGE` and
+  `IS_FOLLOWUP_NARROW` after semantic classification; do not pass the helper's
+  mechanical range to `play-review` as if it were final.
+
+Escalate back to full branch review when any of these are true:
+
+- `MECHANICAL_ESCALATE_FULL=true` because more than 5 files changed since
+  `--last-reviewed`, `--last-reviewed` does not resolve or is not an ancestor of `HEAD`, a portable governance path changed, or configured repo-owned path
+  triggers matched.
+- Upstream planning/execution categorization marks the work hard-risk.
+- Upstream planning/execution categorization is missing, stale, malformed,
+  conflicting, or untrusted and would be needed to justify a narrow review.
+- New public API functions or types are introduced.
+- Logic is restructured beyond previously flagged lines or adjacent changed
+  lines.
+- The increment touches architecture surfaces, shared workflow policy,
+  source-owned contracts, generated-output behavior, safety boundaries, or
+  broad file/module scope.
+- The increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`,
+  `CONTRIBUTING.md`, `agents/**`, reviewer-routing policy, output schemas,
+  install/sync behavior, path-validation guards, external-invocation guards,
+  generated-output renderers, or generated-output contracts.
+- Scope classification is ambiguous.
+
+Before finalizing a narrow review, read `CHANGED_FILES_FILE` and inspect the
+candidate diff. The helper writes repo-relative paths from the candidate active
+range to a direct child under `.ephemeral/`; treat the file as facts to classify,
+not as proof that the range is safe. If the file cannot be read or the
+classification is unclear, escalate.
+
+When escalation fires, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"` and
+`IS_FOLLOWUP_NARROW=false`, but still pass the validated prior findings to
+`play-review` so the critic can evaluate carry-forward items. When every
+mechanical and semantic escalation check clearly passes, set
+`ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"` and
+`IS_FOLLOWUP_NARROW=true`.
+
+After final range selection, compute `LANGUAGE_HINTS` from changed file
+extensions in `ACTIVE_DIFF_RANGE` (e.g., `*.ts`, `*.rs`, `*.md`). The helper's
+`LANGUAGE_HINTS` is only an initial mechanical hint. Recompute after semantic
+escalation so dynamic-agent triggers match the selected review scope; deriving
+the final hints from the full branch during a narrow follow-up would defeat the
+follow-up scope, while keeping narrow hints after full escalation would hide
+review-relevant languages.
 
 ## Phase 2: Invoke the play-review skill workflow
 
@@ -63,12 +211,16 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 
 - `working_directory` = repo root (the current working directory)
 - `base_ref` = `$BASE`
-- `active_diff_range` = `"$BASE...HEAD"`
-- `full_pr_diff_range` = `"$BASE...HEAD"` (same — no follow-up scope)
+- `active_diff_range` = the selected active range from Phase 1
+- `full_pr_diff_range` = `"$BASE...HEAD"` (always, including follow-up mode)
 - `head_sha` = `$(git rev-parse HEAD)`
-- `mode` = `"fix"` if `--fix` is set, else `"present"`
-- `language_hints` = computed in Phase 1
-- `prior_threads` = (none); `last_reviewed_sha` = (none); `is_followup_narrow` = `false`
+- `mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`
+- `language_hints` = computed from the selected active diff in Phase 1
+- `prior_threads` = (none)
+- `prior_branch_findings` = the validated `--prior-findings` envelope path
+  (`$PRIOR_BRANCH_FINDINGS`, follow-up only)
+- `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
+- `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
@@ -128,6 +280,7 @@ Then report:
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 - Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
   1 Safety or Sub-check 2 Contracts)
+- Follow-up `carry_forward[]` entries preserved from `play-review`, if any
 
 Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`; that command fails closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head. Immediately before overwriting, run the same helper with `prepare-findings-write`; that command prepares the write target but is not a substitute for read/schema validation. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root.
 
@@ -137,7 +290,7 @@ PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 ```
 
 After computing the remaining-set envelope from the validated file, and
@@ -146,12 +299,44 @@ write-target preparation for the same immutable review head and same file:
 
 ```bash
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" prepare-findings-write
+  bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
 ```
 
-The remaining-set `findings[]` contains all pre-fix findings except blockers that were successfully auto-fixed and committed. That includes every nit (regardless of anchor), blockers skipped because the critic flagged `INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered the halt (if any), and any later blockers left unprocessed because an earlier stop-rule finding halted the loop. Auto-fixed blockers do NOT appear — they're already committed in the worktree. If the remaining set is empty, still write the canonical empty envelope (`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) — never leave the file from `play-review`'s pre-fix run unchanged, and never delete it. Re-emit the (unchanged) `Findings written to <path>.` notice line in conversation so callers see the path. `issue-priming-workflow` Phase 7 reads from this file to classify nits and produce `play-branch-finish`'s `nits_file`.
+The remaining-set `findings[]` contains all pre-fix findings except blockers
+that were successfully auto-fixed and committed. That includes every nit
+(regardless of anchor), blockers skipped because the critic flagged `INVALID`
+or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining
+set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered
+the halt (if any), any later blockers left unprocessed because an earlier
+stop-rule finding halted the loop, and unresolved blocking `carry_forward[]`
+entries from follow-up review. Auto-fixed blockers do NOT appear — they're
+already committed in the worktree. In follow-up runs, also preserve
+`carry_forward[]` from the validated `play-review` envelope unchanged for audit
+continuity; unresolved blocking carry-forward entries must additionally be
+copied into the post-`--fix` remaining `findings[]` so downstream consumers that
+gate on `findings[]` do not mistake the run for clean. If the remaining set is
+empty and `carry_forward[]` is also empty, still write the canonical empty envelope
+(`{"schema":"play-review/findings/v1","findings":[],"carry_forward":[]}`) —
+never leave the file from `play-review`'s pre-fix run unchanged, and never
+delete it. If current-run findings are empty but `carry_forward[]` is
+non-empty, the post-`--fix` envelope must keep those carry-forward entries and
+mirror unresolved blocking carry-forward entries into `findings[]`. Re-emit the
+(unchanged) `Findings written to <path>.` notice line in conversation so
+callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
+detect remaining blockers, classify nits, and produce `play-branch-finish`'s
+`nits_file`.
 
-**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict subset of the pre-fix one: this skill only removes auto-fixed blockers from `findings[]`; it never adds new entries, never re-anchors lines, and never edits `body` / `why` / `recommendation` text. Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7) cannot tell from the file alone whether they are reading the pre-fix or post-`--fix` version — the order is workflow-determined (Phase 7 always runs after `branch-review --fix`). The schema does not carry a `source` discriminator; the contract above is what guarantees consumers do not need one.
+**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
+subset of the pre-fix findings plus carry-forward set: this skill only removes
+auto-fixed blockers from `findings[]`; it preserves `carry_forward[]` unchanged,
+mirrors unresolved blocking carry-forward entries into `findings[]` for
+downstream blocker gates, never invents new entries, never re-anchors lines, and
+never edits `body` / `why` / `recommendation` text.
+Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
+cannot tell from the file alone whether they are reading the pre-fix or
+post-`--fix` version — the order is workflow-determined (Phase 7 always runs
+after `branch-review --fix`). The schema does not carry a `source`
+discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Quick Reference
 
