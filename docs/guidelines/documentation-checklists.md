@@ -17,6 +17,7 @@ inapplicable surface with a short reason:
 
 - `CONTRIBUTING.md`
 - `docs/guidelines/pr-guideline.md`
+- `docs/guidelines/code-review-guideline.md`
 - `.github/pull_request_template.md`
 - `WORKFLOW.md`
 - `docs/adr/adr-template.md` plus affected accepted ADRs
