@@ -308,6 +308,36 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
 - Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
 - Don't propose unrelated refactoring. Stay focused on what serves the current goal.
 
+## Hard Requirements Ledger
+
+For non-trivial executable designs when normative requirements must be
+preserved across planning, include a short `## Hard Requirements` ledger in the
+written design. This applies when the work changes governance or workflow
+policy, source-owned procedure, fail-closed behavior, safety-sensitive behavior,
+cross-skill or cross-agent handoffs, generated or derived artifact behavior, or
+any other requirement-heavy surface where dropping one requirement would change
+the intended behavior.
+
+Trivial, mechanical, or requirement-light work does not require a hard
+requirements ledger unless one of those traceability triggers applies. If the
+ledger is not required, do not add process weight just to fill a table.
+
+Use this shape:
+
+```md
+## Hard Requirements
+
+| ID  | Requirement             | Source                       | Rationale                       |
+| --- | ----------------------- | ---------------------------- | ------------------------------- |
+| R1  | <normative requirement> | <issue/spec/design decision> | <why planning must preserve it> |
+```
+
+The ledger, not incidental modal verbs in examples, quoted issue text, shell
+snippets, or explanatory prose, is the executable traceability contract for
+`play-planning`. Supporting prose may explain the requirement, but planning
+does not have to infer additional hard requirements from prose that is not in
+the ledger.
+
 ## After the Design
 
 **Save:**
@@ -336,6 +366,11 @@ After writing the design document, look at it with fresh eyes:
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
 5. **Example verification:** For any worked example, illustrative scenario, or reference _that purports to cite existing code, files, or history_ in the design that names a specific file path, line number, function name, identifier, command, commit SHA, or PR number — open the file (or run `git log` / `git show` / `gh pr view <N>`) and confirm the cited artifact exists and contains the cited text. Forward-looking design proposals (new modules, paths, or APIs being introduced) are not subject to this check. A scenario explicitly labeled `(hypothetical)` is exempt. A scenario labeled "from PR #N" or citing a real file path is **not** exempt — verify it. Concrete-looking specifics that turn out to be fabricated are the most common silent defect class in worked examples.
 6. **Documentation impact:** If any approach was flagged ADR/arch/MAP-relevant during exploration, or if the design changes governance or workflow policy, the chosen design must include a "Documentation impact" subsection. For ADR/arch/MAP impact, name each affected file. For governance or workflow-policy changes, name touched adjacent governance surfaces from the Adjacent Governance Policy Set owned by `docs/guidelines/documentation-checklists.md`, including any inapplicable surfaces and the reason they are out of scope. This subsection becomes the structured hand-off to `play-planning`, which generates corresponding documentation tasks. If no approach has documentation impact and no governance/workflow-policy surface is touched, omit the subsection.
+7. **Hard requirements:** If the design is non-trivial executable work with
+   normative requirements that must be preserved across planning, confirm the
+   design includes a `## Hard Requirements` ledger. Fix any missing or
+   ambiguous hard-requirements ledger row before handoff, and confirm each row
+   has an ID, requirement, source, and rationale.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
