@@ -133,12 +133,13 @@ The helper emits a JSON envelope conforming to schema `implementer/snapshot/v1`:
 
 ## Persist and Verify
 
-In normal dispatches, the helper owns persistence and verification. It creates a
-private scratch directory under `.ephemeral`, writes all helper scratch files and
-the envelope temp file inside that directory, rechecks that `.ephemeral` is not a
-symlink, rejects an existing directory at `$SNAPSHOT_FILE`, renames the temp file
-to `$SNAPSHOT_FILE`, verifies the result is a regular non-empty file, and prints
-the success notice. Do not assemble or write the snapshot manually.
+In snapshot-requesting dispatches, the helper owns persistence and verification.
+It creates a private scratch directory under `.ephemeral`, writes all helper
+scratch files and the envelope temp file inside that directory, rechecks that
+`.ephemeral` is not a symlink, rejects an existing directory at `$SNAPSHOT_FILE`,
+renames the temp file to `$SNAPSHOT_FILE`, verifies the result is a regular
+non-empty file, and prints the success notice. Do not assemble or write the
+snapshot manually.
 
 Because the helper is authoritative for executable snapshot behavior, do not
 substitute a dispatch-local fallback contract when the helper is unavailable.

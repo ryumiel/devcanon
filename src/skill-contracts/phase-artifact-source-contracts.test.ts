@@ -465,7 +465,7 @@ describe("phase artifact source contracts", () => {
     expect(snapshotRecipe).toContain("post-write regular-file and size checks");
     expect(snapshotRecipe).toContain("non-regular");
     expect(snapshotRecipe).toContain(
-      "In normal dispatches, the helper owns persistence and verification",
+      "In snapshot-requesting dispatches, the helper owns persistence and verification",
     );
     expect(snapshotRecipe).toContain("controller-computed changed-file list");
     expect(snapshotRecipe).toContain(
