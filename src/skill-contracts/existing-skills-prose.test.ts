@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import {
   getMarkdownSection,
   normalizeWhitespace,
@@ -564,7 +565,7 @@ describe("existing skills source prose contracts", () => {
       expect(log).not.toContain("squash!");
       expect(log.trim().split("\n")).toHaveLength(1);
     } finally {
-      await rm(repoDir, { force: true, recursive: true });
+      await cleanupTempDir(repoDir);
     }
   });
 
@@ -602,7 +603,7 @@ describe("existing skills source prose contracts", () => {
 
       expect(remainingMarkers).toContain("squash! feat: base");
     } finally {
-      await rm(repoDir, { force: true, recursive: true });
+      await cleanupTempDir(repoDir);
     }
   });
 
@@ -625,7 +626,7 @@ describe("existing skills source prose contracts", () => {
 
       expect(log.trim().split("\n")).toHaveLength(2);
     } finally {
-      await rm(repoDir, { force: true, recursive: true });
+      await cleanupTempDir(repoDir);
     }
   });
 
