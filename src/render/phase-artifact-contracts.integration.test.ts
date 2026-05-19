@@ -23,6 +23,25 @@ type RenderedBodies = Record<string, string>;
 const normalizeRenderedWhitespace = (value: string): string =>
   value.replace(/\s+/g, " ").trim();
 
+const sliceRenderedSection = (
+  body: string,
+  startMarker: string,
+  endMarker: string,
+): string => {
+  const startIndex = body.indexOf(startMarker);
+  expect(
+    startIndex,
+    `missing start marker: ${startMarker}`,
+  ).toBeGreaterThanOrEqual(0);
+
+  const endIndex = body.indexOf(endMarker, startIndex + startMarker.length);
+  expect(endIndex, `missing end marker: ${endMarker}`).toBeGreaterThanOrEqual(
+    0,
+  );
+
+  return body.slice(startIndex, endIndex);
+};
+
 describe("rendered phase artifact smoke coverage", () => {
   let bodies: RenderedBodies;
 
@@ -113,6 +132,194 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(playSubagentExecution).toContain(
       "scripts/write-snapshot-manifest.sh",
     );
+  });
+
+  it("keeps auto-mode Phase 7 and Phase 8 contracts rendered for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const issuePrimingWorkflow = bodies[`issue-priming-workflow:${target}`];
+      const phase7 = sliceRenderedSection(
+        issuePrimingWorkflow,
+        "### Phase 7: Branch Review",
+        "### Phase 8: Create PR",
+      );
+      const phase8 = sliceRenderedSection(
+        issuePrimingWorkflow,
+        "### Phase 8: Create PR",
+        "## Quick Reference",
+      );
+      const normalizedPhase7 = normalizeRenderedWhitespace(phase7);
+      const normalizedPhase8 = normalizeRenderedWhitespace(phase8);
+
+      expect(phase7).toContain("branch-review --fix");
+      expect(phase7).toContain("Review head: <40-hex-sha>.");
+      expect(phase7).toContain("Findings written to <path>.");
+      expect(phase7).toContain(
+        "Do not recompute the review SHA from post-review `HEAD`",
+      );
+      expect(phase7).toContain("PLAY_REVIEW_DIR");
+      expect(phase7).toContain("PLAY_REVIEW_HELPER");
+      expect(phase7).toContain("scripts/review-artifacts.sh");
+      expect(phase7).toContain("validate-findings");
+      expect(normalizedPhase7).toContain(
+        "After the guard passes, load `findings[]` from the file",
+      );
+      expect(normalizedPhase7).toContain(
+        "Do not re-parse the human-readable markdown",
+      );
+      expect(normalizedPhase7).toContain(
+        'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments',
+      );
+      expect(phase7).toContain("Mechanical nits");
+      expect(phase7).toContain(
+        "Judgment-required nits and downgraded findings",
+      );
+      expect(phase7).toContain("play-review/findings/v1");
+      expect(phase7).toContain("-nits-pending.json");
+      expect(phase7).toContain("NITS_PENDING_FILE");
+      expect(phase7).toContain("derive-nits-pending");
+      expect(normalizedPhase7).toContain(
+        "passes `$NITS_PENDING_FILE` as `nits_file`",
+      );
+      expect(normalizedPhase7).toContain(
+        "If the judgment-required set is empty, skip the file write",
+      );
+
+      expect(phase8).toContain("play-branch-finish");
+      expect(phase8).toContain("option 2: push and create PR");
+      expect(normalizedPhase8).toContain(
+        'Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content',
+      );
+      expect(normalizedPhase8).toContain(
+        "Auto-mode assumptions are routed through the assumptions comment path",
+      );
+      expect(normalizedPhase8).toContain(
+        "Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation",
+      );
+      expect(phase8).toContain("assumptions_comment_file");
+      expect(phase8).toContain(
+        ".ephemeral/<identifier>-assumptions-comment.md",
+      );
+      expect(phase8).toContain(
+        "assumptions_comment_file must be a direct child of .ephemeral",
+      );
+      expect(phase8).toContain(
+        "assumptions_comment_file path validation failed",
+      );
+      expect(phase8).toContain("path traversal");
+      expect(phase8).toContain(".ephemeral must be a directory, not a symlink");
+      expect(normalizedPhase8).toContain(
+        "If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely",
+      );
+      expect(normalizedPhase8).toContain(
+        "Ambiguous decisions still stop `--auto` and ask the user",
+      );
+      expect(phase8).toContain("Pass `nits_file`");
+      expect(phase8).toContain(
+        ".ephemeral/<branch_slug>-<head_sha>-nits-pending.json",
+      );
+      expect(normalizedPhase8).toContain(
+        "If Phase 7 produced no judgment-required nits, omit `nits_file` entirely",
+      );
+    }
+  });
+
+  it("keeps play-branch-finish post-create assumptions and nits routing rendered for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const playBranchFinish = bodies[`play-branch-finish:${target}`];
+      const option2 = sliceRenderedSection(
+        playBranchFinish,
+        "#### Option 2: Push and Create PR",
+        "#### Option 3: Keep As-Is",
+      );
+      const cleanup = sliceRenderedSection(
+        playBranchFinish,
+        "### Step 5: Cleanup Worktree",
+        "## Quick Reference",
+      );
+      const normalizedOption2 = normalizeRenderedWhitespace(option2);
+      const normalizedCleanup = normalizeRenderedWhitespace(cleanup);
+
+      expect(normalizedOption2).toContain(
+        "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope",
+      );
+      expect(normalizedOption2).toContain(
+        "posts them as PR review comments after `gh pr create` succeeds",
+      );
+      expect(normalizedOption2).toContain(
+        "they MUST NOT be embedded in the PR description body",
+      );
+      expect(normalizedOption2).toContain("No filtering inside this skill");
+      expect(normalizedOption2).toContain(
+        "issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits",
+      );
+      expect(normalizedOption2).toContain(
+        "may pass an `assumptions_comment_file` argument",
+      );
+      expect(normalizedOption2).toContain(
+        "posts that file as a regular top-level PR comment after `gh pr create` succeeds",
+      );
+      expect(normalizedOption2).toContain(
+        "It MUST NOT be embedded in the PR description body",
+      );
+      expect(option2).toContain("gh pr create");
+      expect(normalizedOption2).toContain(
+        "After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment",
+      );
+      expect(normalizedOption2).toContain(
+        "An `assumptions_comment_file` that is set but missing or unreadable is a contract failure",
+      );
+      expect(option2).toContain(
+        "assumptions_comment_file must be a direct child of .ephemeral",
+      );
+      expect(option2).toContain(
+        "assumptions_comment_file path validation failed",
+      );
+      expect(option2).toContain(
+        "assumptions_comment_file must not be a symlink",
+      );
+      expect(option2).toContain(
+        "assumptions_comment_file missing or unreadable",
+      );
+      expect(option2).toContain(
+        'gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"',
+      );
+      expect(normalizedOption2).toContain(
+        "If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before Step 5 cleanup",
+      );
+      expect(normalizedOption2).toContain("Do **not** delete or edit the PR");
+
+      expect(normalizedOption2).toContain(
+        "After `gh pr create` succeeds, route caller-supplied nits to PR review comments",
+      );
+      expect(normalizedOption2).toContain(
+        "A `nits_file` that is set but missing or unreadable is a contract failure",
+      );
+      expect(option2).toContain("PLAY_REVIEW_HELPER");
+      expect(option2).toContain("scripts/review-artifacts.sh");
+      expect(option2).toContain("validate-nits-file");
+      expect(normalizedOption2).toContain(
+        "Treat any nonzero exit as a contract failure and stop before posting",
+      );
+      expect(option2).toContain("ANCHORABLE_NITS_JSON");
+      expect(option2).toContain('"side": "RIGHT"');
+      expect(option2).toContain("gh api repos/{owner}/{repo}/pulls/");
+      expect(option2).toContain(
+        'gh pr review "$PR_NUMBER" --comment --body-file -',
+      );
+      expect(normalizedOption2).toContain(
+        "Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean",
+      );
+      expect(normalizedOption2).toContain(
+        "If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before Step 5 cleanup",
+      );
+      expect(normalizedOption2).toContain(
+        "missing comments are recoverable by re-running posting or pasting nits manually",
+      );
+
+      expect(normalizedCleanup).toContain(
+        "Option 2 reaches Step 5 only after PR creation and any requested assumptions-comment or nit-posting steps complete without error",
+      );
+    }
   });
 
   it("keeps rendered branch-review and play-review follow-up contract surfaces", () => {
