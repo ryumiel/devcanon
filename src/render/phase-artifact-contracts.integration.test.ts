@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { parseFrontmatter } from "./frontmatter.js";
@@ -18,14 +18,19 @@ const PHASE_ARTIFACT_SKILLS = [
   "play-subagent-execution",
 ] as const;
 
+type RenderedBodies = Record<string, string>;
+
 describe("rendered phase artifact smoke coverage", () => {
-  it("renders phase artifact skills to both targets without placeholder leaks", async () => {
+  let bodies: RenderedBodies;
+
+  beforeAll(async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
     );
 
     const { outputs } = await renderAll(config, false);
+    bodies = {};
 
     for (const skillName of PHASE_ARTIFACT_SKILLS) {
       for (const target of ["claude", "codex"] as const) {
@@ -33,22 +38,24 @@ describe("rendered phase artifact smoke coverage", () => {
         const { frontmatter, body } = parseFrontmatter(output.content);
 
         expect(frontmatter.name).toBe(skillName);
+        bodies[`${skillName}:${target}`] = body;
+      }
+    }
+  });
+
+  it("renders phase artifact skills to both targets without placeholder leaks", () => {
+    for (const skillName of PHASE_ARTIFACT_SKILLS) {
+      for (const target of ["claude", "codex"] as const) {
+        const body = bodies[`${skillName}:${target}`];
+
         expect(body.trim()).not.toHaveLength(0);
         expect(body).not.toContain("{{model:");
       }
     }
   });
 
-  it("keeps rendered phase artifact handoff and helper reference surfaces", async () => {
-    const repoRoot = process.cwd();
-    const config = await loadConfig(
-      path.join(repoRoot, "devcanon.config.yaml"),
-    );
-
-    const { outputs } = await renderAll(config, false);
-    const bodyFor = (skillName: string) =>
-      parseFrontmatter(getSkillOutput(outputs, skillName, "codex").content)
-        .body;
+  it("keeps rendered phase artifact handoff and helper reference surfaces", () => {
+    const bodyFor = (skillName: string) => bodies[`${skillName}:codex`];
 
     for (const skillName of ["github-issue-priming", "linear-issue-priming"]) {
       const body = bodyFor(skillName);
