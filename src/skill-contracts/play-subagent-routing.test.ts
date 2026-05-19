@@ -180,9 +180,15 @@ describe("play subagent routing source contracts", () => {
       "### Phase 7: Branch Review",
       "### Phase 8: Create PR",
     );
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Quick Reference",
+    );
     const normalizedRouting = normalizeWhitespace(routing);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedPhase8 = normalizeWhitespace(phase8);
 
     expect(autoHandoffReference).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
@@ -235,6 +241,27 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
+    );
+    expect(phase7).toContain("Review head: <40-hex-sha>.");
+    expect(phase7).toContain("Findings written to <path>.");
+    expect(phase7).toContain("PLAY_REVIEW_HELPER");
+    expect(phase7).toContain("validate-findings");
+    expect(phase7).toContain("derive-nits-pending");
+    expect(phase7).toContain("-nits-pending.json");
+    expect(normalizedPhase7).toContain(
+      "Do not recompute the review SHA from post-review `HEAD`",
+    );
+    expect(normalizedPhase7).toContain(
+      'no unresolved `severity: "Blocking"` entries except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
+    );
+    expect(normalizedPhase7).toContain(
+      'Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`',
+    );
+    expect(normalizedPhase7).toContain(
+      'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments',
+    );
+    expect(normalizedPhase8).toContain(
+      "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",
     );
   });
 
