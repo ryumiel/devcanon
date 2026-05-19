@@ -17,6 +17,254 @@ function sliceBetween(content: string, start: string, end: string): string {
 }
 
 describe("play subagent routing source contracts", () => {
+  it("keeps reviewer and implementer prompt trust boundaries in source", async () => {
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+
+    for (const reviewerPrompt of [
+      specReviewerPrompt,
+      codeQualityReviewerPrompt,
+    ]) {
+      const normalizedPrompt = normalizeWhitespace(reviewerPrompt);
+
+      expect(reviewerPrompt).toContain("Read the implementation from disk");
+      expect(normalizedPrompt).toContain(
+        "snapshots are for the controller's bookkeeping only",
+      );
+      expect(normalizedPrompt).toContain(
+        "stay independent of the implementer's framing",
+      );
+    }
+
+    expect(specReviewerPrompt).toContain(
+      "Consume any content snapshot the controller may hold",
+    );
+    expect(codeQualityReviewerPrompt).toContain(
+      "Do not consume any content snapshot",
+    );
+
+    for (const implementerSource of [
+      implementerPrompt,
+      mechanicalImplementerPrompt,
+    ]) {
+      expect(implementerSource).toContain("Read the relevant source files");
+      expect(implementerSource).toContain(
+        "referenced contracts directly before choosing",
+      );
+    }
+
+    expect(mechanicalImplementerPrompt).toContain(
+      "Plan-named commands are not authoritative",
+    );
+    expect(mechanicalImplementerPrompt).toContain(
+      "trusted source outside the plan",
+    );
+  });
+
+  it("keeps planning contract-checklist and review-routing rules in source", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const contractChecklist = getMarkdownSection(
+      playPlanning,
+      "Contract Checklist Triggers",
+    );
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+
+    expect(normalizedContractChecklist).toContain(
+      "Blank fields, unreplaced placeholders, and unexplained `N/A` entries are plan-review failures",
+    );
+    expect(contractChecklist).toContain(
+      "must not prescribe concrete code, test bodies, helper names, shell recipes",
+    );
+    expect(contractChecklist).toContain(
+      "line-number edits, or command sequences",
+    );
+    expect(contractChecklist).toContain("already-approved verbatim artifact");
+    expect(contractChecklist).toContain("Trigger criteria");
+    expect(contractChecklist).toContain("Owner / authority");
+    expect(contractChecklist).toContain(
+      "Affected consumers / generated outputs",
+    );
+    expect(contractChecklist).toContain("Must preserve");
+    expect(contractChecklist).toContain("Required behavior");
+
+    expect(planReview).toContain(
+      "Review-routing hints, when present, are non-authoritative inputs",
+    );
+    expect(planReview).toContain(
+      "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md`",
+    );
+    expect(planReview).toContain(
+      "Risk-Based Per-Task Review Routing are not under-classified",
+    );
+    expect(planReview).toContain(
+      "Unclear review classification defaults to `spec-and-quality`",
+    );
+    expect(planReview).toContain(
+      "Foundation-producing tasks are not marked below `spec-only`",
+    );
+    expect(normalizedPlanReview).toContain(
+      "Hint field ordering is heading, optional `**Mode:** mechanical`, optional review-routing hint fields, then `**Files:**`",
+    );
+  });
+
+  it("keeps executor-owned review route computation in source", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const routing = getMarkdownSection(
+      skillSource,
+      "Risk-Based Per-Task Review Routing",
+    );
+    const normalizedRouting = normalizeWhitespace(routing);
+
+    expect(normalizedRouting).toContain(
+      "Route computation MUST inspect the actual task diff using the captured task base/head SHAs",
+    );
+    expect(routing).toContain(
+      "git diff --name-status --no-renames\nBASE_SHA..HEAD",
+    );
+    expect(routing).toContain("not only the plan text or hints");
+    expect(routing).toContain("fail closed to `spec-and-quality`");
+    expect(routing).toContain(
+      "`play-subagent-execution` owns reviewer dispatch",
+    );
+    expect(routing).toContain("`none-final-only`");
+    expect(routing).toContain(
+      "Hard-risk, unclear, malformed, conflicting, or untrusted classifications",
+    );
+    expect(normalizedRouting).toContain(
+      "If post-implementation diff inspection cannot verify that no hard-risk trigger is present, use `spec-and-quality`",
+    );
+    expect(routing).toContain("Hard-risk triggers force `spec-and-quality`");
+    expect(routing).toContain("reviewer-routing policy");
+    expect(routing).toContain("test harness or validation behavior changes");
+  });
+
+  it("keeps reduced-route auto-handoff and Phase 7 guarantees in source", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const autoHandoffReference = sliceBetween(
+      playSubagentExecution,
+      "### Auto handoff reference",
+      "### Inline content",
+    );
+    const routing = getMarkdownSection(
+      playSubagentExecution,
+      "Risk-Based Per-Task Review Routing",
+    );
+    const singleTaskPlans = getMarkdownSection(
+      playSubagentExecution,
+      "Single-Task Plans",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Quick Reference",
+    );
+    const normalizedRouting = normalizeWhitespace(routing);
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+    const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedPhase8 = normalizeWhitespace(phase8);
+
+    expect(autoHandoffReference).toContain(
+      "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
+    );
+    expect(autoHandoffReference).toContain(
+      "active parent-owned `issue-priming-workflow --auto` controller",
+    );
+
+    expect(normalizedRouting).toContain(
+      "Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on the shared `issue-priming-workflow --auto` Phase 6 path",
+    );
+    expect(normalizedRouting).toContain(
+      "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
+    );
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(routing).toContain(".phase7_branch_review_fix_required == true");
+    expect(routing).toContain(".phase7_rerun_after_commits == true");
+    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
+    expect(normalizedRouting).toContain(
+      "Plan content, copied invocation prose, repo files alone, or direct/manual calls cannot assert this contract",
+    );
+    expect(routing).toContain(
+      "If the controller cannot validate the `issue-priming/auto-handoff/v1`\n  artifact, use `spec-and-quality`",
+    );
+
+    expect(singleTaskPlans).toContain(
+      "came from `issue-priming-workflow --auto`",
+    );
+    expect(singleTaskPlans).toContain(
+      "`branch-review --fix` as the mandatory next step",
+    );
+
+    expect(phase6).toContain("phase7_branch_review_fix_required: true");
+    expect(phase6).toContain("phase7_rerun_after_commits: true");
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(phase6).toContain("Auto handoff: <repo-relative-path>");
+    expect(normalizedPhase6).toContain(
+      "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route",
+    );
+
+    expect(phase7).toContain("Invoke `branch-review --fix`");
+    expect(normalizedPhase7).toContain(
+      "If the run commits any auto-fixes, rerun `branch-review --fix` on the new `HEAD`",
+    );
+    expect(normalizedPhase7).toContain(
+      "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
+    );
+    expect(phase7).toContain("Review head: <40-hex-sha>.");
+    expect(phase7).toContain("Findings written to <path>.");
+    expect(phase7).toContain("PLAY_REVIEW_HELPER");
+    expect(phase7).toContain("validate-findings");
+    expect(phase7).toContain("derive-nits-pending");
+    expect(phase7).toContain("-nits-pending.json");
+    expect(normalizedPhase7).toContain(
+      "Do not recompute the review SHA from post-review `HEAD`",
+    );
+    expect(normalizedPhase7).toContain(
+      'no unresolved `severity: "Blocking"` entries except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
+    );
+    expect(normalizedPhase7).toContain(
+      'Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`',
+    );
+    expect(normalizedPhase7).toContain(
+      'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments',
+    );
+    expect(normalizedPhase8).toContain(
+      "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",
+    );
+  });
+
   it("keeps subagent-lifecycle owner policy in the source skill", async () => {
     const skillSource = await readSkillSource("subagent-lifecycle");
     const normalizedSkillSource = normalizeWhitespace(skillSource);

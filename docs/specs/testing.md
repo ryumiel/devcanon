@@ -24,7 +24,63 @@
 
 ---
 
+## Test ownership
+
+Render tests prove generated artifact behavior:
+
+- artifact parseability, including Claude frontmatter, Codex TOML, and Codex
+  skill sidecars
+- target-specific field behavior and placeholder resolution
+- generated packaging, mirrored skill files, metadata, hashes, and stale-output
+  cleanup
+- shipped skill and agent smoke coverage for both supported targets
+
+Render tests should not own broad skill prose, prompt wording, ADR wording,
+workflow policy, or helper runtime behavior. Keep those contracts in the
+authoritative source area:
+
+- `src/skill-contracts/` tests source-owned skill prose, workflow policy,
+  routing, handoff, and ADR alignment by reading `skills/**`, `docs/**`, and
+  reference files directly.
+- `src/skill-scripts/` tests executable helper runtime behavior by running
+  source scripts from `skills/**/scripts/**` against focused fixtures.
+
+Avoid long-lived full-output snapshots or phrase inventories for shipped skill
+and agent bodies. Use structured artifact assertions and source-level contract
+tests instead.
+
+Source-contract tests should pin load-bearing invariants. Include coverage for:
+
+- required inputs, outputs, handoff schemas, and notice lines consumed by other
+  skills, agents, scripts, or generated outputs
+- authority and ownership rules that decide which artifact wins when sources
+  disagree
+- path, trust-boundary, fail-closed, and compatibility behavior that protects
+  safety or prevents ambiguous execution
+- required helper/script references, routing decisions, and cross-skill
+  preconditions that would break downstream workflows if removed
+
+Do not use source-contract tests for:
+
+- explanatory prose, examples, section narration, or repeated wording that has
+  no consumer contract
+- every guard message when the guard behavior is already covered by an
+  executable helper test or a higher-level invariant
+- duplicated checks whose only purpose is to keep old render-body phrase
+  inventories alive in a different test suite
+
+Only assert exact text when that text is itself the contract surface, such as a
+schema name, emitted notice, CLI flag, environment variable, helper path, or
+documented error consumed by another workflow.
+
+During review response, add the smallest source-owned assertion set that would
+fail for a real contract regression and leave non-load-bearing wording to
+source review.
+
+---
+
 ## Snapshot tests
 
-- Claude generated `.md`
-- Codex generated `.toml`
+- focused fixture-based renderer output when byte-for-byte formatting is the
+  behavior under test
+- generated metadata fragments when structured parsing is not enough
