@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   normalizeWhitespace,
   readRepoFile,
   readSkillSource,
@@ -654,13 +655,10 @@ describe("phase artifact source contracts", () => {
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
     expect(adr0014).toContain("fallback contract");
     expect(adr0014).toContain("trigger-based");
-    expect(adr0014).toContain("governed output");
-    expect(adr0014).toContain("generated-output behavior");
-    expect(adr0014).toContain("schema or type contract");
-    expect(adr0014).toContain("cross-agent, or cross-skill handoff behavior");
-    expect(adr0014).toContain(
-      "Path-validation, filesystem-safety, or other security-sensitive behavior",
-    );
+    const normalizedAdr0014 = normalizeWhitespace(adr0014);
+    for (const trigger of SNAPSHOT_REQUEST_TRIGGER_CONTRACTS) {
+      expect(normalizedAdr0014).toContain(trigger.adrPhrase);
+    }
     expect(normalizeWhitespace(adr0014)).toContain(
       "Plan text may contain snapshot hints",
     );

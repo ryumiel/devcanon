@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
   getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
@@ -159,21 +160,9 @@ describe("play subagent routing source contracts", () => {
     const normalizedSnapshotConsumption =
       normalizeWhitespace(snapshotConsumption);
 
-    expect(normalizedSnapshotConsumption).toContain("governed outputs");
-    expect(normalizedSnapshotConsumption).toContain(
-      "generated-output behavior",
-    );
-    expect(normalizedSnapshotConsumption).toContain("schema or type contracts");
-    expect(normalizedSnapshotConsumption).toContain(
-      "cross-agent or cross-skill handoff behavior",
-    );
-    expect(normalizedSnapshotConsumption).toContain(
-      "path-validation, filesystem-safety, or other security-sensitive behavior",
-    );
-    expect(normalizedSnapshotConsumption).toContain(
-      "explicit controller audit",
-    );
-    expect(normalizedSnapshotConsumption).toContain("unclear classification");
+    for (const trigger of SNAPSHOT_REQUEST_TRIGGER_CONTRACTS) {
+      expect(normalizedSnapshotConsumption).toContain(trigger.skillPhrase);
+    }
     expect(normalizedSnapshotConsumption).toContain(
       "Skip snapshots only for clearly localized, low-risk work",
     );
