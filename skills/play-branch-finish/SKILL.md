@@ -150,16 +150,27 @@ Proceed with autosquash? (yes/no)
 ```
 
 Only `yes` proceeds. Any other response leaves the branch as-is and continues
-to push/PR creation. When approved, capture the pre-autosquash tree, run
-autosquash using the resolved base, and verify the post-autosquash tree is
-unchanged before push:
+to push/PR creation. When approved, require a clean worktree, capture the
+pre-autosquash commit and tree, compute the merge-base for the resolved base,
+run autosquash noninteractively against that local commit range, and verify the
+post-autosquash tree is unchanged before push:
 
 ```bash
+git diff --quiet && git diff --cached --quiet || {
+  echo "worktree must be clean before autosquash" >&2
+  exit 1
+}
+AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)
+PRE_AUTOSQUASH_HEAD=$(git rev-parse HEAD)
 PRE_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
-git rebase -i --autosquash <base-branch>
+if ! GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"; then
+  echo "autosquash failed; resolve it or run git rebase --abort before push" >&2
+  exit 1
+fi
 POST_AUTOSQUASH_TREE=$(git rev-parse HEAD^{tree})
 [ "$POST_AUTOSQUASH_TREE" = "$PRE_AUTOSQUASH_TREE" ] || {
-  echo "post-autosquash tree changed; stop before push and inspect" >&2
+  git reset --hard "$PRE_AUTOSQUASH_HEAD"
+  echo "post-autosquash tree changed; branch restored, stop before push" >&2
   exit 1
 }
 ```

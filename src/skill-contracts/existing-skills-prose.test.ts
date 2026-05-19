@@ -407,7 +407,15 @@ describe("existing skills source prose contracts", () => {
       "This rewrites only local feature-branch commits and is not required.",
     );
     expect(normalizedOption2).toContain(
-      "git rebase -i --autosquash <base-branch>",
+      "AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)",
+    );
+    expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
+    expect(normalizedOption2).toContain(
+      'GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$AUTOSQUASH_BASE"',
+    );
+    expect(normalizedOption2).toContain("git rebase --abort");
+    expect(normalizedOption2).toContain(
+      'git reset --hard "$PRE_AUTOSQUASH_HEAD"',
     );
     expect(normalizedOption2).toMatch(
       /post-autosquash tree.*unchanged.*before push/i,
