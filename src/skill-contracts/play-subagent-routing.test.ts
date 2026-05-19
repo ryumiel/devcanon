@@ -168,7 +168,7 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedLifecycle).toContain(
       "preserve the implementer session until every reviewer loop required by the task's effective route passes",
     );
-    expect(lifecycle).not.toContain("## Controller Lifecycle Ledger");
+    expect(skillSource).not.toContain("\n## Controller Lifecycle Ledger\n");
 
     expect(normalizedHandlingStatus).toContain(
       "Before acting on any returned status, update the lifecycle ledger for that session with the status and the artifacts that status actually provides",
@@ -234,6 +234,7 @@ describe("play subagent routing source contracts", () => {
     expect(task1Section).toContain(
       "Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.",
     );
+    expect(task1Section).toContain("base/head SHA captured (head pending)");
     expect(task1Section).toContain("Lifecycle cleanup checkpoint");
     expect(task1Section).toContain("closed=yes after PASS verdict recorded");
 
@@ -248,6 +249,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(task2Section).toContain(
       "Cleanup gate before Task 2 code-quality re-review spawn",
+    );
+    expect(task2Section).toContain(
+      "Task 2 code-quality reviewer: status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
@@ -270,6 +274,11 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(task3Section)).toContain(
       "closed=yes after the effective route completed",
     );
+    expect(exampleWorkflow).toContain(
+      "Cleanup gate before final code-quality reviewer spawn",
+    );
+    expect(exampleWorkflow).toContain("final-code-quality-reviewer");
+    expect(exampleWorkflow).toContain("review scope captured");
 
     expect(targetCapabilityExamples).toContain(
       "inventory-only: target exposes session inventory but no close operation",
@@ -303,10 +312,35 @@ describe("play subagent routing source contracts", () => {
       "Repeated blocker-family branch",
     );
     expect(targetCapabilityExamples).toContain(
+      "Controller runs the cleanup gate",
+    );
+    expect(targetCapabilityExamples).toContain("Initial blocker-family record");
+    expect(targetCapabilityExamples).toContain(
       "blocker state=context-missing: needs target install path",
     );
     expect(targetCapabilityExamples).toContain(
       "close-unavailable: no inventory or close operation after BLOCKED report",
+    );
+  });
+
+  it("keeps issue-priming phase 6 lifecycle cleanup before execution handoff in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const issuePhase6Section = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+
+    expect(issuePhase6Section).toContain(
+      "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
+    );
+    expect(normalizeWhitespace(issuePhase6Section)).toContain(
+      "close them when the target is `automatic-close-supported`, or record the target-honest `close-unavailable` outcome before invoking `play-subagent-execution`",
+    );
+    expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
+      issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
     );
   });
 });

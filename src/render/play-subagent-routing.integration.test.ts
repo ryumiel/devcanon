@@ -1237,15 +1237,6 @@ AUTO_HANDOFF_FILE=$(
     expect(issuePhase6Section).toContain(
       "phase7_branch_review_fix_required: true",
     );
-    expect(issuePhase6Section).toContain(
-      "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
-    );
-    expect(normalizeWhitespace(issuePhase6Section)).toContain(
-      "close them when the target is `automatic-close-supported`, or record the target-honest `close-unavailable` outcome before invoking `play-subagent-execution`",
-    );
-    expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
-      issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
-    );
     expect(issuePhase6Section).toContain("phase7_rerun_after_commits: true");
     expect(issuePhase6Section).not.toContain("AUTO_HANDOFF_TMP=");
     expect(issuePhase6Section).not.toContain('mv "$AUTO_HANDOFF_TMP"');
