@@ -12,29 +12,6 @@ import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
 
-const TOUCHED_SKILLS = new Set([
-  "github-issue-priming",
-  "issue-priming-workflow",
-  "issue-slicing",
-  "issue-worktree-setup",
-  "linear-issue-priming",
-  "play-brainstorm",
-  "play-branch-finish",
-  "play-agent-dispatch",
-  "pr-review",
-  "branch-review",
-  "play-review",
-  "play-subagent-execution",
-  "pr-merge",
-  "play-skill-authoring",
-  "play-planning",
-  "report-devcanon-issue",
-  "spec-readiness-review",
-  "subagent-lifecycle",
-  "write-product-requirements",
-  "write-product-spec",
-]);
-
 const SKILLS_WITH_METADATA = {
   claudeFrontmatter: [
     "github-issue-priming",
@@ -58,6 +35,59 @@ const SKILLS_WITH_METADATA = {
     "subagent-lifecycle",
   ] as const,
 };
+
+const TOUCHED_SKILL_COVERAGE = {
+  "github-issue-priming":
+    "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
+  "issue-priming-workflow":
+    "explicit metadata expectations cover Claude model and Codex policy sidecar packaging",
+  "issue-slicing":
+    "Codex frontmatter smoke coverage protects recently touched shared skill prose from invalid Codex keys",
+  "issue-worktree-setup":
+    "Codex frontmatter smoke coverage protects recently touched shared skill prose from invalid Codex keys",
+  "linear-issue-priming":
+    "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
+  "play-brainstorm":
+    "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
+  "play-branch-finish":
+    "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
+  "play-agent-dispatch":
+    "Codex frontmatter smoke coverage protects recently touched dispatch skill prose from invalid Codex keys",
+  "pr-review": "explicit metadata expectations cover Codex sidecar packaging",
+  "branch-review":
+    "Codex frontmatter smoke coverage protects recently touched review wrapper prose from invalid Codex keys",
+  "play-review":
+    "explicit metadata expectations cover Codex policy sidecar packaging",
+  "play-subagent-execution":
+    "Codex frontmatter smoke coverage protects recently touched execution skill prose from invalid Codex keys",
+  "pr-merge":
+    "Codex frontmatter smoke coverage protects recently touched merge skill prose from invalid Codex keys",
+  "play-skill-authoring":
+    "Codex frontmatter smoke coverage protects recently touched skill-authoring prose from invalid Codex keys",
+  "play-planning":
+    "Codex frontmatter smoke coverage protects recently touched planning skill prose from invalid Codex keys",
+  "report-devcanon-issue":
+    "explicit metadata expectations cover Codex metadata and Codex sidecar packaging",
+  "spec-readiness-review":
+    "Codex frontmatter smoke coverage protects recently touched readiness-review prose from invalid Codex keys",
+  "subagent-lifecycle":
+    "explicit metadata expectations cover Codex policy sidecar packaging",
+  "write-product-requirements":
+    "Codex frontmatter smoke coverage protects recently touched product requirements skill prose from invalid Codex keys",
+  "write-product-spec":
+    "Codex frontmatter smoke coverage protects mirrored reference packaging assertions for this skill",
+} as const;
+
+type TouchedSkill = keyof typeof TOUCHED_SKILL_COVERAGE;
+
+const TOUCHED_SKILL_NAMES = Object.keys(
+  TOUCHED_SKILL_COVERAGE,
+) as TouchedSkill[];
+const TOUCHED_SKILLS: ReadonlySet<string> = new Set(TOUCHED_SKILL_NAMES);
+
+function getMetadataExpectationSkills(): Set<string> {
+  return new Set(Object.values(SKILLS_WITH_METADATA).flat());
+}
 
 const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
   "name",
@@ -115,6 +145,20 @@ describe("existing skills render cleanly", () => {
       for (const key of Object.keys(frontmatter)) {
         expect(CODEX_ALLOWED_FRONTMATTER_KEYS.has(key)).toBe(true);
       }
+    }
+  });
+
+  it("keeps explicit metadata expectations covered by touched-skill reasons", () => {
+    const metadataExpectationSkills = getMetadataExpectationSkills();
+    const uncoveredMetadataSkills = [...metadataExpectationSkills].filter(
+      (skillName) => !TOUCHED_SKILLS.has(skillName),
+    );
+
+    expect(uncoveredMetadataSkills).toEqual([]);
+
+    for (const skillName of TOUCHED_SKILL_NAMES) {
+      expect(TOUCHED_SKILL_COVERAGE[skillName]).toEqual(expect.any(String));
+      expect(TOUCHED_SKILL_COVERAGE[skillName].length).toBeGreaterThan(0);
     }
   });
 
