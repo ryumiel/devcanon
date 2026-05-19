@@ -162,6 +162,7 @@ placeholder with `(none)`.
 | New module or public API | Issue describes adding a component, crate, or public interface that doesn't exist yet            |
 | No covering ADR          | Scan of `docs/adr/` finds no existing decision covering this domain                              |
 | Conflicting guidelines   | Existing policies or ADRs pull in different directions for this issue                            |
+| Comment evidence risk    | Present comment evidence introduces ambiguity, risk, or a design choice                          |
 | Explicit request         | Issue body or comment evidence contains "brainstorm", "design decision", or "choose between"     |
 
 **Skip research if ALL of:**

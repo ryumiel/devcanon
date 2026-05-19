@@ -51,6 +51,7 @@ Agent(
     - Issue adds a new component, crate, or public interface
     - No ADR in `docs/adr/` covers this domain
     - Existing policies/ADRs conflict for this issue
+    - Present comment evidence introduces ambiguity, risk, or a design choice
     - Issue body or comment evidence contains "brainstorm", "design decision",
       or "choose between"
 
