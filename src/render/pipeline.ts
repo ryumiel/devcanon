@@ -1,4 +1,4 @@
-import { cp, rm, unlink } from "node:fs/promises";
+import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
@@ -104,6 +104,11 @@ async function renderLoadedInternal({
       outputs.push(rendered);
 
       if (writeToGenerated) {
+        await assertNoSymlinkPathComponents(
+          config.library.generatedDir,
+          rendered.generatedPath,
+          `Skill "${skill.name}" generated directory`,
+        );
         // Purge the per-skill generated dir before writing. Without this,
         // dropping `codex_sidecar:` from a source or removing a previously
         // mirrored subdir (e.g. scripts/) leaves stale files lingering in
@@ -141,6 +146,11 @@ async function renderLoadedInternal({
     for (const output of outputs) {
       assertRenderedOutputPath(config, output);
       if (output.type === "agent") {
+        await assertNoSymlinkPathComponents(
+          config.library.generatedDir,
+          output.generatedPath,
+          `Agent "${output.name}" generated file`,
+        );
         await ensureDir(path.dirname(output.generatedPath));
         await writeTextFile(output.generatedPath, output.content);
       }
@@ -172,6 +182,11 @@ async function renderLoadedInternal({
       }
       for (const entry of entries) {
         const filePath = path.join(agentsDir, entry);
+        await assertNoSymlinkPathComponents(
+          config.library.generatedDir,
+          filePath,
+          `Generated agent file "${entry}"`,
+        );
         if (!currentGeneratedPaths.has(filePath)) {
           await unlink(filePath);
         }
@@ -202,6 +217,11 @@ async function renderLoadedInternal({
       }
       for (const entry of skillEntries) {
         const entryPath = path.join(skillsGeneratedDir, entry);
+        await assertNoSymlinkPathComponents(
+          config.library.generatedDir,
+          entryPath,
+          `Generated skill directory "${entry}"`,
+        );
         if (!currentSkillGeneratedDirs.has(entryPath)) {
           await rm(entryPath, { recursive: true, force: true });
         }
@@ -245,7 +265,11 @@ function validateLoadedInputs(
   const agentNames = new Set<string>();
   for (const agent of agents) {
     const result = AgentSourceSchema.safeParse(agent.source);
-    if (!result.success || agent.name !== agent.source.name) {
+    if (
+      !result.success ||
+      agent.name !== agent.source.name ||
+      !Array.isArray(agent.source.skills)
+    ) {
       throw new UserError(`Loaded agent "${agent.name}" is not validated.`);
     }
     if (agentNames.has(agent.name)) {
@@ -268,10 +292,38 @@ function assertNamedPathInside(
   label: string,
 ): void {
   assertPathInside(root, candidate, label);
-  if (path.basename(candidate) !== expectedLeaf) {
+  if (path.resolve(candidate) !== path.resolve(root, expectedLeaf)) {
     throw new UserError(
-      `${label} must be named "${expectedLeaf}": ${candidate}`,
+      `${label} must resolve to "${path.join(root, expectedLeaf)}": ${candidate}`,
     );
+  }
+}
+
+async function assertNoSymlinkPathComponents(
+  root: string,
+  candidate: string,
+  label: string,
+): Promise<void> {
+  assertPathInside(root, candidate, label);
+
+  const resolvedRoot = path.resolve(root);
+  const resolvedCandidate = path.resolve(candidate);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  const parts = relative.split(path.sep).filter(Boolean);
+  let current = resolvedRoot;
+
+  for (const part of parts) {
+    current = path.join(current, part);
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink()) {
+        throw new UserError(`${label} crosses symlinked path: ${current}`);
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return;
+      throw err;
+    }
   }
 }
 

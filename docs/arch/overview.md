@@ -54,9 +54,11 @@ The render module exposes two orchestration levels:
   generated files for the selected full source set.
 - `renderLoaded()` is the loaded-input core. It consumes already-loaded and
   validated `LoadedSkill[]` and `LoadedAgent[]` values, so validation-owning
-  callers can render cached or partial input sets. It does not load source
-  files, does not write generated output by default, and does not perform stale
-  generated-output cleanup.
+  callers can render cached or partial input sets. It does not reload skill or
+  agent source definitions, does not write generated output by default, and
+  does not perform stale generated-output cleanup. When writing skills with
+  mirrored subdirectories, it still reads those subdirectories from
+  `LoadedSkill.dirPath`.
 
 Generated-output cleanup is a full-library operation. Partial loaded-input
 renders may write the supplied outputs when explicitly requested, but omitted
