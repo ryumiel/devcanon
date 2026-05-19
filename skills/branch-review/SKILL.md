@@ -244,21 +244,46 @@ After the human-readable findings, surface `play-review`'s `Findings written to 
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
-Iterate over blocking findings verified by the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`). For each:
+Before the per-fix-unit auto-fix loop, filter blocking findings tagged
+`Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility; note them in the
+report but do not group, iterate, auto-fix, or halt on them. Then run a
+same-invariant grouping pass over the remaining blocking findings verified by
+the critic. Inspect the eligible blockers for a shared root invariant using only
+the existing finding text, evidence, anchors, classifications, and active diff
+context. This is controller planning only: it does not add or require fields in
+the `play-review/findings/v1` envelope, and individual finding anchors and
+classifications remain authoritative for classification, reporting, and
+stop-rule evaluation.
 
-1. **If the finding hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
+When multiple blocking findings have the same shared root invariant, name that
+shared root invariant in the report, scan adjacent same-invariant surfaces in
+the active diff before editing, and form one cohesive bounded grouped blocker set.
+Grouping never expands auto-fix authorization: a grouped fix may proceed only
+when every included finding independently passes the existing stop-rule checks
+below. Edits may include adjacent same-invariant active-diff surfaces identified
+during the scan, but only when they are needed for the shared root invariant and
+remain bounded by the included finding classifications, active diff, and
+stop-rule constraints. The grouped edit set as a whole must also satisfy the
+same stop-rule constraints; if any included finding or the combined grouped edit
+would trigger a stop rule, halt `--fix` under the existing stop-rule contract
+instead of applying the grouped fix.
+
+Iterate over blocking findings as fix units. Each unit is either one ungrouped
+blocking finding verified by the critic (i.e., not `Critic: INVALID` or
+`DOWNGRADE`) or one same-invariant grouped blocker set formed above. Do not also
+process grouped members as individual findings. For each unit:
+
+1. **If the unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
-   - the finding is a `play-review` hard-rule judgment-required blocker:
+   - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
      `Blocking | Safety` from Correctness Sub-check 1 (substitution audit) or
      `Blocking | Contracts` from Correctness Sub-check 2
      (documented-behavior verification), or
-   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the flagged lines.
+   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit.
 
    Halting here is a contract with the caller: `issue-priming-workflow --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
 
-2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit.
-
-Skip blocking findings tagged `Critic: INVALID` or `DOWNGRADE` — the critic disagrees with the agent. Note them in the report but do not auto-fix and do not halt.
+2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually.
 
 Nit findings are never auto-fixed. Collect them for the report (including any with `Anchor: out-of-diff`).
 
@@ -303,14 +328,16 @@ HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
 ```
 
 The remaining-set `findings[]` contains all pre-fix findings except blockers
-that were successfully auto-fixed and committed. That includes every nit
-(regardless of anchor), blockers skipped because the critic flagged `INVALID`
-or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the remaining
-set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that triggered
-the halt (if any), any later blockers left unprocessed because an earlier
-stop-rule finding halted the loop, and unresolved blocking `carry_forward[]`
-entries from follow-up review. Auto-fixed blockers do NOT appear — they're
-already committed in the worktree. In follow-up runs, also preserve
+that were successfully auto-fixed and committed. For a committed grouped fix,
+that exception covers every included finding in the grouped blocker set, not
+only the lead anchor or first finding processed. The remaining set includes
+every nit (regardless of anchor), blockers skipped because the critic flagged
+`INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
+remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that
+triggered the halt (if any), any later blockers left unprocessed because an
+earlier stop-rule finding halted the loop, and unresolved blocking
+`carry_forward[]` entries from follow-up review. Auto-fixed blockers do NOT
+appear — they're already committed in the worktree. In follow-up runs, also preserve
 `carry_forward[]` from the validated `play-review` envelope unchanged for audit
 continuity; unresolved blocking carry-forward entries must additionally be
 copied into the post-`--fix` remaining `findings[]` so downstream consumers that

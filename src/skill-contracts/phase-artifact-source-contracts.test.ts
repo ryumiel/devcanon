@@ -308,6 +308,85 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
+    expect(branchReview).toContain("same-invariant grouping pass");
+    expect(branchReview).toContain("Iterate over blocking findings");
+    expect(branchReview.indexOf("same-invariant grouping pass")).toBeLessThan(
+      branchReview.indexOf("Iterate over blocking findings"),
+    );
+    expect(branchReview).toContain("adjacent same-invariant surfaces");
+    expect(normalizedBranchReview).toContain("shared root invariant");
+    expect(normalizedBranchReview).toContain(
+      "filter blocking findings tagged `Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility",
+    );
+    expect(normalizedBranchReview).toContain(
+      "do not group, iterate, auto-fix, or halt on them",
+    );
+    expect(normalizedBranchReview).toContain(
+      "over the remaining blocking findings verified by the critic",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Before the per-fix-unit auto-fix loop",
+    );
+    expect(normalizedBranchReview).toContain(
+      "using only the existing finding text, evidence, anchors, classifications, and active diff context",
+    );
+    expect(normalizedBranchReview).toContain(
+      "name that shared root invariant in the report",
+    );
+    expect(normalizedBranchReview).toContain(
+      "have the same shared root invariant",
+    );
+    expect(normalizedBranchReview).toContain(
+      "scan adjacent same-invariant surfaces in the active diff before editing",
+    );
+    expect(normalizedBranchReview).toContain(
+      "form one cohesive bounded grouped blocker set",
+    );
+    expect(normalizedBranchReview).toContain(
+      "does not add or require fields in the `play-review/findings/v1` envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "individual finding anchors and classifications remain authoritative for classification, reporting, and stop-rule evaluation",
+    );
+    expect(normalizedBranchReview).toContain(
+      "only when every included finding independently passes the existing stop-rule checks",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Edits may include adjacent same-invariant active-diff surfaces identified during the scan",
+    );
+    expect(normalizedBranchReview).toContain(
+      "only when they are needed for the shared root invariant",
+    );
+    expect(normalizedBranchReview).toContain(
+      "remain bounded by the included finding classifications, active diff, and stop-rule constraints",
+    );
+    expect(normalizedBranchReview).toContain(
+      "The grouped edit set as a whole must also satisfy the same stop-rule constraints",
+    );
+    expect(normalizedBranchReview).toContain(
+      "if any included finding or the combined grouped edit would trigger a stop rule",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Each unit is either one ungrouped blocking finding verified by the critic",
+    );
+    expect(normalizedBranchReview).toContain(
+      "one same-invariant grouped blocker set formed above",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Do not also process grouped members as individual findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit",
+    );
+    expect(normalizedBranchReview).toContain(
+      "every included finding counts as auto-fixed",
+    );
+    expect(normalizedBranchReview).toContain(
+      "is removed from the post-`--fix` remaining-set envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "that exception covers every included finding in the grouped blocker set",
+    );
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
     );
