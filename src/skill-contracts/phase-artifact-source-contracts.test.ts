@@ -112,6 +112,15 @@ describe("phase artifact source contracts", () => {
       "Present comment evidence introduces ambiguity, risk, or a design choice",
     );
     expect(issuePrimingWorkflow).toContain("forced by --research");
+    expect(issuePrimingWorkflow).toContain(
+      "Runs for gated research; forced research uses `forced by --research`",
+    );
+
+    const commonMistakes = await readRepoFile(
+      "skills/issue-priming-workflow/references/common-mistakes.md",
+    );
+    expect(commonMistakes).toContain("payload.research = gated");
+    expect(commonMistakes).toContain("forced by --research");
 
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",

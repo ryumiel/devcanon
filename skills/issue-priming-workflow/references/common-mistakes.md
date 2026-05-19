@@ -23,10 +23,10 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** PR title/description uses a generic format instead of the project's required template, requiring manual rework
 - **Fix:** Always glob for PR guidelines before composing the PR title and description in Phase 8
 
-## Skipping the gate for "obvious" issues
+## Skipping the gate for "obvious" gated issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** Always run the gate — it's cheap (exploration agent, `{{model:standard}}`) and catches surprises
+- **Fix:** When `payload.research = gated`, always run the gate — it's cheap (exploration agent, `{{model:standard}}`) and catches surprises. When `payload.research = forced`, skip the gate intentionally and carry `forced by --research` as the research reason
 
 ## Skipping brainstorming for "trivial" issues
 

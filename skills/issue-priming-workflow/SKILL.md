@@ -547,8 +547,8 @@ mkdir -p .ephemeral
 | Phase            | What                                   | Key constraint                                                               |
 | ---------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
 | 1. Worktree      | Adopt handed-off worktree + issue body | Fail loudly on malformed or missing paths                                    |
-| 2. Gate          | Dedicated agent assesses complexity    | Always evaluated; default to `RESEARCH_NEEDED` on failure                    |
-| 3. Research      | Dedicated agent synthesizes brief      | Optional — only if gate says so                                              |
+| 2. Gate          | Dedicated agent assesses complexity    | Runs for gated research; forced research uses `forced by --research`         |
+| 3. Research      | Dedicated agent synthesizes brief      | Runs if gate says so or research is forced                                   |
 | 4. Brainstorm    | Invoke `play-brainstorm`               | Never skip; durable owner referrals clean up worktree before stopping        |
 | 5. Plan          | `play-planning`                        | `--auto` only; skipped only after durable owner referral cleanup             |
 | 6. Implement     | `play-subagent-execution`              | `--auto` only; single-task path may return directly to Phase 7               |
