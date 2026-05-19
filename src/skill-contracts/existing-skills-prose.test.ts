@@ -35,8 +35,13 @@ describe("existing skills source prose contracts", () => {
       playPlanning,
       "Requirements Traceability",
     );
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
     const normalizedHardRequirements = normalizeWhitespace(hardRequirements);
     const normalizedTraceability = normalizeWhitespace(traceability);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
 
     expect(hardRequirements).toContain("## Hard Requirements");
     expect(normalizedHardRequirements).toContain(
@@ -71,6 +76,24 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedTraceability).toContain(
       "docs/guidelines/writing-skills.md",
+    );
+    expect(normalizedTraceability).toContain(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    expect(normalizedTraceability).toContain("Adjacent Governance Policy Set");
+
+    expect(normalizedPlanningSelfReview).toContain(
+      "Requirements traceability check",
+    );
+    expect(normalizedPlanningSelfReview).toContain("`## Traceability Matrix`");
+    expect(normalizedPlanningSelfReview).toContain(
+      "every ledger row has explicit task coverage, acceptance criteria, and proof coverage",
+    );
+
+    expect(normalizedPlanningReview).toContain("`## Hard Requirements` ledger");
+    expect(normalizedPlanningReview).toContain("`## Traceability Matrix`");
+    expect(normalizedPlanningReview).toContain(
+      "every hard requirement has explicit task coverage, acceptance criteria, and proof coverage",
     );
   });
 
