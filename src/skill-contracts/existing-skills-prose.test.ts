@@ -373,6 +373,72 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+
+    expect(skillSource).toContain("Present exactly these 4 options");
+    expect(normalizedOption2).toContain(
+      "Optional pre-push autosquash checkpoint",
+    );
+    expect(normalizedOption2).toMatch(
+      /after tests pass.*base branch.*resolved.*before.*git push/i,
+    );
+    expect(normalizedOption2).toContain(
+      "git log --oneline <base-branch>..HEAD",
+    );
+    expect(normalizedOption2).toContain("fixup!");
+    expect(normalizedOption2).toContain("squash!");
+    expect(normalizedOption2).toMatch(
+      /opt-in.*never.*default.*exact affirmative/i,
+    );
+    expect(normalizedOption2).toContain(
+      "This rewrites only local feature-branch commits and is not required.",
+    );
+    expect(normalizedOption2).toContain(
+      "git rebase -i --autosquash <base-branch>",
+    );
+    expect(normalizedOption2).toMatch(
+      /post-autosquash tree.*unchanged.*before push/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /shared.*already-pushed.*open PR.*reviewed.*non-local/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /separate.*explicit shared-branch rewrite approval/i,
+    );
+    expect(normalizedOption2).toMatch(/granular.*review\/audit value.*skip/i);
+    expect(normalizedOption2).toMatch(
+      /PR (title and description|body).*final-state oriented/i,
+    );
+    expect(normalizedOption2).toContain("commit-history narration");
+
+    expect(normalizedOption2).not.toMatch(
+      /autosquash[^.]{0,80}(reduces?|improves?)[^.]{0,80}branch-review/i,
+    );
+    expect(normalizedOption2).not.toMatch(
+      /branch-review[^.]{0,80}(cost|efficiency)/i,
+    );
+
+    expect(redFlags).toMatch(/autosquash/i);
+    expect(redFlags).toMatch(/shared|already-pushed|open PR|reviewed/i);
+    expect(redFlags).toMatch(/audit/i);
+    expect(commonMistakes).toMatch(/autosquash/i);
+    expect(commonMistakes).toMatch(/unchanged tree|tree.*unchanged/i);
+    expect(commonMistakes).toMatch(/commit-history narration/i);
+  });
+
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
