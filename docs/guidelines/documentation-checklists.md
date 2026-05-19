@@ -20,6 +20,7 @@ inapplicable surface with a short reason:
 - `docs/guidelines/code-review-guideline.md`
 - `.github/pull_request_template.md`
 - `WORKFLOW.md`
+- `AGENTS.md`
 - `docs/adr/adr-template.md` plus affected accepted ADRs
 - `docs/guidelines/documentation-standard.md`
 - `docs/guidelines/documentation-checklists.md`
