@@ -150,6 +150,25 @@ describe("play subagent routing source contracts", () => {
     expect(routing).toContain("test harness or validation behavior changes");
   });
 
+  it("keeps snapshot request classification high-risk triggers in source", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const snapshotConsumption = getMarkdownSection(
+      skillSource,
+      "Implementer Snapshot Consumption",
+    );
+    const normalizedSnapshotConsumption =
+      normalizeWhitespace(snapshotConsumption);
+
+    expect(normalizedSnapshotConsumption).toContain("schema or type contracts");
+    expect(normalizedSnapshotConsumption).toContain(
+      "path-validation, filesystem-safety, or other security-sensitive behavior",
+    );
+    expect(normalizedSnapshotConsumption).toContain("unclear classification");
+    expect(normalizedSnapshotConsumption).toContain(
+      "Skip snapshots only for clearly localized, low-risk work",
+    );
+  });
+
   it("keeps reduced-route auto-handoff and Phase 7 guarantees in source", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
@@ -494,6 +513,9 @@ describe("play subagent routing source contracts", () => {
     expect(task3Section).toContain("snapshot state=skipped");
     expect(normalizeWhitespace(task3Section)).toContain(
       "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
+    );
+    expect(normalizeWhitespace(task3Section)).toContain(
+      "Status: DONE - Summary: Clarified one example sentence in a neutral demo note - Tests: Not applicable beyond final render/check suite - Files changed: docs/examples/demo-note.md - Base SHA: task-3-base - Head SHA: task-3-head",
     );
 
     expect(task2Section).toContain(

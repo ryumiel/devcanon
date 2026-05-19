@@ -213,8 +213,12 @@ copy change. The implementer must report the default DONE fields: status,
 summary, tests, files changed, base SHA, and head SHA.
 [Dispatch implementation subagent with full task text + context]
 Implementer:
-  - Clarified one example sentence in a neutral demo note
-  - Tests not applicable beyond final render/check suite
+  - Status: DONE
+  - Summary: Clarified one example sentence in a neutral demo note
+  - Tests: Not applicable beyond final render/check suite
+  - Files changed: docs/examples/demo-note.md
+  - Base SHA: task-3-base
+  - Head SHA: task-3-head
   - Self-review: Wording matches the plan and no linked identifiers changed
   - Committed
 

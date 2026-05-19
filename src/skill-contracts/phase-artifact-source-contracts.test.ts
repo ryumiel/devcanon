@@ -651,6 +651,10 @@ describe("phase artifact source contracts", () => {
     expect(adr0014).toContain("hard runtime prerequisite on `jq`");
     expect(adr0014).toContain("fallback contract");
     expect(adr0014).toContain("trigger-based");
+    expect(adr0014).toContain("schema or type contract");
+    expect(adr0014).toContain(
+      "Path-validation, filesystem-safety, or other security-sensitive behavior",
+    );
     expect(normalizeWhitespace(adr0014)).toContain(
       "Plan text may contain snapshot hints",
     );
