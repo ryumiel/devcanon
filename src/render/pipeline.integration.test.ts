@@ -14,7 +14,9 @@ import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
-import { renderAll } from "./pipeline.js";
+import { loadAndValidateAgents } from "../validate/agents.js";
+import { loadAndValidateSkills } from "../validate/skills.js";
+import { renderAll, renderLoaded } from "./pipeline.js";
 
 describe("renderAll", () => {
   let tempDir: string;
@@ -912,5 +914,108 @@ describe("renderAll", () => {
 
     expect(await pathExists(claudeSkillDir)).toBe(false);
     expect(await pathExists(codexSkillDir)).toBe(false);
+  });
+});
+
+describe("renderLoaded", () => {
+  let tempDir: string;
+  let config: ResolvedConfig;
+  let restore: () => void;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+    config = makeResolvedConfig(tempDir);
+    const installed = installTestLogger();
+    restore = installed.restore;
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    restore();
+    await cleanupTempDir(tempDir);
+  });
+
+  it("renders supplied loaded skills and agents through an options object", async () => {
+    await createSkillFixture(config.library.skillsDir, "loaded-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "loaded-agent",
+      makeAgentYaml("loaded-agent", { skills: ["loaded-skill"] }),
+    );
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: true,
+      targetFilter: "codex",
+    });
+
+    expect(result.skills).toBe(skills);
+    expect(result.agents).toBe(agents);
+    expect(result.outputs).toHaveLength(2);
+    expect(result.outputs.every((output) => output.target === "codex")).toBe(
+      true,
+    );
+    expect(
+      result.outputs.map((output) => `${output.target}:${output.type}`).sort(),
+    ).toEqual(["codex:agent", "codex:skill"]);
+
+    const agentOutput = result.outputs.find(
+      (output): output is RenderedAgent => output.type === "agent",
+    );
+    expect(agentOutput?.content).toContain('name = "loaded-agent"');
+    expect(await pathExists(agentOutput?.generatedPath ?? "")).toBe(true);
+    expect(
+      await pathExists(
+        path.join(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "loaded-skill",
+          "SKILL.md",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not write generated output when writeToGenerated is false", async () => {
+    await createSkillFixture(config.library.skillsDir, "loaded-no-write-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "loaded-no-write-agent",
+      makeAgentYaml("loaded-no-write-agent", {
+        skills: ["loaded-no-write-skill"],
+      }),
+    );
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: false,
+    });
+
+    expect(result.outputs).toHaveLength(4);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 });

@@ -21,6 +21,14 @@ export interface RenderResult {
   agents: LoadedAgent[];
 }
 
+export interface RenderLoadedOptions {
+  config: ResolvedConfig;
+  skills: LoadedSkill[];
+  agents: LoadedAgent[];
+  writeToGenerated?: boolean;
+  targetFilter?: "claude" | "codex";
+}
+
 export async function renderAll(
   config: ResolvedConfig,
   writeToGenerated = true,
@@ -33,6 +41,22 @@ export async function renderAll(
     modelTiers: config.modelTiers,
   });
 
+  return renderLoaded({
+    config,
+    skills,
+    agents,
+    writeToGenerated,
+    targetFilter,
+  });
+}
+
+export async function renderLoaded({
+  config,
+  skills,
+  agents,
+  writeToGenerated = true,
+  targetFilter,
+}: RenderLoadedOptions): Promise<RenderResult> {
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
   const targets = ["claude", "codex"] as const;
