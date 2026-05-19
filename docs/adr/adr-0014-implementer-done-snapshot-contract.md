@@ -388,9 +388,9 @@ nit-fix path sees it.
 The contract scope is the **dispatched-implementer path only**. The
 skip-dispatch variant for trivial single-task plans does not invoke this
 contract because no implementer is dispatched and no DONE report exists;
-the plan body is itself the snapshot. This is named in
-`play-subagent-execution/SKILL.md` controller prose so a reader cannot
-confuse the two paths.
+there is no DONE-report snapshot request, notice line, or fallback field
+contract to apply. This is named in `play-subagent-execution/SKILL.md`
+controller prose so a reader cannot confuse the two paths.
 
 ### Single-task plan interaction
 

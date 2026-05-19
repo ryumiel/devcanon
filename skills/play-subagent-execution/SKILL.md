@@ -517,14 +517,18 @@ only: they may inform the controller's classification, but they are never
 authoritative. If the classification is unclear, fail closed by requesting a
 snapshot.
 
-Request a snapshot when the task changes durable ADR/spec/guideline/skill/agent
-workflow policy, source-owned policy, failure routing, lifecycle or terminal
-state behavior, prompt/report contracts, cross-skill handoff behavior,
-generated-output behavior, or any other surface where downstream controller
-line-range extraction or prompt composition is likely to benefit from a
-side-channel manifest. Skip snapshots only for clearly localized, low-risk work
-where the default DONE fields plus controller-computed git/disk reads are
-sufficient.
+Request a snapshot when the task changes durable ADR, behavior-spec,
+product-requirements, roadmap, guideline, skill, agent, procedure, or
+workflow-policy text; source-owned policy; failure routing; lifecycle or
+terminal-state behavior; prompt/report contracts; cross-skill handoff behavior;
+generated-output behavior; manifests; executable helpers; config; or tests
+guarding those surfaces. Also request a snapshot for broad, multi-file,
+cross-module, or cross-skill tasks; deletes, renames, or file-mode changes; any
+explicit controller audit or review-coordination request; and any other surface
+where downstream controller line-range extraction or prompt composition is
+likely to benefit from a side-channel manifest. Skip snapshots only for clearly
+localized, low-risk work where the default DONE fields plus controller-computed
+git/disk reads are sufficient.
 
 When a snapshot is requested, the dispatched implementer emits a literal
 `Snapshot written to <repo-relative-path>.` line at the end of its DONE
@@ -542,6 +546,25 @@ snapshot request, the controller supplies both paths with the task prompt; the
 prompt source itself carries a compact conditional-use contract instead of
 duplicating the recipe or inlining the shell implementation into every
 dispatch.
+
+When assembling the implementer prompt, include a concrete snapshot request
+state line:
+
+```text
+Snapshot request: requested
+```
+
+or:
+
+```text
+Snapshot request: skipped
+```
+
+When the state is `requested`, include the resolved recipe and helper script
+paths. When the state is `skipped`, omit those paths; the implementer reports the
+default DONE fields instead of running the helper. The source prompt templates
+use placeholders for both branches, but the assembled prompt must make exactly
+one state concrete before dispatch so the implementer never infers policy.
 
 The helper script is authoritative for executable snapshot construction when a
 snapshot is requested. `jq` is a hard helper prerequisite because byte-faithful

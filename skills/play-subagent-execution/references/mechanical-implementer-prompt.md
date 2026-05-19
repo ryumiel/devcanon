@@ -65,14 +65,16 @@ Task tool (general-purpose):
 
     ## Snapshot Manifest
 
+    Snapshot request: <SNAPSHOT_REQUEST_STATE: requested|skipped>
+
     After committing and self-reviewing, follow the controller's snapshot
     request state exactly. Only write a side-channel snapshot manifest when the
-    controller explicitly requests one for this task. If the controller does
-    not request a snapshot, do not read the recipe, do not run the helper, and
-    do not emit the snapshot notice line.
+    snapshot request state is `requested`. If the snapshot request state is
+    `skipped`, do not read the recipe, do not run the helper, and do not emit
+    the snapshot notice line.
 
-    When the controller requests a snapshot, it supplies two resolved paths with
-    this dispatch:
+    When the snapshot request state is `requested`, the controller supplies two
+    resolved paths with this dispatch:
     - Snapshot Manifest Recipe path: <SNAPSHOT_MANIFEST_RECIPE_PATH>
       - Source: `references/snapshot-manifest-recipe.md`
     - Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>
@@ -86,11 +88,12 @@ Task tool (general-purpose):
     size behavior, deleted-file behavior, JSON-aware construction, `.ephemeral`
     write guard, and write-verification check.
 
-    If a requested snapshot dispatch does not include both a readable Snapshot
-    Manifest Recipe path and a readable Snapshot Manifest Helper Script path,
-    report BLOCKED and ask the controller to resend the task with both paths.
-    If the helper exits nonzero, report BLOCKED instead of emitting the notice
-    line. On success, use the helper's notice line as the final report line:
+    If the snapshot request state is `requested` but the dispatch does not
+    include both a readable Snapshot Manifest Recipe path and a readable
+    Snapshot Manifest Helper Script path, report BLOCKED and ask the controller
+    to resend the task with both paths. If the helper exits nonzero, report
+    BLOCKED instead of emitting the notice line. On success, use the helper's
+    notice line as the final report line:
 
     ```text
     Snapshot written to <repo-relative-path>.
@@ -108,9 +111,9 @@ Task tool (general-purpose):
     - Base SHA
     - Head SHA
 
-    If the controller requested a snapshot and the helper succeeded, append
-    exactly one literal line naming the snapshot manifest path as the final line
-    of the report (DONE / DONE_WITH_CONCERNS only):
+    If the snapshot request state is `requested` and the helper succeeded,
+    append exactly one literal line naming the snapshot manifest path as the
+    final line of the report (DONE / DONE_WITH_CONCERNS only):
 
     ```
     Snapshot written to <repo-relative-path>.
@@ -120,9 +123,9 @@ Task tool (general-purpose):
     backticks, do not omit the trailing period. If the snapshot write failed,
     report BLOCKED instead — never emit the notice line for an absent file.
 
-    If the controller did not request a snapshot, do not append any snapshot
-    notice line. Your DONE / DONE_WITH_CONCERNS report must include these
-    default fields: status, summary, tests, files changed, base SHA, head SHA.
+    If the snapshot request state is `skipped`, do not append any snapshot notice
+    line. Your DONE / DONE_WITH_CONCERNS report must include these default
+    fields: status, summary, tests, files changed, base SHA, head SHA.
 
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if information is missing.
 ````

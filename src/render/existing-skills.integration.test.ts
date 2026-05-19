@@ -296,20 +296,22 @@ describe("existing skills render cleanly", () => {
       for (const promptReference of promptReferences) {
         const promptPath = path.join(skillRoot, "references", promptReference);
         const prompt = await readFile(promptPath, "utf-8");
+        const normalizedPrompt = prompt.replace(/\s+/g, " ");
 
+        expect(prompt).toContain(
+          "Snapshot request: <SNAPSHOT_REQUEST_STATE: requested|skipped>",
+        );
         expect(prompt).toContain(
           "Only write a side-channel snapshot manifest when the",
         );
+        expect(prompt).toContain("snapshot request state is `requested`.");
         expect(prompt).toContain(
-          "controller explicitly requests one for this task.",
+          "If the snapshot request state is `skipped`, do not append any snapshot notice",
         );
-        expect(prompt).toContain(
-          "If the controller did not request a snapshot, do not append any snapshot",
-        );
-        expect(prompt).toContain(
+        expect(normalizedPrompt).toContain(
           "default fields: status, summary, tests, files changed, base SHA, head SHA.",
         );
-        expect(prompt).toContain(
+        expect(normalizedPrompt).toContain(
           "If the helper exits nonzero, report BLOCKED instead of emitting the notice",
         );
         expect(prompt).toContain("Snapshot written to <repo-relative-path>.");
