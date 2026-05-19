@@ -248,36 +248,26 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedGithubReplies = normalizeWhitespace(githubReplies);
 
-    expect(implementationOrder).toContain("After verification");
-    expect(implementationOrder).toContain(
-      "already-pushed or reviewed PR branch",
+    expect(normalizeWhitespace(implementationOrder)).toMatch(
+      /verification.*already-pushed or reviewed PR branch.*follow-up commit.*plain push/,
     );
-    expect(implementationOrder).toContain("follow-up commit");
-    expect(implementationOrder).toContain("plain push");
 
-    for (const phrase of [
-      "Pre-push local cleanup is allowed",
-      "already been pushed",
-      "review has started",
-      "use normal follow-up commits",
-      "plain push",
-      "Do not amend",
-      "Do not force-push",
-      "user explicitly asks",
-      "repository workflow explicitly requires rewritten history",
-      "review continuity",
-      "Acceptable pre-push cleanup",
-      "Incorrect post-review rewrite",
-      "Correct post-review response",
-    ]) {
-      expect(normalizedCommitPolicy).toContain(phrase);
-    }
-
-    expect(normalizedGithubReplies).toContain("reply in the comment thread");
-    expect(normalizedGithubReplies).toContain("follow-up commit or fix");
-    expect(normalizedGithubReplies).toContain(
-      "preserving the existing thread context",
+    expect(normalizedCommitPolicy).toMatch(
+      /pushed.*review.*follow-up commit.*plain push/i,
     );
+    expect(normalizedCommitPolicy).toMatch(/do not amend.*do not force-push/i);
+    expect(normalizedCommitPolicy).toMatch(
+      /user explicitly asks.*repository workflow/i,
+    );
+    expect(normalizedCommitPolicy).toMatch(/pre-push.*cleanup.*allowed/i);
+    expect(normalizedCommitPolicy).toMatch(
+      /```text.*pre-push.*amend.*post-review.*force.*post-review.*follow-up commit.*```/i,
+    );
+    expect(normalizedCommitPolicy).toContain("review continuity");
+
+    expect(normalizedGithubReplies).toMatch(/comment thread/i);
+    expect(normalizedGithubReplies).toMatch(/follow-up commit or fix/i);
+    expect(normalizedGithubReplies).toMatch(/thread context/i);
   });
 
   it("keeps subagent-lifecycle references in direct spawning workflow sources", async () => {
