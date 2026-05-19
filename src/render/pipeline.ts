@@ -1,7 +1,12 @@
 import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
-import { AgentSourceSchema, SkillSourceSchema } from "../config/schema.js";
+import {
+  AgentSourceSchema,
+  MODEL_TIER_PLACEHOLDER,
+  MODEL_TIER_PLACEHOLDER_PREFIX,
+  SkillSourceSchema,
+} from "../config/schema.js";
 import type {
   LoadedAgent,
   LoadedSkill,
@@ -27,6 +32,7 @@ export interface RenderLoadedOptions {
   config: ResolvedConfig;
   skills: LoadedSkill[];
   agents: LoadedAgent[];
+  validatedSkills?: LoadedSkill[];
   writeToGenerated?: boolean;
   targetFilter?: "claude" | "codex";
 }
@@ -47,6 +53,7 @@ export async function renderAll(
     config,
     skills,
     agents,
+    validatedSkills: skills,
     writeToGenerated,
     targetFilter,
     cleanStaleGenerated: writeToGenerated,
@@ -67,11 +74,12 @@ async function renderLoadedInternal({
   config,
   skills,
   agents,
+  validatedSkills = skills,
   writeToGenerated = false,
   cleanStaleGenerated = false,
   targetFilter,
 }: RenderLoadedInternalOptions): Promise<RenderResult> {
-  validateLoadedInputs(config, skills, agents);
+  validateLoadedInputs(config, skills, agents, validatedSkills);
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
@@ -236,29 +244,19 @@ function validateLoadedInputs(
   config: ResolvedConfig,
   skills: readonly LoadedSkill[],
   agents: readonly LoadedAgent[],
+  validatedSkills: readonly LoadedSkill[],
 ): void {
-  const skillNames = new Set<string>();
+  const validatedSkillNames = new Set<string>();
+  for (const skill of validatedSkills) {
+    validateLoadedSkill(config, skill, validatedSkillNames);
+  }
+  const renderedSkillNames = new Set<string>();
   for (const skill of skills) {
-    const result = SkillSourceSchema.safeParse(skill.source);
-    if (!result.success || skill.name !== skill.source.name) {
-      throw new UserError(`Loaded skill "${skill.name}" is not validated.`);
-    }
-    if (skillNames.has(skill.name)) {
-      throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
-    }
-    skillNames.add(skill.name);
-    assertNamedPathInside(
-      config.library.skillsDir,
-      skill.name,
-      skill.dirPath,
-      `Loaded skill "${skill.name}" directory`,
-    );
-    for (const subdir of skill.subdirs) {
-      if (!["assets", "examples", "references", "scripts"].includes(subdir)) {
-        throw new UserError(
-          `Loaded skill "${skill.name}" has invalid mirrored subdir "${subdir}".`,
-        );
-      }
+    validateLoadedSkill(config, skill, renderedSkillNames);
+    if (!validatedSkillNames.has(skill.name)) {
+      throw new UserError(
+        `Loaded skill "${skill.name}" is missing from validatedSkills.`,
+      );
     }
   }
 
@@ -268,7 +266,7 @@ function validateLoadedInputs(
     if (
       !result.success ||
       agent.name !== agent.source.name ||
-      !Array.isArray(agent.source.skills)
+      !deepEqual(agent.source, result.data)
     ) {
       throw new UserError(`Loaded agent "${agent.name}" is not validated.`);
     }
@@ -276,16 +274,78 @@ function validateLoadedInputs(
       throw new UserError(`Loaded agent "${agent.name}" is duplicated.`);
     }
     agentNames.add(agent.name);
-    assertNamedPathInside(
+    assertDirectYamlPathInside(
       config.library.agentsDir,
-      `${agent.name}.yaml`,
       agent.filePath,
       `Loaded agent "${agent.name}" file`,
+    );
+    validateAgentModelTierReference(
+      agent.name,
+      "claude.model",
+      agent.source.claude?.model,
+      config,
+    );
+    validateAgentModelTierReference(
+      agent.name,
+      "codex.model",
+      agent.source.codex?.model,
+      config,
+    );
+    for (const skillRef of agent.source.skills) {
+      if (!validatedSkillNames.has(skillRef)) {
+        throw new UserError(
+          `Loaded agent "${agent.name}" references unknown skill "${skillRef}".`,
+        );
+      }
+    }
+  }
+}
+
+function validateAgentModelTierReference(
+  agentName: string,
+  fieldPath: "claude.model" | "codex.model",
+  value: string | undefined,
+  config: ResolvedConfig,
+): void {
+  if (!value?.includes(MODEL_TIER_PLACEHOLDER_PREFIX)) return;
+
+  const tier = value.match(MODEL_TIER_PLACEHOLDER)?.[1];
+  if (!tier || !config.modelTiers || !Object.hasOwn(config.modelTiers, tier)) {
+    throw new UserError(
+      `Loaded agent "${agentName}": ${fieldPath} references invalid model tier.`,
     );
   }
 }
 
-function assertNamedPathInside(
+function validateLoadedSkill(
+  config: ResolvedConfig,
+  skill: LoadedSkill,
+  names: Set<string>,
+): void {
+  const result = SkillSourceSchema.safeParse(skill.source);
+  if (!result.success || skill.name !== skill.source.name) {
+    throw new UserError(`Loaded skill "${skill.name}" is not validated.`);
+  }
+  if (names.has(skill.name)) {
+    throw new UserError(`Loaded skill "${skill.name}" is duplicated.`);
+  }
+  names.add(skill.name);
+  assertDirectNamedPathInside(
+    config.library.skillsDir,
+    skill.name,
+    skill.dirPath,
+    `Loaded skill "${skill.name}" directory`,
+  );
+  for (const subdir of skill.subdirs) {
+    if (!["assets", "examples", "references", "scripts"].includes(subdir)) {
+      throw new UserError(
+        `Loaded skill "${skill.name}" has invalid mirrored subdir "${subdir}".`,
+      );
+    }
+  }
+}
+
+function assertDirectNamedPathInside(
   root: string,
   expectedLeaf: string,
   candidate: string,
@@ -295,6 +355,22 @@ function assertNamedPathInside(
   if (path.resolve(candidate) !== path.resolve(root, expectedLeaf)) {
     throw new UserError(
       `${label} must resolve to "${path.join(root, expectedLeaf)}": ${candidate}`,
+    );
+  }
+}
+
+function assertDirectYamlPathInside(
+  root: string,
+  candidate: string,
+  label: string,
+): void {
+  assertPathInside(root, candidate, label);
+  if (
+    path.dirname(path.resolve(candidate)) !== path.resolve(root) ||
+    !path.basename(candidate).endsWith(".yaml")
+  ) {
+    throw new UserError(
+      `${label} must be a direct .yaml child of "${root}": ${candidate}`,
     );
   }
 }
@@ -312,8 +388,8 @@ async function assertNoSymlinkPathComponents(
   const parts = relative.split(path.sep).filter(Boolean);
   let current = resolvedRoot;
 
-  for (const part of parts) {
-    current = path.join(current, part);
+  for (const part of ["", ...parts]) {
+    if (part !== "") current = path.join(current, part);
     try {
       const stat = await lstat(current);
       if (stat.isSymbolicLink()) {
@@ -325,6 +401,30 @@ async function assertNoSymlinkPathComponents(
       throw err;
     }
   }
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((value, index) => deepEqual(value, b[index]));
+  }
+  if (
+    a === null ||
+    b === null ||
+    typeof a !== "object" ||
+    typeof b !== "object"
+  ) {
+    return false;
+  }
+  const aRecord = a as Record<string, unknown>;
+  const bRecord = b as Record<string, unknown>;
+  const aKeys = Object.keys(aRecord);
+  const bKeys = Object.keys(bRecord);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => deepEqual(aRecord[key], bRecord[key]));
 }
 
 function assertRenderedOutputPath(

@@ -28,11 +28,12 @@ cleanup for the selected complete source set.
 
 Expose `renderLoaded()` as the loaded-input render boundary. It accepts an
 options object containing `ResolvedConfig`, already-loaded `LoadedSkill[]` and
-`LoadedAgent[]`, optional target filtering, and an explicit generated-write
-toggle. It does not reload skill or agent source definitions, does not write
-generated output by default, and does not perform stale cleanup. Partial
-loaded-input renders can write supplied outputs when requested, but omitted
-inputs are not deleted.
+`LoadedAgent[]`, an optional full validated skill reference universe for
+partial agent renders, optional target filtering, and an explicit
+generated-write toggle. It does not reload skill or agent source definitions,
+does not write generated output by default, and does not perform stale cleanup.
+Partial loaded-input renders can write supplied outputs when requested, but
+omitted inputs are not deleted.
 
 `renderLoaded()` defensively validates that supplied loaded objects still match
 the validated shape and loader-equivalent filesystem locations. Skill mirrored

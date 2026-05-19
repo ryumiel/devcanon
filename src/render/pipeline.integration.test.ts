@@ -77,6 +77,22 @@ describe("renderAll", () => {
     }
   });
 
+  it("renders agents when the YAML filename differs from the source name", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "source-file",
+      makeAgentYaml("actual-agent", { name: "actual-agent" }),
+    );
+
+    const result = await renderAll(config, false);
+
+    expect(result.agents.map((agent) => agent.name)).toEqual(["actual-agent"]);
+    expect(result.outputs.map((output) => output.name).sort()).toEqual([
+      "actual-agent",
+      "actual-agent",
+    ]);
+  });
+
   it("does not write files to disk when writeToGenerated is false", async () => {
     await createSkillFixture(config.library.skillsDir, "s1");
     await createAgentFixture(
@@ -1116,6 +1132,7 @@ describe("renderLoaded", () => {
     const result = await renderLoaded({
       config,
       skills: [],
+      validatedSkills: loadedSkills,
       agents,
       targetFilter: "codex",
     });
@@ -1212,6 +1229,32 @@ describe("renderLoaded", () => {
     expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 
+  it("rejects agent skill references outside the validated skill universe", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        validatedSkills: [],
+        agents: [
+          {
+            ...agent,
+            source: { ...agent.source, skills: ["missing-skill"] },
+          },
+        ],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
   it("rejects nested loaded agent paths inside the configured agents root", async () => {
     await createAgentFixture(
       config.library.agentsDir,
@@ -1259,6 +1302,37 @@ describe("renderLoaded", () => {
         config,
         skills: [],
         agents: [{ ...agent, source: sourceWithoutDefaultSkills }],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("rejects loaded agent sources that still need schema transforms", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [
+          {
+            ...agent,
+            source: {
+              ...agent.source,
+              codex: {
+                ...agent.source.codex,
+                nickname_candidates: ["  Alias  "],
+              },
+            },
+          },
+        ],
       }),
     ).rejects.toThrow(UserError);
   });
@@ -1312,6 +1386,25 @@ describe("renderLoaded", () => {
         config,
         skills: [],
         agents,
+        writeToGenerated: true,
+        targetFilter: "codex",
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("rejects a symlinked generated root before writing", async () => {
+    await createSkillFixture(config.library.skillsDir, "safe-skill");
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const externalDir = path.join(tempDir, "external-generated-root");
+    await mkdir(externalDir, { recursive: true });
+    await rm(config.library.generatedDir, { recursive: true, force: true });
+    await symlink(externalDir, config.library.generatedDir);
+
+    await expect(
+      renderLoaded({
+        config,
+        skills,
+        agents: [],
         writeToGenerated: true,
         targetFilter: "codex",
       }),
