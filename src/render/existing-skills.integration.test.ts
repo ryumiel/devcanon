@@ -28,7 +28,7 @@ const TOUCHED_SKILLS = new Set([
   "pr-merge",
   "play-skill-authoring",
   "play-planning",
-  "report-devcanon-shared-issue",
+  "report-devcanon-issue",
   "spec-readiness-review",
   "subagent-lifecycle",
   "write-product-requirements",
@@ -44,13 +44,13 @@ const SKILLS_WITH_METADATA = {
   codexFrontmatter: [
     "github-issue-priming",
     "linear-issue-priming",
-    "report-devcanon-shared-issue",
+    "report-devcanon-issue",
   ] as const,
   sidecar: [
     "github-issue-priming",
     "linear-issue-priming",
     "pr-review",
-    "report-devcanon-shared-issue",
+    "report-devcanon-issue",
   ] as const,
   policySidecar: [
     "issue-priming-workflow",
@@ -203,6 +203,44 @@ describe("existing skills render cleanly", () => {
       expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
+  });
+
+  it("renders DevCanon issue reporting with the renamed skill and DevCanon target", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, true);
+
+    for (const target of ["claude", "codex"] as const) {
+      const output = getSkillOutput(outputs, "report-devcanon-issue", target);
+
+      expect(output.content).toContain("name: report-devcanon-issue");
+      expect(output.content).toContain("ryumiel/devcanon");
+      expect(output.content).not.toContain("ryumiel/agent-manager");
+    }
+
+    expect(
+      await pathExists(
+        path.join(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "report-devcanon-shared-issue",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      await pathExists(
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "report-devcanon-shared-issue",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("mirrors bundled references and scripts to both targets", async () => {

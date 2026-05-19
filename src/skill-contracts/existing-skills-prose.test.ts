@@ -24,6 +24,23 @@ function expectSharedLifecycleReference(section: string): void {
 }
 
 describe("existing skills source prose contracts", () => {
+  it("keeps DevCanon issue reporting pointed at the DevCanon repository", async () => {
+    const skillSource = await readSkillSource("report-devcanon-issue");
+
+    expect(skillSource).toContain("name: report-devcanon-issue");
+    expect(skillSource).toContain("ryumiel/devcanon");
+    expect(skillSource).not.toContain("ryumiel/agent-manager");
+    expect(skillSource).toContain("consumer repo names, owners, orgs");
+    expect(skillSource).toContain("Ask one question at a time");
+    expect(skillSource).toContain(
+      "Never post an issue without showing the exact draft first and receiving explicit confirmation.",
+    );
+    expect(skillSource).toContain("MODE=draft");
+    expect(skillSource).toContain(
+      "If GitHub access to `ryumiel/devcanon` is unavailable, return `MODE=draft` and stop without attempting to post.",
+    );
+  });
+
   it("keeps behavior-spec evidence routing owned by durable guideline sources", async () => {
     const procedureMap = await readRepoFile(
       "docs/guidelines/portable-afds-user-procedure-map.md",
