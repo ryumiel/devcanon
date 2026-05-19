@@ -49,6 +49,11 @@ Avoid long-lived full-output snapshots or phrase inventories for shipped skill
 and agent bodies. Use structured artifact assertions and source-level contract
 tests instead.
 
+Source-contract tests should pin load-bearing invariants, not every reviewer
+quoted phrase. During review response, add the smallest source-owned assertion
+set that would fail for a real contract regression and leave non-load-bearing
+wording to source review.
+
 ---
 
 ## Snapshot tests
