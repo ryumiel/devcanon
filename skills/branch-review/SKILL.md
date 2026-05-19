@@ -100,7 +100,7 @@ if [[ -n "${LAST_REVIEWED_SHA:-}" || -n "${PRIOR_FINDINGS_FILE:-}" ]]; then
   [ -n "$PRIOR_FINDINGS_HEAD_SHA" ] || { echo "prior findings path must include a 40-character review head" >&2; exit 1; }
   [ "$PRIOR_FINDINGS_HEAD_SHA" = "$LAST_REVIEWED_SHA" ] || { echo "--prior-findings review head must match --last-reviewed" >&2; exit 1; }
   HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
-    bash "$PLAY_REVIEW_HELPER" validate-findings
+    bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 fi
 
 FULL_DIFF_RANGE="$BASE...HEAD"
@@ -249,7 +249,7 @@ PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" validate-findings
+  bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 ```
 
 After computing the remaining-set envelope from the validated file, and
@@ -258,7 +258,7 @@ write-target preparation for the same immutable review head and same file:
 
 ```bash
 HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" prepare-findings-write
+  bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
 ```
 
 The remaining-set `findings[]` contains all pre-fix findings except blockers
