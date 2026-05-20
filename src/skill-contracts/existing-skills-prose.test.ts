@@ -507,6 +507,11 @@ describe("existing skills source prose contracts", () => {
     const normalizedExecutionMode = normalizeWhitespace(executionMode);
     const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
 
+    expect(normalizedExecutionMode).toContain("thread-aware intake");
+    expect(normalizedExecutionMode).toMatch(
+      /After.*thread-aware intake.*verification.*classify/i,
+    );
+
     for (const disposition of [
       "Inline execution",
       "Planned execution",
@@ -550,6 +555,7 @@ describe("existing skills source prose contracts", () => {
       /Planned execution.*required.*data-loss/i,
       /Planned execution.*required.*cross-module/i,
       /Planned execution.*required.*high-risk/i,
+      /Planned execution.*required.*independent implementation\/review gates/i,
       /Planned execution.*required.*audit evidence|Planned execution.*required.*traceability/i,
       /Planned execution.*required.*explanation-only.*mixed.*code/i,
     ]) {
@@ -598,6 +604,9 @@ describe("existing skills source prose contracts", () => {
     }
 
     expect(normalizedExecutionMode).toMatch(/executor-owned mechanics/i);
+    expect(normalizedExecutionMode).toMatch(
+      /After.*executor.*returns.*thread refetching.*resolution eligibility.*final PR-thread closeout/i,
+    );
     expect(normalizedExecutionMode).toMatch(/inline example/i);
     expect(normalizedExecutionMode).toMatch(
       /plan-plus-executor handoff example/i,
