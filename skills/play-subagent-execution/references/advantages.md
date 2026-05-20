@@ -31,9 +31,11 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
 
 - Self-review catches issues before handoff
 - Executor-owned risk-based review routing per task on multi-task plans:
-  hard-risk and unclear tasks run two-stage review (spec compliance, then
-  code quality), while medium-risk tasks may run `spec-only` and low-risk
-  tasks may use `none-final-only` only on the verified shared
+  hard-risk and unclear tasks use same-head `spec-and-quality` review, where
+  spec compliance and code quality may dispatch concurrently when practical and
+  quality disposition is final only after same-head spec pass plus current-head
+  validation. Medium-risk tasks may run `spec-only` and low-risk tasks may use
+  `none-final-only` only on the verified shared
   `issue-priming-workflow --auto` Phase 6 path with controller-local parent
   state and a valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
   `branch-review --fix` after any auto-fix or mechanical-nit commit until the

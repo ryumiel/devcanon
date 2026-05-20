@@ -167,7 +167,7 @@ dispositions are final.
 [Ledger post-dispatch: Task 2 spec re-reviewer, agent_id=spec-2-rereview]
 Spec reviewer: ✅ Spec compliant now
 
-[Cleanup gate before Task 2 code-quality reviewer spawn]
+[Cleanup gate before Task 2 code-quality re-reviewer spawn]
 Task 2 spec re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict recorded.
 Task 2 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 

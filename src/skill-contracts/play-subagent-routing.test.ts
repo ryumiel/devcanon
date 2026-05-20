@@ -300,6 +300,12 @@ describe("play subagent routing source contracts", () => {
     const exampleWorkflow = await readRepoFile(
       "skills/play-subagent-execution/references/example-workflow.md",
     );
+    const advantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
     const adr0007 = await readRepoFile(
       "docs/adr/adr-0007-review-pipeline-delineation.md",
     );
@@ -312,6 +318,10 @@ describe("play subagent routing source contracts", () => {
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
+    const normalizedAdvantages = normalizeWhitespace(advantages);
+    const normalizedCodeQualityReviewerPrompt = normalizeWhitespace(
+      codeQualityReviewerPrompt,
+    );
     const normalizedAdr0007 = normalizeWhitespace(adr0007);
     const normalizedAdr0018 = normalizeWhitespace(adr0018);
 
@@ -366,10 +376,45 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
     );
+    expect(normalizedExample).toContain(
+      "Cleanup gate before Task 2 code-quality re-reviewer spawn",
+    );
+
+    expect(normalizedAdvantages).toContain(
+      "hard-risk and unclear tasks use same-head `spec-and-quality` review",
+    );
+    expect(normalizedAdvantages).toContain(
+      "quality disposition is final only after same-head spec pass plus current-head validation",
+    );
+    expect(normalizedCodeQualityReviewerPrompt).toContain(
+      "this reviewer may dispatch concurrently with spec compliance against the same task head",
+    );
+    expect(normalizedCodeQualityReviewerPrompt).toContain(
+      "Its result is provisional until same-head spec compliance passes and current-head validation succeeds",
+    );
+
+    const playSubagentSurface = normalizeWhitespace(
+      [
+        skillSource,
+        redFlags,
+        exampleWorkflow,
+        advantages,
+        codeQualityReviewerPrompt,
+      ].join("\n"),
+    );
+    for (const staleSerialPhrase of [
+      "spec compliance review first, then code quality review",
+      "run after spec compliance review passes",
+      "spec compliance, then code quality",
+      "Start code quality review before spec compliance is ✅",
+    ]) {
+      expect(playSubagentSurface).not.toContain(staleSerialPhrase);
+    }
 
     expect(normalizedAdr0007).toContain(
-      "`spec-and-quality` now permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
+      "A later refinement to the `spec-and-quality` route named here permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
     );
+    expect(normalizedAdr0007).not.toContain("GitHub issue #344");
     expect(normalizedAdr0018).toContain(
       "`spec-and-quality` is a concurrent same-head fork/join route when practical, not a serial-order guarantee",
     );
@@ -617,7 +662,7 @@ describe("play subagent routing source contracts", () => {
       "Cleanup gate before Task 2 spec re-review spawn",
     );
     expect(task2Section).toContain(
-      "Cleanup gate before Task 2 code-quality reviewer spawn",
+      "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
       "Task 2 code-quality reviewer: status=findings-recorded",

@@ -17,12 +17,12 @@ two-stage review policy remains the hard-risk and fail-closed route, but
 multi-task tasks may use reduced per-task routes only under ADR-0018's
 guarded, executor-owned routing conditions.
 
-GitHub issue #344 later refines the `spec-and-quality` route named here:
-`spec-and-quality` now permits concurrent read-only spec-compliance and
-code-quality dispatch against the same committed task head while preserving the
-semantic spec-first gate. The route still dispatches both per-task reviewers for
-hard-risk and fail-closed tasks; quality disposition is final only after
-same-head spec pass and current-head validation.
+A later refinement to the `spec-and-quality` route named here permits
+concurrent read-only spec-compliance and code-quality dispatch against the same
+committed task head while preserving the semantic spec-first gate. The route
+still dispatches both per-task reviewers for hard-risk and fail-closed tasks;
+quality disposition is final only after same-head spec pass and current-head
+validation.
 
 ## Context
 
