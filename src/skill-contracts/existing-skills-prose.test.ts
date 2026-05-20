@@ -484,6 +484,161 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps review-response execution-mode routing boundaries in source", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const sourceSpecificIndex = skillSource.indexOf(
+      "## Source-Specific Handling",
+    );
+    const executionModeIndex = skillSource.indexOf(
+      "## Execution Mode Selection",
+    );
+    const yagniIndex = skillSource.indexOf(
+      '## YAGNI Check for "Professional" Features',
+    );
+
+    expect(sourceSpecificIndex).toBeGreaterThanOrEqual(0);
+    expect(executionModeIndex).toBeGreaterThan(sourceSpecificIndex);
+    expect(yagniIndex).toBeGreaterThan(executionModeIndex);
+
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    const normalizedExecutionMode = normalizeWhitespace(executionMode);
+    const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
+
+    for (const disposition of [
+      "Inline execution",
+      "Planned execution",
+      "No-code response",
+    ]) {
+      expect(normalizedExecutionMode).toContain(disposition);
+    }
+
+    for (const noCodeOutcome of [
+      "technically invalid",
+      "stale",
+      "already-addressed",
+      "explanation-only",
+      "needs-user-clarification",
+    ]) {
+      expect(lowerExecutionMode).toContain(noCodeOutcome);
+    }
+
+    for (const inlineCondition of [
+      /only when every.*condition.*true/i,
+      /one or two.*clear.*low-risk.*local.*comments/i,
+      /same file|tightly local files/i,
+      /no ambiguity/i,
+      /no public contract, workflow-policy, skill\/agent contract, schema, generated-output, security, lifecycle, data-loss, or cross-module behavior risk/i,
+      /no new test design/i,
+      /quick verification/i,
+    ]) {
+      expect(normalizedExecutionMode).toMatch(inlineCondition);
+    }
+
+    for (const plannedTrigger of [
+      /Planned execution.*required.*multi-item/i,
+      /Planned execution.*required.*ambiguous/i,
+      /Planned execution.*required.*policy-sensitive/i,
+      /Planned execution.*required.*contract-sensitive/i,
+      /Planned execution.*required.*schema/i,
+      /Planned execution.*required.*generated-output/i,
+      /Planned execution.*required.*security-sensitive/i,
+      /Planned execution.*required.*lifecycle/i,
+      /Planned execution.*required.*recovery/i,
+      /Planned execution.*required.*data-loss/i,
+      /Planned execution.*required.*cross-module/i,
+      /Planned execution.*required.*high-risk/i,
+      /Planned execution.*required.*audit evidence|Planned execution.*required.*traceability/i,
+      /Planned execution.*required.*explanation-only.*mixed.*code/i,
+    ]) {
+      expect(normalizedExecutionMode).toMatch(plannedTrigger);
+    }
+
+    for (const plannedTaskRequirement of [
+      "reviewer concern",
+      "verified evidence",
+      "disposition",
+      "source authority",
+      "acceptance criteria",
+      "TDD expectations",
+      "verification expectations",
+      "contract checklist",
+    ]) {
+      expect(lowerExecutionMode).toContain(
+        plannedTaskRequirement.toLowerCase(),
+      );
+    }
+
+    for (const handoffBoundary of [
+      "direct/manual",
+      "play-subagent-execution",
+      "Plan: <path>",
+      ".ephemeral/*-plan.md",
+      "issue-priming",
+      "`--auto`",
+      "reduced-route",
+    ]) {
+      expect(normalizedExecutionMode).toContain(handoffBoundary);
+    }
+    expect(normalizedExecutionMode).toMatch(
+      /must not rely on.*issue-priming.*`--auto`.*reduced-route/i,
+    );
+
+    for (const executorOwnedMechanic of [
+      "task-contract validation",
+      "dispatch/skip-dispatch",
+      "review routing",
+      "snapshot handling",
+      "implementer lifecycle",
+      "final whole-diff review",
+    ]) {
+      expect(lowerExecutionMode).toContain(executorOwnedMechanic.toLowerCase());
+    }
+
+    expect(normalizedExecutionMode).toMatch(/executor-owned mechanics/i);
+    expect(normalizedExecutionMode).toMatch(/inline example/i);
+    expect(normalizedExecutionMode).toMatch(
+      /plan-plus-executor handoff example/i,
+    );
+
+    const unclearFeedback = getMarkdownSection(
+      skillSource,
+      "Handling Unclear Feedback",
+    );
+    const implementationOrder = getMarkdownSection(
+      skillSource,
+      "Implementation Order",
+    );
+    const commitPolicy = getMarkdownSection(
+      skillSource,
+      "PR Branch Commit Continuity",
+    );
+    const threadClosure = getMarkdownSection(
+      skillSource,
+      "Pushed-Fix Inline Thread Closure",
+    );
+    const normalizedThreadClosure = normalizeWhitespace(threadClosure);
+
+    expect(normalizeWhitespace(unclearFeedback)).toContain(
+      "ASK for clarification on unclear items",
+    );
+    expect(normalizeWhitespace(implementationOrder)).toMatch(
+      /already-pushed or reviewed PR branch.*follow-up commit.*plain push/i,
+    );
+    expect(normalizeWhitespace(commitPolicy)).toMatch(
+      /follow-up commit.*plain push/i,
+    );
+    expect(normalizedThreadClosure).toContain("Explanation-only");
+    expect(normalizedThreadClosure).toContain("Stale or outdated");
+    expect(normalizedThreadClosure).toContain("Already-resolved");
+    expect(normalizedThreadClosure).toContain("pushed branch contains the fix");
+    expect(normalizedThreadClosure).toContain(
+      "reply explains why no code change is required",
+    );
+  });
+
   it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {
     const skillSource = await readSkillSource("pr-merge");
     const cleanupSection = getMarkdownSection(
