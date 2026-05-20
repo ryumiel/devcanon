@@ -148,7 +148,8 @@ Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_I
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
-state=emitted, closed=no because spec re-review is pending.
+state=emitted, closed=no because spec re-review and any required code-quality
+re-review or disposition are pending.
 Task 2 code-quality reviewer: quality result disposition=stale; rerun quality unless irrelevance is proven.
 
 [Revalidate effective review route]
