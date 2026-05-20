@@ -14,8 +14,7 @@ digraph pr_merge {
     rankdir=TB;
     "Resolve PR number" [shape=box];
     "Validate PR title + description" [shape=box];
-    "Guideline found?" [shape=diamond];
-    "Violations?" [shape=diamond];
+    "pr-authoring valid?" [shape=diamond];
     "Fix with gh pr edit" [shape=box];
     "Poll CI (default 3 min)" [shape=box];
     "All checks pass?" [shape=diamond];
@@ -29,11 +28,9 @@ digraph pr_merge {
     "Report failure and stop" [shape=box];
 
     "Resolve PR number" -> "Validate PR title + description";
-    "Validate PR title + description" -> "Guideline found?";
-    "Guideline found?" -> "Violations?" [label="yes"];
-    "Guideline found?" -> "Poll CI (default 3 min)" [label="no, skip"];
-    "Violations?" -> "Fix with gh pr edit" [label="yes"];
-    "Violations?" -> "Poll CI (default 3 min)" [label="no"];
+    "Validate PR title + description" -> "pr-authoring valid?";
+    "pr-authoring valid?" -> "Fix with gh pr edit" [label="no"];
+    "pr-authoring valid?" -> "Poll CI (default 3 min)" [label="yes"];
     "Fix with gh pr edit" -> "Poll CI (default 3 min)";
     "Poll CI (default 3 min)" -> "All checks pass?" ;
     "All checks pass?" -> "Squash merge" [label="yes"];
@@ -66,20 +63,19 @@ gh pr view <N> --json state --jq '.state'
 
 ## Step 1b: Validate PR Title and Description
 
-Check whether the project has a PR guideline and validate the PR against it before proceeding.
+Invoke `pr-authoring` in `validate-fix` mode and apply any repaired title/body
+it returns before proceeding. `pr-authoring` is the shared policy owner for PR
+title/body validation; this step owns the `gh pr edit` side effect only.
 
-### Find the guideline
+Gather stable PR data for `pr-authoring` up front:
 
-```bash
-# From the repo root, glob for PR guideline files
-# Common patterns: pr-guideline.md, pr-guidelines.md, pr-template.md
-```
-
-Search for `**/pr-guideline*.md` in the repository root. If no file is found, skip validation and proceed to Step 2.
-
-### Fetch PR data
-
-Gather everything needed for both validation and any regeneration up-front, so the same data feeds both paths:
+- current PR title and body;
+- PR diff file list;
+- PR commit headlines and bodies;
+- any already-read PR policy contents from `**/pr-guideline*.md`,
+  `docs/guidelines/pr-guideline.md`, `.github/pull_request_template.md`,
+  `CONTRIBUTING.md`, and `WORKFLOW.md` when available; otherwise let
+  `pr-authoring` discover and read the policy surfaces.
 
 ```bash
 gh pr view <N> --json title,body
@@ -87,43 +83,44 @@ gh pr diff <N> --name-only
 gh pr view <N> --json commits --jq '.commits[] | {headline: .messageHeadline, body: .messageBody}'
 ```
 
-The file list and commit log are not used by the format check (title, required sections, anti-patterns), but the content-vs-diff check below depends on both — and the regeneration path was already pulling them from the same commands. Lifting them up here avoids re-fetching during fixes.
+`pr-authoring` always validates title format, required sections,
+anti-patterns, and content-vs-diff. When no project-specific guideline or
+template exists, it applies its default fallback contract instead of bypassing
+validation.
 
-### Validate
+If `pr-authoring` returns `VALID`, proceed to CI. If it returns a repaired title
+and/or body, apply only the fields that changed. When the body changes, write
+the repaired body to a temp file and pass it with `--body-file` so multiline
+Markdown and shell-sensitive characters are preserved:
 
-Read the guideline file and check four dimensions:
-
-1. **Title format** — does it match the format specified in the guideline? (e.g., Conventional Commits: `<type>(<scope>): <summary>`)
-2. **Required sections** — does the description contain all sections the guideline's template requires? Compare against the template headings (e.g., Summary, Why, Changes, Impact, Testing, Breaking Changes, Related Issues)
-3. **Anti-patterns** — does the description violate any explicit "do not" rules? (e.g., file-by-file changelogs, commit-SHA references, "originally / now" chronology)
-4. **Content vs diff** — does the description's Changes / Summary still reflect what the commits actually changed? Best-effort, subsystem-level, not file-level. Flag if the description references subsystems or files the diff doesn't touch (stale claim), or omits subsystems the diff clearly modifies (under-disclosed change). Use the commit headlines + bodies from `gh pr view <N> --json commits` as the canonical statement of what each commit did, and the file list from `gh pr diff <N> --name-only` to identify subsystems.
-
-The content-vs-diff check is bounded to the PR's own commits (`gh pr view <N> --json commits` returns only the PR's commits) and is intentionally subsystem-level: per `docs/guidelines/pr-guideline.md` §2, descriptions group by subsystem (`render`, `install`, `validate`, etc.), not by file. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files. A description that promises behavior changes the diff does not contain — or omits a subsystem the diff plainly touches — fails.
-
-### Fix violations
-
-If any of the four checks flag a violation, rewrite the title and/or description to comply, then apply:
+Body-only repair:
 
 ```bash
-gh pr edit <N> --title "<fixed title>" --body "<fixed body>"
+PR_BODY_FILE=$(mktemp)
+trap 'rm -f "$PR_BODY_FILE"' EXIT
+# write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
+gh pr edit <N> --body-file "$PR_BODY_FILE"
 ```
 
-Pass only the flags whose content actually changed — `gh pr edit` leaves omitted fields untouched, so a body-only fix should drop `--title` and a title-only fix should drop `--body`.
+Title-only repair:
 
-Use the diff file list (`gh pr diff <N> --name-only`) and commit headlines + bodies (`gh pr view <N> --json commits`) — already fetched in the previous subsection — as the ground truth for what the PR actually contains. A regenerated description follows the guideline's template, including all required sections.
+```bash
+gh pr edit <N> --title "<fixed title>"
+```
 
-**When the content-vs-diff check is the trigger:** regenerate only the affected sections (typically Summary, Changes, sometimes Impact); preserve Why, Testing, and Related Issues verbatim unless the format check also flagged them. A single `gh pr edit --body` call applies the combined regeneration when both format and content violations are detected — no need for two trips.
+Title and body repair:
 
-**Anti-pattern guardrails still apply during regeneration**, even though commit data is now in scope:
+```bash
+PR_BODY_FILE=$(mktemp)
+trap 'rm -f "$PR_BODY_FILE"' EXIT
+# write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
+gh pr edit <N> --title "<fixed title>" --body-file "$PR_BODY_FILE"
+```
 
-- No commit SHAs in the regenerated body. The git history covers that.
-- No "originally / now" or "we tried X then Y" chronology. The PR is the durable record of what merges, not the path that got there.
-- No file-by-file changelog. Group changes by subsystem and behavior, not by which commit introduced them.
-- Do not paste commit messages verbatim — synthesize behavior changes across the commit log.
+Pass only the flags whose content actually changed — `gh pr edit` leaves omitted fields untouched, so a body-only fix should drop `--title` and a title-only fix should omit the `--body-file` path.
 
-Bullets 1–3 are direct entries in `docs/guidelines/pr-guideline.md` §3. Bullet 4 is this skill's application of §3's "Diff restatement" rule to the regeneration step — when commit headlines and bodies are the source material, the synthesis-vs-paste discipline is what keeps the description from re-narrating the diff.
-
-**Do not skip validation because the description "looks close enough."** The guideline exists for a reason — enforce it exactly.
+Do not skip `pr-authoring` because the description "looks close enough." The
+shared procedure exists so PR creation and PR merge enforce the same policy.
 
 ## Step 2: Poll CI
 
@@ -329,9 +326,9 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 | Situation                         | Action                                                                                                                                                                                                                           |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
-| PR guideline found                | Validate title + description, fix with `gh pr edit`                                                                                                                                                                              |
-| Description content stale vs diff | Regenerate Summary/Changes/Impact from commit log + diff name-only, apply with `gh pr edit --body` (single call covers combined fixes)                                                                                           |
-| No PR guideline found             | Skip validation, proceed to CI                                                                                                                                                                                                   |
+| PR authoring validation           | Run `pr-authoring` in `validate-fix` mode, then apply repaired title/body with `gh pr edit`                                                                                                                                      |
+| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `gh pr edit --body-file`                                                                                                                     |
+| No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                                                                                           |
 | CI pending                        | Poll every 3 min (configurable)                                                                                                                                                                                                  |
 | CI passes                         | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
 | Post-merge cleanup                | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → verify `MERGED` and local tip = PR head → `branch -D`; otherwise skip the remove |
@@ -344,15 +341,15 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Common Mistakes
 
-### Skipping PR guideline validation
+### Skipping PR authoring validation
 
-The validation step exists because agents routinely create PRs with generic descriptions that don't follow project conventions. Do not skip it because "the description looks fine" — read the guideline and check systematically. If no guideline file is found, that's the only valid reason to skip.
+The validation step exists because agents routinely create PRs with generic descriptions that don't follow project conventions. Do not skip it because "the description looks fine." `pr-authoring` checks project-specific surfaces when present and falls back to its default PR contract when no custom guideline or template exists.
 
 ### Description content drifted from the diff
 
-Step 1b validates that the description still reflects the diff, not just that the headings are present. When branch-review or PR review adds commits after the description was written, the Changes / Summary sections often go stale — the headings stay valid but the content stops describing what actually merged.
+`pr-authoring` validates that the description still reflects the diff, not just that the headings are present. When branch-review or PR review adds commits after the description was written, the Changes / Summary sections often go stale — the headings stay valid but the content stops describing what actually merged.
 
-The skill regenerates the affected sections from the commit log + diff name-only before merging. The regeneration must still follow `docs/guidelines/pr-guideline.md` — no commit SHAs, no "originally / now" chronology, no file-by-file framing, no verbatim commit-message paste. Group by subsystem and behavior, not by which commit introduced the change.
+`pr-authoring` repairs the affected sections from the commit log + diff name-only before merging. The repair must still follow the discovered project policy surfaces and the fallback anti-pattern rules — no commit SHAs, no "originally / now" chronology, no file-by-file framing, no verbatim commit-message paste. Group by subsystem and behavior, not by which commit introduced the change.
 
 The check is best-effort and subsystem-level. A description that names every affected subsystem with a behavior bullet passes even if it never names individual files; that is the guideline, not a gap.
 

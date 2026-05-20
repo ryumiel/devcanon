@@ -192,14 +192,17 @@ script and keep only the invocation contract in `SKILL.md`.
 ### Cleanup ownership
 
 Inherits ADR-0012 § Consequences's policy: cleanup is implicit via worktree
-teardown. `play-branch-finish` Step 5 already removes the worktree under
-Options 1 (merge), 2 (PR), and 4 (discard); `.ephemeral/` is destroyed with
-it. No per-skill stale-artifact sweep is introduced. The
-`design.md` / `plan.md` precedents have never had a sweep; ADR-0012's
-findings-file decision did not introduce one; this ADR keeps the convention
-uniform. Edge cases (Option 3 "Keep As-Is", direct skill invocations outside
-a worktree) leave files in place. Operators may sweep manually — extending
-the ADR-0012 sweep snippet with the three new markdown suffixes:
+lifecycle, but PR creation preserves the worktree. `play-branch-finish` Step 5
+removes worktrees only for local merge and explicit discard paths; Option 2 PR
+creation keeps `.ephemeral/` artifacts available for review follow-up, CI
+fixes, and nit handling. Post-merge cleanup is owned by `pr-merge`, and manual
+cleanup remains an operator action for long-lived worktrees. No per-skill
+stale-artifact sweep is introduced. The `design.md` / `plan.md` precedents have
+never had a sweep; ADR-0012's findings-file decision did not introduce one;
+this ADR keeps the convention uniform. Edge cases (PR-created preserved
+worktrees, keep-as-is flows, direct skill invocations outside a short-lived
+worktree) leave files in place. Operators may sweep manually — extending the
+ADR-0012 sweep snippet with the three new markdown suffixes:
 
 ```bash
 rm -f .ephemeral/*-research.md .ephemeral/*-design.md .ephemeral/*-plan.md \

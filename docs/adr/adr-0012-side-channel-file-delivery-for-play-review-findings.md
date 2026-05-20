@@ -143,15 +143,17 @@ Consumer responsibilities:
   `play-planning` in that it writes a single deterministically-named
   artifact under `.ephemeral/`. The phase-handoff substrate is now
   symmetric across the design / plan / review producers.
-- Cleanup remains implicit via worktree teardown. `play-branch-finish`
-  Step 5 already removes the worktree under Options 1 (merge), 2 (PR),
-  and 4 (discard); `.ephemeral/` is destroyed with it. No per-skill
-  stale-finding sweep is introduced.
-  - Edge case: Option 3 (Keep As-Is) and direct
-    `branch-review` / `pr-review` invocations outside a worktree leave
-    the file in place. Files are git-ignored (`.gitignore`) and small
-    (~5KB each). Operators may sweep manually if accumulation matters
-    in long-lived worktrees:
+- Cleanup remains implicit via worktree lifecycle, but PR creation preserves
+  the worktree. `play-branch-finish` removes worktrees only for local merge and
+  explicit discard paths; Option 2 PR creation keeps `.ephemeral/` artifacts
+  available for review follow-up, CI fixes, and nit handling. Post-merge cleanup
+  is owned by `pr-merge`, and manual cleanup remains an operator action for
+  long-lived worktrees. No per-skill stale-finding sweep is introduced.
+  - Edge case: PR-created preserved worktrees, keep-as-is flows, and direct
+    `branch-review` / `pr-review` invocations outside a short-lived worktree
+    leave the file in place. Files are git-ignored (`.gitignore`) and small
+    (~5KB each). Operators may sweep manually if accumulation matters in
+    long-lived worktrees:
 
     ```bash
     rm -f .ephemeral/*-findings.json .ephemeral/*-nits-pending.json

@@ -18,10 +18,14 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** CI logs, file reads, and web searches pollute the main context window
 - **Fix:** Always dispatch dedicated agents for gate and research phases
 
-## Ignoring project PR guideline
+## Bypassing shared PR authoring
 
-- **Problem:** PR title/description uses a generic format instead of the project's required template, requiring manual rework
-- **Fix:** Always glob for PR guidelines before composing the PR title and description in Phase 8
+- **Problem:** Phase 8 manually composes a PR title/description or duplicates
+  fallback defaults, so `play-branch-finish` and `pr-merge` can drift from each
+  other
+- **Fix:** Always route Phase 8 PR title/body work through
+  `play-branch-finish` Option 2, which invokes `pr-authoring` in `compose` mode
+  and applies the shared project-guideline or fallback contract
 
 ## Skipping the gate for "obvious" gated issues
 
