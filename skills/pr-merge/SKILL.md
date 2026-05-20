@@ -94,6 +94,7 @@ Markdown and shell-sensitive characters are preserved:
 
 ```bash
 PR_BODY_FILE=$(mktemp)
+trap 'rm -f "$PR_BODY_FILE"' EXIT
 # write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
 gh pr edit <N> --title "<fixed title>" --body-file "$PR_BODY_FILE"
 ```

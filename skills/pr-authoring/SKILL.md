@@ -132,20 +132,41 @@ For `validate-fix`, return one of:
 VALID
 ```
 
-or:
+or one of these repair shapes:
+
+Body-only repair:
 
 ```text
-PR title: <fixed title if changed>
-
 PR body:
-<fixed body if changed>
+<fixed body>
 
 Validation failures:
 - <dimension>: <short reason>
 ```
 
-Only include title or body fields that need to be created or changed. Callers
-apply side effects.
+Title-only repair:
+
+```text
+PR title: <fixed title>
+
+Validation failures:
+- <dimension>: <short reason>
+```
+
+Title and body repair:
+
+```text
+PR title: <fixed title>
+
+PR body:
+<fixed body>
+
+Validation failures:
+- <dimension>: <short reason>
+```
+
+Omit unchanged fields entirely; do not emit empty title/body placeholders.
+Callers apply side effects.
 
 ## Common Mistakes
 

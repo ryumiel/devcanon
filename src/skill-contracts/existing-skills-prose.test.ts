@@ -703,6 +703,10 @@ describe("existing skills source prose contracts", () => {
       "no file-by-file diff restatement",
       ".github/pull_request_template.md",
       "docs/guidelines/pr-guideline.md",
+      "Body-only repair",
+      "Title-only repair",
+      "Title and body repair",
+      "Omit unchanged fields entirely",
     ]) {
       expect(normalizedPrAuthoring).toContain(phrase);
     }
@@ -731,6 +735,8 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain("gh pr create --title");
     expect(normalizedOption2).toContain("--body-file");
+    expect(normalizedOption2).toContain("PR_BODY_FILE=$(mktemp)");
+    expect(normalizedOption2).toContain("trap 'rm -f \"$PR_BODY_FILE\"' EXIT");
     expect(normalizedOption2).not.toContain('--body "<body>"');
     expect(normalizedCleanup).toContain("Options 1 and 4");
     expect(normalizedCleanup).toContain(
@@ -764,6 +770,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(prMergeValidation)).toContain("gh pr edit");
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       ".github/pull_request_template.md",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "PR_BODY_FILE=$(mktemp)",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "trap 'rm -f \"$PR_BODY_FILE\"' EXIT",
     );
     expect(normalizeWhitespace(prMergeValidation)).not.toContain(
       "skip validation",

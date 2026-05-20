@@ -213,6 +213,9 @@ literal:
 
 ```bash
 # Create PR with the title/body produced by pr-authoring compose mode
+PR_BODY_FILE=$(mktemp)
+trap 'rm -f "$PR_BODY_FILE"' EXIT
+# write the exact PR body returned by pr-authoring to "$PR_BODY_FILE"
 gh pr create --title "<title>" --body-file "$PR_BODY_FILE"
 ```
 
