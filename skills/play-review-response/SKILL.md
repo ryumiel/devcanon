@@ -90,6 +90,110 @@ IF conflicts with the user's prior decisions:
 
 **Rule:** "External feedback - be skeptical, but check carefully"
 
+## Execution Mode Selection
+
+After thread-aware intake and verification, classify each verified concern
+before changing code. Thread-aware intake means reading the current review
+thread/comment state, mapping feedback to the same concern, and separating
+executable feedback from stale, already-addressed, explanation-only, or unclear
+feedback before selecting a mode.
+
+- **Inline execution** - handle directly in this skill.
+- **Planned execution** - write a review-response plan, then hand it to
+  `play-subagent-execution`.
+- **No-code response** - reply, report, or ask without changing code.
+
+No-code response outcomes include technically invalid feedback, stale feedback,
+already-addressed feedback, explanation-only feedback, and
+needs-user-clarification feedback. No-code does not mean ignored: provide the
+verified evidence, keep unclear or unresolved concerns open, and follow the
+GitHub thread reply/refetching and resolution eligibility rules when applicable.
+
+Inline execution is allowed only when every inline condition is true:
+
+- The feedback is one or two clear, low-risk, local comments.
+- The affected code is in the same file or tightly local files.
+- There is no ambiguity after verification.
+- There is no public contract, workflow-policy, skill/agent contract, schema,
+  generated-output, security, lifecycle, data-loss, or cross-module behavior
+  risk.
+- The change needs no new test design beyond existing obvious focused checks.
+- Quick verification can prove the fix without broader planning, and the fix
+  can be explained clearly in-thread.
+
+Planned execution is required for multi-item feedback outside the inline
+envelope. Planned execution is required for ambiguous feedback after
+clarification establishes an executable concern; unclear reviewer intent still
+stops for clarification before planning. Planned execution is required for
+policy-sensitive feedback. Planned execution is required for
+contract-sensitive feedback. Planned execution is required for schema changes.
+Planned execution is required for generated-output changes. Planned execution is
+required for security-sensitive changes. Planned execution is required for
+lifecycle changes. Planned execution is required for recovery behavior. Planned
+execution is required for data-loss risk. Planned execution is required for
+cross-module behavior. Planned execution is required for high-risk changes.
+Planned execution is required when audit evidence or traceability is needed.
+Planned execution is required when independent implementation/review gates are
+needed. Planned execution is required when explanation-only feedback is mixed
+with code changes.
+
+For planned execution, create a direct/manual `.ephemeral/*-plan.md` handoff
+and invoke the executor with:
+
+```text
+Plan: <path>
+```
+
+Review-response-created plans must be valid direct/manual
+`play-subagent-execution` plans under the executor's current structural
+task-contract gate. They must not rely on issue-priming `--auto` reduced-route
+behavior, because direct/manual review-response plans do not carry
+parent-owned issue-priming state, validated auto-handoff evidence, or a
+guaranteed downstream `branch-review --fix` loop.
+
+Each planned task must include the reviewer concern, verified evidence,
+disposition, source authority, acceptance criteria, TDD expectations,
+verification expectations, and contract checklist fields as applicable.
+
+`play-subagent-execution` owns executor-owned mechanics after the handoff:
+task-contract validation, dispatch/skip-dispatch, review routing, snapshot
+handling, implementer lifecycle, final whole-implementation review for
+direct/manual calls, and whole-diff gate validation only when a caller-owned
+handoff supplies that gate. This skill owns thread-aware intake, verification,
+execution-mode selection, no-code dispositions, follow-up commit continuity,
+GitHub thread replies/refetching, and resolution eligibility.
+
+Direct/manual review-response plans do not get an automatic whole-diff review
+after the executor's final code-quality reviewer. Run `branch-review` before
+opening or updating a PR when planned review-response work needs whole-diff
+coverage.
+
+After the executor returns, this skill resumes ownership of explanation-only
+replies, thread refetching, resolution eligibility, and final PR-thread
+closeout.
+
+Inline example:
+
+```text
+Reviewer: "Typo in this private helper name."
+Verification: same file, clear local typo, no contract risk, quick test exists.
+Mode: Inline execution.
+Action: Fix directly, run the focused check, commit as follow-up if the PR was
+already pushed or reviewed.
+```
+
+Plan-plus-executor handoff example:
+
+```text
+Reviewer: "This skill routing should cover schemas, lifecycle recovery, and
+thread closeout behavior."
+Verification: policy-sensitive, contract-sensitive, multi-surface workflow
+change with traceability needs.
+Mode: Planned execution.
+Action: Write `.ephemeral/<date>-review-response-plan.md`, then invoke
+`play-subagent-execution` with `Plan: <path>`.
+```
+
 ## YAGNI Check for "Professional" Features
 
 ```

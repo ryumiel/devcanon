@@ -406,6 +406,10 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Implementation Order",
     );
+    const unclearFeedback = getMarkdownSection(
+      skillSource,
+      "Handling Unclear Feedback",
+    );
     const commitPolicy = getMarkdownSection(
       skillSource,
       "PR Branch Commit Continuity",
@@ -424,6 +428,9 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizeWhitespace(implementationOrder)).toMatch(
       /verification.*already-pushed or reviewed PR branch.*follow-up commit.*plain push/,
+    );
+    expect(normalizeWhitespace(unclearFeedback)).toContain(
+      "ASK for clarification on unclear items",
     );
 
     expect(normalizedCommitPolicy).toMatch(
@@ -481,6 +488,150 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedGithubReplies).toMatch(/thread context/i);
     expect(normalizedGithubReplies).toContain(
       "Pushed-Fix Inline Thread Closure",
+    );
+  });
+
+  it("keeps review-response execution-mode routing boundaries in source", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const sourceSpecificIndex = skillSource.indexOf(
+      "## Source-Specific Handling",
+    );
+    const executionModeIndex = skillSource.indexOf(
+      "## Execution Mode Selection",
+    );
+    const yagniIndex = skillSource.indexOf(
+      '## YAGNI Check for "Professional" Features',
+    );
+
+    expect(sourceSpecificIndex).toBeGreaterThanOrEqual(0);
+    expect(executionModeIndex).toBeGreaterThan(sourceSpecificIndex);
+    expect(yagniIndex).toBeGreaterThan(executionModeIndex);
+
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    const normalizedExecutionMode = normalizeWhitespace(executionMode);
+    const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
+
+    expect(normalizedExecutionMode).toContain("thread-aware intake");
+    expect(normalizedExecutionMode).toMatch(
+      /After.*thread-aware intake.*verification.*classify/i,
+    );
+
+    for (const disposition of [
+      "Inline execution",
+      "Planned execution",
+      "No-code response",
+    ]) {
+      expect(normalizedExecutionMode).toContain(disposition);
+    }
+
+    for (const noCodeOutcome of [
+      "technically invalid",
+      "stale",
+      "already-addressed",
+      "explanation-only",
+      "needs-user-clarification",
+    ]) {
+      expect(lowerExecutionMode).toContain(noCodeOutcome);
+    }
+
+    for (const inlineCondition of [
+      /only when every.*condition.*true/i,
+      /one or two.*clear.*low-risk.*local.*comments/i,
+      /affected code.*same file.*tightly local files/i,
+      /no ambiguity/i,
+      /no public contract, workflow-policy, skill\/agent contract, schema, generated-output, security, lifecycle, data-loss, or cross-module behavior risk/i,
+      /no new test design/i,
+      /quick verification/i,
+    ]) {
+      expect(normalizedExecutionMode).toMatch(inlineCondition);
+    }
+
+    const plannedExecutionRules = normalizeWhitespace(
+      sliceBetween(
+        executionMode,
+        "Planned execution is required for multi-item",
+        "For planned execution",
+      ),
+    );
+
+    for (const plannedTrigger of [
+      /Planned execution.*required.*multi-item/i,
+      /Planned execution.*required.*ambiguous/i,
+      /Planned execution.*required.*policy-sensitive/i,
+      /Planned execution.*required.*contract-sensitive/i,
+      /Planned execution.*required.*schema/i,
+      /Planned execution.*required.*generated-output/i,
+      /Planned execution.*required.*security-sensitive/i,
+      /Planned execution.*required.*lifecycle/i,
+      /Planned execution.*required.*recovery/i,
+      /Planned execution.*required.*data-loss/i,
+      /Planned execution.*required.*cross-module/i,
+      /Planned execution.*required.*high-risk/i,
+      /Planned execution.*required.*independent implementation\/review gates/i,
+      /Planned execution.*required.*audit evidence|Planned execution.*required.*traceability/i,
+      /Planned execution.*required.*explanation-only.*mixed.*code/i,
+    ]) {
+      expect(plannedExecutionRules).toMatch(plannedTrigger);
+    }
+
+    for (const plannedTaskRequirement of [
+      "reviewer concern",
+      "verified evidence",
+      "disposition",
+      "source authority",
+      "acceptance criteria",
+      "TDD expectations",
+      "verification expectations",
+      "contract checklist",
+    ]) {
+      expect(lowerExecutionMode).toContain(
+        plannedTaskRequirement.toLowerCase(),
+      );
+    }
+
+    for (const handoffBoundary of [
+      "direct/manual",
+      "play-subagent-execution",
+      "Plan: <path>",
+      ".ephemeral/*-plan.md",
+      "issue-priming",
+      "`--auto`",
+      "reduced-route",
+    ]) {
+      expect(normalizedExecutionMode).toContain(handoffBoundary);
+    }
+    expect(normalizedExecutionMode).toMatch(
+      /must not rely on.*issue-priming.*`--auto`.*reduced-route/i,
+    );
+
+    for (const executorOwnedMechanic of [
+      "task-contract validation",
+      "dispatch/skip-dispatch",
+      "review routing",
+      "snapshot handling",
+      "implementer lifecycle",
+      "final whole-implementation review",
+      "whole-diff gate validation",
+    ]) {
+      expect(lowerExecutionMode).toContain(executorOwnedMechanic.toLowerCase());
+    }
+
+    expect(normalizedExecutionMode).toMatch(/executor-owned mechanics/i);
+    expect(normalizedExecutionMode).toMatch(
+      /Direct\/manual review-response plans.*do not get.*automatic whole-diff review/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /After.*executor.*returns.*thread refetching.*resolution eligibility.*final PR-thread closeout/i,
+    );
+    expect(normalizedExecutionMode).toMatch(/inline example/i);
+    expect(normalizedExecutionMode).toMatch(
+      /plan-plus-executor handoff example/i,
     );
   });
 
