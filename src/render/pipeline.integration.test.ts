@@ -1,7 +1,8 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  canCreateSymlinks,
   cleanupTempDir,
   createAgentFixture,
   createSkillFixture,
@@ -14,7 +15,11 @@ import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
-import { renderAll } from "./pipeline.js";
+import { loadAndValidateAgents } from "../validate/agents.js";
+import { loadAndValidateSkills } from "../validate/skills.js";
+import { renderAll, renderLoaded } from "./pipeline.js";
+
+const symlinkAvailable = await canCreateSymlinks();
 
 describe("renderAll", () => {
   let tempDir: string;
@@ -73,6 +78,22 @@ describe("renderAll", () => {
       expect(output.generatedPath).toBeTruthy();
       expect(await pathExists(output.generatedPath)).toBe(true);
     }
+  });
+
+  it("renders agents when the YAML filename differs from the source name", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "source-file",
+      makeAgentYaml("actual-agent", { name: "actual-agent" }),
+    );
+
+    const result = await renderAll(config, false);
+
+    expect(result.agents.map((agent) => agent.name)).toEqual(["actual-agent"]);
+    expect(result.outputs.map((output) => output.name).sort()).toEqual([
+      "actual-agent",
+      "actual-agent",
+    ]);
   });
 
   it("does not write files to disk when writeToGenerated is false", async () => {
@@ -913,4 +934,814 @@ describe("renderAll", () => {
     expect(await pathExists(claudeSkillDir)).toBe(false);
     expect(await pathExists(codexSkillDir)).toBe(false);
   });
+});
+
+describe("renderLoaded", () => {
+  let tempDir: string;
+  let config: ResolvedConfig;
+  let restore: () => void;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+    config = makeResolvedConfig(tempDir);
+    const installed = installTestLogger();
+    restore = installed.restore;
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    restore();
+    await cleanupTempDir(tempDir);
+  });
+
+  it("renders supplied loaded skills and agents through an options object", async () => {
+    await createSkillFixture(config.library.skillsDir, "loaded-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "loaded-agent",
+      makeAgentYaml("loaded-agent", { skills: ["loaded-skill"] }),
+    );
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+    await writeFile(
+      path.join(config.library.skillsDir, "loaded-skill", "SKILL.md"),
+      "---\nname: loaded-skill\ndescription: Mutated source.\n---\n\n# changed\n",
+      "utf-8",
+    );
+    await writeFile(
+      path.join(config.library.agentsDir, "loaded-agent.yaml"),
+      makeAgentYaml("mutated-agent"),
+      "utf-8",
+    );
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: true,
+      targetFilter: "codex",
+    });
+
+    expect(result.skills).toBe(skills);
+    expect(result.agents).toBe(agents);
+    expect(result.outputs).toHaveLength(2);
+    expect(result.outputs.every((output) => output.target === "codex")).toBe(
+      true,
+    );
+    expect(
+      result.outputs.map((output) => `${output.target}:${output.type}`).sort(),
+    ).toEqual(["codex:agent", "codex:skill"]);
+
+    const agentOutput = result.outputs.find(
+      (output): output is RenderedAgent => output.type === "agent",
+    );
+    expect(agentOutput?.content).toContain('name = "loaded-agent"');
+    expect(await pathExists(agentOutput?.generatedPath ?? "")).toBe(true);
+    const generatedSkillPath = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "loaded-skill",
+      "SKILL.md",
+    );
+    expect(await pathExists(generatedSkillPath)).toBe(true);
+    const generatedSkillContent = await readFile(generatedSkillPath, "utf-8");
+    expect(generatedSkillContent).toContain("A test skill.");
+    expect(generatedSkillContent).not.toContain("Mutated source");
+    expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it("requires mirrored subdirs to remain source-backed for loaded skills", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "loaded-skill",
+      undefined,
+      ["scripts"],
+    );
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    await rm(config.library.skillsDir, { recursive: true, force: true });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills,
+        agents: [],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("renders loaded skills without mirrored subdirs after source directories are removed", async () => {
+    await createSkillFixture(config.library.skillsDir, "loaded-skill");
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    await rm(config.library.skillsDir, { recursive: true, force: true });
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents: [],
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("loaded-skill");
+    expect(result.outputs[0].type).toBe("skill");
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("renders loaded agents after source YAML files are removed", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "loaded-agent",
+      makeAgentYaml("loaded-agent"),
+    );
+    const agents = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+    await rm(config.library.agentsDir, { recursive: true, force: true });
+
+    const result = await renderLoaded({
+      config,
+      skills: [],
+      agents,
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("loaded-agent");
+    expect(result.outputs[0].type).toBe("agent");
+    expect(result.outputs[0].content).toContain('name = "loaded-agent"');
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("does not write generated output when writeToGenerated is false", async () => {
+    await createSkillFixture(config.library.skillsDir, "loaded-no-write-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "loaded-no-write-agent",
+      makeAgentYaml("loaded-no-write-agent", {
+        skills: ["loaded-no-write-skill"],
+      }),
+    );
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: false,
+    });
+
+    expect(result.outputs).toHaveLength(4);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("does not remove unrelated generated outputs for partial loaded input", async () => {
+    await createSkillFixture(config.library.skillsDir, "kept-skill");
+    await createSkillFixture(config.library.skillsDir, "omitted-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "kept-agent",
+      makeAgentYaml("kept-agent", { skills: ["kept-skill"] }),
+    );
+    await createAgentFixture(
+      config.library.agentsDir,
+      "omitted-agent",
+      makeAgentYaml("omitted-agent", { skills: ["omitted-skill"] }),
+    );
+
+    const fullRender = await renderAll(config, true, false, "codex");
+    const omittedPaths = fullRender.outputs
+      .filter((output) => output.name.startsWith("omitted-"))
+      .map((output) =>
+        output.type === "skill"
+          ? path.join(output.generatedPath, "SKILL.md")
+          : output.generatedPath,
+      );
+    for (const omittedPath of omittedPaths) {
+      expect(await pathExists(omittedPath)).toBe(true);
+    }
+
+    const loadedSkills = await loadAndValidateSkills(config.library.skillsDir);
+    const loadedAgents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      loadedSkills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+    const skills = loadedSkills.filter((skill) => skill.name === "kept-skill");
+    const agents = loadedAgents.filter((agent) => agent.name === "kept-agent");
+
+    const result = await renderLoaded({
+      config,
+      skills,
+      agents,
+      writeToGenerated: true,
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs.map((output) => output.name).sort()).toEqual([
+      "kept-agent",
+      "kept-skill",
+    ]);
+    for (const omittedPath of omittedPaths) {
+      expect(await pathExists(omittedPath)).toBe(true);
+    }
+  });
+
+  it("renders an agent-only partial input after full validation", async () => {
+    await createSkillFixture(config.library.skillsDir, "referenced-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "agent-only",
+      makeAgentYaml("agent-only", { skills: ["referenced-skill"] }),
+    );
+    const loadedSkills = await loadAndValidateSkills(config.library.skillsDir);
+    const loadedAgents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      loadedSkills,
+      {
+        strict: false,
+        modelTiers: config.modelTiers,
+      },
+    );
+    const agents = loadedAgents.filter((agent) => agent.name === "agent-only");
+    await rm(path.join(config.library.skillsDir, "referenced-skill"), {
+      recursive: true,
+      force: true,
+    });
+
+    const result = await renderLoaded({
+      config,
+      skills: [],
+      validatedSkills: loadedSkills,
+      agents,
+      targetFilter: "codex",
+    });
+
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("agent-only");
+    expect(result.outputs[0].type).toBe("agent");
+    expect(result.outputs[0].content).toContain("referenced-skill");
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("rejects unvalidated loaded inputs before writing generated output", async () => {
+    await createSkillFixture(config.library.skillsDir, "safe-skill");
+    const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [
+          {
+            ...skill,
+            name: "../escape",
+            source: { ...skill.source, name: "../escape" },
+          },
+        ],
+        agents: [],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("rejects loaded skill paths outside the configured skills root", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "safe-skill",
+      undefined,
+      ["scripts"],
+    );
+    const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+    const externalSkillDir = path.join(tempDir, "external-skill");
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [{ ...skill, dirPath: externalSkillDir }],
+        agents: [],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("rejects nested loaded skill paths inside the configured skills root", async () => {
+    await createSkillFixture(config.library.skillsDir, "safe-skill");
+    const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [
+          {
+            ...skill,
+            dirPath: path.join(config.library.skillsDir, "nested", skill.name),
+          },
+        ],
+        agents: [],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked loaded skill directories inside the configured skills root",
+    async () => {
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "safe-skill",
+        undefined,
+        ["scripts"],
+      );
+      const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+      const externalSkillDir = path.join(tempDir, "external-loaded-skill");
+      await mkdir(path.join(externalSkillDir, "scripts"), { recursive: true });
+      await writeFile(
+        path.join(externalSkillDir, "SKILL.md"),
+        skill.skillMdContent,
+        "utf-8",
+      );
+      await rm(skillDir, { recursive: true, force: true });
+      await symlink(externalSkillDir, skillDir, "dir");
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: [skill],
+          agents: [],
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked loaded skill mirrored subdirectories",
+    async () => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "safe-skill",
+        undefined,
+        ["scripts"],
+      );
+      const [skill] = await loadAndValidateSkills(config.library.skillsDir);
+      const scriptsDir = path.join(skill.dirPath, "scripts");
+      const externalScriptsDir = path.join(tempDir, "external-scripts");
+      await mkdir(externalScriptsDir, { recursive: true });
+      await rm(scriptsDir, { recursive: true, force: true });
+      await symlink(externalScriptsDir, scriptsDir, "dir");
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: [skill],
+          agents: [],
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked loaded skill ancestors above the configured skills root",
+    async () => {
+      const externalParent = path.join(tempDir, "external-skills-parent");
+      const linkedParent = path.join(tempDir, "linked-skills-parent");
+      await mkdir(externalParent, { recursive: true });
+      await symlink(externalParent, linkedParent, "dir");
+      const symlinkAncestorConfig = makeResolvedConfig(tempDir, {
+        library: {
+          skillsDir: path.join(linkedParent, "skills"),
+        },
+      });
+      await mkdir(symlinkAncestorConfig.library.skillsDir, {
+        recursive: true,
+      });
+      await createSkillFixture(
+        symlinkAncestorConfig.library.skillsDir,
+        "safe-skill",
+        undefined,
+        ["scripts"],
+      );
+      const skills = await loadAndValidateSkills(
+        symlinkAncestorConfig.library.skillsDir,
+      );
+
+      await expect(
+        renderLoaded({
+          config: symlinkAncestorConfig,
+          skills,
+          agents: [],
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it("rejects loaded agent paths outside the configured agents root", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [{ ...agent, filePath: path.join(tempDir, "safe-agent.yaml") }],
+        writeToGenerated: true,
+      }),
+    ).rejects.toThrow(UserError);
+
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("accepts loaded agent filenames that start with two dots inside the agents root", async () => {
+    const agentPath = path.join(config.library.agentsDir, "..backup.yaml");
+    await writeFile(agentPath, makeAgentYaml("backup-agent"), "utf-8");
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    const result = await renderLoaded({
+      config,
+      skills: [],
+      agents: [agent],
+      targetFilter: "codex",
+    });
+
+    expect(agent.filePath).toBe(agentPath);
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("backup-agent");
+  });
+
+  it("rejects agent skill references outside the validated skill universe", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        validatedSkills: [],
+        agents: [
+          {
+            ...agent,
+            source: { ...agent.source, skills: ["missing-skill"] },
+          },
+        ],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("rejects nested loaded agent paths inside the configured agents root", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [
+          {
+            ...agent,
+            filePath: path.join(
+              config.library.agentsDir,
+              "nested",
+              "safe-agent.yaml",
+            ),
+          },
+        ],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "renders loaded agents without inspecting symlinked source YAML files",
+    async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "safe-agent",
+        makeAgentYaml("safe-agent"),
+      );
+      const [agent] = await loadAndValidateAgents(
+        config.library.agentsDir,
+        [],
+        {
+          strict: false,
+          modelTiers: config.modelTiers,
+        },
+      );
+      const externalAgentPath = path.join(tempDir, "external-agent.yaml");
+      await writeFile(externalAgentPath, makeAgentYaml("safe-agent"), "utf-8");
+      await rm(agent.filePath, { force: true });
+      await symlink(externalAgentPath, agent.filePath, "file");
+
+      const result = await renderLoaded({
+        config,
+        skills: [],
+        agents: [agent],
+        targetFilter: "codex",
+      });
+
+      expect(result.outputs).toHaveLength(1);
+      expect(result.outputs[0].name).toBe("safe-agent");
+    },
+  );
+
+  it("rejects unnormalized loaded agent sources", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+    const sourceWithoutDefaultSkills = { ...agent.source };
+    (sourceWithoutDefaultSkills as { skills?: unknown }).skills = undefined;
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [{ ...agent, source: sourceWithoutDefaultSkills }],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("rejects loaded agent sources with different keys than schema output", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+    const sourceWithExtraUndefined = {
+      name: agent.source.name,
+      description: agent.source.description,
+      instructions: agent.source.instructions,
+      extra: undefined,
+    } as unknown as typeof agent.source;
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [{ ...agent, source: sourceWithExtraUndefined }],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it("rejects loaded agent sources that still need schema transforms", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "safe-agent",
+      makeAgentYaml("safe-agent"),
+    );
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [],
+        agents: [
+          {
+            ...agent,
+            source: {
+              ...agent.source,
+              codex: {
+                ...agent.source.codex,
+                nickname_candidates: ["  Alias  "],
+              },
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(UserError);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated skill parents before writing",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const externalDir = path.join(tempDir, "external-generated-skills");
+      await mkdir(externalDir, { recursive: true });
+      await mkdir(path.join(config.library.generatedDir, "codex"), {
+        recursive: true,
+      });
+      await symlink(
+        externalDir,
+        path.join(config.library.generatedDir, "codex", "skills"),
+      );
+
+      await expect(
+        renderLoaded({
+          config,
+          skills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated agent parents before writing",
+    async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "safe-agent",
+        makeAgentYaml("safe-agent"),
+      );
+      const agents = await loadAndValidateAgents(config.library.agentsDir, [], {
+        strict: false,
+        modelTiers: config.modelTiers,
+      });
+      const externalDir = path.join(tempDir, "external-generated-agents");
+      await mkdir(externalDir, { recursive: true });
+      await mkdir(path.join(config.library.generatedDir, "codex"), {
+        recursive: true,
+      });
+      await symlink(
+        externalDir,
+        path.join(config.library.generatedDir, "codex", "agents"),
+      );
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: [],
+          agents,
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a symlinked generated root before writing",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const externalDir = path.join(tempDir, "external-generated-root");
+      await mkdir(externalDir, { recursive: true });
+      await rm(config.library.generatedDir, { recursive: true, force: true });
+      await symlink(externalDir, config.library.generatedDir);
+
+      await expect(
+        renderLoaded({
+          config,
+          skills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated ancestors before the generated root exists",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const externalParent = path.join(tempDir, "external-generated-parent");
+      const linkedParent = path.join(tempDir, "linked-generated-parent");
+      await mkdir(externalParent, { recursive: true });
+      await symlink(externalParent, linkedParent, "dir");
+      const symlinkAncestorConfig = makeResolvedConfig(tempDir, {
+        library: {
+          generatedDir: path.join(linkedParent, "generated"),
+        },
+      });
+
+      await expect(
+        renderLoaded({
+          config: symlinkAncestorConfig,
+          skills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated ancestors when the generated root exists",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const externalParent = path.join(tempDir, "external-generated-parent");
+      const linkedParent = path.join(tempDir, "linked-generated-parent");
+      await mkdir(externalParent, { recursive: true });
+      await symlink(externalParent, linkedParent, "dir");
+      const symlinkAncestorConfig = makeResolvedConfig(tempDir, {
+        library: {
+          generatedDir: path.join(linkedParent, "generated"),
+        },
+      });
+      await mkdir(symlinkAncestorConfig.library.generatedDir, {
+        recursive: true,
+      });
+
+      await expect(
+        renderLoaded({
+          config: symlinkAncestorConfig,
+          skills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated agent cleanup directories before listing",
+    async () => {
+      const externalDir = path.join(tempDir, "external-cleanup-agents");
+      await mkdir(externalDir, { recursive: true });
+      await mkdir(path.join(config.library.generatedDir, "codex"), {
+        recursive: true,
+      });
+      await symlink(
+        externalDir,
+        path.join(config.library.generatedDir, "codex", "agents"),
+      );
+
+      await expect(renderAll(config, true, false, "codex")).rejects.toThrow(
+        UserError,
+      );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated skill cleanup directories before listing",
+    async () => {
+      const externalDir = path.join(tempDir, "external-cleanup-skills");
+      await mkdir(externalDir, { recursive: true });
+      await mkdir(path.join(config.library.generatedDir, "codex"), {
+        recursive: true,
+      });
+      await symlink(
+        externalDir,
+        path.join(config.library.generatedDir, "codex", "skills"),
+      );
+
+      await expect(renderAll(config, true, false, "codex")).rejects.toThrow(
+        UserError,
+      );
+    },
+  );
 });
