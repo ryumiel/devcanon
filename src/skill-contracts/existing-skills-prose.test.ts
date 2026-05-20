@@ -735,8 +735,16 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain("gh pr create --title");
     expect(normalizedOption2).toContain("--body-file");
+    expect(normalizedOption2).toContain(
+      "Option 2 accepts an optional `assignee` argument",
+    );
+    expect(normalizedOption2).toContain(
+      "callers such as `issue-priming-workflow` pass `assignee=@me`",
+    );
     expect(normalizedOption2).toContain("--assignee");
-    expect(normalizedOption2).toContain('ASSIGNEE="@me"');
+    expect(normalizedOption2).toContain(
+      "If the optional assignee argument was provided",
+    );
     expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
     expect(normalizedOption2).toContain("PR_BODY_FILE=$(mktemp)");
     expect(normalizedOption2).toContain("trap 'rm -f \"$PR_BODY_FILE\"' EXIT");

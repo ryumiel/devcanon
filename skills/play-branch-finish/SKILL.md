@@ -208,6 +208,10 @@ and body for `gh pr create`. Do not embed assumptions comments, unaddressed
 nits, commit-history narration, autosquash chronology, review-history notes,
 originally/now wording, or file-by-file diff restatement in the PR body.
 
+Option 2 accepts an optional `assignee` argument. When set, pass it through to
+`gh pr create --assignee`; callers such as `issue-priming-workflow` pass
+`assignee=@me` so the PR is assigned to the active operator.
+
 Write the body returned by `pr-authoring` to a temporary file, then create the
 PR with `--body-file` so markdown, newlines, quotes, backticks, and `$` remain
 literal:
@@ -218,8 +222,8 @@ PR_BODY_FILE=$(mktemp)
 trap 'rm -f "$PR_BODY_FILE"' EXIT
 # write the exact PR body returned by pr-authoring to "$PR_BODY_FILE"
 
-# Optional: callers that require assignment, such as issue-priming-workflow,
-# set ASSIGNEE="@me" before invoking Option 2.
+# If the optional assignee argument was provided, bind ASSIGNEE to that value
+# before running gh pr create.
 ASSIGNEE_FLAG=()
 [ -z "${ASSIGNEE:-}" ] || ASSIGNEE_FLAG=(--assignee "$ASSIGNEE")
 

@@ -297,8 +297,16 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(option2).toContain("gh pr create");
       expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
+      expect(normalizedOption2).toContain(
+        "Option 2 accepts an optional `assignee` argument",
+      );
+      expect(normalizedOption2).toContain(
+        "callers such as `issue-priming-workflow` pass `assignee=@me`",
+      );
       expect(normalizedOption2).toContain("--assignee");
-      expect(normalizedOption2).toContain('ASSIGNEE="@me"');
+      expect(normalizedOption2).toContain(
+        "If the optional assignee argument was provided",
+      );
       expect(normalizedOption2).toContain(
         "After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment",
       );
