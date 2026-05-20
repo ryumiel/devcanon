@@ -748,6 +748,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "If the optional assignee argument was provided",
     );
+    expect(normalizedOption2).toContain(
+      "Set `ASSIGNEE` from the caller's `assignee` argument",
+    );
     expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
     expect(normalizedOption2).toContain(
       "otherwise `pr-authoring` discovers those surfaces itself",
@@ -770,6 +773,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(commonMistakes)).toContain(
       "PR worktree is the review follow-up workspace",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "docs/guidelines/pr-guideline.md",
     );
     expect(normalizeWhitespace(redFlags)).toContain(
       "Remove a PR-created worktree before merge or explicit discard",

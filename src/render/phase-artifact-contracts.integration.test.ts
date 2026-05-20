@@ -312,6 +312,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "If the optional assignee argument was provided",
       );
       expect(normalizedOption2).toContain(
+        "Set `ASSIGNEE` from the caller's `assignee` argument",
+      );
+      expect(normalizedOption2).toContain(
         "After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment",
       );
       expect(normalizedOption2).toContain(

@@ -211,7 +211,8 @@ originally/now wording, or file-by-file diff restatement in the PR body.
 
 Option 2 accepts an optional `assignee` argument. When set, pass it through to
 `gh pr create --assignee`; callers such as `issue-priming-workflow` pass
-`assignee=@me` so the PR is assigned to the active operator.
+`assignee=@me` so the PR is assigned to the active operator. Set `ASSIGNEE`
+from the caller's `assignee` argument before running the PR creation snippet.
 
 Write the body returned by `pr-authoring` to a temporary file, then create the
 PR with `--body-file` so markdown, newlines, quotes, backticks, and `$` remain
@@ -223,8 +224,8 @@ PR_BODY_FILE=$(mktemp)
 trap 'rm -f "$PR_BODY_FILE"' EXIT
 # write the exact PR body returned by pr-authoring to "$PR_BODY_FILE"
 
-# If the optional assignee argument was provided, bind ASSIGNEE to that value
-# before running gh pr create.
+# If the optional assignee argument was provided, bind ASSIGNEE to that value.
+# Set ASSIGNEE from the caller's assignee argument before running gh pr create.
 ASSIGNEE_FLAG=()
 [ -z "${ASSIGNEE:-}" ] || ASSIGNEE_FLAG=(--assignee "$ASSIGNEE")
 

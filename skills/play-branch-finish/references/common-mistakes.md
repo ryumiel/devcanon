@@ -39,9 +39,10 @@ Failure modes the skill exists to prevent.
 - **Problem:** PR uses generic format instead of the project's required
   guideline/template, or creation and merge paths drift
 - **Fix:** Use `pr-authoring` before PR creation. It checks
-  `**/pr-guideline*.md`, `.github/pull_request_template.md`,
-  `CONTRIBUTING.md`, and `WORKFLOW.md`, and validates title format, required
-  sections, anti-patterns, and content-vs-diff.
+  `**/pr-guideline*.md`, `docs/guidelines/pr-guideline.md`,
+  `.github/pull_request_template.md`, `CONTRIBUTING.md`, and `WORKFLOW.md`, and
+  validates title format, required sections, anti-patterns, and
+  content-vs-diff.
 
 **Putting branch-review nits in the description body**
 
