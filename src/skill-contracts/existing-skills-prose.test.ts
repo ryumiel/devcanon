@@ -406,6 +406,10 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Implementation Order",
     );
+    const unclearFeedback = getMarkdownSection(
+      skillSource,
+      "Handling Unclear Feedback",
+    );
     const commitPolicy = getMarkdownSection(
       skillSource,
       "PR Branch Commit Continuity",
@@ -424,6 +428,9 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizeWhitespace(implementationOrder)).toMatch(
       /verification.*already-pushed or reviewed PR branch.*follow-up commit.*plain push/,
+    );
+    expect(normalizeWhitespace(unclearFeedback)).toContain(
+      "ASK for clarification on unclear items",
     );
 
     expect(normalizedCommitPolicy).toMatch(
@@ -625,41 +632,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(/inline example/i);
     expect(normalizedExecutionMode).toMatch(
       /plan-plus-executor handoff example/i,
-    );
-
-    const unclearFeedback = getMarkdownSection(
-      skillSource,
-      "Handling Unclear Feedback",
-    );
-    const implementationOrder = getMarkdownSection(
-      skillSource,
-      "Implementation Order",
-    );
-    const commitPolicy = getMarkdownSection(
-      skillSource,
-      "PR Branch Commit Continuity",
-    );
-    const threadClosure = getMarkdownSection(
-      skillSource,
-      "Pushed-Fix Inline Thread Closure",
-    );
-    const normalizedThreadClosure = normalizeWhitespace(threadClosure);
-
-    expect(normalizeWhitespace(unclearFeedback)).toContain(
-      "ASK for clarification on unclear items",
-    );
-    expect(normalizeWhitespace(implementationOrder)).toMatch(
-      /already-pushed or reviewed PR branch.*follow-up commit.*plain push/i,
-    );
-    expect(normalizeWhitespace(commitPolicy)).toMatch(
-      /follow-up commit.*plain push/i,
-    );
-    expect(normalizedThreadClosure).toContain("Explanation-only");
-    expect(normalizedThreadClosure).toContain("Stale or outdated");
-    expect(normalizedThreadClosure).toContain("Already-resolved");
-    expect(normalizedThreadClosure).toContain("pushed branch contains the fix");
-    expect(normalizedThreadClosure).toContain(
-      "reply explains why no code change is required",
     );
   });
 
