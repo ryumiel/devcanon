@@ -385,7 +385,7 @@ merge belongs to `pr-merge`; cleanup before merge requires explicit discard.
 
 ## Common Mistakes
 
-See [`references/common-mistakes.md`](references/common-mistakes.md) for failure modes (skipping test verification, open-ended questions, automatic worktree cleanup, no discard confirmation, ignoring PR guideline, putting nits in description body).
+See [`references/common-mistakes.md`](references/common-mistakes.md) for failure modes (skipping test verification, open-ended questions, PR creation cleanup, local merge/discard cleanup mistakes, no discard confirmation, ignoring shared PR authoring policy, putting nits in description body).
 
 ## Red Flags
 

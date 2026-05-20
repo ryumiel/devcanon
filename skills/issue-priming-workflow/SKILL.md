@@ -562,7 +562,7 @@ mkdir -p .ephemeral
 
 ## Common Mistakes
 
-See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, skipping the gate / brainstorming / nit classification, treating out-of-band authorization as merge consent, ignoring PR guideline).
+See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, skipping the gate / brainstorming / nit classification, shared PR authoring bypass, and treating out-of-band authorization as merge consent).
 
 ## Red Flags — You Are Violating This Skill
 

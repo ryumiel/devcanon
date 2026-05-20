@@ -780,6 +780,14 @@ describe("existing skills source prose contracts", () => {
       "### Phase 8: Create PR",
       "## Quick Reference",
     );
+    const issuePrimingCommonMistakesPointer = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Common Mistakes",
+    );
+    const playBranchFinishCommonMistakesPointer = getMarkdownSection(
+      playBranchFinish,
+      "Common Mistakes",
+    );
     expect(normalizeWhitespace(phase8)).toContain(
       "PR creation preserves the branch and worktree",
     );
@@ -801,12 +809,33 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(issuePrimingCommonMistakes)).not.toContain(
       "Always glob for PR guidelines",
     );
+    expect(normalizeWhitespace(issuePrimingCommonMistakesPointer)).toContain(
+      "shared PR authoring bypass",
+    );
+    expect(
+      normalizeWhitespace(issuePrimingCommonMistakesPointer),
+    ).not.toContain("ignoring PR guideline");
     expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
       "instead of relying on `play-branch-finish` to invoke `pr-authoring`",
     );
     expect(normalizeWhitespace(issuePrimingRedFlags)).not.toContain(
       "reading the project's PR guideline first",
     );
+    expect(
+      normalizeWhitespace(playBranchFinishCommonMistakesPointer),
+    ).toContain("PR creation cleanup");
+    expect(
+      normalizeWhitespace(playBranchFinishCommonMistakesPointer),
+    ).toContain("local merge/discard cleanup mistakes");
+    expect(
+      normalizeWhitespace(playBranchFinishCommonMistakesPointer),
+    ).toContain("ignoring shared PR authoring policy");
+    expect(
+      normalizeWhitespace(playBranchFinishCommonMistakesPointer),
+    ).not.toContain("automatic worktree cleanup");
+    expect(
+      normalizeWhitespace(playBranchFinishCommonMistakesPointer),
+    ).not.toContain("ignoring PR guideline");
 
     expect(normalizeWhitespace(adr0012)).toContain(
       "PR creation preserves the worktree",
