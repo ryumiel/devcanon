@@ -6,12 +6,13 @@ Accepted
 
 ## Context
 
-`play-subagent-execution` historically treated every multi-task plan the
-same: each authored task ran a spec-compliance reviewer followed by a
-code-quality reviewer. ADR-0007 preserved that two-stage sequence for
-multi-task plans because per-task spec review catches drift before dependent
-tasks build on the wrong foundation. ADR-0007 also explicitly deferred a
-variant that would drop per-task code-quality review for multi-task plans.
+`play-subagent-execution` historically treated every multi-task plan the same:
+each authored task ran both a spec-compliance reviewer and a code-quality
+reviewer, originally in serial order. ADR-0007 preserved that two-reviewer
+route for multi-task plans because per-task spec review catches drift before
+dependent tasks build on the wrong foundation. ADR-0007 also explicitly
+deferred a variant that would drop per-task code-quality review for multi-task
+plans.
 
 That uniform policy is high-assurance, but it is also size- and risk-
 insensitive. A low-risk task inside a multi-task plan can receive the same
@@ -37,11 +38,20 @@ themselves.
 
 The allowed effective routes are:
 
-- `spec-and-quality`: run the spec-compliance reviewer, then the code-quality
-  reviewer.
+- `spec-and-quality`: run the spec-compliance reviewer and code-quality
+  reviewer for the same task head.
 - `spec-only`: run the spec-compliance reviewer only.
 - `none-final-only`: run no per-task reviewer for that task and rely on the
   required final whole-diff review gate.
+
+`spec-and-quality` is a concurrent same-head fork/join route when practical,
+not a serial-order guarantee. After route computation and implementer commit,
+the controller may dispatch both read-only reviewers against the same captured
+task head. Spec compliance remains the semantic gate: the code-quality result
+is provisional until spec compliance passes for that same reviewed head and the
+task head is still current. Quality disposition is final only after same-head
+spec pass and current-head validation; advisory, stale, and superseded quality
+results cannot complete the task.
 
 `spec-only` is allowed for medium-risk tasks when no hard-risk trigger applies
 and the controller verifies the shared `issue-priming-workflow --auto` Phase 6
@@ -107,6 +117,13 @@ remaining reviewer or marking the task complete. Revalidation may only preserve
 or escalate the route; if a fixup introduces a hard-risk trigger, the task
 continues as `spec-and-quality`.
 
+When both `spec-and-quality` reviewers report findings on the same reviewed
+head, the controller may route the combined spec and code-quality finding set
+to the same implementer for one fixup round. After any spec fixup, the
+controller reruns spec and reruns quality unless it can prove the fixup is
+irrelevant to the previous quality result. Unclear freshness or irrelevance
+classification fails closed to rerunning code quality.
+
 DevCanon-specific checks remain available through two paths:
 
 - hard-risk tasks keep full per-task spec and code-quality review;
@@ -130,7 +147,8 @@ the required whole-diff gate on reduced routes.
 - Review policy ownership stays in `play-subagent-execution`; planning remains
   advisory and producer-oriented.
 - ADR-0007's multi-task two-stage review policy remains the fallback and the
-  hard-risk route, but it is no longer universal for every multi-task task.
+  hard-risk route, but it is no longer universal for every multi-task task and
+  no longer requires serial reviewer dispatch for `spec-and-quality`.
 - Plans must clearly mark optional routing hints when they are useful, and
   plan review must catch under-classified risk before execution begins.
 - Executor behavior must fail closed. Conservative over-review is acceptable;

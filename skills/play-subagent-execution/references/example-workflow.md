@@ -71,27 +71,24 @@ Task 1 implementer: status=DONE, report captured, base/head SHA captured, change
 Hard-risk trigger detected: install/sync behavior or user-home writes.
 Effective route: `spec-and-quality`.
 
-[Cleanup gate before Task 1 spec reviewer spawn]
-Controller keeps Task 1 implementer open for possible spec-review fixups.
+[Parallel happy path: same-head spec and quality pass]
+[Cleanup gate before Task 1 reviewer spawn]
+Controller keeps Task 1 implementer open for possible reviewer fixups. Because
+the effective route is `spec-and-quality`, the controller dispatches both
+read-only reviewers against the same captured task head.
 
 [Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending]
-[Dispatch spec compliance reviewer]
-[Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
-
-[Cleanup gate before Task 1 code-quality reviewer spawn]
-Task 1 spec reviewer: review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
-Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.
-
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
-[Dispatch code-quality reviewer]
+[Dispatch spec compliance reviewer and code-quality reviewer concurrently]
+[Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
 [Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
+Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 Code-quality reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
 [Lifecycle cleanup checkpoint]
 Task 1 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
-Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
-Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
+Task 1 spec reviewer: agent_id=spec-1, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict recorded.
+Task 1 code-quality reviewer: agent_id=quality-1, review scope captured, base/head SHA captured, reviewed head SHA=task-1-head, report captured, reviewer result disposition=final-pass because same-head spec passed and task head stayed current, closed=yes after final quality disposition recorded.
 
 [Mark Task 1 complete]
 
@@ -123,81 +120,72 @@ Plan hints high risk and `spec-and-quality`; repair-mode behavior changes
 workflow policy, so a hard-risk trigger is present.
 Effective route: `spec-and-quality`.
 
-[Cleanup gate before Task 2 spec reviewer spawn]
-Controller keeps Task 2 implementer open for possible spec-review fixups.
+[Spec-failure stale-quality path]
+[Cleanup gate before Task 2 reviewer spawn]
+Controller keeps Task 2 implementer open for possible reviewer fixups. Because
+the effective route is `spec-and-quality`, both reviewers inspect the same
+captured task head before either result is final.
 
 [Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending]
-[Dispatch spec compliance reviewer]
+[Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
+[Dispatch spec compliance reviewer and code-quality reviewer concurrently]
 [Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
+[Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
+Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, closed=yes after findings routed.
-Task 2 implementer: closed=no because routed spec findings need same-session fixup.
+Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, closed=yes after findings routed.
+Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, closed=yes after advisory findings captured and routed.
+Controller records the combined spec and code-quality finding set routed to Task 2 implementer because both reviewers inspected the same head.
+Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
+Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
 
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
-state=emitted, closed=no because spec re-review is pending.
+state=emitted, closed=no because spec re-review and any required code-quality
+re-review or disposition are pending.
+Task 2 code-quality reviewer: quality result disposition=stale; rerun quality unless irrelevance is proven.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
 The route may only preserve or escalate; the refreshed diff still requires
-`spec-and-quality`, so continue to spec re-review.
+`spec-and-quality`, so continue to spec re-review and code-quality re-review
+unless quality irrelevance is proven. Unclear stale-result classification fails
+closed to rerunning code quality.
 
 [Cleanup gate before Task 2 spec re-review spawn]
-Controller keeps Task 2 implementer open until the spec reviewer passes.
+Controller keeps Task 2 implementer open until spec and required quality
+dispositions are final.
 
 [Ledger pre-dispatch: Task 2 spec re-reviewer, agent_id=pending]
 [Spec re-reviewer reviews again]
 [Ledger post-dispatch: Task 2 spec re-reviewer, agent_id=spec-2-rereview]
 Spec reviewer: ✅ Spec compliant now
 
-[Cleanup gate before Task 2 code-quality reviewer spawn]
-Task 2 spec re-reviewer: review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict recorded.
+[Cleanup gate before Task 2 code-quality re-reviewer spawn]
+Task 2 spec re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict recorded.
 Task 2 implementer: closed=no because code-quality fixups may still need same-session follow-up.
 
-[Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
-[Dispatch code-quality reviewer]
-[Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
-Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
-
-[Lifecycle ledger update]
-Task 2 code-quality reviewer: status=findings-recorded, review scope captured, base/head SHA captured, report captured, reviewer result=findings recorded/routed, findings captured: Magic number (100), routing target=Task 2 implementer, re-review target=quality-2-rereview, closed=yes after findings routed.
-Task 2 implementer: closed=no because routed code-quality findings need same-session fixup.
-
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
-
-[Lifecycle ledger update]
-Task 2 implementer: fixup count=2, report refreshed, changed files and head SHA
-refreshed, test state refreshed, snapshot state=emitted, closed=no because
-code-quality re-review is pending.
-
-[Revalidate effective review route]
-Controller compares the original Task 2 base SHA to the refreshed task head.
-The route may only preserve or escalate; the refreshed diff still requires
-`spec-and-quality`, so continue to code-quality re-review.
-
-[Cleanup gate before Task 2 code-quality re-review spawn]
-Controller keeps Task 2 implementer open until the code-quality reviewer passes.
-
 [Ledger pre-dispatch: Task 2 code-quality re-reviewer, agent_id=pending]
-[Code-quality re-reviewer reviews again]
+[Dispatch code-quality re-reviewer]
 [Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
 Code-quality reviewer: ✅ Approved
 
+[Lifecycle ledger update]
+Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, closed=yes after PASS verdict recorded.
+
 [Lifecycle cleanup checkpoint]
 Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.
-Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
-Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
-Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, closed=yes after findings routing.
-Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result=PASS, closed=yes after PASS verdict.
+Task 2 spec reviewer: agent_id=spec-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer result disposition=final-findings, closed=yes after findings routing.
+Task 2 spec re-reviewer: agent_id=spec-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict.
+Task 2 code-quality reviewer: agent_id=quality-2, review scope captured, base/head SHA captured, report captured, concrete findings captured, reviewer result disposition=stale after fixup changed head, closed=yes after stale disposition recorded.
+Task 2 code-quality re-reviewer: agent_id=quality-2-rereview, review scope captured, base/head SHA captured, report captured, reviewer result disposition=final-pass, closed=yes after PASS verdict.
 
 [Mark Task 2 complete]
 

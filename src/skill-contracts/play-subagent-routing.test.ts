@@ -283,6 +283,172 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps spec-and-quality concurrent same-head review semantics in source", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const routing = getMarkdownSection(
+      skillSource,
+      "Risk-Based Per-Task Review Routing",
+    );
+    const handlingStatus = getMarkdownSection(
+      skillSource,
+      "Handling Implementer Status",
+    );
+    const lifecycle = getMarkdownSection(skillSource, "Subagent Lifecycle");
+    const redFlags = await readRepoFile(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const advantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const adr0007 = await readRepoFile(
+      "docs/adr/adr-0007-review-pipeline-delineation.md",
+    );
+    const adr0018 = await readRepoFile(
+      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
+    );
+    const normalizedSkill = normalizeWhitespace(skillSource);
+    const normalizedRouting = normalizeWhitespace(routing);
+    const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
+    const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+    const normalizedExample = normalizeWhitespace(exampleWorkflow);
+    const normalizedAdvantages = normalizeWhitespace(advantages);
+    const normalizedCodeQualityReviewerPrompt = normalizeWhitespace(
+      codeQualityReviewerPrompt,
+    );
+    const normalizedAdr0007 = normalizeWhitespace(adr0007);
+    const normalizedAdr0018 = normalizeWhitespace(adr0018);
+
+    expect(normalizedSkill).toContain(
+      "Hard-risk and unclear multi-task tasks use `spec-and-quality`: dispatch spec-compliance and code-quality reviewers concurrently when practical, against the same committed task head, then join their results before final disposition",
+    );
+    expect(normalizedRouting).toContain(
+      "`spec-and-quality`: after route computation and implementer commit, the controller may dispatch the spec-compliance reviewer and code-quality reviewer concurrently against the same captured task head",
+    );
+    expect(normalizedRouting).toContain(
+      "The code-quality result is provisional until spec compliance passes for that same reviewed head and the task head is still current",
+    );
+    expect(normalizedRouting).toContain(
+      "If both reviewers report findings on the same reviewed head, the controller may route the combined spec and code-quality finding set to the same implementer for one fixup round",
+    );
+    expect(normalizedRouting).toContain(
+      "After any spec fixup commit, rerun spec compliance and rerun code quality unless the controller can prove the fixup is irrelevant to the previous quality result",
+    );
+    expect(normalizedRouting).toContain(
+      "Unclear stale-result classification fails closed to rerunning code quality",
+    );
+    expect(normalizedSkill).toContain(
+      "prior quality result needs freshness disposition",
+    );
+    expect(normalizedSkill).toContain(
+      "Code-quality-reviewer agent reports quality result for same reviewed head?",
+    );
+    expect(normalizedSkill).toContain(
+      "Join same-head spec and code-quality review results",
+    );
+    expect(normalizedSkill).toContain("same-head quality report");
+    expect(normalizedSkill).toContain(
+      "spec passes; evaluate quality disposition",
+    );
+    expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
+    expect(normalizedLifecycle).toContain(
+      "reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "A quality result may become final only after same-head spec pass and current task-head validation",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "concurrent quality findings may be routed with the spec findings as advisory same-head context",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "advisory, stale, and superseded quality results remain lifecycle evidence but must not mark the task complete",
+    );
+
+    expect(normalizedRedFlags).toContain(
+      "Accept a code-quality result as final before same-head spec compliance passes and current task-head validation succeeds",
+    );
+    expect(normalizedRedFlags).toContain(
+      "Treat advisory, stale, or superseded quality as final task approval",
+    );
+    expect(normalizedRedFlags).toContain(
+      "unclear staleness or irrelevance classification fails closed to rerunning code quality",
+    );
+    expect(normalizedRedFlags).not.toContain(
+      "unclear stale classification reruns quality",
+    );
+    expect(normalizedRedFlags).not.toContain(
+      "Start code quality review before spec compliance is ✅",
+    );
+
+    expect(normalizedExample).toContain(
+      "Parallel happy path: same-head spec and quality pass",
+    );
+    expect(normalizedExample).toContain("Spec-failure stale-quality path");
+    expect(normalizedExample).toContain(
+      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+    );
+    expect(normalizedExample).toContain(
+      "combined spec and code-quality finding set routed to Task 2 implementer",
+    );
+    expect(normalizedExample).toContain(
+      "closed=yes after advisory findings captured and routed",
+    );
+    expect(normalizedExample).not.toContain(
+      "closed=no until disposition is stale, superseded, or final",
+    );
+    expect(normalizedExample).toContain(
+      "Cleanup gate before Task 2 code-quality re-reviewer spawn",
+    );
+
+    expect(normalizedAdvantages).toContain(
+      "hard-risk and unclear tasks use same-head `spec-and-quality` review",
+    );
+    expect(normalizedAdvantages).toContain(
+      "quality disposition is final only after same-head spec pass plus current-head validation",
+    );
+    expect(normalizedCodeQualityReviewerPrompt).toContain(
+      "this reviewer may dispatch concurrently with spec compliance against the same task head",
+    );
+    expect(normalizedCodeQualityReviewerPrompt).toContain(
+      "Its result is provisional until same-head spec compliance passes and current-head validation succeeds",
+    );
+
+    const playSubagentSurface = normalizeWhitespace(
+      [
+        skillSource,
+        redFlags,
+        exampleWorkflow,
+        advantages,
+        codeQualityReviewerPrompt,
+      ].join("\n"),
+    );
+    for (const staleSerialPhrase of [
+      "spec compliance review first, then code quality review",
+      "run after spec compliance review passes",
+      "spec compliance, then code quality",
+      "Start code quality review before spec compliance is ✅",
+    ]) {
+      expect(playSubagentSurface).not.toContain(staleSerialPhrase);
+    }
+
+    expect(normalizedAdr0007).toContain(
+      "A later refinement to the `spec-and-quality` route named here permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
+    );
+    expect(normalizedAdr0007).not.toContain("GitHub issue #344");
+    expect(normalizedAdr0018).toContain(
+      "`spec-and-quality` is a concurrent same-head fork/join route when practical, not a serial-order guarantee",
+    );
+    expect(normalizedAdr0018).toContain(
+      "Quality disposition is final only after same-head spec pass and current-head validation; advisory, stale, and superseded quality results cannot complete the task",
+    );
+  });
+
   it("keeps subagent-lifecycle owner policy in the source skill", async () => {
     const skillSource = await readSkillSource("subagent-lifecycle");
     const normalizedSkillSource = normalizeWhitespace(skillSource);
@@ -423,7 +589,7 @@ describe("play subagent routing source contracts", () => {
       "`play-subagent-execution` owns only the execution-specific lifecycle details below",
     );
     expect(normalizedLifecycle).toContain(
-      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, routing target, re-review target, task base/head SHA, fixup count, and blocker state",
+      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
     );
     expect(normalizedLifecycle).toContain(
       "Run the shared cleanup gate before dispatching the next implementer, reviewer, re-reviewer, or final reviewer",
@@ -504,7 +670,7 @@ describe("play subagent routing source contracts", () => {
       "status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
-      "Task 1 implementer: closed=no because code-quality fixups may still need same-session follow-up.",
+      "Parallel happy path: same-head spec and quality pass",
     );
     expect(task1Section).toContain("base/head SHA captured (head pending)");
     expect(task1Section).toContain("Lifecycle cleanup checkpoint");
@@ -517,20 +683,15 @@ describe("play subagent routing source contracts", () => {
       "Status: DONE - Summary: Clarified one example sentence in a neutral demo note - Tests: Not applicable beyond final render/check suite - Files changed: docs/examples/demo-note.md - Base SHA: task-3-base - Head SHA: task-3-head",
     );
 
-    expect(task2Section).toContain(
-      "Cleanup gate before Task 2 spec reviewer spawn",
-    );
+    expect(task2Section).toContain("Spec-failure stale-quality path");
     expect(task2Section).toContain(
       "Cleanup gate before Task 2 spec re-review spawn",
     );
     expect(task2Section).toContain(
-      "Cleanup gate before Task 2 code-quality reviewer spawn",
+      "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
-      "Cleanup gate before Task 2 code-quality re-review spawn",
-    );
-    expect(task2Section).toContain(
-      "Task 2 code-quality reviewer: status=findings-recorded",
+      "Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
@@ -546,9 +707,18 @@ describe("play subagent routing source contracts", () => {
     );
     expect(task2Section).toContain("The route may only preserve or escalate");
     expect(task2Section).toContain("so continue to spec re-review");
-    expect(task2Section).toContain("so continue to code-quality re-review");
+    expect(task2Section).toContain("code-quality re-review");
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
+    expect(task2Section).toContain(
+      "quality result disposition=stale; rerun quality unless irrelevance is proven",
+    );
+    expect(task2Section).toContain(
+      "Task 2 code-quality re-reviewer: review scope captured",
+    );
+    expect(task2Section).not.toContain(
+      "Task 2 code-quality re-reviewer: status=PASS",
+    );
 
     expect(normalizeWhitespace(task3Section)).toContain(
       "closed=yes after the effective route completed",

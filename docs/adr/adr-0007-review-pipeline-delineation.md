@@ -17,6 +17,13 @@ two-stage review policy remains the hard-risk and fail-closed route, but
 multi-task tasks may use reduced per-task routes only under ADR-0018's
 guarded, executor-owned routing conditions.
 
+A later refinement to the `spec-and-quality` route named here permits
+concurrent read-only spec-compliance and code-quality dispatch against the same
+committed task head while preserving the semantic spec-first gate. The route
+still dispatches both per-task reviewers for hard-risk and fail-closed tasks;
+quality disposition is final only after same-head spec pass and current-head
+validation.
+
 ## Context
 
 The `github-issue-priming --auto` workflow (and its sibling
@@ -54,17 +61,19 @@ runs.
 
 For plans with **two or more** tasks, `play-subagent-execution` computes the
 task's effective review route. The original per-task two-stage review
-(`spec-and-quality`: spec-compliance, then code-quality) remains the
-hard-risk and fail-closed route. ADR-0018 later permits reduced routes only
-when guarded by executor-owned classification and an explicit final
-whole-diff gate. Multi-task plans still benefit uniquely from per-task
-spec-compliance checking where the effective route includes it (catching
-drift before the next task uses the wrong foundation), and that value is not
-replicated by an end-of-branch review. The per-task reviewers' model tier is
-raised from `{{model:standard}}` to `{{model:deep}}` to match the downstream
-`branch-review` / `pr-review` floor, closing the per-task coverage gap
-surfaced by the contradictory-review failure mode on routes that dispatch
-those reviewers.
+(`spec-and-quality`: spec-compliance plus code-quality) remains the hard-risk
+and fail-closed route. The original prose described serial dispatch; the
+current route may run both read-only reviewers concurrently against the same
+committed task head and join their results before final disposition. ADR-0018
+later permits reduced routes only when guarded by executor-owned
+classification and an explicit final whole-diff gate. Multi-task plans still
+benefit uniquely from per-task spec-compliance checking where the effective
+route includes it (catching drift before the next task uses the wrong
+foundation), and that value is not replicated by an end-of-branch review. The
+per-task reviewers' model tier is raised from `{{model:standard}}` to
+`{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor,
+closing the per-task coverage gap surfaced by the contradictory-review failure
+mode on routes that dispatch those reviewers.
 When the final whole-implementation code-quality reviewer runs, it uses the
 same `code-quality-reviewer` agent, so the floor raise applies to that
 dispatch too — see Consequences for the cost rationale.
