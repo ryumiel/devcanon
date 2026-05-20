@@ -12,22 +12,36 @@ Failure modes the skill exists to prevent.
 - **Problem:** "What should I do next?" → ambiguous
 - **Fix:** Present exactly 4 structured options
 
-**Automatic worktree cleanup**
+**PR creation cleanup**
 
-- **Problem:** Remove a harness-managed worktree, remove from inside the
-  target worktree, or skip `git worktree prune`
+- **Problem:** Treat PR creation as completion and remove the worktree that
+  still carries review follow-up context
+- **Fix:** Option 2 preserves the branch and worktree. The PR worktree is the
+  review follow-up workspace for CI fixes, review findings, assumptions
+  comments, nits, and `.ephemeral/` artifacts. Use `pr-merge` for post-merge
+  cleanup or explicit discard for abandoned work.
+
+**Local merge/discard cleanup mistakes**
+
+- **Problem:** Remove a harness-managed worktree, remove from inside the target
+  worktree, or skip `git worktree prune`
 - **Fix:** Only auto-remove repo-managed `<MAIN_ROOT>/.worktrees/*`
-  worktrees, `cd` to `MAIN_ROOT` first, then run `git worktree prune`
+  worktrees for Options 1 and 4, `cd` to `MAIN_ROOT` first, then run
+  `git worktree prune`
 
 **No confirmation for discard**
 
 - **Problem:** Accidentally delete work
 - **Fix:** Require typed "discard" confirmation
 
-**Ignoring project PR guideline**
+**Ignoring shared PR authoring policy**
 
-- **Problem:** PR uses generic format instead of project's required template
-- **Fix:** Always glob for `**/pr-guideline*.md` before composing title/description
+- **Problem:** PR uses generic format instead of the project's required
+  guideline/template, or creation and merge paths drift
+- **Fix:** Use `pr-authoring` before PR creation. It checks
+  `**/pr-guideline*.md`, `.github/pull_request_template.md`,
+  `CONTRIBUTING.md`, and `WORKFLOW.md`, and validates title format, required
+  sections, anti-patterns, and content-vs-diff.
 
 **Putting branch-review nits in the description body**
 

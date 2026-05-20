@@ -505,21 +505,26 @@ After classification, Phase 8 receives only judgment-required items. **This step
 
 ### Phase 8: Create PR
 
-Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate.
+Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate. PR creation preserves the branch and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or the operator explicitly discards the work.
 
 **Always assign the PR to yourself:** Pass `--assignee @me` to `gh pr create`.
 
-**Before composing the PR title and description**, glob for project PR guidelines (`**/pr-guideline*.md`, `**/pr-*.md`, `CONTRIBUTING.md`) and read them. Follow the project's title format and description template exactly. If no guideline is found, use the defaults below.
+**Before composing the PR title and description**, rely on `play-branch-finish`
+Option 2 to invoke `pr-authoring` in `compose` mode. `pr-authoring` reads the
+project PR guideline/template surfaces and validates title format, required
+sections, anti-patterns, and content-vs-diff before `gh pr create`.
+`pr-authoring` owns both project-specific guideline handling and default
+fallback title/body structure; do not duplicate fallback PR defaults in this
+workflow.
 
-**Default PR title:** Follow Conventional Commits — `<type>(<scope>): <short summary>`. Do not append issue identifiers to the title; link issues in the description body instead.
-
-**Default PR description should include:**
-
-- Issue reference: `Closes <ID>` (for `payload.source = github`) or `Closes <ID>` plus a link to the Linear issue (for `payload.source = linear`)
-- Summary of what was implemented
-- Durable rationale and impact, including relevant design decisions
-
-**Description body invariant:** The description must contain only the items listed above. Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content. Auto-mode assumptions are routed through the assumptions comment path when needed. Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md` Option 2 for the `nits_file` input contract.
+**Description body invariant:** The description must contain only the durable
+final-state content accepted by `pr-authoring`. Do not embed auto-mode
+assumptions, unaddressed review nits, commit-by-commit changelogs, "originally /
+now" chronology, "Notes from review" sections, or any logbook content. Auto-mode
+assumptions are routed through the assumptions comment path when needed.
+Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as
+PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md`
+Option 2 for the `nits_file` input contract.
 
 **Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. The path must be a direct child of `.ephemeral/`; nested paths are rejected. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
 
@@ -553,7 +558,7 @@ mkdir -p .ephemeral
 | 5. Plan          | `play-planning`                        | `--auto` only; skipped only after durable owner referral cleanup             |
 | 6. Implement     | `play-subagent-execution`              | `--auto` only; single-task path may return directly to Phase 7               |
 | 7. Branch Review | `branch-review --fix` + classify nits  | `--auto` only; mechanical nits auto-fixed, judgment-required nits to Phase 8 |
-| 8. Create PR     | Push + `gh pr create`                  | `--auto` only; never auto-merge; follow project PR guideline                 |
+| 8. Create PR     | Push + `gh pr create`                  | `--auto` only; never auto-merge; preserve worktree until merge cleanup       |
 
 ## Common Mistakes
 

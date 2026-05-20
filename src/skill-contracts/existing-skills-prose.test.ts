@@ -658,6 +658,171 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps PR authoring policy shared and PR creation worktrees preserved", async () => {
+    const prAuthoring = await readSkillSource("pr-authoring");
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const prMerge = await readSkillSource("pr-merge");
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const issuePrimingCommonMistakes = await readRepoFile(
+      "skills/issue-priming-workflow/references/common-mistakes.md",
+    );
+    const issuePrimingRedFlags = await readRepoFile(
+      "skills/issue-priming-workflow/references/red-flags.md",
+    );
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const adr0012 = await readRepoFile(
+      "docs/adr/adr-0012-side-channel-file-delivery-for-play-review-findings.md",
+    );
+    const adr0013 = await readRepoFile(
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+    );
+    const map = await readRepoFile("MAP.md");
+
+    const normalizedPrAuthoring = normalizeWhitespace(prAuthoring);
+    for (const phrase of [
+      "compose",
+      "validate-fix",
+      "Title format",
+      "Required sections",
+      "Anti-patterns",
+      "Content vs diff",
+      "commit headlines",
+      "diff file list",
+      "final-state",
+      "no commit SHAs",
+      "no commit-by-commit changelogs",
+      "no originally/now chronology",
+      "no review-history sections",
+      "no file-by-file diff restatement",
+      ".github/pull_request_template.md",
+      "docs/guidelines/pr-guideline.md",
+    ]) {
+      expect(normalizedPrAuthoring).toContain(phrase);
+    }
+
+    const option2 = sliceBetween(
+      playBranchFinish,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const cleanup = sliceBetween(
+      playBranchFinish,
+      "### Step 5: Cleanup Worktree",
+      "## Quick Reference",
+    );
+    const quickReference = getMarkdownSection(
+      playBranchFinish,
+      "Quick Reference",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+    const normalizedCleanup = normalizeWhitespace(cleanup);
+
+    expect(normalizedOption2).toContain("pr-authoring");
+    expect(normalizedOption2).toContain("Created PR <url>");
+    expect(normalizedOption2).toContain(
+      "Branch <name> and worktree <path> preserved for review follow-up",
+    );
+    expect(normalizedOption2).toContain("gh pr create --title");
+    expect(normalizedOption2).toContain("--body-file");
+    expect(normalizedOption2).not.toContain('--body "<body>"');
+    expect(normalizedCleanup).toContain("Options 1 and 4");
+    expect(normalizedCleanup).toContain(
+      "Option 2 preserves the branch and worktree after PR creation",
+    );
+    expect(normalizedCleanup).not.toContain(
+      "Option 2 reaches Step 5 only after PR creation",
+    );
+    expect(quickReference).toContain("Create PR");
+    expect(quickReference).toMatch(/Create PR[^\n]*✓/);
+
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "PR creation cleanup",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "PR worktree is the review follow-up workspace",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Remove a PR-created worktree before merge or explicit discard",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Preserve the branch and worktree after Option 2 creates a PR",
+    );
+
+    const prMergeValidation = getMarkdownSection(
+      prMerge,
+      "Step 1b: Validate PR Title and Description",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain("pr-authoring");
+    expect(normalizeWhitespace(prMergeValidation)).toContain("validate-fix");
+    expect(normalizeWhitespace(prMergeValidation)).toContain("gh pr edit");
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      ".github/pull_request_template.md",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).not.toContain(
+      "skip validation",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).not.toContain(
+      "If no file is found",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).not.toContain(
+      "Search for `**/pr-guideline*.md`",
+    );
+
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Quick Reference",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "PR creation preserves the branch and worktree",
+    );
+    expect(normalizeWhitespace(phase8)).toContain("until `pr-merge`");
+    expect(normalizeWhitespace(phase8)).toContain(
+      "pr-authoring` owns both project-specific guideline handling and default fallback title/body structure",
+    );
+    expect(normalizeWhitespace(phase8)).not.toContain("defaults below");
+    expect(normalizeWhitespace(phase8)).not.toContain("Default PR title");
+    expect(normalizeWhitespace(phase8)).not.toContain(
+      "Default PR description should include",
+    );
+    expect(normalizeWhitespace(issuePrimingCommonMistakes)).toContain(
+      "Bypassing shared PR authoring",
+    );
+    expect(normalizeWhitespace(issuePrimingCommonMistakes)).toContain(
+      "pr-authoring` in `compose` mode",
+    );
+    expect(normalizeWhitespace(issuePrimingCommonMistakes)).not.toContain(
+      "Always glob for PR guidelines",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
+      "instead of relying on `play-branch-finish` to invoke `pr-authoring`",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).not.toContain(
+      "reading the project's PR guideline first",
+    );
+
+    expect(normalizeWhitespace(adr0012)).toContain(
+      "PR creation preserves the worktree",
+    );
+    expect(normalizeWhitespace(adr0013)).toContain(
+      "PR creation preserves the worktree",
+    );
+    expect(normalizeWhitespace(adr0012)).not.toContain(
+      "Options 1 (merge), 2 (PR), and 4 (discard)",
+    );
+    expect(normalizeWhitespace(adr0013)).not.toContain(
+      "Options 1 (merge), 2 (PR), and 4 (discard)",
+    );
+    expect(map).toContain("skills/pr-authoring/SKILL.md");
+  });
+
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(

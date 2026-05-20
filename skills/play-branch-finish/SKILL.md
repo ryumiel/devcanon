@@ -194,18 +194,26 @@ originally/now wording to the PR body.
 git push -u origin <feature-branch>
 ```
 
-**Before composing the PR title and description**, glob for project PR guidelines (`**/pr-guideline*.md`) and read them. Follow the project's title format and description template exactly. If no guideline is found, use Conventional Commits for the title and this default structure:
+**Before composing the PR title and description**, invoke `pr-authoring` in
+`compose` mode. Provide the branch name, base branch, issue identifier or
+`No issue: <reason>` rationale, verification evidence, commit headlines and
+bodies for `<base-branch>..HEAD`, diff file list for `<base-branch>..HEAD`, and
+any discovered PR policy from `**/pr-guideline*.md`,
+`.github/pull_request_template.md`, `CONTRIBUTING.md`, and `WORKFLOW.md`.
+
+`pr-authoring` owns the title/body policy: title format, required sections,
+anti-patterns, and content-vs-diff validation. It returns a final-state PR title
+and body for `gh pr create`. Do not embed assumptions comments, unaddressed
+nits, commit-history narration, autosquash chronology, review-history notes,
+originally/now wording, or file-by-file diff restatement in the PR body.
+
+Write the body returned by `pr-authoring` to a temporary file, then create the
+PR with `--body-file` so markdown, newlines, quotes, backticks, and `$` remain
+literal:
 
 ```bash
-# Create PR (default format — only if no PR guideline found)
-gh pr create --title "<title>" --body "$(cat <<'EOF'
-## Summary
-<2-3 bullets of what changed>
-
-## Test Plan
-- [ ] <verification steps>
-EOF
-)"
+# Create PR with the title/body produced by pr-authoring compose mode
+gh pr create --title "<title>" --body-file "$PR_BODY_FILE"
 ```
 
 **After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
@@ -236,7 +244,7 @@ EOF
    gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"
    ```
 
-4. If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting the assumptions manually.
+4. If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting the assumptions manually.
 
 **After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset. A `nits_file` that is set but missing or unreadable is a contract failure (not a "no nits" signal) — surface the path and stop. If `nits_file` is set, points at a readable file, and the file's `findings[]` array is empty, also skip — posting an empty review is noise.
 
@@ -291,9 +299,9 @@ EOF
 
    Nit bodies may contain backticks, `$`, embedded newlines, and `"` — passing through `--body-file -` (rather than a `-b` argument) prevents the shell from expanding command substitutions or word-splitting before `gh` sees the bytes.
 
-5. If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before Step 5 cleanup. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
+5. If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
-Then: Cleanup worktree (Step 5)
+Report: "Created PR <url>. Branch <name> and worktree <path> preserved for review follow-up."
 
 #### Option 3: Keep As-Is
 
@@ -327,13 +335,16 @@ Then: Cleanup worktree (Step 5)
 
 ### Step 5: Cleanup Worktree
 
-**For Options 1, 2, 4 after their success-only cleanup points:**
+**For Options 1 and 4 after their success-only cleanup points:**
 
 - Option 1 reaches Step 5 only after the merged-result test command passes.
-- Option 2 reaches Step 5 only after PR creation and any requested
-  assumptions-comment or nit-posting steps complete without error.
 - Option 4 reaches Step 5 only after discard is confirmed and branch deletion
   succeeds.
+
+Option 2 preserves the branch and worktree after PR creation. The PR worktree is
+the review follow-up workspace for CI fixes, review findings, assumptions
+comments, nits, and `.ephemeral/` artifacts. Post-merge cleanup belongs to
+`pr-merge`; manual cleanup remains available through explicit discard.
 
 Use provenance-aware cleanup. [`skills/issue-worktree-setup/SKILL.md`](../issue-worktree-setup/SKILL.md)
 defines repo-managed issue worktrees as `<MAIN_ROOT>/.worktrees/<leaf>`.
@@ -358,19 +369,19 @@ case "$WORKTREE_PATH" in
 esac
 ```
 
-**For Option 3:** Keep worktree.
+**For Options 2 and 3:** Keep worktree.
 
 ## Quick Reference
 
 | Option           | Merge | Push | Keep Worktree | Cleanup Branch |
 | ---------------- | ----- | ---- | ------------- | -------------- |
 | 1. Merge locally | ✓     | -    | -             | ✓              |
-| 2. Create PR     | -     | ✓    | conditional   | -              |
+| 2. Create PR     | -     | ✓    | ✓             | -              |
 | 3. Keep as-is    | -     | -    | ✓             | -              |
 | 4. Discard       | -     | -    | -             | ✓ (force)      |
 
-Option 2 removes repo-managed `.worktrees/*` checkouts and preserves
-harness-managed worktrees in place.
+Option 2 preserves the branch and worktree for review follow-up. Cleanup after
+merge belongs to `pr-merge`; cleanup before merge requires explicit discard.
 
 ## Common Mistakes
 

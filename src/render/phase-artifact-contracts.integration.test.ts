@@ -16,6 +16,7 @@ const PHASE_ARTIFACT_SKILLS = [
   "play-review",
   "branch-review",
   "pr-review",
+  "pr-authoring",
   "play-branch-finish",
   "play-subagent-execution",
 ] as const;
@@ -122,6 +123,14 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(body).toContain("PLAY_REVIEW_HELPER");
     }
 
+    const prAuthoring = bodyFor("pr-authoring");
+    expect(prAuthoring).toContain("compose");
+    expect(prAuthoring).toContain("validate-fix");
+    expect(prAuthoring).toContain("Title format");
+    expect(prAuthoring).toContain("Required sections");
+    expect(prAuthoring).toContain("Anti-patterns");
+    expect(prAuthoring).toContain("Content vs diff");
+
     const playBranchFinish = bodyFor("play-branch-finish");
     expect(playBranchFinish).toContain("play-review/findings/v1");
     expect(playBranchFinish).toContain("nits_file");
@@ -204,6 +213,10 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(phase8).toContain("play-branch-finish");
       expect(phase8).toContain("option 2: push and create PR");
+      expect(normalizedPhase8).toContain(
+        "PR creation preserves the branch and worktree",
+      );
+      expect(normalizedPhase8).toContain("until `pr-merge`");
       expect(normalizedPhase8).toContain(
         'Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content',
       );
@@ -302,7 +315,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"',
       );
       expect(normalizedOption2).toContain(
-        "If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before Step 5 cleanup",
+        "If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before cleanup while preserving the branch and worktree",
       );
       expect(normalizedOption2).toContain("Do **not** delete or edit the PR");
 
@@ -337,14 +350,21 @@ describe("rendered phase artifact smoke coverage", () => {
         "Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean",
       );
       expect(normalizedOption2).toContain(
-        "If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before Step 5 cleanup",
+        "If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before cleanup while preserving the branch and worktree",
       );
       expect(normalizedOption2).toContain(
         "missing comments are recoverable by re-running posting or pasting nits manually",
       );
+      expect(normalizedOption2).toContain(
+        "Created PR <url>. Branch <name> and worktree <path> preserved for review follow-up.",
+      );
 
+      expect(normalizedCleanup).toContain("Options 1 and 4");
       expect(normalizedCleanup).toContain(
-        "Option 2 reaches Step 5 only after PR creation and any requested assumptions-comment or nit-posting steps complete without error",
+        "Option 2 preserves the branch and worktree after PR creation",
+      );
+      expect(normalizedCleanup).not.toContain(
+        "Option 2 reaches Step 5 only after PR creation",
       );
     }
   });
