@@ -241,7 +241,7 @@ digraph process {
     "Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"];
     "Revalidate effective review route" -> "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" [label="still spec-and-quality"];
     "Revalidate effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="still spec-only"];
-    "Revalidate effective review route" -> "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" [label="quality-only rerun proven valid"];
+    "Revalidate effective review route" -> "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" [label="prior quality result needs freshness disposition"];
     "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)";
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?";
     "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];

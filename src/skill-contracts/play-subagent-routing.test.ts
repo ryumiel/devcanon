@@ -343,6 +343,10 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Unclear stale-result classification fails closed to rerunning code quality",
     );
+    expect(normalizedSkill).toContain(
+      "prior quality result needs freshness disposition",
+    );
+    expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
       "reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",
     );
@@ -375,6 +379,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
+    );
+    expect(normalizedExample).toContain(
+      "closed=yes after advisory findings captured and routed",
+    );
+    expect(normalizedExample).not.toContain(
+      "closed=no until disposition is stale, superseded, or final",
     );
     expect(normalizedExample).toContain(
       "Cleanup gate before Task 2 code-quality re-reviewer spawn",
@@ -665,7 +675,7 @@ describe("play subagent routing source contracts", () => {
       "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality reviewer: status=findings-recorded",
+      "Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
