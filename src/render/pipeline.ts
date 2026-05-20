@@ -18,22 +18,28 @@ import type {
 import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
-import { loadAndValidateSkills } from "../validate/skills.js";
+import { KNOWN_SUBDIRS, loadAndValidateSkills } from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import { renderSkillForTarget } from "./skill.js";
 
-export interface RenderResult {
+export interface RenderResult<
+  TSkills extends readonly LoadedSkill[] = LoadedSkill[],
+  TAgents extends readonly LoadedAgent[] = LoadedAgent[],
+> {
   outputs: RenderedOutput[];
-  skills: LoadedSkill[];
-  agents: LoadedAgent[];
+  skills: TSkills;
+  agents: TAgents;
 }
 
-export interface RenderLoadedOptions {
+export interface RenderLoadedOptions<
+  TSkills extends readonly LoadedSkill[] = readonly LoadedSkill[],
+  TAgents extends readonly LoadedAgent[] = readonly LoadedAgent[],
+> {
   config: ResolvedConfig;
-  skills: LoadedSkill[];
-  agents: LoadedAgent[];
-  validatedSkills?: LoadedSkill[];
+  skills: TSkills;
+  agents: TAgents;
+  validatedSkills?: readonly LoadedSkill[];
   writeToGenerated?: boolean;
   targetFilter?: "claude" | "codex";
 }
@@ -61,26 +67,37 @@ export async function renderAll(
   });
 }
 
-export async function renderLoaded(
-  options: RenderLoadedOptions,
-): Promise<RenderResult> {
+export async function renderLoaded<
+  TSkills extends readonly LoadedSkill[],
+  TAgents extends readonly LoadedAgent[],
+>(
+  options: RenderLoadedOptions<TSkills, TAgents>,
+): Promise<RenderResult<TSkills, TAgents>> {
   return renderLoadedInternal({ ...options, cleanStaleGenerated: false });
 }
 
-interface RenderLoadedInternalOptions extends RenderLoadedOptions {
+interface RenderLoadedInternalOptions<
+  TSkills extends readonly LoadedSkill[],
+  TAgents extends readonly LoadedAgent[],
+> extends RenderLoadedOptions<TSkills, TAgents> {
   cleanStaleGenerated: boolean;
 }
 
-async function renderLoadedInternal({
+async function renderLoadedInternal<
+  TSkills extends readonly LoadedSkill[],
+  TAgents extends readonly LoadedAgent[],
+>({
   config,
   skills,
   agents,
-  validatedSkills = skills,
+  validatedSkills,
   writeToGenerated = false,
   cleanStaleGenerated = false,
   targetFilter,
-}: RenderLoadedInternalOptions): Promise<RenderResult> {
-  validateLoadedInputs(config, skills, agents, validatedSkills);
+}: RenderLoadedInternalOptions<TSkills, TAgents>): Promise<
+  RenderResult<TSkills, TAgents>
+> {
+  validateLoadedInputs(config, skills, agents, validatedSkills ?? skills);
 
   const skillMap = new Map(skills.map((s) => [s.name, s]));
 
@@ -285,7 +302,7 @@ function validateLoadedInputs(
       throw new UserError(`Loaded agent "${agent.name}" is duplicated.`);
     }
     agentNames.add(agent.name);
-    assertDirectYamlPathInside(
+    assertDirectYamlPathShapeInside(
       config.library.agentsDir,
       agent.filePath,
       `Loaded agent "${agent.name}" file`,
@@ -334,20 +351,26 @@ function validateLoadedSkill(
   names: Set<string>,
 ): void {
   validateLoadedSkillReference(skill, names);
-  assertDirectNamedPathInside(
+  assertDirectNamedPathShapeInside(
     config.library.skillsDir,
     skill.name,
     skill.dirPath,
     `Loaded skill "${skill.name}" directory`,
   );
   for (const subdir of skill.subdirs) {
-    if (!["assets", "examples", "references", "scripts"].includes(subdir)) {
+    if (!(KNOWN_SUBDIRS as readonly string[]).includes(subdir)) {
       throw new UserError(
         `Loaded skill "${skill.name}" has invalid mirrored subdir "${subdir}".`,
       );
     }
+    const sourceSubdirPath = path.join(skill.dirPath, subdir);
+    assertNoSymlinkPathComponentsSync(
+      config.library.skillsDir,
+      sourceSubdirPath,
+      `Loaded skill "${skill.name}" mirrored subdir "${subdir}"`,
+    );
     assertExistingDirectory(
-      path.join(skill.dirPath, subdir),
+      sourceSubdirPath,
       `Loaded skill "${skill.name}" mirrored subdir "${subdir}"`,
     );
   }
@@ -367,7 +390,7 @@ function validateLoadedSkillReference(
   names.add(skill.name);
 }
 
-function assertDirectNamedPathInside(
+function assertDirectNamedPathShapeInside(
   root: string,
   expectedLeaf: string,
   candidate: string,
@@ -379,10 +402,9 @@ function assertDirectNamedPathInside(
       `${label} must resolve to "${path.join(root, expectedLeaf)}": ${candidate}`,
     );
   }
-  assertExistingDirectory(candidate, label);
 }
 
-function assertDirectYamlPathInside(
+function assertDirectYamlPathShapeInside(
   root: string,
   candidate: string,
   label: string,
@@ -396,7 +418,6 @@ function assertDirectYamlPathInside(
       `${label} must be a direct .yaml child of "${root}": ${candidate}`,
     );
   }
-  assertExistingFile(candidate, label);
 }
 
 async function assertNoSymlinkPathComponents(
@@ -442,6 +463,49 @@ async function assertNoSymlinkPathComponents(
   }
 }
 
+function assertNoSymlinkPathComponentsSync(
+  root: string,
+  candidate: string,
+  label: string,
+): void {
+  assertPathInside(root, candidate, label);
+
+  const resolvedRoot = path.resolve(root);
+  const resolvedCandidate = path.resolve(candidate);
+  let current = resolvedRoot;
+
+  while (true) {
+    try {
+      const stat = lstatSync(current);
+      if (stat.isSymbolicLink()) {
+        throw new UserError(`${label} crosses symlinked path: ${current}`);
+      }
+      break;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") throw err;
+      const parent = path.dirname(current);
+      if (parent === current) return;
+      current = parent;
+    }
+  }
+
+  const parts = path.relative(current, resolvedCandidate).split(path.sep);
+  for (const part of parts.filter(Boolean)) {
+    current = path.join(current, part);
+    try {
+      const stat = lstatSync(current);
+      if (stat.isSymbolicLink()) {
+        throw new UserError(`${label} crosses symlinked path: ${current}`);
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return;
+      throw err;
+    }
+  }
+}
+
 function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (Array.isArray(a) || Array.isArray(b)) {
@@ -473,13 +537,6 @@ function assertExistingDirectory(candidate: string, label: string): void {
   const stat = lstatExisting(candidate, label);
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     throw new UserError(`${label} must be a real directory: ${candidate}`);
-  }
-}
-
-function assertExistingFile(candidate: string, label: string): void {
-  const stat = lstatExisting(candidate, label);
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new UserError(`${label} must be a real file: ${candidate}`);
   }
 }
 
@@ -524,8 +581,6 @@ function assertPathInside(
     relative.startsWith("..") ||
     path.isAbsolute(relative)
   ) {
-    throw new UserError(
-      `${label} generated path escapes generated output root: ${candidate}`,
-    );
+    throw new UserError(`${label} path escapes root "${root}": ${candidate}`);
   }
 }

@@ -18,7 +18,12 @@ import { collectProseSegments } from "../utils/markdown-prose.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { getLogger } from "../utils/output.js";
 
-const KNOWN_SUBDIRS = ["assets", "examples", "references", "scripts"];
+export const KNOWN_SUBDIRS = [
+  "assets",
+  "examples",
+  "references",
+  "scripts",
+] as const;
 const RAW_CLAUDE_ALIASES = ["sonnet", "opus", "haiku"] as const;
 const TARGET_PATH_TOKENS = [".claude/", ".codex/", ".agents/"] as const;
 
