@@ -67,14 +67,15 @@ Invoke `pr-authoring` in `validate-fix` mode and apply any repaired title/body
 it returns before proceeding. `pr-authoring` is the shared policy owner for PR
 title/body validation; this step owns the `gh pr edit` side effect only.
 
-Gather everything needed for `pr-authoring` up front:
+Gather stable PR data for `pr-authoring` up front:
 
 - current PR title and body;
 - PR diff file list;
 - PR commit headlines and bodies;
-- PR policy surfaces from `**/pr-guideline*.md`,
+- any already-read PR policy contents from `**/pr-guideline*.md`,
   `docs/guidelines/pr-guideline.md`, `.github/pull_request_template.md`,
-  `CONTRIBUTING.md`, and `WORKFLOW.md` when present.
+  `CONTRIBUTING.md`, and `WORKFLOW.md` when available; otherwise let
+  `pr-authoring` discover and read the policy surfaces.
 
 ```bash
 gh pr view <N> --json title,body

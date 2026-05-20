@@ -197,10 +197,11 @@ git push -u origin <feature-branch>
 **Before composing the PR title and description**, invoke `pr-authoring` in
 `compose` mode. Provide the branch name, base branch, issue identifier or
 `No issue: <reason>` rationale, verification evidence, commit headlines and
-bodies for `<base-branch>..HEAD`, diff file list for `<base-branch>..HEAD`, and
-any discovered PR policy from `**/pr-guideline*.md`,
-`docs/guidelines/pr-guideline.md`, `.github/pull_request_template.md`,
-`CONTRIBUTING.md`, and `WORKFLOW.md`.
+bodies for `<base-branch>..HEAD`, and diff file list for
+`<base-branch>..HEAD`. Include any already-read PR policy contents from
+`**/pr-guideline*.md`, `docs/guidelines/pr-guideline.md`,
+`.github/pull_request_template.md`, `CONTRIBUTING.md`, and `WORKFLOW.md` when
+available; otherwise `pr-authoring` discovers those surfaces itself.
 
 `pr-authoring` owns the title/body policy: title format, required sections,
 anti-patterns, and content-vs-diff validation. It returns a final-state PR title

@@ -695,6 +695,9 @@ describe("existing skills source prose contracts", () => {
       "Content vs diff",
       "commit headlines",
       "diff file list",
+      "owns PR policy-surface discovery",
+      "already-read repository PR guideline/template contents",
+      "when omitted, `pr-authoring` discovers and reads them",
       "final-state",
       "no commit SHAs",
       "no commit-by-commit changelogs",
@@ -746,6 +749,9 @@ describe("existing skills source prose contracts", () => {
       "If the optional assignee argument was provided",
     );
     expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
+    expect(normalizedOption2).toContain(
+      "otherwise `pr-authoring` discovers those surfaces itself",
+    );
     expect(normalizedOption2).toContain("PR_BODY_FILE=$(mktemp)");
     expect(normalizedOption2).toContain("trap 'rm -f \"$PR_BODY_FILE\"' EXIT");
     expect(normalizedOption2).not.toContain('--body "<body>"');
@@ -781,6 +787,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(prMergeValidation)).toContain("gh pr edit");
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       ".github/pull_request_template.md",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "otherwise let `pr-authoring` discover and read the policy surfaces",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       "PR_BODY_FILE=$(mktemp)",

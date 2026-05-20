@@ -130,6 +130,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prAuthoring).toContain("Required sections");
     expect(prAuthoring).toContain("Anti-patterns");
     expect(prAuthoring).toContain("Content vs diff");
+    expect(prAuthoring).toContain("owns PR policy-surface discovery");
+    expect(prAuthoring).toContain(
+      "already-read repository PR guideline/template contents",
+    );
 
     const playBranchFinish = bodyFor("play-branch-finish");
     expect(playBranchFinish).toContain("play-review/findings/v1");

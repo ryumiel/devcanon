@@ -23,7 +23,10 @@ Wrappers keep GitHub side effects:
 
 ## Inputs
 
-Use one of two modes.
+Use one of two modes. `pr-authoring` owns PR policy-surface discovery.
+Callers must provide the PR facts listed below. They may also provide
+already-read repository PR guideline/template contents to avoid re-reading;
+when omitted, `pr-authoring` discovers and reads them per Guideline Discovery.
 
 ### `compose`
 
@@ -34,7 +37,8 @@ Use before creating a PR. The caller provides:
 - verification evidence for the PR body;
 - commit headlines and bodies for the branch range;
 - diff file list for the branch range;
-- repository PR guideline and PR template content when present.
+- already-read repository PR guideline/template contents, when the caller has
+  them.
 
 Return a compliant PR title and body for the caller to pass to `gh pr create`.
 Do not create, edit, comment on, merge, or clean up the PR.
@@ -47,7 +51,8 @@ Use before polling CI or merging an existing PR. The caller provides:
 - current PR title and body;
 - commit headlines and bodies from the PR;
 - diff file list from the PR;
-- repository PR guideline and PR template content when present.
+- already-read repository PR guideline/template contents, when the caller has
+  them.
 
 Return `VALID` when the title and body already comply. When they do not comply,
 return the repaired title and/or body for the caller to apply with `gh pr edit`.
@@ -55,8 +60,9 @@ Do not run `gh pr edit` yourself.
 
 ## Guideline Discovery
 
-From the repository root, check for PR authoring policy before composing or
-validating:
+This section belongs to `pr-authoring`, not wrapper skills. Before composing or
+validating, use caller-provided already-read policy contents when supplied;
+otherwise, from the repository root, check for PR authoring policy:
 
 - `**/pr-guideline*.md`
 - `docs/guidelines/pr-guideline.md`
