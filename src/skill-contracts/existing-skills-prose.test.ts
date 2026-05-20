@@ -735,6 +735,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain("gh pr create --title");
     expect(normalizedOption2).toContain("--body-file");
+    expect(normalizedOption2).toContain("--assignee");
+    expect(normalizedOption2).toContain('ASSIGNEE="@me"');
+    expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
     expect(normalizedOption2).toContain("PR_BODY_FILE=$(mktemp)");
     expect(normalizedOption2).toContain("trap 'rm -f \"$PR_BODY_FILE\"' EXIT");
     expect(normalizedOption2).not.toContain('--body "<body>"');
@@ -777,6 +780,21 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       "trap 'rm -f \"$PR_BODY_FILE\"' EXIT",
     );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "Body-only repair",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      'gh pr edit <N> --body-file "$PR_BODY_FILE"',
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "Title-only repair",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      'gh pr edit <N> --title "<fixed title>"',
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "Title and body repair",
+    );
     expect(normalizeWhitespace(prMergeValidation)).not.toContain(
       "skip validation",
     );
@@ -806,6 +824,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(phase8)).toContain("until `pr-merge`");
     expect(normalizeWhitespace(phase8)).toContain(
       "pr-authoring` owns both project-specific guideline handling and default fallback title/body structure",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass `assignee=@me` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).not.toContain(
+      "Pass `--assignee @me` to `gh pr create`",
     );
     expect(normalizeWhitespace(phase8)).not.toContain("defaults below");
     expect(normalizeWhitespace(phase8)).not.toContain("Default PR title");

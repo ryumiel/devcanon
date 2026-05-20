@@ -507,7 +507,9 @@ After classification, Phase 8 receives only judgment-required items. **This step
 
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate. PR creation preserves the branch and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or the operator explicitly discards the work.
 
-**Always assign the PR to yourself:** Pass `--assignee @me` to `gh pr create`.
+**Always assign the PR to yourself:** Pass `assignee=@me` to
+`play-branch-finish` Option 2. Option 2 owns the `gh pr create` side effect and
+turns this into `--assignee @me`.
 
 **Before composing the PR title and description**, rely on `play-branch-finish`
 Option 2 to invoke `pr-authoring` in `compose` mode. `pr-authoring` reads the

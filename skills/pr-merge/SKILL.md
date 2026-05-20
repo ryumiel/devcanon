@@ -92,6 +92,23 @@ and/or body, apply only the fields that changed. When the body changes, write
 the repaired body to a temp file and pass it with `--body-file` so multiline
 Markdown and shell-sensitive characters are preserved:
 
+Body-only repair:
+
+```bash
+PR_BODY_FILE=$(mktemp)
+trap 'rm -f "$PR_BODY_FILE"' EXIT
+# write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
+gh pr edit <N> --body-file "$PR_BODY_FILE"
+```
+
+Title-only repair:
+
+```bash
+gh pr edit <N> --title "<fixed title>"
+```
+
+Title and body repair:
+
 ```bash
 PR_BODY_FILE=$(mktemp)
 trap 'rm -f "$PR_BODY_FILE"' EXIT

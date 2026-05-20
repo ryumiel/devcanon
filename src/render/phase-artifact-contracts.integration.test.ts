@@ -214,6 +214,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase8).toContain("play-branch-finish");
       expect(phase8).toContain("option 2: push and create PR");
       expect(normalizedPhase8).toContain(
+        "Pass `assignee=@me` to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
         "PR creation preserves the branch and worktree",
       );
       expect(normalizedPhase8).toContain("until `pr-merge`");
@@ -293,6 +296,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "It MUST NOT be embedded in the PR description body",
       );
       expect(option2).toContain("gh pr create");
+      expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
+      expect(normalizedOption2).toContain("--assignee");
+      expect(normalizedOption2).toContain('ASSIGNEE="@me"');
       expect(normalizedOption2).toContain(
         "After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment",
       );

@@ -199,7 +199,8 @@ git push -u origin <feature-branch>
 `No issue: <reason>` rationale, verification evidence, commit headlines and
 bodies for `<base-branch>..HEAD`, diff file list for `<base-branch>..HEAD`, and
 any discovered PR policy from `**/pr-guideline*.md`,
-`.github/pull_request_template.md`, `CONTRIBUTING.md`, and `WORKFLOW.md`.
+`docs/guidelines/pr-guideline.md`, `.github/pull_request_template.md`,
+`CONTRIBUTING.md`, and `WORKFLOW.md`.
 
 `pr-authoring` owns the title/body policy: title format, required sections,
 anti-patterns, and content-vs-diff validation. It returns a final-state PR title
@@ -216,7 +217,13 @@ literal:
 PR_BODY_FILE=$(mktemp)
 trap 'rm -f "$PR_BODY_FILE"' EXIT
 # write the exact PR body returned by pr-authoring to "$PR_BODY_FILE"
-gh pr create --title "<title>" --body-file "$PR_BODY_FILE"
+
+# Optional: callers that require assignment, such as issue-priming-workflow,
+# set ASSIGNEE="@me" before invoking Option 2.
+ASSIGNEE_FLAG=()
+[ -z "${ASSIGNEE:-}" ] || ASSIGNEE_FLAG=(--assignee "$ASSIGNEE")
+
+gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 ```
 
 **After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
