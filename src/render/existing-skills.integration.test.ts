@@ -25,6 +25,7 @@ const SKILLS_WITH_METADATA = {
   ] as const,
   sidecar: [
     "github-issue-priming",
+    "linear-project-update-auditor",
     "linear-issue-priming",
     "pr-review",
     "report-devcanon-issue",
@@ -47,6 +48,8 @@ const TOUCHED_SKILL_COVERAGE = {
     "Codex frontmatter smoke coverage protects recently touched shared skill prose from invalid Codex keys",
   "linear-issue-priming":
     "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
+  "linear-project-update-auditor":
+    "explicit metadata expectations cover Codex sidecar packaging and Codex frontmatter smoke coverage",
   "play-brainstorm":
     "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
   "play-branch-finish":
@@ -84,6 +87,9 @@ const TOUCHED_SKILL_NAMES = Object.keys(
   TOUCHED_SKILL_COVERAGE,
 ) as TouchedSkill[];
 const TOUCHED_SKILLS: ReadonlySet<string> = new Set(TOUCHED_SKILL_NAMES);
+const SIDECARS_WITHOUT_BRAND_COLOR: ReadonlySet<string> = new Set([
+  "linear-project-update-auditor",
+]);
 
 function getMetadataExpectationSkills(): Set<string> {
   return new Set(Object.values(SKILLS_WITH_METADATA).flat());
@@ -220,9 +226,15 @@ describe("existing skills render cleanly", () => {
         interface: {
           display_name: expect.any(String),
           short_description: expect.any(String),
-          brand_color: expect.any(String),
         },
       });
+      if (!SIDECARS_WITHOUT_BRAND_COLOR.has(skillName)) {
+        expect(parsed).toMatchObject({
+          interface: {
+            brand_color: expect.any(String),
+          },
+        });
+      }
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
 
