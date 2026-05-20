@@ -1380,6 +1380,26 @@ describe("renderLoaded", () => {
     expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 
+  it("accepts loaded agent filenames that start with two dots inside the agents root", async () => {
+    const agentPath = path.join(config.library.agentsDir, "..backup.yaml");
+    await writeFile(agentPath, makeAgentYaml("backup-agent"), "utf-8");
+    const [agent] = await loadAndValidateAgents(config.library.agentsDir, [], {
+      strict: false,
+      modelTiers: config.modelTiers,
+    });
+
+    const result = await renderLoaded({
+      config,
+      skills: [],
+      agents: [agent],
+      targetFilter: "codex",
+    });
+
+    expect(agent.filePath).toBe(agentPath);
+    expect(result.outputs).toHaveLength(1);
+    expect(result.outputs[0].name).toBe("backup-agent");
+  });
+
   it("rejects agent skill references outside the validated skill universe", async () => {
     await createAgentFixture(
       config.library.agentsDir,

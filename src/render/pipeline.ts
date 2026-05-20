@@ -572,7 +572,8 @@ function assertPathInside(
   const relative = path.relative(resolvedRoot, resolvedCandidate);
   if (
     relative === "" ||
-    relative.startsWith("..") ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   ) {
     throw new UserError(`${label} path escapes root "${root}": ${candidate}`);
