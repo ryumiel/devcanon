@@ -346,6 +346,16 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSkill).toContain(
       "prior quality result needs freshness disposition",
     );
+    expect(normalizedSkill).toContain(
+      "Code-quality-reviewer agent reports quality result for same reviewed head?",
+    );
+    expect(normalizedSkill).toContain(
+      "Join same-head spec and code-quality review results",
+    );
+    expect(normalizedSkill).toContain("same-head quality report");
+    expect(normalizedSkill).toContain(
+      "spec passes; evaluate quality disposition",
+    );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
       "reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",

@@ -187,6 +187,8 @@ digraph process {
         "Compute effective review route" [shape=diamond];
         "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" [shape=box];
         "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" [shape=diamond];
+        "Code-quality-reviewer agent reports quality result for same reviewed head?" [shape=diamond];
+        "Join same-head spec and code-quality review results" [shape=box];
         "Code-quality result final for same reviewed head?" [shape=diamond];
         "Implementer agent fixes spec gaps" [shape=box];
         "Implementer agent fixes combined same-head review findings" [shape=box];
@@ -231,10 +233,13 @@ digraph process {
     "Compute effective review route" -> "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" [label="spec-and-quality"];
     "Compute effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="spec-only"];
     "Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"];
-    "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?";
-    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Implementer agent fixes combined same-head review findings" [label="no, and same-head quality findings exist"];
-    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Implementer agent fixes spec gaps" [label="no"];
-    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Code-quality result final for same reviewed head?" [label="yes"];
+    "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" [label="spec branch"];
+    "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" -> "Code-quality-reviewer agent reports quality result for same reviewed head?" [label="quality branch"];
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Join same-head spec and code-quality review results" [label="same-head spec report"];
+    "Code-quality-reviewer agent reports quality result for same reviewed head?" -> "Join same-head spec and code-quality review results" [label="same-head quality report"];
+    "Join same-head spec and code-quality review results" -> "Implementer agent fixes combined same-head review findings" [label="spec fails and same-head quality findings exist"];
+    "Join same-head spec and code-quality review results" -> "Implementer agent fixes spec gaps" [label="spec fails"];
+    "Join same-head spec and code-quality review results" -> "Code-quality result final for same reviewed head?" [label="spec passes; evaluate quality disposition"];
     "Code-quality result final for same reviewed head?" -> "Implementer agent fixes quality issues" [label="no"];
     "Code-quality result final for same reviewed head?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Implementer agent fixes combined same-head review findings" -> "Revalidate effective review route" [label="refresh task head"];
@@ -244,6 +249,7 @@ digraph process {
     "Revalidate effective review route" -> "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" [label="prior quality result needs freshness disposition"];
     "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)";
     "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?";
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Implementer agent fixes spec gaps" [label="no, spec-only"];
     "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
     "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
     "Code-quality-reviewer agent approves?" -> "Implementer agent fixes quality issues" [label="no"];
