@@ -1,4 +1,4 @@
-import { lstatSync } from "node:fs";
+import { type Stats, lstatSync } from "node:fs";
 import { cp, lstat, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
@@ -427,39 +427,15 @@ async function assertNoSymlinkPathComponents(
 ): Promise<void> {
   assertPathInside(root, candidate, label);
 
-  const resolvedRoot = path.resolve(root);
   const resolvedCandidate = path.resolve(candidate);
-  let current = resolvedRoot;
+  let current = path.parse(resolvedCandidate).root;
 
-  while (true) {
-    try {
-      const stat = await lstat(current);
-      if (stat.isSymbolicLink()) {
-        throw new UserError(`${label} crosses symlinked path: ${current}`);
-      }
-      break;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") throw err;
-      const parent = path.dirname(current);
-      if (parent === current) return;
-      current = parent;
-    }
-  }
-
+  await assertExistingPathComponentIsNotSymlink(current, label);
   const parts = path.relative(current, resolvedCandidate).split(path.sep);
   for (const part of parts.filter(Boolean)) {
     current = path.join(current, part);
-    try {
-      const stat = await lstat(current);
-      if (stat.isSymbolicLink()) {
-        throw new UserError(`${label} crosses symlinked path: ${current}`);
-      }
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return;
-      throw err;
-    }
+    if (!(await assertExistingPathComponentIsNotSymlink(current, label)))
+      return;
   }
 }
 
@@ -470,40 +446,58 @@ function assertNoSymlinkPathComponentsSync(
 ): void {
   assertPathInside(root, candidate, label);
 
-  const resolvedRoot = path.resolve(root);
   const resolvedCandidate = path.resolve(candidate);
-  let current = resolvedRoot;
+  let current = path.parse(resolvedCandidate).root;
 
-  while (true) {
-    try {
-      const stat = lstatSync(current);
-      if (stat.isSymbolicLink()) {
-        throw new UserError(`${label} crosses symlinked path: ${current}`);
-      }
-      break;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") throw err;
-      const parent = path.dirname(current);
-      if (parent === current) return;
-      current = parent;
-    }
-  }
-
+  assertExistingPathComponentIsNotSymlinkSync(current, label);
   const parts = path.relative(current, resolvedCandidate).split(path.sep);
   for (const part of parts.filter(Boolean)) {
     current = path.join(current, part);
-    try {
-      const stat = lstatSync(current);
-      if (stat.isSymbolicLink()) {
-        throw new UserError(`${label} crosses symlinked path: ${current}`);
-      }
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") return;
-      throw err;
-    }
+    if (!assertExistingPathComponentIsNotSymlinkSync(current, label)) return;
   }
+}
+
+async function assertExistingPathComponentIsNotSymlink(
+  candidate: string,
+  label: string,
+): Promise<boolean> {
+  try {
+    const stat = await lstat(candidate);
+    if (isUserControlledSymlink(stat)) {
+      throw new UserError(`${label} crosses symlinked path: ${candidate}`);
+    }
+    return true;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+function assertExistingPathComponentIsNotSymlinkSync(
+  candidate: string,
+  label: string,
+): boolean {
+  try {
+    const stat = lstatSync(candidate);
+    if (isUserControlledSymlink(stat)) {
+      throw new UserError(`${label} crosses symlinked path: ${candidate}`);
+    }
+    return true;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+function isUserControlledSymlink(stat: Stats): boolean {
+  if (!stat.isSymbolicLink()) return false;
+  // macOS exposes normal temp paths under root-owned compatibility symlinks
+  // such as /var -> /private/var; reject symlinks the current user can create.
+  const currentUid = process.getuid?.();
+  if (currentUid === undefined) return true;
+  return stat.uid === currentUid;
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {

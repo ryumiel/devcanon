@@ -1322,6 +1322,41 @@ describe("renderLoaded", () => {
     },
   );
 
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked loaded skill ancestors above the configured skills root",
+    async () => {
+      const externalParent = path.join(tempDir, "external-skills-parent");
+      const linkedParent = path.join(tempDir, "linked-skills-parent");
+      await mkdir(externalParent, { recursive: true });
+      await symlink(externalParent, linkedParent, "dir");
+      const symlinkAncestorConfig = makeResolvedConfig(tempDir, {
+        library: {
+          skillsDir: path.join(linkedParent, "skills"),
+        },
+      });
+      await mkdir(symlinkAncestorConfig.library.skillsDir, {
+        recursive: true,
+      });
+      await createSkillFixture(
+        symlinkAncestorConfig.library.skillsDir,
+        "safe-skill",
+        undefined,
+        ["scripts"],
+      );
+      const skills = await loadAndValidateSkills(
+        symlinkAncestorConfig.library.skillsDir,
+      );
+
+      await expect(
+        renderLoaded({
+          config: symlinkAncestorConfig,
+          skills,
+          agents: [],
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
   it("rejects loaded agent paths outside the configured agents root", async () => {
     await createAgentFixture(
       config.library.agentsDir,
@@ -1608,6 +1643,36 @@ describe("renderLoaded", () => {
         library: {
           generatedDir: path.join(linkedParent, "generated"),
         },
+      });
+
+      await expect(
+        renderLoaded({
+          config: symlinkAncestorConfig,
+          skills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: "codex",
+        }),
+      ).rejects.toThrow(UserError);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked generated ancestors when the generated root exists",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const externalParent = path.join(tempDir, "external-generated-parent");
+      const linkedParent = path.join(tempDir, "linked-generated-parent");
+      await mkdir(externalParent, { recursive: true });
+      await symlink(externalParent, linkedParent, "dir");
+      const symlinkAncestorConfig = makeResolvedConfig(tempDir, {
+        library: {
+          generatedDir: path.join(linkedParent, "generated"),
+        },
+      });
+      await mkdir(symlinkAncestorConfig.library.generatedDir, {
+        recursive: true,
       });
 
       await expect(
