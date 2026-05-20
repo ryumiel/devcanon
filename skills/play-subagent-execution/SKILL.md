@@ -7,7 +7,9 @@ description: Executes an implementation plan by dispatching a fresh subagent per
 
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
-run two-stage review (spec compliance review first, then code quality review).
+use `spec-and-quality`: dispatch spec-compliance and code-quality reviewers
+concurrently when practical, against the same committed task head, then join
+their results before final disposition.
 Single-task plans skip per-task review.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
@@ -15,13 +17,16 @@ Single-task plans skip per-task review.
 **Core principle:** Fresh subagent per task + executor-owned risk-based
 review routing for multi-task plans = high-assurance serial execution with
 isolated implementer context and independent review. Hard-risk and unclear
-multi-task tasks run two-stage review (spec then quality). Reduced per-task
-routes require a mandatory final whole-diff gate. Single-task plans
+multi-task tasks use `spec-and-quality`: dispatch spec-compliance and
+code-quality reviewers concurrently when practical, against the same committed
+task head, then join their results before final disposition. The semantic
+spec-first gate is preserved because code-quality results are provisional until
+same-head spec compliance passes and the task head is still current. Reduced
+per-task routes require a mandatory final whole-diff gate. Single-task plans
 skip per-task review and rely on the final whole-implementation reviewer for
 direct/manual calls, or downstream `branch-review --fix` on the
 `issue-priming-workflow --auto` path; bounded fast paths for single-task and
-mechanical cases reduce specific overhead without changing the review
-contract.
+mechanical cases reduce specific overhead without changing the review contract.
 
 `play-subagent-execution` preserves the task boundaries authored in the plan.
 After extraction, each authored task remains the unit of implementer dispatch
@@ -164,7 +169,7 @@ digraph when_to_use {
 - Same session coordination (no context switch)
 - Fresh serial implementer context per task (no context pollution)
 - Authored task boundaries are preserved as the execution and review units
-- Executor-owned risk-based per-task review after each task for multi-task plans; hard-risk or unclear tasks run two-stage review, and single-task plans skip per-task review
+- Executor-owned risk-based per-task review after each task for multi-task plans; hard-risk or unclear tasks use concurrent same-head `spec-and-quality` review when practical, and single-task plans skip per-task review
 - Automatic review checkpoints, with bounded fast paths for single-task and mechanical cases
 
 ## The Process
@@ -180,9 +185,13 @@ digraph process {
         "Answer questions, provide context" [shape=box];
         "Implementer agent implements, tests, commits, self-reviews" [shape=box];
         "Compute effective review route" [shape=diamond];
-        "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [shape=box];
-        "Spec-compliance-reviewer agent confirms code matches spec?" [shape=diamond];
+        "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" [shape=box];
+        "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" [shape=diamond];
+        "Code-quality result final for same reviewed head?" [shape=diamond];
         "Implementer agent fixes spec gaps" [shape=box];
+        "Implementer agent fixes combined same-head review findings" [shape=box];
+        "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" [shape=box];
+        "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [shape=box];
         "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [shape=box];
         "Code-quality-reviewer agent approves?" [shape=diamond];
         "Implementer agent fixes quality issues" [shape=box];
@@ -219,15 +228,22 @@ digraph process {
     "Implementer agent asks questions?" -> "Implementer agent implements, tests, commits, self-reviews" [label="no"];
     "Implementer agent implements, tests, commits, self-reviews" -> "Mark task complete in TodoWrite" [label="single-task plan"];
     "Implementer agent implements, tests, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Compute effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="spec-and-quality or spec-only"];
+    "Compute effective review route" -> "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" [label="spec-and-quality"];
+    "Compute effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="spec-only"];
     "Compute effective review route" -> "Mark task complete in TodoWrite" [label="none-final-only"];
-    "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec?";
-    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Implementer agent fixes spec gaps" [label="no"];
+    "Dispatch spec-compliance and code-quality reviewers for same task head (spec-and-quality may run concurrently)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?";
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Implementer agent fixes combined same-head review findings" [label="no, and same-head quality findings exist"];
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Implementer agent fixes spec gaps" [label="no"];
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Code-quality result final for same reviewed head?" [label="yes"];
+    "Code-quality result final for same reviewed head?" -> "Implementer agent fixes quality issues" [label="no"];
+    "Code-quality result final for same reviewed head?" -> "Mark task complete in TodoWrite" [label="yes"];
+    "Implementer agent fixes combined same-head review findings" -> "Revalidate effective review route" [label="refresh task head"];
     "Implementer agent fixes spec gaps" -> "Revalidate effective review route" [label="refresh task head"];
     "Revalidate effective review route" -> "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" [label="still spec-only or spec-and-quality"];
-    "Revalidate effective review route" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="spec-and-quality code-quality path"];
-    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" [label="yes, spec-and-quality"];
-    "Spec-compliance-reviewer agent confirms code matches spec?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
+    "Revalidate effective review route" -> "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" [label="spec-and-quality quality path"];
+    "Mark quality result advisory/stale/superseded; rerun unless irrelevance proven" -> "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)";
+    "Dispatch the spec-compliance-reviewer agent (references/spec-reviewer-prompt.md)" -> "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?";
+    "Spec-compliance-reviewer agent confirms code matches spec for reviewed head?" -> "Mark task complete in TodoWrite" [label="yes, spec-only"];
     "Dispatch the code-quality-reviewer agent (references/code-quality-reviewer-prompt.md)" -> "Code-quality-reviewer agent approves?";
     "Code-quality-reviewer agent approves?" -> "Implementer agent fixes quality issues" [label="no"];
     "Implementer agent fixes quality issues" -> "Revalidate effective review route" [label="refresh task head"];
@@ -244,8 +260,9 @@ digraph process {
 ```
 
 > The diagram routes each multi-task task through effective route computation
-> before reviewer dispatch. `spec-and-quality` follows both reviewer boxes,
-> `spec-only` stops after spec-compliance approval, and
+> before reviewer dispatch. `spec-and-quality` may dispatch both read-only
+> reviewers concurrently against the same captured task head, then joins their
+> results; `spec-only` stops after spec-compliance approval, and
 > `none-final-only` marks the task complete after implementer self-review and
 > commit because the final whole-diff gate is mandatory.
 >
@@ -333,8 +350,12 @@ classifications to `spec-and-quality`.
 
 Effective routes:
 
-- `spec-and-quality`: run the spec-compliance reviewer, then the code-quality
-  reviewer.
+- `spec-and-quality`: after route computation and implementer commit, the
+  controller may dispatch the spec-compliance reviewer and code-quality
+  reviewer concurrently against the same captured task head. Both reviewers
+  remain read-only and independent. The code-quality result is provisional until
+  spec compliance passes for that same reviewed head and the task head is still
+  current.
 - `spec-only`: run the spec-compliance reviewer only.
 - `none-final-only`: run no per-task reviewer for that task; rely on the
   required final whole-diff gate.
@@ -413,6 +434,23 @@ Eligibility thresholds:
   marking the task complete. Revalidation may only preserve or escalate the
   route; it never downgrades a task after work has begun. If the refreshed diff
   introduces a hard-risk trigger, continue as `spec-and-quality`.
+- If both reviewers report findings on the same reviewed head, the controller
+  may route the combined spec and code-quality finding set to the same
+  implementer for one fixup round.
+- After any spec fixup commit, rerun spec compliance and rerun code quality
+  unless the controller can prove the fixup is irrelevant to the previous
+  quality result. Unclear stale-result classification fails closed to rerunning
+  code quality.
+
+For `spec-and-quality`, quality disposition is separate from quality dispatch
+order. Dispatching code quality before the spec result is known is allowed when
+both reviewers inspect the same committed task head. Accepting that quality
+result as final is allowed only after the same-head spec result passes and the
+controller verifies the task head has not changed. If spec fails, a concurrent
+quality pass is advisory until a same-head spec pass exists. If a spec fixup or
+other commit changes the task head, the old quality result is stale or
+superseded for final disposition. Treat unclear freshness, uncertain
+irrelevance, or mismatched reviewed-head SHAs as a quality rerun requirement.
 
 Low-risk tasks are limited to localized prose/comment/example changes or
 verbatim creation of non-executable prose/example/fixture files with fully
@@ -497,10 +535,12 @@ the execution-specific lifecycle details below.
 
 For this workflow, role-specific captured state includes implementer reports,
 changed files, test results, snapshot state (`requested`, `emitted`, `skipped`,
-or `malformed`), reviewer scope, reviewer report, concrete findings, routing
-target, re-review target, task base/head SHA, fixup count, and blocker state
-when applicable. Run the shared cleanup gate before dispatching the next
-implementer, reviewer, re-reviewer, or final reviewer.
+or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer
+result disposition (`pending`, `final-pass`, `final-findings`, `advisory`,
+`stale`, or `superseded`), routing target, re-review target, task base/head SHA,
+reviewed head SHA, fixup count, and blocker state when applicable. Run the
+shared cleanup gate before dispatching the next implementer, reviewer,
+re-reviewer, or final reviewer.
 
 The cleanup gate must not close a task implementer while same-session
 spec-compliance or code-quality reviewer fix loops may still route fixups back
@@ -878,9 +918,31 @@ back to that same implementer session.
 
 The `implementer` agent reports one of four statuses. Handle each appropriately:
 
-**DONE:** For multi-task plans, apply the task's effective review route. `spec-and-quality` proceeds to spec-compliance review and then code-quality review; `spec-only` proceeds to spec-compliance review and then marks the task complete after approval; `none-final-only` marks the task complete after implementer self-review and commit. For single-task plans, mark the task complete (see § Single-Task Plans).
+**DONE:** For multi-task plans, apply the task's effective review route.
+`spec-and-quality` dispatches spec-compliance and code-quality review against
+the same captured task head when practical, then applies the disposition rules
+below; `spec-only` proceeds to spec-compliance review and then marks the task
+complete after approval; `none-final-only` marks the task complete after
+implementer self-review and commit. For single-task plans, mark the task
+complete (see § Single-Task Plans).
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before continuing. For multi-task plans, then apply the task's effective review route; for single-task plans (see § Single-Task Plans), mark the task complete after addressing concerns. If the concerns are observations (e.g., "this file is getting large"), note them and proceed to the next route step (review for multi-task routes that require it, mark complete for `none-final-only` or single-task paths).
+
+**Spec-and-quality reviewer disposition:** For multi-task `spec-and-quality`
+routes, dispatch both reviewers against the same captured task head when
+practical and record both as `pending` until their reports are integrated. A
+quality result may become final only after same-head spec pass and current
+task-head validation. A same-head quality pass becomes `final-pass` only when
+the spec reviewer also passes for that reviewed head; same-head quality findings
+become `final-findings` only after same-head spec pass and current task-head
+validation. If spec fails, concurrent quality findings may be routed with the
+spec findings as advisory same-head context, but the quality result remains
+`advisory` until a same-head spec pass exists. The advisory, stale, and
+superseded quality results remain lifecycle evidence but must not mark the task
+complete. After a spec fixup or any other head-changing commit, the prior
+quality result is `stale` or `superseded` for final disposition. Rerun quality
+after any spec fixup unless irrelevance is proven from the refreshed diff;
+unclear freshness or unclear irrelevance fails closed to rerunning code quality.
 
 **Fixup route revalidation:** When a reviewer routes findings back to the
 implementer and the implementer commits a fixup, refresh the task head SHA and
@@ -890,7 +952,9 @@ stay the same or escalate (`none-final-only` -> `spec-only` or
 `spec-and-quality`; `spec-only` -> `spec-and-quality`). It must not downgrade
 after fixups. If revalidation escalates a `spec-only` task to
 `spec-and-quality` after spec review has already passed, dispatch the
-code-quality reviewer before completion.
+code-quality reviewer before completion. If a `spec-and-quality` spec fixup
+lands, rerun spec and rerun quality unless irrelevance is proven; when unsure,
+rerun quality.
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 

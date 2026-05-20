@@ -34,7 +34,11 @@ Behavioral signals that this skill is being violated.
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace an executor-required review
-- **Start code quality review before spec compliance is ✅** (wrong order)
+- Accept a code-quality result as final before same-head spec compliance passes
+  and current task-head validation succeeds
+- Treat advisory, stale, or superseded quality as final task approval
+- Skip the quality rerun after a spec fixup unless irrelevance is proven; unclear
+  stale classification reruns quality
 
 **If subagent asks questions:**
 

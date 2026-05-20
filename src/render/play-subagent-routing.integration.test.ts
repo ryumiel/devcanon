@@ -55,6 +55,9 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("play-subagent-execution");
 
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
+      const normalizedPlaySubagentExecution = playSubagentExecution
+        .replace(/\s+/g, " ")
+        .trim();
       expect(playSubagentExecution).toContain("### Auto handoff reference");
       expect(playSubagentExecution).toContain(
         "## Risk-Based Per-Task Review Routing",
@@ -79,6 +82,18 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "scripts/write-snapshot-manifest.sh",
       );
       expect(playSubagentExecution).toContain("issue-priming/auto-handoff/v1");
+      expect(normalizedPlaySubagentExecution).toContain(
+        "dispatch the spec-compliance reviewer and code-quality reviewer concurrently against the same captured task head",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "quality result may become final only after same-head spec pass",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "Unclear stale-result classification fails closed to rerunning code quality",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
+        "advisory, stale, and superseded quality results",
+      );
     }
 
     const issuePrimingWorkflow = bodies["issue-priming-workflow:codex"];
