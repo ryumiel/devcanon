@@ -1,6 +1,9 @@
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { getSkillOutput } from "../__test-helpers__/render.js";
+import {
+  getSkillOutput,
+  normalizeWhitespace,
+} from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderAll } from "./pipeline.js";
@@ -55,9 +58,9 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("play-subagent-execution");
 
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
-      const normalizedPlaySubagentExecution = playSubagentExecution
-        .replace(/\s+/g, " ")
-        .trim();
+      const normalizedPlaySubagentExecution = normalizeWhitespace(
+        playSubagentExecution,
+      );
       expect(playSubagentExecution).toContain("### Auto handoff reference");
       expect(playSubagentExecution).toContain(
         "## Risk-Based Per-Task Review Routing",

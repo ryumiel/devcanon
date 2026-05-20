@@ -366,6 +366,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRedFlags).toContain(
       "Treat advisory, stale, or superseded quality as final task approval",
     );
+    expect(normalizedRedFlags).toContain(
+      "unclear staleness or irrelevance classification fails closed to rerunning code quality",
+    );
+    expect(normalizedRedFlags).not.toContain(
+      "unclear stale classification reruns quality",
+    );
     expect(normalizedRedFlags).not.toContain(
       "Start code quality review before spec compliance is ✅",
     );
@@ -696,6 +702,12 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
       "quality result disposition=stale; rerun quality unless irrelevance is proven",
+    );
+    expect(task2Section).toContain(
+      "Task 2 code-quality re-reviewer: review scope captured",
+    );
+    expect(task2Section).not.toContain(
+      "Task 2 code-quality re-reviewer: status=PASS",
     );
 
     expect(normalizeWhitespace(task3Section)).toContain(

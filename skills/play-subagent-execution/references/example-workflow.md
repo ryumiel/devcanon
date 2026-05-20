@@ -178,7 +178,7 @@ Task 2 implementer: closed=no because code-quality fixups may still need same-se
 Code-quality reviewer: ✅ Approved
 
 [Lifecycle ledger update]
-Task 2 code-quality re-reviewer: status=PASS, review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, closed=yes after PASS verdict recorded.
+Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, closed=yes after PASS verdict recorded.
 
 [Lifecycle cleanup checkpoint]
 Task 2 implementer: status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, closed=yes after reviewer loops passed.

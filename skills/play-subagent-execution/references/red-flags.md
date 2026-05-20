@@ -37,8 +37,9 @@ Behavioral signals that this skill is being violated.
 - Accept a code-quality result as final before same-head spec compliance passes
   and current task-head validation succeeds
 - Treat advisory, stale, or superseded quality as final task approval
-- Skip the quality rerun after a spec fixup unless irrelevance is proven; unclear
-  stale classification reruns quality
+- Skip the quality rerun after a spec fixup unless irrelevance is proven;
+  unclear staleness or irrelevance classification fails closed to rerunning code
+  quality
 
 **If subagent asks questions:**
 
