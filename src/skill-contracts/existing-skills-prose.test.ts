@@ -507,6 +507,11 @@ describe("existing skills source prose contracts", () => {
     const normalizedExecutionMode = normalizeWhitespace(executionMode);
     const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
 
+    expect(normalizedExecutionMode).toContain("thread-aware intake");
+    expect(normalizedExecutionMode).toMatch(
+      /After.*thread-aware intake.*verification.*classify/i,
+    );
+
     for (const disposition of [
       "Inline execution",
       "Planned execution",
@@ -528,7 +533,7 @@ describe("existing skills source prose contracts", () => {
     for (const inlineCondition of [
       /only when every.*condition.*true/i,
       /one or two.*clear.*low-risk.*local.*comments/i,
-      /same file|tightly local files/i,
+      /affected code.*same file.*tightly local files/i,
       /no ambiguity/i,
       /no public contract, workflow-policy, skill\/agent contract, schema, generated-output, security, lifecycle, data-loss, or cross-module behavior risk/i,
       /no new test design/i,
@@ -536,6 +541,14 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedExecutionMode).toMatch(inlineCondition);
     }
+
+    const plannedExecutionRules = normalizeWhitespace(
+      sliceBetween(
+        executionMode,
+        "Planned execution is required for multi-item",
+        "For planned execution",
+      ),
+    );
 
     for (const plannedTrigger of [
       /Planned execution.*required.*multi-item/i,
@@ -550,10 +563,11 @@ describe("existing skills source prose contracts", () => {
       /Planned execution.*required.*data-loss/i,
       /Planned execution.*required.*cross-module/i,
       /Planned execution.*required.*high-risk/i,
+      /Planned execution.*required.*independent implementation\/review gates/i,
       /Planned execution.*required.*audit evidence|Planned execution.*required.*traceability/i,
       /Planned execution.*required.*explanation-only.*mixed.*code/i,
     ]) {
-      expect(normalizedExecutionMode).toMatch(plannedTrigger);
+      expect(plannedExecutionRules).toMatch(plannedTrigger);
     }
 
     for (const plannedTaskRequirement of [
@@ -592,12 +606,22 @@ describe("existing skills source prose contracts", () => {
       "review routing",
       "snapshot handling",
       "implementer lifecycle",
-      "final whole-diff review",
+      "final whole-implementation review",
+      "whole-diff gate validation",
     ]) {
       expect(lowerExecutionMode).toContain(executorOwnedMechanic.toLowerCase());
     }
 
     expect(normalizedExecutionMode).toMatch(/executor-owned mechanics/i);
+    expect(normalizedExecutionMode).toMatch(
+      /Direct\/manual review-response plans.*do not get.*automatic whole-diff review/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /After.*executor.*returns.*thread refetching.*resolution eligibility.*final PR-thread closeout/i,
+    );
     expect(normalizedExecutionMode).toMatch(/inline example/i);
     expect(normalizedExecutionMode).toMatch(
       /plan-plus-executor handoff example/i,

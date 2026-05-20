@@ -157,10 +157,16 @@ verification expectations, and contract checklist fields as applicable.
 
 `play-subagent-execution` owns executor-owned mechanics after the handoff:
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
-handling, implementer lifecycle, and final whole-diff review. This skill owns
-thread-aware intake, verification, execution-mode selection, no-code
-dispositions, follow-up commit continuity, GitHub thread replies/refetching,
-and resolution eligibility.
+handling, implementer lifecycle, final whole-implementation review for
+direct/manual calls, and whole-diff gate validation only when a caller-owned
+handoff supplies that gate. This skill owns thread-aware intake, verification,
+execution-mode selection, no-code dispositions, follow-up commit continuity,
+GitHub thread replies/refetching, and resolution eligibility.
+
+Direct/manual review-response plans do not get an automatic whole-diff review
+after the executor's final code-quality reviewer. Run `branch-review` before
+opening or updating a PR when planned review-response work needs whole-diff
+coverage.
 
 After the executor returns, this skill resumes ownership of explanation-only
 replies, thread refetching, resolution eligibility, and final PR-thread
