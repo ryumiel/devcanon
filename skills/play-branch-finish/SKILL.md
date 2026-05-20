@@ -114,6 +114,12 @@ The file is a `play-review/findings/v1` envelope. This skill iterates every entr
 
 **Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
 
+**Optional input — assignee.** Callers may pass an `assignee=<value>` argument
+to assign the new PR, for example `issue-priming-workflow` passes
+`assignee=@me`. When set, bind the caller's `assignee` argument to `ASSIGNEE`
+before running `gh pr create`, then append `--assignee "$ASSIGNEE"` to the
+command.
+
 **Optional pre-push autosquash checkpoint.** This checkpoint lives inside
 Option 2; do not add a fifth top-level option. Offer it only after tests pass,
 after the base branch is resolved, and before `git push`. Autosquash is

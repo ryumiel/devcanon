@@ -300,6 +300,8 @@ describe("rendered phase artifact smoke coverage", () => {
         "It MUST NOT be embedded in the PR description body",
       );
       expect(option2).toContain("gh pr create");
+      expect(normalizedOption2).toContain("Optional input — assignee");
+      expect(normalizedOption2).toContain("assignee=<value>");
       expect(normalizedOption2).toContain("docs/guidelines/pr-guideline.md");
       expect(normalizedOption2).toContain(
         "Option 2 accepts an optional `assignee` argument",

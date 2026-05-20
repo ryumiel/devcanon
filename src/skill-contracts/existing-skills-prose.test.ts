@@ -738,6 +738,8 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain("gh pr create --title");
     expect(normalizedOption2).toContain("--body-file");
+    expect(normalizedOption2).toContain("Optional input — assignee");
+    expect(normalizedOption2).toContain("assignee=<value>");
     expect(normalizedOption2).toContain(
       "Option 2 accepts an optional `assignee` argument",
     );
