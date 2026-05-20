@@ -87,9 +87,6 @@ const TOUCHED_SKILL_NAMES = Object.keys(
   TOUCHED_SKILL_COVERAGE,
 ) as TouchedSkill[];
 const TOUCHED_SKILLS: ReadonlySet<string> = new Set(TOUCHED_SKILL_NAMES);
-const SIDECARS_WITHOUT_BRAND_COLOR: ReadonlySet<string> = new Set([
-  "linear-project-update-auditor",
-]);
 
 function getMetadataExpectationSkills(): Set<string> {
   return new Set(Object.values(SKILLS_WITH_METADATA).flat());
@@ -226,15 +223,9 @@ describe("existing skills render cleanly", () => {
         interface: {
           display_name: expect.any(String),
           short_description: expect.any(String),
+          brand_color: expect.any(String),
         },
       });
-      if (!SIDECARS_WITHOUT_BRAND_COLOR.has(skillName)) {
-        expect(parsed).toMatchObject({
-          interface: {
-            brand_color: expect.any(String),
-          },
-        });
-      }
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
 

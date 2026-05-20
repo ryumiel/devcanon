@@ -5,6 +5,7 @@ codex_sidecar:
   interface:
     display_name: Linear Project Update Auditor
     short_description: Audit Linear project updates from evidence
+    brand_color: "#5e6ad2"
     default_prompt: Use $linear-project-update-auditor to audit a Linear project update in dry-run mode.
 ---
 

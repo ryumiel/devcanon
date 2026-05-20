@@ -78,6 +78,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > linear-project-update-auditor-sidecar 1`] = `
 {
   "interface": {
+    "brand_color": "#5e6ad2",
     "default_prompt": "Use $linear-project-update-auditor to audit a Linear project update in dry-run mode.",
     "display_name": "Linear Project Update Auditor",
     "short_description": "Audit Linear project updates from evidence",
