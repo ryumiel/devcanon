@@ -40,10 +40,18 @@ sha256_file() {
 }
 
 base64_decode_stream() {
+  command -v base64 >/dev/null 2>&1 || {
+    echo "base64 is required to validate implementer/snapshot/v1" >&2
+    exit 1
+  }
+
   if base64 --help 2>&1 | grep -q -- '--decode'; then
     base64 --decode
-  else
+  elif printf '' | base64 -d >/dev/null 2>&1; then
     base64 -d
+  else
+    echo "base64 with --decode or -d support is required to validate implementer/snapshot/v1" >&2
+    exit 1
   fi
 }
 
