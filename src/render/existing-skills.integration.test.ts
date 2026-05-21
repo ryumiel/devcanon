@@ -25,6 +25,7 @@ const SKILLS_WITH_METADATA = {
   ] as const,
   sidecar: [
     "github-issue-priming",
+    "linear-project-update-auditor",
     "linear-issue-priming",
     "pr-review",
     "report-devcanon-issue",
@@ -47,6 +48,8 @@ const TOUCHED_SKILL_COVERAGE = {
     "Codex frontmatter smoke coverage protects recently touched shared skill prose from invalid Codex keys",
   "linear-issue-priming":
     "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
+  "linear-project-update-auditor":
+    "explicit metadata expectations cover Codex sidecar packaging and Codex frontmatter smoke coverage",
   "play-brainstorm":
     "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
   "play-branch-finish":
@@ -510,6 +513,31 @@ describe("existing skills render cleanly", () => {
 
       expect(await pathExists(generatedPath)).toBe(true);
       expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+    }
+
+    const auditorTemplateSourcePath = path.join(
+      repoRoot,
+      "skills/linear-project-update-auditor/references/update-template.md",
+    );
+    const auditorTemplateSourceContent = await readFile(
+      auditorTemplateSourcePath,
+      "utf-8",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "linear-project-update-auditor",
+        "references",
+        "update-template.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(
+        auditorTemplateSourceContent,
+      );
     }
 
     const researchPromptSourcePath = path.join(
