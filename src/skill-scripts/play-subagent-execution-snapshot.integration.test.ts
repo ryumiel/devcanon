@@ -1432,6 +1432,63 @@ describe("play-subagent-execution snapshot validator", () => {
     30_000,
   );
 
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
+    "uses BSD base64 -D when GNU decode flags are unavailable",
+    async () => {
+      const { tempDir, baseSha, snapshotFile } = await writeSnapshotFixture();
+      const fakeBin = path.join(tempDir, "fake-bin");
+      try {
+        await mkdir(fakeBin);
+        const base64Wrapper = path.join(fakeBin, "base64");
+        await writeFile(
+          base64Wrapper,
+          `#!/bin/sh
+real_base64=${shellSingleQuote(await commandPath("base64"))}
+
+case "$1" in
+  --help)
+    printf 'usage: base64 [-D]\\n'
+    exit 0
+    ;;
+  --decode|-d)
+    echo "unsupported decode flag" >&2
+    exit 64
+    ;;
+  -D)
+    shift
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
+    cat > "$tmp"
+    if "$real_base64" --decode < "$tmp" 2>/dev/null; then
+      exit 0
+    fi
+    if "$real_base64" -d < "$tmp" 2>/dev/null; then
+      exit 0
+    fi
+    "$real_base64" -D < "$tmp"
+    ;;
+esac
+
+exec "$real_base64" "$@"
+`,
+          { mode: 0o755 },
+        );
+        await chmod(base64Wrapper, 0o755);
+
+        await expect(
+          runSnapshotValidator(tempDir, baseSha, snapshotFile, {
+            PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining("SNAPSHOT_STATUS=valid\n"),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
   it.skipIf(!jqAvailable)(
     "rejects invalid base commits before diffing",
     async () => {

@@ -45,12 +45,14 @@ base64_decode_stream() {
     exit 1
   }
 
-  if base64 --help 2>&1 | grep -q -- '--decode'; then
+  if base64 --decode </dev/null >/dev/null 2>&1; then
     base64 --decode
-  elif printf '' | base64 -d >/dev/null 2>&1; then
+  elif base64 -d </dev/null >/dev/null 2>&1; then
     base64 -d
+  elif base64 -D </dev/null >/dev/null 2>&1; then
+    base64 -D
   else
-    echo "base64 with --decode or -d support is required to validate implementer/snapshot/v1" >&2
+    echo "base64 decode support is required to validate implementer/snapshot/v1" >&2
     exit 1
   fi
 }
