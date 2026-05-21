@@ -12,6 +12,22 @@ require_env() {
 require_env BASE_SHA
 require_env SNAPSHOT_FILE
 
+sha256_stream() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    echo "shasum or sha256sum is required to validate implementer/snapshot/v1" >&2
+    exit 1
+  fi
+}
+
+sha256_file() {
+  local path="$1"
+  sha256_stream < "$path"
+}
+
 command -v jq >/dev/null 2>&1 || {
   echo "jq is required to validate implementer/snapshot/v1" >&2
   exit 1
@@ -101,6 +117,59 @@ jq -e '.files | type == "array"' "$SNAPSHOT_FILE" >/dev/null || {
   echo "snapshot files must be an array" >&2
   exit 1
 }
+jq -e '
+  def safe_path:
+    type == "string" and
+    . != "" and
+    (startswith("/") | not) and
+    . != "." and
+    . != ".." and
+    (startswith("../") | not) and
+    (startswith("./") | not) and
+    (endswith("/.") | not) and
+    (endswith("/..") | not) and
+    (contains("/./") | not) and
+    (contains("/../") | not) and
+    (contains("//") | not);
+  all(.files[]; .path | safe_path)
+' "$SNAPSHOT_FILE" >/dev/null || {
+  echo "snapshot entry path validation failed" >&2
+  exit 1
+}
+jq -e '
+  def hex64:
+    type == "string" and test("^[0-9a-f]{64}$");
+  def nonnegative_integer:
+    type == "number" and floor == . and . >= 0;
+  def valid_deleted:
+    .status == "deleted" and
+    .lines == 0 and
+    .bytes == 0 and
+    .sha256 == "" and
+    (has("content") | not) and
+    (has("skipped") | not);
+  def valid_present:
+    (.status == "added" or .status == "modified") and
+    (.lines | nonnegative_integer) and
+    (.bytes | nonnegative_integer) and
+    (.sha256 | hex64) and
+    (
+      (has("content") and (.content | type == "string") and (has("skipped") | not)) or
+      ((has("content") | not) and (.skipped == "binary" or .skipped == "size>64KB"))
+    );
+  (.task_id | type == "string") and
+  (.files | type == "array") and
+  (.files | length > 0) and
+  all(.files[];
+    (.path | type == "string") and
+    (.status | type == "string") and
+    (.status == "added" or .status == "modified" or .status == "deleted") and
+    (valid_deleted or valid_present)
+  )
+' "$SNAPSHOT_FILE" >/dev/null || {
+  echo "snapshot schema mismatch" >&2
+  exit 1
+}
 
 WORK_DIR="$(mktemp -d ".ephemeral/.snapshot-validate-${CONTROLLER_HEAD_SHA}.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -120,34 +189,12 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
       exit 1
       ;;
   esac
-  encoded_path="$(jq -Rn --arg path "$path" '$path | @base64')"
+  encoded_path="$(jq -rRn --arg path "$path" '$path | @base64')"
   printf '%s\t%s\n' "$encoded_path" "$status" >> "$EXPECTED_SET"
 done < "$WORK_DIR/diff.z"
 touch "$EXPECTED_SET"
 
-while IFS= read -r encoded; do
-  path_value="$(jq -rn --arg encoded "$encoded" '$encoded | @base64d | fromjson | .path // empty')"
-  status_value="$(jq -rn --arg encoded "$encoded" '$encoded | @base64d | fromjson | .status // empty')"
-  jq -en --arg encoded "$encoded" '$encoded | @base64d | fromjson | (.path | type == "string") and (.status | type == "string")' >/dev/null || {
-    echo "snapshot file entries must include string path and status" >&2
-    exit 1
-  }
-  case "$path_value" in
-    ''|/*|.|..|../*|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
-      echo "snapshot entry path validation failed: $path_value" >&2
-      exit 1
-      ;;
-  esac
-  case "$status_value" in
-    added|modified|deleted) ;;
-    *)
-      echo "snapshot entry status unsupported: $status_value" >&2
-      exit 1
-      ;;
-  esac
-  encoded_path="$(jq -Rn --arg path "$path_value" '$path | @base64')"
-  printf '%s\t%s\n' "$encoded_path" "$status_value" >> "$ACTUAL_SET"
-done < <(jq -r '.files[] | @json | @base64' "$SNAPSHOT_FILE")
+jq -r '.files[] | [(.path | @base64), .status] | @tsv' "$SNAPSHOT_FILE" > "$ACTUAL_SET"
 touch "$ACTUAL_SET"
 
 ACTUAL_COUNT="$(wc -l < "$ACTUAL_SET" | tr -d ' ')"
@@ -163,6 +210,57 @@ cmp -s "$EXPECTED_SORTED" "$ACTUAL_SORTED" || {
   echo "snapshot changed-file set mismatch" >&2
   exit 1
 }
+
+while IFS=$'\t' read -r encoded_path status_value; do
+  [ -n "$encoded_path" ] || continue
+  if [ "$status_value" = "deleted" ]; then
+    continue
+  fi
+
+  IFS= read -r -d '' path_value < <(
+    jq -rjn --arg encoded "$encoded_path" '$encoded | @base64d'
+    printf '\0'
+  )
+  mode="$(git ls-tree HEAD -- ":(literal)$path_value" | awk 'NR == 1 { print $1 }')"
+  case "$mode" in
+    100644|100755) ;;
+    *)
+      echo "snapshot entry path is not a regular HEAD blob: $path_value" >&2
+      exit 1
+      ;;
+  esac
+
+  entry_json="$WORK_DIR/entry.json"
+  head_content="$WORK_DIR/head-content"
+  snapshot_content="$WORK_DIR/snapshot-content"
+  jq --arg path "$path_value" '.files[] | select(.path == $path)' "$SNAPSHOT_FILE" > "$entry_json"
+
+  git cat-file blob "HEAD:$path_value" > "$head_content"
+  expected_lines="$(awk 'END{print NR}' < "$head_content")"
+  expected_bytes="$(wc -c < "$head_content" | tr -d ' ')"
+  expected_sha256="$(sha256_file "$head_content")"
+
+  [ "$(jq -r '.lines' "$entry_json")" = "$expected_lines" ] || {
+    echo "snapshot entry lines mismatch: $path_value" >&2
+    exit 1
+  }
+  [ "$(jq -r '.bytes' "$entry_json")" = "$expected_bytes" ] || {
+    echo "snapshot entry bytes mismatch: $path_value" >&2
+    exit 1
+  }
+  [ "$(jq -r '.sha256' "$entry_json")" = "$expected_sha256" ] || {
+    echo "snapshot entry sha256 mismatch: $path_value" >&2
+    exit 1
+  }
+
+  if jq -e 'has("content")' "$entry_json" >/dev/null; then
+    jq -rj '.content' "$entry_json" > "$snapshot_content"
+    [ "$(sha256_file "$snapshot_content")" = "$expected_sha256" ] || {
+      echo "snapshot entry content mismatch: $path_value" >&2
+      exit 1
+    }
+  fi
+done < "$ACTUAL_SET"
 
 printf 'SNAPSHOT_STATUS=valid\n'
 printf 'SNAPSHOT_FILE=%s\n' "$SNAPSHOT_FILE"

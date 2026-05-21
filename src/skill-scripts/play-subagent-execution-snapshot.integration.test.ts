@@ -1663,27 +1663,31 @@ describe("play-subagent-execution snapshot validator", () => {
         await cleanupTempDir(extraFixture.tempDir);
       }
 
-      const missingFixture = await writeSnapshotFixture();
+      const missingFixture = await createTempGitRepo();
       try {
-        await mutateSnapshotFixture(
-          missingFixture.tempDir,
-          missingFixture.headSha,
-          (snapshot) => {
-            snapshot.files = [];
-          },
+        await writeFile(path.join(missingFixture, "file-a.md"), "old a\n");
+        await writeFile(path.join(missingFixture, "file-b.md"), "old b\n");
+        const baseSha = await commitChanges(missingFixture, "chore: baseline");
+        await writeFile(path.join(missingFixture, "file-a.md"), "new a\n");
+        await writeFile(path.join(missingFixture, "file-b.md"), "new b\n");
+        const headSha = await commitChanges(
+          missingFixture,
+          "feat: update files",
         );
+        const snapshotFile = `.ephemeral/snapshot-${headSha}.json`;
+        await runSnapshotHelper(missingFixture, baseSha);
+        await mutateSnapshotFixture(missingFixture, headSha, (snapshot) => {
+          const files = snapshot.files as Array<Record<string, unknown>>;
+          snapshot.files = files.slice(0, 1);
+        });
 
         await expect(
-          runSnapshotValidator(
-            missingFixture.tempDir,
-            missingFixture.baseSha,
-            missingFixture.snapshotFile,
-          ),
+          runSnapshotValidator(missingFixture, baseSha, snapshotFile),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("snapshot changed-file set mismatch"),
         });
       } finally {
-        await cleanupTempDir(missingFixture.tempDir);
+        await cleanupTempDir(missingFixture);
       }
 
       const statusFixture = await writeSnapshotFixture();
@@ -1708,6 +1712,174 @@ describe("play-subagent-execution snapshot validator", () => {
         });
       } finally {
         await cleanupTempDir(statusFixture.tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "rejects malformed v1 file entry shapes",
+    async () => {
+      const missingMetadataFixture = await writeSnapshotFixture();
+      try {
+        await mutateSnapshotFixture(
+          missingMetadataFixture.tempDir,
+          missingMetadataFixture.headSha,
+          (snapshot) => {
+            const files = snapshot.files as Array<Record<string, unknown>>;
+            snapshot.task_id = 42;
+            files[0] = {
+              path: files[0].path,
+              status: files[0].status,
+            };
+          },
+        );
+
+        await expect(
+          runSnapshotValidator(
+            missingMetadataFixture.tempDir,
+            missingMetadataFixture.baseSha,
+            missingMetadataFixture.snapshotFile,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("snapshot schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(missingMetadataFixture.tempDir);
+      }
+
+      const mutualExclusionFixture = await writeSnapshotFixture();
+      try {
+        await mutateSnapshotFixture(
+          mutualExclusionFixture.tempDir,
+          mutualExclusionFixture.headSha,
+          (snapshot) => {
+            const files = snapshot.files as Array<Record<string, unknown>>;
+            files[0].skipped = "binary";
+          },
+        );
+
+        await expect(
+          runSnapshotValidator(
+            mutualExclusionFixture.tempDir,
+            mutualExclusionFixture.baseSha,
+            mutualExclusionFixture.snapshotFile,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("snapshot schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(mutualExclusionFixture.tempDir);
+      }
+
+      const deletedContentFixture = await writeSnapshotFixture();
+      try {
+        await mutateSnapshotFixture(
+          deletedContentFixture.tempDir,
+          deletedContentFixture.headSha,
+          (snapshot) => {
+            const files = snapshot.files as Array<Record<string, unknown>>;
+            files[0] = {
+              ...files[0],
+              status: "deleted",
+              lines: 0,
+              bytes: 0,
+              sha256: "",
+              content: "deleted content",
+            };
+          },
+        );
+
+        await expect(
+          runSnapshotValidator(
+            deletedContentFixture.tempDir,
+            deletedContentFixture.baseSha,
+            deletedContentFixture.snapshotFile,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("snapshot schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(deletedContentFixture.tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!symlinkAvailable || !jqAvailable)(
+    "rejects non-deleted snapshot entries whose committed HEAD path is not a regular file",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      const outsideTarget = path.join(tempDir, "outside-target.md");
+      try {
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        await writeFile(outsideTarget, "outside content must not be trusted\n");
+        await symlink(outsideTarget, path.join(tempDir, "link.md"));
+        const headSha = await commitChanges(tempDir, "feat: add symlink", [
+          "link.md",
+        ]);
+        const snapshotFile = `.ephemeral/snapshot-${headSha}.json`;
+        await mkdir(path.join(tempDir, ".ephemeral"));
+        await writeFile(
+          path.join(tempDir, snapshotFile),
+          `${JSON.stringify(
+            {
+              schema: "implementer/snapshot/v1",
+              task_id: "Task 1",
+              head_sha: headSha,
+              files: [
+                {
+                  path: "link.md",
+                  status: "added",
+                  lines: 1,
+                  bytes: 13,
+                  sha256:
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  content: "fake content\n",
+                },
+              ],
+            },
+            null,
+            2,
+          )}\n`,
+        );
+
+        await expect(
+          runSnapshotValidator(tempDir, baseSha, snapshotFile),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "snapshot entry path is not a regular HEAD blob",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "accepts newline-bearing paths that the producer wrote byte-faithfully",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      try {
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        const newlinePath = "newline-ending-\n";
+        await writeFile(path.join(tempDir, newlinePath), "newline path\n");
+        const headSha = await commitChanges(tempDir, "feat: add newline path");
+        const snapshotFile = `.ephemeral/snapshot-${headSha}.json`;
+
+        await runSnapshotHelper(tempDir, baseSha);
+
+        await expect(
+          runSnapshotValidator(tempDir, baseSha, snapshotFile),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining("SNAPSHOT_STATUS=valid\n"),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
       }
     },
     30_000,
