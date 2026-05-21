@@ -17,7 +17,61 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+const CHILD_AGENT_PROMPT_TEMPLATES = [
+  "references/implementer-prompt.md",
+  "references/mechanical-implementer-prompt.md",
+  "references/spec-reviewer-prompt.md",
+  "references/code-quality-reviewer-prompt.md",
+] as const;
+
+const CHILD_AGENT_TEMPLATE_SENTINELS = [
+  {
+    path: "skills/play-subagent-execution/references/implementer-prompt.md",
+    phrase: "If you have questions about:",
+  },
+  {
+    path: "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    phrase: "Mechanical mode is only for approved verbatim artifact work",
+  },
+  {
+    path: "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    phrase: "The implementer finished suspiciously quickly",
+  },
+  {
+    path: "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    phrase: "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
+  },
+] as const;
+
 describe("play subagent routing source contracts", () => {
+  it("declares child-agent prompt templates in an explicit registry", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const registry = getMarkdownSection(
+      skillSource,
+      "Prompt Template Registry",
+    );
+    const normalizedRegistry = normalizeWhitespace(registry);
+
+    for (const templatePath of CHILD_AGENT_PROMPT_TEMPLATES) {
+      expect(registry).toContain(templatePath);
+    }
+
+    expect(normalizedRegistry).toContain("final whole-implementation reviewer");
+    expect(registry).not.toContain("references/snapshot-manifest-recipe.md");
+    expect(registry).not.toContain("scripts/write-snapshot-manifest.sh");
+  });
+
+  it("keeps full child-agent dispatch prompt bodies out of SKILL.md", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+
+    for (const { path, phrase } of CHILD_AGENT_TEMPLATE_SENTINELS) {
+      const templateSource = await readRepoFile(path);
+
+      expect(templateSource).toContain(phrase);
+      expect(skillSource).not.toContain(phrase);
+    }
+  });
+
   it("keeps reviewer and implementer prompt trust boundaries in source", async () => {
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
