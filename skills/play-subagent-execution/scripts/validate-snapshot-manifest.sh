@@ -201,16 +201,16 @@ ACTUAL_SORTED="$WORK_DIR/actual.sorted.tsv"
 
 git diff -z --name-status --no-renames "$BASE_COMMIT_SHA..$CONTROLLER_HEAD_SHA" > "$WORK_DIR/diff.z"
 while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
+  encoded_path="$(jq -rRn --arg path "$path" '$path | @base64')"
   case "$git_status" in
     A) status="added" ;;
     M) status="modified" ;;
     D) status="deleted" ;;
     *)
-      echo "unsupported controller diff status $git_status for $path" >&2
+      echo "unsupported controller diff status $git_status: path_b64=$encoded_path" >&2
       exit 1
       ;;
   esac
-  encoded_path="$(jq -rRn --arg path "$path" '$path | @base64')"
   printf '%s\t%s\n' "$encoded_path" "$status" >> "$EXPECTED_SET"
 done < "$WORK_DIR/diff.z"
 touch "$EXPECTED_SET"
@@ -246,7 +246,7 @@ while IFS=$'\t' read -r encoded_path status_value; do
   case "$mode" in
     100644|100755) ;;
     *)
-      echo "snapshot entry path is not a regular controller head blob: $path_value" >&2
+      echo "snapshot entry path is not a regular controller head blob: path_b64=$encoded_path" >&2
       exit 1
       ;;
   esac
@@ -262,22 +262,22 @@ while IFS=$'\t' read -r encoded_path status_value; do
   expected_sha256="$(sha256_file "$head_content")"
 
   [ "$(jq -r '.lines' "$entry_json")" = "$expected_lines" ] || {
-    echo "snapshot entry lines mismatch: $path_value" >&2
+    echo "snapshot entry lines mismatch: path_b64=$encoded_path" >&2
     exit 1
   }
   [ "$(jq -r '.bytes' "$entry_json")" = "$expected_bytes" ] || {
-    echo "snapshot entry bytes mismatch: $path_value" >&2
+    echo "snapshot entry bytes mismatch: path_b64=$encoded_path" >&2
     exit 1
   }
   [ "$(jq -r '.sha256' "$entry_json")" = "$expected_sha256" ] || {
-    echo "snapshot entry sha256 mismatch: $path_value" >&2
+    echo "snapshot entry sha256 mismatch: path_b64=$encoded_path" >&2
     exit 1
   }
 
   if jq -e 'has("content")' "$entry_json" >/dev/null; then
     jq -r '.content | @base64' "$entry_json" | tr -d '\r\n' | base64_decode_stream > "$snapshot_content"
     [ "$(sha256_file "$snapshot_content")" = "$expected_sha256" ] || {
-      echo "snapshot entry content mismatch: $path_value" >&2
+      echo "snapshot entry content mismatch: path_b64=$encoded_path" >&2
       exit 1
     }
   fi

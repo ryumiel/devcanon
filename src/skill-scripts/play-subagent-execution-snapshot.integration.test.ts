@@ -1924,4 +1924,37 @@ describe("play-subagent-execution snapshot validator", () => {
     },
     30_000,
   );
+
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
+    "emits single-line errors for newline-bearing snapshot entry paths",
+    async () => {
+      const tempDir = await createTempGitRepo();
+      try {
+        await writeFile(path.join(tempDir, "baseline.md"), "old\n");
+        const baseSha = await commitChanges(tempDir, "chore: baseline");
+        const newlinePath = "newline-ending-\n";
+        await writeFile(path.join(tempDir, newlinePath), "newline path\n");
+        const headSha = await commitChanges(tempDir, "feat: add newline path");
+        const snapshotFile = `.ephemeral/snapshot-${headSha}.json`;
+
+        await runSnapshotHelper(tempDir, baseSha);
+        await mutateSnapshotFixture(tempDir, headSha, (snapshot) => {
+          const files = snapshot.files as Array<Record<string, unknown>>;
+          files[0].sha256 =
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        });
+
+        await expect(
+          runSnapshotValidator(tempDir, baseSha, snapshotFile),
+        ).rejects.toMatchObject({
+          stderr: expect.stringMatching(
+            /^snapshot entry sha256 mismatch: path_b64=[A-Za-z0-9+/=]+\n$/,
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
 });
