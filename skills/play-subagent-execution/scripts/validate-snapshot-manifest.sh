@@ -207,7 +207,7 @@ while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
 done < "$WORK_DIR/diff.z"
 touch "$EXPECTED_SET"
 
-jq -r '.files[] | [(.path | @base64), .status] | @tsv' "$SNAPSHOT_FILE" > "$ACTUAL_SET"
+jq -r '.files[] | [(.path | @base64), .status] | @tsv' "$SNAPSHOT_FILE" | tr -d '\r' > "$ACTUAL_SET"
 touch "$ACTUAL_SET"
 
 ACTUAL_COUNT="$(wc -l < "$ACTUAL_SET" | tr -d ' ')"

@@ -1899,7 +1899,7 @@ describe("play-subagent-execution snapshot validator", () => {
     30_000,
   );
 
-  it.skipIf(!jqAvailable)(
+  it.skipIf(process.platform === "win32" || !jqAvailable)(
     "accepts newline-bearing paths that the producer wrote byte-faithfully",
     async () => {
       const tempDir = await createTempGitRepo();
