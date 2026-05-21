@@ -52,7 +52,7 @@ Default to `DRY_RUN` unless the user explicitly asks to apply. Never change proj
    - Do not modify Linear.
    - Output current latest health, recommended health, proposed update body, evidence used, and the exact write action that would be performed.
    - When useful, write local drafts under `.ephemeral/`.
-   - Before writing, apply the canonical `.ephemeral` safety guard: create `.ephemeral/` if it does not exist, refuse to write if `.ephemeral` exists as a symlink, and verify the target is a direct child of `.ephemeral/` (no nested paths, `..`, or absolute paths) before writing.
+   - Before writing, apply the canonical `.ephemeral` safety guard: create `.ephemeral/` if it does not exist; refuse to write if `.ephemeral` exists as a symlink; verify the target is a direct child of `.ephemeral/` (no nested paths, `..`, or absolute paths); then inspect the exact target file path before writing, removing it first if it is a symlink and refusing to write if an existing target is not a regular file.
    - Use only these direct-child filenames for draft artifacts:
      - `<project-slug>-project-update-draft.md` for the postable body.
      - `<project-slug>-project-update-evidence.md` for evidence and issue/PR appendix.
