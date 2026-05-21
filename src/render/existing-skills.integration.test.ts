@@ -515,6 +515,31 @@ describe("existing skills render cleanly", () => {
       expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
     }
 
+    const auditorTemplateSourcePath = path.join(
+      repoRoot,
+      "skills/linear-project-update-auditor/references/update-template.md",
+    );
+    const auditorTemplateSourceContent = await readFile(
+      auditorTemplateSourcePath,
+      "utf-8",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedPath = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "linear-project-update-auditor",
+        "references",
+        "update-template.md",
+      );
+
+      expect(await pathExists(generatedPath)).toBe(true);
+      expect(await readFile(generatedPath, "utf-8")).toBe(
+        auditorTemplateSourceContent,
+      );
+    }
+
     const researchPromptSourcePath = path.join(
       repoRoot,
       "skills/issue-priming-workflow/references/research-agent-prompt.md",

@@ -77,6 +77,10 @@ gh pr view PR_NUMBER --repo OWNER/REPO --json number,title,state,mergedAt,closed
 ```
 
 Use GraphQL when the CLI list view omits fields such as `targetDate`, `completedAt`, comments, attachments, or milestones.
+The sample GraphQL query above uses page limits (`issues(first: 250)`,
+`attachments(first: 20)`, and `comments(first: 5)`). When a project or issue
+can exceed those limits, paginate the relevant connections or use narrower
+queries so large projects do not silently omit audit evidence.
 
 For the write action, use an update command against the latest update ID:
 
