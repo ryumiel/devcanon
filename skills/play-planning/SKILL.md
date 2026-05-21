@@ -44,6 +44,12 @@ After writing, emit the literal line `Plan written to <repo-relative-path>.`
 to the conversation. This is the contract surface `play-subagent-execution`
 reads — do not reword it.
 
+After this notice, saved plan artifacts should not be re-inlined or restated in
+controller conversation by default. Carry the plan path, a short decision
+summary, unresolved blockers if any, and the next gate/action. Inline or display
+plan content only for a specific interactive user review gate or when the user
+asks to inspect or change the plan.
+
 ## Inputs
 
 This skill accepts a design document in either of two shapes inside its
@@ -587,13 +593,20 @@ controller-local lifecycle ledger, target lifecycle capability classification,
 cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
 recovery. Capture the plan-review session's role-specific state before
 closing or superseding it: plan path or inline plan scope, source spec/design
-scope, PASS/FAIL result, confidence notes, and specific gaps when present.
+scope, concise PASS/FAIL result, and specific gaps when present.
 
 **Subagent contract:**
 
 - **Model:** `{{model:deep}}`
-- **Input:** The full plan document + the original spec/design document
+- **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
+  inline plan/design content only for direct invocations without paths
 - **Role:** Independent validation of plan completeness and spec alignment
+
+Plan review should prefer artifact path references over inlined full documents.
+When the plan and design were saved under `.ephemeral/`, pass those paths to
+the review agent and instruct it to read them from disk before evaluating. If a
+direct human invocation provides only inline content and no artifact paths,
+inline content remains valid.
 
 **The subagent checks:**
 
@@ -640,7 +653,9 @@ scope, PASS/FAIL result, confidence notes, and specific gaps when present.
 - Hint field ordering is heading, optional `**Mode:** mechanical`, optional
   review-routing hint fields, then `**Files:**`
 
-**Output:** PASS with confidence notes, or FAIL with specific gaps listed.
+**Output:** concise PASS or FAIL with gaps. A PASS may include one short
+confidence note. FAIL gaps must be specific enough to fix, but the reviewer
+must not dump raw artifact bodies or broad commentary.
 
 **On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
 

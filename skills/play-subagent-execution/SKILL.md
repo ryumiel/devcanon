@@ -118,6 +118,11 @@ The controller then reads the plan from the path and proceeds with task
 extraction. Per-task implementer subagents continue to receive curated,
 inlined task text — they do NOT receive the path. See § Red Flags below.
 
+After each implementer or reviewer return, controller state carries status,
+changed files, verification result, blockers, and artifact paths instead of
+large copied outputs. Large logs and side-channel artifacts stay out of
+implementer and reviewer prompts unless needed for failure diagnosis.
+
 ### Auto handoff reference (issue-priming `--auto` only)
 
 `issue-priming-workflow --auto` may pass a second single literal line:

@@ -64,6 +64,33 @@ receives a ready checkout instead of recreating one.
 
 The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
 
+## Path-First Context Hygiene
+
+After any durable artifact is written, controller state and downstream handoffs
+should carry only:
+
+- artifact path
+- short decision summary
+- unresolved blockers, if any
+- next required gate or action
+
+Subagent prompts should receive the repository root plus artifact paths and
+read from disk unless a downstream skill names a narrower inline-content
+boundary. Do not copy issue bodies, comment evidence, research briefs, designs,
+plans, review envelopes, or passing verification logs into controller
+conversation once a durable path exists.
+
+Review-agent outputs default to concise `PASS` or `FAIL with gaps`. Gaps must
+be specific enough to act on, but agents should not dump raw artifact bodies or
+unrelated commentary. Passing verification is summarized as command/result/gap;
+detailed logs or excerpts are reserved for failures, warnings, or ambiguous
+results that need diagnosis.
+
+This contract preserves existing user-visible approval gates and exact producer
+notice lines. It also preserves the `play-subagent-execution` boundary: the
+executor controller may accept `Plan: <path>`, but per-task implementer
+subagents receive curated task text rather than the whole plan file.
+
 ## Workflow
 
 See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the DOT-language phase-flow diagram.

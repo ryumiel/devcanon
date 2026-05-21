@@ -37,6 +37,21 @@ BEFORE claiming any status or expressing satisfaction:
 Skip any step = lying, not verifying
 ```
 
+## Reporting Verification Evidence
+
+Passing verification is reported as command/result/gap:
+
+- **Command:** the fresh full command that was run
+- **Result:** exit status and the decisive pass/fail count or summary
+- **Gap:** remaining unverified scope, warning, or blocker; use "none" only
+  after reading the full output
+
+Do not paste passing logs just to prove they were read. Detailed logs or
+excerpts are included only when needed to diagnose a failure, warning, or
+ambiguous result. This reporting rule does not weaken the gate: still run the
+full command, read the full output, check the exit code, and count failures
+before making any claim.
+
 ## Common Failures
 
 | Claim                 | Requires                        | Not Sufficient                 |

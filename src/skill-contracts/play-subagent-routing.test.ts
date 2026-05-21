@@ -168,6 +168,37 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps executor plan-path intake separate from per-task implementer context", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
+    const normalizedExecution = normalizeWhitespace(playSubagentExecution);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+
+    expect(normalizedExecution).toContain(
+      "The controller then reads the plan from the path and proceeds with task extraction",
+    );
+    expect(normalizedExecution).toContain(
+      "Per-task implementer subagents continue to receive curated, inlined task text",
+    );
+    expect(normalizedExecution).toContain("they do NOT receive the path");
+    expect(normalizedExecution).toContain(
+      "controller state carries status, changed files, verification result, blockers, and artifact paths",
+    );
+    expect(normalizedExecution).toContain(
+      "Large logs and side-channel artifacts stay out of implementer and reviewer prompts unless needed for failure diagnosis",
+    );
+    expect(normalizedRedFlags).toContain(
+      "Make per-task implementer subagent read the plan file",
+    );
+    expect(normalizedRedFlags).toContain(
+      "The controller MAY accept the plan via a `Plan: <path>` reference",
+    );
+  });
+
   it("keeps reduced-route auto-handoff and Phase 7 guarantees in source", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
