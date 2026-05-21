@@ -846,6 +846,9 @@ describe("phase artifact source contracts", () => {
     expect(playSubagentExecution).toContain(
       "scripts/write-snapshot-manifest.sh",
     );
+    expect(playSubagentExecution).toContain(
+      "scripts/validate-snapshot-manifest.sh",
+    );
     expect(playSubagentExecution).toContain("include a readable");
     expect(playSubagentExecution).toContain(
       "Snapshot Manifest Recipe path sourced from",
@@ -859,39 +862,29 @@ describe("phase artifact source contracts", () => {
     expect(playSubagentExecution).toContain("hard helper prerequisite");
     expect(playSubagentExecution).toContain("snapshot notice line");
     expect(normalizedPlaySubagentExecution).toContain(
-      "This parse and validation path applies only when the controller recorded snapshot state as `requested`",
+      "This validation path applies only when the controller recorded snapshot state as `requested`",
     );
     expect(normalizedPlaySubagentExecution).toContain(
       "If snapshot state is `skipped`, do not parse or expect a notice line",
     );
-    expect(playSubagentExecution).toContain(".ephemeral/*/snapshot-*.json");
     expect(normalizeWhitespace(playSubagentExecution)).toContain(
-      "snapshot-specific flatness, symlink, and regular-file checks",
+      "The validator script owns the deterministic snapshot path, symlink, file-kind, schema, head-SHA, and changed-file set checks",
     );
-    expect(playSubagentExecution).toContain("snapshot-specific read guard");
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
-      "intentionally diverges from `play-review`'s findings-file guard",
-    );
+    expect(playSubagentExecution).toContain("SNAPSHOT_STATUS=valid");
+    expect(playSubagentExecution).toContain("SNAPSHOT_CHANGED_FILE_COUNT");
     expect(playSubagentExecution).not.toContain(
       "starts from the authoritative path-validation guard",
     );
-    expect(playSubagentExecution).toContain("snapshot is not a regular file");
-    expect(playSubagentExecution).toContain("SNAPSHOT_ENTRY_PATH");
-    expect(playSubagentExecution).toContain("../*");
     expect(playSubagentExecution).toContain(
       "controller's own changed-file list",
     );
     expect(normalizeWhitespace(playSubagentExecution)).toContain(
       "back to committed HEAD blob reads using the controller's own changed-file list, not the snapshot-provided path or status.",
     );
-    expect(playSubagentExecution).toContain(
-      'git ls-tree HEAD -- ":(literal)$path"',
-    );
-    expect(playSubagentExecution).toContain('git cat-file blob "HEAD:$path"');
     expect(normalizeWhitespace(playSubagentExecution)).toContain(
       "Do not read mutable working-tree paths",
     );
-    expect(playSubagentExecution).toContain(
+    expect(normalizedPlaySubagentExecution).toContain(
       "`path` + `status` set must exactly equal",
     );
     expect(playSubagentExecution).toContain("missing");
