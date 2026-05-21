@@ -87,8 +87,8 @@ detailed logs or excerpts are reserved for failures, warnings, or ambiguous
 results that need diagnosis.
 
 This contract preserves existing user-visible approval gates and exact producer
-notice lines. It also preserves ADR-0013's `play-subagent-execution` boundary:
-the executor controller may accept `Plan: <path>`, but per-task implementer
+notice lines. It also preserves the `play-subagent-execution` boundary: the
+executor controller may accept `Plan: <path>`, but per-task implementer
 subagents receive curated task text rather than the whole plan file.
 
 ## Workflow
