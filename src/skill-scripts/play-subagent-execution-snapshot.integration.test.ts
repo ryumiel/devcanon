@@ -1433,6 +1433,46 @@ describe("play-subagent-execution snapshot validator", () => {
   );
 
   it.skipIf(!jqAvailable)(
+    "rejects invalid base commits before diffing",
+    async () => {
+      const { tempDir, snapshotFile } = await writeSnapshotFixture();
+      try {
+        await expect(
+          runSnapshotValidator(tempDir, "--no-index", snapshotFile),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("base SHA invalid"),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
+    "validates blob metadata against a captured controller head",
+    async () => {
+      const { tempDir, baseSha, headSha, snapshotFile } =
+        await writeSnapshotFixture();
+      try {
+        await writeFile(path.join(tempDir, "file.md"), "later content\n");
+        await commitChanges(tempDir, "feat: move ambient head");
+
+        await expect(
+          runSnapshotValidator(tempDir, baseSha, snapshotFile, {
+            CONTROLLER_HEAD_SHA: headSha,
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(`SNAPSHOT_HEAD_SHA=${headSha}\n`),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!jqAvailable)(
     "rejects malformed, nested, and missing snapshot notice paths",
     async () => {
       const { tempDir, baseSha, headSha } = await writeSnapshotFixture();
@@ -1849,7 +1889,7 @@ describe("play-subagent-execution snapshot validator", () => {
           runSnapshotValidator(tempDir, baseSha, snapshotFile),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
-            "snapshot entry path is not a regular HEAD blob",
+            "snapshot entry path is not a regular controller head blob",
           ),
         });
       } finally {

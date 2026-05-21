@@ -12,6 +12,17 @@ require_env() {
 require_env BASE_SHA
 require_env SNAPSHOT_FILE
 
+verify_commit() {
+  local label="$1"
+  local value="$2"
+  local resolved
+  resolved="$(git rev-parse --verify --quiet --end-of-options "${value}^{commit}" 2>/dev/null)" || {
+    echo "$label invalid: $value" >&2
+    exit 1
+  }
+  printf '%s\n' "$resolved"
+}
+
 sha256_stream() {
   if command -v shasum >/dev/null 2>&1; then
     shasum -a 256 | awk '{print $1}'
@@ -47,6 +58,7 @@ PHYSICAL_PWD="$(pwd -P)"
   exit 1
 }
 
+BASE_COMMIT_SHA="$(verify_commit "base SHA" "$BASE_SHA")"
 CONTROLLER_HEAD_SHA="${CONTROLLER_HEAD_SHA:-$(git rev-parse HEAD)}"
 case "$CONTROLLER_HEAD_SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
@@ -55,6 +67,7 @@ case "$CONTROLLER_HEAD_SHA" in
     exit 1
     ;;
 esac
+CONTROLLER_HEAD_SHA="$(verify_commit "controller head SHA" "$CONTROLLER_HEAD_SHA")"
 
 case "$SNAPSHOT_FILE" in
   .ephemeral/*/snapshot-*.json)
@@ -178,7 +191,7 @@ ACTUAL_SET="$WORK_DIR/actual.tsv"
 EXPECTED_SORTED="$WORK_DIR/expected.sorted.tsv"
 ACTUAL_SORTED="$WORK_DIR/actual.sorted.tsv"
 
-git diff -z --name-status --no-renames "$BASE_SHA..$CONTROLLER_HEAD_SHA" > "$WORK_DIR/diff.z"
+git diff -z --name-status --no-renames "$BASE_COMMIT_SHA..$CONTROLLER_HEAD_SHA" > "$WORK_DIR/diff.z"
 while IFS= read -r -d '' git_status && IFS= read -r -d '' path; do
   case "$git_status" in
     A) status="added" ;;
@@ -221,11 +234,11 @@ while IFS=$'\t' read -r encoded_path status_value; do
     jq -rjn --arg encoded "$encoded_path" '$encoded | @base64d'
     printf '\0'
   )
-  mode="$(git ls-tree HEAD -- ":(literal)$path_value" | awk 'NR == 1 { print $1 }')"
+  mode="$(git ls-tree "$CONTROLLER_HEAD_SHA" -- ":(literal)$path_value" | awk 'NR == 1 { print $1 }')"
   case "$mode" in
     100644|100755) ;;
     *)
-      echo "snapshot entry path is not a regular HEAD blob: $path_value" >&2
+      echo "snapshot entry path is not a regular controller head blob: $path_value" >&2
       exit 1
       ;;
   esac
@@ -235,7 +248,7 @@ while IFS=$'\t' read -r encoded_path status_value; do
   snapshot_content="$WORK_DIR/snapshot-content"
   jq --arg path "$path_value" '.files[] | select(.path == $path)' "$SNAPSHOT_FILE" > "$entry_json"
 
-  git cat-file blob "HEAD:$path_value" > "$head_content"
+  git cat-file blob "$CONTROLLER_HEAD_SHA:$path_value" > "$head_content"
   expected_lines="$(awk 'END{print NR}' < "$head_content")"
   expected_bytes="$(wc -c < "$head_content" | tr -d ' ')"
   expected_sha256="$(sha256_file "$head_content")"
