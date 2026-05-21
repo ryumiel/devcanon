@@ -24,6 +24,25 @@ const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/code-quality-reviewer-prompt.md",
 ] as const;
 
+const CHILD_AGENT_TEMPLATE_SENTINELS = [
+  {
+    path: "skills/play-subagent-execution/references/implementer-prompt.md",
+    phrase: "If you have questions about:",
+  },
+  {
+    path: "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    phrase: "Mechanical mode is only for approved verbatim artifact work",
+  },
+  {
+    path: "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    phrase: "The implementer finished suspiciously quickly",
+  },
+  {
+    path: "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    phrase: "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
+  },
+] as const;
+
 describe("play subagent routing source contracts", () => {
   it("declares child-agent prompt templates in an explicit registry", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
@@ -45,15 +64,11 @@ describe("play subagent routing source contracts", () => {
   it("keeps full child-agent dispatch prompt bodies out of SKILL.md", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
 
-    const templateOnlyPhrases = [
-      "If you have questions about:",
-      "Mechanical mode is only for approved verbatim artifact work",
-      "The implementer finished suspiciously quickly",
-      "WHAT_WAS_IMPLEMENTED: [from implementer's report]",
-    ];
+    for (const { path, phrase } of CHILD_AGENT_TEMPLATE_SENTINELS) {
+      const templateSource = await readRepoFile(path);
 
-    for (const templateOnlyPhrase of templateOnlyPhrases) {
-      expect(skillSource).not.toContain(templateOnlyPhrase);
+      expect(templateSource).toContain(phrase);
+      expect(skillSource).not.toContain(phrase);
     }
   });
 
