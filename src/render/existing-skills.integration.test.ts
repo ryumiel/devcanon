@@ -433,29 +433,30 @@ describe("existing skills render cleanly", () => {
       }
     }
 
-    const snapshotHelperSourcePath = path.join(
-      repoRoot,
-      "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
-    );
-    const snapshotHelperSourceContent = await readFile(
-      snapshotHelperSourcePath,
-      "utf-8",
-    );
-
-    for (const target of ["claude", "codex"] as const) {
-      const generatedPath = path.join(
-        config.library.generatedDir,
-        target,
-        "skills",
-        "play-subagent-execution",
-        "scripts",
-        "write-snapshot-manifest.sh",
+    for (const script of [
+      "write-snapshot-manifest.sh",
+      "validate-snapshot-manifest.sh",
+    ]) {
+      const sourcePath = path.join(
+        repoRoot,
+        "skills/play-subagent-execution/scripts",
+        script,
       );
+      const sourceContent = await readFile(sourcePath, "utf-8");
 
-      expect(await pathExists(generatedPath)).toBe(true);
-      expect(await readFile(generatedPath, "utf-8")).toBe(
-        snapshotHelperSourceContent,
-      );
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "play-subagent-execution",
+          "scripts",
+          script,
+        );
+
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
     }
 
     const skillEntries = await readdir(path.join(repoRoot, "skills"), {

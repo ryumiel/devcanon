@@ -626,93 +626,40 @@ implementer reports `BLOCKED` without emitting the snapshot notice line. If no
 snapshot is requested, the implementer does not read the recipe or run the
 helper.
 
-### Parse and validate the path
+### Validate the requested snapshot
 
-This parse and validation path applies only when the controller recorded
-snapshot state as `requested`. If snapshot state is `skipped`, do not parse or
-expect a notice line; record snapshot state as `skipped` and use the default DONE
-fields plus controller-computed git/disk reads. When a snapshot was requested,
-parse the path off the literal notice line, then run the canonical guard narrowed
-to the snapshot suffix:
+This validation path applies only when the controller recorded snapshot state as
+`requested`. If snapshot state is `skipped`, do not parse or expect a notice
+line; record snapshot state as `skipped` and use the default DONE fields plus
+controller-computed git/disk reads.
 
-```bash
-SNAPSHOT_OK=true
-case "$SNAPSHOT_FILE" in
-  .ephemeral/snapshot-*.json) ;;
-  *) echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
-esac
-SNAPSHOT_BASENAME=${SNAPSHOT_FILE#.ephemeral/}
-case "$SNAPSHOT_FILE" in
-  .ephemeral/*/snapshot-*.json) echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false ;;
-esac
-[ "$SNAPSHOT_BASENAME" != "$SNAPSHOT_FILE" ] && [ "$SNAPSHOT_BASENAME" != "" ] || { echo "snapshot path validation failed: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-[ "${SNAPSHOT_BASENAME#*/}" = "$SNAPSHOT_BASENAME" ] || { echo "snapshot path must be flat: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-[ "${SNAPSHOT_FILE#*..}" = "$SNAPSHOT_FILE" ] || { echo "path traversal: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-[ -L .ephemeral ] && { echo "snapshot directory is a symlink: .ephemeral" >&2; SNAPSHOT_OK=false; }
-[ -L "$SNAPSHOT_FILE" ] && { echo "snapshot is a symlink: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-[ -f "$SNAPSHOT_FILE" ] || { echo "snapshot is not a regular file: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-[ -r "$SNAPSHOT_FILE" ] || { echo "snapshot missing or unreadable: $SNAPSHOT_FILE" >&2; SNAPSHOT_OK=false; }
-# If $SNAPSHOT_OK == false, record snapshot state as malformed and fall back
-# to committed HEAD blob reads for every file in the controller's own
-# changed-file list from git diff -z --name-status --no-renames BASE..HEAD.
-# Do not abort the controller workflow solely because the snapshot cannot be
-# consumed, but surface the malformed state when a snapshot was requested.
+When a snapshot was requested, parse the path off the literal notice line, bind
+it to `SNAPSHOT_FILE`, bind the task's captured base SHA to `BASE_SHA`, and run
+`scripts/validate-snapshot-manifest.sh` from the repository root. The optional
+`CONTROLLER_HEAD_SHA` input may be set when the controller already captured the
+expected task head; otherwise the script uses `git rev-parse HEAD`.
+
+The validator script owns the deterministic snapshot path, symlink, file-kind,
+schema, head-SHA, and changed-file set checks. The snapshot's complete `path` + `status` set must exactly equal the controller-computed set: no missing, extra,
+duplicate, or status-mismatched entries. Direct script tests own these low-level
+mechanics; this skill owns the workflow policy and failure disposition.
+
+On success, the script emits parseable stdout:
+
+```text
+SNAPSHOT_STATUS=valid
+SNAPSHOT_FILE=<repo-relative snapshot path>
+SNAPSHOT_HEAD_SHA=<40-hex sha>
+SNAPSHOT_CHANGED_FILE_COUNT=<count>
 ```
 
-This bash is a snapshot-specific read guard. It keeps the generic
-suffix/traversal shape used by phase artifacts but intentionally diverges from
-`play-review`'s findings-file guard: snapshots have no branch/SHA expected-path
-comparison, allow only flat `.ephemeral/snapshot-*.json` files, and use a
-log-and-fall-back disposition instead of a hard exit. The snapshot consumer
-always has default DONE fields plus committed HEAD blob reads available, so
-fallback remains possible even when a requested snapshot is malformed. It also
-enforces snapshot-specific flatness, symlink, and
-regular-file checks because the consumer is read-only and never overwrites
-the file — the producer-side helper writes through a repo-scoped private scratch
-directory and renames that output into place only after rejecting an existing
-directory at the target snapshot path, then verifies the final path is a regular
-non-empty file before reporting success.
-
-After parsing the JSON, also compare the snapshot's `head_sha` to
-the controller's own view of the worktree:
-
-```bash
-CONTROLLER_HEAD_SHA=$(git rev-parse HEAD)
-[ "$CONTROLLER_HEAD_SHA" = "$SNAPSHOT_HEAD_SHA" ] || {
-  echo "snapshot head_sha mismatch: $SNAPSHOT_HEAD_SHA vs $CONTROLLER_HEAD_SHA" >&2
-  # fall back to committed HEAD blob reads for this task
-}
-```
-
-A mismatch is the trigger for the `head_sha`-mismatch row in the
-failure-mode table below; without this comparison, that row is
-unreachable.
-
-Before using any `files[]` value for metadata, line extraction, or
-committed-blob fallback, validate it against the controller's own changed-file list from
-`git diff -z --name-status --no-renames BASE..HEAD`. The snapshot's complete
-`path` + `status` set must exactly equal the controller-computed set: no
-missing, extra, duplicate, or status-mismatched entries. Also reject unsafe path
-syntax:
-
-```bash
-case "$SNAPSHOT_ENTRY_PATH" in
-  ''|/*|.|..|../*|./*|*/.|*/..|*'/./'*|*'/../'*|*'//'*)
-    echo "snapshot entry path validation failed: $SNAPSHOT_ENTRY_PATH" >&2
-    SNAPSHOT_OK=false
-    ;;
-esac
-# Also require exact path+status set equality with the controller-computed
-# changed-file set.
-```
-
-If this complete-set validation fails, treat the snapshot as malformed and fall
-back to committed HEAD blob reads using the controller's own changed-file list,
-not the snapshot-provided path or status. For any non-deleted path the
-controller reads during fallback, first use committed HEAD tree metadata with a
-literal pathspec (`git ls-tree HEAD -- ":(literal)$path"`) to require a regular
-blob entry, then read bytes with `git cat-file blob "HEAD:$path"`. Do not read
-mutable working-tree paths for snapshot fallback.
+It emits no file content. If the script exits nonzero, record snapshot state as
+`malformed`, surface the stderr reason, and fall back to committed HEAD blob
+reads using the controller's own changed-file list, not the snapshot-provided
+path or status. Do not abort the controller workflow solely because the
+requested snapshot cannot be consumed; the default DONE fields plus committed
+HEAD blob reads remain available. Do not read mutable working-tree paths for
+snapshot fallback.
 
 ### Use cases
 
@@ -1009,6 +956,7 @@ are not child-agent dispatch prompt templates.
 
 - `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
 - `scripts/write-snapshot-manifest.sh` — helper script for writing implementer `implementer/snapshot/v1` manifests
+- `scripts/validate-snapshot-manifest.sh` — helper script for validating requested implementer `implementer/snapshot/v1` manifests before controller consumption
 
 ## Example Workflow
 
