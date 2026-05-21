@@ -470,9 +470,7 @@ describe("play subagent routing source contracts", () => {
     const handlingStatus = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
-    const lifecycle = await readRepoFile(
-      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-    );
+    const lifecycle = handlingStatus;
     const processDiagrams = await readRepoFile(
       "skills/play-subagent-execution/references/process-diagrams.md",
     );

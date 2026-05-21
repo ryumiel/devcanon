@@ -31,9 +31,6 @@ verbatim artifact work or unambiguous identifier replacement, the implementer
 dispatch itself is skipped. The controller executes Write/Edit, satisfies
 verification expectations, and commits inline.
 
-The controller evaluates five conditions after plan extraction. All five
-guardrails must hold for inline execution.
-
 All five guardrails must hold for inline execution. If condition #4 fails, stop
 before implementation and report BLOCKED/NEEDS_CONTEXT for the task contract.
 Other misses fall back to the dispatched-implementer flow.
@@ -96,8 +93,8 @@ fails; TDD work uses `implementer-prompt.md` regardless of any mechanical hint.
 
 ## Skip-Dispatch Examples
 
-Positive: a single-task plan whose Task 1 header includes `**Mode:**
-mechanical`, whose body specifies a docs-only ADR file write with full approved
+Positive: a single-task plan whose Task 1 header includes `**Mode:** mechanical`,
+whose body specifies a docs-only ADR file write with full approved
 verbatim artifact content, whose contract checklist is complete, and whose body
 has no TDD markers. All five guardrails hold; the controller writes the file,
 commits, and marks the task complete.
