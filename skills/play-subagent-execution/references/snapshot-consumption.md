@@ -144,16 +144,16 @@ file from disk; never use snapshot content as Edit anchors.
 
 ## Failure Modes
 
-| Scenario                                                              | Action                                                                                                                                                                           |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Controller requested a snapshot                                       | Record snapshot state as `requested` before dispatch and require either a valid notice line or a `BLOCKED` report from the implementer if the helper cannot write the manifest.  |
-| Controller skipped the snapshot                                       | Record snapshot state as `skipped`; absence of a notice line is valid. Use the default DONE fields plus controller-computed `git diff -z --name-status --no-renames BASE..HEAD`. |
-| Requested snapshot notice line is emitted and validates               | Record snapshot state as `emitted`; snapshot content may be consumed within the trust boundary.                                                                                  |
-| Path validation, file-kind, JSON, or path/status set validation fails | Record snapshot state as `malformed`; surface the incident and fall back to committed HEAD blob reads using the controller-computed changed-file list.                           |
-| Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS | Record snapshot state as `malformed`; surface the requested-snapshot contract violation and fall back to default DONE fields plus controller-computed git/disk reads.            |
-| Per-file `content` omitted, `status == "deleted"`                     | No `HEAD:<path>` blob exists; treat `status` as authoritative.                                                                                                                   |
-| Per-file `content` omitted, `"skipped"` set                           | Read that file from the committed HEAD blob; rest of files use snapshot content.                                                                                                 |
-| `head_sha` in snapshot does not match controller view                 | Record snapshot state as `malformed`; log and fall back to committed HEAD blob reads.                                                                                            |
+| Scenario                                                              | Action                                                                                                                                                                                  |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Controller requested a snapshot                                       | Record snapshot state as `requested` before dispatch and require either a valid notice line or a `BLOCKED` report from the implementer if the helper cannot write the manifest.         |
+| Controller skipped the snapshot                                       | Record snapshot state as `skipped`; absence of a notice line is valid. Use the default DONE fields plus controller-computed `git diff -z --name-status --no-renames "$BASE_SHA..HEAD"`. |
+| Requested snapshot notice line is emitted and validates               | Record snapshot state as `emitted`; snapshot content may be consumed within the trust boundary.                                                                                         |
+| Path validation, file-kind, JSON, or path/status set validation fails | Record snapshot state as `malformed`; surface the incident and fall back to committed HEAD blob reads using the controller-computed changed-file list.                                  |
+| Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS | Record snapshot state as `malformed`; surface the requested-snapshot contract violation and fall back to default DONE fields plus controller-computed git/disk reads.                   |
+| Per-file `content` omitted, `status == "deleted"`                     | No `HEAD:<path>` blob exists; treat `status` as authoritative.                                                                                                                          |
+| Per-file `content` omitted, `"skipped"` set                           | Read that file from the committed HEAD blob; rest of files use snapshot content.                                                                                                        |
+| `head_sha` in snapshot does not match controller view                 | Record snapshot state as `malformed`; log and fall back to committed HEAD blob reads.                                                                                                   |
 
 ## Skip-Dispatch Exclusion
 

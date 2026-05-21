@@ -867,6 +867,9 @@ describe("phase artifact source contracts", () => {
     expect(normalizedSnapshotConsumption).toContain(
       "If snapshot state is `skipped`, do not parse or expect a notice line",
     );
+    expect(snapshotConsumption).toContain(
+      'git diff -z --name-status --no-renames "$BASE_SHA..HEAD"',
+    );
     expect(normalizedSnapshotConsumption).toContain(
       "The validator script owns the deterministic snapshot path, symlink, file-kind, schema, head-SHA, and changed-file set checks",
     );
@@ -913,7 +916,7 @@ describe("phase artifact source contracts", () => {
     );
   });
 
-  it("keeps ADR-0014 snapshot policy invariants in the ADR source", async () => {
+  it("keeps snapshot and skip-dispatch ADR source references aligned", async () => {
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
     );
