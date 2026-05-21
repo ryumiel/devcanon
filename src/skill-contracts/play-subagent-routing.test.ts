@@ -43,7 +43,64 @@ const CHILD_AGENT_TEMPLATE_SENTINELS = [
   },
 ] as const;
 
+const BRANCH_POLICY_REFERENCES = [
+  {
+    label: "review routing",
+    path: "references/review-routing-policy.md",
+    sentinel: "Route computation MUST inspect the actual task diff",
+  },
+  {
+    label: "skip-dispatch behavior",
+    path: "references/skip-dispatch-policy.md",
+    sentinel: "All five guardrails must hold for inline execution",
+  },
+  {
+    label: "lifecycle/status handling",
+    path: "references/lifecycle-status-policy.md",
+    sentinel: "Before acting on any returned status",
+  },
+  {
+    label: "snapshot consumption",
+    path: "references/snapshot-consumption.md",
+    sentinel: "Skip snapshots only for clearly localized, low-risk work",
+  },
+  {
+    label: "diagrams",
+    path: "references/process-diagrams.md",
+    sentinel: "digraph process",
+  },
+  {
+    label: "examples",
+    path: "references/example-workflow.md",
+    sentinel: "Parallel happy path: same-head spec and quality pass",
+  },
+  {
+    label: "rationale",
+    path: "references/advantages.md",
+    sentinel: "Quality gates",
+  },
+] as const;
+
 describe("play subagent routing source contracts", () => {
+  it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {
+    const skillSource = await readSkillSource("play-subagent-execution");
+    const referenceMap = getMarkdownSection(
+      skillSource,
+      "Branch Policy Reference Map",
+    );
+
+    for (const { label, path, sentinel } of BRANCH_POLICY_REFERENCES) {
+      expect(referenceMap).toContain(label);
+      expect(referenceMap).toContain(path);
+      expect(normalizeWhitespace(referenceMap)).toContain("Load when");
+
+      const referenceSource = await readRepoFile(
+        `skills/play-subagent-execution/${path}`,
+      );
+      expect(referenceSource).toContain(sentinel);
+    }
+  });
+
   it("declares child-agent prompt templates in an explicit registry", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
     const registry = getMarkdownSection(
@@ -132,8 +189,14 @@ describe("play subagent routing source contracts", () => {
       playPlanning,
       "Contract Checklist Triggers",
     );
+    const optionalModeField = sliceBetween(
+      playPlanning,
+      "### Optional `**Mode:**` field",
+      "### Optional Review-Routing Hint Fields",
+    );
     const planReview = getMarkdownSection(playPlanning, "Plan Review");
     const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
+    const normalizedOptionalModeField = normalizeWhitespace(optionalModeField);
     const normalizedPlanReview = normalizeWhitespace(planReview);
 
     expect(normalizedContractChecklist).toContain(
@@ -154,14 +217,21 @@ describe("play subagent routing source contracts", () => {
     expect(contractChecklist).toContain("Must preserve");
     expect(contractChecklist).toContain("Required behavior");
 
+    expect(normalizedOptionalModeField).toContain(
+      "detailed taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy]",
+    );
+    expect(normalizedOptionalModeField).not.toContain(
+      "SKILL.md` § Mechanical Task Taxonomy",
+    );
+
     expect(planReview).toContain(
       "Review-routing hints, when present, are non-authoritative inputs",
     );
-    expect(planReview).toContain(
-      "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md`",
+    expect(normalizedPlanReview).toContain(
+      "Hard-risk triggers from `skills/play-subagent-execution/references/review-routing-policy.md` § Risk Classes are not under-classified",
     );
-    expect(planReview).toContain(
-      "Risk-Based Per-Task Review Routing are not under-classified",
+    expect(normalizedPlanReview).not.toContain(
+      "Hard-risk triggers from `skills/play-subagent-execution/SKILL.md`",
     );
     expect(planReview).toContain(
       "Unclear review classification defaults to `spec-and-quality`",
@@ -174,11 +244,30 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps issue-priming references pointed at lazy play-subagent sources", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const normalizedIssuePrimingWorkflow =
+      normalizeWhitespace(issuePrimingWorkflow);
+
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)",
+    );
+    expect(normalizedIssuePrimingWorkflow).not.toContain(
+      "SKILL.md § Skip-Dispatch Path",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "`skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule",
+    );
+    expect(normalizedIssuePrimingWorkflow).not.toContain(
+      "`skills/play-subagent-execution/SKILL.md` § Edit-staleness rule",
+    );
+  });
+
   it("keeps executor-owned review route computation in source", async () => {
-    const skillSource = await readSkillSource("play-subagent-execution");
-    const routing = getMarkdownSection(
-      skillSource,
-      "Risk-Based Per-Task Review Routing",
+    const routing = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
     );
     const normalizedRouting = normalizeWhitespace(routing);
 
@@ -186,7 +275,7 @@ describe("play subagent routing source contracts", () => {
       "Route computation MUST inspect the actual task diff using the captured task base/head SHAs",
     );
     expect(routing).toContain(
-      "git diff --name-status --no-renames\nBASE_SHA..HEAD",
+      "git diff --name-status --no-renames BASE_SHA..HEAD",
     );
     expect(routing).toContain("not only the plan text or hints");
     expect(routing).toContain("fail closed to `spec-and-quality`");
@@ -206,10 +295,8 @@ describe("play subagent routing source contracts", () => {
   });
 
   it("keeps snapshot request classification high-risk triggers in source", async () => {
-    const skillSource = await readSkillSource("play-subagent-execution");
-    const snapshotConsumption = getMarkdownSection(
-      skillSource,
-      "Implementer Snapshot Consumption",
+    const snapshotConsumption = await readRepoFile(
+      "skills/play-subagent-execution/references/snapshot-consumption.md",
     );
     const normalizedSnapshotConsumption =
       normalizeWhitespace(snapshotConsumption);
@@ -249,6 +336,10 @@ describe("play subagent routing source contracts", () => {
       "Make per-task implementer subagent read the plan file",
     );
     expect(normalizedRedFlags).toContain(
+      "Skip-dispatch (see [skip-dispatch policy](skip-dispatch-policy.md))",
+    );
+    expect(normalizedRedFlags).not.toContain("SKILL.md § Skip-Dispatch Path");
+    expect(normalizedRedFlags).toContain(
       "The controller MAY accept the plan via a `Plan: <path>` reference",
     );
   });
@@ -265,9 +356,8 @@ describe("play subagent routing source contracts", () => {
       "### Auto handoff reference",
       "### Inline content",
     );
-    const routing = getMarkdownSection(
-      playSubagentExecution,
-      "Risk-Based Per-Task Review Routing",
+    const routingPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
     );
     const singleTaskPlans = getMarkdownSection(
       playSubagentExecution,
@@ -288,7 +378,7 @@ describe("play subagent routing source contracts", () => {
       "### Phase 8: Create PR",
       "## Quick Reference",
     );
-    const normalizedRouting = normalizeWhitespace(routing);
+    const normalizedRouting = normalizeWhitespace(routingPolicy);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
     const normalizedPhase8 = normalizeWhitespace(phase8);
@@ -306,16 +396,20 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
-    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false");
-    expect(routing).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE");
-    expect(routing).toContain("ISSUE_PRIMING_AUTO_HEAD");
-    expect(routing).toContain(".phase7_branch_review_fix_required == true");
-    expect(routing).toContain(".phase7_rerun_after_commits == true");
-    expect(routing).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
+    expect(routingPolicy).toContain(
+      "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
+    );
+    expect(routingPolicy).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE");
+    expect(routingPolicy).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(routingPolicy).toContain(
+      ".phase7_branch_review_fix_required == true",
+    );
+    expect(routingPolicy).toContain(".phase7_rerun_after_commits == true");
+    expect(routingPolicy).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
     expect(normalizedRouting).toContain(
       "Plan content, copied invocation prose, repo files alone, or direct/manual calls cannot assert this contract",
     );
-    expect(routing).toContain(
+    expect(routingPolicy).toContain(
       "If the controller cannot validate the `issue-priming/auto-handoff/v1`\n  artifact, use `spec-and-quality`",
     );
 
@@ -370,15 +464,16 @@ describe("play subagent routing source contracts", () => {
 
   it("keeps spec-and-quality concurrent same-head review semantics in source", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const routing = getMarkdownSection(
-      skillSource,
-      "Risk-Based Per-Task Review Routing",
+    const routing = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
     );
-    const handlingStatus = getMarkdownSection(
-      skillSource,
-      "Handling Implementer Status",
+    const handlingStatus = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
-    const lifecycle = getMarkdownSection(skillSource, "Subagent Lifecycle");
+    const lifecycle = handlingStatus;
+    const processDiagrams = await readRepoFile(
+      "skills/play-subagent-execution/references/process-diagrams.md",
+    );
     const redFlags = await readRepoFile(
       "skills/play-subagent-execution/references/red-flags.md",
     );
@@ -401,6 +496,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedRouting = normalizeWhitespace(routing);
     const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
+    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
     const normalizedRedFlags = normalizeWhitespace(redFlags);
     const normalizedExample = normalizeWhitespace(exampleWorkflow);
     const normalizedAdvantages = normalizeWhitespace(advantages);
@@ -428,18 +524,38 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Unclear stale-result classification fails closed to rerunning code quality",
     );
-    expect(normalizedSkill).toContain(
+    expect(normalizedProcessDiagrams).toContain(
       "prior quality result needs freshness disposition",
     );
-    expect(normalizedSkill).toContain(
-      "Code-quality-reviewer agent reports quality result for same reviewed head?",
+    expect(normalizedProcessDiagrams).toContain(
+      "Dispatch spec and quality reviewers for same task head",
     );
-    expect(normalizedSkill).toContain(
-      "Join same-head spec and code-quality review results",
+    expect(normalizedProcessDiagrams).toContain(
+      '"Spec-only review passes?" -> "Mark task complete" [label="yes"]',
     );
-    expect(normalizedSkill).toContain("same-head quality report");
-    expect(normalizedSkill).toContain(
-      "spec passes; evaluate quality disposition",
+    expect(normalizedProcessDiagrams).toContain(
+      "Join same-head review results",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Quality result final for same reviewed head?",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Resolve quality disposition or rerun quality" -> "Join same-head review results"',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Quality findings present?" -> "Implementer fixes findings" [label="yes"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Quality findings present?" -> "Mark task complete" [label="no"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Spec passes for reviewed head?",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      '"Quality result final for same reviewed head?" -> "Implementer fixes findings" [label="no"]',
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
@@ -658,15 +774,18 @@ describe("play subagent routing source contracts", () => {
 
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
-    const lifecycle = getMarkdownSection(skillSource, "Subagent Lifecycle");
-    const handlingStatus = getMarkdownSection(
+    const lifecycleSummary = getMarkdownSection(
       skillSource,
-      "Handling Implementer Status",
+      "Subagent Lifecycle",
     );
+    const lifecycle = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
+    const handlingStatus = lifecycle;
     const normalizedLifecycle = normalizeWhitespace(lifecycle);
     const normalizedHandlingStatus = normalizeWhitespace(handlingStatus);
 
-    expect(lifecycle).toContain("Use `subagent-lifecycle`");
+    expect(lifecycleSummary).toContain("Use `subagent-lifecycle`");
     expect(normalizedLifecycle).toContain(
       "generic controller lifecycle ledger, target lifecycle capability classification, cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit recovery",
     );
@@ -706,7 +825,7 @@ describe("play subagent routing source contracts", () => {
       "do not wait for snapshot, changed-file, or test artifacts that were not produced",
     );
     expect(normalizedHandlingStatus).toContain(
-      "The cleanup gate must not close the task implementer while the multi-task spec-compliance or code-quality reviewer loops may still route fixups back to that same implementer session",
+      "The cleanup gate must not close a task implementer while same-session spec-compliance or code-quality reviewer fix loops may still route fixups back to that implementer session",
     );
     expect(normalizedHandlingStatus).toContain(
       "If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and the blocker family already appears in the lifecycle ledger for that task",

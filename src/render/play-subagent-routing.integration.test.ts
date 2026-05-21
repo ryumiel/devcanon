@@ -62,10 +62,21 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         playSubagentExecution,
       );
       expect(playSubagentExecution).toContain("### Auto handoff reference");
-      expect(playSubagentExecution).toContain(
-        "## Risk-Based Per-Task Review Routing",
-      );
+      expect(playSubagentExecution).toContain("## Branch Policy Reference Map");
       expect(playSubagentExecution).toContain("## Single-Task Plans");
+      expect(playSubagentExecution).toContain(
+        "references/review-routing-policy.md",
+      );
+      expect(playSubagentExecution).toContain(
+        "references/skip-dispatch-policy.md",
+      );
+      expect(playSubagentExecution).toContain(
+        "references/lifecycle-status-policy.md",
+      );
+      expect(playSubagentExecution).toContain(
+        "references/snapshot-consumption.md",
+      );
+      expect(playSubagentExecution).toContain("references/process-diagrams.md");
       expect(playSubagentExecution).toContain(
         "references/implementer-prompt.md",
       );
@@ -86,16 +97,16 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       );
       expect(playSubagentExecution).toContain("issue-priming/auto-handoff/v1");
       expect(normalizedPlaySubagentExecution).toContain(
-        "dispatch the spec-compliance reviewer and code-quality reviewer concurrently against the same captured task head",
+        "spec-compliance and code-quality reviewers concurrently when practical",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "quality result may become final only after same-head spec pass",
+        "A quality result is final only after same-head spec compliance passes",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "Unclear stale-result classification fails closed to rerunning code quality",
+        "load the detailed references only when the trigger applies",
       );
       expect(normalizedPlaySubagentExecution).toContain(
-        "advisory, stale, and superseded quality results",
+        "same-head quality results remain pending or advisory",
       );
     }
 

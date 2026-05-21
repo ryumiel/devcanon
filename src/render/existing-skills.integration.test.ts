@@ -305,13 +305,7 @@ describe("existing skills render cleanly", () => {
 
     for (const target of ["claude", "codex"] as const) {
       const output = getSkillOutput(outputs, "play-subagent-execution", target);
-      expect(output.content).toContain("Controller skipped the snapshot");
-      expect(output.content).toContain(
-        "Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS",
-      );
-      expect(output.content).toContain(
-        "Record snapshot state as `malformed`; surface the requested-snapshot contract violation",
-      );
+      expect(output.content).toContain("references/snapshot-consumption.md");
 
       const skillRoot = path.join(
         config.library.generatedDir,
@@ -334,6 +328,22 @@ describe("existing skills render cleanly", () => {
       expect(await pathExists(recipePath)).toBe(true);
       expect(await readFile(recipePath, "utf-8")).toContain(
         "implementer/snapshot/v1",
+      );
+      const snapshotConsumptionPath = path.join(
+        skillRoot,
+        "references",
+        "snapshot-consumption.md",
+      );
+      const snapshotConsumption = await readFile(
+        snapshotConsumptionPath,
+        "utf-8",
+      );
+      expect(snapshotConsumption).toContain("Controller skipped the snapshot");
+      expect(snapshotConsumption).toContain(
+        "Requested snapshot notice line is absent from DONE/DONE_WITH_CONCERNS",
+      );
+      expect(snapshotConsumption).toContain(
+        "Record snapshot state as `malformed`; surface the requested-snapshot contract violation",
       );
       expect(await pathExists(helperPath)).toBe(true);
       expect(await readFile(helperPath, "utf-8")).toContain(

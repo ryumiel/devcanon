@@ -41,9 +41,10 @@ than a runtime check):
 
 1. **Runtime guardrail.** The plan is single-task.
 2. **Runtime guardrail.** Task 1's header carries `**Mode:** mechanical`
-   (existing author-hint per `play-subagent-execution` § Mechanical Task
-   Hint; covers both positive shapes from that taxonomy — verbatim file
-   create and unambiguous identifier replacement).
+   (existing author-hint per
+   `play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical
+   Task Taxonomy; covers both positive shapes from that taxonomy — verbatim
+   file create and unambiguous identifier replacement).
 3. **Upstream precondition.** No clarifying questions could plausibly
    arise — implicit from `play-planning`'s plan-review subagent PASS
    upstream. The controller does not re-verify this at execution time;
@@ -118,8 +119,11 @@ here.
   apply on the skip-dispatch path: with no dispatched implementer, there
   is no DONE-report boundary and no implementer snapshot artifact. The
   plan remains upstream implementation context, not DONE-report evidence.
-  ADR-0014's `play-subagent-execution` § Implementer Snapshot Consumption
-  → Skip-dispatch exclusion subsection states this exclusion explicitly.
+  ADR-0014 and
+  `play-subagent-execution/references/snapshot-consumption.md` §
+  Skip-Dispatch Exclusion state this exclusion explicitly; the inline path
+  details live in
+  `play-subagent-execution/references/skip-dispatch-policy.md`.
 - ADR-0018 refines multi-task per-task review routing only. This ADR remains
   scoped to trivial single-task skip-dispatch and does not inherit ADR-0018's
   multi-task route selection.

@@ -12,7 +12,7 @@ Behavioral signals that this skill is being violated.
   `issue-priming/auto-handoff/v1` artifact for the final whole-diff gate.
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (the workflow is serial by design; isolation is not authorization for concurrent implementer dispatch)
-- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. Skip-dispatch (see [SKILL.md § Skip-Dispatch Path](../SKILL.md#skip-dispatch-path)) is the explicitly-gated exception: with no dispatched subagent, this Red Flag does not apply on that path.
+- Make per-task implementer subagent read the plan file (controller still curates and inlines the per-task text). The controller MAY accept the plan via a `Plan: <path>` reference from its caller (see [SKILL.md § Inputs](../SKILL.md#inputs)); the per-task boundary is what stays inlined. Skip-dispatch (see [skip-dispatch policy](skip-dispatch-policy.md)) is the explicitly-gated exception: with no dispatched subagent, this Red Flag does not apply on that path.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while an executor-required review has open issues

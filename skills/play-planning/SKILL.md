@@ -408,7 +408,7 @@ comment evidence as an authority surface.
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. This is a non-authoritative hint; `play-subagent-execution` owns route validation and may reject or override it. The taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy) — consult it before setting the hint.
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` between the heading and any review-routing hint fields. This is a non-authoritative hint; `play-subagent-execution` owns route validation and may reject or override it. The detailed taxonomy (positive and negative examples) lives in [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy) — consult it before setting the hint.
 
 Example mechanical-task header:
 
@@ -573,7 +573,7 @@ Do not turn issue comments, PR review history, validation logs, or agent-local p
 acceptance criteria, and proof coverage. Missing rows, missing coverage, or
 coverage that only points at general prose are plan-review failures.
 
-**12. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/SKILL.md` § Mechanical Task Taxonomy](../play-subagent-execution/SKILL.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**12. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
 **13. Review-routing hint check:** If tasks include review-routing hints,
 confirm hard-risk triggers are not under-classified, hints are described as
@@ -646,8 +646,9 @@ inline content remains valid.
   coverage, acceptance criteria, and proof coverage
 - Review-routing hints, when present, are non-authoritative inputs to
   `play-subagent-execution`
-- Hard-risk triggers from `skills/play-subagent-execution/SKILL.md` §
-  Risk-Based Per-Task Review Routing are not under-classified
+- Hard-risk triggers from
+  `skills/play-subagent-execution/references/review-routing-policy.md` § Risk
+  Classes are not under-classified
 - Unclear review classification defaults to `spec-and-quality`
 - Foundation-producing tasks are not marked below `spec-only`
 - Hint field ordering is heading, optional `**Mode:** mechanical`, optional
