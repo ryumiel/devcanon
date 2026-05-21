@@ -983,14 +983,32 @@ If a spawned implementer reports BLOCKED after slot-limit recovery succeeds and 
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 
-## Prompt Templates
+## Prompt Template Registry
 
-- `references/implementer-prompt.md` — default dispatch-time prompt for the `implementer` agent
-- `references/mechanical-implementer-prompt.md` — leaner variant for tasks marked `**Mode:** mechanical` (see "Mechanical Task Hint" above)
+Child-agent dispatch instructions live in these authoritative prompt
+templates. The controller loads them when assembling the corresponding
+subagent prompt; do not inline their full bodies into this skill source.
+
+- `references/implementer-prompt.md` — default dispatch-time prompt for the
+  `implementer` agent.
+- `references/mechanical-implementer-prompt.md` — implementer dispatch prompt
+  for tasks marked `**Mode:** mechanical`, subject to the existing mechanical
+  hint and skip-dispatch fallback rules.
+- `references/spec-reviewer-prompt.md` — per-task dispatch prompt for the
+  `spec-compliance-reviewer` agent when the effective route includes spec
+  review.
+- `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the
+  `code-quality-reviewer` agent for per-task code-quality review and for the
+  final whole-implementation reviewer surface where this skill's final-review
+  gate calls that reviewer.
+
+## Prompt Support Assets
+
+These files support prompt assembly and DONE-report snapshot handling. They
+are not child-agent dispatch prompt templates.
+
 - `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
 - `scripts/write-snapshot-manifest.sh` — helper script for writing implementer `implementer/snapshot/v1` manifests
-- `references/spec-reviewer-prompt.md` — dispatch-time prompt for the `spec-compliance-reviewer` agent
-- `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the `code-quality-reviewer` agent
 
 ## Example Workflow
 
