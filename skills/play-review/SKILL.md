@@ -49,6 +49,14 @@ the wrapper must run the installed `play-review` helper with
 review context, but it does not change the `play-review/findings/v1` schema
 version and does not treat branch findings as GitHub threads.
 
+Wrappers own final follow-up scope selection before invoking this skill. For
+shared full-vs-narrow policy, wrapper authors must apply
+`references/follow-up-scope-policy.md`: initial reviews use full diff,
+follow-up reviews may narrow only after mechanical and semantic checks clearly
+pass, ambiguous cases escalate to full review with prior context preserved, and
+`language_hints` are recomputed from the final selected active diff. This skill
+does not compute the final `active_diff_range`.
+
 ## Output
 
 This skill produces three outputs per invocation: two artifacts (a markdown surface for operators and a structured file for consumers) plus a one-line notice that links them.

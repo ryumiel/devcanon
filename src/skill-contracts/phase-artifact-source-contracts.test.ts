@@ -404,6 +404,142 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps shared follow-up review scope policy contracts in source", async () => {
+    const playReview = await readSkillSource("play-review");
+    const followUpScopePolicy = await readRepoFile(
+      "skills/play-review/references/follow-up-scope-policy.md",
+    );
+    const normalizedPolicy = normalizeWhitespace(followUpScopePolicy);
+
+    expect(playReview).toContain("references/follow-up-scope-policy.md");
+    expect(normalizedPolicy).toContain(
+      "Initial reviews always use the full PR or branch diff",
+    );
+    expect(normalizedPolicy).toContain(
+      "Follow-up reviews start with a candidate narrow range of `<last_reviewed_sha>..HEAD`",
+    );
+    expect(normalizedPolicy).toContain(
+      "Narrow review is allowed only when mechanical and semantic checks clearly pass",
+    );
+    expect(normalizedPolicy).toContain(
+      "Any uncertainty escalates to full review",
+    );
+    expect(normalizedPolicy).toContain(
+      "Full escalation preserves prior context",
+    );
+    expect(normalizedPolicy).toContain(
+      "`language_hints` are computed only after final active range selection",
+    );
+    expect(normalizedPolicy).toContain(
+      "Missing, malformed, stale, conflicting, or untrusted facts fail closed to full review",
+    );
+    expect(normalizedPolicy).toContain(
+      "Missing, stale, malformed, conflicting, or untrusted handoff data needed to justify narrow review fails closed to full review",
+    );
+    expect(normalizedPolicy).toContain(
+      "Wrappers still supply the final `active_diff_range`",
+    );
+    expect(normalizedPolicy).toContain(
+      "not compute `active_diff_range` inside `play-review`",
+    );
+
+    for (const escalationSurface of [
+      "more than five changed files",
+      "unusable or non-ancestor `last_reviewed_sha`",
+      "new public API functions or types",
+      "logic restructured beyond previously flagged or adjacent lines",
+      "docs/adr/**",
+      "docs/arch/**",
+      "docs/product-requirements/**",
+      "docs/specs/**",
+      "docs/guidelines/**",
+      "MAP.md",
+      "AGENTS.md",
+      "CONTRIBUTING.md",
+      "agents/**",
+      "reviewer-routing policy",
+      "output schemas",
+      "install/sync behavior",
+      "path-validation guards",
+      "external-invocation guards",
+      "generated-output renderers",
+      "generated-output contracts",
+      "source-owned contracts",
+      "safety boundaries",
+      "broad file/module scope",
+      "architecture surfaces",
+      "shared workflow policy",
+      "ambiguous classification",
+    ]) {
+      expect(normalizedPolicy).toContain(escalationSurface);
+    }
+
+    expect(normalizedPolicy).toContain(
+      "If escalation fires, set `active_diff_range = full_pr_diff_range` and `is_followup_narrow = false`",
+    );
+    expect(normalizedPolicy).toContain(
+      "If every mechanical and semantic check clearly passes, set `active_diff_range = <last_reviewed_sha>..HEAD` and `is_followup_narrow = true`",
+    );
+    expect(normalizedPolicy).toContain(
+      "After that final selection, recompute `language_hints` from the final `active_diff_range` and only then invoke `play-review`",
+    );
+  });
+
+  it("keeps review wrappers aligned to the shared follow-up scope policy", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedPrReview = normalizeWhitespace(prReview);
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(prReview).toContain("references/follow-up-scope-policy.md");
+    expect(normalizedPrReview).toContain(
+      "apply the shared follow-up scope policy",
+    );
+    expect(normalizedPrReview).toContain(
+      "If the policy escalates, keep `prior_threads`",
+    );
+    expect(normalizedPrReview).toContain(
+      "When classification is ambiguous, fail closed to full review",
+    );
+    expect(normalizedPrReview).toContain(
+      "After final active range selection, compute `language_hints`",
+    );
+
+    expect(branchReview).toContain("references/follow-up-scope-policy.md");
+    expect(normalizedBranchReview).toContain(
+      "apply `skills/play-review/references/follow-up-scope-policy.md`",
+    );
+    expect(normalizedBranchReview).toContain(
+      "The helper's local mechanical facts remain inputs to that shared policy",
+    );
+    expect(normalizedBranchReview).toContain(
+      'When the shared policy escalates, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"`',
+    );
+    expect(normalizedBranchReview).toContain(
+      "still pass the validated prior findings to `play-review`",
+    );
+    expect(normalizedBranchReview).toContain(
+      "After final active range selection, recompute `LANGUAGE_HINTS`",
+    );
+
+    expect(prReview).toContain(
+      "`prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses",
+    );
+    expect(branchReview).toContain(
+      "prior_branch_findings` = the validated `--prior-findings` envelope path",
+    );
+    expect(normalizedPrReview).toContain(
+      "**STOP HERE. Present the report. Wait for user response.**",
+    );
+    expect(normalizedPrReview).toContain(
+      "NEVER post, approve, or resolve without user approval at the Phase 5 gate",
+    );
+    expect(normalizedBranchReview).toContain(
+      "`--fix` without follow-up arguments keeps the existing full-diff default",
+    );
+    expect(normalizedBranchReview).toContain("no GitHub posting");
+  });
+
   it("keeps play-review branch follow-up context, carry-forward, and fail-closed helper contracts", async () => {
     const playReview = await readSkillSource("play-review");
     const normalizedPlayReview = normalizeWhitespace(playReview);
