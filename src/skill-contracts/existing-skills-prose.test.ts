@@ -481,6 +481,8 @@ describe("existing skills source prose contracts", () => {
       "explicit user approval",
       "approved posting gate",
       "latest fetched thread after the reply is still unresolved",
+      "current post-reply fetched thread state",
+      "reviewer identity or ownership",
       "same concern",
       "pushed branch contains the fix",
       "reply explains why no code change is required",
@@ -496,11 +498,30 @@ describe("existing skills source prose contracts", () => {
       "post-reply fetched thread",
       "Stale or outdated",
       "Already-resolved",
+      "Human-authored review threads",
+      "explicit current-list resolve approval",
+      "reviewer confirmation",
+      "explicit repository policy delegation",
+      "Bot-authored and self-authored review threads",
+      "Unclear ownership",
       "unclear, partially fixed, or newly conflicting",
       "stay unresolved",
     ]) {
       expect(normalizedThreadClosure).toContain(requiredDisposition);
     }
+
+    expect(normalizedThreadClosure).toContain(
+      "Permission to reply is not permission to resolve",
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /Re-fetch.*authorship\/ownership.*after.*reply.*immediately before.*resolution/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /Human-authored review threads.*stay unresolved.*default/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /Bot-authored and self-authored review threads.*eligible.*Safe-to-resolve criteria/i,
+    );
 
     expect(normalizedGithubReplies).toMatch(/comment thread/i);
     expect(normalizedGithubReplies).toMatch(/follow-up commit or fix/i);

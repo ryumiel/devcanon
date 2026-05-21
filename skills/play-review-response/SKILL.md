@@ -277,19 +277,35 @@ already-pushed or reviewed PR branch:
    workflow's approved posting gate.
 8. Reply in-thread with concise fix or explanation evidence.
 9. Re-fetch PR review thread state again after the reply and immediately before
-   any resolution.
+   any resolution. Re-fetch authorship/ownership after the reply and
+   immediately before any resolution in that same current state so resolution
+   is based on the latest reviewer identity or ownership, not on stale
+   pre-reply metadata.
 10. Resolve only eligible threads.
 
 Safe-to-resolve criteria:
 
+Permission to reply is not permission to resolve. Posting fix or no-code
+evidence after GitHub write approval only authorizes the reply; resolving the
+thread requires the separate eligibility gate below.
+
 - GitHub writes are permitted by explicit user approval or the active
   workflow's approved posting gate.
 - The latest fetched thread after the reply is still unresolved.
+- The current post-reply fetched thread state identifies reviewer identity or
+  ownership clearly enough to classify the thread as human-authored,
+  bot-authored, or self-authored.
 - The thread maps to the same concern that you verified and addressed.
 - The pushed branch contains the fix, or the in-thread reply explains why no
   code change is required.
 - The relevant checks have passed.
 - The current actor has permission to resolve the thread.
+- Human-authored review threads are eligible only with explicit current-list
+  resolve approval, reviewer confirmation that the concern is addressed, or
+  explicit repository policy delegation for resolving human-authored review
+  threads.
+- Bot-authored and self-authored review threads remain eligible for resolution
+  under the Safe-to-resolve criteria when every other criterion passes.
 - Replying or resolving does not bypass `pr-review`'s user-gated
   posting/resolution workflow when that workflow is the active owner.
 
@@ -298,10 +314,14 @@ Edge dispositions:
 - Explanation-only comments get an in-thread reply, then resolution only when
   the reply fully addresses the concern and the post-reply fetched thread is
   still unresolved.
+- Human-authored review threads stay unresolved by default after fix or no-code
+  replies unless explicit current-list resolve approval, reviewer confirmation,
+  or explicit repository policy delegation exists.
 - Stale or outdated threads are not resolved merely because they are outdated.
   Re-fetch current thread state and verify the underlying concern first.
 - Already-resolved threads are left alone. Do not add duplicate replies unless
   new information is needed.
+- Unclear ownership stays unresolved and is reported to the user.
 - Threads with unclear, partially fixed, or newly conflicting feedback stay
   unresolved and are reported to the user.
 
