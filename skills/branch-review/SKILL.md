@@ -148,7 +148,11 @@ it. Missing, stale, malformed, conflicting, or untrusted handoff data fails
 closed to full branch review. This mirrors `play-subagent-execution`: plan hints
 are inputs, the executor/reviewer owns the effective route, and revalidation may only preserve or escalate.
 
-In follow-up mode, finalize the active range conservatively:
+In follow-up mode, apply
+`skills/play-review/references/follow-up-scope-policy.md` before invoking
+`play-review` and finalize the active range conservatively. The helper's local
+mechanical facts remain inputs to that shared policy; they do not replace the
+semantic classification below:
 
 - `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
   documentation impact.
@@ -164,7 +168,8 @@ In follow-up mode, finalize the active range conservatively:
   `IS_FOLLOWUP_NARROW` after semantic classification; do not pass the helper's
   mechanical range to `play-review` as if it were final.
 
-Escalate back to full branch review when any of these are true:
+Escalate back to full branch review when the shared policy requires it,
+including when any of these are true:
 
 - `MECHANICAL_ESCALATE_FULL=true` because more than 5 files changed since
   `--last-reviewed`, `--last-reviewed` does not resolve or is not an ancestor of `HEAD`, a portable governance path changed, or configured repo-owned path
@@ -190,14 +195,14 @@ range to a direct child under `.ephemeral/`; treat the file as facts to classify
 not as proof that the range is safe. If the file cannot be read or the
 classification is unclear, escalate.
 
-When escalation fires, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"` and
-`IS_FOLLOWUP_NARROW=false`, but still pass the validated prior findings to
+When the shared policy escalates, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"`
+and `IS_FOLLOWUP_NARROW=false`, but still pass the validated prior findings to
 `play-review` so the critic can evaluate carry-forward items. When every
 mechanical and semantic escalation check clearly passes, set
 `ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"` and
 `IS_FOLLOWUP_NARROW=true`.
 
-After final range selection, compute `LANGUAGE_HINTS` from changed file
+After final active range selection, recompute `LANGUAGE_HINTS` from changed file
 extensions in `ACTIVE_DIFF_RANGE` (e.g., `*.ts`, `*.rs`, `*.md`). The helper's
 `LANGUAGE_HINTS` is only an initial mechanical hint. Recompute after semantic
 escalation so dynamic-agent triggers match the selected review scope; deriving
