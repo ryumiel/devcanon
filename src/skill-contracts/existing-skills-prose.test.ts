@@ -85,6 +85,25 @@ async function createAutosquashFixture({
 }
 
 describe("existing skills source prose contracts", () => {
+  it("keeps verification reporting compact while preserving full-output reading", async () => {
+    const playVerification = await readSkillSource("play-verification");
+    const normalizedVerification = normalizeWhitespace(playVerification);
+
+    expect(playVerification).toContain("## Reporting Verification Evidence");
+    expect(normalizedVerification).toContain(
+      "Passing verification is reported as command/result/gap",
+    );
+    expect(normalizedVerification).toContain(
+      "Detailed logs or excerpts are included only when needed to diagnose a failure, warning, or ambiguous result",
+    );
+    expect(normalizedVerification).toContain(
+      "READ: Full output, check exit code, count failures",
+    );
+    expect(normalizedVerification).toContain(
+      "Do not paste passing logs just to prove they were read",
+    );
+  });
+
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");

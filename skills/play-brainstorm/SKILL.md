@@ -357,6 +357,12 @@ the ledger.
 
 - After writing, emit the literal line `Design written to <repo-relative-path>.` to the conversation. This is the contract surface `play-planning` reads — do not reword it.
 
+After this notice, saved design artifacts should not be re-inlined or restated
+in controller conversation by default. Carry the design path, a short decision
+summary, unresolved blockers if any, and the next gate/action. Inline or display
+design content only for a specific interactive user review gate or when the user
+asks to inspect or change the design.
+
 **Design Self-Review:**
 After writing the design document, look at it with fresh eyes:
 

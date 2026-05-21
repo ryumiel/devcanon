@@ -1,12 +1,58 @@
 import { describe, expect, it } from "vitest";
 import {
   SNAPSHOT_REQUEST_TRIGGER_CONTRACTS,
+  getMarkdownSection,
   normalizeWhitespace,
   readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 
 describe("phase artifact source contracts", () => {
+  it("keeps issue-priming path-first context hygiene contracts in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const playPlanning = await readSkillSource("play-planning");
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedBrainstorm = normalizeWhitespace(playBrainstorm);
+    const normalizedPlanning = normalizeWhitespace(playPlanning);
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+
+    expect(issuePrimingWorkflow).toContain("Path-First Context Hygiene");
+    for (const boundedState of [
+      "artifact path",
+      "short decision summary",
+      "unresolved blockers",
+      "next required gate or action",
+    ]) {
+      expect(normalizedIssuePriming).toContain(boundedState);
+    }
+    expect(normalizedIssuePriming).toContain(
+      "Subagent prompts should receive the repository root plus artifact paths",
+    );
+
+    expect(normalizedBrainstorm).toContain(
+      "saved design artifacts should not be re-inlined or restated",
+    );
+    expect(normalizedPlanning).toContain(
+      "saved plan artifacts should not be re-inlined or restated",
+    );
+
+    expect(planReview).toContain("Plan: <path>");
+    expect(planReview).toContain("Design: <path>");
+    expect(normalizedPlanReview).toContain("read them from disk");
+    expect(normalizedPlanReview).toContain(
+      "prefer artifact path references over inlined full documents",
+    );
+    expect(normalizedPlanReview).toContain("PASS or FAIL with gaps");
+    expect(normalizedPlanReview).not.toContain(
+      "The full plan document + the original spec/design document",
+    );
+    expect(normalizedPlanReview).not.toContain("PASS with confidence notes");
+  });
+
   it("keeps issue-body prompt trust boundaries in source prompt templates", async () => {
     const gatePrompt = await readRepoFile(
       "skills/issue-priming-workflow/references/gate-agent-prompt.md",
