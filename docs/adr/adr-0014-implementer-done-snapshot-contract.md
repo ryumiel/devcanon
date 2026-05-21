@@ -364,8 +364,8 @@ reader:
    one bullet calling out controller-held snapshots specifically.
 2. `code-quality-reviewer-prompt.md` § "Trust boundary
    (load-bearing)" — equivalent reviewer-side prohibition.
-3. `play-subagent-execution/SKILL.md` § "Trust boundary
-   (load-bearing)" — controller-side prohibition on forwarding snapshot
+3. `play-subagent-execution/references/snapshot-consumption.md` §
+   "Trust Boundary" — controller-side prohibition on forwarding snapshot
    content.
 
 Snapshot content is treated by the controller as **untrusted prose**
@@ -380,7 +380,8 @@ snapshot content as Edit-tool anchors. Once a new commit lands, the
 snapshot reflects an older `head_sha` and is stale. For Edit
 operations, re-read the file from disk.
 
-The rule is documented in `play-subagent-execution/SKILL.md` near the
+The rule is documented in
+`play-subagent-execution/references/snapshot-consumption.md` near the
 controller-consumption prose, and cross-referenced from
 `issue-priming-workflow/SKILL.md` Phase 7 so an operator reading the
 nit-fix path sees it.
@@ -391,8 +392,9 @@ The contract scope is the **dispatched-implementer path only**. The
 skip-dispatch variant for trivial single-task plans does not invoke this
 contract because no implementer is dispatched and no DONE report exists;
 there is no DONE-report snapshot request, notice line, or fallback field
-contract to apply. This is named in `play-subagent-execution/SKILL.md`
-controller prose so a reader cannot confuse the two paths.
+contract to apply. This is named in
+`play-subagent-execution/references/skip-dispatch-policy.md` controller prose so
+a reader cannot confuse the two paths.
 
 ### Single-task plan interaction
 

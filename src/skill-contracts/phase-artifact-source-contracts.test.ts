@@ -832,82 +832,91 @@ describe("phase artifact source contracts", () => {
     );
   });
 
-  it("keeps play-subagent-execution snapshot consumer prose in the skill source", async () => {
+  it("keeps play-subagent-execution snapshot consumer prose in the reference source", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
     );
-    const normalizedPlaySubagentExecution = normalizeWhitespace(
-      playSubagentExecution,
+    const snapshotConsumption = await readRepoFile(
+      "skills/play-subagent-execution/references/snapshot-consumption.md",
     );
+    const normalizedSnapshotConsumption =
+      normalizeWhitespace(snapshotConsumption);
 
     expect(playSubagentExecution).toContain(
+      "references/snapshot-consumption.md",
+    );
+    expect(snapshotConsumption).toContain(
       "references/snapshot-manifest-recipe.md",
     );
-    expect(playSubagentExecution).toContain(
-      "scripts/write-snapshot-manifest.sh",
-    );
-    expect(playSubagentExecution).toContain(
+    expect(snapshotConsumption).toContain("scripts/write-snapshot-manifest.sh");
+    expect(snapshotConsumption).toContain(
       "scripts/validate-snapshot-manifest.sh",
     );
-    expect(playSubagentExecution).toContain("include a readable");
-    expect(playSubagentExecution).toContain(
-      "Snapshot Manifest Recipe path sourced from",
+    expect(snapshotConsumption).toContain(
+      "include the resolved recipe and helper script\npaths",
     );
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(normalizedSnapshotConsumption).toContain(
       "conditional-use contract instead of duplicating",
     );
-    expect(playSubagentExecution).toContain(
-      "inlining the shell implementation",
-    );
-    expect(playSubagentExecution).toContain("hard helper prerequisite");
-    expect(playSubagentExecution).toContain("snapshot notice line");
-    expect(normalizedPlaySubagentExecution).toContain(
+    expect(snapshotConsumption).toContain("inlining the shell implementation");
+    expect(snapshotConsumption).toContain("hard helper prerequisite");
+    expect(snapshotConsumption).toContain("snapshot notice line");
+    expect(normalizedSnapshotConsumption).toContain(
       "This validation path applies only when the controller recorded snapshot state as `requested`",
     );
-    expect(normalizedPlaySubagentExecution).toContain(
+    expect(normalizedSnapshotConsumption).toContain(
       "If snapshot state is `skipped`, do not parse or expect a notice line",
     );
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(normalizedSnapshotConsumption).toContain(
       "The validator script owns the deterministic snapshot path, symlink, file-kind, schema, head-SHA, and changed-file set checks",
     );
-    expect(playSubagentExecution).toContain("SNAPSHOT_STATUS=valid");
-    expect(playSubagentExecution).toContain("SNAPSHOT_CHANGED_FILE_COUNT");
-    expect(playSubagentExecution).not.toContain(
+    expect(snapshotConsumption).toContain("SNAPSHOT_STATUS=valid");
+    expect(snapshotConsumption).toContain("SNAPSHOT_CHANGED_FILE_COUNT");
+    expect(snapshotConsumption).not.toContain(
       "starts from the authoritative path-validation guard",
     );
-    expect(playSubagentExecution).toContain(
-      "controller's own changed-file list",
-    );
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(snapshotConsumption).toContain("controller's own changed-file list");
+    expect(normalizedSnapshotConsumption).toContain(
       "back to committed HEAD blob reads using the controller's own changed-file list, not the snapshot-provided path or status.",
     );
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(normalizedSnapshotConsumption).toContain(
       "Do not read mutable working-tree paths",
     );
-    expect(normalizedPlaySubagentExecution).toContain(
+    expect(normalizedSnapshotConsumption).toContain(
       "`path` + `status` set must exactly equal",
     );
-    expect(playSubagentExecution).toContain("missing");
-    expect(playSubagentExecution).toContain("extra");
-    expect(playSubagentExecution).toContain("duplicate");
-    expect(playSubagentExecution).toContain("status-mismatched");
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(snapshotConsumption).toContain("missing");
+    expect(snapshotConsumption).toContain("extra");
+    expect(snapshotConsumption).toContain("duplicate");
+    expect(snapshotConsumption).toContain("status-mismatched");
+    expect(normalizedSnapshotConsumption).toContain(
       "The snapshot's complete `path` + `status` set must exactly equal the controller-computed set: no missing, extra, duplicate, or status-mismatched entries.",
     );
-    expect(playSubagentExecution).toContain("untrusted prose");
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+    expect(snapshotConsumption).toContain("untrusted prose");
+    expect(normalizedSnapshotConsumption).toContain(
       "Path strings are repository-controlled",
     );
-    expect(normalizeWhitespace(playSubagentExecution)).toContain(
-      "structured, escaped data",
+    expect(normalizedSnapshotConsumption).toContain("structured, escaped data");
+    expect(snapshotConsumption).toContain("directives embedded");
+    expect(snapshotConsumption).toContain("data, not a prompt");
+
+    const skipDispatch = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
-    expect(playSubagentExecution).toContain("directives embedded");
-    expect(playSubagentExecution).toContain("data, not a prompt");
-    expect(playSubagentExecution).toContain("no runtime auto-detection");
-    expect(playSubagentExecution).toContain("Mechanical Task Taxonomy");
+    expect(playSubagentExecution).toContain(
+      "references/skip-dispatch-policy.md",
+    );
+    expect(skipDispatch).toContain("no DONE-report snapshot request");
+    expect(skipDispatch).toContain("Mechanical Task Taxonomy");
+    expect(normalizeWhitespace(skipDispatch)).toContain(
+      "Treat verification as unnecessary only when the task explicitly says no additional verification is required and the controller can justify that from the task contract.",
+    );
   });
 
   it("keeps ADR-0014 snapshot policy invariants in the ADR source", async () => {
+    const adr0013 = await readRepoFile(
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+    );
     const adr0014 = await readRepoFile(
       "docs/adr/adr-0014-implementer-done-snapshot-contract.md",
     );
@@ -915,6 +924,12 @@ describe("phase artifact source contracts", () => {
       "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
     );
 
+    expect(adr0013).toContain(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
+    expect(adr0013).not.toContain(
+      "skills/play-subagent-execution/SKILL.md` § Red",
+    );
     expect(adr0014).toContain("Pre-staged symlinks at `.ephemeral`");
     expect(adr0014).toContain("reject a symlinked `.ephemeral` directory");
     expect(adr0014).toContain("`mkdir -p .ephemeral`");
@@ -938,10 +953,34 @@ describe("phase artifact source contracts", () => {
     expect(adr0014).not.toContain("the plan body is itself the snapshot");
     expect(adr0015).toContain("no implementer snapshot artifact");
     expect(adr0015).toContain("not DONE-report evidence");
+    expect(adr0015).toContain(
+      "play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    expect(adr0015).toContain(
+      "play-subagent-execution/references/snapshot-consumption.md",
+    );
+    expect(adr0015).not.toContain(
+      "`play-subagent-execution` § Mechanical Task",
+    );
+    expect(adr0015).not.toContain(
+      "`play-subagent-execution` § Implementer Snapshot Consumption",
+    );
     expect(adr0015).not.toContain("the plan body is itself the snapshot");
     expect(adr0014).toContain("committed HEAD blob reads");
     expect(normalizeWhitespace(adr0014)).toContain("structured, escaped data");
     expect(adr0014).toContain("repository-controlled and untrusted");
+    expect(adr0014).toContain(
+      "play-subagent-execution/references/snapshot-consumption.md",
+    );
+    expect(adr0014).toContain(
+      "play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    expect(adr0014).not.toContain(
+      'play-subagent-execution/SKILL.md` § "Trust boundary',
+    );
+    expect(adr0014).not.toContain(
+      "documented in `play-subagent-execution/SKILL.md`",
+    );
     expect(normalizeWhitespace(adr0014)).toContain(
       "the helper script is authoritative for executable snapshot",
     );

@@ -32,15 +32,15 @@ single deterministically-named artifact under `.ephemeral/`. The
 phase-handoff substrate is now symmetric across the design / plan / review
 producers." This ADR closes the consumer-side gap.
 
-A separate consideration: `skills/play-subagent-execution/SKILL.md` § Red
-Flags previously listed `Make subagent read plan file (provide full text
-instead)` without scoping it to a specific subagent boundary. Read literally,
-the rule forbids the controller-receives-plan-via-path pattern this ADR
-introduces. The rule's protective intent — that the controller curates
-exactly what context each per-task implementer subagent receives — applies
-specifically to the per-task implementer dispatch boundary, not to the
-controller's own receipt of the plan from its caller. This ADR documents
-that scoping.
+A separate consideration:
+`skills/play-subagent-execution/references/red-flags.md` previously listed
+`Make subagent read plan file (provide full text instead)` without scoping it to
+a specific subagent boundary. Read literally, the rule forbids the
+controller-receives-plan-via-path pattern this ADR introduces. The rule's
+protective intent — that the controller curates exactly what context each
+per-task implementer subagent receives — applies specifically to the per-task
+implementer dispatch boundary, not to the controller's own receipt of the plan
+from its caller. This ADR documents that scoping.
 
 ## Decision
 
@@ -209,7 +209,7 @@ rm -f .ephemeral/*-research.md .ephemeral/*-design.md .ephemeral/*-plan.md \
       .ephemeral/*-findings.json .ephemeral/*-nits-pending.json
 ```
 
-### Clarification of `skills/play-subagent-execution/SKILL.md` § Red Flags
+### Clarification of `skills/play-subagent-execution/references/red-flags.md`
 
 The previous Red Flag entry `Make subagent read plan file (provide full text
 instead)` is rewritten as `Make per-task implementer subagent read the plan
