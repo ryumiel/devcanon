@@ -39,6 +39,14 @@ sha256_file() {
   sha256_stream < "$path"
 }
 
+base64_decode_stream() {
+  if base64 --help 2>&1 | grep -q -- '--decode'; then
+    base64 --decode
+  else
+    base64 -d
+  fi
+}
+
 command -v jq >/dev/null 2>&1 || {
   echo "jq is required to validate implementer/snapshot/v1" >&2
   exit 1
@@ -267,7 +275,7 @@ while IFS=$'\t' read -r encoded_path status_value; do
   }
 
   if jq -e 'has("content")' "$entry_json" >/dev/null; then
-    jq -rj '.content' "$entry_json" > "$snapshot_content"
+    jq -r '.content | @base64' "$entry_json" | tr -d '\r\n' | base64_decode_stream > "$snapshot_content"
     [ "$(sha256_file "$snapshot_content")" = "$expected_sha256" ] || {
       echo "snapshot entry content mismatch: $path_value" >&2
       exit 1
