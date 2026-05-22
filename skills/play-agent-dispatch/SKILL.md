@@ -1,9 +1,18 @@
 ---
 name: play-agent-dispatch
-description: Dispatches independent tasks to parallel subagents with isolated context. Use when facing 2+ tasks that can be worked on without shared state or sequential dependencies. Do not use when executing a written implementation plan — use play-subagent-execution instead.
+description: Explicit-invocation workflow for dispatching independent tasks to parallel subagents with isolated context. Use only when the user explicitly invokes `play-agent-dispatch` or an owning workflow explicitly requires parallel agent dispatch.
+claude:
+  disable-model-invocation: true
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Dispatching Parallel Agents
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-agent-dispatch` or when an owning workflow explicitly hands off to `play-agent-dispatch`.
 
 ## Overview
 

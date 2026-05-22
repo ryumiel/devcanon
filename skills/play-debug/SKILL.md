@@ -1,9 +1,18 @@
 ---
 name: play-debug
-description: Systematic root-cause debugging that blocks fixes until the cause is identified. Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes.
+description: Explicit-invocation workflow for systematic root-cause debugging before fixes. Use only when the user explicitly invokes `play-debug` or an owning workflow explicitly requires root-cause debugging.
+claude:
+  disable-model-invocation: true
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Systematic Debugging
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-debug` or when an owning workflow explicitly hands off to `play-debug`.
 
 ## Overview
 

@@ -1,9 +1,18 @@
 ---
 name: play-branch-finish
-description: Guides closing out a development branch via squash merge, push and PR, or discard cleanup. Use when implementation is complete, tests pass, and the branch is ready to integrate.
+description: Explicit-invocation workflow for closing out a development branch via squash merge, push and PR, or discard cleanup. Use only when the user explicitly invokes `play-branch-finish` or an owning workflow explicitly requires branch completion.
+claude:
+  disable-model-invocation: true
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Finishing a Development Branch
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-branch-finish` or when an owning workflow explicitly hands off to `play-branch-finish`.
 
 ## Overview
 

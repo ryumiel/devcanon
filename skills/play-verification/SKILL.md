@@ -1,9 +1,18 @@
 ---
 name: play-verification
-description: Evidence-backed completion gate that blocks unverified status claims. Use when about to claim work is complete, fixed, or passing, before committing or creating PRs.
+description: Explicit-invocation workflow for evidence-backed completion checks before claiming work is complete, fixed, or passing. Use only when the user explicitly invokes `play-verification` or an owning workflow explicitly requires completion verification.
+claude:
+  disable-model-invocation: true
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Verification Before Completion
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-verification` or when an owning workflow explicitly hands off to `play-verification`.
 
 ## Overview
 

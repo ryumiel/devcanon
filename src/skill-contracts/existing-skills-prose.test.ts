@@ -39,6 +39,19 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("recovery");
 }
 
+const PUBLIC_EXPLICIT_PLAY_SKILLS = [
+  "play-agent-dispatch",
+  "play-brainstorm",
+  "play-branch-finish",
+  "play-debug",
+  "play-planning",
+  "play-review-response",
+  "play-skill-authoring",
+  "play-subagent-execution",
+  "play-tdd",
+  "play-verification",
+] as const;
+
 async function git(args: string[], cwd: string): Promise<void> {
   await execFileAsync("git", args, { cwd });
 }
@@ -85,6 +98,52 @@ async function createAutosquashFixture({
 }
 
 describe("existing skills source prose contracts", () => {
+  it("keeps public play workflows explicit-invocation-only", async () => {
+    for (const skillName of PUBLIC_EXPLICIT_PLAY_SKILLS) {
+      const skillSource = await readSkillSource(skillName);
+      const normalized = normalizeWhitespace(skillSource);
+
+      expect(skillSource).toContain("disable-model-invocation: true");
+      expect(skillSource).toContain("allow_implicit_invocation: false");
+      expect(skillSource).toContain("## Invocation Policy");
+      expect(skillSource).toContain("explicit-invocation-only");
+      expect(skillSource).toContain(`explicitly invokes \`${skillName}\``);
+      expect(normalized).toContain(
+        "Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language",
+      );
+    }
+
+    const reviewResponse = await readSkillSource("play-review-response");
+    expect(normalizeWhitespace(reviewResponse)).toContain(
+      "Use only when the user explicitly invokes `play-review-response` or asks to address review feedback through that workflow",
+    );
+
+    const playTdd = await readSkillSource("play-tdd");
+    expect(normalizeWhitespace(playTdd)).toContain(
+      "Use only when the user explicitly invokes `play-tdd` or an owning workflow explicitly requires tests-before-implementation",
+    );
+
+    const playPlanning = await readSkillSource("play-planning");
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "I'm using the play-planning skill to create the implementation plan",
+    );
+
+    const internalPlayReview = await readSkillSource("play-review");
+    expect(internalPlayReview).toContain("user-invocable: false");
+    expect(internalPlayReview).toContain("allow_implicit_invocation: false");
+    expect(internalPlayReview).not.toContain("disable-model-invocation: true");
+
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    expect(normalizeWhitespace(writingSkills)).toContain(
+      "prevents Claude from automatically loading the skill from ambient context while keeping it available for explicit user invocation",
+    );
+    expect(normalizeWhitespace(writingSkills)).toContain(
+      "not a substitute for `user-invocable: false` on an internal shared skill",
+    );
+  });
+
   it("keeps verification reporting compact while preserving full-output reading", async () => {
     const playVerification = await readSkillSource("play-verification");
     const normalizedVerification = normalizeWhitespace(playVerification);

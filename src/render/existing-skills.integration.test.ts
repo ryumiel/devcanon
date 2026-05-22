@@ -37,6 +37,19 @@ const SKILLS_WITH_METADATA = {
   ] as const,
 };
 
+const PUBLIC_EXPLICIT_PLAY_SKILLS = [
+  "play-agent-dispatch",
+  "play-brainstorm",
+  "play-branch-finish",
+  "play-debug",
+  "play-planning",
+  "play-review-response",
+  "play-skill-authoring",
+  "play-subagent-execution",
+  "play-tdd",
+  "play-verification",
+] as const;
+
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
     "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
@@ -54,6 +67,8 @@ const TOUCHED_SKILL_COVERAGE = {
     "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
   "play-branch-finish":
     "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",
+  "play-debug":
+    "explicit-only workflow metadata coverage protects debugging from implicit workflow selection",
   "play-agent-dispatch":
     "Codex frontmatter smoke coverage protects recently touched dispatch skill prose from invalid Codex keys",
   "pr-review": "explicit metadata expectations cover Codex sidecar packaging",
@@ -69,12 +84,18 @@ const TOUCHED_SKILL_COVERAGE = {
     "Codex frontmatter smoke coverage protects recently touched skill-authoring prose from invalid Codex keys",
   "play-planning":
     "Codex frontmatter smoke coverage protects recently touched planning skill prose from invalid Codex keys",
+  "play-review-response":
+    "explicit-only workflow metadata coverage protects review-shaped feedback from implicit workflow selection",
   "report-devcanon-issue":
     "explicit metadata expectations cover Codex metadata and Codex sidecar packaging",
   "spec-readiness-review":
     "Codex frontmatter smoke coverage protects recently touched readiness-review prose from invalid Codex keys",
   "subagent-lifecycle":
     "explicit metadata expectations cover Codex policy sidecar packaging",
+  "play-tdd":
+    "explicit-only workflow metadata coverage protects implementation-adjacent discussion from implicit TDD selection",
+  "play-verification":
+    "explicit-only workflow metadata coverage protects completion checks from implicit workflow selection",
   "write-product-requirements":
     "Codex frontmatter smoke coverage protects recently touched product requirements skill prose from invalid Codex keys",
   "write-product-spec":
@@ -249,6 +270,46 @@ describe("existing skills render cleanly", () => {
       });
       expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
+    }
+  });
+
+  it("renders public play workflows as explicit-invocation-only", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, true);
+
+    for (const skillName of PUBLIC_EXPLICIT_PLAY_SKILLS) {
+      const claudeOutput = getSkillOutput(outputs, skillName, "claude");
+      const { frontmatter: claudeFrontmatter } = parseFrontmatter(
+        claudeOutput.content,
+      );
+
+      expect(claudeFrontmatter).toMatchObject({
+        "disable-model-invocation": true,
+      });
+      expect(claudeFrontmatter.description).toContain("Use only when");
+      expect(claudeFrontmatter.description).toContain(skillName);
+
+      const sidecarPath = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        skillName,
+        "agents",
+        "openai.yaml",
+      );
+
+      expect(await pathExists(sidecarPath)).toBe(true);
+
+      const sidecar = await readFile(sidecarPath, "utf-8");
+      const parsed = parseYaml(sidecar) as Record<string, unknown>;
+
+      expect(parsed).toMatchObject({
+        policy: { allow_implicit_invocation: false },
+      });
     }
   });
 

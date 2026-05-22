@@ -1,9 +1,18 @@
 ---
 name: play-brainstorm
-description: Guides executable ideas into approved designs saved to `.ephemeral/`, or emits a durable owner referral notice for non-executable work. Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Do not use when requirements are already pinned to a spec — go directly to play-planning.
+description: Explicit-invocation workflow for guiding executable ideas into approved designs saved to `.ephemeral/`, or emitting durable owner referral notices for non-executable work. Use only when the user explicitly invokes `play-brainstorm` or an owning workflow explicitly requires brainstorming.
+claude:
+  disable-model-invocation: true
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Brainstorming Ideas Into Designs
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-brainstorm` or when an owning workflow explicitly hands off to `play-brainstorm`.
 
 Help turn ideas into fully formed designs through natural collaborative dialogue.
 
