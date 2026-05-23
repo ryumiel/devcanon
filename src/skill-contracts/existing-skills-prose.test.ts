@@ -103,7 +103,7 @@ describe("existing skills source prose contracts", () => {
       const skillSource = await readSkillSource(skillName);
       const normalized = normalizeWhitespace(skillSource);
 
-      expect(skillSource).toContain("disable-model-invocation: true");
+      expect(skillSource).not.toContain("disable-model-invocation: true");
       expect(skillSource).toContain("allow_implicit_invocation: false");
       expect(skillSource).toContain("## Invocation Policy");
       expect(skillSource).toContain("explicit-invocation-only");
@@ -137,10 +137,13 @@ describe("existing skills source prose contracts", () => {
       "docs/guidelines/writing-skills.md",
     );
     expect(normalizeWhitespace(writingSkills)).toContain(
-      "prevents Claude from automatically loading the skill from ambient context while keeping it available for explicit user invocation",
+      "prevents Claude from invoking the skill through the Skill tool",
     );
     expect(normalizeWhitespace(writingSkills)).toContain(
       "not a substitute for `user-invocable: false` on an internal shared skill",
+    );
+    expect(normalizeWhitespace(writingSkills)).toContain(
+      "do not set `disable-model-invocation: true` on those delegated workflows",
     );
   });
 

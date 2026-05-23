@@ -1,8 +1,6 @@
 ---
 name: play-verification
 description: Explicit-invocation workflow for evidence-backed completion checks before claiming work is complete, fixed, or passing. Use only when the user explicitly invokes `play-verification` or an owning workflow explicitly requires completion verification.
-claude:
-  disable-model-invocation: true
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

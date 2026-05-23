@@ -287,9 +287,7 @@ describe("existing skills render cleanly", () => {
         claudeOutput.content,
       );
 
-      expect(claudeFrontmatter).toMatchObject({
-        "disable-model-invocation": true,
-      });
+      expect(claudeFrontmatter).not.toHaveProperty("disable-model-invocation");
       expect(claudeFrontmatter.description).toContain("Use only when");
       expect(claudeFrontmatter.description).toContain(skillName);
 

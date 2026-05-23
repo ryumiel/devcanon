@@ -1,8 +1,6 @@
 ---
 name: play-branch-finish
 description: Explicit-invocation workflow for closing out a development branch via squash merge, push and PR, or discard cleanup. Use only when the user explicitly invokes `play-branch-finish` or an owning workflow explicitly requires branch completion.
-claude:
-  disable-model-invocation: true
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

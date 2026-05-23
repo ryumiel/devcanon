@@ -97,10 +97,9 @@ request.
   for example, `skills/play-review/SKILL.md`, called by both
   `branch-review` and `pr-review`.
 - **`claude.disable-model-invocation: true`** — prevents Claude from
-  automatically loading the skill from ambient context while keeping it
-  available for explicit user invocation. Use this for public workflows
-  that should only run when the user names the workflow, such as the
-  `play-*` workflow skills.
+  invoking the skill through the Skill tool. Use this only for skills
+  that must be manual slash commands and are not delegated to by other
+  skills.
 
 The wrapper pattern (a public skill thin-delegating to a shared
 internal skill) requires `user-invocable: false`. Setting
@@ -109,6 +108,11 @@ internal skill) requires `user-invocable: false`. Setting
 remain user-facing instead of being hidden behind its wrappers. See
 [issue #149](https://github.com/ryumiel/agent-manager/issues/149)
 for the wrapper-visibility precedent.
+
+Public workflows that must be user-explicit while still allowing owning
+workflow hand-offs should rely on restrictive description wording and
+Codex `policy.allow_implicit_invocation: false`; do not set
+`disable-model-invocation: true` on those delegated workflows.
 
 ### `codex:` for license and metadata
 

@@ -1,8 +1,6 @@
 ---
 name: play-planning
 description: Explicit-invocation workflow for writing comprehensive implementation plans as bite-sized tasks saved to `.ephemeral/`. Use only when the user explicitly invokes `play-planning` or an owning workflow explicitly requires implementation planning.
-claude:
-  disable-model-invocation: true
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

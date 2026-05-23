@@ -1,8 +1,6 @@
 ---
 name: play-tdd
 description: Explicit-invocation workflow for test-driven development discipline before implementation. Use only when the user explicitly invokes `play-tdd` or an owning workflow explicitly requires tests-before-implementation.
-claude:
-  disable-model-invocation: true
 codex_sidecar:
   policy:
     allow_implicit_invocation: false
