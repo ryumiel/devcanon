@@ -1,9 +1,16 @@
 ---
 name: play-tdd
-description: Test-driven development discipline for tests-before-implementation. Use when implementing any feature or bugfix, before writing implementation code.
+description: Explicit-invocation workflow for test-driven development discipline before implementation. Use only when the user explicitly invokes `play-tdd` or an owning workflow explicitly requires tests-before-implementation.
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Test-Driven Development (TDD)
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-tdd` or when an owning workflow explicitly hands off to `play-tdd`.
 
 ## Overview
 

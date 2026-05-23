@@ -1,9 +1,16 @@
 ---
 name: play-skill-authoring
-description: TDD-style skill authoring with subagent pressure scenarios for baseline testing and loophole closure. Use when creating new skills, editing existing skills, or verifying skills work before deployment.
+description: Explicit-invocation workflow for TDD-style skill authoring with subagent pressure scenarios for baseline testing and loophole closure. Use only when the user explicitly invokes `play-skill-authoring` or an owning workflow explicitly requires skill-authoring verification.
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Writing Skills
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-skill-authoring` or when an owning workflow explicitly hands off to `play-skill-authoring`.
 
 ## Overview
 

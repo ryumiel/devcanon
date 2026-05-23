@@ -84,9 +84,10 @@ tier.
 
 #### `user-invocable: false` vs `disable-model-invocation: true`
 
-Both fields hide a skill from explicit invocation, but they differ in
-whether _other skills_ can still call it via the Skill tool. Pick the
-right one when authoring an internal skill that wrappers depend on.
+Both fields affect discoverability, but they control different surfaces.
+Pick the right one when deciding whether a skill should be user-facing,
+model-selected from ambient context, or invoked only by explicit user
+request.
 
 - **`claude.user-invocable: false`** — hides the skill from the
   slash-command menu, but sibling skills can still invoke it through
@@ -95,17 +96,23 @@ right one when authoring an internal skill that wrappers depend on.
   this for shared internal procedures that other skills delegate to —
   for example, `skills/play-review/SKILL.md`, called by both
   `branch-review` and `pr-review`.
-- **`claude.disable-model-invocation: true`** — blocks _all_
-  Skill-tool invocations, including programmatic hand-offs from
-  sibling skills. Use this only when the skill must never be invoked
-  by the model, e.g., for tooling-only artifacts.
+- **`claude.disable-model-invocation: true`** — prevents Claude from
+  invoking the skill through the Skill tool. Use this only for skills
+  that must be manual slash commands and are not delegated to by other
+  skills.
 
 The wrapper pattern (a public skill thin-delegating to a shared
 internal skill) requires `user-invocable: false`. Setting
-`disable-model-invocation: true` on a shared internal skill breaks
-the wrapper because the public wrappers can no longer call it. See
+`disable-model-invocation: true` is not a substitute for
+`user-invocable: false` on an internal shared skill: the skill would
+remain user-facing instead of being hidden behind its wrappers. See
 [issue #149](https://github.com/ryumiel/agent-manager/issues/149)
-for the precedent and the symptom this trap produces.
+for the wrapper-visibility precedent.
+
+Public workflows that must be user-explicit while still allowing owning
+workflow hand-offs should rely on restrictive description wording and
+Codex `policy.allow_implicit_invocation: false`; do not set
+`disable-model-invocation: true` on those delegated workflows.
 
 ### `codex:` for license and metadata
 

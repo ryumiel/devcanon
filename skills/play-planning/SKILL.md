@@ -1,9 +1,16 @@
 ---
 name: play-planning
-description: Writes a comprehensive implementation plan as bite-sized tasks for an engineer with no codebase context, saved to `.ephemeral/`. Use when working from a spec or design for a multi-step task, before touching code. Do not use to brainstorm requirements — start with play-brainstorm.
+description: Explicit-invocation workflow for writing comprehensive implementation plans as bite-sized tasks saved to `.ephemeral/`. Use only when the user explicitly invokes `play-planning` or an owning workflow explicitly requires implementation planning.
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Writing Plans
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-planning` or when an owning workflow explicitly hands off to `play-planning`.
 
 ## Overview
 
@@ -25,7 +32,7 @@ already-approved verbatim artifact that the task must reproduce exactly. When
 verbatim artifact content is required, label it as approved verbatim artifact
 content and name its authority source.
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+**Announce at start:** "I'm using the play-planning skill to create the implementation plan."
 
 **Save plans to:** `.ephemeral/YYYY-MM-DD-<feature-name>-plan.md`.
 Before the `Write` tool call, compute the path and apply the canonical

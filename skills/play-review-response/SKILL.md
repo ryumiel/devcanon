@@ -1,9 +1,16 @@
 ---
 name: play-review-response
-description: Verification-first response to code review feedback. Use when receiving code review feedback, especially if feedback seems unclear or technically questionable.
+description: Explicit-invocation workflow for verification-first response to code review feedback. Use only when the user explicitly invokes `play-review-response` or asks to address review feedback through that workflow.
+codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
 ---
 
 # Code Review Reception
+
+## Invocation Policy
+
+This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-review-response` or when an owning workflow explicitly hands off to `play-review-response`.
 
 ## Overview
 
