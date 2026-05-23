@@ -27,6 +27,31 @@ describe("measureSkillPrompt", () => {
     expect(metrics.estimatedTokens).toBe(2);
   });
 
+  it("treats reserved tokenizer spellings as ordinary skill prose", async () => {
+    const endOfText = await measureSkillPrompt("<|endoftext|>");
+    const endOfPrompt = await measureSkillPrompt("<|endofprompt|>");
+
+    expect(endOfText.estimatedTokens).toBeGreaterThan(1);
+    expect(endOfPrompt.estimatedTokens).toBeGreaterThan(1);
+  });
+
+  it("handles long unbroken text without failing the advisory estimate", async () => {
+    const metrics = await measureSkillPrompt("x".repeat(10_000));
+
+    expect(metrics.estimatedTokens).toBeGreaterThan(0);
+    expect(metrics.lines).toBe(1);
+  });
+
+  it("handles long whitespace runs without failing the advisory estimate", async () => {
+    const spaces = await measureSkillPrompt(" ".repeat(10_000));
+    const newlines = await measureSkillPrompt("\n".repeat(10_000));
+
+    expect(spaces.estimatedTokens).toBeGreaterThan(0);
+    expect(spaces.lines).toBe(1);
+    expect(newlines.estimatedTokens).toBeGreaterThan(0);
+    expect(newlines.lines).toBe(10_000);
+  });
+
   it("exports the skill prompt size guideline constants", () => {
     expect(SKILL_PROMPT_TARGET_TOKEN_RANGE).toEqual({
       min: 1500,
