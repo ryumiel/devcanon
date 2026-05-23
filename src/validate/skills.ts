@@ -17,6 +17,12 @@ import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
 import { collectProseSegments } from "../utils/markdown-prose.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { getLogger } from "../utils/output.js";
+import {
+  SKILL_PROMPT_LINE_WARNING_THRESHOLD,
+  SKILL_PROMPT_TARGET_TOKEN_RANGE,
+  SKILL_PROMPT_TOKEN_WARNING_THRESHOLD,
+  measureSkillPrompt,
+} from "../utils/token-count.js";
 
 export const KNOWN_SUBDIRS = [
   "assets",
@@ -112,6 +118,13 @@ export async function loadAndValidateSkills(
       const issues = result.error.issues.map(formatZodIssue).join("; ");
       errors.push(`Skill "${name}": ${issues}`);
       continue;
+    }
+
+    if (diagnostics?.enabled) {
+      const promptMetrics = await measureSkillPrompt(skillMdContent);
+      if (isSkillPromptOversized(promptMetrics)) {
+        getLogger().warn(formatSkillPromptSizeDiagnostic(name, promptMetrics));
+      }
     }
 
     if (result.data.name !== name) {
@@ -282,4 +295,34 @@ function formatDriftDiagnostic(
       throw new Error(`unhandled drift reason: ${String(_exhaustive)}`);
     }
   }
+}
+
+interface SkillPromptMetrics {
+  estimatedTokens: number;
+  encoding: string;
+  bytes: number;
+  lines: number;
+}
+
+function formatSkillPromptSizeDiagnostic(
+  skillName: string,
+  metrics: SkillPromptMetrics,
+): string {
+  const tokens = metrics.estimatedTokens.toLocaleString("en-US");
+  const softTokenLimit =
+    SKILL_PROMPT_TOKEN_WARNING_THRESHOLD.toLocaleString("en-US");
+  const targetMin = SKILL_PROMPT_TARGET_TOKEN_RANGE.min.toLocaleString("en-US");
+  const targetMax = SKILL_PROMPT_TARGET_TOKEN_RANGE.max.toLocaleString("en-US");
+  const lineLimit = SKILL_PROMPT_LINE_WARNING_THRESHOLD.toLocaleString("en-US");
+  const bytes = metrics.bytes.toLocaleString("en-US");
+  const lines = metrics.lines.toLocaleString("en-US");
+
+  return `Skill "${skillName}": SKILL.md is large (~${tokens} GPT tokens estimated with ${metrics.encoding}; ${bytes} bytes; ${lines} lines; target ${targetMin}-${targetMax} tokens; soft upper bound ${softTokenLimit} tokens or ${lineLimit} lines). Always-loaded skill prompts compete for context. Keep critical instructions, safety rules, and output contracts before token ${softTokenLimit}; consider moving examples, rationale, branch-specific policy, or deterministic mechanics into references/ or scripts/.`;
+}
+
+function isSkillPromptOversized(metrics: SkillPromptMetrics): boolean {
+  return (
+    metrics.estimatedTokens > SKILL_PROMPT_TOKEN_WARNING_THRESHOLD ||
+    metrics.lines >= SKILL_PROMPT_LINE_WARNING_THRESHOLD
+  );
 }

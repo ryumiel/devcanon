@@ -84,6 +84,20 @@ describe("loadAndValidateSkills", () => {
     ).toBe(true);
   }
 
+  function makeOversizedSkillContent(name: string): string {
+    return [
+      "---",
+      `name: ${name}`,
+      "description: A large skill prompt.",
+      "---",
+      "",
+      "# Large prompt",
+      "",
+      ...Array.from({ length: 9000 }, (_, index) => `instruction-${index}`),
+      "",
+    ].join("\n");
+  }
+
   it("returns empty array when skills directory does not exist", async () => {
     const result = await loadAndValidateSkills(skillsDir);
     expect(result).toEqual([]);
@@ -338,6 +352,233 @@ describe("loadAndValidateSkills", () => {
       /other-name/,
     );
     await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(/my-dir/);
+  });
+
+  it("does not warn about normal-sized skill prompt size", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(skillsDir, "small-skill");
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expect(
+        warnings.some((warning) => /SKILL\.md is large/i.test(warning)),
+      ).toBe(false);
+    });
+  });
+
+  it("does not fail prompt-size diagnostics on reserved tokenizer spellings", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "tokenizer-spellings",
+      [
+        "---",
+        "name: tokenizer-spellings",
+        "description: Mentions tokenizer syntax.",
+        "---",
+        "",
+        "# Tokenizer spellings",
+        "",
+        "Use examples like <|endoftext|> and <|endofprompt|> as prose.",
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expect(
+        warnings.some((warning) => /SKILL\.md is large/i.test(warning)),
+      ).toBe(false);
+    });
+  });
+
+  it("warns with tokenizer metrics when a skill prompt is oversized", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = makeOversizedSkillContent("large-skill");
+    await createSkillFixture(skillsDir, "large-skill", content);
+    const bytes = Buffer.byteLength(content, "utf-8");
+    const lines = content.match(/\r\n|\r|\n/g)?.length ?? 1;
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(
+        warnings,
+        /large-skill/i,
+        /SKILL\.md is large/i,
+        /GPT tokens estimated with o200k_base/i,
+        /target 1,500-3,500 tokens/i,
+        /soft upper bound 5,000 tokens or 500 lines/i,
+        new RegExp(`${bytes.toLocaleString("en-US")} bytes`),
+        new RegExp(`${lines.toLocaleString("en-US")} lines`),
+        /critical instructions, safety rules, and output contracts before token 5,000/i,
+        /references\/ or scripts\//i,
+      );
+    });
+  });
+
+  it("warns when a skill prompt exceeds the line guideline", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = [
+      "---",
+      "name: line-heavy-skill",
+      "description: A line-heavy skill prompt.",
+      "---",
+      "",
+      "# Line-heavy prompt",
+      "",
+      ...Array.from({ length: 493 }, (_, index) => `step ${index}`),
+    ].join("\n");
+    await createSkillFixture(skillsDir, "line-heavy-skill", content);
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(
+        warnings,
+        /line-heavy-skill/i,
+        /500 lines/i,
+        /soft upper bound 5,000 tokens or 500 lines/i,
+      );
+    });
+  });
+
+  it("keeps long unbroken prompt-size diagnostics advisory in strict mode", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "long-unbroken-skill",
+      [
+        "---",
+        "name: long-unbroken-skill",
+        "description: Contains a pasted blob.",
+        "---",
+        "",
+        "# Long unbroken prompt",
+        "",
+        "x".repeat(50_000),
+        "",
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expectWarningLine(
+        warnings,
+        /long-unbroken-skill/i,
+        /SKILL\.md is large/i,
+      );
+    });
+  });
+
+  it("keeps long whitespace prompt-size diagnostics advisory in strict mode", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "long-whitespace-skill",
+      [
+        "---",
+        "name: long-whitespace-skill",
+        "description: Contains many blank lines.",
+        "---",
+        "",
+        "# Long whitespace prompt",
+        "",
+        "\n".repeat(600),
+      ].join("\n"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expectWarningLine(
+        warnings,
+        /long-whitespace-skill/i,
+        /SKILL\.md is large/i,
+      );
+    });
+  });
+
+  it("does not warn about oversized skill prompts when diagnostics are disabled", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "quiet-large-skill",
+      makeOversizedSkillContent("quiet-large-skill"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir);
+
+      expect(result).toHaveLength(1);
+      expect(
+        warnings.some((warning) => /SKILL\.md is large/i.test(warning)),
+      ).toBe(false);
+    });
+  });
+
+  it("keeps oversized skill prompt diagnostics advisory in strict mode", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-large-skill",
+      makeOversizedSkillContent("strict-large-skill"),
+    );
+
+    await captureWarnings(async (warnings) => {
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+          },
+        }),
+      ).resolves.toHaveLength(1);
+
+      expectWarningLine(warnings, /strict-large-skill/i, /SKILL\.md is large/i);
+    });
   });
 
   it("warns in non-strict validate mode on raw Claude aliases in prose", async () => {
