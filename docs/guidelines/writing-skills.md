@@ -37,8 +37,9 @@ local loop is:
    skill root (other than hidden files) is flagged by `validate`; move
    supporting material under `references/`.
 3. Validate: `pnpm run dev -- validate`. Use `validate --strict` to
-   promote shared-prose drift warnings (see § 5) into errors before
-   committing.
+   promote shared-prose drift warnings (see § 6) into errors before
+   committing. Oversized `SKILL.md` prompt diagnostics remain advisory
+   warnings even in strict mode.
 4. Render: `pnpm run dev -- render`. Inspect both
    `generated/claude/skills/<name>/` and `generated/codex/skills/<name>/`
    to confirm each target receives the expected frontmatter and body.
@@ -231,6 +232,38 @@ models, tools, and files are auto-derived from
 `validate --strict` treats it as a failure; run that before
 opening a PR.
 
+### Prompt-size advisory
+
+`SKILL.md` is the always-loaded prompt for the skill. Keep it focused on the
+trigger, authority rules, required workflow steps, safety constraints, and
+short decision criteria that the model needs immediately. Do not compress
+important material into vague prose just to reduce size; use progressive
+disclosure instead.
+
+`pnpm run dev -- validate` warns when raw `SKILL.md` source is estimated above
+`8,000` GPT tokens using the `o200k_base` encoding. The count is an authoring
+estimate, not a billing-accurate or cross-provider exact count, and may differ
+from the final rendered or host-wrapped prompt. This diagnostic is warning-only
+for now, including under `validate --strict`; configurable thresholds, strict
+enforcement, and baseline mechanics are deferred.
+
+Move non-eager material into the bundled subdirectories when the model can load
+it only after the skill is selected:
+
+- `examples/` for worked examples, sample inputs and outputs, and edge-case
+  walkthroughs.
+- `references/` for rationale, long policy background, branch-specific or
+  project-local policy, comparison tables, and lookup material.
+- `assets/` for images, fixtures, templates, or other non-prose inputs the
+  skill may need.
+- `scripts/` for deterministic mechanics, helper programs, validation probes,
+  and repeatable transformations.
+
+Prefer moving coherent supporting sections over deleting nuance. A smaller
+`SKILL.md` is useful only when the remaining prompt still tells the agent when
+to use the skill, what contract it must preserve, and which supporting file or
+script to open when more detail is needed.
+
 ## 7. Testing
 
 The general discipline lives in
@@ -242,6 +275,9 @@ to non-trivial edits.
 In addition, this repo expects:
 
 - `pnpm run dev -- validate --strict` passes.
+- Any oversized `SKILL.md` advisory warning has been reviewed and either fixed
+  by moving non-eager material into supporting files or intentionally accepted
+  as warning-only.
 - Both rendered outputs (`generated/claude/skills/<name>/` and
   `generated/codex/skills/<name>/`) read correctly under their target.
 - Tests under `src/render/` that snapshot shipped skill metadata are
@@ -287,6 +323,9 @@ changes that have no generated-output contract.
       decision branches).
 - [ ] Both rendered targets diffed locally and read correctly.
 - [ ] `pnpm run dev -- validate --strict` passes.
+- [ ] Any prompt-size warning has been reviewed against § 6; oversized
+      always-loaded material is moved to supporting files unless the warning is
+      intentionally accepted.
 - [ ] Any supporting files validate per
       [`../specs/skills.md`](../specs/skills.md).
 - [ ] Snapshot tests for shipped skill metadata updated if affected.

@@ -188,6 +188,21 @@ automatically. The path check additionally flags `.claude/`,
 `.codex/`, and `.agents/`. Diagnostics are reported as warnings
 in normal mode and as validation failures in `validate --strict`.
 
+`validate` also reports an advisory prompt-size diagnostic for
+unusually large `SKILL.md` files. It counts the raw `SKILL.md`
+source with the `o200k_base` GPT tokenizer and warns when the
+estimate is greater than `8,000` tokens. The warning includes the
+estimated token count, UTF-8 byte count, line count, encoding name,
+and threshold.
+
+Prompt-size counts are estimates for authoring feedback. They are
+not billing-accurate, provider-neutral, or guaranteed to match the
+final prompt after target rendering, host-side wrappers, hidden
+payloads, or provider-specific tokenizers are applied. This diagnostic
+is warning-only in the first implementation, including under
+`validate --strict`; strict enforcement and baseline mechanics are
+deferred until explicitly designed and implemented.
+
 ---
 
 ## Optional content
@@ -201,6 +216,15 @@ A skill may also contain:
 
 These subdirectories are mirrored per target into
 `generated/<target>/skills/<name>/` as-is.
+
+Keep `SKILL.md` focused on the always-loaded instructions needed to
+route and execute the skill. Move non-eager material into the optional
+subdirectories: worked examples into `examples/`, supporting rationale
+or long references into `references/`, binary or visual inputs into
+`assets/`, and deterministic mechanics into `scripts/`. Branch-specific
+policy and other project-local detail should usually live in
+`references/` or in the owning project documentation rather than in the
+always-loaded skill prompt.
 
 Only `SKILL.md` and these four subdirs are part of the installed bundle —
 any other top-level _file_ is flagged by `validate` (and rejected under
@@ -226,6 +250,11 @@ top-level subdirectories are not flagged.
   keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
   e.g. `task-tracker`, `project-instructions`).
 - Broken internal symlinks are errors.
+- `SKILL.md` files estimated above `8,000` GPT tokens using
+  `o200k_base` emit an advisory prompt-size warning with estimated
+  tokens, bytes, and lines. This warning is not promoted to an error
+  by `--strict`; strict enforcement and baseline mechanics are not
+  implemented.
 - Top-level entries other than `SKILL.md` and the four optional subdirs
   (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
   files emit warnings (errors under `--strict`); hidden files and stray
