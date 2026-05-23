@@ -97,6 +97,58 @@ IF conflicts with the user's prior decisions:
 
 **Rule:** "External feedback - be skeptical, but check carefully"
 
+## Structural Lifecycle Feedback
+
+Treat lifecycle-sensitive review feedback as structural risk unless
+verification proves the concern is stale, invalid, already addressed,
+explanation-only, or safely inside the inline envelope. Lifecycle-sensitive
+feedback includes comments about operation start, readiness, success, failure,
+cleanup, retries, cancellation, disposal, restart, reconnect, stale state,
+stale events, concurrent or same-tick bypasses, correlation, ownership, or
+authoritative completion signals.
+
+Structural-risk feedback defaults to planned execution. Do not downgrade a
+lifecycle-sensitive concern to inline execution merely because the reviewer's
+patch suggestion is small, the diff looks local, the user wants speed, or tests
+currently pass. Downgrade only after verification establishes one of these
+dispositions:
+
+- **Stale/invalid** - current code and thread state show the concern no longer
+  applies or is technically incorrect.
+- **Already addressed** - the pushed branch or current local diff contains the
+  fix, and the same concern can be mapped to concrete evidence.
+- **Explanation-only** - no code change is required, and a concise reply can
+  explain why with source evidence.
+- **Safely inline** - every normal inline condition is true, and the lifecycle
+  concern does not affect operation boundaries, ownership, ordering,
+  correlation, cleanup, retry, failure, or externally visible behavior.
+
+For executable lifecycle-sensitive concerns, check the operation lifecycle
+before writing code or a plan:
+
+- **Start boundary** - what begins the operation and what prevents duplicate,
+  same-tick, or concurrent starts?
+- **Readiness boundary** - what state means the operation is allowed to proceed?
+- **Success boundary** - what authoritative completion signal marks success,
+  and who owns setting it?
+- **Failure boundary** - what failures are recoverable, retryable, terminal, or
+  user-visible?
+- **Ownership** - which component owns state transitions, cleanup, disposal,
+  cancellation, restart, reconnect, and externally visible effects?
+- **Identity / correlation** - how events, callbacks, jobs, retries, or
+  responses map to the current operation rather than a stale one.
+- **Stale state and events** - how old events, old promises, cached state, or
+  previous attempts are rejected or ignored.
+- **Retry / cancellation / disposal / restart / reconnect** - how repeated or
+  interrupted lifecycles avoid double effects and missed cleanup.
+- **Cleanup** - who owns normal cleanup, stale cleanup, speculative or
+  render-only cleanup, and cleanup after failure or cancellation?
+- **Tests** - what focused checks cover normal, stale, cleanup, retry,
+  cancellation, failure, same-tick, and concurrent paths?
+- **Docs / contracts** - whether the review feedback changes public contracts,
+  workflow policy, skill/agent contracts, generated-output expectations, or
+  consumer-facing behavior.
+
 ## Execution Mode Selection
 
 After thread-aware intake and verification, classify each verified concern
@@ -175,6 +227,37 @@ after the executor's final code-quality reviewer. Run `branch-review` before
 opening or updating a PR when planned review-response work needs whole-diff
 coverage.
 
+### Plan Approval Gate
+
+For planned review-response work, create a written `.ephemeral/*-plan.md`
+before implementation. This gate borrows the approval-gate shape from
+`play-brainstorm` without invoking `play-brainstorm` and without making it a
+dependency of `play-review-response`.
+
+Before handing the plan to `play-subagent-execution`, present the plan to the
+user with a distinct producer notice and approval prompt:
+
+```text
+I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`.
+Please review it. I will not implement it until you approve the plan.
+```
+
+The plan approval gate is explicit:
+
+- The plan must be Markdown-valid enough for explicit repository scans and
+  remains agent-local evidence under `.ephemeral/`; it is not durable product,
+  architecture, or workflow documentation.
+- Run plan self-review and any applicable plan-review gate before asking for
+  approval.
+- Wait for user approval before implementation begins.
+- If the user requests plan changes, revise the plan, rerun plan self-review
+  and any applicable plan-review gate, then ask for approval again.
+- Repeat the user approval loop until the user approves or stops the work.
+  There is no fixed maximum for this human approval loop.
+- Keep the separate `play-planning` agent-review cap out of the user approval
+  gate; that cap governs planning-agent review rounds, not how many times the
+  user may request plan changes before approval.
+
 After the executor returns, this skill resumes ownership of explanation-only
 replies, thread refetching, resolution eligibility, and final PR-thread
 closeout.
@@ -197,8 +280,9 @@ thread closeout behavior."
 Verification: policy-sensitive, contract-sensitive, multi-surface workflow
 change with traceability needs.
 Mode: Planned execution.
-Action: Write `.ephemeral/<date>-review-response-plan.md`, then invoke
-`play-subagent-execution` with `Plan: <path>`.
+Action: Write `.ephemeral/<date>-review-response-plan.md`, run plan
+self-review and applicable plan-review, ask for approval, wait for
+approval, then invoke `play-subagent-execution` with `Plan: <path>`.
 ```
 
 ## YAGNI Check for "Professional" Features
@@ -267,6 +351,29 @@ Correct post-review response:
   You fix it with a follow-up commit and `git push`.
 ```
 
+## Pre-Push Review Gate
+
+Before any push, GitHub reply, GitHub resolve, or GitHub comment side effect for
+review-response work, stop at the Pre-Push Review Gate and wait for explicit
+approval unless an active owning workflow already has an approved posting gate
+that covers the same side effects.
+
+The gate summary must include:
+
+- Local changes since the review-response work began, including follow-up
+  commit SHA when a commit exists.
+- Verification run and result, including regression coverage or a clear reason
+  no code change was needed.
+- Thread disposition for each concern: behavioral fix, no-code explanation,
+  stale/invalid/already-addressed, unresolved, or needs clarification.
+- Intended external actions, such as push, in-thread reply, top-level PR
+  comment, thread resolution, or leaving a thread unresolved.
+
+Do not treat "push it", "respond", or "looks good" as permission to skip this
+gate when the workflow has not yet seen the local-state, verification, and
+intended-action summary. After approval, perform only the listed side effects;
+new side effects require another gate summary.
+
 ## Pushed-Fix Inline Thread Closure
 
 Use this sequence after addressing inline GitHub review feedback on an
@@ -278,17 +385,19 @@ already-pushed or reviewed PR branch:
 3. Run the relevant checks.
 4. Commit the response work with a follow-up commit when the branch is already
    pushed or reviewed.
-5. Push normally.
-6. Re-fetch PR review thread state after the push and before any reply.
-7. Confirm GitHub writes are permitted by explicit user approval or the active
+5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side
+   effects.
+6. Push normally only after the gate approves that push.
+7. Re-fetch PR review thread state after the push and before any reply.
+8. Confirm GitHub writes are permitted by explicit user approval or the active
    workflow's approved posting gate.
-8. Reply in-thread with concise fix or explanation evidence.
-9. Re-fetch PR review thread state again after the reply and immediately before
-   any resolution. Re-fetch authorship/ownership after the reply and
-   immediately before any resolution in that same current state so resolution
-   is based on the latest reviewer identity or ownership, not on stale
-   pre-reply metadata.
-10. Resolve only eligible threads.
+9. Reply in-thread with concise fix or explanation evidence.
+10. Re-fetch PR review thread state again after the reply and immediately before
+    any resolution. Re-fetch authorship/ownership after the reply and
+    immediately before any resolution in that same current state so resolution
+    is based on the latest reviewer identity or ownership, not on stale
+    pre-reply metadata.
+11. Resolve only eligible threads.
 
 Safe-to-resolve criteria:
 
@@ -305,6 +414,12 @@ thread requires the separate eligibility gate below.
 - The thread maps to the same concern that you verified and addressed.
 - The pushed branch contains the fix, or the in-thread reply explains why no
   code change is required.
+- For outdated unresolved threads, current code and current thread state show
+  the underlying concern is stale, invalid, already addressed, or fully
+  addressed by pushed or replied evidence.
+- The post-reply refetch still maps the thread to the same concern and does not
+  show new disagreement, new reviewer feedback, unclear ownership, or a newer
+  conflicting state.
 - The relevant checks have passed.
 - The current actor has permission to resolve the thread.
 - Human-authored review threads are eligible only with explicit current-list
@@ -325,7 +440,9 @@ Edge dispositions:
   replies unless explicit current-list resolve approval, reviewer confirmation,
   or explicit repository policy delegation exists.
 - Stale or outdated threads are not resolved merely because they are outdated.
-  Re-fetch current thread state and verify the underlying concern first.
+  Re-fetch current thread state, verify the underlying concern first, confirm
+  pushed or replied evidence addresses that same concern, re-fetch after the
+  reply, and apply the normal Safe-to-resolve criteria.
 - Already-resolved threads are left alone. Do not add duplicate replies unless
   new information is needed.
 - Unclear ownership stays unresolved and is reported to the user.
@@ -435,10 +552,13 @@ You understand 1,2,3,6. Unclear on 4,5.
 When replying to inline review comments on GitHub, reply in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
-existing thread context. Follow `Pushed-Fix Inline Thread Closure` before
-resolving any thread. Do not resolve continuity by replacing reviewed history
-unless the user explicitly asked for that cleanup or the repository workflow
-requires rewritten history.
+existing thread context. When a follow-up commit exists, include its commit SHA.
+Each reply should state the behavioral fix or no-code disposition, regression
+coverage or reason no code change was needed, and a concise verification
+summary. Follow `Pushed-Fix Inline Thread Closure` before resolving any thread.
+Do not resolve continuity by replacing reviewed history unless the user
+explicitly asked for that cleanup or the repository workflow requires rewritten
+history.
 
 ## The Bottom Line
 

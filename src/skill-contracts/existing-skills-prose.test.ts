@@ -473,6 +473,7 @@ describe("existing skills source prose contracts", () => {
     const commitPolicyIndex = skillSource.indexOf(
       "## PR Branch Commit Continuity",
     );
+    const prePushGateIndex = skillSource.indexOf("## Pre-Push Review Gate");
     const threadClosureIndex = skillSource.indexOf(
       "## Pushed-Fix Inline Thread Closure",
     );
@@ -480,7 +481,8 @@ describe("existing skills source prose contracts", () => {
 
     expect(implementationOrderIndex).toBeGreaterThanOrEqual(0);
     expect(commitPolicyIndex).toBeGreaterThan(implementationOrderIndex);
-    expect(threadClosureIndex).toBeGreaterThan(commitPolicyIndex);
+    expect(prePushGateIndex).toBeGreaterThan(commitPolicyIndex);
+    expect(threadClosureIndex).toBeGreaterThan(prePushGateIndex);
     expect(pushBackIndex).toBeGreaterThan(threadClosureIndex);
 
     const implementationOrder = getMarkdownSection(
@@ -496,6 +498,8 @@ describe("existing skills source prose contracts", () => {
       "PR Branch Commit Continuity",
     );
     const normalizedCommitPolicy = normalizeWhitespace(commitPolicy);
+    const prePushGate = getMarkdownSection(skillSource, "Pre-Push Review Gate");
+    const normalizedPrePushGate = normalizeWhitespace(prePushGate);
     const threadClosure = getMarkdownSection(
       skillSource,
       "Pushed-Fix Inline Thread Closure",
@@ -527,8 +531,41 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedCommitPolicy).toContain("review continuity");
 
+    expect(normalizedPrePushGate).toMatch(
+      /Before any push, GitHub reply, GitHub resolve, or GitHub comment side effect.*Pre-Push Review Gate.*wait for explicit approval/i,
+    );
+    expect(normalizedPrePushGate).toMatch(
+      /unless an active owning workflow already has an approved posting gate.*covers the same side effects/i,
+    );
+    for (const gatePhrase of [
+      "Local changes since the review-response work began",
+      "follow-up commit SHA",
+      "Verification run and result",
+      "regression coverage",
+      "Thread disposition",
+      "behavioral fix",
+      "no-code explanation",
+      "Intended external actions",
+      "push",
+      "in-thread reply",
+      "top-level PR comment",
+      "thread resolution",
+      "leaving a thread unresolved",
+    ]) {
+      expect(normalizedPrePushGate).toContain(gatePhrase);
+    }
+    expect(normalizedPrePushGate).toMatch(
+      /Do not treat.*push it.*respond.*looks good.*permission to skip this gate/i,
+    );
+    expect(normalizedPrePushGate).toMatch(
+      /After approval.*only the listed side effects.*new side effects require another gate summary/i,
+    );
+
     expect(normalizedThreadClosure).toMatch(
       /verify.*current review comments.*implement.*run.*checks.*commit.*push.*re-fetch.*thread state.*confirm.*github writes.*reply in-thread.*re-fetch.*thread state.*resolve.*eligible threads/i,
+    );
+    expect(normalizedThreadClosure).toMatch(
+      /Pre-Push Review Gate.*before push, reply, resolve, or comment side effects/i,
     );
     expect(normalizedThreadClosure).toMatch(
       /re-fetch.*after.*push.*before.*reply/i,
@@ -548,6 +585,12 @@ describe("existing skills source prose contracts", () => {
       "same concern",
       "pushed branch contains the fix",
       "reply explains why no code change is required",
+      "outdated unresolved threads",
+      "current code and current thread state",
+      "pushed or replied evidence",
+      "post-reply refetch",
+      "new reviewer feedback",
+      "newer conflicting state",
       "relevant checks",
       "permission to resolve",
       "active owner",
@@ -584,13 +627,116 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedThreadClosure).toMatch(
       /Bot-authored and self-authored review threads.*eligible.*Safe-to-resolve criteria/i,
     );
+    expect(normalizedThreadClosure).toMatch(
+      /Stale or outdated threads.*not resolved merely because they are outdated.*pushed or replied evidence.*normal Safe-to-resolve criteria/i,
+    );
 
     expect(normalizedGithubReplies).toMatch(/comment thread/i);
     expect(normalizedGithubReplies).toMatch(/follow-up commit or fix/i);
+    expect(normalizedGithubReplies).toContain("commit SHA");
+    expect(normalizedGithubReplies).toContain("behavioral fix");
+    expect(normalizedGithubReplies).toContain("no-code disposition");
+    expect(normalizedGithubReplies).toContain("regression coverage");
+    expect(normalizedGithubReplies).toContain("concise verification summary");
     expect(normalizedGithubReplies).toMatch(/thread context/i);
     expect(normalizedGithubReplies).toContain(
       "Pushed-Fix Inline Thread Closure",
     );
+  });
+
+  it("keeps review-response structural lifecycle feedback gates in source", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const sourceSpecificIndex = skillSource.indexOf(
+      "## Source-Specific Handling",
+    );
+    const lifecycleIndex = skillSource.indexOf(
+      "## Structural Lifecycle Feedback",
+    );
+    const executionModeIndex = skillSource.indexOf(
+      "## Execution Mode Selection",
+    );
+
+    expect(sourceSpecificIndex).toBeGreaterThanOrEqual(0);
+    expect(lifecycleIndex).toBeGreaterThan(sourceSpecificIndex);
+    expect(executionModeIndex).toBeGreaterThan(lifecycleIndex);
+
+    const lifecycleSection = getMarkdownSection(
+      skillSource,
+      "Structural Lifecycle Feedback",
+    );
+    const normalizedLifecycle = normalizeWhitespace(lifecycleSection);
+
+    expect(normalizedLifecycle).toMatch(
+      /Treat lifecycle-sensitive review feedback as structural risk unless verification proves.*stale, invalid, already addressed, explanation-only, or safely inside the inline envelope/i,
+    );
+    expect(normalizedLifecycle).toMatch(
+      /Structural-risk feedback defaults to planned execution/i,
+    );
+    expect(normalizedLifecycle).toMatch(
+      /Do not downgrade.*reviewer's patch suggestion is small.*diff looks local.*user wants speed.*tests currently pass/i,
+    );
+
+    for (const exceptionClass of [
+      "Stale/invalid",
+      "Already addressed",
+      "Explanation-only",
+      "Safely inline",
+    ]) {
+      expect(normalizedLifecycle).toContain(exceptionClass);
+    }
+
+    for (const lifecycleTerm of [
+      "operation start",
+      "readiness",
+      "success",
+      "failure",
+      "cleanup",
+      "retries",
+      "cancellation",
+      "disposal",
+      "restart",
+      "reconnect",
+      "stale state",
+      "stale events",
+      "concurrent",
+      "same-tick",
+      "correlation",
+      "ownership",
+      "authoritative completion signals",
+    ]) {
+      expect(normalizedLifecycle).toContain(lifecycleTerm);
+    }
+
+    for (const checklistPhrase of [
+      "Start boundary",
+      "duplicate, same-tick, or concurrent starts",
+      "Readiness boundary",
+      "Success boundary",
+      "authoritative completion signal",
+      "Failure boundary",
+      "recoverable, retryable, terminal, or user-visible",
+      "Ownership",
+      "state transitions",
+      "Identity / correlation",
+      "current operation rather than a stale one",
+      "Stale state and events",
+      "Retry / cancellation / disposal / restart / reconnect",
+      "Cleanup",
+      "normal cleanup",
+      "stale cleanup",
+      "speculative or render-only cleanup",
+      "cleanup after failure or cancellation",
+      "Tests",
+      "normal, stale, cleanup, retry, cancellation, failure, same-tick, and concurrent paths",
+      "Docs / contracts",
+      "public contracts",
+      "workflow policy",
+      "skill/agent contracts",
+      "generated-output expectations",
+      "consumer-facing behavior",
+    ]) {
+      expect(normalizedLifecycle).toContain(checklistPhrase);
+    }
   });
 
   it("keeps review-response execution-mode routing boundaries in source", async () => {
@@ -727,6 +873,47 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecutionMode).toMatch(
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Action: Write `.ephemeral\/<date>-review-response-plan.md`, run plan self-review and applicable plan-review, ask for approval, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+    );
+
+    expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
+    expect(normalizedExecutionMode).toMatch(
+      /borrows the approval-gate shape from `play-brainstorm` without invoking `play-brainstorm`/i,
+    );
+    expect(normalizedExecutionMode).toContain(
+      "without making it a dependency of `play-review-response`",
+    );
+    expect(normalizedExecutionMode).toContain("producer notice");
+    expect(normalizedExecutionMode).toContain("approval prompt");
+    expect(normalizedExecutionMode).toContain(
+      "I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "I will not implement it until you approve the plan",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Markdown-valid enough for explicit repository scans",
+    );
+    expect(normalizedExecutionMode).toContain("agent-local evidence");
+    expect(normalizedExecutionMode).toContain(
+      "Run plan self-review and any applicable plan-review gate",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Wait for user approval before implementation begins",
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /If the user requests plan changes.*revise the plan.*rerun plan self-review.*ask for approval again/i,
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Repeat the user approval loop until the user approves or stops the work",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "There is no fixed maximum for this human approval loop",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Keep the separate `play-planning` agent-review cap out of the user approval gate",
     );
     expect(normalizedExecutionMode).toMatch(
       /After.*executor.*returns.*thread refetching.*resolution eligibility.*final PR-thread closeout/i,
