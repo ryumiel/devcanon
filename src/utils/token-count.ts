@@ -27,13 +27,16 @@ export async function measureSkillPrompt(text: string): Promise<TokenMetrics> {
 }
 
 async function getTokenEncoding(): Promise<TokenEncoding> {
-  encodingPromise ??= import("js-tiktoken").then(({ getEncoding }) =>
-    getEncoding(GPT_TOKEN_ESTIMATE_ENCODING),
-  );
+  encodingPromise ??= Promise.all([
+    import("js-tiktoken/lite"),
+    import("js-tiktoken/ranks/o200k_base"),
+  ]).then(([{ Tiktoken }, { default: o200kBase }]) => new Tiktoken(o200kBase));
   return encodingPromise;
 }
 
 function countLines(text: string): number {
   if (text.length === 0) return 0;
-  return text.split(/\r\n|\r|\n/).length;
+  const newlineMatches = text.match(/\r\n|\r|\n/g);
+  const newlineCount = newlineMatches?.length ?? 0;
+  return /(?:\r\n|\r|\n)$/.test(text) ? newlineCount : newlineCount + 1;
 }

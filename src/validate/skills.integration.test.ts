@@ -378,7 +378,7 @@ describe("loadAndValidateSkills", () => {
     const content = makeOversizedSkillContent("large-skill");
     await createSkillFixture(skillsDir, "large-skill", content);
     const bytes = Buffer.byteLength(content, "utf-8");
-    const lines = content.split(/\r\n|\r|\n/).length;
+    const lines = content.match(/\r\n|\r|\n/g)?.length ?? 1;
 
     await captureWarnings(async (warnings) => {
       const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
