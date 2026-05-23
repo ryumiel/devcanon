@@ -130,6 +130,20 @@ describe("validateAction", () => {
     };
   }
 
+  function makeOversizedSkillContent(name: string): string {
+    return [
+      "---",
+      `name: ${name}`,
+      "description: A large skill prompt.",
+      "---",
+      "",
+      "# Large prompt",
+      "",
+      ...Array.from({ length: 9000 }, (_, index) => `instruction-${index}`),
+      "",
+    ].join("\n");
+  }
+
   it("warns in normal validate mode without failing", async () => {
     await createSkillFixture(
       skillsDir,
@@ -190,6 +204,31 @@ describe("validateAction", () => {
       ).rejects.toThrow(/strict-skill/i);
 
       expect(warnings).toEqual([]);
+    });
+  });
+
+  it("surfaces oversized skill prompt warnings without failing strict validate mode", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "cli-large-skill",
+      makeOversizedSkillContent("cli-large-skill"),
+    );
+
+    await withRecordingLogger(async ({ warnings, infos }) => {
+      await expect(
+        validateAction({ strict: true }, makeCommand(false, false)),
+      ).resolves.toBeUndefined();
+
+      expect(
+        warnings.some(
+          (warning) =>
+            /cli-large-skill/i.test(warning) &&
+            /SKILL\.md is large/i.test(warning) &&
+            /o200k_base/i.test(warning) &&
+            /threshold 8,000 tokens/i.test(warning),
+        ),
+      ).toBe(true);
+      expect(infos).toContain("Skills: 1 valid");
     });
   });
 
