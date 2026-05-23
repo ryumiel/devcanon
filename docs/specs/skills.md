@@ -190,10 +190,18 @@ in normal mode and as validation failures in `validate --strict`.
 
 `validate` also reports an advisory prompt-size diagnostic for
 unusually large `SKILL.md` files. It counts the raw `SKILL.md`
-source with the `o200k_base` GPT tokenizer and warns when the
-estimate is greater than `8,000` tokens. The warning includes the
-estimated token count, UTF-8 byte count, line count, encoding name,
-and threshold.
+source with the `o200k_base` GPT tokenizer. Skill authors should
+target roughly `1,500`-`3,500` estimated GPT tokens, keep the main
+`SKILL.md` under `500` lines, and treat about `5,000` estimated GPT
+tokens as the soft upper bound. `validate` warns when the estimate is
+greater than `5,000` tokens or when the file reaches `500` lines. The
+warning includes the estimated token count, UTF-8 byte count, line
+count, encoding name, target range, and soft upper bound.
+
+Critical instructions, safety rules, and output contracts should appear
+before token `5,000`; later content should be non-critical supporting
+material that can safely move into `references/`, `examples/`,
+`assets/`, or `scripts/`.
 
 Prompt-size counts are estimates for authoring feedback. They are
 not billing-accurate, provider-neutral, or guaranteed to match the
@@ -250,11 +258,12 @@ top-level subdirectories are not flagged.
   keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits, hyphens;
   e.g. `task-tracker`, `project-instructions`).
 - Broken internal symlinks are errors.
-- `SKILL.md` files estimated above `8,000` GPT tokens using
-  `o200k_base` emit an advisory prompt-size warning with estimated
-  tokens, bytes, and lines. This warning is not promoted to an error
-  by `--strict`; strict enforcement and baseline mechanics are not
-  implemented.
+- `SKILL.md` files estimated above `5,000` GPT tokens using
+  `o200k_base`, or at least `500` lines long, emit an advisory
+  prompt-size warning with estimated tokens, bytes, and lines. The
+  authoring target is `1,500`-`3,500` estimated GPT tokens. This
+  warning is not promoted to an error by `--strict`; strict enforcement
+  and baseline mechanics are not implemented.
 - Top-level entries other than `SKILL.md` and the four optional subdirs
   (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
   files emit warnings (errors under `--strict`); hidden files and stray

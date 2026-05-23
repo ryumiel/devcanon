@@ -18,6 +18,8 @@ import { collectProseSegments } from "../utils/markdown-prose.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { getLogger } from "../utils/output.js";
 import {
+  SKILL_PROMPT_LINE_WARNING_THRESHOLD,
+  SKILL_PROMPT_TARGET_TOKEN_RANGE,
   SKILL_PROMPT_TOKEN_WARNING_THRESHOLD,
   measureSkillPrompt,
 } from "../utils/token-count.js";
@@ -120,9 +122,7 @@ export async function loadAndValidateSkills(
 
     if (diagnostics?.enabled) {
       const promptMetrics = await measureSkillPrompt(skillMdContent);
-      if (
-        promptMetrics.estimatedTokens > SKILL_PROMPT_TOKEN_WARNING_THRESHOLD
-      ) {
+      if (isSkillPromptOversized(promptMetrics)) {
         getLogger().warn(formatSkillPromptSizeDiagnostic(name, promptMetrics));
       }
     }
@@ -309,10 +309,20 @@ function formatSkillPromptSizeDiagnostic(
   metrics: SkillPromptMetrics,
 ): string {
   const tokens = metrics.estimatedTokens.toLocaleString("en-US");
-  const threshold =
+  const softTokenLimit =
     SKILL_PROMPT_TOKEN_WARNING_THRESHOLD.toLocaleString("en-US");
+  const targetMin = SKILL_PROMPT_TARGET_TOKEN_RANGE.min.toLocaleString("en-US");
+  const targetMax = SKILL_PROMPT_TARGET_TOKEN_RANGE.max.toLocaleString("en-US");
+  const lineLimit = SKILL_PROMPT_LINE_WARNING_THRESHOLD.toLocaleString("en-US");
   const bytes = metrics.bytes.toLocaleString("en-US");
   const lines = metrics.lines.toLocaleString("en-US");
 
-  return `Skill "${skillName}": SKILL.md is large (~${tokens} GPT tokens estimated with ${metrics.encoding}; ${bytes} bytes; ${lines} lines; threshold ${threshold} tokens). Always-loaded skill prompts compete for context. Consider moving examples, rationale, branch-specific policy, or deterministic mechanics into references/ or scripts/.`;
+  return `Skill "${skillName}": SKILL.md is large (~${tokens} GPT tokens estimated with ${metrics.encoding}; ${bytes} bytes; ${lines} lines; target ${targetMin}-${targetMax} tokens; soft upper bound ${softTokenLimit} tokens or ${lineLimit} lines). Always-loaded skill prompts compete for context. Keep critical instructions, safety rules, and output contracts before token ${softTokenLimit}; consider moving examples, rationale, branch-specific policy, or deterministic mechanics into references/ or scripts/.`;
+}
+
+function isSkillPromptOversized(metrics: SkillPromptMetrics): boolean {
+  return (
+    metrics.estimatedTokens > SKILL_PROMPT_TOKEN_WARNING_THRESHOLD ||
+    metrics.lines >= SKILL_PROMPT_LINE_WARNING_THRESHOLD
+  );
 }

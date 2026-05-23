@@ -57,8 +57,9 @@ Current behavior:
 
 - skill drift diagnostics are emitted as warnings in normal mode
 - oversized `SKILL.md` prompt diagnostics are emitted as advisory warnings
-  when the raw file is estimated above `8,000` GPT tokens with the
-  `o200k_base` encoding; the warning also reports UTF-8 bytes and lines
+  when the raw file is estimated above the `5,000` GPT-token soft upper
+  bound with the `o200k_base` encoding or reaches `500` lines; the warning
+  also reports UTF-8 bytes and lines
 - stray top-level files inside skill folders are flagged with the same
   warn/strict promotion behavior; hidden files and stray subdirectories
   are not flagged
@@ -71,7 +72,9 @@ Current behavior:
 Prompt-size token counts are authoring estimates, not billing-accurate
 or cross-provider exact counts. They may differ from the final target
 prompt after rendering, host wrappers, hidden payloads, or
-provider-specific tokenizers. Configurable thresholds, strict
+provider-specific tokenizers. Skill authors should target `1,500`-`3,500`
+estimated GPT tokens and keep critical instructions, safety rules, and
+output contracts before token `5,000`. Configurable thresholds, strict
 enforcement, and baseline mechanics are deferred and are not current
 `validate` behavior.
 

@@ -394,10 +394,44 @@ describe("loadAndValidateSkills", () => {
         /large-skill/i,
         /SKILL\.md is large/i,
         /GPT tokens estimated with o200k_base/i,
-        /threshold 8,000 tokens/i,
+        /target 1,500-3,500 tokens/i,
+        /soft upper bound 5,000 tokens or 500 lines/i,
         new RegExp(`${bytes.toLocaleString("en-US")} bytes`),
         new RegExp(`${lines.toLocaleString("en-US")} lines`),
+        /critical instructions, safety rules, and output contracts before token 5,000/i,
         /references\/ or scripts\//i,
+      );
+    });
+  });
+
+  it("warns when a skill prompt exceeds the line guideline", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = [
+      "---",
+      "name: line-heavy-skill",
+      "description: A line-heavy skill prompt.",
+      "---",
+      "",
+      "# Line-heavy prompt",
+      "",
+      ...Array.from({ length: 493 }, (_, index) => `step ${index}`),
+    ].join("\n");
+    await createSkillFixture(skillsDir, "line-heavy-skill", content);
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expectWarningLine(
+        warnings,
+        /line-heavy-skill/i,
+        /500 lines/i,
+        /soft upper bound 5,000 tokens or 500 lines/i,
       );
     });
   });

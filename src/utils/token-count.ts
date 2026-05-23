@@ -1,7 +1,12 @@
 import { Buffer } from "node:buffer";
 
 export const GPT_TOKEN_ESTIMATE_ENCODING = "o200k_base";
-export const SKILL_PROMPT_TOKEN_WARNING_THRESHOLD = 8000;
+export const SKILL_PROMPT_TARGET_TOKEN_RANGE = {
+  min: 1500,
+  max: 3500,
+} as const;
+export const SKILL_PROMPT_TOKEN_WARNING_THRESHOLD = 5000;
+export const SKILL_PROMPT_LINE_WARNING_THRESHOLD = 500;
 
 interface TokenMetrics {
   estimatedTokens: number;

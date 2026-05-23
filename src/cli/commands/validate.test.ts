@@ -225,7 +225,7 @@ describe("validateAction", () => {
             /cli-large-skill/i.test(warning) &&
             /SKILL\.md is large/i.test(warning) &&
             /o200k_base/i.test(warning) &&
-            /threshold 8,000 tokens/i.test(warning),
+            /soft upper bound 5,000 tokens or 500 lines/i.test(warning),
         ),
       ).toBe(true);
       expect(infos).toContain("Skills: 1 valid");

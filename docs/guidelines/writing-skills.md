@@ -240,11 +240,20 @@ short decision criteria that the model needs immediately. Do not compress
 important material into vague prose just to reduce size; use progressive
 disclosure instead.
 
+Use these size guidelines for the main `SKILL.md`:
+
+- Keep the main `SKILL.md` under `500` lines.
+- Target `1,500`-`3,500` estimated GPT tokens.
+- Treat about `5,000` estimated GPT tokens as the soft upper bound.
+- Keep critical instructions, safety rules, and output contracts before token
+  `5,000`.
+
 `pnpm run dev -- validate` warns when raw `SKILL.md` source is estimated above
-`8,000` GPT tokens using the `o200k_base` encoding. The count is an authoring
-estimate, not a billing-accurate or cross-provider exact count, and may differ
-from the final rendered or host-wrapped prompt. This diagnostic is warning-only
-for now, including under `validate --strict`; configurable thresholds, strict
+the `5,000` GPT-token soft upper bound using the `o200k_base` encoding, or when
+the file reaches `500` lines. The count is an authoring estimate, not a
+billing-accurate or cross-provider exact count, and may differ from the final
+rendered or host-wrapped prompt. This diagnostic is warning-only for now,
+including under `validate --strict`; configurable thresholds, strict
 enforcement, and baseline mechanics are deferred.
 
 Move non-eager material into the bundled subdirectories when the model can load
