@@ -195,14 +195,13 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("scripts/review-artifacts.sh");
       expect(phase7).toContain("validate-findings");
       expect(normalizedPhase7).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
       );
       expect(normalizedPhase7).toContain(
         "invoke it from the issue worktree root",
       );
-      expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
       expect(normalizedPhase7).toContain(
-        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+        "Then validate the parsed findings path before reading it with the canonical helper",
       );
       expect(normalizedPhase7).toContain(
         "After the guard passes, load `findings[]` from the file",
@@ -219,16 +218,12 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(phase7).toContain("play-review/findings/v1");
       expect(phase7).toContain("-nits-pending.json");
-      expect(phase7).toContain("NITS_PENDING_FILE");
       expect(phase7).toContain("derive-nits-pending");
       expect(normalizedPhase7).toContain(
-        'NITS_PENDING_FILE=$( HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending )',
+        "Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path",
       );
       expect(normalizedPhase7).toContain(
-        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
-      );
-      expect(normalizedPhase7).toContain(
-        "passes `$NITS_PENDING_FILE` as `nits_file`",
+        'passes `$NITS_PENDING_FILE` as `nits_file`',
       );
       expect(normalizedPhase7).toContain(
         "If the judgment-required set is empty, skip the file write",
@@ -406,13 +401,13 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(option2).toContain("scripts/review-artifacts.sh");
       expect(option2).toContain("validate-nits-file");
       expect(normalizedOption2).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
       );
       expect(normalizedOption2).toContain(
         "invoke it from the target repository root",
       );
       expect(normalizedOption2).toContain(
-        'NITS_FILE="$NITS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-nits-file',
+        "run the canonical `play-review` helper command `validate-nits-file` before partitioning",
       );
       expect(normalizedOption2).toContain(
         "Treat any nonzero exit as a contract failure and stop before posting",
@@ -607,24 +602,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReview).toContain(
         "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
       );
-      expect(playReview).toContain(
-        'ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'git diff --name-only "$FULL_PR_DIFF_RANGE"',
+      expect(normalizedPlayReview).toContain(
+        "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
       );
       expect(playReview).toContain("Changed files (active diff)");
       expect(playReview).toContain(
-        'git diff --name-status "$ACTIVE_DIFF_RANGE"',
-      );
-      expect(playReview).toContain(
-        'Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"`',
+        "Active diff invocation",
       );
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(

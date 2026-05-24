@@ -641,29 +641,30 @@ describe("existing skills render cleanly", () => {
       );
     }
 
-    const researchPromptSourcePath = path.join(
+    const issuePrimingReferencesRoot = path.join(
       repoRoot,
-      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      "skills/issue-priming-workflow/references",
     );
-    const researchPromptSourceContent = await readFile(
-      researchPromptSourcePath,
-      "utf-8",
+    const issuePrimingReferenceFiles = await listRelativeFiles(
+      issuePrimingReferencesRoot,
     );
+    for (const reference of issuePrimingReferenceFiles) {
+      const sourcePath = path.join(issuePrimingReferencesRoot, reference);
+      const sourceContent = await readFile(sourcePath, "utf-8");
 
-    for (const target of ["claude", "codex"] as const) {
-      const generatedPath = path.join(
-        config.library.generatedDir,
-        target,
-        "skills",
-        "issue-priming-workflow",
-        "references",
-        "research-agent-prompt.md",
-      );
+      for (const target of ["claude", "codex"] as const) {
+        const generatedPath = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "issue-priming-workflow",
+          "references",
+          reference,
+        );
 
-      expect(await pathExists(generatedPath)).toBe(true);
-      expect(await readFile(generatedPath, "utf-8")).toBe(
-        researchPromptSourceContent,
-      );
+        expect(await pathExists(generatedPath)).toBe(true);
+        expect(await readFile(generatedPath, "utf-8")).toBe(sourceContent);
+      }
     }
   });
 });

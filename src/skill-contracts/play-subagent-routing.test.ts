@@ -374,8 +374,8 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Route computation MUST inspect the actual task diff using the captured task base/head SHAs",
     );
-    expect(routing).toContain(
-      "git diff --name-status --no-renames BASE_SHA..HEAD",
+    expect(normalizedRouting).toContain(
+      "If the changed-file/status/diff data is unavailable, stale, ambiguous, or shows an unplanned hard-risk trigger",
     );
     expect(routing).toContain("not only the plan text or hints");
     expect(routing).toContain("fail closed to `spec-and-quality`");

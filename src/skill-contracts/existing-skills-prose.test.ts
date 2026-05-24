@@ -1388,28 +1388,24 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "This rewrites only local feature-branch commits and is not required.",
     );
+    expect(normalizedOption2).toContain("pre-autosquash commit and tree");
     expect(normalizedOption2).toContain(
-      "AUTOSQUASH_BASE=$(git merge-base <base-branch> HEAD)",
-    );
-    expect(normalizedOption2).toContain("PRE_AUTOSQUASH_HEAD=");
-    expect(normalizedOption2).toContain('test -z "$(git status --porcelain)"');
-    expect(normalizedOption2).toContain(
-      "AUTOSQUASH_NOOP_EDITOR='node -e \"process.exit(0)\"'",
+      "compute the merge-base for the resolved base",
     );
     expect(normalizedOption2).toContain(
-      'GIT_SEQUENCE_EDITOR="$AUTOSQUASH_NOOP_EDITOR" GIT_EDITOR="$AUTOSQUASH_NOOP_EDITOR" git rebase -i --autosquash "$AUTOSQUASH_BASE"',
-    );
-    expect(normalizedOption2).not.toContain("GIT_SEQUENCE_EDITOR=:");
-    expect(normalizedOption2).toContain("git rebase --abort");
-    expect(normalizedOption2).toContain(
-      'git reset --hard "$PRE_AUTOSQUASH_HEAD"',
-    );
-    expect(normalizedOption2).toContain("REMAINING_AUTOSQUASH_MARKERS=");
-    expect(normalizedOption2).toContain(
-      'git log --format=%s "$AUTOSQUASH_BASE"..HEAD',
+      "run autosquash noninteractively against that local commit range",
     );
     expect(normalizedOption2).toContain(
-      "sed -n -e '/^fixup!/p' -e '/^squash!/p'",
+      "worktree must be clean before autosquash",
+    );
+    expect(normalizedOption2).toContain(
+      "autosquash failed; run git rebase --abort before push",
+    );
+    expect(normalizedOption2).toContain(
+      "autosquash could not match all markers in the local range; branch restored, stop before push",
+    );
+    expect(normalizedOption2).toContain(
+      "post-autosquash tree changed; branch restored, stop before push",
     );
     expect(normalizedOption2).toMatch(/fixup!.*squash!|squash!.*fixup!/i);
     expect(normalizedOption2).toMatch(

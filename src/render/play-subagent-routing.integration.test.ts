@@ -14,6 +14,14 @@ const ROUTING_SKILLS = [
   "issue-priming-workflow",
 ] as const;
 
+const COPIED_BRANCH_FINISH_CHOICE_PATTERNS = [
+  /^\s*1\.\s+Merge back to <base-branch> locally\s*$/m,
+  /^\s*2\.\s+Push and create a Pull Request\s*$/m,
+  /^\s*3\.\s+Keep the branch as-is \(I'll handle it later\)\s*$/m,
+  /^\s*4\.\s+Discard this work\s*$/m,
+  /^\s*Which option\?\s*$/m,
+] as const;
+
 type RenderedBodies = Record<string, string>;
 
 describe("play-subagent planning and routing render smoke coverage", () => {
@@ -164,6 +172,10 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedHandoff).toContain(
         "summary-only completion is a workflow violation",
       );
+
+      for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
+        expect(handoffSection).not.toMatch(copiedFinishChoicePattern);
+      }
     }
   });
 });
