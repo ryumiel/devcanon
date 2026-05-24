@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -66,9 +66,11 @@ describe("validateAction", () => {
     logger: Logger;
     warnings: string[];
     infos: string[];
+    jsonPayloads: unknown[];
   } {
     const warnings: string[] = [];
     const infos: string[] = [];
+    const jsonPayloads: unknown[] = [];
     return {
       logger: {
         error: () => {},
@@ -92,22 +94,29 @@ describe("validateAction", () => {
         },
         verbose: () => {},
         debug: () => {},
-        json: () => {},
+        json: (data) => {
+          jsonPayloads.push(data);
+        },
       },
       warnings,
       infos,
+      jsonPayloads,
     };
   }
 
   async function withRecordingLogger<T>(
-    callback: (capture: { warnings: string[]; infos: string[] }) => Promise<T>,
+    callback: (capture: {
+      warnings: string[];
+      infos: string[];
+      jsonPayloads: unknown[];
+    }) => Promise<T>,
   ): Promise<T> {
-    const { logger, warnings, infos } = createRecordingLogger();
+    const { logger, warnings, infos, jsonPayloads } = createRecordingLogger();
     const priorLogger = getLogger();
     setLogger(logger);
 
     try {
-      return await callback({ warnings, infos });
+      return await callback({ warnings, infos, jsonPayloads });
     } finally {
       setLogger(priorLogger);
     }
@@ -144,7 +153,7 @@ describe("validateAction", () => {
     ].join("\n");
   }
 
-  it("warns in normal validate mode without failing", async () => {
+  it("groups skill warnings in normal validate mode without failing", async () => {
     await createSkillFixture(
       skillsDir,
       "warn-skill",
@@ -166,15 +175,43 @@ describe("validateAction", () => {
         validateAction({}, makeCommand(false, false)),
       ).resolves.toBeUndefined();
 
-      expect(
-        warnings.some(
-          (warning) =>
-            /warn-skill/i.test(warning) &&
-            /sonnet|claude-sonnet-4-6/i.test(warning),
-        ),
-      ).toBe(true);
+      expect(warnings).toEqual([]);
       expect(infos).toContain("Config: valid");
-      expect(infos).toContain("Skills: 1 valid");
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain("[skill.drift-token] warn-skill (strictable)");
+      expect(infos.join("\n")).toMatch(/sonnet|claude-sonnet-4-6/i);
+      expect(infos).toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("reports grouped mixed advisory and strictable warning counts", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "large-skill",
+      makeOversizedSkillContent("large-skill"),
+    );
+    const straySkillDir = await createSkillFixture(skillsDir, "stray-skill");
+    await mkdir(path.join(straySkillDir, "references"), { recursive: true });
+    await writeFile(path.join(straySkillDir, "notes.md"), "# notes\n", "utf-8");
+
+    await withRecordingLogger(async ({ warnings, infos }) => {
+      await expect(
+        validateAction({}, makeCommand(false, false)),
+      ).resolves.toBeUndefined();
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 2 valid, 2 warnings");
+      expect(infos).toContain("Warnings (2)");
+
+      const output = infos.join("\n");
+      expect(output).toContain("[skill.prompt-size] large-skill (advisory)");
+      expect(output).toContain("[skill.stray-file] stray-skill (strictable)");
+      expect(output).toContain('stray top-level file "notes.md"');
+      expect(output).toContain(
+        "allowed subdirs: assets/, examples/, references/, scripts/",
+      );
+      expect(infos).toContain("\nAll validations passed with warnings.");
     });
   });
 
@@ -207,7 +244,7 @@ describe("validateAction", () => {
     });
   });
 
-  it("surfaces oversized skill prompt warnings without failing strict validate mode", async () => {
+  it("renders prompt-size warning metrics and guidance without failing strict validate mode", async () => {
     await createSkillFixture(
       skillsDir,
       "cli-large-skill",
@@ -219,16 +256,192 @@ describe("validateAction", () => {
         validateAction({ strict: true }, makeCommand(false, false)),
       ).resolves.toBeUndefined();
 
-      expect(
-        warnings.some(
-          (warning) =>
-            /cli-large-skill/i.test(warning) &&
-            /SKILL\.md is large/i.test(warning) &&
-            /o200k_base/i.test(warning) &&
-            /soft upper bound 5,000 tokens or 500 lines/i.test(warning),
-        ),
-      ).toBe(true);
-      expect(infos).toContain("Skills: 1 valid");
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+
+      const output = infos.join("\n");
+      expect(output).toContain("Warnings (1)");
+      expect(output).toContain(
+        "[skill.prompt-size] cli-large-skill (advisory)",
+      );
+      expect(output).toMatch(/Estimated tokens: [0-9,]+/);
+      expect(output).toContain("Encoding: o200k_base");
+      expect(output).toMatch(/UTF-8 bytes: [0-9,]+/);
+      expect(output).toContain("Lines: 9,007");
+      expect(output).toContain("Target range: 1,500-3,500 tokens");
+      expect(output).toContain("Soft limit: 5,000 tokens or 500 lines");
+      expect(output).toContain("Hint: Keep critical instructions");
+      expect(infos).toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("emits skill warnings in json mode while keeping payload shape", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "json-large-skill",
+      makeOversizedSkillContent("json-large-skill"),
+    );
+
+    await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
+      await expect(
+        validateAction({}, makeCommand(true, false)),
+      ).resolves.toBeUndefined();
+
+      expect(infos).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('Skill "json-large-skill": SKILL.md');
+      expect(warnings[0]).toContain("Keep critical instructions");
+      expect(jsonPayloads).toEqual([
+        {
+          config: "valid",
+          skills: ["json-large-skill"],
+          agents: [],
+        },
+      ]);
+    });
+  });
+
+  it("prints collected skill warnings before later agent validation failures", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "agent-failure-large-skill",
+      makeOversizedSkillContent("agent-failure-large-skill"),
+    );
+    await createAgentFixture(
+      agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    const command = {
+      parent: {
+        opts: () => ({
+          config: noTierConfigPath,
+          json: false,
+          strict: false,
+        }),
+      },
+    };
+
+    await withRecordingLogger(async ({ infos, warnings }) => {
+      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain(
+        "[skill.prompt-size] agent-failure-large-skill (advisory)",
+      );
+      expect(infos).not.toContain("Agents: 1 valid");
+      expect(infos).not.toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("emits json-mode skill warnings before later agent validation failures", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "json-agent-failure-large-skill",
+      makeOversizedSkillContent("json-agent-failure-large-skill"),
+    );
+    await createAgentFixture(
+      agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    const command = {
+      parent: {
+        opts: () => ({
+          config: noTierConfigPath,
+          json: true,
+          strict: false,
+        }),
+      },
+    };
+
+    await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
+      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+
+      expect(infos).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(
+        'Skill "json-agent-failure-large-skill": SKILL.md',
+      );
+      expect(jsonPayloads).toEqual([]);
+    });
+  });
+
+  it("prints collected skill warnings before skill validation failures", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "advisory-large-skill",
+      makeOversizedSkillContent("advisory-large-skill"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "invalid-skill",
+      [
+        "---",
+        "name: mismatched-skill",
+        "description: Invalid fixture.",
+        "---",
+        "",
+        "# Skill",
+        "",
+      ].join("\n"),
+    );
+
+    await withRecordingLogger(async ({ infos, warnings }) => {
+      await expect(
+        validateAction({}, makeCommand(false, false)),
+      ).rejects.toThrow(/Skill validation failed/i);
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Config: valid");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain(
+        "[skill.prompt-size] advisory-large-skill (advisory)",
+      );
+      expect(infos).not.toContain("Skills: 1 valid, 1 warning");
+      expect(infos).not.toContain("\nAll validations passed with warnings.");
     });
   });
 

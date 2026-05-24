@@ -23,6 +23,11 @@ import {
   SKILL_PROMPT_TOKEN_WARNING_THRESHOLD,
   measureSkillPrompt,
 } from "../utils/token-count.js";
+import {
+  type ValidationDiagnostic,
+  type ValidationDiagnosticReporter,
+  formatValidationDiagnostic,
+} from "./diagnostics.js";
 
 export const KNOWN_SUBDIRS = [
   "assets",
@@ -39,6 +44,7 @@ export interface SkillValidationDiagnosticsOptions {
   modelTiers?: ModelTiers;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
+  reporter?: ValidationDiagnosticReporter;
 }
 
 interface LoadAndValidateSkillsOptions {
@@ -123,7 +129,10 @@ export async function loadAndValidateSkills(
     if (diagnostics?.enabled) {
       const promptMetrics = await measureSkillPrompt(skillMdContent);
       if (isSkillPromptOversized(promptMetrics)) {
-        getLogger().warn(formatSkillPromptSizeDiagnostic(name, promptMetrics));
+        emitSkillDiagnostic(
+          createSkillPromptSizeDiagnostic(name, promptMetrics),
+          diagnostics.reporter,
+        );
       }
     }
 
@@ -150,11 +159,16 @@ export async function loadAndValidateSkills(
       );
 
       for (const diagnostic of driftDiagnostics) {
-        const message = formatDriftDiagnostic(name, diagnostic);
+        const validationDiagnostic = createDriftTokenDiagnostic(
+          name,
+          diagnostic,
+        );
+        const message = formatValidationDiagnostic(validationDiagnostic);
         if (diagnostics.strict) {
+          diagnostics.reporter?.(validationDiagnostic);
           errors.push(message);
         } else {
-          getLogger().warn(message);
+          emitSkillDiagnostic(validationDiagnostic, diagnostics.reporter);
         }
       }
     }
@@ -167,11 +181,17 @@ export async function loadAndValidateSkills(
         // Stray top-level directories are intentionally out of scope (#98).
         if (child.isDirectory()) continue;
         if (child.name === "SKILL.md") continue;
-        const message = `Skill "${name}": stray top-level file "${child.name}" — only SKILL.md and the ${allowedList} subdirs are installed. Move it under one of those subdirs (typically references/).`;
+        const validationDiagnostic = createStrayFileDiagnostic(
+          name,
+          child.name,
+          allowedList,
+        );
+        const message = formatValidationDiagnostic(validationDiagnostic);
         if (diagnostics.strict) {
+          diagnostics.reporter?.(validationDiagnostic);
           errors.push(message);
         } else {
-          getLogger().warn(message);
+          emitSkillDiagnostic(validationDiagnostic, diagnostics.reporter);
         }
       }
     }
@@ -277,37 +297,59 @@ function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function formatDriftDiagnostic(
+function createDriftTokenDiagnostic(
   skillName: string,
   diagnostic: DriftDiagnostic,
-): string {
-  switch (diagnostic.reason) {
+): ValidationDiagnostic {
+  const hint = getDriftDiagnosticHint(diagnostic.reason);
+  return {
+    code: "skill.drift-token",
+    area: "skill",
+    subject: skillName,
+    strictBehavior: "strictable",
+    summary: `drift-prone prose token "${diagnostic.token}" detected`,
+    details: [`token: ${diagnostic.token}`, `reason: ${diagnostic.reason}`],
+    hint,
+  };
+}
+
+function getDriftDiagnosticHint(reason: DriftDiagnostic["reason"]): string {
+  switch (reason) {
     case "path":
-      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; avoid target-specific home paths in shared skill prose.`;
+      return "Avoid target-specific home paths in shared skill prose.";
     case "tool":
-      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{tool:<key>}} placeholders or target-neutral wording.`;
+      return "Prefer {{tool:<key>}} placeholders or target-neutral wording.";
     case "file":
-      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{file:<key>}} placeholders or target-neutral wording.`;
+      return "Prefer {{file:<key>}} placeholders or target-neutral wording.";
     case "model":
-      return `Skill "${skillName}": drift-prone prose token "${diagnostic.token}" detected; prefer {{model:<tier>}} placeholders or target-neutral wording.`;
+      return "Prefer {{model:<tier>}} placeholders or target-neutral wording.";
     default: {
-      const _exhaustive: never = diagnostic.reason;
+      const _exhaustive: never = reason;
       throw new Error(`unhandled drift reason: ${String(_exhaustive)}`);
     }
   }
 }
 
-interface SkillPromptMetrics {
-  estimatedTokens: number;
-  encoding: string;
-  bytes: number;
-  lines: number;
+function createStrayFileDiagnostic(
+  skillName: string,
+  fileName: string,
+  allowedList: string,
+): ValidationDiagnostic {
+  return {
+    code: "skill.stray-file",
+    area: "skill",
+    subject: skillName,
+    strictBehavior: "strictable",
+    summary: `stray top-level file "${fileName}"`,
+    details: [`file: ${fileName}`, `allowed subdirs: ${allowedList}`],
+    hint: `only SKILL.md and the ${allowedList} subdirs are installed. Move it under one of those subdirs (typically references/).`,
+  };
 }
 
-function formatSkillPromptSizeDiagnostic(
+function createSkillPromptSizeDiagnostic(
   skillName: string,
   metrics: SkillPromptMetrics,
-): string {
+): ValidationDiagnostic {
   const tokens = metrics.estimatedTokens.toLocaleString("en-US");
   const softTokenLimit =
     SKILL_PROMPT_TOKEN_WARNING_THRESHOLD.toLocaleString("en-US");
@@ -317,7 +359,48 @@ function formatSkillPromptSizeDiagnostic(
   const bytes = metrics.bytes.toLocaleString("en-US");
   const lines = metrics.lines.toLocaleString("en-US");
 
-  return `Skill "${skillName}": SKILL.md is large (~${tokens} GPT tokens estimated with ${metrics.encoding}; ${bytes} bytes; ${lines} lines; target ${targetMin}-${targetMax} tokens; soft upper bound ${softTokenLimit} tokens or ${lineLimit} lines). Always-loaded skill prompts compete for context. Keep critical instructions, safety rules, and output contracts before token ${softTokenLimit}; consider moving examples, rationale, branch-specific policy, or deterministic mechanics into references/ or scripts/.`;
+  return {
+    code: "skill.prompt-size",
+    area: "skill",
+    subject: skillName,
+    strictBehavior: "advisory",
+    summary: `SKILL.md is large (~${tokens} GPT tokens estimated with ${metrics.encoding}; ${bytes} bytes; ${lines} lines; target ${targetMin}-${targetMax} tokens; soft upper bound ${softTokenLimit} tokens or ${lineLimit} lines).`,
+    details: [
+      "Always-loaded skill prompts compete for context.",
+      `Target: ${targetMin}-${targetMax} tokens.`,
+      `Soft upper bound: ${softTokenLimit} tokens or ${lineLimit} lines.`,
+    ],
+    metrics: {
+      estimatedTokens: metrics.estimatedTokens,
+      encoding: metrics.encoding,
+      bytes: metrics.bytes,
+      lines: metrics.lines,
+      targetTokenMin: SKILL_PROMPT_TARGET_TOKEN_RANGE.min,
+      targetTokenMax: SKILL_PROMPT_TARGET_TOKEN_RANGE.max,
+      softTokenLimit: SKILL_PROMPT_TOKEN_WARNING_THRESHOLD,
+      softLineLimit: SKILL_PROMPT_LINE_WARNING_THRESHOLD,
+    },
+    hint: `Keep critical instructions, safety rules, and output contracts before token ${softTokenLimit}; consider moving examples, rationale, branch-specific policy, or deterministic mechanics into references/ or scripts/.`,
+  };
+}
+
+function emitSkillDiagnostic(
+  diagnostic: ValidationDiagnostic,
+  reporter?: ValidationDiagnosticReporter,
+): void {
+  if (reporter) {
+    reporter(diagnostic);
+    return;
+  }
+
+  getLogger().warn(formatValidationDiagnostic(diagnostic));
+}
+
+interface SkillPromptMetrics {
+  estimatedTokens: number;
+  encoding: string;
+  bytes: number;
+  lines: number;
 }
 
 function isSkillPromptOversized(metrics: SkillPromptMetrics): boolean {

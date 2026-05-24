@@ -9,6 +9,7 @@ import {
 import type { FileArtifacts, ModelTiers, ToolNames } from "../config/schema.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
+import type { ValidationDiagnostic } from "./diagnostics.js";
 import { loadAndValidateSkills } from "./skills.js";
 
 describe("loadAndValidateSkills", () => {
@@ -23,6 +24,7 @@ describe("loadAndValidateSkills", () => {
         modelTiers?: ModelTiers;
         toolNames?: ToolNames;
         fileArtifacts?: FileArtifacts;
+        reporter?: (diagnostic: ValidationDiagnostic) => void;
       };
     },
   ) => Promise<Awaited<ReturnType<typeof loadAndValidateSkills>>>;
@@ -438,6 +440,58 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("reports structured prompt-size diagnostics when a reporter is supplied", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    const content = makeOversizedSkillContent("reported-large-skill");
+    await createSkillFixture(skillsDir, "reported-large-skill", content);
+    const bytes = Buffer.byteLength(content, "utf-8");
+    const lines = content.match(/\r\n|\r|\n/g)?.length ?? 1;
+    const diagnostics: ValidationDiagnostic[] = [];
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          reporter: (diagnostic) => diagnostics.push(diagnostic),
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expect(warnings).toEqual([]);
+    });
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "skill.prompt-size",
+      area: "skill",
+      subject: "reported-large-skill",
+      strictBehavior: "advisory",
+      summary: expect.stringMatching(/SKILL\.md is large/i),
+      metrics: {
+        estimatedTokens: expect.any(Number),
+        encoding: "o200k_base",
+        bytes,
+        lines,
+        targetTokenMin: 1500,
+        targetTokenMax: 3500,
+        softTokenLimit: 5000,
+        softLineLimit: 500,
+      },
+      hint: expect.stringMatching(/references\/ or scripts\//i),
+    });
+    expect(
+      diagnostics[0].details?.some((detail) =>
+        /target: 1,500-3,500 tokens/i.test(detail),
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics[0].details?.some((detail) =>
+        /soft upper bound: 5,000 tokens or 500 lines/i.test(detail),
+      ),
+    ).toBe(true);
+  });
+
   it("warns when a skill prompt exceeds the line guideline", async () => {
     await mkdir(skillsDir, { recursive: true });
     const content = [
@@ -611,6 +665,88 @@ describe("loadAndValidateSkills", () => {
       expectWarningLine(warnings, /raw-claude-alias/i, /sonnet/i);
       expectWarningLine(warnings, /raw-claude-alias/i, /opus/i);
     });
+  });
+
+  it("reports structured drift-token diagnostics when a reporter is supplied", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "reported-drift-token",
+      [
+        "---",
+        "name: reported-drift-token",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Prefer sonnet when drafting shared instructions.",
+        "",
+      ].join("\n"),
+    );
+    const diagnostics: ValidationDiagnostic[] = [];
+
+    await captureWarnings(async (warnings) => {
+      const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: false,
+          reporter: (diagnostic) => diagnostics.push(diagnostic),
+        },
+      });
+
+      expect(result).toHaveLength(1);
+      expect(warnings).toEqual([]);
+    });
+
+    expect(diagnostics).toContainEqual({
+      code: "skill.drift-token",
+      area: "skill",
+      subject: "reported-drift-token",
+      strictBehavior: "strictable",
+      summary: 'drift-prone prose token "sonnet" detected',
+      details: ["token: sonnet", "reason: model"],
+      hint: "Prefer {{model:<tier>}} placeholders or target-neutral wording.",
+    });
+  });
+
+  it("reports strictable diagnostics before failing in strict mode", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "strict-reported-drift",
+      [
+        "---",
+        "name: strict-reported-drift",
+        "description: Detect drift-prone prose.",
+        "---",
+        "",
+        "# Skill",
+        "",
+        "Use haiku for lightweight scans.",
+        "",
+      ].join("\n"),
+    );
+    const diagnostics: ValidationDiagnostic[] = [];
+
+    await expect(
+      loadAndValidateSkillsWithDiagnostics(skillsDir, {
+        diagnostics: {
+          enabled: true,
+          strict: true,
+          reporter: (diagnostic) => diagnostics.push(diagnostic),
+        },
+      }),
+    ).rejects.toThrow(/haiku/i);
+
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "skill.drift-token",
+        subject: "strict-reported-drift",
+        strictBehavior: "strictable",
+        summary: 'drift-prone prose token "haiku" detected',
+      }),
+    );
   });
 
   it("warns on drift-prone tokens in frontmatter description", async () => {
@@ -1534,6 +1670,44 @@ describe("loadAndValidateSkills", () => {
       });
     });
 
+    it("reports structured stray-file diagnostics when a reporter is supplied", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "reported-stray-file",
+      );
+      await writeFile(path.join(skillDir, "notes.md"), "# notes\n", "utf-8");
+      const diagnostics: ValidationDiagnostic[] = [];
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: false,
+            reporter: (diagnostic) => diagnostics.push(diagnostic),
+          },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings).toEqual([]);
+      });
+
+      expect(diagnostics).toEqual([
+        {
+          code: "skill.stray-file",
+          area: "skill",
+          subject: "reported-stray-file",
+          strictBehavior: "strictable",
+          summary: 'stray top-level file "notes.md"',
+          details: [
+            "file: notes.md",
+            "allowed subdirs: assets/, examples/, references/, scripts/",
+          ],
+          hint: "only SKILL.md and the assets/, examples/, references/, scripts/ subdirs are installed. Move it under one of those subdirs (typically references/).",
+        },
+      ]);
+    });
+
     it("fails on a stray top-level file in strict validate mode", async () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "stray-strict");
@@ -1554,6 +1728,35 @@ describe("loadAndValidateSkills", () => {
           diagnostics: { enabled: true, strict: true },
         }),
       ).rejects.toThrow(/stray\.md/);
+    });
+
+    it("reports strictable stray-file diagnostics before failing in strict mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "strict-reported-stray",
+      );
+      await writeFile(path.join(skillDir, "notes.md"), "# notes\n", "utf-8");
+      const diagnostics: ValidationDiagnostic[] = [];
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            reporter: (diagnostic) => diagnostics.push(diagnostic),
+          },
+        }),
+      ).rejects.toThrow(/notes\.md/i);
+
+      expect(diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "skill.stray-file",
+          subject: "strict-reported-stray",
+          strictBehavior: "strictable",
+          summary: 'stray top-level file "notes.md"',
+        }),
+      );
     });
 
     it("does not flag hidden files at the skill root", async () => {
