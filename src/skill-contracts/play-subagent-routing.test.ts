@@ -462,6 +462,71 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("hands successful direct/manual execution off to play-branch-finish without copying finish choices", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const directManualHandoff = sliceBetween(
+      playSubagentExecution,
+      "### Direct/manual terminal handoff",
+      "## Subagent Lifecycle",
+    );
+    const normalizedDirectManualHandoff =
+      normalizeWhitespace(directManualHandoff);
+
+    expect(normalizedDirectManualHandoff).toContain(
+      "direct or manual invocation",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "final whole-implementation review passes",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "implementation and final review passed",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "invoke `play-branch-finish`",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "`play-branch-finish` presents its authoritative finish options",
+    );
+
+    for (const copiedFinishChoicePattern of [
+      /^\s*1\.\s+Merge back to <base-branch> locally\s*$/m,
+      /^\s*2\.\s+Push and create a Pull Request\s*$/m,
+      /^\s*3\.\s+Keep the branch as-is \(I'll handle it later\)\s*$/m,
+      /^\s*4\.\s+Discard this work\s*$/m,
+      /^\s*Which option\?\s*$/m,
+      /^#{2,6}\s+Option 1: Merge Locally\s*$/m,
+      /^#{2,6}\s+Option 2: Push and Create PR\s*$/m,
+      /^#{2,6}\s+Option 3: Keep As-Is\s*$/m,
+      /^#{2,6}\s+Option 4: Discard\s*$/m,
+    ]) {
+      expect(directManualHandoff).not.toMatch(copiedFinishChoicePattern);
+    }
+  });
+
+  it("keeps interactive issue priming from owning child skill gates after brainstorming handoff", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase4 = sliceBetween(
+      issuePrimingWorkflow,
+      "## Phase 4: Invoke Brainstorming",
+      "## Phases 5-8: Autonomous Execution (`--auto` only)",
+    );
+    const normalizedPhase4 = normalizeWhitespace(phase4);
+
+    expect(normalizedPhase4).toContain(
+      "Without `--auto`: hand off to `play-brainstorm` and return control to the user after `play-brainstorm` completes",
+    );
+    expect(normalizedPhase4).toContain(
+      "`play-brainstorm` owns its approved handoff to `play-planning`",
+    );
+    expect(normalizedPhase4).toContain(
+      "do not suppress or replace child skill approval gates",
+    );
+  });
+
   it("keeps spec-and-quality concurrent same-head review semantics in source", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
     const routing = await readRepoFile(
