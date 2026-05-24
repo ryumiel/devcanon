@@ -7,45 +7,9 @@ description: PR merge automation with CI polling and in-scope failure investigat
 
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
 
-## Process
-
-```dot
-digraph pr_merge {
-    rankdir=TB;
-    "Resolve PR number" [shape=box];
-    "Validate PR title + description" [shape=box];
-    "pr-authoring valid?" [shape=diamond];
-    "Fix with gh pr edit" [shape=box];
-    "Poll CI (default 3 min)" [shape=box];
-    "All checks pass?" [shape=diamond];
-    "Any still pending?" [shape=diamond];
-    "Squash merge" [shape=box];
-    "Post-merge cleanup" [shape=box];
-    "Retry count < 2?" [shape=diamond];
-    "Dispatch investigation agent" [shape=box];
-    "In scope + fixable?" [shape=diamond];
-    "Fix, verify locally, push" [shape=box];
-    "Report failure and stop" [shape=box];
-
-    "Resolve PR number" -> "Validate PR title + description";
-    "Validate PR title + description" -> "pr-authoring valid?";
-    "pr-authoring valid?" -> "Fix with gh pr edit" [label="no"];
-    "pr-authoring valid?" -> "Poll CI (default 3 min)" [label="yes"];
-    "Fix with gh pr edit" -> "Poll CI (default 3 min)";
-    "Poll CI (default 3 min)" -> "All checks pass?" ;
-    "All checks pass?" -> "Squash merge" [label="yes"];
-    "Squash merge" -> "Post-merge cleanup";
-    "All checks pass?" -> "Any still pending?" [label="no"];
-    "Any still pending?" -> "Poll CI (default 3 min)" [label="yes, wait"];
-    "Any still pending?" -> "Retry count < 2?" [label="no, failed"];
-    "Retry count < 2?" -> "Dispatch investigation agent" [label="yes"];
-    "Retry count < 2?" -> "Report failure and stop" [label="no"];
-    "Dispatch investigation agent" -> "In scope + fixable?";
-    "In scope + fixable?" -> "Fix, verify locally, push" [label="yes"];
-    "In scope + fixable?" -> "Report failure and stop" [label="no"];
-    "Fix, verify locally, push" -> "Poll CI (default 3 min)" [label="retry++"];
-}
-```
+Keep deterministic mechanics out of this always-loaded skill when they become
+script-scale. This skill owns orchestration, safety policy, routing, and final
+reporting; helper scripts own parseable Git context and cleanup mechanics.
 
 ## Step 1: Resolve PR Number
 
@@ -67,7 +31,8 @@ Invoke `pr-authoring` in `validate-fix` mode and apply any repaired title/body
 it returns before proceeding. `pr-authoring` is the shared policy owner for PR
 title/body validation; this step owns the `gh pr edit` side effect only.
 
-Gather stable PR data for `pr-authoring` up front:
+Gather stable PR data for `pr-authoring` up front with `gh pr view`,
+`gh pr diff --name-only`, and PR commit metadata:
 
 - current PR title and body;
 - PR diff file list;
@@ -77,58 +42,23 @@ Gather stable PR data for `pr-authoring` up front:
   `CONTRIBUTING.md`, and `WORKFLOW.md` when available; otherwise let
   `pr-authoring` discover and read the policy surfaces.
 
-```bash
-gh pr view <N> --json title,body
-gh pr diff <N> --name-only
-gh pr view <N> --json commits --jq '.commits[] | {headline: .messageHeadline, body: .messageBody}'
-```
-
 `pr-authoring` always validates title format, required sections,
 anti-patterns, and content-vs-diff. When no project-specific guideline or
 template exists, it applies its default fallback contract instead of bypassing
 validation.
 
 If `pr-authoring` returns `VALID`, proceed to CI. If it returns a repaired title
-and/or body, apply only the fields that changed. When the body changes, write
-the repaired body to a temp file and pass it with `--body-file` so multiline
-Markdown and shell-sensitive characters are preserved:
-
-Body-only repair:
-
-```bash
-PR_BODY_FILE=$(mktemp)
-trap 'rm -f "$PR_BODY_FILE"' EXIT
-# write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
-gh pr edit <N> --body-file "$PR_BODY_FILE"
-```
-
-Title-only repair:
-
-```bash
-gh pr edit <N> --title "<fixed title>"
-```
-
-Title and body repair:
-
-```bash
-PR_BODY_FILE=$(mktemp)
-trap 'rm -f "$PR_BODY_FILE"' EXIT
-# write the repaired body returned by pr-authoring to "$PR_BODY_FILE"
-gh pr edit <N> --title "<fixed title>" --body-file "$PR_BODY_FILE"
-```
-
-Pass only the flags whose content actually changed — `gh pr edit` leaves omitted fields untouched, so a body-only fix should drop `--title` and a title-only fix should omit the `--body-file` path.
+and/or body, apply only changed fields with `gh pr edit`. For body repairs, use
+`--body-file` so multiline Markdown and shell-sensitive characters are
+preserved. Omit flags for unchanged fields.
 
 Do not skip `pr-authoring` because the description "looks close enough." The
 shared procedure exists so PR creation and PR merge enforce the same policy.
 
 ## Step 2: Poll CI
 
-```bash
-gh pr checks <N>
-```
-
 **Default interval: 3 minutes.** User can override via args (e.g., `5m`, `1m`).
+Poll with `gh pr checks <N>`.
 
 Classify output:
 
@@ -138,112 +68,110 @@ Classify output:
 
 **Max poll duration:** 30 minutes. If CI has not completed, report and stop.
 
-## Step 3: Merge
+## Step 3: Preflighted Merge
 
-```bash
-gh pr merge <N> --squash --delete-branch
-```
+Before any merge command, gather PR metadata:
 
-If `--delete-branch` fails locally (e.g., worktree holds the branch), the remote merge still succeeds. Check `gh pr view <N> --json state` — if `MERGED`, proceed to cleanup. The local error is handled in Step 3b.
+- `headRefName`
+- `baseRefName`
+- `headRefOid`
+- `headRepository.nameWithOwner`
+- `baseRepository.nameWithOwner`
+- `baseRepository.defaultBranchRef.name`
+- verified base repository remote URL
+- PR URL
 
-If merge itself fails, check for:
+Run `skills/pr-merge/scripts/preflight-worktree-context.sh` with
+`PR_HEAD_BRANCH` and `PR_BASE_BRANCH` set from that metadata. Parse its
+`KEY=VALUE` output without whitespace splitting.
 
-- **Merge conflicts:** Report to user — conflicts require manual resolution
-- **Missing review approvals:** Report which reviews are missing — do not bypass branch protection
-- **Branch protection rules:** Report the specific rule blocking merge
+Preflight output:
+
+- `MODE=safe-direct|cd-primary|remote-only|stop`
+- `REASON_CODE=<stable reason>`
+- `CURRENT_WORKTREE=<absolute path or empty>`
+- `CURRENT_BRANCH=<branch name or empty>`
+- `CURRENT_DETACHED=true|false`
+- `PRIMARY_WORKTREE=<absolute path or empty>`
+- `HEAD_WORKTREE=<absolute path or empty>`
+- `BASE_WORKTREE=<absolute path or empty>`
+- `REASON=<operator-facing reason>`
+
+Mode routing:
+
+| Mode          | Action                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `safe-direct` | Run `gh pr merge <N> --squash` from the current directory.                                                     |
+| `cd-primary`  | Change to `PRIMARY_WORKTREE`, then run `gh pr merge <N> --squash`.                                             |
+| `remote-only` | Run `gh pr merge <N> --squash` without local cleanup delegation, verify `MERGED`, then use the cleanup helper. |
+| `stop`        | Do not merge. Report `REASON` and one remediation.                                                             |
+
+No mode may use `gh pr merge --delete-branch`. Local worktree cleanup, local
+branch deletion, and same-repository remote branch deletion are owned by
+`skills/pr-merge/scripts/post-merge-cleanup.sh`.
+
+If a preflighted merge command exits nonzero, immediately check
+`gh pr view <N> --json state`. If state is `MERGED`, treat the remote merge as
+successful and continue to cleanup. If state is not `MERGED`, report the merge
+failure using the existing merge-conflict, missing-review, or branch-protection
+classification. Do not retry an execution-context failure unless you changed
+directory, changed mode, or collected new evidence that invalidates the
+preflight result.
 
 ## Step 3b: Post-Merge Cleanup
 
-After successful merge, clean up local branches and worktrees.
+After every verified remote merge, run
+`skills/pr-merge/scripts/post-merge-cleanup.sh`. Supply PR metadata plus the
+preflight paths:
 
-### Detect context
+- `PR_STATE`
+- `PR_HEAD_BRANCH`
+- `PR_BASE_BRANCH`
+- `PR_HEAD_SHA`
+- `PR_HEAD_REPO`
+- `PR_BASE_REPO`
+- `PR_BASE_DEFAULT_BRANCH`
+- `PR_BASE_REMOTE_URL`
+- `PRIMARY_WORKTREE`
+- `HEAD_WORKTREE`
+- `CURRENT_WORKTREE`
 
-```bash
-BRANCH=$(gh pr view <N> --json headRefName --jq '.headRefName')
-BASE=$(gh pr view <N> --json baseRefName --jq '.baseRefName')
-MAIN_WORKTREE=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
-WORKTREE_PATH=$(git worktree list --porcelain | awk -v branch="refs/heads/$BRANCH" '
-  /^worktree / { sub(/^worktree /, ""); p=$0; next }
-  $1 == "branch" && $2 == branch { print p; exit }
-')
-```
+Cleanup helper output:
 
-**Guard:** Never run cleanup on the base branch. If `$BRANCH` is empty (`gh pr view` failed) or equals `$BASE` (the PR's own base — e.g., `main`, `master`, `develop`), stop here — there is nothing to clean up.
+- `WORKTREE_CLEANUP=removed|retained|skipped|failed`
+- `WORKTREE_CLEANUP_REASON=<reason>`
+- `BASE_UPDATE=updated|skipped|failed`
+- `BASE_UPDATE_REASON=<reason>`
+- `LOCAL_BRANCH_CLEANUP=deleted|retained|skipped|failed`
+- `LOCAL_BRANCH_CLEANUP_REASON=<reason>`
+- `REMOTE_BRANCH_CLEANUP=deleted|retained|skipped|failed`
+- `REMOTE_BRANCH_CLEANUP_REASON=<reason>`
+- `MANUAL_ACTION=<none or concise action>`
 
-`WORKTREE_PATH` is empty when no worktree holds the merged branch on a
-named ref — for example, the PR was developed on a single checkout, or
-the worktree is in a detached-HEAD state. The procedure below treats
-that as "nothing to remove" and proceeds to `pull` + `branch -D`
-directly. Detached-HEAD worktrees on the merged commit must be removed
-manually with `git worktree remove`.
+The cleanup helper owns deterministic mechanics: canonical path comparison,
+safe relocation before worktree removal, dirty/untracked/locked worktree
+retention, base checkout and `git pull --ff-only`, local branch deletion gated
+by `MERGED` plus local tip equality with `PR_HEAD_SHA`, and same-repository
+remote branch deletion gated by non-base/default branch identity and remote tip
+equality with `PR_HEAD_SHA`. Remote branch deletion must also verify that local
+`origin` resolves to `PR_BASE_REMOTE_URL`; retain the branch for manual cleanup
+when the local remote cannot be proven to be the PR base repository.
 
-### Cleanup procedure
-
-```bash
-# If the feature branch still has a worktree, remove it first.
-# git worktree remove handles the directory, the metadata, and the
-# branch lock in one step — no prune, no rm -rf.
-if [ -n "$WORKTREE_PATH" ] && [ "$WORKTREE_PATH" != "$MAIN_WORKTREE" ]; then
-  # cd out of the worktree we're about to remove
-  [ "$(pwd)" = "$WORKTREE_PATH" ] && cd "$MAIN_WORKTREE"
-  git worktree remove --force "$WORKTREE_PATH"
-fi
-
-# Pull and branch deletion must run on the base branch in the main
-# worktree, not in some other worktree (or some other branch the main
-# worktree happens to have checked out). Switch explicitly.
-cd "$MAIN_WORKTREE"
-git checkout "$BASE"
-git pull --ff-only
-
-# Safety gate: only force-delete the local branch when BOTH
-#   (a) GitHub reports the PR as MERGED, and
-#   (b) the local branch tip matches the PR's head commit
-#       (no unpushed local commits that would be lost).
-# `branch -d`'s history-walk is a poor proxy on squash-merges (HEAD never
-# contains the feature tip's original SHA after squash, so -d falls back to
-# the remote-tracking ref and emits a misleading "merged to origin but not
-# HEAD" warning). The two-part check below silences that warning while
-# still refusing to discard unpublished work.
-STATE=$(gh pr view <N> --json state --jq '.state')
-PR_HEAD=$(gh pr view <N> --json headRefOid --jq '.headRefOid')
-LOCAL_TIP=$(git rev-parse "$BRANCH")
-if [ "$STATE" != "MERGED" ]; then
-  echo "Skipping local branch deletion: PR <N> is in state '$STATE', not MERGED" >&2
-elif [ "$LOCAL_TIP" != "$PR_HEAD" ]; then
-  echo "Skipping local branch deletion: $BRANCH ($LOCAL_TIP) differs from PR head ($PR_HEAD); unpushed work would be lost" >&2
-else
-  git branch -D "$BRANCH"
-fi
-```
-
-### Key invariants
-
-| Rule                                                       | Why                                                                                     |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Use `git worktree remove`, not `prune` + `rm -rf`          | `prune` only cleans missing worktrees; one `remove` does it all                         |
-| `cd` out of the worktree if your CWD is inside it          | Cannot remove the worktree that holds your CWD                                          |
-| `git pull --ff-only` on the base branch                    | Updates local `main` to include the squash commit (hygiene; not a safety gate)          |
-| Verify `MERGED` AND local tip = PR head before `branch -D` | GitHub state confirms the merge; tip-equality refuses to discard unpushed local commits |
-| `--ff-only` pull                                           | Fails loudly if main diverged — no silent merge commits                                 |
+If the helper reports `retained`, `skipped`, or `failed`, do not hide it behind
+the successful remote merge. Report the remaining manual action.
 
 ### Final report contract
 
-After the remote merge succeeds, the final report must distinguish merge success
-from local cleanup results. Do not report the task as fully clean just because
-GitHub accepted the merge.
+Every terminal report path must name each field, even when a field is "not
+attempted":
 
-Include:
-
-- Remote merge: merged successfully, with the PR URL.
-- Worktree cleanup: removed, skipped, or failed. Include the worktree path when
-  one was detected, and include the reason when cleanup was skipped or failed.
-- Base checkout/pull: state whether the base checkout and `git pull --ff-only`
-  were attempted, and whether they succeeded, were skipped, or failed.
-- Local branch cleanup: deleted, retained, or skipped. Include the branch name
-  and the reason when the branch was retained or skipped.
-- Manual cleanup: name any remaining manual cleanup action required, or say that
-  none remains.
+- Remote merge: merged, not merged, or unknown, with the PR URL when known.
+- Preflight: mode and reason, or helper failure.
+- Worktree cleanup: removed, retained, skipped, failed, or not attempted.
+- Base checkout/pull: updated, skipped, failed, or not attempted.
+- Local branch cleanup: deleted, retained, skipped, failed, or not attempted.
+- Remote branch cleanup: deleted, retained, skipped, failed, or not attempted.
+- Manual action: none, or the specific action still required.
 
 ## Step 4: Investigate and Fix Failures
 
@@ -251,12 +179,8 @@ Track retry count explicitly. **Max 2 failure cycles.** A "failure cycle" is: CI
 
 ### 4a. Get failure details
 
-```bash
-# Find the failing run
-gh run list --branch <branch> --limit 5
-# Get failed step logs
-gh run view <run-id> --log-failed
-```
+Use GitHub Actions evidence from the failing check: list recent runs for the PR
+branch, then read failed-step logs for the matching run/job.
 
 ### 4b. Dispatch investigation agent
 
@@ -323,21 +247,21 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                         | Action                                                                                                                                                                                                                           |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                                                                                                 |
-| PR authoring validation           | Run `pr-authoring` in `validate-fix` mode, then apply repaired title/body with `gh pr edit`                                                                                                                                      |
-| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `gh pr edit --body-file`                                                                                                                     |
-| No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                                                                                           |
-| CI pending                        | Poll every 3 min (configurable)                                                                                                                                                                                                  |
-| CI passes                         | `gh pr merge --squash --delete-branch` → cleanup                                                                                                                                                                                 |
-| Post-merge cleanup                | If a worktree (not the main one) holds the branch: `git worktree remove --force <path>` → `cd` to main → `checkout <base>` → `pull --ff-only` → verify `MERGED` and local tip = PR head → `branch -D`; otherwise skip the remove |
-| CI fails (1st time)               | Investigate → fix if in scope → push → re-poll                                                                                                                                                                                   |
-| CI fails (2nd time)               | Report and stop                                                                                                                                                                                                                  |
-| Out-of-scope failure              | Report and stop immediately                                                                                                                                                                                                      |
-| CI not done after 30 min          | Report and stop                                                                                                                                                                                                                  |
-| Merge conflicts                   | Report to user — requires manual resolution                                                                                                                                                                                      |
-| Missing review approvals          | Report which reviews are missing                                                                                                                                                                                                 |
+| Situation                         | Action                                                                                                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                      |
+| PR authoring validation           | Run `pr-authoring` in `validate-fix` mode, then apply repaired title/body with `gh pr edit`                                                           |
+| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `gh pr edit --body-file`                                          |
+| No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
+| CI pending                        | Poll every 3 min (configurable)                                                                                                                       |
+| CI passes                         | Run worktree preflight → `gh pr merge --squash` → verify `MERGED` → cleanup helper                                                                    |
+| Post-merge cleanup                | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
+| CI fails (1st time)               | Investigate → fix if in scope → push → re-poll                                                                                                        |
+| CI fails (2nd time)               | Report and stop                                                                                                                                       |
+| Out-of-scope failure              | Report and stop immediately                                                                                                                           |
+| CI not done after 30 min          | Report and stop                                                                                                                                       |
+| Merge conflicts                   | Report to user — requires manual resolution                                                                                                           |
+| Missing review approvals          | Report which reviews are missing                                                                                                                      |
 
 ## Common Mistakes
 
@@ -375,8 +299,11 @@ Always reproduce the failing CI steps locally (derived from workflow files) befo
 
 ### Skipping post-merge cleanup
 
-After merge, always clean up the local branch and worktree. Leftover worktrees accumulate and cause branch name conflicts on future work. Use `git worktree remove --force <path>`, not `rm -rf` — `remove` releases the worktree-to-branch lock so `git branch -D` can succeed afterward.
+After merge, always run the cleanup helper and report its outcome. Leftover
+worktrees accumulate and cause branch name conflicts on future work, but dirty,
+untracked, or locked worktrees must be retained for manual cleanup.
 
 ### Deleting main/master branch
 
-Never delete the base branch during cleanup. Always check that `$BRANCH` is the feature branch, not `main` or `master`.
+Never delete the base/default branch during cleanup. The cleanup helper owns
+that guard for local and remote branch deletion; do not bypass it manually.

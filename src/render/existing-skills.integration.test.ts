@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import {
   getSkillOutput,
   listRelativeFiles,
+  normalizeWhitespace,
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { CODEX_SKILL_OVERRIDE_FIELDS } from "../config/schema.js";
@@ -170,6 +171,36 @@ describe("existing skills render cleanly", () => {
         expect(CODEX_ALLOWED_FRONTMATTER_KEYS.has(key)).toBe(true);
       }
     }
+  });
+
+  it("preserves the pr-merge preflight and cleanup contract in rendered Codex output", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+    const renderedPrMerge = getSkillOutput(outputs, "pr-merge", "codex");
+    const normalized = normalizeWhitespace(renderedPrMerge.content);
+
+    expect(renderedPrMerge.content).toContain(
+      "skills/pr-merge/scripts/preflight-worktree-context.sh",
+    );
+    expect(renderedPrMerge.content).toContain(
+      "skills/pr-merge/scripts/post-merge-cleanup.sh",
+    );
+    expect(normalized).toMatch(
+      /Before any merge command.*preflight-worktree-context\.sh/i,
+    );
+    expect(normalized).toContain(
+      "No mode may use `gh pr merge --delete-branch`",
+    );
+    expect(normalized).toMatch(
+      /WORKTREE_CLEANUP=removed\|retained\|skipped\|failed/i,
+    );
+    expect(normalized).toMatch(
+      /REMOTE_BRANCH_CLEANUP=deleted\|retained\|skipped\|failed/i,
+    );
   });
 
   it("keeps explicit metadata expectations covered by touched-skill reasons", () => {
