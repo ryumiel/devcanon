@@ -69,6 +69,14 @@ Current behavior:
 - the current skill drift checks cover reasoning-tier tokens and
   target-specific path segments in shared prose
 
+For human output, `validate` groups skill warnings into a readable warning
+report after the skill status line. The skill status line includes the number
+of collected warnings, and the warning report includes an overall warning
+count. Warning blocks identify the diagnostic kind, affected skill, whether the
+diagnostic is advisory or strictable, relevant metrics when available, and
+remediation guidance. This grouped report is presentation for humans, not a
+stable parseable output contract and not a change to warning semantics.
+
 Prompt-size token counts are authoring estimates, not billing-accurate
 or cross-provider exact counts. They may differ from the final target
 prompt after rendering, host wrappers, hidden payloads, or

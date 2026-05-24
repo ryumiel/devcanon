@@ -1730,6 +1730,35 @@ describe("loadAndValidateSkills", () => {
       ).rejects.toThrow(/stray\.md/);
     });
 
+    it("reports strictable stray-file diagnostics before failing in strict mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "strict-reported-stray",
+      );
+      await writeFile(path.join(skillDir, "notes.md"), "# notes\n", "utf-8");
+      const diagnostics: ValidationDiagnostic[] = [];
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: true,
+            reporter: (diagnostic) => diagnostics.push(diagnostic),
+          },
+        }),
+      ).rejects.toThrow(/notes\.md/i);
+
+      expect(diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "skill.stray-file",
+          subject: "strict-reported-stray",
+          strictBehavior: "strictable",
+          summary: 'stray top-level file "notes.md"',
+        }),
+      );
+    });
+
     it("does not flag hidden files at the skill root", async () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "hidden-allowed");

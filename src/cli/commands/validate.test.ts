@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -181,6 +181,36 @@ describe("validateAction", () => {
       expect(infos).toContain("Warnings (1)");
       expect(infos).toContain("[skill.drift-token] warn-skill (strictable)");
       expect(infos.join("\n")).toMatch(/sonnet|claude-sonnet-4-6/i);
+      expect(infos).toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("reports grouped mixed advisory and strictable warning counts", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "large-skill",
+      makeOversizedSkillContent("large-skill"),
+    );
+    const straySkillDir = await createSkillFixture(skillsDir, "stray-skill");
+    await mkdir(path.join(straySkillDir, "references"), { recursive: true });
+    await writeFile(path.join(straySkillDir, "notes.md"), "# notes\n", "utf-8");
+
+    await withRecordingLogger(async ({ warnings, infos }) => {
+      await expect(
+        validateAction({}, makeCommand(false, false)),
+      ).resolves.toBeUndefined();
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 2 valid, 2 warnings");
+      expect(infos).toContain("Warnings (2)");
+
+      const output = infos.join("\n");
+      expect(output).toContain("[skill.prompt-size] large-skill (advisory)");
+      expect(output).toContain("[skill.stray-file] stray-skill (strictable)");
+      expect(output).toContain('stray top-level file "notes.md"');
+      expect(output).toContain(
+        "allowed subdirs: assets/, examples/, references/, scripts/",
+      );
       expect(infos).toContain("\nAll validations passed with warnings.");
     });
   });
