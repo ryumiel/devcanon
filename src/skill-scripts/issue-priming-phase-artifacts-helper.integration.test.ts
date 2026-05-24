@@ -28,6 +28,7 @@ async function makeWorkspace(): Promise<string> {
   const cwd = await mkdtemp(
     path.join(os.tmpdir(), "devcanon-phase-artifacts-"),
   );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
   await mkdir(path.join(cwd, ".ephemeral"));
   await writeFile(
     path.join(cwd, ".ephemeral/2026-05-25-123-issue-body.md"),
@@ -110,6 +111,28 @@ describe("issue-priming phase-artifacts helper", () => {
         runHelper(cwd, "design", ".ephemeral/directory-design.md"),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("design missing or not a regular file"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects execution from a repository subdirectory before validating local .ephemeral paths", async () => {
+    const cwd = await makeWorkspace();
+    const subdir = path.join(cwd, "subdir");
+    try {
+      await mkdir(path.join(subdir, ".ephemeral"), { recursive: true });
+      await writeFile(
+        path.join(subdir, ".ephemeral/2026-05-25-topic-plan.md"),
+        "# Subdir Plan\n",
+      );
+
+      await expect(
+        runHelper(subdir, "plan", ".ephemeral/2026-05-25-topic-plan.md"),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "phase-artifacts.sh must run from the repository root",
+        ),
       });
     } finally {
       await cleanupTempDir(cwd);

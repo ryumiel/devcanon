@@ -25,6 +25,7 @@ const helperScript = path.join(
 
 async function makeWorkspace(): Promise<string> {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-research-brief-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
   await mkdir(path.join(cwd, ".ephemeral"));
   return cwd;
 }
@@ -94,6 +95,27 @@ describe("issue-priming research brief helper", () => {
       await expect(runHelper(cwd)).rejects.toMatchObject({
         stderr: expect.stringContaining("research brief path is a directory"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects execution from a repository subdirectory before preparing local .ephemeral paths", async () => {
+    const cwd = await makeWorkspace();
+    const subdir = path.join(cwd, "subdir");
+    try {
+      await mkdir(path.join(subdir, ".ephemeral"), { recursive: true });
+
+      await expect(runHelper(subdir)).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "write-research-brief.sh must run from the repository root",
+        ),
+      });
+      await expect(
+        readFile(
+          path.join(subdir, ".ephemeral/2026-05-25-eng-123-research.md"),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await cleanupTempDir(cwd);
     }

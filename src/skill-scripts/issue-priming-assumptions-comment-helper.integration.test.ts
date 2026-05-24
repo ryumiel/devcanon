@@ -27,6 +27,7 @@ async function makeWorkspace(): Promise<string> {
   const cwd = await mkdtemp(
     path.join(os.tmpdir(), "devcanon-assumptions-comment-"),
   );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
   await mkdir(path.join(cwd, ".ephemeral"));
   return cwd;
 }
@@ -96,6 +97,27 @@ describe("issue-priming assumptions comment helper", () => {
           "assumptions comment path is a directory",
         ),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects execution from a repository subdirectory before preparing local .ephemeral paths", async () => {
+    const cwd = await makeWorkspace();
+    const subdir = path.join(cwd, "subdir");
+    try {
+      await mkdir(path.join(subdir, ".ephemeral"), { recursive: true });
+
+      await expect(runHelper(subdir)).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "write-assumptions-comment.sh must run from the repository root",
+        ),
+      });
+      await expect(
+        readFile(
+          path.join(subdir, ".ephemeral/eng-123-assumptions-comment.md"),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await cleanupTempDir(cwd);
     }
