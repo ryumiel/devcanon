@@ -95,6 +95,42 @@ subagents receive curated task text rather than the whole plan file.
 
 See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the DOT-language phase-flow diagram.
 
+## Helper Invocation Contracts
+
+Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
+
+`scripts/phase-artifacts.sh` owns deterministic read guards for issue-priming-owned `.ephemeral/` artifacts:
+
+```bash
+PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh"
+bash "$PHASE_ARTIFACTS_HELPER" validate-read <kind> <repo-relative-path>
+```
+
+Inputs are `<kind>` (`issue-body`, `comment-evidence`, `research`, `design`, or `plan`) and a repo-relative direct-child `.ephemeral/*` path. Success is silent; stderr names the failed suffix/traversal/symlink/regular-file/readability/cwd contract. Consumer-visible vocabulary includes `nested issue body path rejected`, `issue body must not be a symlink`, `issue body missing or not a regular file`, `nested comment evidence path rejected`, `.ephemeral/*-comment-evidence.md`, `comment evidence must not be a symlink`, `comment evidence missing or not a regular file`, and `comment evidence missing or unreadable`.
+
+`scripts/write-research-brief.sh` owns deterministic preparation of the Phase 3 research-brief write target:
+
+```bash
+RESEARCH_BRIEF_PATH=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+  ISSUE_PRIMING_TODAY="<YYYY-MM-DD>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.sh"
+)
+```
+
+Inputs are `ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY`. The helper slugifies the identifier, prepares `.ephemeral/<date>-<id>-research.md`, enforces research suffix/direct-child/traversal/symlink/non-regular guards, and prints only the repo-relative path on stdout. The controller writes the returned `research-agent` brief content verbatim with the Write tool and emits `Research brief written to <repo-relative-path>.`.
+
+`scripts/write-assumptions-comment.sh` owns deterministic preparation of the Phase 8 assumptions-comment write target:
+
+```bash
+ASSUMPTIONS_COMMENT_FILE=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
+)
+```
+
+Inputs are `ISSUE_IDENTIFIER` plus optional `ASSUMPTIONS_COMMENT_FILE` when the caller has already selected a repo-relative direct-child `.ephemeral/*-assumptions-comment.md` path. The helper rejects nested paths with `assumptions_comment_file must be a direct child of .ephemeral`, rejects bad suffixes with `assumptions_comment_file path validation failed`, rejects `path traversal` and symlinked `.ephemeral`, prepares the write target, and prints only the repo-relative path on stdout. The controller writes only reviewer-relevant, resolved auto-mode assumptions to that file.
+
 ## Phase 1: Adopt the Handoff Artifacts
 
 The entrypoint has already provisioned or reused the issue worktree and
@@ -115,28 +151,12 @@ esac
 cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
 
 ISSUE_BODY_PATH="<payload.issue-body-path>"
-case "$ISSUE_BODY_PATH" in
-  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-  .ephemeral/*-issue-body.md) ;;
-  *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-esac
-[ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$ISSUE_BODY_PATH" ] || { echo "issue body must not be a symlink: $ISSUE_BODY_PATH" >&2; exit 1; }
-[ -f "$ISSUE_BODY_PATH" ] || { echo "issue body missing or not a regular file: $ISSUE_BODY_PATH" >&2; exit 1; }
-[ -r "$ISSUE_BODY_PATH" ] || { echo "issue body missing or unreadable: $ISSUE_BODY_PATH" >&2; exit 1; }
+PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh"
+bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"
 
 COMMENT_EVIDENCE_PATH="<payload.comment-evidence-path if present, else empty>"
 if [ -n "$COMMENT_EVIDENCE_PATH" ]; then
-  case "$COMMENT_EVIDENCE_PATH" in
-    .ephemeral/*/*) echo "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-    .ephemeral/*-comment-evidence.md) ;;
-    *) echo "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-  esac
-  [ "${COMMENT_EVIDENCE_PATH#*..}" = "$COMMENT_EVIDENCE_PATH" ] || { echo "path traversal: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-  [ ! -L "$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence must not be a symlink: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-  [ -f "$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence missing or not a regular file: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-  [ -r "$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence missing or unreadable: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
+  bash "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"
 fi
 ```
 
@@ -204,7 +224,7 @@ the synthetic gate reason `forced by --research`.
 
 ## Phase 3: Research (Conditional)
 
-Dispatch the **`research-agent`** agent using the prompt template in `references/research-agent-prompt.md`. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
+Dispatch the read-only **`research-agent`** agent using the prompt template in `references/research-agent-prompt.md`. It may inspect repository files and external precedent, but it must not write files, edit the worktree, or emit controller-visible notice lines. Use `{{model:standard}}` as the floor — escalate to `{{model:deep}}` for cross-module or architecturally complex issues.
 
 **Pass to the research agent:**
 
@@ -228,38 +248,15 @@ comment-evidence placeholder with `(none)`.
 
 **Architecture preference:** The research agent surfaces the architecturally cleaner option, not just the easiest one.
 
-**Persist the brief and emit the notice line.** After the agent returns:
-
-1. Compute the brief path: `.ephemeral/<YYYY-MM-DD>-<id>-research.md` (today's date; `payload.identifier` slugged: `#167` → `167`, `ENG-123` → `eng-123`).
-2. Validate the path before writing (narrowed to the research-brief suffix):
-
-   ```bash
-   case "$RESEARCH_BRIEF_PATH" in
-     .ephemeral/*/*) echo "nested research brief path rejected: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
-     .ephemeral/*-research.md) ;;
-     *) echo "research brief path validation failed: $RESEARCH_BRIEF_PATH" >&2; exit 1 ;;
-   esac
-   [ "${RESEARCH_BRIEF_PATH#*..}" = "$RESEARCH_BRIEF_PATH" ] || { echo "path traversal: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
-   ```
-
-   This uses the generic phase-artifact guard shape: narrow the suffix to the
-   expected artifact and reject traversal before opening the file. `play-review`
-   findings/nits envelopes use a stricter direct-child guard because those
-   paths are echoed through review output and reused by wrappers.
-
-3. Apply the write-target guard before the `Write` tool call (per `skills/play-review/SKILL.md` § Output → Write rules):
-
-   ```bash
-   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-   mkdir -p .ephemeral
-   [ -L "$RESEARCH_BRIEF_PATH" ] && rm "$RESEARCH_BRIEF_PATH"
-   [ ! -d "$RESEARCH_BRIEF_PATH" ] || { echo "research brief path is a directory: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
-   [ ! -e "$RESEARCH_BRIEF_PATH" ] || [ -f "$RESEARCH_BRIEF_PATH" ] || { echo "research brief path exists but is not a regular file: $RESEARCH_BRIEF_PATH" >&2; exit 1; }
-   ```
-
-4. Write the brief verbatim to the path using the `Write` tool.
-5. Emit the literal line `Research brief written to <repo-relative-path>.` to the conversation output. This is the consumer contract surface; do not reword.
-6. Carry the path forward to Phase 4's args (no parsing required — the path was computed in step 1 above and is already in hand).
+**Persist the brief and emit the notice line.** After the agent returns, invoke
+`scripts/write-research-brief.sh` from the issue worktree root with
+`ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY`. Treat a nonzero helper exit as a
+contract failure. The helper prints the repo-relative research path on stdout
+and prepares the write target; it does not write the brief. Write the
+`research-agent` returned brief verbatim to that path using the Write tool,
+then emit the literal line `Research brief written to <repo-relative-path>.` to
+the conversation output. This is the consumer contract surface; do not reword.
+Carry the path forward to Phase 4's args.
 
 ## Phase 4: Invoke Brainstorming
 
@@ -346,26 +343,15 @@ When this notice is present, do not fall through to design-path validation or
 later phases. Clean up the adopted issue worktree through `play-branch-finish`
 option 4 (discard), then stop `--auto` and report the referral plus cleanup
 result. When no durable owner referral notice is present, capture the literal
-`Design written to <path>.` notice line it emitted. Validate the captured path:
+`Design written to <path>.` notice line it emitted. Validate the captured path
+before reading it:
 
 ```bash
-case "$DESIGN_PATH" in
-  .ephemeral/*/*) echo "nested design path rejected: $DESIGN_PATH" >&2; exit 1 ;;
-  .ephemeral/*-design.md) ;;
-  *) echo "design path validation failed: $DESIGN_PATH" >&2; exit 1 ;;
-esac
-[ "${DESIGN_PATH#*..}" = "$DESIGN_PATH" ] || { echo "path traversal: $DESIGN_PATH" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$DESIGN_PATH" ] || { echo "design must not be a symlink: $DESIGN_PATH" >&2; exit 1; }
-[ -f "$DESIGN_PATH" ] || { echo "design missing or not a regular file: $DESIGN_PATH" >&2; exit 1; }
-[ -r "$DESIGN_PATH" ] || { echo "design missing or unreadable: $DESIGN_PATH" >&2; exit 1; }
+bash "$PHASE_ARTIFACTS_HELPER" validate-read design "$DESIGN_PATH"
 ```
 
-This uses the generic phase-artifact read guard shape: narrow the suffix to the
-expected artifact, reject traversal, reject symlinked `.ephemeral` and symlinked
-leaf files, require a regular file, and verify readability before opening the
-file. `play-review` findings/nits envelopes use a stricter direct-child guard
-because those paths are echoed through review output and reused by wrappers.
+Use the helper contract from the issue worktree root; success is silent and a
+nonzero exit stops the phase.
 
 Invoke `play-planning` and pass the design as a `Design: <path>` reference in the invocation prose, NOT as inline content. The invocation skeleton:
 
@@ -389,23 +375,11 @@ Do not wait for user review of the plan — proceed directly to implementation. 
 After `play-planning` returns, capture the literal `Plan written to <path>.` notice line it emitted. Validate the captured path:
 
 ```bash
-case "$PLAN_PATH" in
-  .ephemeral/*/*) echo "nested plan path rejected: $PLAN_PATH" >&2; exit 1 ;;
-  .ephemeral/*-plan.md) ;;
-  *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
-esac
-[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$PLAN_PATH" ] || { echo "plan must not be a symlink: $PLAN_PATH" >&2; exit 1; }
-[ -f "$PLAN_PATH" ] || { echo "plan missing or not a regular file: $PLAN_PATH" >&2; exit 1; }
-[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
+bash "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
 ```
 
-This uses the generic phase-artifact read guard shape: narrow the suffix to the
-expected artifact, reject traversal, reject symlinked `.ephemeral` and symlinked
-leaf files, require a regular file, and verify readability before opening the
-file. `play-review` findings/nits envelopes use a stricter direct-child guard
-because those paths are echoed through review output and reused by wrappers.
+Use the helper contract from the issue worktree root; success is silent and a
+nonzero exit stops the phase.
 
 Before invoking `play-subagent-execution`, write a controller-owned auto-mode
 handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
@@ -564,21 +538,20 @@ Option 2 for the `nits_file` input contract.
 
 **Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. The path must be a direct child of `.ephemeral/`; nested paths are rejected. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
 
-Before writing `.ephemeral/*-assumptions-comment.md`, validate and guard the path:
+Before writing `.ephemeral/*-assumptions-comment.md`, invoke
+`scripts/write-assumptions-comment.sh` from the issue worktree root. Treat a
+nonzero helper exit as a contract failure. The helper rejects nested paths with
+`assumptions_comment_file must be a direct child of .ephemeral`, rejects bad
+suffixes with `assumptions_comment_file path validation failed`, rejects path
+traversal (`path traversal`), rejects `.ephemeral must be a directory, not a symlink`,
+prepares the write target, and prints the repo-relative assumptions
+comment path on stdout:
 
 ```bash
-ASSUMPTIONS_COMMENT_FILE=".ephemeral/<identifier>-assumptions-comment.md"
-case "$ASSUMPTIONS_COMMENT_FILE" in
-  .ephemeral/*/*) echo "assumptions_comment_file must be a direct child of .ephemeral: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
-  .ephemeral/*-assumptions-comment.md) ;;
-  *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
-esac
-[ "${ASSUMPTIONS_COMMENT_FILE#*..}" = "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "path traversal: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-mkdir -p .ephemeral
-[ -L "$ASSUMPTIONS_COMMENT_FILE" ] && rm "$ASSUMPTIONS_COMMENT_FILE"
-[ ! -d "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "assumptions comment path is a directory: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
-[ ! -e "$ASSUMPTIONS_COMMENT_FILE" ] || [ -f "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "assumptions comment path exists but is not a regular file: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+ASSUMPTIONS_COMMENT_FILE=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
+)
 ```
 
 **Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema and side-channel transport: `skills/play-review/SKILL.md` § Output). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.

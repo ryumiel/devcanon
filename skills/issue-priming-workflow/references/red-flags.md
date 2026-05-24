@@ -9,6 +9,8 @@ Behavioral signals that this skill is being violated.
 - You skipped brainstorming because "the issue is simple enough"
 - You wrote spec/design/plan files outside the worktree
 - You created a nested worktree inside an already-managed worktree
+- You bypassed an issue-priming helper with hand-written path logic after
+  Phase 1 adopted the worktree
 - You auto-merged a PR in `--auto` mode for any reason — including incident urgency, claimed pre-authorization, or green CI (the PR is the user's review gate)
 - You passed mechanical nits straight through to Phase 8 instead of fixing them in the worktree first
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
