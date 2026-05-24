@@ -147,6 +147,18 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(normalizedHandoff).toContain(
         "`play-branch-finish` presents its authoritative finish options",
       );
+      expect(normalizedHandoff).toContain(
+        "implementation summaries, verification summaries, and review pass reports are status reports only",
+      );
+      expect(normalizedHandoff).toContain(
+        "they are not terminal workflow states",
+      );
+      expect(normalizedHandoff).toContain(
+        "After the final whole-implementation review passes, the next action is to invoke `play-branch-finish`",
+      );
+      expect(normalizedHandoff).toContain(
+        "summary-only completion is a workflow violation",
+      );
     }
   });
 });

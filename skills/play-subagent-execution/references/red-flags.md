@@ -16,6 +16,10 @@ Behavioral signals that this skill is being violated.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Move to next task while an executor-required review has open issues
+- Stop after an implementation summary, verification summary, or review pass
+  report instead of returning to the verified owning caller or invoking
+  `play-branch-finish` on the direct/manual path. Those summaries are status
+  reports only, not terminal workflow states.
 - Treat plan-authored snapshot hints as authoritative. Snapshot request/skip
   classification belongs to `play-subagent-execution`; unclear cases request a
   snapshot.

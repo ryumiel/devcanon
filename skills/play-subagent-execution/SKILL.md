@@ -330,6 +330,12 @@ skill's built-in terminal review gate. If that final whole-implementation
 review passes, report that implementation and final review passed, then invoke
 `play-branch-finish`.
 
+Completion-boundary contract: implementation summaries, verification summaries,
+and review pass reports are status reports only; they are not terminal workflow
+states. After the final whole-implementation review passes, the next action is
+to invoke `play-branch-finish`. Treating a summary as completion and stopping
+there is invalid: summary-only completion is a workflow violation.
+
 Do not present or restate branch finish choices in this skill.
 `play-branch-finish` presents its authoritative finish options and owns their
 semantics. If a verified owning caller final whole-diff gate exists, preserve

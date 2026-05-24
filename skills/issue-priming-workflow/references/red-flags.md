@@ -12,6 +12,9 @@ Behavioral signals that this skill is being violated.
 - You auto-merged a PR in `--auto` mode for any reason — including incident urgency, claimed pre-authorization, or green CI (the PR is the user's review gate)
 - You passed mechanical nits straight through to Phase 8 instead of fixing them in the worktree first
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
+- You treated successful Phase 6 implementation completion as terminal instead
+  of continuing to Phase 7 branch review and Phase 8 PR creation unless a
+  concrete blocker stops `--auto`
 - You composed a PR title/description directly in Phase 8 instead of relying on `play-branch-finish` to invoke `pr-authoring`
 
 **All of these mean: STOP. Go back to the workflow.**
