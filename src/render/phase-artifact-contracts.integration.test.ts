@@ -261,6 +261,40 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders the play-brainstorm design review option menu for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const playBrainstorm = bodies[`play-brainstorm:${target}`];
+      const afterDesign = sliceRenderedSection(
+        playBrainstorm,
+        "## After the Design",
+        "## Common Mistakes",
+      );
+      const normalizedAfterDesign = normalizeRenderedWhitespace(afterDesign);
+
+      expect(afterDesign).toContain("**User Review Gate:**");
+      expect(afterDesign).toContain("Design written to <repo-relative-path>.");
+      expect(afterDesign).toContain(
+        "1. Approve and write the implementation plan",
+      );
+      expect(afterDesign).toContain("2. Request design changes");
+      expect(afterDesign).toContain(
+        "3. Stop here and keep the design for later",
+      );
+      expect(normalizedAfterDesign).toContain(
+        "Approval invokes `play-planning` with `Design: <path>`",
+      );
+      expect(normalizedAfterDesign).toContain(
+        "Request design changes edits or rewrites the design",
+      );
+      expect(normalizedAfterDesign).toContain(
+        "Stop here keeps the saved design artifact",
+      );
+      expect(normalizedAfterDesign).toContain(
+        "skip the interactive option menu and approval prompt",
+      );
+    }
+  });
+
   it("keeps play-branch-finish post-create assumptions and nits routing rendered for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playBranchFinish = bodies[`play-branch-finish:${target}`];

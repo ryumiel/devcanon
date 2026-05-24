@@ -239,6 +239,114 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("makes the play-brainstorm interactive design review gate explicit", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const userReviewGate = getMarkdownSection(
+      playBrainstorm,
+      "After the Design",
+    );
+    const normalizedGate = normalizeWhitespace(userReviewGate);
+
+    expect(userReviewGate).toContain("**User Review Gate:**");
+    expect(userReviewGate).toContain("Design written to <repo-relative-path>.");
+    expect(userReviewGate).toContain(
+      "1. Approve and write the implementation plan",
+    );
+    expect(userReviewGate).toContain("2. Request design changes");
+    expect(userReviewGate).toContain(
+      "3. Stop here and keep the design for later",
+    );
+
+    expect(normalizedGate).toContain(
+      "Approval invokes `play-planning` with `Design: <path>`",
+    );
+    expect(normalizedGate).toContain(
+      "play-planning writes the implementation plan",
+    );
+
+    const approvalNextActionSentences =
+      normalizedGate.match(/Approval [^.!?]*(?:[.!?]|$)/g) ?? [];
+
+    for (const forbiddenApprovalAction of [
+      /^Approval (?:invokes|hands off to|runs|uses) `play-subagent-execution`/i,
+      /^Approval (?:starts|begins|launches|proceeds to) implementation execution/i,
+    ]) {
+      expect(
+        approvalNextActionSentences.some((sentence) =>
+          forbiddenApprovalAction.test(sentence),
+        ),
+      ).toBe(false);
+    }
+    for (const copiedExecutionChoicePattern of [
+      /^\s*\*\*1\.\s+Subagent-Driven \(recommended\)\*\*/m,
+      /^\s*\*\*2\.\s+Inline Execution\*\*/m,
+      /^\s*Which approach\?\s*$/m,
+    ]) {
+      expect(userReviewGate).not.toMatch(copiedExecutionChoicePattern);
+    }
+
+    expect(normalizedGate).toContain(
+      "Request design changes edits or rewrites the design",
+    );
+    expect(normalizedGate).toContain("re-runs design self-review");
+    expect(normalizedGate).toContain("returns to the same User Review Gate");
+    expect(normalizedGate).toContain(
+      "Stop here keeps the saved design artifact",
+    );
+    expect(normalizedGate).toContain("does not invoke `play-planning`");
+  });
+
+  it("keeps play-brainstorm auto mode non-interactive while preserving the design notice", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const afterDesign = getMarkdownSection(playBrainstorm, "After the Design");
+    const normalizedAfterDesign = normalizeWhitespace(afterDesign);
+
+    expect(afterDesign).toContain("Design written to <repo-relative-path>.");
+    expect(normalizedAfterDesign).toContain("In `--auto` mode");
+    expect(normalizedAfterDesign).toContain(
+      "skip the interactive option menu and approval prompt",
+    );
+    expect(normalizedAfterDesign).toContain(
+      "only the contract notice is emitted",
+    );
+    expect(normalizedAfterDesign).toContain(
+      "Record the design path in your handoff to `play-planning`",
+    );
+  });
+
+  it("keeps play-planning as the owner of execution-mode selection", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const executionHandoff = getMarkdownSection(
+      playPlanning,
+      "Execution Handoff",
+    );
+    const normalizedExecutionHandoff = normalizeWhitespace(executionHandoff);
+
+    expect(normalizedExecutionHandoff).toContain(
+      "do NOT prompt for an execution mode",
+    );
+    expect(normalizedExecutionHandoff).toContain(
+      "Return after saving the plan so the parent skill can invoke `play-subagent-execution`",
+    );
+    expect(normalizedExecutionHandoff).toContain(
+      "Otherwise, offer execution choice",
+    );
+    expect(executionHandoff).toContain("**1. Subagent-Driven (recommended)**");
+    expect(executionHandoff).toContain("**2. Inline Execution**");
+    expect(normalizedExecutionHandoff).toContain("Which approach?");
+
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const userReviewGate = getMarkdownSection(
+      playBrainstorm,
+      "After the Design",
+    );
+    const normalizedBrainstormGate = normalizeWhitespace(userReviewGate);
+
+    expect(normalizedBrainstormGate).not.toContain("Subagent-Driven");
+    expect(normalizedBrainstormGate).not.toContain("Inline Execution");
+    expect(normalizedBrainstormGate).not.toContain("Which approach?");
+  });
+
   it("keeps generated/reference coverage triggers owned by the skill writing guideline", async () => {
     const guideline = await readRepoFile("docs/guidelines/writing-skills.md");
     const coverageRule = getMarkdownSection(

@@ -200,7 +200,9 @@ For the full selection and process diagrams, load
 10. Mark tasks complete only after the applicable route and lifecycle/status
     rules permit completion. Then run the final whole-implementation review or
     return to the owning caller when a verified downstream whole-diff gate owns
-    that final review.
+    that final review. When no owning caller final whole-diff gate exists and
+    the final whole-implementation review passes, use the direct/manual
+    terminal handoff to `play-branch-finish`.
 
 **Trust-boundary summaries:**
 
@@ -307,8 +309,10 @@ computed by the controller. Hard-risk, unclear, or untrusted routes use
 `spec-and-quality`.
 
 If you invoke this skill **directly** (not via `--auto`) on a single-task
-plan, no whole-diff review runs after the final code-quality reviewer — run
-`branch-review` yourself before opening a PR if you want that coverage.
+plan, no whole-diff review runs after the final code-quality reviewer. When
+that reviewer passes, continue through the direct/manual terminal handoff to
+`play-branch-finish`; run `branch-review` yourself before opening a PR if you
+want whole-diff coverage.
 
 The trade-off here: per-task review on a single task adds review overhead
 without catching regressions across tasks (there is only one), so the
@@ -317,6 +321,20 @@ single-task path, downstream `branch-review --fix` becomes the whole-diff
 gate; on direct/manual single-task invocations, the final
 whole-implementation reviewer remains the built-in gate and the user can
 still run `branch-review` manually.
+
+### Direct/manual terminal handoff
+
+When this is a direct or manual invocation and there is no verified owning
+caller final whole-diff gate, the final whole-implementation review is this
+skill's built-in terminal review gate. If that final whole-implementation
+review passes, report that implementation and final review passed, then invoke
+`play-branch-finish`.
+
+Do not present or restate branch finish choices in this skill.
+`play-branch-finish` presents its authoritative finish options and owns their
+semantics. If a verified owning caller final whole-diff gate exists, preserve
+the parent-owned path: return to the caller instead of invoking
+`play-branch-finish`.
 
 ## Subagent Lifecycle
 

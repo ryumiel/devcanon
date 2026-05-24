@@ -198,7 +198,8 @@ digraph brainstorming {
     "Write design doc" [shape=box];
     "Design self-review\n(fix inline)" [shape=box];
     "Auto mode?\n(post-write)" [shape=diamond];
-    "User reviews design?" [shape=diamond];
+    "User Review Gate" [shape=diamond];
+    "Stop here\nkeep design" [shape=doublecircle];
     "Invoke play-planning skill" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
@@ -213,14 +214,15 @@ digraph brainstorming {
     "User approves design?" -> "Write design doc" [label="yes"];
     "Write design doc" -> "Design self-review\n(fix inline)";
     "Design self-review\n(fix inline)" -> "Auto mode?\n(post-write)";
-    "Auto mode?\n(post-write)" -> "Invoke play-planning skill" [label="yes (bypass review)"];
-    "Auto mode?\n(post-write)" -> "User reviews design?" [label="no"];
-    "User reviews design?" -> "Write design doc" [label="changes requested"];
-    "User reviews design?" -> "Invoke play-planning skill" [label="approved"];
+    "Auto mode?\n(post-write)" -> "Invoke play-planning skill" [label="yes (record Design: <path>)"];
+    "Auto mode?\n(post-write)" -> "User Review Gate" [label="no"];
+    "User Review Gate" -> "Invoke play-planning skill" [label="1 approve and plan"];
+    "User Review Gate" -> "Write design doc" [label="2 request design changes"];
+    "User Review Gate" -> "Stop here\nkeep design" [label="3 stop"];
 }
 ```
 
-**The terminal state for executable implementation designs is invoking play-planning.** Do NOT invoke any other implementation skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop instead of forcing an implementation plan.
+**Executable implementation designs either stop as saved designs for later or proceed by invoking play-planning.** Do NOT invoke any other implementation skill. If the user approves planning, `play-planning` is the only valid next skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop before design or implementation planning instead of forcing an implementation plan.
 
 ## The Process
 
@@ -388,15 +390,29 @@ After writing the design document, look at it with fresh eyes:
 Fix any issues inline. No need to re-review — just fix and move on.
 
 **User Review Gate:**
-After the design review loop passes, ask the user to review the written design before proceeding:
+After the design review loop passes, ask the user to review the written design
+before proceeding with this interactive option menu:
 
-> "Design written to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+> "Design written to `<path>`. Please review it and choose one option:
+>
+> 1. Approve and write the implementation plan
+> 2. Request design changes
+> 3. Stop here and keep the design for later"
 
 This prompt is the interactive User Review Gate, distinct from the producer notice line emitted in **Save** above (the contract surface `play-planning` parses). The two share the `Design written to` prefix but are not interchangeable: the notice line uses a bare `<repo-relative-path>` followed by a period, while this prompt wraps the path in backticks and continues with `" Please review it..."`. In `--auto` mode this prompt is skipped (see the `--auto` paragraph below), so only the contract notice is emitted; do not reword either form when extending this section.
 
-Wait for the user's response. If they request changes, make them and re-run the design review loop. Only proceed once the user approves.
+Wait for the user's response and route exactly as follows:
 
-**In `--auto` mode** (see HARD-GATE above): skip both the prompt and the wait. Record the design path in your handoff to `play-planning` and proceed immediately. For governance or workflow-policy changes, record the assumptions produced by scanning the Adjacent Governance Policy Set unless that scan leaves two equally valid executable designs; if two equally valid designs remain, stop for human choice instead of silently selecting one. For durable owner referrals, emit the durable owner referral notice and stop before this design-writing step.
+1. Approval invokes `play-planning` with `Design: <path>` so play-planning
+   writes the implementation plan. Approval does not start implementation
+   execution and does not present the execution-mode menu; that remains owned
+   by `play-planning`.
+2. Request design changes edits or rewrites the design, re-runs design
+   self-review, and returns to the same User Review Gate.
+3. Stop here keeps the saved design artifact for later and does not invoke
+   `play-planning`.
+
+**In `--auto` mode** (see HARD-GATE above): skip the interactive option menu and approval prompt; skip the wait. Only the contract notice is emitted. Record the design path in your handoff to `play-planning` and proceed immediately. For governance or workflow-policy changes, record the assumptions produced by scanning the Adjacent Governance Policy Set unless that scan leaves two equally valid executable designs; if two equally valid designs remain, stop for human choice instead of silently selecting one. For durable owner referrals, emit the durable owner referral notice and stop before this design-writing step.
 
 **Implementation:**
 
