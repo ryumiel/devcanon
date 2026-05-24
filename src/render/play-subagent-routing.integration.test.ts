@@ -115,4 +115,38 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
   });
+
+  it("renders direct/manual execution handoff to play-branch-finish for both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
+      const startMarker = "### Direct/manual terminal handoff";
+      const endMarker = "## Subagent Lifecycle";
+      const startIndex = playSubagentExecution.indexOf(startMarker);
+      const endIndex = playSubagentExecution.indexOf(endMarker, startIndex);
+
+      expect(
+        startIndex,
+        `${target} output missing direct/manual terminal handoff section`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        endIndex,
+        `${target} output missing Subagent Lifecycle section after handoff`,
+      ).toBeGreaterThan(startIndex);
+
+      const handoffSection = playSubagentExecution.slice(startIndex, endIndex);
+      const normalizedHandoff = normalizeWhitespace(handoffSection);
+
+      expect(normalizedHandoff).toContain("direct or manual invocation");
+      expect(normalizedHandoff).toContain(
+        "final whole-implementation review passes",
+      );
+      expect(normalizedHandoff).toContain(
+        "implementation and final review passed",
+      );
+      expect(normalizedHandoff).toContain("invoke `play-branch-finish`");
+      expect(normalizedHandoff).toContain(
+        "`play-branch-finish` presents its authoritative finish options",
+      );
+    }
+  });
 });

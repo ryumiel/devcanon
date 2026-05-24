@@ -267,16 +267,16 @@ describe("existing skills source prose contracts", () => {
     const approvalNextActionSentences =
       normalizedGate.match(/Approval [^.!?]*(?:[.!?]|$)/g) ?? [];
 
-    expect(approvalNextActionSentences).not.toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(
-          /^Approval (?:invokes|hands off to|runs|uses) `play-subagent-execution`/i,
+    for (const forbiddenApprovalAction of [
+      /^Approval (?:invokes|hands off to|runs|uses) `play-subagent-execution`/i,
+      /^Approval (?:starts|begins|launches|proceeds to) implementation execution/i,
+    ]) {
+      expect(
+        approvalNextActionSentences.some((sentence) =>
+          forbiddenApprovalAction.test(sentence),
         ),
-        expect.stringMatching(
-          /^Approval (?:starts|begins|launches|proceeds to) implementation execution/i,
-        ),
-      ]),
-    );
+      ).toBe(false);
+    }
     for (const copiedExecutionChoicePattern of [
       /^\s*\*\*1\.\s+Subagent-Driven \(recommended\)\*\*/m,
       /^\s*\*\*2\.\s+Inline Execution\*\*/m,

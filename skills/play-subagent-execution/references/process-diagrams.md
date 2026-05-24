@@ -54,9 +54,11 @@ digraph process {
     "More tasks remain?" [shape=diamond];
     "Single-task caller-scoped final-review skip applies?" [shape=diamond];
     "Dispatch final whole-implementation code-quality reviewer" [shape=box];
+    "Final whole-implementation review passes?" [shape=diamond];
+    "Implementer fixes final-review findings" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
-    "Use play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
+    "Report implementation and final review passed; invoke play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
     "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [shape=box];
 
     "Read plan and extract authored tasks" -> "Task contract structurally valid?";
@@ -95,9 +97,12 @@ digraph process {
     "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
     "Single-task caller-scoped final-review skip applies?" -> "Return to caller" [label="yes"];
     "Single-task caller-scoped final-review skip applies?" -> "Dispatch final whole-implementation code-quality reviewer" [label="no"];
-    "Dispatch final whole-implementation code-quality reviewer" -> "Owning caller final whole-diff gate present?";
+    "Dispatch final whole-implementation code-quality reviewer" -> "Final whole-implementation review passes?";
+    "Final whole-implementation review passes?" -> "Implementer fixes final-review findings" [label="no"];
+    "Implementer fixes final-review findings" -> "Dispatch final whole-implementation code-quality reviewer";
+    "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
-    "Owning caller final whole-diff gate present?" -> "Use play-branch-finish" [label="no"];
+    "Owning caller final whole-diff gate present?" -> "Report implementation and final review passed; invoke play-branch-finish" [label="no"];
 }
 ```
 
@@ -111,6 +116,17 @@ commit because the final whole-diff gate is mandatory.
 When a prior quality result needs freshness disposition after spec fixups, use
 the lifecycle/status reference for the advisory, stale, superseded, and final
 states before marking the task complete.
+
+Final whole-implementation review failures use the final-review-specific fixup
+state, then rerun the final whole-implementation code-quality reviewer. They do
+not re-enter per-task effective route computation because there is no current
+task route after all tasks are complete.
+
+The terminal path splits on ownership. If a verified owning caller final
+whole-diff gate exists, return to that caller. For direct/manual invocations
+without that owning caller gate, a passing final whole-implementation review
+reports that implementation and final review passed, then invokes
+`play-branch-finish`; that skill presents the authoritative finish options.
 
 The implementer dispatch boxes use `references/implementer-prompt.md` by
 default. When the task header carries `**Mode:** mechanical`, swap in

@@ -322,7 +322,10 @@ If brainstorming surfaces a genuinely ambiguous decision (two equally valid appr
 
 See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md) for why "document the assumption and let the user override at PR review" is the same violation, and why third-party "either is fine" doesn't count as authorization.
 
-**Without `--auto`:** Stop after brainstorming completes. Return control to the user.
+Without `--auto`: hand off to `play-brainstorm` and return control to the
+user after `play-brainstorm` completes. `play-brainstorm` owns its approved
+handoff to `play-planning`; do not suppress or replace child skill approval
+gates.
 
 ## Phases 5-8: Autonomous Execution (`--auto` only)
 
