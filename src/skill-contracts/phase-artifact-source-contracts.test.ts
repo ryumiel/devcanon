@@ -8,6 +8,100 @@ import {
 } from "../__test-helpers__/skill-contracts.js";
 
 describe("phase artifact source contracts", () => {
+  it("keeps issue-priming helper extraction contracts and pressure evidence in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+
+    /*
+     * play-skill-authoring RED evidence:
+     * A nested pressure subagent could not be run from this environment because
+     * no subagent spawn/close tool is exposed to this worker. These static RED
+     * checks stand in for the baseline pressure scenario: the current oversized
+     * skill still inlines deterministic shell mechanics, so an agent can
+     * rationalize copying or locally tweaking those guards instead of using a
+     * tested skill-owned authority per ADR-0019.
+     */
+    expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
+    expect(issuePrimingWorkflow).toContain("validate-read");
+    expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
+    expect(issuePrimingWorkflow).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "Treat a nonzero helper exit as a contract failure",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "invoke it from the issue worktree root",
+    );
+  });
+
+  it("keeps Task 1 traceability rows visible without making generated output authoritative", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const adr0013 = await readRepoFile(
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+    );
+    const adr0019 = await readRepoFile(
+      "docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md",
+    );
+
+    for (const payloadField of [
+      "source",
+      "identifier",
+      "title",
+      "issue-body-path",
+      "comment-evidence-path",
+      "worktree-path",
+      "mode",
+      "research",
+    ]) {
+      expect(issuePrimingWorkflow).toContain(`- **${payloadField}**`);
+    }
+
+    for (const noticeLine of [
+      "Research brief written to <repo-relative-path>.",
+      "Design written to <path>.",
+      "Plan written to <path>.",
+      "Findings written to <path>.",
+    ]) {
+      expect(issuePrimingWorkflow).toContain(noticeLine);
+    }
+
+    expect(normalizedIssuePriming).toContain(
+      "do not suppress or replace child skill approval gates",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "do not invoke `play-planning`, `play-subagent-execution`, branch review, or PR creation",
+    );
+    expect(issuePrimingWorkflow).toContain("Gate agent fails");
+    expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
+    expect(issuePrimingWorkflow).toContain("Research agent fails/times out");
+    expect(issuePrimingWorkflow).toContain("Report partial results");
+    expect(issuePrimingWorkflow).toContain("No `docs/adr/` directory");
+    expect(issuePrimingWorkflow).toContain('Gate treats as "no covering ADR"');
+    expect(normalizedIssuePriming).toContain(
+      "Do NOT prompt for execution mode at the end",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "Successful `play-subagent-execution` completion returns control to this owning workflow",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "PR creation preserves the branch and worktree",
+    );
+    expect(normalizedIssuePriming).toContain("Does not merge PRs");
+
+    expect(normalizeWhitespace(adr0013)).toContain(
+      "The generic guard shape remains the policy baseline for phase artifacts",
+    );
+    expect(normalizeWhitespace(adr0019)).toContain(
+      "Skill prose remains authoritative for workflow policy",
+    );
+  });
+
   it("keeps issue-priming path-first context hygiene contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",

@@ -114,6 +114,11 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Plan:");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
+    expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
+    expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
+    expect(issuePrimingWorkflow).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
   });
 
   it("renders direct/manual execution handoff to play-branch-finish for both targets", () => {

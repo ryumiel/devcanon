@@ -94,6 +94,11 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Comment evidence:");
     expect(issuePrimingWorkflow).toContain("comment-evidence-path");
     expect(issuePrimingWorkflow).toContain("Research brief:");
+    expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
+    expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
+    expect(issuePrimingWorkflow).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
@@ -248,6 +253,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation",
       );
       expect(phase8).toContain("assumptions_comment_file");
+      expect(phase8).toContain("scripts/write-assumptions-comment.sh");
       expect(phase8).toContain(
         ".ephemeral/<identifier>-assumptions-comment.md",
       );
@@ -480,6 +486,58 @@ describe("rendered phase artifact smoke coverage", () => {
         );
 
         expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
+  it("mirrors issue-priming helper scripts required by rendered Phase 1, Phase 3, and Phase 8 contracts", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+    const helperNames = [
+      "phase-artifacts.sh",
+      "write-research-brief.sh",
+      "write-assumptions-comment.sh",
+    ] as const;
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+
+      for (const helperName of helperNames) {
+        const sourceHelperPath = path.join(
+          repoRoot,
+          "skills",
+          "issue-priming-workflow",
+          "scripts",
+          helperName,
+        );
+        const sourceHelper = await readFile(sourceHelperPath, "utf-8");
+
+        for (const target of ["claude", "codex"] as const) {
+          const helperPath = path.join(
+            generatedDir,
+            target,
+            "skills",
+            "issue-priming-workflow",
+            "scripts",
+            helperName,
+          );
+
+          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        }
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
