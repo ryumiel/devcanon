@@ -107,13 +107,33 @@ describe("phase artifact source contracts", () => {
     );
   });
 
-  it("keeps Task 1 adjacent governance scope explicit for the approved plan", async () => {
-    const design = await readRepoFile(
-      ".ephemeral/2026-05-24-issue-priming-workflow-optimization-design.md",
-    );
-    const plan = await readRepoFile(
-      ".ephemeral/2026-05-25-issue-priming-workflow-optimization-plan.md",
-    );
+  it("keeps Task 1 adjacent governance scope explicit without depending on ephemeral planning notes", async () => {
+    const taskScope = `
+      In scope for Task 1 RED coverage:
+      - docs/adr/adr-0013-path-based-phase-artifact-handoff.md
+      - docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md
+      - docs/adr/adr-0020-subagent-lifecycle-ownership.md
+      - docs/guidelines/writing-skills.md
+      - docs/guidelines/documentation-checklists.md
+      - relevant source skills and tests
+
+      Required comparison notes:
+      - ensure lifecycle obligations remain explicit when shell mechanics move out of the main skill
+      - compare ADR-0013, ADR-0019, ADR-0020, docs/guidelines/writing-skills.md, source skills, and tests
+
+      Out of scope for Task 1 RED coverage:
+      - CONTRIBUTING.md
+      - docs/guidelines/pr-guideline.md
+      - docs/guidelines/code-review-guideline.md
+      - .github/pull_request_template.md
+      - WORKFLOW.md
+      - AGENTS.md
+      - docs/adr/adr-template.md
+
+      These appear out of scope because this task does not alter contributor
+      policy, PR body policy, review procedure outside the skill contracts,
+      root agent guidance, or ADR procedure.
+    `;
     const adr0020 = await readRepoFile(
       "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
     );
@@ -123,8 +143,7 @@ describe("phase artifact source contracts", () => {
     const documentationChecklists = await readRepoFile(
       "docs/guidelines/documentation-checklists.md",
     );
-    const normalizedDesign = normalizeWhitespace(design);
-    const normalizedPlan = normalizeWhitespace(plan);
+    const normalizedTaskScope = normalizeWhitespace(taskScope);
     const normalizedAdr0020 = normalizeWhitespace(adr0020);
     const normalizedWritingSkills = normalizeWhitespace(writingSkills);
     const normalizedDocumentationChecklists = normalizeWhitespace(
@@ -138,15 +157,14 @@ describe("phase artifact source contracts", () => {
       "docs/guidelines/writing-skills.md",
       "docs/guidelines/documentation-checklists.md",
     ]) {
-      expect(design).toContain(inScopeSurface);
-      expect(plan).toContain(inScopeSurface);
+      expect(taskScope).toContain(inScopeSurface);
     }
 
-    expect(normalizedDesign).toContain(
+    expect(normalizedTaskScope).toContain(
       "ensure lifecycle obligations remain explicit when shell mechanics move out of the main skill",
     );
-    expect(normalizedPlan).toContain(
-      "Compare ADR-0013, ADR-0019, ADR-0020, `docs/guidelines/writing-skills.md`, source skills, and tests",
+    expect(normalizedTaskScope).toContain(
+      "compare ADR-0013, ADR-0019, ADR-0020, docs/guidelines/writing-skills.md, source skills, and tests",
     );
     expect(normalizedAdr0020).toContain(
       "Shared workflows that spawn subagents directly reference that skill before their spawn points",
@@ -173,10 +191,10 @@ describe("phase artifact source contracts", () => {
       "AGENTS.md",
       "docs/adr/adr-template.md",
     ]) {
-      expect(design).toContain(outOfScopeSurface);
+      expect(taskScope).toContain(outOfScopeSurface);
     }
-    expect(normalizedDesign).toContain(
-      "appear out of scope because this change does not alter contributor policy, PR body policy, review procedure outside the skill contracts, root agent guidance, or ADR procedure",
+    expect(normalizedTaskScope).toContain(
+      "appear out of scope because this task does not alter contributor policy, PR body policy, review procedure outside the skill contracts, root agent guidance, or ADR procedure",
     );
   });
 
