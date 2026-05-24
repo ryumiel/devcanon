@@ -297,11 +297,21 @@ describe("phase artifact source contracts", () => {
       expect(normalizedSkillSource.toLowerCase()).toContain(
         "write the fetched",
       );
+      expect(skillSource).toContain(
+        '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
+      );
+      expect(skillSource).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
+      expect(skillSource).toContain(
+        '[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"',
+      );
       expect(normalizedSkillSource.toLowerCase()).toContain(
         "comment-evidence artifact path inside `worktree_path`",
       );
       expect(normalizedSkillSource).toContain(
         "Write source-specific evidence in a concise normalized form",
+      );
+      expect(skillSource).toContain(
+        '[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"',
       );
       expect(skillSource).toContain("issue body path is a directory");
       expect(skillSource).toContain(
@@ -342,7 +352,11 @@ describe("phase artifact source contracts", () => {
       "issue-priming-workflow",
     );
 
+    expect(issuePrimingWorkflow).toContain("worktree path missing");
     expect(issuePrimingWorkflow).toContain("worktree path must be absolute");
+    expect(issuePrimingWorkflow).toContain("worktree missing or unreadable");
+    expect(issuePrimingWorkflow).toContain("worktree not searchable");
+    expect(issuePrimingWorkflow).toContain('cd "$WORKTREE_PATH" ||');
     expect(issuePrimingWorkflow).toContain(
       "All subsequent phases operate from `WORKTREE_PATH`",
     );
@@ -913,7 +927,6 @@ describe("phase artifact source contracts", () => {
     expect(snapshotRecipe).toContain(
       "In snapshot-requesting dispatches, the helper owns persistence and verification",
     );
-    expect(snapshotRecipe).toContain("controller-computed changed-file list");
     expect(snapshotRecipe).toContain("controller-computed changed-file list");
     expect(snapshotRecipe).toContain("not snapshot-provided");
     expect(snapshotRecipe).toContain("paths or statuses");

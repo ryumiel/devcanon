@@ -200,6 +200,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase7).toContain(
         "invoke it from the issue worktree root",
       );
+      expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+      expect(normalizedPhase7).toContain(
+        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+      );
       expect(normalizedPhase7).toContain(
         "Then validate the parsed findings path before reading it with the canonical helper",
       );
@@ -219,6 +223,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("play-review/findings/v1");
       expect(phase7).toContain("-nits-pending.json");
       expect(phase7).toContain("derive-nits-pending");
+      expect(normalizedPhase7).toContain(
+        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+      );
       expect(normalizedPhase7).toContain(
         "Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path",
       );

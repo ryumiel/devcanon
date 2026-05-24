@@ -164,6 +164,10 @@ describe("play subagent routing source contracts", () => {
     expect(phase7).toContain("Review head: <40-hex-sha>.");
     expect(phase7).toContain("PLAY_REVIEW_HELPER");
     expect(phase7).toContain("scripts/review-artifacts.sh");
+    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+    );
     expect(normalizedPhase7).toContain(
       "Do not recompute the review SHA from post-review `HEAD`",
     );
@@ -545,6 +549,13 @@ describe("play subagent routing source contracts", () => {
     expect(phase7).toContain("validate-findings");
     expect(phase7).toContain("derive-nits-pending");
     expect(phase7).toContain("-nits-pending.json");
+    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+    );
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+    );
     expect(normalizedPhase7).toContain(
       "Do not recompute the review SHA from post-review `HEAD`",
     );
