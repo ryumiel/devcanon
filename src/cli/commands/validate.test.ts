@@ -66,9 +66,11 @@ describe("validateAction", () => {
     logger: Logger;
     warnings: string[];
     infos: string[];
+    jsonPayloads: unknown[];
   } {
     const warnings: string[] = [];
     const infos: string[] = [];
+    const jsonPayloads: unknown[] = [];
     return {
       logger: {
         error: () => {},
@@ -92,22 +94,29 @@ describe("validateAction", () => {
         },
         verbose: () => {},
         debug: () => {},
-        json: () => {},
+        json: (data) => {
+          jsonPayloads.push(data);
+        },
       },
       warnings,
       infos,
+      jsonPayloads,
     };
   }
 
   async function withRecordingLogger<T>(
-    callback: (capture: { warnings: string[]; infos: string[] }) => Promise<T>,
+    callback: (capture: {
+      warnings: string[];
+      infos: string[];
+      jsonPayloads: unknown[];
+    }) => Promise<T>,
   ): Promise<T> {
-    const { logger, warnings, infos } = createRecordingLogger();
+    const { logger, warnings, infos, jsonPayloads } = createRecordingLogger();
     const priorLogger = getLogger();
     setLogger(logger);
 
     try {
-      return await callback({ warnings, infos });
+      return await callback({ warnings, infos, jsonPayloads });
     } finally {
       setLogger(priorLogger);
     }
@@ -144,7 +153,7 @@ describe("validateAction", () => {
     ].join("\n");
   }
 
-  it("warns in normal validate mode without failing", async () => {
+  it("groups skill warnings in normal validate mode without failing", async () => {
     await createSkillFixture(
       skillsDir,
       "warn-skill",
@@ -166,15 +175,13 @@ describe("validateAction", () => {
         validateAction({}, makeCommand(false, false)),
       ).resolves.toBeUndefined();
 
-      expect(
-        warnings.some(
-          (warning) =>
-            /warn-skill/i.test(warning) &&
-            /sonnet|claude-sonnet-4-6/i.test(warning),
-        ),
-      ).toBe(true);
+      expect(warnings).toEqual([]);
       expect(infos).toContain("Config: valid");
-      expect(infos).toContain("Skills: 1 valid");
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain("[skill.drift-token] warn-skill (strictable)");
+      expect(infos.join("\n")).toMatch(/sonnet|claude-sonnet-4-6/i);
+      expect(infos).toContain("\nAll validations passed with warnings.");
     });
   });
 
@@ -207,7 +214,7 @@ describe("validateAction", () => {
     });
   });
 
-  it("surfaces oversized skill prompt warnings without failing strict validate mode", async () => {
+  it("renders prompt-size warning metrics and guidance without failing strict validate mode", async () => {
     await createSkillFixture(
       skillsDir,
       "cli-large-skill",
@@ -219,16 +226,46 @@ describe("validateAction", () => {
         validateAction({ strict: true }, makeCommand(false, false)),
       ).resolves.toBeUndefined();
 
-      expect(
-        warnings.some(
-          (warning) =>
-            /cli-large-skill/i.test(warning) &&
-            /SKILL\.md is large/i.test(warning) &&
-            /o200k_base/i.test(warning) &&
-            /soft upper bound 5,000 tokens or 500 lines/i.test(warning),
-        ),
-      ).toBe(true);
-      expect(infos).toContain("Skills: 1 valid");
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+
+      const output = infos.join("\n");
+      expect(output).toContain("Warnings (1)");
+      expect(output).toContain(
+        "[skill.prompt-size] cli-large-skill (advisory)",
+      );
+      expect(output).toMatch(/Estimated tokens: [0-9,]+/);
+      expect(output).toContain("Encoding: o200k_base");
+      expect(output).toMatch(/UTF-8 bytes: [0-9,]+/);
+      expect(output).toContain("Lines: 9,007");
+      expect(output).toContain("Target range: 1,500-3,500 tokens");
+      expect(output).toContain("Soft limit: 5,000 tokens or 500 lines");
+      expect(output).toContain("Hint: Keep critical instructions");
+      expect(infos).toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("keeps validate json payload shape when skill warnings are collected", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "json-large-skill",
+      makeOversizedSkillContent("json-large-skill"),
+    );
+
+    await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
+      await expect(
+        validateAction({}, makeCommand(true, false)),
+      ).resolves.toBeUndefined();
+
+      expect(infos).toEqual([]);
+      expect(warnings).toEqual([]);
+      expect(jsonPayloads).toEqual([
+        {
+          config: "valid",
+          skills: ["json-large-skill"],
+          agents: [],
+        },
+      ]);
     });
   });
 
