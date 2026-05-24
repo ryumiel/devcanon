@@ -8,20 +8,19 @@ import {
 } from "../__test-helpers__/skill-contracts.js";
 
 describe("phase artifact source contracts", () => {
-  it("keeps issue-priming helper extraction contracts and pressure evidence in source", async () => {
+  it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
     const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
 
     /*
-     * play-skill-authoring RED evidence:
+     * play-skill-authoring pressure-run fallback:
      * A nested pressure subagent could not be run from this environment because
-     * no subagent spawn/close tool is exposed to this worker. These static RED
-     * checks stand in for the baseline pressure scenario: the current oversized
-     * skill still inlines deterministic shell mechanics, so an agent can
-     * rationalize copying or locally tweaking those guards instead of using a
-     * tested skill-owned authority per ADR-0019.
+     * no subagent spawn/close tool is exposed to this worker. These assertions
+     * are static RED checks only; they are not pressure-review evidence. The
+     * missing pressure run remains a concern to report until a controller with
+     * subagent lifecycle support can run the scenario.
      */
     expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
     expect(issuePrimingWorkflow).toContain("validate-read");
@@ -77,6 +76,12 @@ describe("phase artifact source contracts", () => {
     expect(normalizedIssuePriming).toContain(
       "do not invoke `play-planning`, `play-subagent-execution`, branch review, or PR creation",
     );
+    expect(normalizedIssuePriming).toContain(
+      "Clean up the adopted issue worktree through `play-branch-finish` option 4 (discard), then stop `--auto`",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "durable owner referral with cleanup",
+    );
     expect(issuePrimingWorkflow).toContain("Gate agent fails");
     expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
     expect(issuePrimingWorkflow).toContain("Research agent fails/times out");
@@ -99,6 +104,79 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizeWhitespace(adr0019)).toContain(
       "Skill prose remains authoritative for workflow policy",
+    );
+  });
+
+  it("keeps Task 1 adjacent governance scope explicit for the approved plan", async () => {
+    const design = await readRepoFile(
+      ".ephemeral/2026-05-24-issue-priming-workflow-optimization-design.md",
+    );
+    const plan = await readRepoFile(
+      ".ephemeral/2026-05-25-issue-priming-workflow-optimization-plan.md",
+    );
+    const adr0020 = await readRepoFile(
+      "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
+    );
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const normalizedDesign = normalizeWhitespace(design);
+    const normalizedPlan = normalizeWhitespace(plan);
+    const normalizedAdr0020 = normalizeWhitespace(adr0020);
+    const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const normalizedDocumentationChecklists = normalizeWhitespace(
+      documentationChecklists,
+    );
+
+    for (const inScopeSurface of [
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+      "docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md",
+      "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
+      "docs/guidelines/writing-skills.md",
+      "docs/guidelines/documentation-checklists.md",
+    ]) {
+      expect(design).toContain(inScopeSurface);
+      expect(plan).toContain(inScopeSurface);
+    }
+
+    expect(normalizedDesign).toContain(
+      "ensure lifecycle obligations remain explicit when shell mechanics move out of the main skill",
+    );
+    expect(normalizedPlan).toContain(
+      "Compare ADR-0013, ADR-0019, ADR-0020, `docs/guidelines/writing-skills.md`, source skills, and tests",
+    );
+    expect(normalizedAdr0020).toContain(
+      "Shared workflows that spawn subagents directly reference that skill before their spawn points",
+    );
+    expect(normalizedWritingSkills).toContain(
+      "`references/`, or `scripts/` subdirectories. These mirror per target",
+    );
+    expect(normalizedWritingSkills).toContain(
+      "Changes to `SKILL.md` workflow policy, handoff",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Adjacent Governance Policy Set",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
+
+    for (const outOfScopeSurface of [
+      "CONTRIBUTING.md",
+      "docs/guidelines/pr-guideline.md",
+      "docs/guidelines/code-review-guideline.md",
+      ".github/pull_request_template.md",
+      "WORKFLOW.md",
+      "AGENTS.md",
+      "docs/adr/adr-template.md",
+    ]) {
+      expect(design).toContain(outOfScopeSurface);
+    }
+    expect(normalizedDesign).toContain(
+      "appear out of scope because this change does not alter contributor policy, PR body policy, review procedure outside the skill contracts, root agent guidance, or ADR procedure",
     );
   });
 

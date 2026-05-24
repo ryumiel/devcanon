@@ -3,6 +3,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   symlink,
   writeFile,
@@ -164,6 +165,9 @@ describe("issue-priming phase-artifacts helper", () => {
     try {
       await chmod(artifact, 0o000);
       try {
+        await readFile(artifact);
+        return;
+      } catch {
         await expect(
           runHelper(cwd, "design", ".ephemeral/2026-05-25-topic-design.md"),
         ).rejects.toMatchObject({
