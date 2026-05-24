@@ -127,6 +127,10 @@ whole-diff gate exists, return to that caller. For direct/manual invocations
 without that owning caller gate, a passing final whole-implementation review
 reports that implementation and final review passed, then invokes
 `play-branch-finish`; that skill presents the authoritative finish options.
+Implementation summaries, verification summaries, and review pass reports are
+status reports only on both paths, not terminal workflow states. The
+return-to-caller path leaves final continuation ownership with the caller; the
+direct/manual path hands finish ownership to `play-branch-finish`.
 
 The implementer dispatch boxes use `references/implementer-prompt.md` by
 default. When the task header carries `**Mode:** mechanical`, swap in

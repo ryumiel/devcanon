@@ -476,6 +476,10 @@ commits, satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
+Successful `play-subagent-execution` completion returns control to this owning
+workflow. Phase 6 completion is not terminal; continue to Phase 7 and Phase 8
+unless a concrete blocker stops `--auto`.
+
 ### Phase 7: Branch Review
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
