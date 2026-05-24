@@ -54,6 +54,12 @@ export function formatValidationDiagnostic(
   }
 }
 
+export function formatValidationDiagnosticWarnings(
+  diagnostics: readonly ValidationDiagnostic[],
+): string[] {
+  return diagnostics.map(formatValidationDiagnostic);
+}
+
 function formatValidationDiagnosticBlock(
   diagnostic: ValidationDiagnostic,
 ): string[] {

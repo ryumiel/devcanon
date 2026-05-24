@@ -77,6 +77,11 @@ diagnostic is advisory or strictable, relevant metrics when available, and
 remediation guidance. This grouped report is presentation for humans, not a
 stable parseable output contract and not a change to warning semantics.
 
+With `--json`, `validate` keeps stdout reserved for the JSON payload and emits
+collected skill warnings through the warning channel. The JSON payload keeps
+the existing top-level `config`, `skills`, and `agents` fields and does not add
+a diagnostics field.
+
 Prompt-size token counts are authoring estimates, not billing-accurate
 or cross-provider exact counts. They may differ from the final target
 prompt after rendering, host wrappers, hidden payloads, or

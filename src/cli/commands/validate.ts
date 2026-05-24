@@ -4,6 +4,7 @@ import { loadAndValidateAgents } from "../../validate/agents.js";
 import {
   type ValidationDiagnostic,
   formatValidationDiagnosticReport,
+  formatValidationDiagnosticWarnings,
 } from "../../validate/diagnostics.js";
 import { loadAndValidateSkills } from "../../validate/skills.js";
 
@@ -29,9 +30,15 @@ export async function validateAction(
 
   let skillWarningsPrinted = false;
   const printSkillWarnings = (): void => {
-    if (json || skillWarningsPrinted) return;
-    for (const line of formatValidationDiagnosticReport(skillDiagnostics)) {
-      logger.info(line);
+    if (skillWarningsPrinted) return;
+    if (json) {
+      for (const line of formatValidationDiagnosticWarnings(skillDiagnostics)) {
+        logger.warn(line);
+      }
+    } else {
+      for (const line of formatValidationDiagnosticReport(skillDiagnostics)) {
+        logger.info(line);
+      }
     }
     skillWarningsPrinted = true;
   };
@@ -72,6 +79,7 @@ export async function validateAction(
   }
 
   if (json) {
+    printSkillWarnings();
     logger.json({
       config: "valid",
       skills: skills.map((s) => s.name),

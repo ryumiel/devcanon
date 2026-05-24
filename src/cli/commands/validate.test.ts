@@ -275,7 +275,7 @@ describe("validateAction", () => {
     });
   });
 
-  it("keeps validate json payload shape when skill warnings are collected", async () => {
+  it("emits skill warnings in json mode while keeping payload shape", async () => {
     await createSkillFixture(
       skillsDir,
       "json-large-skill",
@@ -288,7 +288,9 @@ describe("validateAction", () => {
       ).resolves.toBeUndefined();
 
       expect(infos).toEqual([]);
-      expect(warnings).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('Skill "json-large-skill": SKILL.md');
+      expect(warnings[0]).toContain("Keep critical instructions");
       expect(jsonPayloads).toEqual([
         {
           config: "valid",
@@ -351,6 +353,59 @@ describe("validateAction", () => {
       );
       expect(infos).not.toContain("Agents: 1 valid");
       expect(infos).not.toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("emits json-mode skill warnings before later agent validation failures", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "json-agent-failure-large-skill",
+      makeOversizedSkillContent("json-agent-failure-large-skill"),
+    );
+    await createAgentFixture(
+      agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    const command = {
+      parent: {
+        opts: () => ({
+          config: noTierConfigPath,
+          json: true,
+          strict: false,
+        }),
+      },
+    };
+
+    await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
+      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+
+      expect(infos).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(
+        'Skill "json-agent-failure-large-skill": SKILL.md',
+      );
+      expect(jsonPayloads).toEqual([]);
     });
   });
 
