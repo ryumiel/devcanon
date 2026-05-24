@@ -152,6 +152,11 @@ describe("rendered phase artifact smoke coverage", () => {
   it("keeps auto-mode Phase 7 and Phase 8 contracts rendered for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const issuePrimingWorkflow = bodies[`issue-priming-workflow:${target}`];
+      const phase6 = sliceRenderedSection(
+        issuePrimingWorkflow,
+        "### Phase 6: Implement",
+        "### Phase 7: Branch Review",
+      );
       const phase7 = sliceRenderedSection(
         issuePrimingWorkflow,
         "### Phase 7: Branch Review",
@@ -162,8 +167,17 @@ describe("rendered phase artifact smoke coverage", () => {
         "### Phase 8: Create PR",
         "## Quick Reference",
       );
+      const normalizedPhase6 = normalizeRenderedWhitespace(phase6);
       const normalizedPhase7 = normalizeRenderedWhitespace(phase7);
       const normalizedPhase8 = normalizeRenderedWhitespace(phase8);
+
+      expect(normalizedPhase6).toContain(
+        "Successful `play-subagent-execution` completion returns control to this owning workflow",
+      );
+      expect(normalizedPhase6).toContain("Phase 6 completion is not terminal");
+      expect(normalizedPhase6).toContain(
+        "continue to Phase 7 and Phase 8 unless a concrete blocker stops `--auto`",
+      );
 
       expect(phase7).toContain("branch-review --fix");
       expect(phase7).toContain("Review head: <40-hex-sha>.");

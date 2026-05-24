@@ -81,6 +81,18 @@ const BRANCH_POLICY_REFERENCES = [
   },
 ] as const;
 
+const COPIED_BRANCH_FINISH_CHOICE_PATTERNS = [
+  /^\s*1\.\s+Merge back to <base-branch> locally\s*$/m,
+  /^\s*2\.\s+Push and create a Pull Request\s*$/m,
+  /^\s*3\.\s+Keep the branch as-is \(I'll handle it later\)\s*$/m,
+  /^\s*4\.\s+Discard this work\s*$/m,
+  /^\s*Which option\?\s*$/m,
+  /^#{2,6}\s+Option 1: Merge Locally\s*$/m,
+  /^#{2,6}\s+Option 2: Push and Create PR\s*$/m,
+  /^#{2,6}\s+Option 3: Keep As-Is\s*$/m,
+  /^#{2,6}\s+Option 4: Discard\s*$/m,
+] as const;
+
 describe("play subagent routing source contracts", () => {
   it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
@@ -490,18 +502,58 @@ describe("play subagent routing source contracts", () => {
       "`play-branch-finish` presents its authoritative finish options",
     );
 
-    for (const copiedFinishChoicePattern of [
-      /^\s*1\.\s+Merge back to <base-branch> locally\s*$/m,
-      /^\s*2\.\s+Push and create a Pull Request\s*$/m,
-      /^\s*3\.\s+Keep the branch as-is \(I'll handle it later\)\s*$/m,
-      /^\s*4\.\s+Discard this work\s*$/m,
-      /^\s*Which option\?\s*$/m,
-      /^#{2,6}\s+Option 1: Merge Locally\s*$/m,
-      /^#{2,6}\s+Option 2: Push and Create PR\s*$/m,
-      /^#{2,6}\s+Option 3: Keep As-Is\s*$/m,
-      /^#{2,6}\s+Option 4: Discard\s*$/m,
-    ]) {
+    for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
       expect(directManualHandoff).not.toMatch(copiedFinishChoicePattern);
+    }
+  });
+
+  it("makes direct/manual implementation, verification, and review summaries non-terminal", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const directManualHandoff = sliceBetween(
+      playSubagentExecution,
+      "### Direct/manual terminal handoff",
+      "## Subagent Lifecycle",
+    );
+    const normalizedDirectManualHandoff =
+      normalizeWhitespace(directManualHandoff);
+
+    expect(normalizedDirectManualHandoff).toContain(
+      "implementation summaries, verification summaries, and review pass reports are status reports only",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "they are not terminal workflow states",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "After the final whole-implementation review passes, the next action is to invoke `play-branch-finish`",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "summary-only completion is a workflow violation",
+    );
+  });
+
+  it("continues auto issue priming from Phase 6 completion to Phase 7 and Phase 8 unless blocked", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+
+    expect(normalizedPhase6).toContain(
+      "Successful `play-subagent-execution` completion returns control to this owning workflow",
+    );
+    expect(normalizedPhase6).toContain("Phase 6 completion is not terminal");
+    expect(normalizedPhase6).toContain(
+      "continue to Phase 7 and Phase 8 unless a concrete blocker stops `--auto`",
+    );
+
+    for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
+      expect(issuePrimingWorkflow).not.toMatch(copiedFinishChoicePattern);
     }
   });
 
