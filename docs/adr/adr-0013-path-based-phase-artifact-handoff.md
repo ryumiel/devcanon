@@ -178,15 +178,18 @@ Per-consumer suffix specialization:
 - `issue-priming-workflow` validates each artifact at its capture point with
   the same per-suffix narrowing.
 
-The canonical `.ephemeral` write guard shape — reject a symlinked
-`.ephemeral` directory, `mkdir -p .ephemeral`, reject a symlink at the target
-file path, and reject directories or other non-regular existing paths before
-`Write` — was introduced by `skills/play-review/SKILL.md` § Output → Write
-rules and is required by ADR-0012. Each phase-artifact producer owns its
-deterministic mechanics at its own boundary: `issue-priming-workflow` uses
-`scripts/write-research-brief.sh` when it persists the research brief, and the
-same canonical guard shape applies to the downstream `design.md` and `plan.md`
-producers.
+The canonical `.ephemeral` write guard baseline — reject a symlinked
+`.ephemeral` directory, `mkdir -p .ephemeral`, remove a symlink at the target
+file path where the producer follows the legacy replace-before-`Write` pattern,
+and reject directories or other non-regular existing paths — was introduced by
+`skills/play-review/SKILL.md` § Output → Write rules and is required by
+ADR-0012. Each phase-artifact producer owns its deterministic mechanics at its
+own boundary: `issue-priming-workflow` uses
+`scripts/write-research-brief.sh` when it persists the research brief, and that
+helper intentionally uses a stricter target-leaf policy by rejecting symlinked
+research-brief paths instead of removing them. This stricter research-helper
+behavior does not change the legacy leaf-symlink behavior of `play-review`,
+`play-brainstorm`, or `play-planning`.
 
 The generic guard shape remains the policy baseline for phase artifacts. When a
 guard becomes complex, reusable, or shared across multiple skills, ADR-0019
