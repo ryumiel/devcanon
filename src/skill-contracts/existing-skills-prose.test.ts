@@ -1034,22 +1034,76 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {
     const skillSource = await readSkillSource("pr-merge");
+    const mergeSection = getMarkdownSection(
+      skillSource,
+      "Step 3: Preflighted Merge",
+    );
     const cleanupSection = getMarkdownSection(
       skillSource,
       "Step 3b: Post-Merge Cleanup",
     );
+    const normalizedMergeSection = normalizeWhitespace(mergeSection);
     const normalizedCleanupSection = normalizeWhitespace(cleanupSection);
 
+    expect(mergeSection).toContain(
+      "skills/pr-merge/scripts/preflight-worktree-context.sh",
+    );
+    expect(mergeSection).toContain("PR_HEAD_BRANCH");
+    expect(mergeSection).toContain("PR_BASE_BRANCH");
+    expect(normalizedMergeSection).toMatch(
+      /Before any merge command.*Run.*preflight-worktree-context\.sh/i,
+    );
+    expect(normalizedMergeSection).toMatch(
+      /MODE=safe-direct\|cd-primary\|remote-only\|stop/i,
+    );
+    expect(normalizedMergeSection).toMatch(
+      /safe-direct.*gh pr merge <N> --squash/i,
+    );
+    expect(normalizedMergeSection).toMatch(/cd-primary.*PRIMARY_WORKTREE/i);
+    expect(normalizedMergeSection).toMatch(
+      /remote-only.*without local cleanup delegation/i,
+    );
+    expect(normalizedMergeSection).toMatch(/stop.*Do not merge/i);
+    expect(normalizedMergeSection).toContain(
+      "No mode may use `gh pr merge --delete-branch`",
+    );
+    expect(normalizedMergeSection).toMatch(
+      /Do not retry an execution-context failure unless.*changed directory.*changed mode.*new evidence/i,
+    );
+
+    expect(cleanupSection).toContain(
+      "skills/pr-merge/scripts/post-merge-cleanup.sh",
+    );
+    expect(cleanupSection).toContain("PR_BASE_REMOTE_URL");
     expect(cleanupSection).toContain("Final report contract");
-    expect(normalizedCleanupSection).toMatch(/remote merge.*PR URL.*cleanup/i);
     expect(normalizedCleanupSection).toMatch(
-      /worktree.*removed, skipped, or failed.*path.*reason/i,
+      /canonical path comparison.*dirty\/untracked\/locked worktree retention/i,
     );
-    expect(normalizedCleanupSection).toMatch(/base checkout\/pull.*attempted/i);
     expect(normalizedCleanupSection).toMatch(
-      /local branch.*deleted, retained, or skipped.*reason/i,
+      /same-repository remote branch deletion.*remote tip equality/i,
     );
-    expect(normalizedCleanupSection).toMatch(/manual cleanup.*required.*none/i);
+    expect(normalizedCleanupSection).toMatch(
+      /local `origin` resolves to `PR_BASE_REMOTE_URL`/i,
+    );
+    expect(normalizedCleanupSection).toMatch(/Remote merge.*PR URL/i);
+    expect(normalizedCleanupSection).toMatch(/Preflight.*mode.*reason/i);
+    expect(normalizedCleanupSection).toMatch(
+      /Worktree cleanup.*removed, retained, skipped, failed, or not attempted/i,
+    );
+    expect(normalizedCleanupSection).toMatch(
+      /Base checkout\/pull.*updated, skipped, failed, or not attempted/i,
+    );
+    expect(normalizedCleanupSection).toMatch(
+      /Local branch cleanup.*deleted, retained, skipped, failed, or not attempted/i,
+    );
+    expect(normalizedCleanupSection).toMatch(
+      /Remote branch cleanup.*deleted, retained, skipped, failed, or not attempted/i,
+    );
+    expect(normalizedCleanupSection).toMatch(/Manual action.*none/i);
+    expect(skillSource).not.toContain(
+      "gh pr merge <N> --squash --delete-branch",
+    );
+    expect(cleanupSection).not.toContain("git worktree remove --force");
     expect(normalizedCleanupSection).not.toContain(
       "Report the merge to the user with the PR URL. Done.",
     );
@@ -1197,25 +1251,16 @@ describe("existing skills source prose contracts", () => {
       "otherwise let `pr-authoring` discover and read the policy surfaces",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "PR_BODY_FILE=$(mktemp)",
+      "apply only changed fields with `gh pr edit`",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "trap 'rm -f \"$PR_BODY_FILE\"' EXIT",
+      "For body repairs, use `--body-file`",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "Body-only repair",
+      "multiline Markdown and shell-sensitive characters are preserved",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
-      'gh pr edit <N> --body-file "$PR_BODY_FILE"',
-    );
-    expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "Title-only repair",
-    );
-    expect(normalizeWhitespace(prMergeValidation)).toContain(
-      'gh pr edit <N> --title "<fixed title>"',
-    );
-    expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "Title and body repair",
+      "Omit flags for unchanged fields",
     );
     expect(normalizeWhitespace(prMergeValidation)).not.toContain(
       "skip validation",
