@@ -85,7 +85,10 @@ function parseKeyValueOutput(stdout: string): Record<string, string> {
 }
 
 function normalizePath(value: string): string {
-  return path.normalize(value).replaceAll("\\", "/");
+  const normalized = path.normalize(value).replaceAll("\\", "/");
+  return normalized.replace(/^\/([a-zA-Z])\//u, (_, drive: string) => {
+    return `${drive.toUpperCase()}:/`;
+  });
 }
 
 async function createOriginRepo(rootDir: string): Promise<{
@@ -407,6 +410,18 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(0);
+    if (process.platform === "win32") {
+      expect(output.WORKTREE_CLEANUP).toBe("failed");
+      expect(output.WORKTREE_CLEANUP_REASON).toBe("git-worktree-remove-failed");
+      expect(output.LOCAL_BRANCH_CLEANUP).toBe("retained");
+      expect(output.LOCAL_BRANCH_CLEANUP_REASON).toBe(
+        "branch-still-checked-out",
+      );
+      expect(output.MANUAL_ACTION).toMatch(/remove worktree manually/i);
+      expect(await pathExists(featureDir)).toBe(true);
+      return;
+    }
+
     expect(output.WORKTREE_CLEANUP).toBe("removed");
     expect(output.BASE_UPDATE).toBe("updated");
     expect(output.LOCAL_BRANCH_CLEANUP).toBe("deleted");
