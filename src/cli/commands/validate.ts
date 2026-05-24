@@ -27,6 +27,15 @@ export async function validateAction(
   );
   if (!json) logger.info("Config: valid");
 
+  let skillWarningsPrinted = false;
+  const printSkillWarnings = (): void => {
+    if (json || skillWarningsPrinted) return;
+    for (const line of formatValidationDiagnosticReport(skillDiagnostics)) {
+      logger.info(line);
+    }
+    skillWarningsPrinted = true;
+  };
+
   const skills = await loadAndValidateSkills(config.library.skillsDir, {
     diagnostics: {
       enabled: true,
@@ -36,22 +45,25 @@ export async function validateAction(
       fileArtifacts: config.fileArtifacts,
       reporter: (diagnostic) => skillDiagnostics.push(diagnostic),
     },
+  }).catch((error: unknown) => {
+    printSkillWarnings();
+    throw error;
   });
   if (!json) {
     logger.info(formatSkillsStatus(skills.length, skillDiagnostics.length));
+    printSkillWarnings();
   }
 
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
     modelTiers: config.modelTiers,
+  }).catch((error: unknown) => {
+    printSkillWarnings();
+    throw error;
   });
   if (!json) logger.info(`Agents: ${agents.length} valid`);
 
   if (!json) {
-    for (const line of formatValidationDiagnosticReport(skillDiagnostics)) {
-      logger.info(line);
-    }
-
     logger.info(
       skillDiagnostics.length > 0
         ? "\nAll validations passed with warnings."

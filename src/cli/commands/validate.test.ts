@@ -269,6 +269,97 @@ describe("validateAction", () => {
     });
   });
 
+  it("prints collected skill warnings before later agent validation failures", async () => {
+    const noTierConfigPath = await createConfigFile(
+      tempDir,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "agent-failure-large-skill",
+      makeOversizedSkillContent("agent-failure-large-skill"),
+    );
+    await createAgentFixture(
+      agentsDir,
+      "tier-agent",
+      makeAgentYaml("tier-agent", {
+        claude: {
+          model: "{{model:standard}}",
+          tools: ["Read"],
+        },
+        codex: {
+          model: "{{model:standard}}",
+          sandbox_mode: "read-only",
+        },
+      }),
+    );
+
+    const command = {
+      parent: {
+        opts: () => ({
+          config: noTierConfigPath,
+          json: false,
+          strict: false,
+        }),
+      },
+    };
+
+    await withRecordingLogger(async ({ infos, warnings }) => {
+      await expect(validateAction({}, command)).rejects.toThrow(/modelTiers/i);
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Skills: 1 valid, 1 warning");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain(
+        "[skill.prompt-size] agent-failure-large-skill (advisory)",
+      );
+      expect(infos).not.toContain("Agents: 1 valid");
+      expect(infos).not.toContain("\nAll validations passed with warnings.");
+    });
+  });
+
+  it("prints collected skill warnings before skill validation failures", async () => {
+    await createSkillFixture(
+      skillsDir,
+      "advisory-large-skill",
+      makeOversizedSkillContent("advisory-large-skill"),
+    );
+    await createSkillFixture(
+      skillsDir,
+      "invalid-skill",
+      [
+        "---",
+        "name: mismatched-skill",
+        "description: Invalid fixture.",
+        "---",
+        "",
+        "# Skill",
+        "",
+      ].join("\n"),
+    );
+
+    await withRecordingLogger(async ({ infos, warnings }) => {
+      await expect(
+        validateAction({}, makeCommand(false, false)),
+      ).rejects.toThrow(/Skill validation failed/i);
+
+      expect(warnings).toEqual([]);
+      expect(infos).toContain("Config: valid");
+      expect(infos).toContain("Warnings (1)");
+      expect(infos).toContain(
+        "[skill.prompt-size] advisory-large-skill (advisory)",
+      );
+      expect(infos).not.toContain("Skills: 1 valid, 1 warning");
+      expect(infos).not.toContain("\nAll validations passed with warnings.");
+    });
+  });
+
   it("fails validate when an agent tier placeholder has no configured glossary", async () => {
     const noTierConfigPath = await createConfigFile(
       tempDir,
