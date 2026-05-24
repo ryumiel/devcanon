@@ -230,7 +230,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path",
       );
       expect(normalizedPhase7).toContain(
-        'passes `$NITS_PENDING_FILE` as `nits_file`',
+        "passes `$NITS_PENDING_FILE` as `nits_file`",
       );
       expect(normalizedPhase7).toContain(
         "If the judgment-required set is empty, skip the file write",
@@ -613,9 +613,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
       );
       expect(playReview).toContain("Changed files (active diff)");
-      expect(playReview).toContain(
-        "Active diff invocation",
-      );
+      expect(playReview).toContain("Active diff invocation");
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
         "Branch review context from a validated local `play-review/findings/v1` envelope path",

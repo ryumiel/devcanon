@@ -471,9 +471,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain("PLAY_REVIEW_DIR is required");
     expect(branchReviewHelper).toContain("scripts/review-artifacts.sh");
     expect(branchReviewHelper).toContain("validate-findings");
-    expect(normalizedBranchReviewHelper).toContain(
-      "PRIOR_FINDINGS_HEAD_SHA",
-    );
+    expect(normalizedBranchReviewHelper).toContain("PRIOR_FINDINGS_HEAD_SHA");
     expect(normalizedBranchReviewHelper).toContain("PRIOR_FINDINGS_FILE");
     expect(normalizedBranchReview).toContain(
       "installed `play-review` helper rejects the prior findings file",
@@ -868,9 +866,7 @@ describe("phase artifact source contracts", () => {
       "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
     );
     expect(playReview).toContain("Changed files (active diff)");
-    expect(playReview).toContain(
-      "Active diff invocation",
-    );
+    expect(playReview).toContain("Active diff invocation");
 
     const playReviewAgentBriefing = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
@@ -970,9 +966,7 @@ describe("phase artifact source contracts", () => {
     expect(implementerPrompt).toContain(
       "script with the captured `BASE_SHA` and the task header identifier",
     );
-    expect(implementerPrompt).toContain(
-      "compute the changed-file list",
-    );
+    expect(implementerPrompt).toContain("compute the changed-file list");
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
