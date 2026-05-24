@@ -299,7 +299,14 @@ else
   fi
 
   remote_ref="refs/heads/${PR_HEAD_BRANCH}"
-  remote_listing="$(git -C "$PRIMARY_WORKTREE_REAL" ls-remote --heads origin 2>/dev/null || true)"
+  if ! remote_listing="$(git -C "$PRIMARY_WORKTREE_REAL" ls-remote --heads origin 2>/dev/null)"; then
+    REMOTE_BRANCH_CLEANUP="failed"
+    REMOTE_BRANCH_CLEANUP_REASON="git-ls-remote-failed"
+    manual "inspect remote branch after origin lookup succeeds: $PR_HEAD_BRANCH"
+    emit_report
+    exit 0
+  fi
+
   remote_sha="$(printf '%s\n' "$remote_listing" | awk -v ref="$remote_ref" '$2 == ref { print $1; exit }')"
   if [ -z "$remote_sha" ]; then
     REMOTE_BRANCH_CLEANUP="skipped"

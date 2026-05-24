@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  realpath,
+  rename,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -630,6 +637,26 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     expect(baseOutput.REMOTE_BRANCH_CLEANUP_REASON).toBe(
       "head-is-base-or-default",
     );
+  });
+
+  it("fails remote branch cleanup when the verified origin cannot be queried", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { originDir, primaryDir } = await createOriginRepo(rootDir);
+    const headSha = await createFeatureBranch(primaryDir);
+    const unavailableOriginDir = path.join(rootDir, "origin-unavailable.git");
+    await rename(originDir, unavailableOriginDir);
+
+    const result = await runScript(
+      cleanupScript,
+      primaryDir,
+      cleanupEnv({ primaryDir, headSha, baseRemoteUrl: originDir }),
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(output.REMOTE_BRANCH_CLEANUP).toBe("failed");
+    expect(output.REMOTE_BRANCH_CLEANUP_REASON).toBe("git-ls-remote-failed");
+    expect(output.MANUAL_ACTION).toMatch(/origin lookup succeeds/i);
   });
 
   it("matches remote branch refs exactly before deleting", async () => {
