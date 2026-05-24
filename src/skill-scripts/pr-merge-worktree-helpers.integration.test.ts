@@ -415,7 +415,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       expect(output.WORKTREE_CLEANUP_REASON).toBe("git-worktree-remove-failed");
       expect(output.LOCAL_BRANCH_CLEANUP).toBe("retained");
       expect(output.LOCAL_BRANCH_CLEANUP_REASON).toBe(
-        "branch-still-checked-out",
+        "worktree-cleanup-failed",
       );
       expect(output.MANUAL_ACTION).toMatch(/remove worktree manually/i);
       expect(await pathExists(featureDir)).toBe(true);

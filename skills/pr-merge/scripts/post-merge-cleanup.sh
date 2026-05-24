@@ -188,6 +188,7 @@ if [ -n "${CURRENT_WORKTREE:-}" ]; then
 fi
 
 HEAD_BRANCH_PROTECTED="false"
+HEAD_BRANCH_PROTECTED_REASON=""
 
 if [ "$PR_STATE" != "MERGED" ]; then
   WORKTREE_CLEANUP_REASON="pr-not-merged"
@@ -208,6 +209,7 @@ elif [ "$HEAD_WORKTREE_REAL" = "$PRIMARY_WORKTREE_REAL" ]; then
     BASE_UPDATE="skipped"
     BASE_UPDATE_REASON="dirty-or-untracked-primary-head-worktree"
     HEAD_BRANCH_PROTECTED="true"
+    HEAD_BRANCH_PROTECTED_REASON="dirty-or-untracked-head-worktree"
     manual "inspect dirty primary worktree manually: $PRIMARY_WORKTREE_REAL"
   else
     WORKTREE_CLEANUP_REASON="head-worktree-is-primary"
@@ -222,6 +224,7 @@ else
     WORKTREE_CLEANUP="retained"
     WORKTREE_CLEANUP_REASON="dirty-or-untracked-worktree"
     HEAD_BRANCH_PROTECTED="true"
+    HEAD_BRANCH_PROTECTED_REASON="dirty-or-untracked-head-worktree"
     manual "inspect dirty worktree manually: $HEAD_WORKTREE_REAL"
   elif cd "$PRIMARY_WORKTREE_REAL" && git worktree remove "$HEAD_WORKTREE_REAL"; then
     WORKTREE_CLEANUP="removed"
@@ -229,6 +232,8 @@ else
   else
     WORKTREE_CLEANUP="failed"
     WORKTREE_CLEANUP_REASON="git-worktree-remove-failed"
+    HEAD_BRANCH_PROTECTED="true"
+    HEAD_BRANCH_PROTECTED_REASON="worktree-cleanup-failed"
     manual "remove worktree manually: $HEAD_WORKTREE_REAL"
   fi
 fi
@@ -259,8 +264,8 @@ else
     manual "inspect local branch before deletion: $PR_HEAD_BRANCH"
   elif [ "$HEAD_BRANCH_PROTECTED" = "true" ]; then
     LOCAL_BRANCH_CLEANUP="retained"
-    LOCAL_BRANCH_CLEANUP_REASON="dirty-or-untracked-head-worktree"
-    manual "preserve local branch until dirty worktree is resolved: $PR_HEAD_BRANCH"
+    LOCAL_BRANCH_CLEANUP_REASON="${HEAD_BRANCH_PROTECTED_REASON:-head-worktree-protected}"
+    manual "preserve local branch until head worktree cleanup is resolved: $PR_HEAD_BRANCH"
   elif branch_checked_out "$PR_HEAD_BRANCH"; then
     LOCAL_BRANCH_CLEANUP="retained"
     LOCAL_BRANCH_CLEANUP_REASON="branch-still-checked-out"
