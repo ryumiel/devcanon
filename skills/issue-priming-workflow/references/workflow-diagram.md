@@ -7,6 +7,7 @@ are in `SKILL.md` § Phase 1–8.
 digraph priming {
   rankdir=TB;
   worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
+  helpers [label="Helper guards\nphase-artifacts.sh\nwrite-* helpers", shape=box];
   gate [label="2. Gate\nDedicated agent\nassesses complexity"];
   decide [label="Research?", shape=diamond];
   research [label="3. Research\nDedicated agent\npolicy + codebase + external"];
@@ -19,7 +20,7 @@ digraph priming {
   implement [label="6. Implement\nplay-subagent-execution"];
   stop_interactive [label="STOP\nReturn to user"];
 
-  worktree -> gate -> decide;
+  worktree -> helpers -> gate -> decide;
   decide -> research [label="yes"];
   decide -> brainstorm [label="no"];
   research -> brainstorm;

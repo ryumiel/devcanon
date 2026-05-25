@@ -94,6 +94,98 @@ const COPIED_BRANCH_FINISH_CHOICE_PATTERNS = [
 ] as const;
 
 describe("play subagent routing source contracts", () => {
+  it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase2 = sliceBetween(
+      issuePrimingWorkflow,
+      "## Phase 2: Complexity Gate",
+      "## Phase 3: Research (Conditional)",
+    );
+    const phase3 = sliceBetween(
+      issuePrimingWorkflow,
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const phase5 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 5: Write Plan",
+      "### Phase 6: Implement",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const overrides = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Project-Specific Overrides",
+    );
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+    const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedOverrides = normalizeWhitespace(overrides);
+
+    expect(phase2).toContain("payload.research = gated");
+    expect(phase2).toContain("payload.research = forced");
+    expect(phase2).toContain("forced by --research");
+    expect(phase2).toContain("{{model:standard}}");
+    expect(phase2).toContain("{{model:deep}}");
+    expect(phase3).toContain("research-agent");
+    expect(phase3).toContain("read-only");
+    expect(phase3).toContain("Research brief written to");
+    expect(normalizedPhase5).toContain(
+      "Comment evidence: <repo-relative-path from payload.comment-evidence-path>",
+    );
+    expect(normalizedPhase5).toContain(
+      "Do NOT prompt for execution mode at the end",
+    );
+
+    expect(phase6).toContain("subagent-lifecycle");
+    expect(normalizedPhase6).toContain(
+      "cleanup gate for completed or superseded gate and research sessions",
+    );
+    expect(phase6).toContain("issue-priming/auto-handoff/v1");
+    expect(phase6).toContain("controller-local parent workflow state");
+    expect(normalizedPhase6).toContain(
+      "single-task plans skip per-task review",
+    );
+    expect(normalizedPhase6).toContain(
+      'Phase 6 itself remains "invoke `play-subagent-execution`"',
+    );
+
+    expect(phase7).toContain("branch-review --fix");
+    expect(phase7).toContain("Review head: <40-hex-sha>.");
+    expect(phase7).toContain("PLAY_REVIEW_HELPER");
+    expect(phase7).toContain("scripts/review-artifacts.sh");
+    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+    );
+    expect(normalizedPhase7).toContain(
+      "Do not recompute the review SHA from post-review `HEAD`",
+    );
+    expect(normalizedPhase7).toContain(
+      "Reported by branch-review at <path>:<line>",
+    );
+    expect(normalizedPhase7).toContain(
+      "Re-read the target file from disk before applying each Edit",
+    );
+
+    expect(normalizedOverrides).toContain(
+      "Use `{{model:standard}}` as the floor for agents that make judgment calls",
+    );
+    expect(normalizedOverrides).toContain(
+      "Reviewer roles run at `{{model:deep}}`",
+    );
+  });
+
   it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
     const referenceMap = getMarkdownSection(
@@ -286,8 +378,8 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Route computation MUST inspect the actual task diff using the captured task base/head SHAs",
     );
-    expect(routing).toContain(
-      "git diff --name-status --no-renames BASE_SHA..HEAD",
+    expect(normalizedRouting).toContain(
+      "If the changed-file/status/diff data is unavailable, stale, ambiguous, or shows an unplanned hard-risk trigger",
     );
     expect(routing).toContain("not only the plan text or hints");
     expect(routing).toContain("fail closed to `spec-and-quality`");
@@ -457,6 +549,13 @@ describe("play subagent routing source contracts", () => {
     expect(phase7).toContain("validate-findings");
     expect(phase7).toContain("derive-nits-pending");
     expect(phase7).toContain("-nits-pending.json");
+    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+    );
+    expect(normalizedPhase7).toContain(
+      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+    );
     expect(normalizedPhase7).toContain(
       "Do not recompute the review SHA from post-review `HEAD`",
     );

@@ -8,6 +8,11 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** Spec/plan files end up outside the worktree, subagents read wrong paths
 - **Fix:** Worktree is created in Phase 1, before brainstorming writes any files
 
+## Recreating path guards inline after helper extraction
+
+- **Problem:** A controller copies old shell fragments into the workflow, then misses a newer helper guard or diverges from script-runtime tests
+- **Fix:** Invoke `scripts/phase-artifacts.sh`, `scripts/write-research-brief.sh`, or `scripts/write-assumptions-comment.sh` from the issue worktree root. Treat a nonzero helper exit as a phase contract failure
+
 ## Creating nested worktree in an already-managed session
 
 - **Problem:** Creating a fresh worktree from inside an existing managed worktree causes double nesting and path confusion

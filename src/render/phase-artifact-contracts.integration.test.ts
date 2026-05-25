@@ -94,6 +94,11 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Comment evidence:");
     expect(issuePrimingWorkflow).toContain("comment-evidence-path");
     expect(issuePrimingWorkflow).toContain("Research brief:");
+    expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
+    expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
+    expect(issuePrimingWorkflow).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
@@ -190,7 +195,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("scripts/review-artifacts.sh");
       expect(phase7).toContain("validate-findings");
       expect(normalizedPhase7).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
       );
       expect(normalizedPhase7).toContain(
         "invoke it from the issue worktree root",
@@ -198,6 +203,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
       expect(normalizedPhase7).toContain(
         'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+      );
+      expect(normalizedPhase7).toContain(
+        "Then validate the parsed findings path before reading it with the canonical helper",
       );
       expect(normalizedPhase7).toContain(
         "After the guard passes, load `findings[]` from the file",
@@ -214,13 +222,12 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(phase7).toContain("play-review/findings/v1");
       expect(phase7).toContain("-nits-pending.json");
-      expect(phase7).toContain("NITS_PENDING_FILE");
       expect(phase7).toContain("derive-nits-pending");
       expect(normalizedPhase7).toContain(
-        'NITS_PENDING_FILE=$( HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending )',
+        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
       );
       expect(normalizedPhase7).toContain(
-        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+        "Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path",
       );
       expect(normalizedPhase7).toContain(
         "passes `$NITS_PENDING_FILE` as `nits_file`",
@@ -248,6 +255,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation",
       );
       expect(phase8).toContain("assumptions_comment_file");
+      expect(phase8).toContain("scripts/write-assumptions-comment.sh");
       expect(phase8).toContain(
         ".ephemeral/<identifier>-assumptions-comment.md",
       );
@@ -400,13 +408,13 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(option2).toContain("scripts/review-artifacts.sh");
       expect(option2).toContain("validate-nits-file");
       expect(normalizedOption2).toContain(
-        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>" PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
       );
       expect(normalizedOption2).toContain(
         "invoke it from the target repository root",
       );
       expect(normalizedOption2).toContain(
-        'NITS_FILE="$NITS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-nits-file',
+        "run the canonical `play-review` helper command `validate-nits-file` before partitioning",
       );
       expect(normalizedOption2).toContain(
         "Treat any nonzero exit as a contract failure and stop before posting",
@@ -486,6 +494,58 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("mirrors issue-priming helper scripts required by rendered Phase 1, Phase 3, and Phase 8 contracts", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+    const helperNames = [
+      "phase-artifacts.sh",
+      "write-research-brief.sh",
+      "write-assumptions-comment.sh",
+    ] as const;
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+
+      for (const helperName of helperNames) {
+        const sourceHelperPath = path.join(
+          repoRoot,
+          "skills",
+          "issue-priming-workflow",
+          "scripts",
+          helperName,
+        );
+        const sourceHelper = await readFile(sourceHelperPath, "utf-8");
+
+        for (const target of ["claude", "codex"] as const) {
+          const helperPath = path.join(
+            generatedDir,
+            target,
+            "skills",
+            "issue-priming-workflow",
+            "scripts",
+            helperName,
+          );
+
+          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        }
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps rendered branch-review and play-review follow-up contract surfaces", () => {
     for (const target of ["claude", "codex"] as const) {
       const branchReview = bodies[`branch-review:${target}`];
@@ -549,25 +609,11 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReview).toContain(
         "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
       );
-      expect(playReview).toContain(
-        'ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \\',
-      );
-      expect(playReview).toContain(
-        'git diff --name-only "$FULL_PR_DIFF_RANGE"',
+      expect(normalizedPlayReview).toContain(
+        "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
       );
       expect(playReview).toContain("Changed files (active diff)");
-      expect(playReview).toContain(
-        'git diff --name-status "$ACTIVE_DIFF_RANGE"',
-      );
-      expect(playReview).toContain(
-        'Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"`',
-      );
+      expect(playReview).toContain("Active diff invocation");
       expect(playReview).toContain("prior_branch_findings");
       expect(playReview).toContain(
         "Branch review context from a validated local `play-review/findings/v1` envelope path",

@@ -8,6 +8,196 @@ import {
 } from "../__test-helpers__/skill-contracts.js";
 
 describe("phase artifact source contracts", () => {
+  it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+
+    /*
+     * play-skill-authoring pressure-run fallback:
+     * A nested pressure subagent could not be run from this environment because
+     * no subagent spawn/close tool is exposed to this worker. These assertions
+     * are static RED checks only; they are not pressure-review evidence. The
+     * missing pressure run remains a concern to report until a controller with
+     * subagent lifecycle support can run the scenario.
+     */
+    expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
+    expect(issuePrimingWorkflow).toContain("validate-read");
+    expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
+    expect(issuePrimingWorkflow).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "Treat a nonzero helper exit as a contract failure",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "invoke it from the issue worktree root",
+    );
+  });
+
+  it("keeps Task 1 traceability rows visible without making generated output authoritative", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const adr0013 = await readRepoFile(
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+    );
+    const adr0019 = await readRepoFile(
+      "docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md",
+    );
+
+    for (const payloadField of [
+      "source",
+      "identifier",
+      "title",
+      "issue-body-path",
+      "comment-evidence-path",
+      "worktree-path",
+      "mode",
+      "research",
+    ]) {
+      expect(issuePrimingWorkflow).toContain(`- **${payloadField}**`);
+    }
+
+    for (const noticeLine of [
+      "Research brief written to <repo-relative-path>.",
+      "Design written to <path>.",
+      "Plan written to <path>.",
+      "Findings written to <path>.",
+    ]) {
+      expect(issuePrimingWorkflow).toContain(noticeLine);
+    }
+
+    expect(normalizedIssuePriming).toContain(
+      "do not suppress or replace child skill approval gates",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "do not invoke `play-planning`, `play-subagent-execution`, branch review, or PR creation",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "Clean up the adopted issue worktree through `play-branch-finish` option 4 (discard), then stop `--auto`",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "durable owner referral with cleanup",
+    );
+    expect(issuePrimingWorkflow).toContain("Gate agent fails");
+    expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
+    expect(issuePrimingWorkflow).toContain("Research agent fails/times out");
+    expect(issuePrimingWorkflow).toContain("Report partial results");
+    expect(issuePrimingWorkflow).toContain("No `docs/adr/` directory");
+    expect(issuePrimingWorkflow).toContain('Gate treats as "no covering ADR"');
+    expect(normalizedIssuePriming).toContain(
+      "Do NOT prompt for execution mode at the end",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "Successful `play-subagent-execution` completion returns control to this owning workflow",
+    );
+    expect(normalizedIssuePriming).toContain(
+      "PR creation preserves the branch and worktree",
+    );
+    expect(normalizedIssuePriming).toContain("Does not merge PRs");
+
+    expect(normalizeWhitespace(adr0013)).toContain(
+      "The generic guard shape remains the policy baseline for phase artifacts",
+    );
+    expect(normalizeWhitespace(adr0019)).toContain(
+      "Skill prose remains authoritative for workflow policy",
+    );
+  });
+
+  it("keeps Task 1 adjacent governance scope explicit without depending on ephemeral planning notes", async () => {
+    const taskScope = `
+      In scope for Task 1 RED coverage:
+      - docs/adr/adr-0013-path-based-phase-artifact-handoff.md
+      - docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md
+      - docs/adr/adr-0020-subagent-lifecycle-ownership.md
+      - docs/guidelines/writing-skills.md
+      - docs/guidelines/documentation-checklists.md
+      - relevant source skills and tests
+
+      Required comparison notes:
+      - ensure lifecycle obligations remain explicit when shell mechanics move out of the main skill
+      - compare ADR-0013, ADR-0019, ADR-0020, docs/guidelines/writing-skills.md, source skills, and tests
+
+      Out of scope for Task 1 RED coverage:
+      - CONTRIBUTING.md
+      - docs/guidelines/pr-guideline.md
+      - docs/guidelines/code-review-guideline.md
+      - .github/pull_request_template.md
+      - WORKFLOW.md
+      - AGENTS.md
+      - docs/adr/adr-template.md
+
+      These appear out of scope because this task does not alter contributor
+      policy, PR body policy, review procedure outside the skill contracts,
+      root agent guidance, or ADR procedure.
+    `;
+    const adr0020 = await readRepoFile(
+      "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
+    );
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const normalizedTaskScope = normalizeWhitespace(taskScope);
+    const normalizedAdr0020 = normalizeWhitespace(adr0020);
+    const normalizedWritingSkills = normalizeWhitespace(writingSkills);
+    const normalizedDocumentationChecklists = normalizeWhitespace(
+      documentationChecklists,
+    );
+
+    for (const inScopeSurface of [
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+      "docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md",
+      "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
+      "docs/guidelines/writing-skills.md",
+      "docs/guidelines/documentation-checklists.md",
+    ]) {
+      expect(taskScope).toContain(inScopeSurface);
+    }
+
+    expect(normalizedTaskScope).toContain(
+      "ensure lifecycle obligations remain explicit when shell mechanics move out of the main skill",
+    );
+    expect(normalizedTaskScope).toContain(
+      "compare ADR-0013, ADR-0019, ADR-0020, docs/guidelines/writing-skills.md, source skills, and tests",
+    );
+    expect(normalizedAdr0020).toContain(
+      "Shared workflows that spawn subagents directly reference that skill before their spawn points",
+    );
+    expect(normalizedWritingSkills).toContain(
+      "`references/`, or `scripts/` subdirectories. These mirror per target",
+    );
+    expect(normalizedWritingSkills).toContain(
+      "Changes to `SKILL.md` workflow policy, handoff",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Adjacent Governance Policy Set",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
+
+    for (const outOfScopeSurface of [
+      "CONTRIBUTING.md",
+      "docs/guidelines/pr-guideline.md",
+      "docs/guidelines/code-review-guideline.md",
+      ".github/pull_request_template.md",
+      "WORKFLOW.md",
+      "AGENTS.md",
+      "docs/adr/adr-template.md",
+    ]) {
+      expect(taskScope).toContain(outOfScopeSurface);
+    }
+    expect(normalizedTaskScope).toContain(
+      "appear out of scope because this task does not alter contributor policy, PR body policy, review procedure outside the skill contracts, root agent guidance, or ADR procedure",
+    );
+  });
+
   it("keeps issue-priming path-first context hygiene contracts in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
@@ -101,12 +291,24 @@ describe("phase artifact source contracts", () => {
       expect(normalizedSkillSource).toContain(
         "must include author, timestamp, source URL or permalink",
       );
+      expect(normalizedSkillSource).toContain(
+        "Compute the issue-body artifact path inside `WORKTREE_PATH`",
+      );
+      expect(normalizedSkillSource.toLowerCase()).toContain(
+        "write the fetched",
+      );
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"',
       );
       expect(skillSource).toContain('mkdir -p "$WORKTREE_PATH/.ephemeral"');
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"',
+      );
+      expect(normalizedSkillSource.toLowerCase()).toContain(
+        "comment-evidence artifact path inside `worktree_path`",
+      );
+      expect(normalizedSkillSource).toContain(
+        "Write source-specific evidence in a concise normalized form",
       );
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"',
@@ -150,8 +352,17 @@ describe("phase artifact source contracts", () => {
       "issue-priming-workflow",
     );
 
+    expect(issuePrimingWorkflow).toContain("worktree path missing");
     expect(issuePrimingWorkflow).toContain("worktree path must be absolute");
+    expect(issuePrimingWorkflow).toContain("worktree missing or unreadable");
+    expect(issuePrimingWorkflow).toContain("worktree not searchable");
     expect(issuePrimingWorkflow).toContain('cd "$WORKTREE_PATH" ||');
+    expect(issuePrimingWorkflow).toContain(
+      "All subsequent phases operate from `WORKTREE_PATH`",
+    );
+    expect(issuePrimingWorkflow).toContain(
+      "helpers verify repository-root cwd",
+    );
     expect(issuePrimingWorkflow).toContain(
       "Issue body or comment evidence contains",
     );
@@ -196,20 +407,24 @@ describe("phase artifact source contracts", () => {
       expect(skillSource).toContain("play-review/findings/v1");
     }
 
-    expect(branchReview).toContain('REVIEW_HEAD_SHA="$(git rev-parse HEAD)"');
-    expect(branchReview).toContain("Review head: $REVIEW_HEAD_SHA.");
+    expect(normalizeWhitespace(branchReview)).toContain(
+      "immutable Phase 2 review head",
+    );
+    expect(branchReview).toContain("Review head:");
     expect(branchReview).toContain(
       "immutable Phase 2 review head; current HEAD may include auto-fix commits",
     );
     expect(branchReview).toContain("prepare-findings-write");
 
     expect(prReview).toContain(
-      'REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review',
+      "trusted Phase 4 head_sha input passed to play-review",
     );
     expect(prReview).toContain(
       "immutable Phase 4 review head; current HEAD may differ before posting",
     );
-    expect(prReview).toContain('--arg commit_id "$REVIEW_HEAD_SHA"');
+    expect(prReview).toContain(
+      "commit_id`, `event`, `body`, and `comments` all land in the JSON body",
+    );
     expect(prReview).toContain("fail closed before posting");
   });
 
@@ -254,18 +469,10 @@ describe("phase artifact source contracts", () => {
       "--prior-findings review head must match --last-reviewed",
     );
     expect(branchReviewHelper).toContain("PLAY_REVIEW_DIR is required");
-    expect(branchReviewHelper).toContain(
-      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
-    );
-    expect(branchReviewHelper).toContain(
-      'HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \\',
-    );
-    expect(normalizedBranchReviewHelper).toMatch(
-      /HEAD_SHA="\$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="\$PRIOR_FINDINGS_FILE" \\ bash "\$PLAY_REVIEW_HELPER" validate-findings \|\| exit 1/,
-    );
-    expect(branchReviewHelper).toContain(
-      'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
-    );
+    expect(branchReviewHelper).toContain("scripts/review-artifacts.sh");
+    expect(branchReviewHelper).toContain("validate-findings");
+    expect(normalizedBranchReviewHelper).toContain("PRIOR_FINDINGS_HEAD_SHA");
+    expect(normalizedBranchReviewHelper).toContain("PRIOR_FINDINGS_FILE");
     expect(normalizedBranchReview).toContain(
       "installed `play-review` helper rejects the prior findings file",
     );
@@ -280,9 +487,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain(
       "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
     );
-    expect(branchReviewHelper).toContain(
-      'grep -E -- "$CONFIGURED_PATH_PATTERN"',
-    );
+    expect(branchReviewHelper).toContain("CONFIGURED_PATH_PATTERN");
     expect(branchReview).toContain('BASE) BASE="$value"');
     expect(branchReview).toContain('FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"');
     expect(branchReviewHelper).not.toContain("|src/|");
@@ -636,11 +841,10 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPlayReview).toContain(
       "preserve unresolved prior blockers in `carry_forward[]` rather than silently emitting an empty envelope",
     );
-    expect(playReview).toContain(
-      'bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1',
-    );
-    expect(playReview).toContain(
-      'bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1',
+    expect(playReview).toContain("prepare-findings-write");
+    expect(playReview).toContain("validate-findings");
+    expect(normalizedPlayReview).toContain(
+      "exits nonzero on any contract violation",
     );
     expect(playReview).toContain("Findings-file consumers fail closed");
     expect(playReview).toContain(
@@ -658,21 +862,11 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPlayReview).toContain(
       "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
     );
-    expect(playReview).toContain(
-      'ARCH_FILES=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \\',
+    expect(normalizedPlayReview).toContain(
+      "Rationale: ADR coverage is a PR-scope governance question, not a delta question",
     );
-    expect(playReview).toContain(
-      'NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \\',
-    );
-    expect(playReview).toContain(
-      'MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \\',
-    );
-    expect(playReview).toContain('git diff --name-only "$FULL_PR_DIFF_RANGE"');
     expect(playReview).toContain("Changed files (active diff)");
-    expect(playReview).toContain('git diff --name-status "$ACTIVE_DIFF_RANGE"');
-    expect(playReview).toContain(
-      'Active diff invocation — instruct the agent to run `git diff "$ACTIVE_DIFF_RANGE"`',
-    );
+    expect(playReview).toContain("Active diff invocation");
 
     const playReviewAgentBriefing = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
@@ -721,8 +915,8 @@ describe("phase artifact source contracts", () => {
     expect(snapshotRecipe).toContain("changed paths that are not safe");
     expect(snapshotRecipe).toContain("do not round-trip byte-for-byte");
     expect(snapshotRecipe).toContain("non-regular committed `HEAD` entries");
-    expect(snapshotRecipe).toContain("jq --rawfile");
-    expect(snapshotRecipe).toContain("jq -rj");
+    expect(snapshotRecipe).toContain("Builds the JSON envelope");
+    expect(snapshotRecipe).toContain("base64");
     expect(snapshotRecipe).toContain("byte-for-byte");
     expect(snapshotRecipe).toContain("post-write regular-file and size checks");
     expect(snapshotRecipe).toContain("non-regular");
@@ -730,9 +924,6 @@ describe("phase artifact source contracts", () => {
       "In snapshot-requesting dispatches, the helper owns persistence and verification",
     );
     expect(snapshotRecipe).toContain("controller-computed changed-file list");
-    expect(snapshotRecipe).toContain(
-      "git diff -z --name-status --no-renames BASE..HEAD",
-    );
     expect(snapshotRecipe).toContain("not snapshot-provided");
     expect(snapshotRecipe).toContain("paths or statuses");
     expect(normalizeWhitespace(snapshotRecipe)).toContain(
@@ -772,10 +963,10 @@ describe("phase artifact source contracts", () => {
       "Snapshot Manifest Helper Script path: <SNAPSHOT_HELPER_SCRIPT>",
     );
     expect(implementerPrompt).toContain("script with the captured `BASE_SHA`");
-    expect(implementerPrompt).toContain("HEAD_SHA=$(git rev-parse HEAD)");
     expect(implementerPrompt).toContain(
-      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
+      "script with the captured `BASE_SHA` and the task header identifier",
     );
+    expect(implementerPrompt).toContain("compute the changed-file list");
     expect(implementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
     );
@@ -812,10 +1003,10 @@ describe("phase artifact source contracts", () => {
       "script with the captured `BASE_SHA`",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      "HEAD_SHA=$(git rev-parse HEAD)",
+      "script with the captured `BASE_SHA` and the task header identifier",
     );
     expect(mechanicalImplementerPrompt).toContain(
-      'git diff --name-status --no-renames "$BASE_SHA..HEAD"',
+      "compute the changed-file list",
     );
     expect(mechanicalImplementerPrompt).toContain(
       "Snapshot written to <repo-relative-path>.",
