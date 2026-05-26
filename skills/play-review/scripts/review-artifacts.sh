@@ -174,11 +174,20 @@ validate_review_event() {
 validate_review_body_file() {
   require_env REVIEW_BODY_FILE
   case "$REVIEW_BODY_FILE" in
-    /* | *..* | */../* | ../* | */.. | . | ..)
+    .ephemeral/*/*)
+      echo "review body path validation failed: $REVIEW_BODY_FILE" >&2
+      exit 1
+      ;;
+    .ephemeral/*) ;;
+    *)
       echo "review body path validation failed: $REVIEW_BODY_FILE" >&2
       exit 1
       ;;
   esac
+  [ "${REVIEW_BODY_FILE#*..}" = "$REVIEW_BODY_FILE" ] || {
+    echo "path traversal: $REVIEW_BODY_FILE" >&2
+    exit 1
+  }
   [ -L "$REVIEW_BODY_FILE" ] && {
     echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2
     exit 1
@@ -468,7 +477,7 @@ build_github_review_payload() {
             start_line,
             side: "RIGHT",
             body: (if .anchor == "missing-file" then
-              "Missing-file finding (no natural anchor - see body):\n\n" + .body
+              "Missing-file finding (no natural anchor — see body):\n\n" + .body
             else
               .body
             end)

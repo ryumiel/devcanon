@@ -349,7 +349,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         body: "**Blocking | Contracts** - Natural body.\n\n**Recommendation:** Fix it.",
       });
       expect(payload.comments[1].body).toContain(
-        "Missing-file finding (no natural anchor - see body):",
+        "Missing-file finding (no natural anchor — see body):",
       );
       expect(payload.comments[1]).not.toHaveProperty("start_line");
       expect(payload.comments[2]).toMatchObject({
@@ -487,6 +487,50 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await cleanupTempDir(cwd);
     }
   });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects review body files reached through symlinked intermediate directories",
+    async () => {
+      const { cwd, reviewHeadSha, findingsFile } =
+        await makeReviewSourceWorkspace();
+      const outside = path.join(cwd, "outside-body");
+      try {
+        await writeRawEnvelope(cwd, findingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [sourceFinding()],
+          carry_forward: [],
+        });
+        await mkdir(outside);
+        await writeFile(path.join(outside, "review.md"), "unsafe body\n");
+        await symlink(outside, path.join(cwd, ".ephemeral/body-link"));
+
+        await expect(
+          runHelper(cwd, "render-review-preview", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: ".ephemeral/body-link/review.md",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("review body path validation failed"),
+        });
+
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: ".ephemeral/body-link/review.md",
+            REVIEW_EVENT: "COMMENT",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("review body path validation failed"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("validates findings and nits envelopes", async () => {
     const cwd = await makeTopicGitWorkspace();
