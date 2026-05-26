@@ -129,6 +129,10 @@ describe.skipIf(!jqAvailable)(
             escalation_reasons: ["not-followup"],
             last_reviewed_sha: null,
             prior_context: { kind: "none", path: null },
+            changed_files: [
+              "skills/branch-review/SKILL.md",
+              "skills/play-review/SKILL.md",
+            ],
             mechanical_facts: {
               changed_file_count: 2,
               followup_sha_usable: false,
@@ -151,9 +155,18 @@ describe.skipIf(!jqAvailable)(
             is_followup_narrow: false,
             selection_reason: "file-count escalation",
             escalation_reasons: ["file-count"],
+            changed_files: [
+              "skills/branch-review/SKILL.md",
+              "skills/play-review/SKILL.md",
+              "skills/pr-review/SKILL.md",
+              "skills/play-review/references/follow-up-scope-policy.md",
+              "src/skill-scripts/branch-review-scope-decision-artifacts.integration.test.ts",
+              "src/skill-scripts/pr-review-prior-thread-artifacts.integration.test.ts",
+              "docs/guidelines/gh-api-hygiene.md",
+            ],
             mechanical_facts: {
               changed_file_count: 7,
-              followup_sha_usable: true,
+              followup_sha_usable: false,
               mechanical_escalate_full: true,
               mechanical_escalation_reason: "file-count",
             },
@@ -188,6 +201,77 @@ describe.skipIf(!jqAvailable)(
         await writeFile(
           path.join(cwd, scopeDecisionFile),
           `${JSON.stringify({ raw_scope_claim: true })}\n${JSON.stringify(scopeDecision())}`,
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            prior_context: { kind: "none", path: null },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            candidate_narrow_range: "main..HEAD",
+            selected_range: "main..HEAD",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            mechanical_facts: {
+              changed_file_count: 1,
+              followup_sha_usable: false,
+              mechanical_escalate_full: false,
+              mechanical_escalation_reason: "",
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            mechanical_facts: {
+              changed_file_count: 0,
+              followup_sha_usable: true,
+              mechanical_escalate_full: false,
+              mechanical_escalation_reason: "",
+            },
+          }),
         );
         await expect(
           runHelper(cwd, "validate-scope-decision", {

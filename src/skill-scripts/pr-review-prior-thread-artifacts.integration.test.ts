@@ -211,6 +211,62 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
 
       await writeJson(
         cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          mode: "initial",
+          selected_range: "origin/main...HEAD",
+          candidate_narrow_range: "origin/main...HEAD",
+          is_followup_narrow: false,
+          selection_reason: "initial review",
+          escalation_reasons: ["not-followup"],
+          last_reviewed_sha: null,
+          prior_context: { kind: "none", path: null },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          selected_range: "origin/main...HEAD",
+          is_followup_narrow: false,
+          selection_reason: "file-count escalation",
+          escalation_reasons: ["file-count"],
+          changed_files: [
+            "src/example-a.ts",
+            "src/example-b.ts",
+            "src/example-c.ts",
+            "src/example-d.ts",
+            "src/example-e.ts",
+            "src/example-f.ts",
+          ],
+          mechanical_facts: {
+            changed_file_count: 6,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "file-count",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
         priorThreadsFile,
         priorThreads({
           threads: [
@@ -475,6 +531,77 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       await writeFile(
         path.join(cwd, scopeDecisionFile),
         `${JSON.stringify({ raw_scope_claim: true })}\n${JSON.stringify(scopeDecision())}`,
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          prior_context: { kind: "none", path: null },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          candidate_narrow_range: "origin/main..HEAD",
+          selected_range: "origin/main..HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          mechanical_facts: {
+            changed_file_count: 0,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        }),
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {

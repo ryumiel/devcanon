@@ -417,6 +417,8 @@ validate_scope_decision() {
       and (.ambiguous | type == "boolean")
       and (.notes | type == "string");
     def valid_scope_invariants:
+      .mechanical_facts.changed_file_count == (.changed_files | length)
+      and
       (if .mode == "initial" then
         .is_followup_narrow == false
         and .last_reviewed_sha == null
@@ -425,6 +427,9 @@ validate_scope_decision() {
         and .prior_context.kind == "none"
       else
         (.last_reviewed_sha | sha)
+        and .prior_context.kind == "github-prior-threads"
+        and (.prior_context.path | direct_ephemeral_path)
+        and .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
       end)
       and .semantic_decision.checked == true
       and .semantic_decision.ambiguous == false
@@ -432,6 +437,7 @@ validate_scope_decision() {
         .mode == "follow-up"
         and .selected_range == .candidate_narrow_range
         and .selected_range != .full_range
+        and .mechanical_facts.followup_sha_usable == true
         and .mechanical_facts.mechanical_escalate_full == false
         and (.escalation_reasons | length == 0)
       else
