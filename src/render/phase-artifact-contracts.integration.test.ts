@@ -161,8 +161,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+      "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
     );
+    expect(prReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
+    expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
     expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
     expect(prReview).toContain("unset REVIEW_EVENT");
@@ -198,8 +200,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+        "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
       );
+      expect(renderedPrReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
+      expect(renderedPrReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
       expect(renderedPrReview).toContain(
         "approved review artifact path missing",
       );

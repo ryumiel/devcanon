@@ -930,7 +930,13 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
     expect(normalizedPrReview).toContain(
-      "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+      "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+    );
+    expect(prReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
+    expect(prReview).toContain("build_and_freeze_approved_review()");
+    expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
+    expect(prReview).toContain(
+      '[ "$BUILD_AND_FREEZE_STATUS" -eq 0 ] || exit "$BUILD_AND_FREEZE_STATUS"',
     );
     expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("REVIEW_EVENT");
