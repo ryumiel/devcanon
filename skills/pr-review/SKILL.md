@@ -251,7 +251,9 @@ Only after user approval:
    `PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"`.
    First validate the findings envelope, then ask the `pr-review` helper for
    the deterministic payload path, then write exactly the JSON emitted by
-   `build-github-review-payload` to that path, then freeze it:
+   `build-github-review-payload` to that path, then freeze it. Run this block
+   in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound
+   for the stale-head, validation, and posting steps below:
 
    ```bash
    PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
@@ -259,30 +261,29 @@ Only after user approval:
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
 
-   (
-     cd "$WORKING_DIRECTORY" || exit 1
-     HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
-     FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
-     HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-       bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
-     REVIEW_PAYLOAD_FILE=$(
-       HEAD_SHA="$REVIEW_HEAD_SHA" \
-         bash "$PR_REVIEW_HELPER" prepare-review-payload-write || exit 1
-     ) || exit 1
+   cd "$WORKING_DIRECTORY" || exit 1
+   HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
+   FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
+   HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
+     bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
+   REVIEW_PAYLOAD_FILE=$(
+     HEAD_SHA="$REVIEW_HEAD_SHA" \
+       bash "$PR_REVIEW_HELPER" prepare-review-payload-write || exit 1
+   ) || exit 1
+   HEAD_SHA="$REVIEW_HEAD_SHA" \
+   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+   REVIEW_SURFACE="pr-review" \
+   REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
+   REVIEW_EVENT="$REVIEW_EVENT" \
+     bash "$PLAY_REVIEW_HELPER" build-github-review-payload > "$REVIEW_PAYLOAD_FILE" || exit 1
+   APPROVED_REVIEW_FILE=$(
      HEAD_SHA="$REVIEW_HEAD_SHA" \
      FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-     REVIEW_SURFACE="pr-review" \
      REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
-     REVIEW_EVENT="$REVIEW_EVENT" \
-       bash "$PLAY_REVIEW_HELPER" build-github-review-payload > "$REVIEW_PAYLOAD_FILE" || exit 1
-     APPROVED_REVIEW_FILE=$(
-       HEAD_SHA="$REVIEW_HEAD_SHA" \
-       FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-       REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
-       REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
-         bash "$PR_REVIEW_HELPER" freeze-approved-review || exit 1
-     ) || exit 1
-   )
+     REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       bash "$PR_REVIEW_HELPER" freeze-approved-review || exit 1
+   ) || exit 1
+   [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; exit 1; }
    ```
 
    The frozen artifact schema is `pr-review/approved-review/v1`. It stores the

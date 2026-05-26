@@ -160,6 +160,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+    );
+    expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
     expect(prReview).toContain("unset REVIEW_EVENT");
     expect(prReview).toContain("CURRENT_HEAD_SHA");
@@ -193,6 +197,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("freeze-approved-review");
       expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+      );
+      expect(renderedPrReview).toContain(
+        "approved review artifact path missing",
+      );
       expect(renderedPrReview).toContain(
         "review body parent must be .ephemeral",
       );

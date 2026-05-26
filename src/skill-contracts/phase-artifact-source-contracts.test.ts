@@ -929,6 +929,10 @@ describe("phase artifact source contracts", () => {
     );
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
+    expect(normalizedPrReview).toContain(
+      "Run this block in the caller shell, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+    );
+    expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("REVIEW_EVENT");
     expect(prReview).toContain("unset REVIEW_EVENT");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
@@ -965,6 +969,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
+    );
+    expect(prReview).not.toContain(
+      '(\n     cd "$WORKING_DIRECTORY" || exit 1\n     HEAD_SHA="$REVIEW_HEAD_SHA"',
     );
     expect(normalizedPrReview).toContain(
       "Post exactly the validated approved payload",
