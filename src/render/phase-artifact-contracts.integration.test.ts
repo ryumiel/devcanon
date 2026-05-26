@@ -222,6 +222,9 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
       expect(renderedPrReview).toContain(
+        "validated review payload path exists but is not a regular file",
+      );
+      expect(renderedPrReview).toContain(
         "approved review validation failed; refusing to invoke gh api",
       );
       expect(renderedPrReview).not.toContain(

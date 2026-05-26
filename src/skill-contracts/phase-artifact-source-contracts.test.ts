@@ -987,6 +987,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(prReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain(
+      "validated review payload path exists but is not a regular file",
+    );
+    expect(prReview).toContain(
       "approved review validation failed; refusing to invoke gh api",
     );
     expect(normalizedPrReview).toContain(
