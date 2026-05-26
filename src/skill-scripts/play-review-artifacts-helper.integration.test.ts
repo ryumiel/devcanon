@@ -428,21 +428,24 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const decoded = JSON.parse(payload.stdout) as {
         comments: Array<{ body: string }>;
       };
+      const normalizedPreview = preview.stdout.replace(/\r\n/g, "\n");
 
       expect(decoded.comments[0].body).toBe(naturalBody);
       expect(decoded.comments[1].body).toBe(
         `Missing-file finding (no natural anchor — see body):\n\n${missingBody}`,
       );
-      expect(preview.stdout).toContain(
+      expect(normalizedPreview).toContain(
         `#### Rendered Finding Body\n\n${decoded.comments[0].body}\n\n`,
       );
-      expect(preview.stdout).toContain(
+      expect(normalizedPreview).toContain(
         `#### Rendered Finding Body\n\n${decoded.comments[1].body}\n\n`,
       );
-      expect(preview.stdout).not.toContain("STALE natural why");
-      expect(preview.stdout).not.toContain("STALE missing-file why");
-      expect(preview.stdout).not.toContain("STALE natural recommendation");
-      expect(preview.stdout).not.toContain("STALE missing-file recommendation");
+      expect(normalizedPreview).not.toContain("STALE natural why");
+      expect(normalizedPreview).not.toContain("STALE missing-file why");
+      expect(normalizedPreview).not.toContain("STALE natural recommendation");
+      expect(normalizedPreview).not.toContain(
+        "STALE missing-file recommendation",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
