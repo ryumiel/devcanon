@@ -40,17 +40,28 @@ digraph pr_review {
 
 Run in parallel:
 
-- `gh pr view <N> --json title,body,baseRefName,headRefName,commits,files,reviews,comments,url`
-- `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
-- `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
+- `gh pr view <N> --json title,body,baseRefName,headRefName,commits,files,url`
+- `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states and prior review commits
+- Follow-up only: GraphQL `reviewThreads` data with thread ID,
+  `isResolved`, `isOutdated`, comments, path, line/original line, author, and
+  commit/staleness fields needed for normalized prior-thread classification.
 
-<!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
+<!-- Bare body intentional: responses feed the prior-thread normalization helper and prior-review mode detection. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
 
 Detect mode:
 
 - **Initial:** No prior review from the current user on this PR.
 - **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
+
+For follow-up reviews, keep raw GitHub thread payloads in controller memory or
+controller-local scratch only until the PR worktree exists. Do not write the
+normalized artifact in the parent checkout; `play-review` receives repo-relative
+artifact paths inside `working_directory`.
+
+Raw GitHub responses may be retained for audit, posting, or resolution
+bookkeeping, but raw REST or GraphQL payloads are not reviewer-agent model
+context and are not passed to `play-review`.
 
 ## Phase 2: Worktree setup
 
@@ -67,6 +78,18 @@ Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
 `working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
+
+For follow-up reviews, normalize raw GitHub thread payloads from inside
+`working_directory` before Phase 3 and before any `play-review` handoff.
+`PR_REVIEW_HELPER` must resolve to the installed
+`pr-review/scripts/prior-thread-artifacts.sh` helper. In the PR worktree, bind
+`HEAD_SHA="$(git rev-parse HEAD)"`, use `prepare-prior-threads-write` to prepare
+the worktree-local `.ephemeral/*-prior-threads.json` target, write a
+`pr-review/prior-threads/v1` artifact there, then run `validate-prior-threads`
+from the same worktree. The artifact classifies each thread as actionable,
+resolved, outdated, bot boilerplate, review request, reaction-only,
+conversation, or unknown, and records whether model context should include,
+summarize, or drop it.
 
 ## Phase 3: Determine diff ranges
 
@@ -85,14 +108,24 @@ the shared policy owns full-vs-narrow escalation criteria.
   - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
 
 When classification is ambiguous, fail closed to full review. If the policy
-escalates, keep `prior_threads` in the `play-review` handoff so unresolved prior
-GitHub comments can still be verified and carried forward.
+escalates, keep `prior_threads` as a normalized artifact in the `play-review`
+handoff so unresolved prior GitHub comments can still be verified and carried
+forward.
 
 **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
 
 After final active range selection, compute `language_hints` from that selected
 active diff only. Narrow follow-ups use the incremental changed-files set; full
 escalations recompute from the full PR diff.
+
+After final active range selection, write a `pr-review/scope-decision/v1`
+artifact with `prepare-scope-decision-write`, then validate it with
+`validate-scope-decision`. The artifact records mode, selected range, full
+range, candidate narrow range, `is_followup_narrow`, escalation reason(s), last
+reviewed SHA, changed files, language hints, prior context path, mechanical
+facts, and semantic decision notes. Missing, malformed, stale, conflicting, or
+untrusted facts needed to justify narrow review fail closed to full review or
+stop before invoking `play-review`.
 
 ## Phase 4: Run play-review
 
@@ -105,9 +138,16 @@ Hand off to `play-review` with these inputs:
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so follow-up narrow mode only spawns language agents matching the incremental diff; deriving from the full PR would re-run earlier-touched language agents on docs-only follow-ups, defeating the narrow-mode scoping)
-- `prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses (follow-up only)
+- `scope_decision` = validated `pr-review/scope-decision/v1` artifact path
+- `prior_threads` = validated `pr-review/prior-threads/v1` artifact path
+  (follow-up only; omit for initial reviews with no prior GitHub context)
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
+
+Do not hand raw GitHub REST comments, REST reviews, or GraphQL reviewThreads to
+`play-review`. If normalization or validation fails, stop or fail closed before
+reviewer-agent dispatch instead of asking the shared core to recover provider
+state.
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
 

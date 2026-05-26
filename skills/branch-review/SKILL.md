@@ -210,6 +210,18 @@ the final hints from the full branch during a narrow follow-up would defeat the
 follow-up scope, while keeping narrow hints after full escalation would hide
 review-relevant languages.
 
+After final active range selection, write and validate a
+`branch-review/scope-decision/v1` artifact before invoking `play-review`.
+`BRANCH_REVIEW_SCOPE_HELPER` must resolve to
+`skills/branch-review/scripts/scope-decision-artifacts.sh`; use
+`prepare-scope-decision-write` to prepare the direct-child `.ephemeral`
+write target and `validate-scope-decision` after writing. The artifact records
+initial vs follow-up mode, selected range, full range, candidate narrow range,
+`is_followup_narrow`, escalation reason(s), last reviewed SHA, changed files,
+language hints, prior findings path, mechanical facts, and semantic decision
+notes. It represents local branch-review follow-up state only; never use
+GitHub prior-thread kinds in this artifact.
+
 ## Phase 2: Invoke the play-review skill workflow
 
 Hand off to `play-review` with these inputs (compose them into the briefing prose that invokes the skill):
@@ -221,6 +233,8 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `head_sha` = `$(git rev-parse HEAD)`
 - `mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`
 - `language_hints` = computed from the selected active diff in Phase 1
+- `scope_decision` = the validated `branch-review/scope-decision/v1` artifact
+  path
 - `prior_threads` = (none)
 - `prior_branch_findings` = the validated `--prior-findings` envelope path
   (`$PRIOR_BRANCH_FINDINGS`, follow-up only)

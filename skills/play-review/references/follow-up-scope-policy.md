@@ -5,8 +5,9 @@ wrappers that invoke `play-review`.
 
 Wrappers apply this policy before invoking `play-review`. Wrappers still supply
 the final `active_diff_range`, `full_pr_diff_range`, prior context,
-`last_reviewed_sha`, `is_followup_narrow`, and `language_hints`; do not compute
-`active_diff_range` inside `play-review`.
+`last_reviewed_sha`, `is_followup_narrow`, `language_hints`, and a validated
+wrapper-produced `scope_decision` artifact; do not compute `active_diff_range`
+inside `play-review`.
 
 ## Baseline Selection
 
@@ -25,6 +26,15 @@ them forward.
 `language_hints` are computed only after final active range selection, from the
 selected active diff. A narrow follow-up uses hints from the narrow range; a
 full escalation recomputes hints from the full range.
+
+Wrappers record the final decision in a `scope_decision` artifact before
+invoking `play-review`. The artifact must include mode, selected range, full
+range, candidate narrow range, `is_followup_narrow`, selection reason,
+escalation reason(s), last reviewed SHA, head SHA, changed files, language
+hints, prior context kind/path, mechanical facts, and semantic decision notes.
+`pr-review` may use GitHub prior-thread context; `branch-review` may use local
+prior findings. Wrappers must not use each other's provider-specific
+prior-context kind.
 
 ## Narrow Review Requirements
 
@@ -91,4 +101,5 @@ If every mechanical and semantic check clearly passes, set
 `is_followup_narrow = true`.
 
 After that final selection, recompute `language_hints` from the final
-`active_diff_range` and only then invoke `play-review`.
+`active_diff_range` and only then invoke `play-review`. Before invocation, write
+and validate the wrapper `scope_decision` artifact.

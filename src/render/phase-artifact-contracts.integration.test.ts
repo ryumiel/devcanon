@@ -762,13 +762,13 @@ describe("rendered phase artifact smoke coverage", () => {
 
       const playReview = bodies[`play-review:${target}`];
 
-      expect(playReview).toContain(
-        "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
-      );
-      expect(playReview).toContain(
-        "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
-      );
       const normalizedPlayReview = normalizeRenderedWhitespace(playReview);
+      expect(normalizedPlayReview).toContain(
+        "| `active_diff_range` | git diff spec | Phase 3 agents review this",
+      );
+      expect(normalizedPlayReview).toContain(
+        "| `full_pr_diff_range` | git diff spec | Doc-impact summary always uses this",
+      );
       expect(normalizedPlayReview).toContain(
         "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
       );

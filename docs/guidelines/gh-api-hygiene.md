@@ -28,7 +28,8 @@ When bare `gh api` is genuinely required, add an inline comment in the snippet t
 
 Worked examples in this repo:
 
-- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) Phase 1 — the `gh api .../comments` and `.../reviews` reads feed Phase 4's `prior_threads` parsing. Multiple fields per entry are consumed.
+- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) Phase 1 — the `gh api .../reviews` read feeds prior-review mode detection and last-reviewed commit selection. Multiple fields per entry are consumed.
+- [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) Phase 1 — the GraphQL `reviewThreads` read feeds `pr-review/prior-threads/v1` normalization. Multiple nested fields per thread and comment are consumed.
 - [`skills/pr-review/SKILL.md`](../../skills/pr-review/SKILL.md) `## GitHub API Reference` GraphQL thread-fetch query — returns every review thread with its comments for content-keyed thread-ID lookup. The whole nested response is the data.
 
 ## 4. Authoring Checklist for Skill Snippets

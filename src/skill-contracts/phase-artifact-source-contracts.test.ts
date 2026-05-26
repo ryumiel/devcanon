@@ -774,7 +774,10 @@ describe("phase artifact source contracts", () => {
     );
 
     expect(prReview).toContain(
-      "`prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses",
+      "`prior_threads` = validated `pr-review/prior-threads/v1` artifact path",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not hand raw GitHub REST comments, REST reviews, or GraphQL reviewThreads to `play-review`",
     );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
@@ -853,11 +856,11 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain(
       "do NOT dispatch Phase 3 agents — they would read an absent file",
     );
-    expect(playReview).toContain(
-      "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
+    expect(normalizedPlayReview).toContain(
+      "| `active_diff_range` | git diff spec | Phase 3 agents review this",
     );
-    expect(playReview).toContain(
-      "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
+    expect(normalizedPlayReview).toContain(
+      "| `full_pr_diff_range` | git diff spec | Doc-impact summary always uses this",
     );
     expect(normalizedPlayReview).toContain(
       "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
