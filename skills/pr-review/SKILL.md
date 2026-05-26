@@ -319,12 +319,13 @@ Only after user approval:
 For the `gh api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
 
 **Posting boundary reference:** the only review-creation path in this skill is
-Phase 6's approved-artifact flow: `build-github-review-payload` before user
-approval, `freeze-approved-review`, stale-head refusal, `validate-approved-review`
-into the guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `gh api --input
-"$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload here,
-do not fetch `commit_id` from live `gh pr view` for posting, and do not call
-`gh api` until the approved artifact has validated successfully.
+Phase 6's explicitly user-approved artifact flow: after approval,
+`prepare-review-payload-write`, `build-github-review-payload`,
+`freeze-approved-review`, stale-head refusal, `validate-approved-review` into the
+guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `gh api --input
+"$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload
+here, do not fetch `commit_id` from live `gh pr view` for posting, and do not
+call `gh api` until the approved artifact has validated successfully.
 
 The sealed payload uses `line` (absolute file line in HEAD), not `position`
 (diff offset). `side` is `"RIGHT"` for PR head lines.

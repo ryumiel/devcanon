@@ -190,6 +190,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("freeze-approved-review");
       expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(renderedPrReview).toContain("CURRENT_HEAD_SHA");
+      expect(renderedPrReview).toContain(
+        "PR head changed since review; refusing to post stale approved review",
+      );
       expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
       expect(renderedPrReview).toContain(
         "approved review validation failed; refusing to invoke gh api",
