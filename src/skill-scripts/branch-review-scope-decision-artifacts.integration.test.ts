@@ -164,6 +164,19 @@ describe.skipIf(!jqAvailable)(
             SCOPE_DECISION_FILE: scopeDecisionFile,
           }),
         ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            full_range: "origin/release+1...HEAD",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -239,6 +252,52 @@ describe.skipIf(!jqAvailable)(
           cwd,
           scopeDecisionFile,
           scopeDecision({
+            selected_range: "main HEAD",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            full_range: "foo@{bar}...HEAD",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        for (const full_range of ["main...@{-1}", "main...@"]) {
+          await writeJson(
+            cwd,
+            scopeDecisionFile,
+            scopeDecision({ full_range }),
+          );
+          await expect(
+            runHelper(cwd, "validate-scope-decision", {
+              SCOPE_DECISION_FILE: scopeDecisionFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("scope decision schema mismatch"),
+          });
+        }
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            candidate_narrow_range: "main HEAD",
             selected_range: "main HEAD",
           }),
         );

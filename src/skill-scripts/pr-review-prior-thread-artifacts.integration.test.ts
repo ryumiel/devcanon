@@ -179,6 +179,30 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
           PRIOR_THREADS_FILE: priorThreadsFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        priorThreadsFile,
+        priorThreads({
+          threads: [
+            {
+              ...priorThreads().threads[0],
+              comments: [
+                {
+                  ...priorThreads().threads[0].comments[0],
+                  created_at: "2026-05-26T12:34:56.789Z",
+                  updated_at: "2024-02-29T12:34:56Z",
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-prior-threads", {
+          PRIOR_THREADS_FILE: priorThreadsFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
       await expect(
         runHelper(cwd, "validate-scope-decision", {
           SCOPE_DECISION_FILE: scopeDecisionFile,
@@ -300,6 +324,38 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("prior threads schema mismatch"),
       });
+
+      for (const created_at of [
+        "2026-02-31T12:00:00Z",
+        "2026-02-29T12:00:00Z",
+        "2026-04-31T12:00:00Z",
+        "2026-02-31T12:00:00.123Z",
+      ]) {
+        await writeJson(
+          cwd,
+          priorThreadsFile,
+          priorThreads({
+            threads: [
+              {
+                ...priorThreads().threads[0],
+                comments: [
+                  {
+                    ...priorThreads().threads[0].comments[0],
+                    created_at,
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-prior-threads", {
+            PRIOR_THREADS_FILE: priorThreadsFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("prior threads schema mismatch"),
+        });
+      }
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -468,6 +524,19 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         cwd,
         scopeDecisionFile,
         scopeDecision({
+          full_range: "origin/release+1...HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
           selected_range: "origin/main....HEAD",
         }),
       );
@@ -483,6 +552,48 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         cwd,
         scopeDecisionFile,
         scopeDecision({
+          selected_range: "origin/main HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          full_range: "foo@{bar}...HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      for (const full_range of ["origin/main...@{-1}", "origin/main...@"]) {
+        await writeJson(cwd, scopeDecisionFile, scopeDecision({ full_range }));
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+      }
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          candidate_narrow_range: "origin/main HEAD",
           selected_range: "origin/main HEAD",
         }),
       );

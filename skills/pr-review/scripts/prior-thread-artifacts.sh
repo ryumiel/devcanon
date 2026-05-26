@@ -149,6 +149,78 @@ assert_readable_file() {
   }
 }
 
+validate_ref_endpoint() {
+  local label="$1"
+  local value="$2"
+  case "$value" in
+    "" | "@" | *@{* | -* | *$'\n'* | *$'\r'*)
+      echo "$label range endpoint is invalid: $value" >&2
+      return 1
+      ;;
+    HEAD)
+      return 0
+      ;;
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+      return 0
+      ;;
+  esac
+  git check-ref-format --branch "$value" >/dev/null 2>&1
+}
+
+validate_review_range_field() {
+  local field="$1"
+  local value="$2"
+  local left
+  local right
+
+  case "$value" in
+    "" | -* | *$'\n'* | *$'\r'*)
+      echo "$field must be a safe git diff range" >&2
+      return 1
+      ;;
+  esac
+
+  case "$value" in
+    *...*)
+      left="${value%%...*}"
+      right="${value#*...}"
+      ;;
+    *..*)
+      left="${value%%..*}"
+      right="${value#*..}"
+      ;;
+    *)
+      echo "$field must contain a git diff range separator" >&2
+      return 1
+      ;;
+  esac
+
+  case "$left" in
+    "" | *..*)
+      echo "$field left endpoint is invalid: $left" >&2
+      return 1
+      ;;
+  esac
+  case "$right" in
+    "" | *..*)
+      echo "$field right endpoint is invalid: $right" >&2
+      return 1
+      ;;
+  esac
+
+  validate_ref_endpoint "$field" "$left" &&
+    validate_ref_endpoint "$field" "$right"
+}
+
+validate_scope_decision_ranges() {
+  local field
+  local value
+  for field in selected_range full_range candidate_narrow_range; do
+    value="$(jq -ser --arg field "$field" '.[0][$field]' "$SCOPE_DECISION_FILE")" || return 1
+    validate_review_range_field "$field" "$value" || return 1
+  done
+}
+
 prepare_prior_threads_write() {
   validate_head_sha
   local file
@@ -187,7 +259,7 @@ validate_prior_threads() {
     def iso8601_timestamp:
       type == "string"
       and test("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?Z$")
-      and (try ((sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) | type == "number") catch false);
+      and (try ((sub("\\.[0-9]+Z$"; "Z")) as $normalized | ($normalized | fromdateiso8601 | todateiso8601) == $normalized) catch false);
     def positive_integer: type == "number" and . == floor and . >= 1;
     def repo_relative_path:
       type == "string"
@@ -309,7 +381,7 @@ validate_scope_decision() {
     def sha: type == "string" and test("^[0-9a-f]{40}$");
     def review_range:
       type == "string"
-      and test("^[A-Za-z0-9][A-Za-z0-9_/-]*(\\.[A-Za-z0-9][A-Za-z0-9_/-]*)*\\.\\.\\.?[A-Za-z0-9][A-Za-z0-9_/-]*(\\.[A-Za-z0-9][A-Za-z0-9_/-]*)*$");
+      and length > 0;
     def repo_relative_path:
       type == "string"
       and length > 0
@@ -409,6 +481,10 @@ validate_scope_decision() {
     and (.semantic_decision | valid_semantic_decision)
     and valid_scope_invariants)
   ' "$SCOPE_DECISION_FILE" >/dev/null || {
+    echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
+    exit 1
+  }
+  validate_scope_decision_ranges || {
     echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
     exit 1
   }
