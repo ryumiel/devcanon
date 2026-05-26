@@ -267,11 +267,43 @@ source_line_count() {
   awk 'END { print NR }'
 }
 
+review_source_line_count() {
+  local entry_path="$1"
+  git show "${HEAD_SHA}:${entry_path}" 2>/dev/null | source_line_count
+}
+
+validate_source_anchor() {
+  local entry_path="$1"
+  local line="$2"
+  local start_line="$3"
+  local total_lines
+
+  total_lines="$(review_source_line_count "$entry_path")" || {
+    echo "failed to read review-head source: $entry_path" >&2
+    exit 1
+  }
+  [ "$line" -le "$total_lines" ] || {
+    echo "review-head source line out of range: $entry_path:$line" >&2
+    exit 1
+  }
+  if [ "$start_line" != "null" ]; then
+    [ "$start_line" -le "$line" ] || {
+      echo "review-head source range is invalid: $entry_path:$start_line-$line" >&2
+      exit 1
+    }
+    [ "$start_line" -le "$total_lines" ] || {
+      echo "review-head source line out of range: $entry_path:$start_line" >&2
+      exit 1
+    }
+  fi
+
+  printf '%s\n' "$total_lines"
+}
+
 render_source_snippet() {
   local entry_path="$1"
   local line="$2"
   local start_line="$3"
-  local source
   local total_lines
   local window_start
   local window_end
@@ -279,15 +311,7 @@ render_source_snippet() {
   local target_end
   local range_len
 
-  source="$(git show "${HEAD_SHA}:${entry_path}" 2>/dev/null)" || {
-    echo "failed to read review-head source: $entry_path" >&2
-    exit 1
-  }
-  total_lines="$(printf '%s\n' "$source" | source_line_count)"
-  [ "$line" -le "$total_lines" ] || {
-    echo "review-head source line out of range: $entry_path:$line" >&2
-    exit 1
-  }
+  total_lines="$(validate_source_anchor "$entry_path" "$line" "$start_line")"
 
   if [ "$start_line" = "null" ]; then
     target_start="$line"
@@ -297,14 +321,6 @@ render_source_snippet() {
   else
     target_start="$start_line"
     target_end="$line"
-    [ "$target_start" -le "$target_end" ] || {
-      echo "review-head source range is invalid: $entry_path:$target_start-$target_end" >&2
-      exit 1
-    }
-    [ "$target_start" -le "$total_lines" ] || {
-      echo "review-head source line out of range: $entry_path:$target_start" >&2
-      exit 1
-    }
     range_len=$((target_end - target_start + 1))
     if [ "$range_len" -gt 7 ]; then
       window_start=$((target_end - 6))
@@ -329,7 +345,7 @@ render_source_snippet() {
 
   printf '```%s\n' "$(language_for_path "$entry_path")"
   printf '// %s:%s-%s\n' "$entry_path" "$window_start" "$window_end"
-  printf '%s\n' "$source" | awk -v start="$window_start" -v end="$window_end" 'NR >= start && NR <= end { print }'
+  git show "${HEAD_SHA}:${entry_path}" 2>/dev/null | awk -v start="$window_start" -v end="$window_end" 'NR >= start && NR <= end { print }'
   printf '```\n'
 }
 
@@ -397,6 +413,25 @@ build_review_body() {
   fi
 }
 
+validate_inline_source_anchors() {
+  local entry_json
+  local entry_path
+  local line
+  local start_line
+
+  while IFS= read -r entry_json; do
+    entry_path="$(jq -r '.path' <<<"$entry_json")"
+    line="$(jq -r '.line' <<<"$entry_json")"
+    start_line="$(jq -r '.start_line' <<<"$entry_json")"
+    validate_source_anchor "$entry_path" "$line" "$start_line" >/dev/null
+  done < <(
+    jq -c '
+      (.findings + .carry_forward)[]
+      | select(.anchor == "natural" or .anchor == "missing-file")
+    ' "$FINDINGS_FILE"
+  )
+}
+
 render_review_preview() {
   local review_body
   local count
@@ -459,6 +494,7 @@ build_github_review_payload() {
   }
   validate_review_body_file
   validate_review_event
+  validate_inline_source_anchors
   review_body="$(build_review_body)"
   jq -n \
     --arg commit_id "$HEAD_SHA" \

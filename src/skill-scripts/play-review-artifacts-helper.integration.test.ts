@@ -255,6 +255,130 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("accepts anchors on review-head trailing blank lines", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await mkdir(path.join(cwd, "src"));
+      await writeFile(
+        path.join(cwd, "src/trailing.ts"),
+        "const value = 1;\n\n",
+      );
+      await execFileAsync("git", ["add", "src/trailing.ts"], { cwd });
+      await execFileAsync("git", ["commit", "-m", "feat: add trailing blank"], {
+        cwd,
+      });
+      const { stdout: shaStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        { cwd },
+      );
+      const reviewHeadSha = shaStdout.trim();
+      const reviewFindingsFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const reviewBodyFile = ".ephemeral/review-body.md";
+
+      await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
+      await writeRawEnvelope(cwd, reviewFindingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            path: "src/trailing.ts",
+            line: 2,
+            why: "The trailing blank line remains valid review-head source.",
+            recommendation: "Keep trailing source lines anchorable.",
+            body: "**Blocking | Contracts** - The trailing blank line remains valid review-head source.\n\n**Recommendation:** Keep trailing source lines anchorable.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      const preview = await runHelper(cwd, "render-review-preview", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: reviewFindingsFile,
+        REVIEW_SURFACE: "pr-review",
+        REVIEW_BODY_FILE: reviewBodyFile,
+      });
+      const payload = await runHelper(cwd, "build-github-review-payload", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: reviewFindingsFile,
+        REVIEW_SURFACE: "pr-review",
+        REVIEW_BODY_FILE: reviewBodyFile,
+        REVIEW_EVENT: "COMMENT",
+      });
+
+      expect(preview.stdout).toContain("// src/trailing.ts:1-2");
+      expect(preview.stdout).toContain("const value = 1;");
+      expect(JSON.parse(payload.stdout).comments[0]).toMatchObject({
+        path: "src/trailing.ts",
+        line: 2,
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects inline anchors against empty review-head files before preview or payload output", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await mkdir(path.join(cwd, "src"));
+      await writeFile(path.join(cwd, "src/empty.ts"), "");
+      await execFileAsync("git", ["add", "src/empty.ts"], { cwd });
+      await execFileAsync("git", ["commit", "-m", "feat: add empty source"], {
+        cwd,
+      });
+      const { stdout: shaStdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        { cwd },
+      );
+      const reviewHeadSha = shaStdout.trim();
+      const reviewFindingsFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const reviewBodyFile = ".ephemeral/review-body.md";
+
+      await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
+      await writeRawEnvelope(cwd, reviewFindingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            path: "src/empty.ts",
+            line: 1,
+            why: "The empty source file has no line to anchor.",
+            recommendation: "Reject empty-file inline anchors.",
+            body: "**Blocking | Contracts** - The empty source file has no line to anchor.\n\n**Recommendation:** Reject empty-file inline anchors.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "render-review-preview", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: reviewFindingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: reviewBodyFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "review-head source line out of range: src/empty.ts:1",
+        ),
+      });
+      await expect(
+        runHelper(cwd, "build-github-review-payload", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: reviewFindingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_EVENT: "COMMENT",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "review-head source line out of range: src/empty.ts:1",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("renders exact post-ready inline bodies even when body diverges from live fields", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
