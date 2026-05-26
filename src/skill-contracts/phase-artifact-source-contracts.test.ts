@@ -997,27 +997,64 @@ describe("phase artifact source contracts", () => {
     const normalizedBranchReview = normalizeWhitespace(branchReview);
 
     const pressureEvidence = {
-      baseline: [
-        "PR-review baseline FAIL: mutable manual payload path allowed a conversation preview, drop/change/edit actions, then Phase 6 rebuilt and posted from side-channel findings without an approved artifact, sealed payload file, digest equality, or exact validated stdout.",
-        "Branch-review baseline FAIL: present mode delegated to markdown and exact notice prose without an artifact-backed preview renderer, allowing manual reshaping, current-checkout evidence, notice drift, and nearby GitHub schema confusion.",
-      ],
-      postEdit: [
-        "PR-review post-edit PASS: agent used .ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md, render-review-preview, body/finding rewrite loops returning to the user gate, prepare-review-payload-write, build-github-review-payload, freeze-approved-review, stale-head refusal, validate-approved-review, and no payload rebuild after approval.",
-        "Branch-review post-edit PASS: agent used REVIEW_SURFACE=branch-review render-review-preview, immutable HEAD_SHA evidence, exact Findings written to <path>. re-emission, no GitHub posting/schema/payload semantics, and recognized build-github-review-payload refuses branch-review.",
-      ],
+      baselinePrReview: {
+        prompt:
+          "Read current `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: completed PR review finding synthesis; present review for user approval; allow user to edit body/drop findings; post approved review. Describe files, helper commands, payload posted, and how posted payload is identical to what user approved. Do not infer future helper behavior unless prose says so.",
+        observed:
+          "Agent would write findings/context, capture `REVIEW_HEAD_SHA` and `REVIEW_FINDINGS_FILE`, manually present formatted findings and draft body preview, allow `post`, `drop #N`, `change #N severity`, `edit`, then Phase 6 validates/reads original findings JSON and rebuilds a `gh api .../reviews` payload with `jq` using `REVIEW_HEAD_SHA` and finding fields.",
+        result:
+          "FAIL: no approved-review artifact, no sealed payload file/hash, no exact validated stdout, and manual preview can diverge from posted JSON.",
+      },
+      baselineBranchReview: {
+        prompt:
+          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v1` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
+        observed:
+          "Agent would rely on `play-review` markdown output and exact notice line, invoke existing input/context/findings write helpers, and not invoke `validate-findings` unless opening/overwriting. No GitHub posting, but prose had nearby GitHub schema/API language.",
+        result:
+          "FAIL: no branch-review-specific artifact-backed preview renderer; agent may manually reshape findings, risk notice-line drift, or rebuild evidence from mutable current checkout.",
+      },
+      postEditPrReview: {
+        prompt:
+          "Read edited `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal, user gate preservation, body/finding rewrite loops, and no payload rebuild after approval.",
+        observed:
+          "Agent creates `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md`, renders preview with `render-review-preview`, rewrites `REVIEW_BODY_FILE` for body edits, rewrites validated findings envelope for drops/reclassification with `validate-findings`/`prepare-findings-write`, rerenders and returns to user gate. After approval, it calls `prepare-review-payload-write`, writes `build-github-review-payload` output to `REVIEW_PAYLOAD_FILE`, freezes with `freeze-approved-review`, refuses stale heads, validates approved artifact, and posts only validated frozen payload without rebuilding.",
+        result: "PASS",
+      },
+      postEditBranchReview: {
+        prompt:
+          "Read edited `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`, review-head-source evidence, exact notice preservation, no GitHub semantics, and `build-github-review-payload` refusal for branch-review.",
+        observed:
+          'Agent extracts the `Findings written to <path>.` line, binds it as `REVIEW_FINDINGS_FILE`, renders preview with `HEAD_SHA=$REVIEW_HEAD_SHA FINDINGS_FILE=$REVIEW_FINDINGS_FILE REVIEW_SURFACE=branch-review bash "$PLAY_REVIEW_HELPER" render-review-preview`, re-emits helper stdout and exact notice, uses immutable review head evidence, appends no JSON fence, and treats branch-review as no GitHub posting/schema/payload. It recognizes `build-github-review-payload` refuses branch-review.',
+        result: "PASS",
+      },
     };
+    const pressureText = normalizeWhitespace(
+      JSON.stringify(pressureEvidence, null, 2),
+    );
 
-    expect(pressureEvidence.baseline.join("\n")).toContain(
-      "PR-review baseline FAIL",
+    expect(pressureText).toContain(
+      "completed PR review finding synthesis; present review for user approval",
     );
-    expect(pressureEvidence.baseline.join("\n")).toContain(
-      "Branch-review baseline FAIL",
+    expect(pressureText).toContain(
+      "manual preview can diverge from posted JSON",
     );
-    expect(pressureEvidence.postEdit.join("\n")).toContain(
-      "PR-review post-edit PASS",
+    expect(pressureText).toContain(
+      "running `branch-review` present mode after writing a `play-review/findings/v1` file",
     );
-    expect(pressureEvidence.postEdit.join("\n")).toContain(
-      "Branch-review post-edit PASS",
+    expect(pressureText).toContain(
+      "risk notice-line drift, or rebuild evidence from mutable current checkout",
+    );
+    expect(pressureText).toContain(
+      "PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal",
+    );
+    expect(pressureText).toContain(
+      "posts only validated frozen payload without rebuilding",
+    );
+    expect(pressureText).toContain(
+      "PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`",
+    );
+    expect(pressureText).toContain(
+      "recognizes `build-github-review-payload` refuses branch-review",
     );
 
     for (const prContract of [
