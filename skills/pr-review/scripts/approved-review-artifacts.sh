@@ -295,10 +295,11 @@ assert_payload_shape() {
       and (split("/") | all(. != "" and . != "." and . != ".."));
     def valid_comment:
       type == "object"
-      and ((keys - ["path", "line", "start_line", "side", "body"]) | length == 0)
+      and ((keys - ["path", "line", "start_line", "start_side", "side", "body"]) | length == 0)
       and (.path | repo_relative_path)
       and (.line | positive_integer)
       and ((has("start_line") | not) or (.start_line | positive_integer))
+      and (if has("start_line") then .start_side == "RIGHT" else has("start_side") | not end)
       and one_of(["LEFT", "RIGHT"]; .side)
       and (.body | type == "string");
     type == "object"

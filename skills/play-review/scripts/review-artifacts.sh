@@ -481,7 +481,7 @@ build_github_review_payload() {
             else
               .body
             end)
-          } | if .start_line == null then del(.start_line) else . end)
+          } | if .start_line == null then del(.start_line) else . + {start_side: "RIGHT"} end)
       )
     }'
 }

@@ -298,7 +298,9 @@ Only after user approval:
    The frozen artifact schema is `pr-review/approved-review/v1`. It stores the
    approved `review_head_sha`, findings path, review body path, review payload
    path, SHA-256 digests for all three source artifacts, and the exact payload
-   object. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body.
+   object. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
+   and requires ranged inline comments to pair `start_line` with
+   `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
 3. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub

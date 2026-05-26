@@ -288,8 +288,9 @@ Output and failure behavior: stdout is one JSON object containing
 `commit_id`, `event`, `body`, and `comments`. The command uses the
 review-head SHA as `commit_id`, appends out-of-diff findings to the top-level
 body, converts natural and missing-file findings into inline comments, prefixes
-missing-file comment bodies, omits `start_line` when it is `null`, and exits
-nonzero for every validation failure above. It refuses
+missing-file comment bodies, omits `start_line` and `start_side` when
+`start_line` is `null`, adds `start_side: "RIGHT"` whenever `start_line` is
+present, and exits nonzero for every validation failure above. It refuses
 `REVIEW_SURFACE=branch-review` with `build-github-review-payload requires
 REVIEW_SURFACE=pr-review`.
 

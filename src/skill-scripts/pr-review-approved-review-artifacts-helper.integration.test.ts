@@ -89,6 +89,28 @@ function payload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function payloadWithRange(overrides: Record<string, unknown> = {}) {
+  return payload({
+    comments: [
+      {
+        path: "src/example.ts",
+        line: 12,
+        start_line: 10,
+        start_side: "RIGHT",
+        side: "RIGHT",
+        body: "Ranged inline comment\n",
+      },
+      {
+        path: "src/other.ts",
+        line: 4,
+        side: "RIGHT",
+        body: "Single-line inline comment\n",
+      },
+    ],
+    ...overrides,
+  });
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
 }
@@ -195,6 +217,98 @@ describe.skipIf(!jqAvailable)(
 
         expect(JSON.parse(stdout)).toEqual(payload());
         expect(stdout).toContain('"body": "Review body\\n"');
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("allows start_side only on ranged inline comments", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeJson(cwd, payloadFile, payloadWithRange());
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const { stdout } = await runHelper(cwd, "validate-approved-review", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+        });
+
+        const validatedPayload = JSON.parse(stdout) as {
+          comments: Array<Record<string, unknown>>;
+        };
+        expect(validatedPayload.comments[0]).toMatchObject({
+          start_line: 10,
+          start_side: "RIGHT",
+        });
+        expect(validatedPayload.comments[1]).not.toHaveProperty("start_line");
+        expect(validatedPayload.comments[1]).not.toHaveProperty("start_side");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects malformed start_side relationships in frozen payload validation", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+
+        const malformedPayloads = [
+          payloadWithRange({
+            comments: [
+              {
+                path: "src/example.ts",
+                line: 12,
+                start_line: 10,
+                side: "RIGHT",
+                body: "Missing start_side\n",
+              },
+            ],
+          }),
+          payloadWithRange({
+            comments: [
+              {
+                path: "src/example.ts",
+                line: 12,
+                start_line: 10,
+                start_side: "LEFT",
+                side: "RIGHT",
+                body: "Invalid start_side\n",
+              },
+            ],
+          }),
+          payloadWithRange({
+            comments: [
+              {
+                path: "src/example.ts",
+                line: 12,
+                start_side: "RIGHT",
+                side: "RIGHT",
+                body: "start_side without start_line\n",
+              },
+            ],
+          }),
+        ];
+
+        for (const malformedPayload of malformedPayloads) {
+          await writeJson(cwd, payloadFile, malformedPayload);
+          await expect(
+            runHelper(cwd, "validate-approved-review", {
+              APPROVED_REVIEW_FILE: approvedReviewFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("payload shape mismatch"),
+          });
+        }
       } finally {
         await cleanupTempDir(cwd);
       }

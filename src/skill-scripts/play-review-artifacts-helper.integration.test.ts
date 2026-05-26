@@ -352,9 +352,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         "Missing-file finding (no natural anchor — see body):",
       );
       expect(payload.comments[1]).not.toHaveProperty("start_line");
+      expect(payload.comments[1]).not.toHaveProperty("start_side");
       expect(payload.comments[2]).toMatchObject({
         path: "src/review-target.ts",
         start_line: 2,
+        start_side: "RIGHT",
         line: 3,
         side: "RIGHT",
       });
@@ -364,6 +366,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         "path",
         "side",
         "start_line",
+        "start_side",
       ]);
     } finally {
       await cleanupTempDir(cwd);
