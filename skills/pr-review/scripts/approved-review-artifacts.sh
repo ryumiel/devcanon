@@ -185,7 +185,10 @@ prepare_write_target() {
     exit 1
   }
   mkdir -p .ephemeral
-  [ -L "$file" ] && rm "$file"
+  [ ! -L "$file" ] || {
+    echo "$label path must not be a symlink: $file" >&2
+    exit 1
+  }
   [ ! -d "$file" ] || {
     echo "$label path is a directory: $file" >&2
     exit 1
@@ -221,11 +224,58 @@ assert_findings_envelope() {
   local file="$1"
   require_jq
   jq -e '
+    def one_of($values; $value): ($values | index($value)) != null;
+    def positive_integer:
+      type == "number" and . == floor and . >= 1;
+    def repo_relative_path:
+      type == "string"
+      and length > 0
+      and (startswith("/") | not)
+      and (split("/") | all(. != "" and . != "." and . != ".."));
+    def valid_critic:
+      if .severity == "Nit" then
+        .critic == null
+      else
+        .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
+      end;
+    def valid_finding:
+      type == "object"
+      and has("path")
+      and has("line")
+      and has("start_line")
+      and has("severity")
+      and has("category")
+      and has("critic")
+      and has("anchor")
+      and has("why")
+      and has("recommendation")
+      and has("body")
+      and (.path | repo_relative_path)
+      and (.line | positive_integer)
+      and (.start_line == null or (.start_line | positive_integer))
+      and one_of(["Blocking", "Nit"]; .severity)
+      and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
+      and valid_critic
+      and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
+      and (.why | type == "string")
+      and (.recommendation | type == "string")
+      and (.body | type == "string");
     .schema == "play-review/findings/v1"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
+    and ((.findings + .carry_forward) | all(.[]; valid_finding))
   ' "$file" >/dev/null || {
     echo "findings schema mismatch or envelope shape mismatch: $file" >&2
+    exit 1
+  }
+}
+
+assert_single_json_object() {
+  local label="$1"
+  local file="$2"
+  require_jq
+  jq -e -s 'length == 1 and (.[0] | type == "object")' "$file" >/dev/null || {
+    echo "$label must contain exactly one JSON object: $file" >&2
     exit 1
   }
 }
@@ -275,10 +325,10 @@ assert_approved_schema() {
     and (.review_head_sha | head_sha)
     and (.findings_file | type == "string")
     and (.review_body_file | type == "string")
-    and (.payload_file | type == "string")
+    and (.review_payload_file | type == "string")
     and (.findings_sha256 | hex_sha256)
     and (.review_body_sha256 | hex_sha256)
-    and (.payload_sha256 | hex_sha256)
+    and (.review_payload_sha256 | hex_sha256)
     and (.payload | type == "object")
   ' "$file" >/dev/null || {
     echo "approved review schema mismatch: $file" >&2
@@ -315,6 +365,7 @@ freeze_approved_review() {
   assert_readable_file "review body file" "$REVIEW_BODY_FILE"
   assert_readable_file "review payload file" "$REVIEW_PAYLOAD_FILE"
   assert_findings_envelope "$FINDINGS_FILE"
+  assert_single_json_object "review payload" "$REVIEW_PAYLOAD_FILE"
   assert_payload_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
 
   approved_review_file="$(expected_approved_path_for "$HEAD_SHA")"
@@ -330,20 +381,20 @@ freeze_approved_review() {
     --arg review_head_sha "$HEAD_SHA" \
     --arg findings_file "$FINDINGS_FILE" \
     --arg review_body_file "$REVIEW_BODY_FILE" \
-    --arg payload_file "$REVIEW_PAYLOAD_FILE" \
+    --arg review_payload_file "$REVIEW_PAYLOAD_FILE" \
     --arg findings_sha256 "$findings_sha256" \
     --arg review_body_sha256 "$review_body_sha256" \
-    --arg payload_sha256 "$payload_sha256" \
+    --arg review_payload_sha256 "$payload_sha256" \
     --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
     '{
       schema: $schema,
       review_head_sha: $review_head_sha,
       findings_file: $findings_file,
       review_body_file: $review_body_file,
-      payload_file: $payload_file,
+      review_payload_file: $review_payload_file,
       findings_sha256: $findings_sha256,
       review_body_sha256: $review_body_sha256,
-      payload_sha256: $payload_sha256,
+      review_payload_sha256: $review_payload_sha256,
       payload: $payload[0]
     }' > "$tmp_file"
   mv -f "$tmp_file" "$approved_review_file"
@@ -387,10 +438,10 @@ validate_approved_review() {
 
   findings_file="$(jq -r '.findings_file' "$APPROVED_REVIEW_FILE")"
   review_body_file="$(jq -r '.review_body_file' "$APPROVED_REVIEW_FILE")"
-  payload_file="$(jq -r '.payload_file' "$APPROVED_REVIEW_FILE")"
+  payload_file="$(jq -r '.review_payload_file' "$APPROVED_REVIEW_FILE")"
   findings_sha256="$(jq -r '.findings_sha256' "$APPROVED_REVIEW_FILE")"
   review_body_sha256="$(jq -r '.review_body_sha256' "$APPROVED_REVIEW_FILE")"
-  payload_sha256="$(jq -r '.payload_sha256' "$APPROVED_REVIEW_FILE")"
+  payload_sha256="$(jq -r '.review_payload_sha256' "$APPROVED_REVIEW_FILE")"
 
   validate_findings_path_shape "$findings_file" "$review_head_sha"
   validate_review_body_path_shape "$review_body_file"
@@ -399,6 +450,7 @@ validate_approved_review() {
   assert_readable_file "review body file" "$review_body_file"
   assert_readable_file "review payload file" "$payload_file"
   assert_findings_envelope "$findings_file"
+  assert_single_json_object "review payload" "$payload_file"
   assert_payload_shape "$payload_file" "$review_head_sha"
   validate_digest "findings" "$findings_file" "$findings_sha256"
   validate_digest "review body" "$review_body_file" "$review_body_sha256"

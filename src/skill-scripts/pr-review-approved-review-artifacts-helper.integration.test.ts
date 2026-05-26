@@ -157,10 +157,10 @@ describe.skipIf(!jqAvailable)(
           review_head_sha: string;
           findings_file: string;
           review_body_file: string;
-          payload_file: string;
+          review_payload_file: string;
           findings_sha256: string;
           review_body_sha256: string;
-          payload_sha256: string;
+          review_payload_sha256: string;
           payload: unknown;
         };
         expect(artifact).toMatchObject({
@@ -168,12 +168,12 @@ describe.skipIf(!jqAvailable)(
           review_head_sha: headSha,
           findings_file: findingsFile,
           review_body_file: reviewBodyFile,
-          payload_file: payloadFile,
+          review_payload_file: payloadFile,
           payload: payload(),
         });
         expect(artifact.findings_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
-        expect(artifact.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -288,10 +288,10 @@ describe.skipIf(!jqAvailable)(
           review_head_sha: headSha,
           findings_file: findingsFile,
           review_body_file: reviewBodyFile,
-          payload_file: payloadFile,
+          review_payload_file: payloadFile,
           findings_sha256: "0".repeat(64),
           review_body_sha256: "0".repeat(64),
-          payload_sha256: "0".repeat(64),
+          review_payload_sha256: "0".repeat(64),
           payload: payload(),
         });
 
@@ -353,7 +353,7 @@ describe.skipIf(!jqAvailable)(
         const artifact = JSON.parse(
           await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
         );
-        artifact.payload_sha256 = "0".repeat(64);
+        artifact.review_payload_sha256 = "0".repeat(64);
         await writeJson(cwd, approvedReviewFile, artifact);
         await expect(
           runHelper(cwd, "validate-approved-review", {
@@ -361,6 +361,121 @@ describe.skipIf(!jqAvailable)(
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("payload digest mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects invalid findings entries before freezing or validating approved reviews", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const invalidFreezeEntries = [
+          {
+            line: 12,
+            start_line: null,
+            severity: "Blocking",
+            category: "Safety",
+            critic: "VALID",
+            anchor: "natural",
+            why: "Missing path should be rejected.",
+            recommendation: "Reject malformed entries.",
+            body: "body",
+          },
+          {
+            path: "src/example.ts",
+            line: 12,
+            start_line: null,
+            severity: "Blocking",
+            category: "Safety",
+            anchor: "natural",
+            why: "Missing critic should be rejected.",
+            recommendation: "Reject malformed entries.",
+            body: "body",
+          },
+        ];
+
+        for (const invalidEntry of invalidFreezeEntries) {
+          await writeJson(cwd, findingsFile, {
+            schema: "play-review/findings/v1",
+            findings: [invalidEntry],
+            carry_forward: [],
+          });
+
+          await expect(
+            runHelper(cwd, "freeze-approved-review", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_PAYLOAD_FILE: payloadFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("findings schema mismatch"),
+          });
+        }
+
+        await writeInputs(cwd);
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+        });
+        const artifact = JSON.parse(
+          await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+        );
+        artifact.findings_sha256 = "0".repeat(64);
+        await writeJson(cwd, approvedReviewFile, artifact);
+        await writeJson(cwd, findingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [
+            {
+              path: "src/example.ts",
+              line: 12,
+              start_line: null,
+              severity: "Nit",
+              category: "Safety",
+              critic: "VALID",
+              anchor: "natural",
+              why: "Nit with critic verdict should be rejected.",
+              recommendation: "Mirror play-review semantics.",
+              body: "body",
+            },
+          ],
+          carry_forward: [],
+        });
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects multi-document review payload JSON streams", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeJson(cwd, findingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        await writeFile(
+          path.join(cwd, payloadFile),
+          `${JSON.stringify(payload())}\n${JSON.stringify(payload({ event: "APPROVE" }))}\n`,
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "payload must contain exactly one JSON object",
+          ),
         });
       } finally {
         await cleanupTempDir(cwd);
@@ -435,6 +550,62 @@ describe.skipIf(!jqAvailable)(
               ".ephemeral must be a directory, not a symlink",
             ),
           });
+        } finally {
+          await cleanupTempDir(cwd);
+        }
+      },
+    );
+
+    it.skipIf(!symlinkAvailable)(
+      "rejects symlinked write targets without removing them",
+      async () => {
+        const cwd = await makeGitWorkspace();
+        const outsidePayload = path.join(cwd, "outside-payload.json");
+        const outsideApproved = path.join(cwd, "outside-approved-review.json");
+        try {
+          await writeInputs(cwd);
+          await rm(path.join(cwd, payloadFile));
+          await writeFile(outsidePayload, "do not remove\n");
+          await symlink(outsidePayload, path.join(cwd, payloadFile));
+
+          await expect(
+            runHelper(cwd, "prepare-review-payload-write", {
+              REVIEW_PAYLOAD_FILE: payloadFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "review payload path must not be a symlink",
+            ),
+          });
+          expect(await readFile(outsidePayload, "utf-8")).toBe(
+            "do not remove\n",
+          );
+          expect(
+            (await lstat(path.join(cwd, payloadFile))).isSymbolicLink(),
+          ).toBe(true);
+
+          await rm(path.join(cwd, payloadFile));
+          await writeJson(cwd, payloadFile, payload());
+          await writeFile(outsideApproved, "do not remove\n");
+          await symlink(outsideApproved, path.join(cwd, approvedReviewFile));
+
+          await expect(
+            runHelper(cwd, "freeze-approved-review", {
+              FINDINGS_FILE: findingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_PAYLOAD_FILE: payloadFile,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "approved review path must not be a symlink",
+            ),
+          });
+          expect(await readFile(outsideApproved, "utf-8")).toBe(
+            "do not remove\n",
+          );
+          expect(
+            (await lstat(path.join(cwd, approvedReviewFile))).isSymbolicLink(),
+          ).toBe(true);
         } finally {
           await cleanupTempDir(cwd);
         }
