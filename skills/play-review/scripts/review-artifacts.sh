@@ -344,8 +344,7 @@ render_entry() {
   local category
   local critic
   local anchor
-  local why
-  local recommendation
+  local body
 
   entry_path="$(jq -r '.path' <<<"$entry_json")"
   line="$(jq -r '.line' <<<"$entry_json")"
@@ -354,8 +353,10 @@ render_entry() {
   category="$(jq -r '.category' <<<"$entry_json")"
   critic="$(jq -r 'if .critic == null then "(skipped - nit)" else .critic end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
-  why="$(jq -r '.why' <<<"$entry_json")"
-  recommendation="$(jq -r '.recommendation' <<<"$entry_json")"
+  body="$(jq -r '.body' <<<"$entry_json")"
+  if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then
+    body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
+  fi
   if [ "$start_line" = "null" ]; then
     line_display="$line"
   else
@@ -370,8 +371,8 @@ render_entry() {
   printf -- '- **Critic:** %s\n' "$critic"
   printf -- '- **Anchor:** %s\n\n' "$anchor"
   render_source_snippet "$entry_path" "$line" "$start_line"
-  printf '\n%s\n\n' "$why"
-  printf '**Recommendation:** %s\n\n' "$recommendation"
+  printf '\n#### Rendered Finding Body\n\n'
+  printf '%s\n\n' "$body"
 }
 
 build_review_body() {

@@ -263,8 +263,12 @@ Output and failure behavior: stdout is the complete preview text for the
 wrapper to show the operator. The command validates repository-root cwd,
 `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE`, and (for PR review) the review
 body file; validates the findings schema; renders evidence snippets from the
-review-head tree; exits nonzero on unsafe paths, missing files, schema mismatch,
-unsupported surfaces, stale/missing review-head source, or invalid anchors.
+review-head tree; renders each finding's ready body text from the validated
+`.body` field; and, for PR review natural and missing-file inline comments,
+shows the exact body text that `build-github-review-payload` will post,
+including the missing-file prefix. It exits nonzero on unsafe paths, missing
+files, schema mismatch, unsupported surfaces, stale/missing review-head source,
+or invalid anchors.
 `REVIEW_SURFACE=branch-review` never reads or requires `REVIEW_BODY_FILE` and
 never builds a GitHub payload.
 

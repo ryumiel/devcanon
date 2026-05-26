@@ -255,6 +255,75 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("renders exact post-ready inline bodies even when body diverges from live fields", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const reviewBodyFile = ".ephemeral/review-body.md";
+      const naturalBody =
+        "**Blocking | Contracts** - Posted natural body from the frozen artifact.\n\n**Recommendation:** Post this natural recommendation.";
+      const missingBody =
+        "**Nit | Tests** - Posted missing-file body from the frozen artifact.\n\n**Recommendation:** Post this missing-file recommendation.";
+      await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            line: 4,
+            anchor: "natural",
+            why: "STALE natural why must not drive the approved inline text.",
+            recommendation:
+              "STALE natural recommendation must not drive the approved inline text.",
+            body: naturalBody,
+          }),
+          sourceFinding({
+            line: 8,
+            anchor: "missing-file",
+            why: "STALE missing-file why must not drive the approved inline text.",
+            recommendation:
+              "STALE missing-file recommendation must not drive the approved inline text.",
+            body: missingBody,
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      const preview = await runHelper(cwd, "render-review-preview", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+        REVIEW_SURFACE: "pr-review",
+        REVIEW_BODY_FILE: reviewBodyFile,
+      });
+      const payload = await runHelper(cwd, "build-github-review-payload", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+        REVIEW_SURFACE: "pr-review",
+        REVIEW_BODY_FILE: reviewBodyFile,
+        REVIEW_EVENT: "REQUEST_CHANGES",
+      });
+      const decoded = JSON.parse(payload.stdout) as {
+        comments: Array<{ body: string }>;
+      };
+
+      expect(decoded.comments[0].body).toBe(naturalBody);
+      expect(decoded.comments[1].body).toBe(
+        `Missing-file finding (no natural anchor — see body):\n\n${missingBody}`,
+      );
+      expect(preview.stdout).toContain(
+        `#### Rendered Finding Body\n\n${decoded.comments[0].body}\n\n`,
+      );
+      expect(preview.stdout).toContain(
+        `#### Rendered Finding Body\n\n${decoded.comments[1].body}\n\n`,
+      );
+      expect(preview.stdout).not.toContain("STALE natural why");
+      expect(preview.stdout).not.toContain("STALE missing-file why");
+      expect(preview.stdout).not.toContain("STALE natural recommendation");
+      expect(preview.stdout).not.toContain("STALE missing-file recommendation");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("renders branch-review preview without a review body or GitHub posting concepts", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
