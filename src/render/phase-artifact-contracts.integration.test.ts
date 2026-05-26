@@ -157,8 +157,11 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("REVIEW_BODY_FILE");
+    expect(prReview).toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
+    expect(prReview).toContain("APPROVED_REVIEW_INTENT");
+    expect(prReview).toContain("unset REVIEW_EVENT");
     expect(prReview).toContain("CURRENT_HEAD_SHA");
     expect(prReview).toContain(
       "PR head changed since review; refusing to post stale approved review",
@@ -190,6 +193,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("freeze-approved-review");
       expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(renderedPrReview).toContain(
+        "review body parent must be .ephemeral",
+      );
+      expect(renderedPrReview).toContain("APPROVED_REVIEW_INTENT");
+      expect(renderedPrReview).toContain("unset REVIEW_EVENT");
+      expect(renderedPrReview).toContain('REVIEW_EVENT="APPROVE"');
+      expect(renderedPrReview).toContain('REVIEW_EVENT="REQUEST_CHANGES"');
+      expect(renderedPrReview).toContain('REVIEW_EVENT="COMMENT"');
+      expect(renderedPrReview).toContain("unrecognized approved review intent");
       expect(renderedPrReview).toContain("CURRENT_HEAD_SHA");
       expect(renderedPrReview).toContain(
         "PR head changed since review; refusing to post stale approved review",

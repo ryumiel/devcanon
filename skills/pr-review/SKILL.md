@@ -131,7 +131,11 @@ it from the target worktree root. The helper renders evidence snippets from
 `REVIEW_HEAD_SHA`, not the mutable checkout.
 
 Before the first preview, create a draft review body file as a direct child of
-`.ephemeral/`, then render the preview with `REVIEW_SURFACE=pr-review`:
+`.ephemeral/`. Guard the write target before every initial write or rewrite:
+the path must be a direct child of `.ephemeral`, must not contain traversal,
+`.ephemeral` must not be a symlink, the parent must be `.ephemeral`, and the
+leaf must not be a symlink or directory. Then render the preview with
+`REVIEW_SURFACE=pr-review`:
 
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
@@ -140,6 +144,13 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
 
 (
   cd "$WORKING_DIRECTORY" || exit 1
+  case "$REVIEW_BODY_FILE" in .ephemeral/*/* | *..*) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; .ephemeral/*) ;; *) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; esac
+  [ "$(dirname "$REVIEW_BODY_FILE")" = ".ephemeral" ] || { echo "review body parent must be .ephemeral" >&2; exit 1; }
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ ! -L "$REVIEW_BODY_FILE" ] || { echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2; exit 1; }
+  [ ! -d "$REVIEW_BODY_FILE" ] || { echo "review body path is a directory: $REVIEW_BODY_FILE" >&2; exit 1; }
+  [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
   # Write the draft top-level review summary to "$REVIEW_BODY_FILE".
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
@@ -161,13 +172,15 @@ resolution list for follow-up reviews when applicable:
 ```
 
 The Phase 5 preview is not approval by itself. Any user-requested change returns
-to this gate after the artifacts are rewritten and re-rendered.
+to this gate after the artifacts are rewritten and re-rendered. Approval intent
+is captured only when the user approves a specific preview.
 
 **Body edits:** rewrite `REVIEW_BODY_FILE`, rerun
 `render-review-preview` with the same `REVIEW_HEAD_SHA`,
-`REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and
-`REVIEW_BODY_FILE`, then present the new stdout and wait again. Do not proceed
-to Phase 6 until the user approves that latest preview.
+`REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and `REVIEW_BODY_FILE`,
+then present the new stdout and wait again. Run the same `REVIEW_BODY_FILE`
+pre-write guard immediately before every rewrite. Do not proceed to Phase 6
+until the user approves that latest preview.
 
 **Dropped or reclassified findings:** rewrite the
 `play-review/findings/v1` envelope at `REVIEW_FINDINGS_FILE`, recomputing each
@@ -212,7 +225,26 @@ from conversation text or current checkout state.
 
 Only after user approval:
 
-1. **Build and freeze the approved payload artifact before posting.** Use the
+1. **Bind the approved review event from the user-approved intent.** Do not
+   reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
+   derive it from the explicit Phase 5 approval that applies to the latest
+   rendered preview. Approval intent maps to GitHub review events as follows:
+   approve => `APPROVE`; request-changes or blocking review => `REQUEST_CHANGES`;
+   post as comment, comment-only review, or no-verdict review => `COMMENT`.
+   Any unrecognized approval intent is a contract failure; stop before payload
+   construction.
+
+   ```bash
+   unset REVIEW_EVENT
+   case "$APPROVED_REVIEW_INTENT" in
+     approve) REVIEW_EVENT="APPROVE" ;;
+     request-changes | blocking | blocking-review) REVIEW_EVENT="REQUEST_CHANGES" ;;
+     post-as-comment | comment | comment-only | no-verdict) REVIEW_EVENT="COMMENT" ;;
+     *) echo "unrecognized approved review intent: $APPROVED_REVIEW_INTENT" >&2; exit 1 ;;
+   esac
+   ```
+
+2. **Build and freeze the approved payload artifact before posting.** Use the
    approved Phase 5 artifacts; do not rebuild findings or the review body from
    conversation text. `PR_REVIEW_DIR` must resolve to the installed
    `pr-review` skill bundle, not the repository under review. Bind
@@ -259,7 +291,7 @@ Only after user approval:
    object. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
-2. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
+3. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
    immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
    return to Phase 1; do not post an approved artifact against a stale head.
 
@@ -271,7 +303,7 @@ Only after user approval:
    }
    ```
 
-3. **Post exactly the validated approved payload.** After the stale-head guard
+4. **Post exactly the validated approved payload.** After the stale-head guard
    passes, call `validate-approved-review` into a guarded direct-child
    `.ephemeral` payload file first. Only invoke `gh api` after validation exits
    zero. Do not call `build-github-review-payload` again after user approval.
@@ -301,14 +333,14 @@ Only after user approval:
    )
    ```
 
-4. Resolve threads via GraphQL only after the approved review post succeeds and
+5. Resolve threads via GraphQL only after the approved review post succeeds and
    only for threads the user approved for resolution:
 
    ```sh
    gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
-5. Verify each API response succeeded. Report failures, stop on error.
+6. Verify each API response succeeded. Report failures, stop on error.
 
 ## Phase 7: Cleanup
 

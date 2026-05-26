@@ -920,9 +920,26 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("REVIEW_BODY_FILE");
+    expect(prReview).toContain("review body parent must be .ephemeral");
+    expect(prReview).toContain(
+      "review body file must not be a symlink: $REVIEW_BODY_FILE",
+    );
+    expect(prReview).toContain(
+      "review body path exists but is not a regular file: $REVIEW_BODY_FILE",
+    );
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
     expect(prReview).toContain("APPROVED_REVIEW_FILE");
     expect(prReview).toContain("REVIEW_EVENT");
+    expect(prReview).toContain("unset REVIEW_EVENT");
+    expect(prReview).toContain("APPROVED_REVIEW_INTENT");
+    expect(prReview).toContain('approve) REVIEW_EVENT="APPROVE"');
+    expect(prReview).toContain(
+      'request-changes | blocking | blocking-review) REVIEW_EVENT="REQUEST_CHANGES"',
+    );
+    expect(prReview).toContain(
+      'post-as-comment | comment | comment-only | no-verdict) REVIEW_EVENT="COMMENT"',
+    );
+    expect(prReview).toContain("unrecognized approved review intent");
     expect(prReview).toContain("CURRENT_HEAD_SHA");
     expect(prReview).toContain(
       "PR head changed since review; refusing to post stale approved review",
@@ -932,6 +949,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
+    );
+    expect(normalizedPrReview).toContain(
+      "Run the same `REVIEW_BODY_FILE` pre-write guard immediately before every rewrite",
     );
     expect(normalizedPrReview).toContain("Dropped or reclassified findings");
     expect(normalizedPrReview).toContain(
@@ -1059,7 +1079,10 @@ describe("phase artifact source contracts", () => {
 
     for (const prContract of [
       ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md",
+      "review body parent must be .ephemeral",
       "render-review-preview",
+      "unset REVIEW_EVENT",
+      "APPROVED_REVIEW_INTENT",
       "prepare-review-payload-write",
       "build-github-review-payload",
       "freeze-approved-review",
