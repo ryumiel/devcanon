@@ -120,12 +120,129 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(playReview).toContain("play-review/findings/v1");
     expect(playReview).toContain("Findings written to");
     expect(playReview).toContain("PLAY_REVIEW_HELPER");
+    expect(playReview).toContain("scripts/review-artifacts.sh");
+    expect(playReview).toContain("render-review-preview");
+    expect(playReview).toContain("build-github-review-payload");
+    expect(playReview).toContain("REVIEW_SURFACE=pr-review");
+    expect(playReview).toContain("REVIEW_SURFACE=branch-review");
+    expect(normalizeRenderedWhitespace(playReview)).toContain(
+      "build-github-review-payload requires REVIEW_SURFACE=pr-review",
+    );
+    expect(normalizeRenderedWhitespace(playReview)).toContain(
+      "review-head source, not the mutable working tree",
+    );
 
     for (const skillName of ["branch-review", "pr-review"]) {
       const body = bodyFor(skillName);
       expect(body).toContain("play-review/findings/v1");
       expect(body).toContain("Findings written to");
       expect(body).toContain("PLAY_REVIEW_HELPER");
+      expect(body).toContain("render-review-preview");
+    }
+
+    const branchReview = bodyFor("branch-review");
+    expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
+    expect(branchReview).toContain("Findings written to <path>.");
+    expect(branchReview).toContain("no GitHub posting");
+    expect(branchReview).toContain("no `gh` commands");
+    expect(branchReview).toContain("no GitHub schema");
+    expect(branchReview).toContain("build-github-review-payload");
+
+    const prReview = bodyFor("pr-review");
+    expect(prReview).toContain("scripts/approved-review-artifacts.sh");
+    expect(prReview).toContain("build-github-review-payload");
+    expect(prReview).toContain("prepare-review-payload-write");
+    expect(prReview).toContain("freeze-approved-review");
+    expect(prReview).toContain("validate-approved-review");
+    expect(prReview).toContain("pr-review/approved-review/v1");
+    expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
+    expect(prReview).toContain("REVIEW_BODY_FILE");
+    expect(prReview).toContain("review body parent must be .ephemeral");
+    expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
+    expect(prReview).toContain("APPROVED_REVIEW_FILE");
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+    );
+    expect(prReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
+    expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
+    expect(prReview).toContain("approved review artifact path missing");
+    expect(prReview).toContain("APPROVED_REVIEW_INTENT");
+    expect(prReview).toContain("unset REVIEW_EVENT");
+    expect(prReview).toContain("CURRENT_HEAD_SHA");
+    expect(prReview).toContain(
+      "PR head changed since review; refusing to post stale approved review",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Do not call `build-github-review-payload` again after user approval",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const renderedPlayReview = bodies[`play-review:${target}`];
+      const renderedPrReview = bodies[`pr-review:${target}`];
+      const renderedBranchReview = bodies[`branch-review:${target}`];
+
+      expect(renderedPlayReview).toContain("scripts/review-artifacts.sh");
+      expect(renderedPlayReview).toContain("render-review-preview");
+      expect(renderedPlayReview).toContain("build-github-review-payload");
+      expect(renderedPlayReview).toContain("REVIEW_SURFACE=pr-review");
+      expect(renderedPlayReview).toContain("REVIEW_SURFACE=branch-review");
+      expect(normalizeRenderedWhitespace(renderedPlayReview)).toContain(
+        "review-head source, not the mutable working tree",
+      );
+
+      expect(renderedPrReview).toContain(
+        "scripts/approved-review-artifacts.sh",
+      );
+      expect(renderedPrReview).toContain("render-review-preview");
+      expect(renderedPrReview).toContain("prepare-review-payload-write");
+      expect(renderedPrReview).toContain("build-github-review-payload");
+      expect(renderedPrReview).toContain("freeze-approved-review");
+      expect(renderedPrReview).toContain("validate-approved-review");
+      expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
+      );
+      expect(renderedPrReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
+      expect(renderedPrReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
+      expect(renderedPrReview).toContain(
+        "approved review artifact path missing",
+      );
+      expect(renderedPrReview).toContain(
+        "review body parent must be .ephemeral",
+      );
+      expect(renderedPrReview).toContain("APPROVED_REVIEW_INTENT");
+      expect(renderedPrReview).toContain("unset REVIEW_EVENT");
+      expect(renderedPrReview).toContain('REVIEW_EVENT="APPROVE"');
+      expect(renderedPrReview).toContain('REVIEW_EVENT="REQUEST_CHANGES"');
+      expect(renderedPrReview).toContain('REVIEW_EVENT="COMMENT"');
+      expect(renderedPrReview).toContain("unrecognized approved review intent");
+      expect(renderedPrReview).toContain("CURRENT_HEAD_SHA");
+      expect(renderedPrReview).toContain(
+        "PR head changed since review; refusing to post stale approved review",
+      );
+      expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+      expect(renderedPrReview).toContain(
+        "validated review payload path exists but is not a regular file",
+      );
+      expect(renderedPrReview).toContain(
+        "approved review validation failed; refusing to invoke gh api",
+      );
+      expect(renderedPrReview).not.toContain(
+        "Create review with inline comments** (primary posting method)",
+      );
+      expect(renderedPrReview).not.toContain(
+        'commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)"',
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Do not call `build-github-review-payload` again after user approval",
+      );
+
+      expect(renderedBranchReview).toContain('REVIEW_SURFACE="branch-review"');
+      expect(renderedBranchReview).toContain("Findings written to <path>.");
+      expect(renderedBranchReview).toContain("no GitHub posting");
+      expect(renderedBranchReview).toContain("no `gh` commands");
+      expect(renderedBranchReview).toContain("no GitHub schema");
+      expect(renderedBranchReview).toContain("build-github-review-payload");
     }
 
     const prAuthoring = bodyFor("pr-authoring");
@@ -485,6 +602,52 @@ describe("rendered phase artifact smoke coverage", () => {
           "play-review",
           "scripts",
           "review-artifacts.sh",
+        );
+
+        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
+  it("mirrors the pr-review approved-review helper script required by rendered Phase 6 contracts", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+      const sourceHelper = await readFile(
+        path.join(
+          repoRoot,
+          "skills",
+          "pr-review",
+          "scripts",
+          "approved-review-artifacts.sh",
+        ),
+        "utf-8",
+      );
+
+      for (const target of ["claude", "codex"] as const) {
+        const helperPath = path.join(
+          generatedDir,
+          target,
+          "skills",
+          "pr-review",
+          "scripts",
+          "approved-review-artifacts.sh",
         );
 
         expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
