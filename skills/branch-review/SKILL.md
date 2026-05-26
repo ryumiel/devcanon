@@ -243,9 +243,37 @@ REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 
 **Without `--fix` (interactive mode):**
 
-Re-emit `play-review`'s findings to the user in conversation. Preserve the format (file:line, severity, category, evidence code, recommendation). Findings tagged `Anchor: out-of-diff` are listed under "Out-of-diff findings" with a note that they require human judgment.
+Render the present-mode output with the artifact-backed `play-review` preview
+helper. Do not manually reshape findings or rebuild evidence snippets from the
+current checkout. `PLAY_REVIEW_DIR` must resolve to the installed
+`play-review` skill bundle, not the repository under review; bind
+`PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke
+it from the repository root with `REVIEW_SURFACE=branch-review` and
+`HEAD_SHA` bound to the immutable Phase 2 review head:
+
+```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+HEAD_SHA="$(git rev-parse HEAD)"
+REVIEW_HEAD_SHA="$HEAD_SHA"
+FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
+[ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
+REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
+
+HEAD_SHA="$REVIEW_HEAD_SHA" \
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+REVIEW_SURFACE="branch-review" \
+  bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
+```
+
+Re-emit that helper stdout to the user in conversation. Findings tagged
+`Anchor: out-of-diff` remain report-only and require human judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
+
+Branch review is a local surface: no GitHub posting, no `gh` commands, no GitHub schema or Reviews API payload construction.
+`REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`;
+`build-github-review-payload` must refuse this surface.
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 

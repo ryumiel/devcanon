@@ -880,6 +880,100 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
+    const playReview = await readSkillSource("play-review");
+    const prReview = await readSkillSource("pr-review");
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+    const normalizedPrReview = normalizeWhitespace(prReview);
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(playReview).toContain("scripts/review-artifacts.sh");
+    expect(playReview).toContain("render-review-preview");
+    expect(playReview).toContain("build-github-review-payload");
+    expect(playReview).toContain("REVIEW_SURFACE");
+    expect(playReview).toContain("REVIEW_SURFACE=pr-review");
+    expect(playReview).toContain("REVIEW_SURFACE=branch-review");
+    expect(playReview).toContain("REVIEW_BODY_FILE");
+    expect(playReview).toContain("REVIEW_EVENT");
+    expect(playReview).toContain("APPROVE`, `REQUEST_CHANGES`, or `COMMENT");
+    expect(normalizedPlayReview).toContain(
+      "Run them from the target repository root with `HEAD_SHA` bound to the immutable review head",
+    );
+    expect(normalizedPlayReview).toContain(
+      "The helper reads source snippets from `git show",
+    );
+    expect(normalizedPlayReview).toContain(
+      "review-head source, not the mutable working tree",
+    );
+    expect(normalizedPlayReview).toContain(
+      "refuses `REVIEW_SURFACE=branch-review` with `build-github-review-payload requires REVIEW_SURFACE=pr-review",
+    );
+
+    expect(prReview).toContain("scripts/review-artifacts.sh");
+    expect(prReview).toContain("scripts/approved-review-artifacts.sh");
+    expect(prReview).toContain("render-review-preview");
+    expect(prReview).toContain("build-github-review-payload");
+    expect(prReview).toContain("prepare-review-payload-write");
+    expect(prReview).toContain("freeze-approved-review");
+    expect(prReview).toContain("validate-approved-review");
+    expect(prReview).toContain("pr-review/approved-review/v1");
+    expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
+    expect(prReview).toContain("REVIEW_BODY_FILE");
+    expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
+    expect(prReview).toContain("APPROVED_REVIEW_FILE");
+    expect(prReview).toContain("REVIEW_EVENT");
+    expect(prReview).toContain("CURRENT_HEAD_SHA");
+    expect(prReview).toContain(
+      "PR head changed since review; refusing to post stale approved review",
+    );
+    expect(normalizedPrReview).toContain(
+      "Present exactly that stdout to the user as the preview",
+    );
+    expect(normalizedPrReview).toContain(
+      "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
+    );
+    expect(normalizedPrReview).toContain("Dropped or reclassified findings");
+    expect(normalizedPrReview).toContain(
+      "recomputing each affected finding's pre-rendered `body` field after any severity or category change",
+    );
+    expect(normalizedPrReview).toContain(
+      "run `prepare-findings-write` for the same immutable review head and path",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not proceed to Phase 6 until the user approves that latest preview",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not call `build-github-review-payload` again after user approval",
+    );
+    expect(normalizedPrReview).toContain(
+      "Post exactly the validated approved payload",
+    );
+    expect(normalizedPrReview).toContain(
+      "pipe its stdout directly to `gh api`",
+    );
+
+    expect(branchReview).toContain("render-review-preview");
+    expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
+    expect(branchReview).toContain("Findings written to <path>.");
+    expect(branchReview).toContain("no GitHub posting");
+    expect(branchReview).toContain("no `gh` commands");
+    expect(branchReview).toContain("no GitHub schema");
+    expect(branchReview).toContain("build-github-review-payload");
+    expect(normalizedBranchReview).toContain(
+      "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
+    );
+    expect(normalizedBranchReview).toContain(
+      "After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword)",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Branch review is a local surface",
+    );
+    expect(normalizedBranchReview).toContain(
+      "build-github-review-payload` must refuse this surface",
+    );
+  });
+
   it("keeps the snapshot manifest recipe contract in its reference source", async () => {
     const snapshotRecipe = await readRepoFile(
       "skills/play-subagent-execution/references/snapshot-manifest-recipe.md",
