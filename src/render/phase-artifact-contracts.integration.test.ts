@@ -167,6 +167,51 @@ describe("rendered phase artifact smoke coverage", () => {
       "Do not call `build-github-review-payload` again after user approval",
     );
 
+    for (const target of ["claude", "codex"] as const) {
+      const renderedPlayReview = bodies[`play-review:${target}`];
+      const renderedPrReview = bodies[`pr-review:${target}`];
+      const renderedBranchReview = bodies[`branch-review:${target}`];
+
+      expect(renderedPlayReview).toContain("scripts/review-artifacts.sh");
+      expect(renderedPlayReview).toContain("render-review-preview");
+      expect(renderedPlayReview).toContain("build-github-review-payload");
+      expect(renderedPlayReview).toContain("REVIEW_SURFACE=pr-review");
+      expect(renderedPlayReview).toContain("REVIEW_SURFACE=branch-review");
+      expect(normalizeRenderedWhitespace(renderedPlayReview)).toContain(
+        "review-head source, not the mutable working tree",
+      );
+
+      expect(renderedPrReview).toContain(
+        "scripts/approved-review-artifacts.sh",
+      );
+      expect(renderedPrReview).toContain("render-review-preview");
+      expect(renderedPrReview).toContain("prepare-review-payload-write");
+      expect(renderedPrReview).toContain("build-github-review-payload");
+      expect(renderedPrReview).toContain("freeze-approved-review");
+      expect(renderedPrReview).toContain("validate-approved-review");
+      expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+      expect(renderedPrReview).toContain(
+        "approved review validation failed; refusing to invoke gh api",
+      );
+      expect(renderedPrReview).not.toContain(
+        "Create review with inline comments** (primary posting method)",
+      );
+      expect(renderedPrReview).not.toContain(
+        'commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)"',
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Do not call `build-github-review-payload` again after user approval",
+      );
+
+      expect(renderedBranchReview).toContain('REVIEW_SURFACE="branch-review"');
+      expect(renderedBranchReview).toContain("Findings written to <path>.");
+      expect(renderedBranchReview).toContain("no GitHub posting");
+      expect(renderedBranchReview).toContain("no `gh` commands");
+      expect(renderedBranchReview).toContain("no GitHub schema");
+      expect(renderedBranchReview).toContain("build-github-review-payload");
+    }
+
     const prAuthoring = bodyFor("pr-authoring");
     expect(prAuthoring).toContain("compose");
     expect(prAuthoring).toContain("validate-fix");

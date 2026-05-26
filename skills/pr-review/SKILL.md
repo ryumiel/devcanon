@@ -272,21 +272,32 @@ Only after user approval:
    ```
 
 3. **Post exactly the validated approved payload.** After the stale-head guard
-   passes, call `validate-approved-review` and pipe its stdout directly to
-   `gh api`. Do not call `build-github-review-payload` again after user
-   approval. Do not edit, reformat, filter, or reconstruct the payload between
-   validation and posting.
+   passes, call `validate-approved-review` into a guarded direct-child
+   `.ephemeral` payload file first. Only invoke `gh api` after validation exits
+   zero. Do not call `build-github-review-payload` again after user approval.
+   Do not edit, reformat, filter, or reconstruct the payload between validation
+   and posting.
 
    ```sh
    (
      cd "$WORKING_DIRECTORY" || exit 1
-     HEAD_SHA="$REVIEW_HEAD_SHA" \
-     APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-       bash "$PR_REVIEW_HELPER" validate-approved-review \
-       | gh api repos/{owner}/{repo}/pulls/<N>/reviews \
-           --method POST \
-           --silent \
-           --input -
+     VALIDATED_REVIEW_PAYLOAD_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-validated-review-payload.json"
+     case "$VALIDATED_REVIEW_PAYLOAD_FILE" in .ephemeral/*/* | *..*) exit 1 ;; .ephemeral/*) ;; *) exit 1 ;; esac
+     [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+     mkdir -p .ephemeral
+     [ ! -L "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload must not be a symlink" >&2; exit 1; }
+     [ ! -d "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path is a directory" >&2; exit 1; }
+     if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
+       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+       bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
+       rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"
+       echo "approved review validation failed; refusing to invoke gh api" >&2
+       exit 1
+     fi
+     gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+       --method POST \
+       --silent \
+       --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
    )
    ```
 
@@ -307,22 +318,16 @@ Only after user approval:
 
 For the `gh api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
 
-**Create review with inline comments** (primary posting method):
+**Posting boundary reference:** the only review-creation path in this skill is
+Phase 6's approved-artifact flow: `build-github-review-payload` before user
+approval, `freeze-approved-review`, stale-head refusal, `validate-approved-review`
+into the guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `gh api --input
+"$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload here,
+do not fetch `commit_id` from live `gh pr view` for posting, and do not call
+`gh api` until the approved artifact has validated successfully.
 
-```sh
-gh api repos/{owner}/{repo}/pulls/<N>/reviews \
-  --method POST \
-  --jq '.id' \
-  --input <(jq -n \
-    --arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)" \
-    --argjson comments '[
-      {"path":"src/handler.rs","line":42,"side":"RIGHT","body":"**Blocking | Safety** — unchecked error\n\n**Recommendation:** propagate with `?`"},
-      {"path":"src/handler.rs","start_line":50,"line":55,"side":"RIGHT","body":"**Nit | Maintainability** — consider extracting helper"}
-    ]' \
-    '{commit_id: $commit_id, body: "Summary", event: "REQUEST_CHANGES", comments: $comments}')
-```
-
-Use `line` (absolute file line in HEAD), not `position` (diff offset). `side` is `"RIGHT"` for PR head lines.
+The sealed payload uses `line` (absolute file line in HEAD), not `position`
+(diff offset). `side` is `"RIGHT"` for PR head lines.
 
 **Reply to inline comment** (use the correct endpoint):
 

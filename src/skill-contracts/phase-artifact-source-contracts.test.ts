@@ -950,7 +950,23 @@ describe("phase artifact source contracts", () => {
       "Post exactly the validated approved payload",
     );
     expect(normalizedPrReview).toContain(
-      "pipe its stdout directly to `gh api`",
+      "call `validate-approved-review` into a guarded direct-child `.ephemeral` payload file first",
+    );
+    expect(prReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
+    expect(prReview).toContain(
+      "approved review validation failed; refusing to invoke gh api",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not manually construct a `jq` payload here",
+    );
+    expect(normalizedPrReview).toContain(
+      "do not fetch `commit_id` from live `gh pr view` for posting",
+    );
+    expect(prReview).not.toContain(
+      "**Create review with inline comments** (primary posting method)",
+    );
+    expect(prReview).not.toContain(
+      '--arg commit_id "$(gh pr view <N> --json headRefOid -q .headRefOid)"',
     );
 
     expect(branchReview).toContain("render-review-preview");
@@ -968,6 +984,73 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "Branch review is a local surface",
+    );
+    expect(normalizedBranchReview).toContain(
+      "build-github-review-payload` must refuse this surface",
+    );
+  });
+
+  it("records play-skill-authoring pressure evidence for wrapper artifact loopholes", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedPrReview = normalizeWhitespace(prReview);
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    const pressureEvidence = {
+      baseline: [
+        "PR-review baseline FAIL: mutable manual payload path allowed a conversation preview, drop/change/edit actions, then Phase 6 rebuilt and posted from side-channel findings without an approved artifact, sealed payload file, digest equality, or exact validated stdout.",
+        "Branch-review baseline FAIL: present mode delegated to markdown and exact notice prose without an artifact-backed preview renderer, allowing manual reshaping, current-checkout evidence, notice drift, and nearby GitHub schema confusion.",
+      ],
+      postEdit: [
+        "PR-review post-edit PASS: agent used .ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md, render-review-preview, body/finding rewrite loops returning to the user gate, prepare-review-payload-write, build-github-review-payload, freeze-approved-review, stale-head refusal, validate-approved-review, and no payload rebuild after approval.",
+        "Branch-review post-edit PASS: agent used REVIEW_SURFACE=branch-review render-review-preview, immutable HEAD_SHA evidence, exact Findings written to <path>. re-emission, no GitHub posting/schema/payload semantics, and recognized build-github-review-payload refuses branch-review.",
+      ],
+    };
+
+    expect(pressureEvidence.baseline.join("\n")).toContain(
+      "PR-review baseline FAIL",
+    );
+    expect(pressureEvidence.baseline.join("\n")).toContain(
+      "Branch-review baseline FAIL",
+    );
+    expect(pressureEvidence.postEdit.join("\n")).toContain(
+      "PR-review post-edit PASS",
+    );
+    expect(pressureEvidence.postEdit.join("\n")).toContain(
+      "Branch-review post-edit PASS",
+    );
+
+    for (const prContract of [
+      ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md",
+      "render-review-preview",
+      "prepare-review-payload-write",
+      "build-github-review-payload",
+      "freeze-approved-review",
+      "validate-approved-review",
+      "VALIDATED_REVIEW_PAYLOAD_FILE",
+      "Do not call `build-github-review-payload` again after user approval",
+    ]) {
+      expect(prReview).toContain(prContract);
+    }
+    expect(normalizedPrReview).toContain(
+      "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
+    );
+    expect(normalizedPrReview).toContain(
+      "PR head changed since review; refusing to post stale approved review",
+    );
+
+    for (const branchContract of [
+      'REVIEW_SURFACE="branch-review"',
+      "render-review-preview",
+      "Findings written to <path>.",
+      "no GitHub posting",
+      "no GitHub schema",
+      "build-github-review-payload",
+    ]) {
+      expect(branchReview).toContain(branchContract);
+    }
+    expect(normalizedBranchReview).toContain(
+      "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
     );
     expect(normalizedBranchReview).toContain(
       "build-github-review-payload` must refuse this surface",
