@@ -26,6 +26,7 @@ const helperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/approved-review-artifacts.sh",
 );
+const playReviewDir = path.join(process.cwd(), "skills/play-review");
 const headSha = "0123456789abcdef0123456789abcdef01234567";
 const staleHeadSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
@@ -128,7 +129,12 @@ async function runHelper(
 ) {
   return execFileAsync("bash", [helperScript, command], {
     cwd,
-    env: { ...process.env, HEAD_SHA: headSha, ...env },
+    env: {
+      ...process.env,
+      HEAD_SHA: headSha,
+      PLAY_REVIEW_DIR: playReviewDir,
+      ...env,
+    },
   });
 }
 
@@ -524,7 +530,7 @@ describe.skipIf(!jqAvailable)(
               REVIEW_PAYLOAD_FILE: payloadFile,
             }),
           ).rejects.toMatchObject({
-            stderr: expect.stringContaining("findings schema mismatch"),
+            stderr: expect.stringContaining("envelope schema mismatch"),
           });
         }
 
@@ -563,7 +569,7 @@ describe.skipIf(!jqAvailable)(
             APPROVED_REVIEW_FILE: approvedReviewFile,
           }),
         ).rejects.toMatchObject({
-          stderr: expect.stringContaining("findings schema mismatch"),
+          stderr: expect.stringContaining("envelope schema mismatch"),
         });
       } finally {
         await cleanupTempDir(cwd);

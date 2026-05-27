@@ -86,10 +86,22 @@ For follow-up reviews, normalize raw GitHub thread payloads from inside
 `HEAD_SHA="$(git rev-parse HEAD)"`, use `prepare-prior-threads-write` to prepare
 the worktree-local `.ephemeral/*-prior-threads.json` target, write a
 `pr-review/prior-threads/v1` artifact there, then run `validate-prior-threads`
-from the same worktree. The artifact classifies each thread as actionable,
+from the same worktree with `PRIOR_THREADS_FILE` bound to the prepared path:
+
+```sh
+PRIOR_THREADS_FILE=$(
+  HEAD_SHA="$HEAD_SHA" bash "$PR_REVIEW_HELPER" prepare-prior-threads-write
+) || exit 1
+# Write the normalized prior-threads artifact to "$PRIOR_THREADS_FILE".
+HEAD_SHA="$HEAD_SHA" PRIOR_THREADS_FILE="$PRIOR_THREADS_FILE" \
+  bash "$PR_REVIEW_HELPER" validate-prior-threads || exit 1
+```
+
+The artifact classifies each thread as actionable,
 resolved, outdated, bot boilerplate, review request, reaction-only,
 conversation, or unknown, and records whether model context should include,
-summarize, or drop it.
+summarize, or drop it. Entries marked `drop` or `summarize` must not retain raw
+comment bodies in `comments[]`; use `summary` for compact non-include context.
 
 ## Phase 3: Determine diff ranges
 
@@ -120,7 +132,18 @@ escalations recompute from the full PR diff.
 
 After final active range selection, write a `pr-review/scope-decision/v1`
 artifact with `prepare-scope-decision-write`, then validate it with
-`validate-scope-decision`. The artifact records mode, selected range, full
+`validate-scope-decision` with `SCOPE_DECISION_FILE` bound to the prepared path:
+
+```sh
+SCOPE_DECISION_FILE=$(
+  HEAD_SHA="$HEAD_SHA" bash "$PR_REVIEW_HELPER" prepare-scope-decision-write
+) || exit 1
+# Write the scope-decision artifact to "$SCOPE_DECISION_FILE".
+HEAD_SHA="$HEAD_SHA" SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  bash "$PR_REVIEW_HELPER" validate-scope-decision || exit 1
+```
+
+The artifact records mode, selected range, full
 range, candidate narrow range, `is_followup_narrow`, escalation reason(s), last
 reviewed SHA, changed files, language hints, prior context path, mechanical
 facts, and semantic decision notes. Missing, malformed, stale, conflicting, or
@@ -324,6 +347,7 @@ Only after user approval:
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
      ) || return 1
      [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; return 1; }
@@ -374,6 +398,7 @@ Only after user approval:
      [ ! -e "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || [ -f "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path exists but is not a regular file" >&2; exit 1; }
      if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
+       PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
        bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
        rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"
        echo "approved review validation failed; refusing to invoke gh api" >&2
@@ -390,7 +415,9 @@ Only after user approval:
    only for threads the user approved for resolution:
 
    ```sh
-   gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
+   gh api graphql --silent \
+     -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread { isResolved } } }' \
+     -F id="$THREAD_ID"
    ```
 
 6. Verify each API response succeeded. Report failures, stop on error.

@@ -112,7 +112,8 @@ assert_readable_envelope() {
     echo "$label missing or unreadable: $file" >&2
     exit 1
   }
-  jq -e '
+  jq -e -s '
+    def exactly($keys): (keys_unsorted | sort) == ($keys | sort);
     def one_of($values; $value): ($values | index($value)) != null;
     def positive_integer:
       type == "number" and . == floor and . >= 1;
@@ -129,6 +130,18 @@ assert_readable_envelope() {
       end;
     def valid_finding:
       type == "object"
+      and exactly([
+        "path",
+        "line",
+        "start_line",
+        "severity",
+        "category",
+        "critic",
+        "anchor",
+        "why",
+        "recommendation",
+        "body"
+      ])
       and (.path | repo_relative_path)
       and (.line | positive_integer)
       and (.start_line == null or (.start_line | positive_integer))
@@ -139,10 +152,12 @@ assert_readable_envelope() {
       and (.why | type == "string")
       and (.recommendation | type == "string")
       and (.body | type == "string");
-    .schema == "play-review/findings/v1"
-    and (.findings | type == "array")
-    and (.carry_forward | type == "array")
-    and ((.findings + .carry_forward) | all(.[]; valid_finding))
+    length == 1
+    and (.[0] |
+      .schema == "play-review/findings/v1"
+      and (.findings | type == "array")
+      and (.carry_forward | type == "array")
+      and ((.findings + .carry_forward) | all(.[]; valid_finding)))
   ' "$file" >/dev/null || {
     echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
     exit 1
@@ -280,20 +295,20 @@ validate_source_anchor() {
 
   total_lines="$(review_source_line_count "$entry_path")" || {
     echo "failed to read review-head source: $entry_path" >&2
-    exit 1
+    return 1
   }
   [ "$line" -le "$total_lines" ] || {
     echo "review-head source line out of range: $entry_path:$line" >&2
-    exit 1
+    return 1
   }
   if [ "$start_line" != "null" ]; then
     [ "$start_line" -le "$line" ] || {
       echo "review-head source range is invalid: $entry_path:$start_line-$line" >&2
-      exit 1
+      return 1
     }
     [ "$start_line" -le "$total_lines" ] || {
       echo "review-head source line out of range: $entry_path:$start_line" >&2
-      exit 1
+      return 1
     }
   fi
 
@@ -349,6 +364,24 @@ render_source_snippet() {
   printf '```\n'
 }
 
+render_out_of_diff_snippet() {
+  local entry_path="$1"
+  local line="$2"
+  local start_line="$3"
+  local line_display
+
+  if [ "$start_line" = "null" ]; then
+    line_display="$line"
+  else
+    line_display="${start_line}-${line}"
+  fi
+
+  printf '```text\n'
+  printf '// %s:%s\n' "$entry_path" "$line_display"
+  printf 'Out-of-diff finding; source anchor is outside the review head.\n'
+  printf '```\n'
+}
+
 render_entry() {
   local title="$1"
   local entry_json="$2"
@@ -386,7 +419,12 @@ render_entry() {
   printf -- '- **Category:** %s\n' "$category"
   printf -- '- **Critic:** %s\n' "$critic"
   printf -- '- **Anchor:** %s\n\n' "$anchor"
-  render_source_snippet "$entry_path" "$line" "$start_line"
+  if [ "$anchor" = "out-of-diff" ] &&
+    ! validate_source_anchor "$entry_path" "$line" "$start_line" >/dev/null 2>&1; then
+    render_out_of_diff_snippet "$entry_path" "$line" "$start_line"
+  else
+    render_source_snippet "$entry_path" "$line" "$start_line"
+  fi
   printf '\n#### Rendered Finding Body\n\n'
   printf '%s\n\n' "$body"
 }

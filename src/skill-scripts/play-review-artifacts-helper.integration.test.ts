@@ -476,6 +476,44 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("renders out-of-diff preview entries when the source is absent from review head", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            path: "src/removed.ts",
+            line: 1,
+            anchor: "out-of-diff",
+            why: "The finding is outside the active review diff.",
+            recommendation:
+              "Report it without requiring an inline source anchor.",
+            body: "**Blocking | Contracts** - The finding is outside the active review diff.\n\n**Recommendation:** Report it without requiring an inline source anchor.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      const { stdout } = await runHelper(cwd, "render-review-preview", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+        REVIEW_SURFACE: "branch-review",
+      });
+
+      expect(stdout).toContain("src/removed.ts:1");
+      expect(stdout).toContain(
+        "Out-of-diff finding; source anchor is outside the review head.",
+      );
+      expect(stdout).toContain(
+        "Report it without requiring an inline source anchor.",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("builds a pr-review GitHub payload with anchor partitioning and allowlisted comments", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
@@ -607,6 +645,49 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         REVIEW_EVENT: "APPROVE",
       });
       expect(JSON.parse(empty.stdout).comments).toEqual([]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects multi-document findings JSON streams before rendering or payload building", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const reviewBodyFile = ".ephemeral/review-body.md";
+      await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
+      await writeFile(
+        path.join(cwd, findingsFile),
+        `${JSON.stringify({
+          schema: "play-review/findings/v1",
+          findings: [],
+          carry_forward: [],
+        })}\n${JSON.stringify({
+          schema: "play-review/findings/v1",
+          findings: [sourceFinding()],
+          carry_forward: [],
+        })}\n`,
+      );
+
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope schema mismatch"),
+      });
+      await expect(
+        runHelper(cwd, "build-github-review-payload", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_EVENT: "COMMENT",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope schema mismatch"),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

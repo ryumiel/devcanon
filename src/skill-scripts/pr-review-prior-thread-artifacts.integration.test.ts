@@ -253,9 +253,32 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
           ],
           mechanical_facts: {
             changed_file_count: 6,
-            followup_sha_usable: false,
+            followup_sha_usable: true,
             mechanical_escalate_full: true,
             mechanical_escalation_reason: "file-count",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          selected_range: "origin/main...HEAD",
+          candidate_narrow_range: "origin/main...HEAD",
+          is_followup_narrow: false,
+          selection_reason: "unusable baseline escalation",
+          escalation_reasons: ["last-reviewed-unusable"],
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "last-reviewed-unusable",
           },
         }),
       );
@@ -325,6 +348,46 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       await writeFile(
         path.join(cwd, priorThreadsFile),
         `${JSON.stringify({ raw_graphql_response: true })}\n${JSON.stringify(priorThreads())}`,
+      );
+      await expect(
+        runHelper(cwd, "validate-prior-threads", {
+          PRIOR_THREADS_FILE: priorThreadsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("prior threads schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        priorThreadsFile,
+        priorThreads({
+          threads: [
+            {
+              ...priorThreads().threads[0],
+              thread_id: 'PRRT_bad"} mutation',
+            },
+          ],
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-prior-threads", {
+          PRIOR_THREADS_FILE: priorThreadsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("prior threads schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        priorThreadsFile,
+        priorThreads({
+          threads: [
+            {
+              ...priorThreads().threads[1],
+              comments: [priorThreads().threads[0].comments[0]],
+            },
+          ],
+        }),
       );
       await expect(
         runHelper(cwd, "validate-prior-threads", {
@@ -659,6 +722,31 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         scopeDecisionFile,
         scopeDecision({
           full_range: "origin/main..HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          selected_range: "origin/main...HEAD",
+          candidate_narrow_range: `${headSha}..HEAD`,
+          is_followup_narrow: false,
+          selection_reason: "unusable baseline escalation",
+          escalation_reasons: ["last-reviewed-unusable"],
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "last-reviewed-unusable",
+          },
         }),
       );
       await expect(

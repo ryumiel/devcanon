@@ -296,13 +296,16 @@ validate_prior_threads() {
       and test("^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?Z$")
       and (try ((sub("\\.[0-9]+Z$"; "Z")) as $normalized | ($normalized | fromdateiso8601 | todateiso8601) == $normalized) catch false);
     def positive_integer: type == "number" and . == floor and . >= 1;
-    def repo_relative_path:
-      type == "string"
-      and length > 0
-      and (startswith("/") | not)
-      and (split("/") | all(. != "" and . != "." and . != ".."));
-    def nullable_positive_integer: . == null or positive_integer;
-    def valid_classification:
+	    def repo_relative_path:
+	      type == "string"
+	      and length > 0
+	      and (startswith("/") | not)
+	      and (split("/") | all(. != "" and . != "." and . != ".."));
+	    def nullable_positive_integer: . == null or positive_integer;
+	    def github_node_id:
+	      type == "string"
+	      and test("^[A-Za-z0-9_+=/-]+$");
+	    def valid_classification:
       one_of([
         "actionable",
         "resolved",
@@ -357,7 +360,7 @@ validate_prior_threads() {
         "comments",
         "summary"
       ])
-      and (.thread_id | type == "string" and length > 0)
+	      and (.thread_id | github_node_id)
       and (.is_resolved | type == "boolean")
       and (.is_outdated | type == "boolean")
       and (.path | repo_relative_path)
@@ -370,14 +373,14 @@ validate_prior_threads() {
       and (if .model_context == "include" then .classification == "actionable" and (.is_resolved | not) and (.is_outdated | not) else true end)
       and (if .classification == "actionable" and (.is_resolved | not) and (.is_outdated | not) then .model_context == "include" else true end)
       and (.staleness_reason | type == "string")
-      and (.comments | type == "array")
-      and (if .model_context == "include" then (.comments | length > 0) else true end)
-      and (.comments | all(.[]; valid_comment))
-      and (.summary | type == "string");
-    def valid_dropped:
-      type == "object"
-      and exactly(["thread_id", "classification", "reason"])
-      and (.thread_id | type == "string" and length > 0)
+	      and (.comments | type == "array")
+	      and (if .model_context == "include" then (.comments | length > 0) else (.comments | length == 0) end)
+	      and (.comments | all(.[]; valid_comment))
+	      and (.summary | type == "string");
+	    def valid_dropped:
+	      type == "object"
+	      and exactly(["thread_id", "classification", "reason"])
+	      and (.thread_id | github_node_id)
       and (.classification | valid_classification)
       and .classification != "actionable"
       and (.reason | type == "string" and length > 0);
@@ -465,11 +468,16 @@ validate_scope_decision() {
         and .prior_context.kind == "none"
         and .prior_context.path == null
       else
-        (.last_reviewed_sha | sha)
-        and .prior_context.kind == "github-prior-threads"
-        and .prior_context.path == $expected_prior_threads
-        and .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
-      end)
+	        (.last_reviewed_sha | sha)
+	        and .prior_context.kind == "github-prior-threads"
+	        and .prior_context.path == $expected_prior_threads
+	        and (if .mechanical_facts.followup_sha_usable then
+	          .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
+	        else
+	          .candidate_narrow_range == .full_range
+	          and .mechanical_facts.mechanical_escalate_full == true
+	        end)
+	      end)
       and .semantic_decision.checked == true
       and .semantic_decision.ambiguous == false
       and (if .is_followup_narrow then

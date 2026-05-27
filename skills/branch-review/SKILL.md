@@ -215,10 +215,24 @@ After final active range selection, write and validate a
 `BRANCH_REVIEW_SCOPE_HELPER` must resolve to
 `skills/branch-review/scripts/scope-decision-artifacts.sh`; use
 `prepare-scope-decision-write` to prepare the direct-child `.ephemeral`
-write target and `validate-scope-decision` after writing. In follow-up mode,
-bind `PRIOR_BRANCH_FINDINGS="$PRIOR_BRANCH_FINDINGS"` when validating so the
+write target and `validate-scope-decision` after writing with
+`SCOPE_DECISION_FILE` bound to the prepared path. In follow-up mode, also bind
+`PRIOR_BRANCH_FINDINGS="$PRIOR_BRANCH_FINDINGS"` when validating so the
 artifact's `prior_context.path` must match the already validated
-`--prior-findings` input rather than a reconstructed path. The artifact records
+`--prior-findings` input rather than a reconstructed path:
+
+```sh
+SCOPE_DECISION_FILE=$(
+  HEAD_SHA="$HEAD_SHA" bash "$BRANCH_REVIEW_SCOPE_HELPER" prepare-scope-decision-write
+) || exit 1
+# Write the branch-review scope-decision artifact to "$SCOPE_DECISION_FILE".
+HEAD_SHA="$HEAD_SHA" \
+SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+PRIOR_BRANCH_FINDINGS="${PRIOR_BRANCH_FINDINGS:-}" \
+  bash "$BRANCH_REVIEW_SCOPE_HELPER" validate-scope-decision || exit 1
+```
+
+The artifact records
 initial vs follow-up mode, selected range, full range, candidate narrow range,
 `is_followup_narrow`, escalation reason(s), last reviewed SHA, changed files,
 language hints, prior findings path, mechanical facts, and semantic decision
