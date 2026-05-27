@@ -212,6 +212,8 @@ review-relevant languages.
 
 After final active range selection, write and validate a
 `branch-review/scope-decision/v1` artifact before invoking `play-review`.
+Bind `HEAD_SHA="$(git rev-parse HEAD)"` before preparing the artifact and reuse
+that immutable value for the Phase 2 `play-review` handoff.
 `BRANCH_REVIEW_SCOPE_HELPER` must resolve to
 `skills/branch-review/scripts/scope-decision-artifacts.sh`; use
 `prepare-scope-decision-write` to prepare the direct-child `.ephemeral`
@@ -222,6 +224,7 @@ artifact's `prior_context.path` must match the already validated
 `--prior-findings` input rather than a reconstructed path:
 
 ```sh
+HEAD_SHA="$(git rev-parse HEAD)"
 SCOPE_DECISION_FILE=$(
   HEAD_SHA="$HEAD_SHA" bash "$BRANCH_REVIEW_SCOPE_HELPER" prepare-scope-decision-write
 ) || exit 1
@@ -303,8 +306,8 @@ Re-emit that helper stdout to the user in conversation. Findings tagged
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
 Branch review is a local surface: no GitHub posting, no `gh` commands, no GitHub schema or Reviews API payload construction.
-`REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`;
-`build-github-review-payload` must refuse this surface.
+`REVIEW_SURFACE=branch-review` is intentionally accepted only by
+`render-review-preview`.
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 

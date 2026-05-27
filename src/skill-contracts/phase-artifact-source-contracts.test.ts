@@ -772,6 +772,9 @@ describe("phase artifact source contracts", () => {
     expect(normalizedBranchReview).toContain(
       "After final active range selection, recompute `LANGUAGE_HINTS`",
     );
+    expect(branchReview).toContain(
+      'HEAD_SHA="$(git rev-parse HEAD)"\nSCOPE_DECISION_FILE=',
+    );
 
     expect(prReview).toContain(
       "`prior_threads` = validated `pr-review/prior-threads/v1` artifact path",
@@ -779,11 +782,20 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       "Do not hand raw GitHub REST comments, REST reviews, or GraphQL reviewThreads to `play-review`",
     );
+    expect(normalizedPrReview).toContain(
+      "Do not write raw REST or GraphQL payloads to durable or parent-checkout artifacts",
+    );
+    expect(normalizedPrReview).toContain(
+      "delete it before the `play-review` handoff and again in cleanup",
+    );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
     );
     expect(normalizedPrReview).toContain(
       "**STOP HERE. Present the report. Wait for user response.**",
+    );
+    expect(prReview).toContain(
+      'HEAD_SHA="$(git rev-parse HEAD)"\nSCOPE_DECISION_FILE=',
     );
     expect(normalizedPrReview).toContain(
       "NEVER post, approve, or resolve without user approval at the Phase 5 gate",
@@ -893,15 +905,13 @@ describe("phase artifact source contracts", () => {
 
     expect(playReview).toContain("scripts/review-artifacts.sh");
     expect(playReview).toContain("render-review-preview");
-    expect(playReview).toContain("build-github-review-payload");
+    expect(playReview).not.toContain("build-github-review-payload");
     expect(playReview).toContain("REVIEW_SURFACE");
     expect(playReview).toContain("REVIEW_SURFACE=pr-review");
     expect(playReview).toContain("REVIEW_SURFACE=branch-review");
     expect(playReview).toContain("REVIEW_BODY_FILE");
-    expect(playReview).toContain("REVIEW_EVENT");
-    expect(playReview).toContain("APPROVE`, `REQUEST_CHANGES`, or `COMMENT");
     expect(normalizedPlayReview).toContain(
-      "Run them from the target repository root with `HEAD_SHA` bound to the immutable review head",
+      "Run it from the target repository root with `HEAD_SHA` bound to the immutable review head",
     );
     expect(normalizedPlayReview).toContain(
       "The helper reads source snippets from `git show",
@@ -910,7 +920,7 @@ describe("phase artifact source contracts", () => {
       "review-head source, not the mutable working tree",
     );
     expect(normalizedPlayReview).toContain(
-      "refuses `REVIEW_SURFACE=branch-review` with `build-github-review-payload requires REVIEW_SURFACE=pr-review",
+      "Provider-specific payload construction belongs to the wrapper that owns that provider",
     );
 
     expect(prReview).toContain("scripts/review-artifacts.sh");
@@ -1014,7 +1024,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("no GitHub posting");
     expect(branchReview).toContain("no `gh` commands");
     expect(branchReview).toContain("no GitHub schema");
-    expect(branchReview).toContain("build-github-review-payload");
+    expect(branchReview).not.toContain("build-github-review-payload");
     expect(normalizedBranchReview).toContain(
       "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
     );
@@ -1025,76 +1035,15 @@ describe("phase artifact source contracts", () => {
       "Branch review is a local surface",
     );
     expect(normalizedBranchReview).toContain(
-      "build-github-review-payload` must refuse this surface",
+      "`REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`",
     );
   });
 
-  it("records play-skill-authoring pressure evidence for wrapper artifact loopholes", async () => {
+  it("keeps play-skill-authoring pressure contracts for wrapper artifact loopholes", async () => {
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
-
-    const pressureEvidence = {
-      baselinePrReview: {
-        prompt:
-          "Read current `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: completed PR review finding synthesis; present review for user approval; allow user to edit body/drop findings; post approved review. Describe files, helper commands, payload posted, and how posted payload is identical to what user approved. Do not infer future helper behavior unless prose says so.",
-        observed:
-          "Agent would write findings/context, capture `REVIEW_HEAD_SHA` and `REVIEW_FINDINGS_FILE`, manually present formatted findings and draft body preview, allow `post`, `drop #N`, `change #N severity`, `edit`, then Phase 6 validates/reads original findings JSON and rebuilds a `gh api .../reviews` payload with `jq` using `REVIEW_HEAD_SHA` and finding fields.",
-        result:
-          "FAIL: no approved-review artifact, no sealed payload file/hash, no exact validated stdout, and manual preview can diverge from posted JSON.",
-      },
-      baselineBranchReview: {
-        prompt:
-          "Read current `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md` before edits. Scenario: running `branch-review` present mode after writing a `play-review/findings/v1` file. Describe how findings are presented, helper commands, notice line, and whether GitHub review/payload/posting semantics are involved. Do not infer future helper behavior unless prose says so.",
-        observed:
-          "Agent would rely on `play-review` markdown output and exact notice line, invoke existing input/context/findings write helpers, and not invoke `validate-findings` unless opening/overwriting. No GitHub posting, but prose had nearby GitHub schema/API language.",
-        result:
-          "FAIL: no branch-review-specific artifact-backed preview renderer; agent may manually reshape findings, risk notice-line drift, or rebuild evidence from mutable current checkout.",
-      },
-      postEditPrReview: {
-        prompt:
-          "Read edited `skills/pr-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal, user gate preservation, body/finding rewrite loops, and no payload rebuild after approval.",
-        observed:
-          "Agent creates `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md`, renders preview with `render-review-preview`, rewrites `REVIEW_BODY_FILE` for body edits, rewrites validated findings envelope for drops/reclassification with `validate-findings`/`prepare-findings-write`, rerenders and returns to user gate. After approval, it calls `prepare-review-payload-write`, writes `build-github-review-payload` output to `REVIEW_PAYLOAD_FILE`, freezes with `freeze-approved-review`, refuses stale heads, validates approved artifact, and posts only validated frozen payload without rebuilding.",
-        result: "PASS",
-      },
-      postEditBranchReview: {
-        prompt:
-          "Read edited `skills/branch-review/SKILL.md` and `skills/play-review/SKILL.md`. Scenario same as baseline. PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`, review-head-source evidence, exact notice preservation, no GitHub semantics, and `build-github-review-payload` refusal for branch-review.",
-        observed:
-          'Agent extracts the `Findings written to <path>.` line, binds it as `REVIEW_FINDINGS_FILE`, renders preview with `HEAD_SHA=$REVIEW_HEAD_SHA FINDINGS_FILE=$REVIEW_FINDINGS_FILE REVIEW_SURFACE=branch-review bash "$PLAY_REVIEW_HELPER" render-review-preview`, re-emits helper stdout and exact notice, uses immutable review head evidence, appends no JSON fence, and treats branch-review as no GitHub posting/schema/payload. It recognizes `build-github-review-payload` refuses branch-review.',
-        result: "PASS",
-      },
-    };
-    const pressureText = normalizeWhitespace(
-      JSON.stringify(pressureEvidence, null, 2),
-    );
-
-    expect(pressureText).toContain(
-      "completed PR review finding synthesis; present review for user approval",
-    );
-    expect(pressureText).toContain(
-      "manual preview can diverge from posted JSON",
-    );
-    expect(pressureText).toContain(
-      "running `branch-review` present mode after writing a `play-review/findings/v1` file",
-    );
-    expect(pressureText).toContain(
-      "risk notice-line drift, or rebuild evidence from mutable current checkout",
-    );
-    expect(pressureText).toContain(
-      "PASS requires `render-review-preview`, `build-github-review-payload`, `prepare-review-payload-write`, `freeze-approved-review`, `validate-approved-review`, stale-head refusal",
-    );
-    expect(pressureText).toContain(
-      "posts only validated frozen payload without rebuilding",
-    );
-    expect(pressureText).toContain(
-      "PASS requires artifact-backed preview with `REVIEW_SURFACE=branch-review`",
-    );
-    expect(pressureText).toContain(
-      "recognizes `build-github-review-payload` refuses branch-review",
-    );
 
     for (const prContract of [
       ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md",
@@ -1124,7 +1073,6 @@ describe("phase artifact source contracts", () => {
       "Findings written to <path>.",
       "no GitHub posting",
       "no GitHub schema",
-      "build-github-review-payload",
     ]) {
       expect(branchReview).toContain(branchContract);
     }
@@ -1132,7 +1080,7 @@ describe("phase artifact source contracts", () => {
       "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
     );
     expect(normalizedBranchReview).toContain(
-      "build-github-review-payload` must refuse this surface",
+      "`REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`",
     );
   });
 

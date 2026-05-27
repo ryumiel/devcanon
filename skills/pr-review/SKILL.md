@@ -54,14 +54,13 @@ Detect mode:
 - **Initial:** No prior review from the current user on this PR.
 - **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
 
-For follow-up reviews, keep raw GitHub thread payloads in controller memory or
-controller-local scratch only until the PR worktree exists. Do not write the
-normalized artifact in the parent checkout; `play-review` receives repo-relative
-artifact paths inside `working_directory`.
-
-Raw GitHub responses may be retained for audit, posting, or resolution
-bookkeeping, but raw REST or GraphQL payloads are not reviewer-agent model
-context and are not passed to `play-review`.
+For follow-up reviews, normalize raw GitHub thread payloads in controller memory
+or controller-local scratch only long enough to write the validated
+`pr-review/prior-threads/v1` artifact inside the PR worktree. Do not write raw
+REST or GraphQL payloads to durable or parent-checkout artifacts. If scratch
+storage is unavoidable, delete it before the `play-review` handoff and again in
+cleanup. `play-review` receives only repo-relative artifact paths inside
+`working_directory`.
 
 ## Phase 2: Worktree setup
 
@@ -79,11 +78,15 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 `working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
 
+After entering `working_directory`, bind `HEAD_SHA="$(git rev-parse HEAD)"`.
+Use this mode-independent review head for prior-thread artifacts,
+scope-decision artifacts, and the `play-review` handoff.
+
 For follow-up reviews, normalize raw GitHub thread payloads from inside
 `working_directory` before Phase 3 and before any `play-review` handoff.
 `PR_REVIEW_HELPER` must resolve to the installed
 `pr-review/scripts/prior-thread-artifacts.sh` helper. In the PR worktree, bind
-`HEAD_SHA="$(git rev-parse HEAD)"`, use `prepare-prior-threads-write` to prepare
+the already-captured `HEAD_SHA`, use `prepare-prior-threads-write` to prepare
 the worktree-local `.ephemeral/*-prior-threads.json` target, write a
 `pr-review/prior-threads/v1` artifact there, then run `validate-prior-threads`
 from the same worktree with `PRIOR_THREADS_FILE` bound to the prepared path:
@@ -135,6 +138,7 @@ artifact with `prepare-scope-decision-write`, then validate it with
 `validate-scope-decision` with `SCOPE_DECISION_FILE` bound to the prepared path:
 
 ```sh
+HEAD_SHA="$(git rev-parse HEAD)"
 SCOPE_DECISION_FILE=$(
   HEAD_SHA="$HEAD_SHA" bash "$PR_REVIEW_HELPER" prepare-scope-decision-write
 ) || exit 1
@@ -273,16 +277,16 @@ from conversation text or current checkout state.
 
 **User actions:**
 
-| Action                               | Effect                                 |
-| ------------------------------------ | -------------------------------------- |
-| `post`                               | Post review + resolve approved threads |
-| `post as comment`                    | Comment only, no verdict               |
-| `drop #N`                            | Remove finding                         |
-| `change #N severity to Blocking/Nit` | Reclassify severity                    |
-| `change #N category to Logic/...`    | Reclassify category                    |
-| `edit`                               | Revise draft text                      |
-| `skip threads`                       | Post but don't resolve                 |
-| `abort`                              | Discard all, clean up                  |
+| Action                               | Effect                         |
+| ------------------------------------ | ------------------------------ |
+| `request-changes`                    | Post a blocking review verdict |
+| `comment`                            | Comment only, no verdict       |
+| `drop #N`                            | Remove finding                 |
+| `change #N severity to Blocking/Nit` | Reclassify severity            |
+| `change #N category to Logic/...`    | Reclassify category            |
+| `edit`                               | Revise draft text              |
+| `skip threads`                       | Post but don't resolve         |
+| `abort`                              | Discard all, clean up          |
 
 ## Phase 6: Post
 
@@ -293,7 +297,7 @@ Only after user approval:
    derive it from the explicit Phase 5 approval that applies to the latest
    rendered preview. Approval intent maps to GitHub review events as follows:
    approve => `APPROVE`; request-changes or blocking review => `REQUEST_CHANGES`;
-   post as comment, comment-only review, or no-verdict review => `COMMENT`.
+   comment, comment-only review, or no-verdict review => `COMMENT`.
    Any unrecognized approval intent is a contract failure; stop before payload
    construction.
 
@@ -313,8 +317,9 @@ Only after user approval:
    `pr-review` skill bundle, not the repository under review. Bind
    `PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"`.
    First validate the findings envelope, then ask the `pr-review` helper for
-   the deterministic payload path, then write exactly the JSON emitted by
-   `build-github-review-payload` to that path, then freeze it. Run this as a
+   the deterministic payload path, then write exactly the JSON emitted by the
+   `pr-review` helper's `build-github-review-payload` command to that path, then
+   freeze it. Run this as a
    caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains
    bound for the stale-head, validation, and posting steps below. Save and
    restore the starting directory before those later repo-root-relative steps:
@@ -341,7 +346,8 @@ Only after user approval:
      REVIEW_SURFACE="pr-review" \
      REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
      REVIEW_EVENT="$REVIEW_EVENT" \
-       bash "$PLAY_REVIEW_HELPER" build-github-review-payload > "$REVIEW_PAYLOAD_FILE" || return 1
+       PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
+         bash "$PR_REVIEW_HELPER" build-github-review-payload > "$REVIEW_PAYLOAD_FILE" || return 1
      APPROVED_REVIEW_FILE=$(
        HEAD_SHA="$REVIEW_HEAD_SHA" \
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \

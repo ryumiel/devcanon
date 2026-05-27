@@ -220,6 +220,17 @@ assert_readable_file() {
   }
 }
 
+validate_review_event() {
+  require_env REVIEW_EVENT
+  case "$REVIEW_EVENT" in
+    APPROVE | REQUEST_CHANGES | COMMENT) ;;
+    *)
+      echo "REVIEW_EVENT must be APPROVE, REQUEST_CHANGES, or COMMENT" >&2
+      exit 1
+      ;;
+  esac
+}
+
 assert_single_json_object() {
   local label="$1"
   local file="$2"
@@ -228,6 +239,80 @@ assert_single_json_object() {
     echo "$label must contain exactly one JSON object: $file" >&2
     exit 1
   }
+}
+
+source_line_count() {
+  awk 'END { print NR }'
+}
+
+review_source_line_count() {
+  local entry_path="$1"
+  git show "${HEAD_SHA}:${entry_path}" 2>/dev/null | source_line_count
+}
+
+validate_source_anchor() {
+  local entry_path="$1"
+  local line="$2"
+  local start_line="$3"
+  local total_lines
+
+  total_lines="$(review_source_line_count "$entry_path")" || {
+    echo "failed to read review-head source: $entry_path" >&2
+    exit 1
+  }
+  [ "$line" -le "$total_lines" ] || {
+    echo "review-head source line out of range: $entry_path:$line" >&2
+    exit 1
+  }
+  if [ "$start_line" != "null" ]; then
+    [ "$start_line" -le "$line" ] || {
+      echo "review-head source range is invalid: $entry_path:$start_line-$line" >&2
+      exit 1
+    }
+    [ "$start_line" -le "$total_lines" ] || {
+      echo "review-head source line out of range: $entry_path:$start_line" >&2
+      exit 1
+    }
+  fi
+}
+
+validate_inline_source_anchors() {
+  local entry_json
+  local entry_path
+  local line
+  local start_line
+
+  while IFS= read -r entry_json; do
+    entry_path="$(jq -r '.path' <<<"$entry_json")"
+    line="$(jq -r '.line' <<<"$entry_json")"
+    start_line="$(jq -r '.start_line' <<<"$entry_json")"
+    validate_source_anchor "$entry_path" "$line" "$start_line" >/dev/null
+  done < <(
+    jq -c '
+      (.findings + .carry_forward)[]
+      | select(.anchor == "natural" or .anchor == "missing-file")
+    ' "$FINDINGS_FILE"
+  )
+}
+
+build_review_body() {
+  local base_body
+  local out_of_diff
+  base_body="$(cat "$REVIEW_BODY_FILE")"
+  out_of_diff="$(jq -r '
+    (.findings + .carry_forward)
+    | map(select(.anchor == "out-of-diff") | .body)
+    | if length == 0 then empty
+      else "## Out-of-diff Findings\n\n" + join("\n\n")
+      end
+  ' "$FINDINGS_FILE")"
+  if [ -n "$base_body" ] && [ -n "$out_of_diff" ]; then
+    printf '%s\n\n%s\n' "$base_body" "$out_of_diff"
+  elif [ -n "$base_body" ]; then
+    printf '%s\n' "$base_body"
+  elif [ -n "$out_of_diff" ]; then
+    printf '%s\n' "$out_of_diff"
+  fi
 }
 
 play_review_helper() {
@@ -256,6 +341,43 @@ validate_findings_with_owner() {
     echo "findings validation failed via play-review helper: $file" >&2
     exit 1
   }
+}
+
+build_github_review_payload() {
+  local review_body
+  require_repo_root
+  validate_head_sha
+  require_env FINDINGS_FILE
+  require_env REVIEW_BODY_FILE
+  validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
+  validate_review_body_path_shape "$REVIEW_BODY_FILE"
+  assert_readable_file "findings file" "$FINDINGS_FILE"
+  assert_readable_file "review body file" "$REVIEW_BODY_FILE"
+  validate_findings_with_owner "$FINDINGS_FILE" "$HEAD_SHA"
+  validate_review_event
+  validate_inline_source_anchors
+  review_body="$(build_review_body)"
+  jq -n \
+    --arg commit_id "$HEAD_SHA" \
+    --arg event "$REVIEW_EVENT" \
+    --arg body "$review_body" \
+    --slurpfile envelope "$FINDINGS_FILE" \
+    '{
+      commit_id: $commit_id,
+      event: $event,
+      body: $body,
+      comments: (
+        ($envelope[0].findings + $envelope[0].carry_forward)
+        | map(select(.anchor == "natural" or .anchor == "missing-file"))
+        | map({
+            path,
+            line,
+            start_line,
+            side: "RIGHT",
+            body
+          } | if .start_line == null then del(.start_line) else . + {start_side: "RIGHT"} end)
+      )
+    }'
 }
 
 assert_payload_shape() {
@@ -445,6 +567,9 @@ case "$command_name" in
   prepare-review-payload-write)
     prepare_review_payload_write
     ;;
+  build-github-review-payload)
+    build_github_review_payload
+    ;;
   freeze-approved-review)
     freeze_approved_review
     ;;
@@ -452,7 +577,7 @@ case "$command_name" in
     validate_approved_review
     ;;
   *)
-    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|freeze-approved-review|validate-approved-review" >&2
+    echo "usage: approved-review-artifacts.sh prepare-review-payload-write|build-github-review-payload|freeze-approved-review|validate-approved-review" >&2
     exit 1
     ;;
 esac

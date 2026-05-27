@@ -170,7 +170,7 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
-  it("renders a pr-review preview from review-head source with findings, carry-forward, and payload-equivalent body", async () => {
+  it("renders a pr-review preview from review-head source with findings and carry-forward body text", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
@@ -226,14 +226,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         REVIEW_SURFACE: "pr-review",
         REVIEW_BODY_FILE: reviewBodyFile,
       });
-      const payload = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: findingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: reviewBodyFile,
-        REVIEW_EVENT: "REQUEST_CHANGES",
-      });
-      const decoded = JSON.parse(payload.stdout) as { body: string };
 
       expect(preview.stdout).toContain(`Review head: ${reviewHeadSha}`);
       expect(preview.stdout).toContain(`Findings file: ${findingsFile}`);
@@ -242,12 +234,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(preview.stdout).toContain("// src/review-target.ts:3-5");
       expect(preview.stdout).toContain("  const second = 2;");
       expect(preview.stdout).not.toContain("working tree content");
-      expect(previewBody(preview.stdout)).toBe(decoded.body);
-      expect(decoded.body).toContain("Draft summary");
-      expect(decoded.body).toContain(
+      expect(previewBody(preview.stdout)).toContain("Draft summary");
+      expect(previewBody(preview.stdout)).toContain(
         "The out-of-diff finding belongs in the review body.",
       );
-      expect(decoded.body).toContain(
+      expect(previewBody(preview.stdout)).toContain(
         "Carry-forward out-of-diff entries also belong in the body.",
       );
     } finally {
@@ -297,26 +288,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         REVIEW_SURFACE: "pr-review",
         REVIEW_BODY_FILE: reviewBodyFile,
       });
-      const payload = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: reviewFindingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: reviewBodyFile,
-        REVIEW_EVENT: "COMMENT",
-      });
 
       expect(preview.stdout).toContain("// src/trailing.ts:1-2");
       expect(preview.stdout).toContain("const value = 1;");
-      expect(JSON.parse(payload.stdout).comments[0]).toMatchObject({
-        path: "src/trailing.ts",
-        line: 2,
-      });
     } finally {
       await cleanupTempDir(cwd);
     }
   });
 
-  it("rejects inline anchors against empty review-head files before preview or payload output", async () => {
+  it("rejects inline anchors against empty review-head files before preview output", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await mkdir(path.join(cwd, "src"));
@@ -355,19 +335,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           FINDINGS_FILE: reviewFindingsFile,
           REVIEW_SURFACE: "pr-review",
           REVIEW_BODY_FILE: reviewBodyFile,
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "review-head source line out of range: src/empty.ts:1",
-        ),
-      });
-      await expect(
-        runHelper(cwd, "build-github-review-payload", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: reviewFindingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "COMMENT",
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
@@ -418,27 +385,13 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         REVIEW_SURFACE: "pr-review",
         REVIEW_BODY_FILE: reviewBodyFile,
       });
-      const payload = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: findingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: reviewBodyFile,
-        REVIEW_EVENT: "REQUEST_CHANGES",
-      });
-      const decoded = JSON.parse(payload.stdout) as {
-        comments: Array<{ body: string }>;
-      };
       const normalizedPreview = preview.stdout.replace(/\r\n/g, "\n");
 
-      expect(decoded.comments[0].body).toBe(naturalBody);
-      expect(decoded.comments[1].body).toBe(
-        `Missing-file finding (no natural anchor — see body):\n\n${missingBody}`,
+      expect(normalizedPreview).toContain(
+        `#### Rendered Finding Body\n\n${naturalBody}\n\n`,
       );
       expect(normalizedPreview).toContain(
-        `#### Rendered Finding Body\n\n${decoded.comments[0].body}\n\n`,
-      );
-      expect(normalizedPreview).toContain(
-        `#### Rendered Finding Body\n\n${decoded.comments[1].body}\n\n`,
+        `#### Rendered Finding Body\n\n${missingBody}\n\n`,
       );
       expect(normalizedPreview).not.toContain("STALE natural why");
       expect(normalizedPreview).not.toContain("STALE missing-file why");
@@ -514,143 +467,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("builds a pr-review GitHub payload with anchor partitioning and allowlisted comments", async () => {
-    const { cwd, reviewHeadSha, findingsFile } =
-      await makeReviewSourceWorkspace();
-    try {
-      const reviewBodyFile = ".ephemeral/review-body.md";
-      await writeFile(path.join(cwd, reviewBodyFile), "Top-level summary\n");
-      await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
-        findings: [
-          sourceFinding({
-            anchor: "natural",
-            body: "**Blocking | Contracts** - Natural body.\n\n**Recommendation:** Fix it.",
-          }),
-          sourceFinding({
-            line: 8,
-            anchor: "missing-file",
-            body: "**Blocking | Contracts** - Missing file body.\n\n**Recommendation:** Anchor to fallback.",
-          }),
-          sourceFinding({
-            line: 9,
-            anchor: "out-of-diff",
-            body: "**Blocking | Contracts** - Out of diff body.\n\n**Recommendation:** Put in body.",
-          }),
-        ],
-        carry_forward: [
-          sourceFinding({
-            line: 3,
-            start_line: 2,
-            severity: "Nit",
-            category: "Tests",
-            critic: null,
-            anchor: "natural",
-            body: "**Nit | Tests** - Range body.\n\n**Recommendation:** Keep range.",
-          }),
-          sourceFinding({
-            line: 7,
-            anchor: "out-of-diff",
-            body: "**Blocking | Contracts** - Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
-          }),
-        ],
-      });
-
-      const { stdout } = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: findingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: reviewBodyFile,
-        REVIEW_EVENT: "COMMENT",
-      });
-      const payload = JSON.parse(stdout) as {
-        commit_id: string;
-        event: string;
-        body: string;
-        comments: Array<Record<string, unknown>>;
-      };
-
-      expect(payload.commit_id).toBe(reviewHeadSha);
-      expect(payload.event).toBe("COMMENT");
-      expect(payload.body).toContain("Top-level summary");
-      expect(payload.body).toContain("Out of diff body");
-      expect(payload.body).toContain("Carry forward out of diff");
-      expect(payload.comments).toHaveLength(3);
-      expect(payload.comments[0]).toEqual({
-        path: "src/review-target.ts",
-        line: 4,
-        side: "RIGHT",
-        body: "**Blocking | Contracts** - Natural body.\n\n**Recommendation:** Fix it.",
-      });
-      expect(payload.comments[1].body).toContain(
-        "Missing-file finding (no natural anchor — see body):",
-      );
-      expect(payload.comments[1]).not.toHaveProperty("start_line");
-      expect(payload.comments[1]).not.toHaveProperty("start_side");
-      expect(payload.comments[2]).toMatchObject({
-        path: "src/review-target.ts",
-        start_line: 2,
-        start_side: "RIGHT",
-        line: 3,
-        side: "RIGHT",
-      });
-      expect(Object.keys(payload.comments[2]).sort()).toEqual([
-        "body",
-        "line",
-        "path",
-        "side",
-        "start_line",
-        "start_side",
-      ]);
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("allows empty comments when every entry is out-of-diff or the envelope is empty", async () => {
-    const { cwd, reviewHeadSha, findingsFile } =
-      await makeReviewSourceWorkspace();
-    try {
-      const reviewBodyFile = ".ephemeral/review-body.md";
-      await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
-
-      await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
-        findings: [sourceFinding({ anchor: "out-of-diff" })],
-        carry_forward: [],
-      });
-      const outOfDiffOnly = await runHelper(
-        cwd,
-        "build-github-review-payload",
-        {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "APPROVE",
-        },
-      );
-      expect(JSON.parse(outOfDiffOnly.stdout).comments).toEqual([]);
-
-      await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
-        findings: [],
-        carry_forward: [],
-      });
-      const empty = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: findingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: reviewBodyFile,
-        REVIEW_EVENT: "APPROVE",
-      });
-      expect(JSON.parse(empty.stdout).comments).toEqual([]);
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("rejects multi-document findings JSON streams before rendering or payload building", async () => {
+  it("rejects multi-document findings JSON streams before rendering", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
@@ -677,23 +494,12 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("envelope schema mismatch"),
       });
-      await expect(
-        runHelper(cwd, "build-github-review-payload", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "COMMENT",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("envelope schema mismatch"),
-      });
     } finally {
       await cleanupTempDir(cwd);
     }
   });
 
-  it("rejects invalid review surfaces, events, missing review bodies, and unreadable review-head source", async () => {
+  it("rejects invalid review surfaces, missing review bodies, and unreadable review-head source", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
@@ -724,32 +530,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
           "REVIEW_SURFACE must be pr-review or branch-review",
-        ),
-      });
-      await expect(
-        runHelper(cwd, "build-github-review-payload", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "branch-review",
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "COMMENT",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "build-github-review-payload requires REVIEW_SURFACE=pr-review",
-        ),
-      });
-      await expect(
-        runHelper(cwd, "build-github-review-payload", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "DISMISS",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "REVIEW_EVENT must be APPROVE, REQUEST_CHANGES, or COMMENT",
         ),
       });
       await expect(
@@ -790,18 +570,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             FINDINGS_FILE: findingsFile,
             REVIEW_SURFACE: "pr-review",
             REVIEW_BODY_FILE: ".ephemeral/body-link/review.md",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining("review body path validation failed"),
-        });
-
-        await expect(
-          runHelper(cwd, "build-github-review-payload", {
-            HEAD_SHA: reviewHeadSha,
-            FINDINGS_FILE: findingsFile,
-            REVIEW_SURFACE: "pr-review",
-            REVIEW_BODY_FILE: ".ephemeral/body-link/review.md",
-            REVIEW_EVENT: "COMMENT",
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("review body path validation failed"),

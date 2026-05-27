@@ -122,12 +122,9 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(playReview).toContain("PLAY_REVIEW_HELPER");
     expect(playReview).toContain("scripts/review-artifacts.sh");
     expect(playReview).toContain("render-review-preview");
-    expect(playReview).toContain("build-github-review-payload");
     expect(playReview).toContain("REVIEW_SURFACE=pr-review");
     expect(playReview).toContain("REVIEW_SURFACE=branch-review");
-    expect(normalizeRenderedWhitespace(playReview)).toContain(
-      "build-github-review-payload requires REVIEW_SURFACE=pr-review",
-    );
+    expect(playReview).not.toContain("build-github-review-payload");
     expect(normalizeRenderedWhitespace(playReview)).toContain(
       "review-head source, not the mutable working tree",
     );
@@ -146,7 +143,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(branchReview).toContain("no GitHub posting");
     expect(branchReview).toContain("no `gh` commands");
     expect(branchReview).toContain("no GitHub schema");
-    expect(branchReview).toContain("build-github-review-payload");
+    expect(branchReview).not.toContain("build-github-review-payload");
 
     const prReview = bodyFor("pr-review");
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
@@ -183,9 +180,9 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(renderedPlayReview).toContain("scripts/review-artifacts.sh");
       expect(renderedPlayReview).toContain("render-review-preview");
-      expect(renderedPlayReview).toContain("build-github-review-payload");
       expect(renderedPlayReview).toContain("REVIEW_SURFACE=pr-review");
       expect(renderedPlayReview).toContain("REVIEW_SURFACE=branch-review");
+      expect(renderedPlayReview).not.toContain("build-github-review-payload");
       expect(normalizeRenderedWhitespace(renderedPlayReview)).toContain(
         "review-head source, not the mutable working tree",
       );
@@ -242,7 +239,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedBranchReview).toContain("no GitHub posting");
       expect(renderedBranchReview).toContain("no `gh` commands");
       expect(renderedBranchReview).toContain("no GitHub schema");
-      expect(renderedBranchReview).toContain("build-github-review-payload");
+      expect(renderedBranchReview).not.toContain("build-github-review-payload");
     }
 
     const prAuthoring = bodyFor("pr-authoring");
@@ -611,12 +608,17 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors the pr-review approved-review helper script required by rendered Phase 6 contracts", async () => {
+  it("mirrors review helper scripts required by rendered phase artifact contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
     );
     const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+    const helperPaths = [
+      ["pr-review", "scripts", "approved-review-artifacts.sh"],
+      ["pr-review", "scripts", "prior-thread-artifacts.sh"],
+      ["branch-review", "scripts", "scope-decision-artifacts.sh"],
+    ] as const;
 
     try {
       await renderAll(
@@ -629,28 +631,23 @@ describe("rendered phase artifact smoke coverage", () => {
         },
         true,
       );
-      const sourceHelper = await readFile(
-        path.join(
-          repoRoot,
-          "skills",
-          "pr-review",
-          "scripts",
-          "approved-review-artifacts.sh",
-        ),
-        "utf-8",
-      );
 
-      for (const target of ["claude", "codex"] as const) {
-        const helperPath = path.join(
-          generatedDir,
-          target,
-          "skills",
-          "pr-review",
-          "scripts",
-          "approved-review-artifacts.sh",
+      for (const helperPathParts of helperPaths) {
+        const sourceHelper = await readFile(
+          path.join(repoRoot, "skills", ...helperPathParts),
+          "utf-8",
         );
 
-        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        for (const target of ["claude", "codex"] as const) {
+          const helperPath = path.join(
+            generatedDir,
+            target,
+            "skills",
+            ...helperPathParts,
+          );
+
+          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        }
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });

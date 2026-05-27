@@ -241,14 +241,14 @@ This is the only structured surface in conversation. Consumers parse the path of
 
 The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract.
 
-### 5. Wrapper preview and payload helper contracts
+### 5. Wrapper preview helper contract
 
 Wrappers must use the installed helper
-`skills/play-review/scripts/review-artifacts.sh` for rendered review surfaces
-and GitHub payload construction. These commands are executable contracts, not
-examples to manually reimplement. Run them from the target repository root with
-`HEAD_SHA` bound to the immutable review head captured before any wrapper edits,
-fixups, or posting. The helper reads source snippets from `git show
+`skills/play-review/scripts/review-artifacts.sh` for rendered review surfaces.
+This command is an executable contract, not an example to manually reimplement.
+Run it from the target repository root with `HEAD_SHA` bound to the immutable
+review head captured before any wrapper edits, fixups, or posting. The helper
+reads source snippets from `git show
 "$HEAD_SHA:<path>"`; it must render review-head source, not the mutable working
 tree, so stale or out-of-range review-head anchors fail closed.
 
@@ -277,39 +277,18 @@ wrapper to show the operator. The command validates repository-root cwd,
 `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE`, and (for PR review) the review
 body file; validates the findings schema; renders evidence snippets from the
 review-head tree; renders each finding's ready body text from the validated
-`.body` field; and, for PR review natural and missing-file inline comments,
-shows the exact body text that `build-github-review-payload` will post,
-including the missing-file prefix. It exits nonzero on unsafe paths, missing
-files, schema mismatch, unsupported surfaces, stale/missing review-head source,
-or invalid anchors.
+`.body` field without provider-specific post-processing. It exits nonzero on
+unsafe paths, missing files, schema mismatch, unsupported surfaces,
+stale/missing review-head source for natural and missing-file anchors, or
+invalid anchors. Out-of-diff anchors may render without source snippets because
+wrappers report them outside inline-comment channels.
 `REVIEW_SURFACE=branch-review` never reads or requires `REVIEW_BODY_FILE` and
 never builds a GitHub payload.
 
-`build-github-review-payload` builds the exact GitHub Reviews API JSON body for
-`pr-review` only:
-
-```bash
-HEAD_SHA="$REVIEW_HEAD_SHA" \
-FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-REVIEW_SURFACE="pr-review" \
-REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
-REVIEW_EVENT="$REVIEW_EVENT" \
-  bash "$PLAY_REVIEW_HELPER" build-github-review-payload
-```
-
-Inputs: the same validated `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE`, and
-`REVIEW_BODY_FILE` as `render-review-preview`, plus `REVIEW_EVENT` set to
-`APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.
-
-Output and failure behavior: stdout is one JSON object containing
-`commit_id`, `event`, `body`, and `comments`. The command uses the
-review-head SHA as `commit_id`, appends out-of-diff findings to the top-level
-body, converts natural and missing-file findings into inline comments, prefixes
-missing-file comment bodies, omits `start_line` and `start_side` when
-`start_line` is `null`, adds `start_side: "RIGHT"` whenever `start_line` is
-present, and exits nonzero for every validation failure above. It refuses
-`REVIEW_SURFACE=branch-review` with `build-github-review-payload requires
-REVIEW_SURFACE=pr-review`.
+Provider-specific payload construction belongs to the wrapper that owns that
+provider. For GitHub PRs, `pr-review` owns the GitHub Reviews API payload helper
+and must validate the `play-review/findings/v1` envelope through this helper
+before building provider payloads.
 
 ## Phase 1: Discover Guidelines
 

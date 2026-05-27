@@ -113,8 +113,8 @@ assert_readable_envelope() {
     exit 1
   }
   jq -e -s '
-    def exactly($keys): (keys_unsorted | sort) == ($keys | sort);
     def one_of($values; $value): ($values | index($value)) != null;
+    def has_keys($required): . as $object | all($required[]; . as $key | $object | has($key));
     def positive_integer:
       type == "number" and . == floor and . >= 1;
     def repo_relative_path:
@@ -130,7 +130,7 @@ assert_readable_envelope() {
       end;
     def valid_finding:
       type == "object"
-      and exactly([
+      and has_keys([
         "path",
         "line",
         "start_line",
@@ -403,9 +403,6 @@ render_entry() {
   critic="$(jq -r 'if .critic == null then "(skipped - nit)" else .critic end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
   body="$(jq -r '.body' <<<"$entry_json")"
-  if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then
-    body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
-  fi
   if [ "$start_line" = "null" ]; then
     line_display="$line"
   else
@@ -518,49 +515,6 @@ render_review_preview() {
   fi
 }
 
-build_github_review_payload() {
-  local review_body
-  require_repo_root
-  validate_head_sha
-  require_env FINDINGS_FILE
-  validate_findings_path_shape "$FINDINGS_FILE"
-  assert_readable_envelope "findings file" "$FINDINGS_FILE"
-  validate_review_surface
-  [ "$REVIEW_SURFACE" = "pr-review" ] || {
-    echo "build-github-review-payload requires REVIEW_SURFACE=pr-review" >&2
-    exit 1
-  }
-  validate_review_body_file
-  validate_review_event
-  validate_inline_source_anchors
-  review_body="$(build_review_body)"
-  jq -n \
-    --arg commit_id "$HEAD_SHA" \
-    --arg event "$REVIEW_EVENT" \
-    --arg body "$review_body" \
-    --slurpfile envelope "$FINDINGS_FILE" \
-    '{
-      commit_id: $commit_id,
-      event: $event,
-      body: $body,
-      comments: (
-        ($envelope[0].findings + $envelope[0].carry_forward)
-        | map(select(.anchor == "natural" or .anchor == "missing-file"))
-        | map({
-            path,
-            line,
-            start_line,
-            side: "RIGHT",
-            body: (if .anchor == "missing-file" then
-              "Missing-file finding (no natural anchor — see body):\n\n" + .body
-            else
-              .body
-            end)
-          } | if .start_line == null then del(.start_line) else . + {start_side: "RIGHT"} end)
-      )
-    }'
-}
-
 case "$command_name" in
   validate-findings)
     require_repo_root
@@ -599,11 +553,8 @@ case "$command_name" in
   render-review-preview)
     render_review_preview
     ;;
-  build-github-review-payload)
-    build_github_review_payload
-    ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-findings-write|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-findings-write|render-review-preview" >&2
     exit 1
     ;;
 esac
