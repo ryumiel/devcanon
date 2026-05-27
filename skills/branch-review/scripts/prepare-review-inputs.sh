@@ -123,6 +123,7 @@ compute_language_hints() {
 
   git diff --name-only "$range" |
     sed -n 's/.*\.\([[:alnum:]_+-][[:alnum:]_+-]*\)$/\1/p' |
+    tr '[:upper:]' '[:lower:]' |
     sort -u |
     paste -sd ',' -
 }

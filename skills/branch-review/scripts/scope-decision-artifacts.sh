@@ -224,6 +224,11 @@ validate_full_review_range_field() {
     return 1
   }
 
+  [ "$left" != "HEAD" ] || {
+    echo "$field left endpoint must be a base ref, not HEAD: $value" >&2
+    return 1
+  }
+
   validate_ref_endpoint "$field" "$left" &&
     validate_ref_endpoint "$field" "$right"
 }
@@ -317,7 +322,12 @@ validate_scope_decision() {
         and .prior_context.kind == "branch-findings"
         and ($prior_branch_findings | direct_ephemeral_path)
         and .prior_context.path == $prior_branch_findings
-        and .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
+        and (if .mechanical_facts.followup_sha_usable then
+          .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
+        else
+          .candidate_narrow_range == .full_range
+          and .mechanical_facts.mechanical_escalate_full == true
+        end)
       end)
       and .semantic_decision.checked == true
       and .semantic_decision.ambiguous == false

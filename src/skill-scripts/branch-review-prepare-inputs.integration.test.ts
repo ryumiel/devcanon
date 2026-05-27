@@ -160,6 +160,22 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     }
   });
 
+  it("normalizes language hints from uppercase file extensions", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/View.TSX", "export const View = 1;\n");
+
+      const values = await runHelper(cwd);
+
+      expect(values.LANGUAGE_HINTS).toBe("tsx");
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["src/View.TSX"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("escalates follow-up review to the full branch for broad or governed changes", async () => {
     const cwd = await makeGitWorkspace();
     try {

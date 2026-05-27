@@ -629,6 +629,35 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         cwd,
         scopeDecisionFile,
         scopeDecision({
+          mode: "initial",
+          selected_range: "HEAD...HEAD",
+          full_range: "HEAD...HEAD",
+          candidate_narrow_range: "HEAD...HEAD",
+          is_followup_narrow: false,
+          selection_reason: "initial review",
+          escalation_reasons: ["not-followup"],
+          last_reviewed_sha: null,
+          prior_context: { kind: "none", path: null },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
           full_range: "origin/main..HEAD",
         }),
       );

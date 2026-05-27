@@ -234,6 +234,11 @@ validate_full_review_range_field() {
     return 1
   }
 
+  [ "$left" != "HEAD" ] || {
+    echo "$field left endpoint must be a base ref, not HEAD: $value" >&2
+    return 1
+  }
+
   validate_ref_endpoint "$field" "$left" &&
     validate_ref_endpoint "$field" "$right"
 }

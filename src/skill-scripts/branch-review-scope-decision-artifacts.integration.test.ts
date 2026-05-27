@@ -172,9 +172,33 @@ describe.skipIf(!jqAvailable)(
             ],
             mechanical_facts: {
               changed_file_count: 7,
-              followup_sha_usable: false,
+              followup_sha_usable: true,
               mechanical_escalate_full: true,
               mechanical_escalation_reason: "file-count",
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            selected_range: "main...HEAD",
+            candidate_narrow_range: "main...HEAD",
+            is_followup_narrow: false,
+            selection_reason: "unusable baseline escalation",
+            escalation_reasons: ["last-reviewed-unusable"],
+            mechanical_facts: {
+              changed_file_count: 1,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "last-reviewed-unusable",
             },
           }),
         );
@@ -351,6 +375,32 @@ describe.skipIf(!jqAvailable)(
           cwd,
           scopeDecisionFile,
           scopeDecision({
+            selected_range: "main...HEAD",
+            candidate_narrow_range: `${lastReviewedSha}..HEAD`,
+            is_followup_narrow: false,
+            selection_reason: "unusable baseline escalation",
+            escalation_reasons: ["last-reviewed-unusable"],
+            mechanical_facts: {
+              changed_file_count: 1,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "last-reviewed-unusable",
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
             selected_range: `${headSha}..HEAD`,
             is_followup_narrow: false,
             escalation_reasons: [],
@@ -396,6 +446,35 @@ describe.skipIf(!jqAvailable)(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
             ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            mode: "initial",
+            selected_range: "HEAD...HEAD",
+            full_range: "HEAD...HEAD",
+            candidate_narrow_range: "HEAD...HEAD",
+            is_followup_narrow: false,
+            selection_reason: "initial review",
+            escalation_reasons: ["not-followup"],
+            last_reviewed_sha: null,
+            prior_context: { kind: "none", path: null },
+            mechanical_facts: {
+              changed_file_count: 1,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
