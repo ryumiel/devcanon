@@ -132,15 +132,8 @@ function payload(overrides: Record<string, unknown> = {}) {
   return {
     commit_id: headSha,
     event: "COMMENT",
-    body: "Review body\n",
-    comments: [
-      {
-        path: "src/example.ts",
-        line: 12,
-        side: "RIGHT",
-        body: "Inline comment\n",
-      },
-    ],
+    body: "Review body",
+    comments: [],
     ...overrides,
   };
 }
@@ -188,6 +181,7 @@ async function runHelper(
       ...process.env,
       HEAD_SHA: headSha,
       PLAY_REVIEW_DIR: playReviewDir,
+      REVIEW_EVENT: "COMMENT",
       ...env,
     },
   });
@@ -470,6 +464,90 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects stale payload content before freezing approved reviews", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeJson(
+          cwd,
+          payloadFile,
+          payload({ body: "Stale review body" }),
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "review payload does not match generated payload",
+          ),
+        });
+
+        await expect(
+          readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects payloads that omit comments from current findings", async () => {
+      const { cwd, reviewHeadSha, reviewFindingsFile, reviewPayloadFile } =
+        await makeReviewSourceWorkspace();
+      try {
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [sourceFinding()],
+          carry_forward: [],
+        });
+        await writeJson(cwd, reviewPayloadFile, {
+          commit_id: reviewHeadSha,
+          event: "COMMENT",
+          body: "Review body",
+          comments: [],
+        });
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: reviewFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: reviewPayloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "review payload does not match generated payload",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("requires the review event when freezing approved reviews", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_EVENT: "",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("REVIEW_EVENT is required"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("validates the approved review and prints the exact frozen payload", async () => {
       const cwd = await makeGitWorkspace();
       try {
@@ -485,33 +563,62 @@ describe.skipIf(!jqAvailable)(
         });
 
         expect(JSON.parse(stdout)).toEqual(payload());
-        expect(stdout).toContain('"body": "Review body\\n"');
+        expect(stdout).toContain('"body": "Review body"');
       } finally {
         await cleanupTempDir(cwd);
       }
     });
 
     it("allows start_side only on ranged inline comments", async () => {
-      const cwd = await makeGitWorkspace();
+      const { cwd, reviewHeadSha, reviewFindingsFile, reviewPayloadFile } =
+        await makeReviewSourceWorkspace();
       try {
-        await writeInputs(cwd);
-        await writeJson(cwd, payloadFile, payloadWithRange());
+        const reviewApprovedFile = `.ephemeral/topic-${reviewHeadSha}-approved-review.json`;
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [
+            sourceFinding({
+              line: 3,
+              start_line: 2,
+              body: "**Blocking | Contracts** - Ranged inline body.\n\n**Recommendation:** Keep the ranged body.",
+            }),
+            sourceFinding({
+              line: 4,
+              body: "**Blocking | Contracts** - Single-line inline body.\n\n**Recommendation:** Keep the single-line body.",
+            }),
+          ],
+          carry_forward: [],
+        });
+        const { stdout: generatedPayload } = await runHelper(
+          cwd,
+          "build-github-review-payload",
+          {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: reviewFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_EVENT: "COMMENT",
+          },
+        );
+        await writeFile(path.join(cwd, reviewPayloadFile), generatedPayload);
 
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: reviewPayloadFile,
         });
 
         const { stdout } = await runHelper(cwd, "validate-approved-review", {
-          APPROVED_REVIEW_FILE: approvedReviewFile,
+          HEAD_SHA: reviewHeadSha,
+          APPROVED_REVIEW_FILE: reviewApprovedFile,
         });
 
         const validatedPayload = JSON.parse(stdout) as {
           comments: Array<Record<string, unknown>>;
         };
         expect(validatedPayload.comments[0]).toMatchObject({
-          start_line: 10,
+          start_line: 2,
           start_side: "RIGHT",
         });
         expect(validatedPayload.comments[1]).not.toHaveProperty("start_line");

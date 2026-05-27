@@ -145,6 +145,7 @@ assert_readable_envelope() {
       and (.path | repo_relative_path)
       and (.line | positive_integer)
       and (.start_line == null or (.start_line | positive_integer))
+      and (.start_line == null or .start_line <= .line)
       and one_of(["Blocking", "Nit"]; .severity)
       and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
       and valid_critic

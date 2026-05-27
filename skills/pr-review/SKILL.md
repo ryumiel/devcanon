@@ -358,6 +358,7 @@ Only after user approval:
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       REVIEW_EVENT="$REVIEW_EVENT" \
        PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
      ) || return 1

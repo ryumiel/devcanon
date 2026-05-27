@@ -467,6 +467,48 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("rejects malformed out-of-diff ranges before placeholder rendering", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            path: "src/removed.ts",
+            line: 1,
+            start_line: 3,
+            anchor: "out-of-diff",
+            why: "The finding range is structurally invalid.",
+            recommendation: "Reject the malformed range before preview.",
+            body: "**Blocking | Contracts** - The finding range is structurally invalid.\n\n**Recommendation:** Reject the malformed range before preview.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(
+        runHelper(cwd, "render-review-preview", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "branch-review",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects multi-document findings JSON streams before rendering", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
@@ -620,6 +662,32 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await expect(
         runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects malformed ranges in nits envelopes", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, nitsFile, {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [
+          finding({
+            line: 1,
+            start_line: 3,
+            severity: "Nit",
+            critic: null,
+          }),
+        ],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -867,6 +935,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       {
         schema: "play-review/findings/v1",
         findings: [finding({ path: "/absolute/path" })],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [finding({ line: 1, start_line: 3 })],
         carry_forward: [],
       },
     ];

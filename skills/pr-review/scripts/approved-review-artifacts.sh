@@ -415,6 +415,30 @@ assert_payload_shape() {
   }
 }
 
+assert_payload_matches_generated() {
+  local file="$1"
+  local expected_file
+  local actual_file
+
+  validate_review_event
+  expected_file="$(mktemp ".ephemeral/.expected-review-payload-${HEAD_SHA}.XXXXXX")"
+  actual_file="$(mktemp ".ephemeral/.actual-review-payload-${HEAD_SHA}.XXXXXX")"
+  if ! build_github_review_payload | jq -S . > "$expected_file"; then
+    rm -f "$expected_file" "$actual_file"
+    exit 1
+  fi
+  if ! jq -S . "$file" > "$actual_file"; then
+    rm -f "$expected_file" "$actual_file"
+    exit 1
+  fi
+  if ! cmp -s "$expected_file" "$actual_file"; then
+    rm -f "$expected_file" "$actual_file"
+    echo "review payload does not match generated payload: $file" >&2
+    exit 1
+  fi
+  rm -f "$expected_file" "$actual_file"
+}
+
 assert_approved_schema() {
   local file="$1"
   require_jq
@@ -468,6 +492,7 @@ freeze_approved_review() {
   validate_findings_with_owner "$FINDINGS_FILE" "$HEAD_SHA"
   assert_single_json_object "review payload" "$REVIEW_PAYLOAD_FILE"
   assert_payload_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
+  assert_payload_matches_generated "$REVIEW_PAYLOAD_FILE"
 
   approved_review_file="$(expected_approved_path_for "$HEAD_SHA")"
   validate_approved_path_shape "$approved_review_file"

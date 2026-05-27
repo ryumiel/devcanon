@@ -207,6 +207,9 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
       expect(renderedPrReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        'REVIEW_EVENT="$REVIEW_EVENT" \\ PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \\ bash "$PR_REVIEW_HELPER" freeze-approved-review',
+      );
       expect(renderedPrReview).toContain(
         "approved review artifact path missing",
       );

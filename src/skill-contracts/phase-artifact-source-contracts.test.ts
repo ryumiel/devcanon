@@ -949,6 +949,9 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain('REVIEW_CALLER_DIR="$(pwd -P)"');
     expect(prReview).toContain("build_and_freeze_approved_review()");
     expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
+    expect(normalizedPrReview).toContain(
+      'REVIEW_EVENT="$REVIEW_EVENT" \\ PLAY_REVIEW_DIR="$PLAY_REVIEW_DIR" \\ bash "$PR_REVIEW_HELPER" freeze-approved-review',
+    );
     expect(prReview).toContain(
       '[ "$BUILD_AND_FREEZE_STATUS" -eq 0 ] || exit "$BUILD_AND_FREEZE_STATUS"',
     );
