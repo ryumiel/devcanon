@@ -40,8 +40,8 @@ digraph pr_review {
 
 Run in parallel:
 
-- `gh pr view <N> --json title,body,baseRefName,headRefName,commits,files,url`
-- `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states and prior review commits
+- `gh pr view "$PR_NUMBER" --json title,body,baseRefName,headRefName,commits,files,url`
+- `gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews"` — review states and prior review commits
 - Follow-up only: GraphQL `reviewThreads` data with thread ID,
   `isResolved`, `isOutdated`, comments, path, line/original line, author, and
   commit/staleness fields needed for normalized prior-thread classification.
@@ -71,16 +71,16 @@ cleanup. `play-review` receives only repo-relative artifact paths inside
 ```sh
 git fetch origin <base-ref>
 git fetch origin <head-ref>
-git worktree add .worktrees/pr-<N>-review origin/<head-ref>
+git worktree add ".worktrees/pr-${PR_NUMBER}-review" origin/<head-ref>
 ```
 
 Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout "$PR_NUMBER" --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
-`working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
+`working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-${PR_NUMBER}-review`.
 
 After entering `working_directory`, bind `HEAD_SHA="$(git rev-parse HEAD)"`.
 Use this mode-independent review head for prior-thread artifacts,
@@ -163,7 +163,7 @@ stop before invoking `play-review`.
 
 Hand off to `play-review` with these inputs:
 
-- `working_directory` = absolute path to `.worktrees/pr-<N>-review`
+- `working_directory` = absolute path to `.worktrees/pr-${PR_NUMBER}-review`
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
 - `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
@@ -384,9 +384,10 @@ Only after user approval:
    stale head.
 
    ```sh
-   CURRENT_HEAD_SHA="$(gh pr view <N> --json headRefOid -q .headRefOid)"
+   CURRENT_HEAD_SHA="$(gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid)"
    [ "$CURRENT_HEAD_SHA" = "$REVIEW_HEAD_SHA" ] || {
      echo "PR head changed since review; refusing to post stale approved review" >&2
+     git worktree remove ".worktrees/pr-${PR_NUMBER}-review" 2>/dev/null || true
      exit 1
    }
    ```
@@ -416,7 +417,7 @@ Only after user approval:
        echo "approved review validation failed; refusing to invoke gh api" >&2
        exit 1
      fi
-     gh api repos/{owner}/{repo}/pulls/<N>/reviews \
+     gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews" \
        --method POST \
        --silent \
        --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
@@ -437,7 +438,7 @@ Only after user approval:
 ## Phase 7: Cleanup
 
 **Always** (success, stale-head refusal, or abort):
-`git worktree remove .worktrees/pr-<N>-review`
+`git worktree remove ".worktrees/pr-${PR_NUMBER}-review"`
 
 ## GitHub API Reference
 
@@ -458,7 +459,7 @@ The sealed payload uses `line` (absolute file line in HEAD), not `position`
 **Reply to inline comment** (use the correct endpoint):
 
 ```sh
-gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies --jq '.id' -f body="<text>"
+gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}/comments/<comment-id>/replies" --jq '.id' -f body="<text>"
 ```
 
 Verify the response includes the new comment ID. Do not assume success.
@@ -498,16 +499,16 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario                              | Action                                               |
-| ------------------------------------- | ---------------------------------------------------- |
-| `gh` not authenticated                | Fail, suggest `gh auth login`                        |
-| PR not found                          | Fail, verify number/URL                              |
-| PR already merged/closed              | Warn user of state, ask whether to proceed           |
-| Fork PR (head ref not on origin)      | Use `gh pr checkout <N> --detach` or add fork remote |
-| Worktree exists                       | Remove stale, recreate                               |
-| `play-review` reports a missing input | Stop; this means the wrapper has a bug               |
-| API returns non-2xx                   | Report failure, stop                                 |
-| Worktree cleanup fails                | Warn user, suggest manual `git worktree remove`      |
+| Scenario                              | Action                                                        |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `gh` not authenticated                | Fail, suggest `gh auth login`                                 |
+| PR not found                          | Fail, verify number/URL                                       |
+| PR already merged/closed              | Warn user of state, ask whether to proceed                    |
+| Fork PR (head ref not on origin)      | Use `gh pr checkout "$PR_NUMBER" --detach` or add fork remote |
+| Worktree exists                       | Remove stale, recreate                                        |
+| `play-review` reports a missing input | Stop; this means the wrapper has a bug                        |
+| API returns non-2xx                   | Report failure, stop                                          |
+| Worktree cleanup fails                | Warn user, suggest manual `git worktree remove`               |
 
 ## Integration
 

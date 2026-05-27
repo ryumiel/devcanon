@@ -400,7 +400,7 @@ assert_payload_shape() {
       and (.line | positive_integer)
       and ((has("start_line") | not) or (.start_line | positive_integer))
       and (if has("start_line") then .start_side == "RIGHT" else has("start_side") | not end)
-      and one_of(["LEFT", "RIGHT"]; .side)
+      and .side == "RIGHT"
       and (.body | type == "string");
     type == "object"
     and ((keys - ["commit_id", "event", "body", "comments"]) | length == 0)

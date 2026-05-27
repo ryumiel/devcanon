@@ -566,6 +566,16 @@ describe.skipIf(!jqAvailable)(
               },
             ],
           }),
+          payloadWithRange({
+            comments: [
+              {
+                path: "src/example.ts",
+                line: 12,
+                side: "LEFT",
+                body: "Wrong side\n",
+              },
+            ],
+          }),
         ];
 
         for (const malformedPayload of malformedPayloads) {

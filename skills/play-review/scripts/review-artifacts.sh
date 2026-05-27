@@ -175,17 +175,6 @@ validate_review_surface() {
   esac
 }
 
-validate_review_event() {
-  require_env REVIEW_EVENT
-  case "$REVIEW_EVENT" in
-    APPROVE | REQUEST_CHANGES | COMMENT) ;;
-    *)
-      echo "REVIEW_EVENT must be APPROVE, REQUEST_CHANGES, or COMMENT" >&2
-      exit 1
-      ;;
-  esac
-}
-
 validate_review_body_file() {
   require_env REVIEW_BODY_FILE
   case "$REVIEW_BODY_FILE" in

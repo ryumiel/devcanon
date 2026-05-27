@@ -925,6 +925,15 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
           selected_range: "origin/main...HEAD",
           is_followup_narrow: true,
           escalation_reasons: ["file-count"],
+          changed_files: [
+            "skills/branch-review/SKILL.md",
+            "skills/play-review/SKILL.md",
+            "skills/pr-review/SKILL.md",
+            "skills/play-review/scripts/review-artifacts.sh",
+            "skills/pr-review/scripts/prior-thread-artifacts.sh",
+            "src/skill-contracts/phase-artifact-source-contracts.test.ts",
+            "src/render/phase-artifact-contracts.integration.test.ts",
+          ],
           mechanical_facts: {
             changed_file_count: 7,
             followup_sha_usable: true,
