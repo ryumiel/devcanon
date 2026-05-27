@@ -250,7 +250,8 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `base_ref` = `$BASE`
 - `active_diff_range` = the selected active range from Phase 1
 - `full_pr_diff_range` = `"$BASE...HEAD"` (always, including follow-up mode)
-- `head_sha` = `$(git rev-parse HEAD)`
+- `head_sha` = `$HEAD_SHA` (the immutable review head captured before invoking
+  `play-review`)
 - `mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`
 - `language_hints` = computed from the selected active diff in Phase 1
 - `scope_decision` = the validated `branch-review/scope-decision/v1` artifact
@@ -263,10 +264,12 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
 
-In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.` notice path before applying any auto-fix commits:
+After `play-review` returns, capture the Phase 2 `head_sha` and
+`Findings written to <path>.` notice path before rendering the preview or
+applying any auto-fix commits:
 
 ```bash
-REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
+REVIEW_HEAD_SHA="$HEAD_SHA"
 # PLAY_REVIEW_OUTPUT is the captured markdown output from the Phase 2 play-review run.
 FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
 [ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
@@ -288,11 +291,6 @@ it from the repository root with `REVIEW_SURFACE=branch-review` and
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-HEAD_SHA="$(git rev-parse HEAD)"
-REVIEW_HEAD_SHA="$HEAD_SHA"
-FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
-[ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
-REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 
 HEAD_SHA="$REVIEW_HEAD_SHA" \
 FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \

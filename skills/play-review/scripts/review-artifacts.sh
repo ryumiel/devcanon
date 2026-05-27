@@ -225,7 +225,10 @@ prepare_write_target() {
     exit 1
   }
   mkdir -p .ephemeral
-  [ -L "$file" ] && rm "$file"
+  [ ! -L "$file" ] || {
+    echo "$label path must not be a symlink: $file" >&2
+    exit 1
+  }
   [ ! -d "$file" ] || {
     echo "$label path is a directory: $file" >&2
     exit 1

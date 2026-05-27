@@ -795,8 +795,9 @@ describe("phase artifact source contracts", () => {
       "**STOP HERE. Present the report. Wait for user response.**",
     );
     expect(prReview).toContain(
-      'HEAD_SHA="$(git rev-parse HEAD)"\nSCOPE_DECISION_FILE=',
+      'PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"',
     );
+    expect(prReview).toContain("prepare-scope-decision-write");
     expect(normalizedPrReview).toContain(
       "NEVER post, approve, or resolve without user approval at the Phase 5 gate",
     );
@@ -955,6 +956,9 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain("REVIEW_EVENT");
     expect(prReview).toContain("unset REVIEW_EVENT");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
+    expect(prReview).toContain(
+      "| `approve`                            | Post an approving review",
+    );
     expect(prReview).toContain('approve) REVIEW_EVENT="APPROVE"');
     expect(prReview).toContain(
       'request-changes | blocking | blocking-review) REVIEW_EVENT="REQUEST_CHANGES"',
@@ -966,6 +970,12 @@ describe("phase artifact source contracts", () => {
     expect(prReview).toContain("CURRENT_HEAD_SHA");
     expect(prReview).toContain(
       "PR head changed since review; refusing to post stale approved review",
+    );
+    expect(normalizedPrReview).toContain(
+      "If it differs from `REVIEW_HEAD_SHA`, run Phase 7 cleanup, then return to Phase 1",
+    );
+    expect(prReview).not.toContain(
+      'HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"',
     );
     expect(normalizedPrReview).toContain(
       "Present exactly that stdout to the user as the preview",
@@ -1037,6 +1047,10 @@ describe("phase artifact source contracts", () => {
     expect(normalizedBranchReview).toContain(
       "`REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`",
     );
+    expect(normalizedBranchReview).toContain(
+      "After `play-review` returns, capture the Phase 2 `head_sha`",
+    );
+    expect(branchReview).toContain('REVIEW_HEAD_SHA="$HEAD_SHA"');
   });
 
   it("keeps play-skill-authoring pressure contracts for wrapper artifact loopholes", async () => {
@@ -1048,6 +1062,7 @@ describe("phase artifact source contracts", () => {
     for (const prContract of [
       ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md",
       "review body parent must be .ephemeral",
+      "Bind `PR_NUMBER` to the reviewed pull request number",
       "render-review-preview",
       "unset REVIEW_EVENT",
       "APPROVED_REVIEW_INTENT",

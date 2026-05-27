@@ -46,6 +46,10 @@ Run in parallel:
   `isResolved`, `isOutdated`, comments, path, line/original line, author, and
   commit/staleness fields needed for normalized prior-thread classification.
 
+Bind `PR_NUMBER` to the reviewed pull request number from the user request or
+resolved PR URL. Reuse that value for worktree paths, review body artifacts, API
+calls, and cleanup.
+
 <!-- Bare body intentional: responses feed the prior-thread normalization helper and prior-review mode detection. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
 
@@ -81,13 +85,15 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 After entering `working_directory`, bind `HEAD_SHA="$(git rev-parse HEAD)"`.
 Use this mode-independent review head for prior-thread artifacts,
 scope-decision artifacts, and the `play-review` handoff.
+Bind `PR_REVIEW_DIR` to the installed `pr-review` skill bundle and
+`PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"` before any
+prior-thread or scope-decision artifact command.
 
 For follow-up reviews, normalize raw GitHub thread payloads from inside
 `working_directory` before Phase 3 and before any `play-review` handoff.
-`PR_REVIEW_HELPER` must resolve to the installed
-`pr-review/scripts/prior-thread-artifacts.sh` helper. In the PR worktree, bind
-the already-captured `HEAD_SHA`, use `prepare-prior-threads-write` to prepare
-the worktree-local `.ephemeral/*-prior-threads.json` target, write a
+In the PR worktree, bind the already-captured `HEAD_SHA`, use
+`prepare-prior-threads-write` to prepare the worktree-local
+`.ephemeral/*-prior-threads.json` target, write a
 `pr-review/prior-threads/v1` artifact there, then run `validate-prior-threads`
 from the same worktree with `PRIOR_THREADS_FILE` bound to the prepared path:
 
@@ -138,7 +144,6 @@ artifact with `prepare-scope-decision-write`, then validate it with
 `validate-scope-decision` with `SCOPE_DECISION_FILE` bound to the prepared path:
 
 ```sh
-HEAD_SHA="$(git rev-parse HEAD)"
 SCOPE_DECISION_FILE=$(
   HEAD_SHA="$HEAD_SHA" bash "$PR_REVIEW_HELPER" prepare-scope-decision-write
 ) || exit 1
@@ -162,7 +167,7 @@ Hand off to `play-review` with these inputs:
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
 - `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
-- `head_sha` = `git rev-parse HEAD` in the worktree
+- `head_sha` = `$HEAD_SHA` captured in Phase 2
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so follow-up narrow mode only spawns language agents matching the incremental diff; deriving from the full PR would re-run earlier-touched language agents on docs-only follow-ups, defeating the narrow-mode scoping)
 - `scope_decision` = validated `pr-review/scope-decision/v1` artifact path
@@ -179,7 +184,6 @@ state.
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
 
 ```bash
-HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"
 REVIEW_HEAD_SHA="$HEAD_SHA"  # the trusted Phase 4 head_sha input passed to play-review
 FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings written to \(.*\)\.$/\1/p' | tail -n 1)
 [ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
@@ -279,6 +283,7 @@ from conversation text or current checkout state.
 
 | Action                               | Effect                         |
 | ------------------------------------ | ------------------------------ |
+| `approve`                            | Post an approving review       |
 | `request-changes`                    | Post a blocking review verdict |
 | `comment`                            | Comment only, no verdict       |
 | `drop #N`                            | Remove finding                 |
@@ -374,8 +379,9 @@ Only after user approval:
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
 3. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
-   immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
-   return to Phase 1; do not post an approved artifact against a stale head.
+   immediately before posting. If it differs from `REVIEW_HEAD_SHA`, run Phase 7
+   cleanup, then return to Phase 1; do not post an approved artifact against a
+   stale head.
 
    ```sh
    CURRENT_HEAD_SHA="$(gh pr view <N> --json headRefOid -q .headRefOid)"
@@ -430,7 +436,8 @@ Only after user approval:
 
 ## Phase 7: Cleanup
 
-**Always** (success or abort): `git worktree remove .worktrees/pr-<N>-review`
+**Always** (success, stale-head refusal, or abort):
+`git worktree remove .worktrees/pr-<N>-review`
 
 ## GitHub API Reference
 

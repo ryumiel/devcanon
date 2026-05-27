@@ -164,7 +164,13 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain('cd "$REVIEW_CALLER_DIR" || exit 1');
     expect(prReview).toContain("approved review artifact path missing");
     expect(prReview).toContain("APPROVED_REVIEW_INTENT");
+    expect(prReview).toContain(
+      "Bind `PR_NUMBER` to the reviewed pull request number",
+    );
     expect(prReview).toContain("unset REVIEW_EVENT");
+    expect(prReview).toContain(
+      "| `approve`                            | Post an approving review",
+    );
     expect(prReview).toContain("CURRENT_HEAD_SHA");
     expect(prReview).toContain(
       "PR head changed since review; refusing to post stale approved review",
@@ -208,7 +214,13 @@ describe("rendered phase artifact smoke coverage", () => {
         "review body parent must be .ephemeral",
       );
       expect(renderedPrReview).toContain("APPROVED_REVIEW_INTENT");
+      expect(renderedPrReview).toContain(
+        "Bind `PR_NUMBER` to the reviewed pull request number",
+      );
       expect(renderedPrReview).toContain("unset REVIEW_EVENT");
+      expect(renderedPrReview).toContain(
+        "| `approve`                            | Post an approving review",
+      );
       expect(renderedPrReview).toContain('REVIEW_EVENT="APPROVE"');
       expect(renderedPrReview).toContain('REVIEW_EVENT="REQUEST_CHANGES"');
       expect(renderedPrReview).toContain('REVIEW_EVENT="COMMENT"');

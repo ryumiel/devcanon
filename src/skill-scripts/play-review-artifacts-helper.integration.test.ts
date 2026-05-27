@@ -737,7 +737,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("prepares an explicit findings write path and removes a symlinked leaf", async () => {
+  it("prepares an explicit findings write path and rejects a symlinked leaf", async () => {
     const cwd = await makeTopicGitWorkspace();
     const outside = path.join(cwd, "outside-target");
     try {
@@ -746,17 +746,25 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         await symlink(outside, path.join(cwd, findingsFile));
       }
 
-      const { stdout } = await runHelper(cwd, "prepare-findings-write", {
-        FINDINGS_FILE: findingsFile,
-      });
-      expect(stdout.trim()).toBe(findingsFile);
       if (symlinkAvailable) {
+        await expect(
+          runHelper(cwd, "prepare-findings-write", {
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "findings path must not be a symlink",
+          ),
+        });
         expect(await readFile(outside, "utf-8")).toBe("do not overwrite\n");
-        await expect(lstat(path.join(cwd, findingsFile))).rejects.toMatchObject(
-          {
-            code: "ENOENT",
-          },
-        );
+        expect(
+          (await lstat(path.join(cwd, findingsFile))).isSymbolicLink(),
+        ).toBe(true);
+      } else {
+        const { stdout } = await runHelper(cwd, "prepare-findings-write", {
+          FINDINGS_FILE: findingsFile,
+        });
+        expect(stdout.trim()).toBe(findingsFile);
       }
     } finally {
       await cleanupTempDir(cwd);
