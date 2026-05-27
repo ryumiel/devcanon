@@ -338,6 +338,27 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         cwd,
         priorThreadsFile,
         priorThreads({
+          dropped: [
+            {
+              thread_id: "PRRT_actionable_dropped",
+              classification: "actionable",
+              reason: "dropped from model context",
+            },
+          ],
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-prior-threads", {
+          PRIOR_THREADS_FILE: priorThreadsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("prior threads schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        priorThreadsFile,
+        priorThreads({
           threads: [
             {
               ...priorThreads().threads[0],
@@ -559,8 +580,56 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         cwd,
         scopeDecisionFile,
         scopeDecision({
+          prior_context: {
+            kind: "github-prior-threads",
+            path: `.ephemeral/stale-${headSha}-prior-threads.json`,
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
           candidate_narrow_range: "origin/main..HEAD",
           selected_range: "origin/main..HEAD",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          full_range: "origin/main...feature",
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          full_range: "origin/main..HEAD",
         }),
       );
       await expect(

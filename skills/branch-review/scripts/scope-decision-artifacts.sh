@@ -202,10 +202,40 @@ validate_review_range_field() {
     validate_ref_endpoint "$field" "$right"
 }
 
+validate_full_review_range_field() {
+  local field="$1"
+  local value="$2"
+  local left
+  local right
+
+  case "$value" in
+    *...*)
+      left="${value%%...*}"
+      right="${value#*...}"
+      ;;
+    *)
+      echo "$field must use merge-base diff range syntax ending at HEAD" >&2
+      return 1
+      ;;
+  esac
+
+  [ "$right" = "HEAD" ] || {
+    echo "$field must end at HEAD: $value" >&2
+    return 1
+  }
+
+  validate_ref_endpoint "$field" "$left" &&
+    validate_ref_endpoint "$field" "$right"
+}
+
 validate_scope_decision_ranges() {
   local field
   local value
-  for field in selected_range full_range candidate_narrow_range; do
+
+  value="$(jq -ser '.[0].full_range' "$SCOPE_DECISION_FILE")" || return 1
+  validate_full_review_range_field "full_range" "$value" || return 1
+
+  for field in selected_range candidate_narrow_range; do
     value="$(jq -ser --arg field "$field" '.[0][$field]' "$SCOPE_DECISION_FILE")" || return 1
     validate_review_range_field "$field" "$value" || return 1
   done
@@ -232,7 +262,7 @@ validate_scope_decision() {
   }
   assert_readable_file "scope decision" "$SCOPE_DECISION_FILE"
   require_jq
-  jq -e -s --arg head_sha "$HEAD_SHA" '
+  jq -e -s --arg head_sha "$HEAD_SHA" --arg prior_branch_findings "${PRIOR_BRANCH_FINDINGS:-}" '
     def exactly($keys): (keys_unsorted | sort) == ($keys | sort);
     def one_of($values; $value): ($values | index($value)) != null;
     def sha: type == "string" and test("^[0-9a-f]{40}$");
@@ -285,7 +315,8 @@ validate_scope_decision() {
       else
         (.last_reviewed_sha | sha)
         and .prior_context.kind == "branch-findings"
-        and (.prior_context.path | direct_ephemeral_path)
+        and ($prior_branch_findings | direct_ephemeral_path)
+        and .prior_context.path == $prior_branch_findings
         and .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
       end)
       and .semantic_decision.checked == true

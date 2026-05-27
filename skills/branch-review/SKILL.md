@@ -215,7 +215,10 @@ After final active range selection, write and validate a
 `BRANCH_REVIEW_SCOPE_HELPER` must resolve to
 `skills/branch-review/scripts/scope-decision-artifacts.sh`; use
 `prepare-scope-decision-write` to prepare the direct-child `.ephemeral`
-write target and `validate-scope-decision` after writing. The artifact records
+write target and `validate-scope-decision` after writing. In follow-up mode,
+bind `PRIOR_BRANCH_FINDINGS="$PRIOR_BRANCH_FINDINGS"` when validating so the
+artifact's `prior_context.path` must match the already validated
+`--prior-findings` input rather than a reconstructed path. The artifact records
 initial vs follow-up mode, selected range, full range, candidate narrow range,
 `is_followup_narrow`, escalation reason(s), last reviewed SHA, changed files,
 language hints, prior findings path, mechanical facts, and semantic decision

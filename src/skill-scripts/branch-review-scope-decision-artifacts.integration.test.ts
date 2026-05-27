@@ -15,8 +15,9 @@ const helperScript = path.join(
   "skills/branch-review/scripts/scope-decision-artifacts.sh",
 );
 const headSha = "0123456789abcdef0123456789abcdef01234567";
+const lastReviewedSha = "89abcdef0123456789abcdef0123456789abcdef";
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
-const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
+const findingsFile = `.ephemeral/topic-${lastReviewedSha}-findings.json`;
 const symlinkAvailable = await canCreateSymlinks();
 const jqAvailable = await commandAvailable("jq");
 
@@ -65,13 +66,13 @@ function scopeDecision(overrides: Record<string, unknown> = {}) {
     schema: "branch-review/scope-decision/v1",
     surface: "branch-review",
     mode: "follow-up",
-    selected_range: `${headSha}..HEAD`,
+    selected_range: `${lastReviewedSha}..HEAD`,
     full_range: "main...HEAD",
-    candidate_narrow_range: `${headSha}..HEAD`,
+    candidate_narrow_range: `${lastReviewedSha}..HEAD`,
     is_followup_narrow: true,
     selection_reason: "mechanical and semantic checks passed",
     escalation_reasons: [],
-    last_reviewed_sha: headSha,
+    last_reviewed_sha: lastReviewedSha,
     head_sha: headSha,
     changed_files: ["skills/branch-review/SKILL.md"],
     language_hints: ["md"],
@@ -94,6 +95,10 @@ function scopeDecision(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const validateFollowupEnv = {
+  PRIOR_BRANCH_FINDINGS: findingsFile,
+};
+
 describe.skipIf(!jqAvailable)(
   "branch-review scope decision artifact helper",
   () => {
@@ -115,6 +120,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).resolves.toMatchObject({ stdout: "" });
 
@@ -175,6 +181,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).resolves.toMatchObject({ stdout: "" });
 
@@ -188,6 +195,24 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            prior_context: {
+              kind: "branch-findings",
+              path: `.ephemeral/renamed-${lastReviewedSha}-findings.json`,
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            PRIOR_BRANCH_FINDINGS: `.ephemeral/renamed-${lastReviewedSha}-findings.json`,
           }),
         ).resolves.toMatchObject({ stdout: "" });
       } finally {
@@ -220,6 +245,44 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            prior_context: {
+              kind: "branch-findings",
+              path: `.ephemeral/topic-${headSha}-findings.json`,
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(cwd, scopeDecisionFile, scopeDecision());
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            PRIOR_BRANCH_FINDINGS: `.ephemeral/stale-${lastReviewedSha}-findings.json`,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -236,6 +299,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -256,6 +320,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -276,6 +341,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -293,6 +359,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -312,6 +379,39 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            full_range: "main...feature",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            full_range: "main..HEAD",
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -327,6 +427,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -342,6 +443,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -357,6 +459,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -371,6 +474,7 @@ describe.skipIf(!jqAvailable)(
           await expect(
             runHelper(cwd, "validate-scope-decision", {
               SCOPE_DECISION_FILE: scopeDecisionFile,
+              ...validateFollowupEnv,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -388,6 +492,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -411,6 +516,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -437,6 +543,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...validateFollowupEnv,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),

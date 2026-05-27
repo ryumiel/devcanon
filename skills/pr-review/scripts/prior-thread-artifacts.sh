@@ -212,10 +212,40 @@ validate_review_range_field() {
     validate_ref_endpoint "$field" "$right"
 }
 
+validate_full_review_range_field() {
+  local field="$1"
+  local value="$2"
+  local left
+  local right
+
+  case "$value" in
+    *...*)
+      left="${value%%...*}"
+      right="${value#*...}"
+      ;;
+    *)
+      echo "$field must use merge-base diff range syntax ending at HEAD" >&2
+      return 1
+      ;;
+  esac
+
+  [ "$right" = "HEAD" ] || {
+    echo "$field must end at HEAD: $value" >&2
+    return 1
+  }
+
+  validate_ref_endpoint "$field" "$left" &&
+    validate_ref_endpoint "$field" "$right"
+}
+
 validate_scope_decision_ranges() {
   local field
   local value
-  for field in selected_range full_range candidate_narrow_range; do
+
+  value="$(jq -ser '.[0].full_range' "$SCOPE_DECISION_FILE")" || return 1
+  validate_full_review_range_field "full_range" "$value" || return 1
+
+  for field in selected_range candidate_narrow_range; do
     value="$(jq -ser --arg field "$field" '.[0][$field]' "$SCOPE_DECISION_FILE")" || return 1
     validate_review_range_field "$field" "$value" || return 1
   done
@@ -344,6 +374,7 @@ validate_prior_threads() {
       and exactly(["thread_id", "classification", "reason"])
       and (.thread_id | type == "string" and length > 0)
       and (.classification | valid_classification)
+      and .classification != "actionable"
       and (.reason | type == "string" and length > 0);
     length == 1
     and (.[0] |
@@ -375,7 +406,9 @@ validate_scope_decision() {
   }
   assert_readable_file "scope decision" "$SCOPE_DECISION_FILE"
   require_jq
-  jq -e -s --arg head_sha "$HEAD_SHA" '
+  local expected_prior_threads
+  expected_prior_threads="$(expected_prior_threads_path)"
+  jq -e -s --arg head_sha "$HEAD_SHA" --arg expected_prior_threads "$expected_prior_threads" '
     def exactly($keys): (keys_unsorted | sort) == ($keys | sort);
     def one_of($values; $value): ($values | index($value)) != null;
     def sha: type == "string" and test("^[0-9a-f]{40}$");
@@ -425,10 +458,11 @@ validate_scope_decision() {
         and .selected_range == .full_range
         and .candidate_narrow_range == .full_range
         and .prior_context.kind == "none"
+        and .prior_context.path == null
       else
         (.last_reviewed_sha | sha)
         and .prior_context.kind == "github-prior-threads"
-        and (.prior_context.path | direct_ephemeral_path)
+        and .prior_context.path == $expected_prior_threads
         and .candidate_narrow_range == (.last_reviewed_sha + "..HEAD")
       end)
       and .semantic_decision.checked == true
