@@ -334,8 +334,9 @@ Architecture and Spec reviewers use for follow-up overrides, and that
 the Architecture reviewer's AFDS v2 ADR-coverage sub-check uses as
 anchor data. **Always run against `full_pr_diff_range`** even when
 `active_diff_range` is narrower (e.g., follow-up narrow mode). Rationale:
-ADR coverage, architecture risk, and spec/documentation impact are
-PR-scope governance questions, not only delta questions.
+ADR coverage is a PR-scope governance question, not a delta question.
+Architecture risk and spec/documentation impact are also PR-scope governance
+questions, not only delta questions.
 
 ```bash
 cd "$WORKING_DIRECTORY"
@@ -602,10 +603,10 @@ and changed test files; do not spawn separate language or test reviewers.
 
 Risk-triggered reviewers:
 
-| Reviewer     | Dispatch trigger                                                                                                                                                                                                                                                                                      | Focus                                                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Spawn when the active diff or full-PR routing summary includes architecture-routing risks: dependency manifests, config, major entry points, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow policy, generated/source ownership, module-boundary changes, durable decision indicators, responsibility drift, or 3+ modules. | Boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage                |
-| Spec         | Spawn when the active diff or full-PR routing summary includes spec-routing risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples, public config schemas, files referenced by existing docs, or prose that changes a documented pattern's canonical direction.                                                           | Missing/stale docs for changed behavior, contract alignment, examples, operator guidance, identifier drift, spec accuracy |
+| Reviewer     | Dispatch trigger                                                                                                                                                                                                                                                                                                                                                    | Focus                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Spawn when the active diff or full-PR routing summary includes architecture-routing risks: dependency manifests, config, major entry points, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow policy, generated/source ownership, module-boundary changes, durable decision indicators, responsibility drift, or 3+ modules. | Boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage               |
+| Spec         | Spawn when the active diff or full-PR routing summary includes spec-routing risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples, public config schemas, files referenced by existing docs, or prose that changes a documented pattern's canonical direction.                                                                                 | Missing/stale docs for changed behavior, contract alignment, examples, operator guidance, identifier drift, spec accuracy |
 
 If either risk-triggered reviewer classification is ambiguous, fail
 closed by spawning the relevant reviewer. Tiny-diff mode is the only
