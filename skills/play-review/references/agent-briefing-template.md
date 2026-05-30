@@ -35,7 +35,7 @@ context.
 | `<path-to-context-file>` | `.ephemeral/<branch_slug>-<head_sha>-review-context.md`                                                 |
 | `<active_diff_range>`    | `active_diff_range` skill input                                                                         |
 | `<working_directory>`    | `working_directory` skill input                                                                         |
-| `<sub-checks>`           | Per-agent — diff-specific, referencing actual files and lines                                           |
+| `<sub-checks>`           | Per-reviewer — diff-specific, referencing actual files and lines                                        |
 
 ## Notes
 

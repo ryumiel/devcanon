@@ -648,7 +648,7 @@ diff."
 
 The skeleton lives at [`skills/play-review/references/agent-briefing-template.md`](references/agent-briefing-template.md); follow it when adjusting topical reviewer prompts.
 
-Per-agent role-specific sub-checks (item 4) must reference actual files
+Per-reviewer role-specific sub-checks (item 4) must reference actual files
 and line counts from the diff. Generic prompts like "review this diff"
 are prohibited. The shared review-context block is path-referenced (see
 Phase 2.5) — that is the deliberate exception; each agent's role-specific
