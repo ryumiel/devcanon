@@ -348,13 +348,23 @@ NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \
 # Existing ADRs modified in this diff
 MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
   | grep -E '^docs/adr/adr-[0-9]+' || true)
-# Architecture-routing risks in the full PR
-ARCHITECTURE_ROUTING_RISKS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
+# Mechanical path signals for architecture-routing risks in the full PR
+ARCHITECTURE_ROUTING_PATH_SIGNALS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
   | grep -E '^(Cargo\.toml|package\.json|tsconfig\.json|[^/]+\.config\.[^/]+|src/.*/(mod\.rs|index\.ts)|docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/|skills/)' || true)
-# Spec-routing risks in the full PR
-SPEC_ROUTING_RISKS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
+# Mechanical path signals for spec-routing risks in the full PR
+SPEC_ROUTING_PATH_SIGNALS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
   | grep -E '^(docs/|.*\.md$|src/cli/|src/config/|skills/|agents/|.*(README|CONTRIBUTING|WORKFLOW).*|.*(example|fixture).*)' || true)
 ```
+
+The shell-derived path signals are only the mechanical seed data for the
+routing summary. They are not sufficient by themselves. After collecting
+them, inspect the full PR diff and write the stable routing fields as
+reviewer-visible lists that include both:
+
+- **Mechanical path signals** from `ARCHITECTURE_ROUTING_PATH_SIGNALS`
+  and `SPEC_ROUTING_PATH_SIGNALS`.
+- **Semantic classification notes** for trigger classes that cannot be
+  represented by path grep alone.
 
 Stable field names:
 
@@ -363,9 +373,22 @@ Stable field names:
 - `MODIFIED_ADRS` — existing ADR files modified in the full PR.
 - `ARCHITECTURE_ROUTING_RISKS` — full-PR architecture-routing risks
   used to decide whether `Architecture` must dispatch during
-  `is_followup_narrow == true`.
+  `is_followup_narrow == true`. Include mechanical path signals plus
+  semantic classification notes for module-boundary changes,
+  generated/source ownership changes, responsibility drift, durable
+  decision indicators, and 3+ changed modules.
 - `SPEC_ROUTING_RISKS` — full-PR spec-routing risks used to decide
   whether `Spec` must dispatch during `is_followup_narrow == true`.
+  Include mechanical path signals plus semantic classification notes for
+  docs/spec/API/user-facing behavior changes, CLI/operator guidance,
+  examples, public config schemas, files referenced by existing docs,
+  and prose that changes a documented pattern's canonical direction.
+
+If a semantic classification note is ambiguous, write that ambiguity into
+the relevant routing field and treat the field as non-empty. Ambiguity
+fails closed to the relevant risk-triggered reviewer in Phase 3; do not
+let an empty path-signal list suppress `Architecture` or `Spec` when the
+full PR diff raises a semantic trigger.
 
 This summary is passed through the shared review context and into any
 risk-triggered reviewer briefing in Phase 3 as full-PR routing summary
@@ -416,10 +439,12 @@ Compose the file with these sections, in order:
 3. **Doc-impact summary and full-PR routing summary** — the `ARCH_FILES`,
    `NEW_ADRS`, `MODIFIED_ADRS`, `ARCHITECTURE_ROUTING_RISKS`, and
    `SPEC_ROUTING_RISKS` lists from Phase 2 (always computed against
-   `full_pr_diff_range`). Emit `(none)` per list when empty so layout is
-   stable. Label the last two lists as architecture-routing risks and
-   spec-routing risks so follow-up narrow overrides can fail closed from
-   full-PR context.
+   `full_pr_diff_range`). Emit `(none)` per list only when both
+   mechanical path signals and semantic classification notes are empty.
+   Label the last two lists as architecture-routing risks and
+   spec-routing risks, with separate bullets for mechanical path signals
+   and semantic classification notes, so follow-up narrow overrides can
+   fail closed from full-PR context.
 4. **Relevant ADR references** — list repo-relative ADR paths, including
    `docs/adr/adr-template.md` only when relevant, with short keywords or a
    one-line reason for relevance. Do not copy full ADR bodies into the shared
@@ -579,12 +604,16 @@ Risk-triggered reviewers:
 
 | Reviewer     | Dispatch trigger                                                                                                                                                                                                                                                                                      | Focus                                                                                                                      |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Spawn when the active diff or full-PR routing summary includes architecture-routing risks: dependency manifests, config, major entry points, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow policy, generated/source ownership, module-boundary changes, or 3+ modules. | Boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage                |
-| Spec         | Spawn when the active diff or full-PR routing summary includes spec-routing risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples, public config schemas, files referenced by existing docs, or prose that changes a documented pattern's canonical direction.                     | Missing/stale docs for changed behavior, contract alignment, examples, operator guidance, identifier drift, spec accuracy |
+| Architecture | Spawn when the active diff or full-PR routing summary includes architecture-routing risks: dependency manifests, config, major entry points, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow policy, generated/source ownership, module-boundary changes, durable decision indicators, responsibility drift, or 3+ modules. | Boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage                |
+| Spec         | Spawn when the active diff or full-PR routing summary includes spec-routing risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples, public config schemas, files referenced by existing docs, or prose that changes a documented pattern's canonical direction.                                                           | Missing/stale docs for changed behavior, contract alignment, examples, operator guidance, identifier drift, spec accuracy |
 
 If either risk-triggered reviewer classification is ambiguous, fail
 closed by spawning the relevant reviewer. Tiny-diff mode is the only
 exception, and only after all Phase 2.75 eligibility checks clearly pass.
+For follow-up narrow reviews, the Phase 2 full-PR routing summary is
+authoritative only when it includes both the mechanical path-signal
+evidence and the semantic classification notes above; a path-only empty
+list cannot override semantic risk seen in the full PR diff.
 
 **Architecture override (full-PR scope on follow-up narrow mode):**
 when `is_followup_narrow == true` and `ARCHITECTURE_ROUTING_RISKS` or

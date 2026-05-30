@@ -595,8 +595,25 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase2).toContain("full-PR routing summary");
     expect(normalizedPhase2).toContain("architecture-routing risks");
     expect(normalizedPhase2).toContain("spec-routing risks");
+    expect(normalizedPhase2).toContain("Mechanical path signals");
+    expect(normalizedPhase2).toContain("Semantic classification notes");
+    expect(normalizedPhase2).toContain("module-boundary changes");
+    expect(normalizedPhase2).toContain("3+ changed modules");
+    expect(normalizedPhase2).toContain("files referenced by existing docs");
+    expect(normalizedPhase2).toContain(
+      "documented pattern's canonical direction",
+    );
+    expect(normalizedPhase2).toContain("Ambiguity fails closed");
+    expect(normalizedPhase2).not.toContain(
+      "Architecture-routing risks in the full PR",
+    );
+    expect(normalizedPhase2).not.toContain(
+      "Spec-routing risks in the full PR",
+    );
     expect(normalizedSharedContext).toContain("architecture-routing risks");
     expect(normalizedSharedContext).toContain("spec-routing risks");
+    expect(normalizedSharedContext).toContain("mechanical path signals");
+    expect(normalizedSharedContext).toContain("semantic classification notes");
 
     for (const phrase of [
       "Code-quality",
@@ -617,6 +634,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPhase3).toContain("ambiguous");
     expect(normalizedPhase3).toContain("full-PR routing summary");
+    expect(normalizedPhase3).toContain("mechanical path-signal evidence");
+    expect(normalizedPhase3).toContain("semantic classification notes");
+    expect(normalizedPhase3).toContain("path-only empty list");
     expect(normalizedPhase3).toContain("is_followup_narrow");
 
     for (const phrase of [
