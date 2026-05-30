@@ -679,10 +679,12 @@ describe("existing skills source prose contracts", () => {
     const adr0022 = await readRepoFile(
       "docs/adr/adr-0022-three-topical-play-review-fanout.md",
     );
+    const map = await readRepoFile("MAP.md");
     const normalizedAdr0011 = normalizeWhitespace(adr0011);
     const normalizedAdr0017 = normalizeWhitespace(adr0017);
     const normalizedAdr0018 = normalizeWhitespace(adr0018);
     const normalizedAdr0022 = normalizeWhitespace(adr0022);
+    const normalizedMap = normalizeWhitespace(map);
 
     expect(adr0022).toContain("# ADR-0022: Three-Topical `play-review` Fanout");
     for (const section of [
@@ -729,6 +731,9 @@ describe("existing skills source prose contracts", () => {
     expect(adr0011).not.toContain("## Amendment");
     expect(adr0017).not.toContain("## Amendment");
     expect(adr0018).not.toContain("## Amendment");
+    expect(normalizedMap).toContain(
+      "Where is the three-topical play-review fanout decision recorded? -> [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)",
+    );
   });
 
   it("keeps play-review tiny-diff mode scoped to risk-triggered reviewer suppression", async () => {
@@ -2013,6 +2018,21 @@ describe("existing skills source prose contracts", () => {
     expect(specReviewerPrompt).toContain(
       "Verify risk surfaces and proof obligations were addressed",
     );
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "tiny-diff mode may suppress only the risk-triggered `Spec` and `Architecture` reviewers",
+    );
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "cross-document checks are out of scope here and live in `play-review`'s risk-triggered `Spec` reviewer",
+    );
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "equivalent coverage lives in mandatory Phase 7 `branch-review --fix` through `play-review`'s always-on `Code-quality` reviewer",
+    );
+    expect(normalizeWhitespace(specReviewerPrompt)).toContain(
+      "documented-behavior verification (for new or modified invocations that aren't substitutions) is out of scope here and also lives in `play-review`'s `Code-quality` reviewer",
+    );
+    expect(specReviewerPrompt).not.toContain("dynamic Docs-agent dispatch");
+    expect(specReviewerPrompt).not.toContain("play-review`'s Docs agent");
+    expect(specReviewerPrompt).not.toContain("Correctness agent");
 
     expect(writeProductSpecRouting).toContain("packaged runtime reference");
     expect(writeProductSpecRouting).toContain("minimum evidence pointer");

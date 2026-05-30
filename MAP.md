@@ -73,6 +73,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is the render loaded boundary decision recorded? ->
   [`docs/adr/adr-0021-render-loaded-boundary.md`](docs/adr/adr-0021-render-loaded-boundary.md)
+- Where is the three-topical play-review fanout decision recorded? ->
+  [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
 - Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---
