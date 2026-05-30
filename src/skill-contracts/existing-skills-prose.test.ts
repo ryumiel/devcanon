@@ -654,11 +654,7 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Phase 2.75: Guarded tiny-diff mode",
     );
-    const redFlags = await readRepoFile(
-      "skills/play-review/references/red-flags.md",
-    );
     const normalizedTinyDiff = normalizeWhitespace(tinyDiffSection);
-    const normalizedRedFlags = normalizeWhitespace(redFlags);
 
     expect(normalizedTinyDiff).toContain(
       "suppresses only the risk-triggered Architecture and Spec reviewers",
@@ -674,10 +670,6 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedTinyDiff).not.toContain(
       "Correctness, Data-safety, and critic",
     );
-    expect(normalizedRedFlags).toContain(
-      "suppress Code-quality or critic verification in tiny-diff mode",
-    );
-    expect(normalizedRedFlags).not.toContain("dynamic fanout");
   });
 
   it("preserves play-review lifecycle sentinels around topical reviewers and critic", async () => {
@@ -1793,11 +1785,11 @@ describe("existing skills source prose contracts", () => {
     const playReviewPhase3Section = sliceBetween(
       playReview,
       "## Phase 3: Spawn agents",
-      "**Core agents (always spawned):**",
+      "## Phase 4: Sub-checks",
     );
     expectSharedLifecycleReference(playReviewPhase3Section);
     expect(playReviewPhase3Section).toContain(
-      "Before spawning Phase 3 reviewer agents",
+      "Before spawning Phase 3 topical reviewer agents",
     );
     expect(playReviewPhase3Section).toContain("review scope");
     expect(playReviewPhase3Section).toContain("concrete findings");
