@@ -6,8 +6,9 @@ Rules in `SKILL.md` from a "what does the failure look like" angle.
 - You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
 - You modified files in `working_directory` other than the `.ephemeral/` findings file or shared review-context file (see § Output and Phase 2.5) — this skill emits findings, not edits
 - You created or removed a worktree — the wrapper handles that
-- You skipped the Data-safety agent because "there's no security-relevant code"
-- You treated line count alone as enough to suppress the dynamic fanout
+- You skipped the always-on `Code-quality` reviewer or omitted its baseline data-safety, language, tests, or external-invocation coverage
+- You treated line count alone as enough to suppress risk-triggered `Architecture` or `Spec` review
+- You treated the skill-local `Code-quality` topical reviewer as the source `agents/code-quality-reviewer.yaml` role
 - You showed findings as a table with file:line but no code snippets
 - You used a generic agent prompt without diff-specific file references
 - You skipped the critic pass because "findings were straightforward"
