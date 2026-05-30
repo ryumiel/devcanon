@@ -607,9 +607,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase2).not.toContain(
       "Architecture-routing risks in the full PR",
     );
-    expect(normalizedPhase2).not.toContain(
-      "Spec-routing risks in the full PR",
-    );
+    expect(normalizedPhase2).not.toContain("Spec-routing risks in the full PR");
     expect(normalizedSharedContext).toContain("architecture-routing risks");
     expect(normalizedSharedContext).toContain("spec-routing risks");
     expect(normalizedSharedContext).toContain("mechanical path signals");
@@ -666,6 +664,51 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase3).not.toMatch(/\| Test \|/);
     expect(normalizedPhase3).not.toMatch(/\| Docs /);
     expect(normalizedPhase3).not.toMatch(/\| Documentation /);
+  });
+
+  it("records ADR-0022 as the successor for stale play-review fanout claims", async () => {
+    const adr0022 = await readRepoFile(
+      "docs/adr/adr-0022-three-topical-play-review-fanout.md",
+    );
+    const adr0018 = await readRepoFile(
+      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
+    );
+    const normalizedAdr0022 = normalizeWhitespace(adr0022);
+    const normalizedAdr0018 = normalizeWhitespace(adr0018);
+
+    expect(adr0022).toContain("# ADR-0022: Three-Topical `play-review` Fanout");
+    for (const section of [
+      "## Status",
+      "## Context",
+      "## Decision",
+      "## Consequences",
+      "## Alternatives considered",
+      "## Related",
+    ]) {
+      expect(adr0022).toContain(section);
+    }
+
+    expect(normalizedAdr0022).toContain(
+      "ADR-0011's pending `data-safety-reviewer` promotion decision is retired",
+    );
+    expect(normalizedAdr0022).toContain(
+      "ADR-0017's claims about separate always-on `Correctness` and `Data-safety` reviewers and dynamic-agent fanout are superseded",
+    );
+    expect(normalizedAdr0022).toContain(
+      "ADR-0018's final-gate claim that the branch review always runs separate core correctness and data-safety reviewers",
+    );
+    expect(normalizedAdr0022).toContain("skill-local `Code-quality` reviewer");
+    expect(normalizedAdr0022).toContain(
+      "The maximum topical reviewer count is three",
+    );
+
+    expect(normalizedAdr0018).toContain(
+      "Final whole-diff `play-review` fanout claims in this ADR are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
+    );
+    expect(normalizedAdr0018).toContain(
+      "The per-task risk-routing decision remains accepted",
+    );
+    expect(adr0018).not.toContain("## Amendment");
   });
 
   it("keeps play-review tiny-diff mode scoped to risk-triggered reviewer suppression", async () => {

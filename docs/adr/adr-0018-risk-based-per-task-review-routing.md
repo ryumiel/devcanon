@@ -4,6 +4,10 @@
 
 Accepted
 
+Final whole-diff `play-review` fanout claims in this ADR are superseded by
+[ADR-0022](adr-0022-three-topical-play-review-fanout.md). The per-task
+risk-routing decision remains accepted.
+
 ## Context
 
 `play-subagent-execution` historically treated every multi-task plan the same:
