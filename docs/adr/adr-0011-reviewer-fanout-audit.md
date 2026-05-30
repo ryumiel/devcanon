@@ -4,6 +4,11 @@
 
 Accepted
 
+Current `play-review` fanout and the pending `data-safety-reviewer` promotion
+decision are superseded by
+[ADR-0022](adr-0022-three-topical-play-review-fanout.md). This audit remains
+accepted history.
+
 ## Context
 
 `skills/play-review/SKILL.md` Phase 3 dispatches several reviewer

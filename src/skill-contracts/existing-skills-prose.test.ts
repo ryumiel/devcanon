@@ -667,14 +667,22 @@ describe("existing skills source prose contracts", () => {
   });
 
   it("records ADR-0022 as the successor for stale play-review fanout claims", async () => {
-    const adr0022 = await readRepoFile(
-      "docs/adr/adr-0022-three-topical-play-review-fanout.md",
+    const adr0011 = await readRepoFile(
+      "docs/adr/adr-0011-reviewer-fanout-audit.md",
+    );
+    const adr0017 = await readRepoFile(
+      "docs/adr/adr-0017-guarded-tiny-diff-reviewer-fanout.md",
     );
     const adr0018 = await readRepoFile(
       "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
     );
-    const normalizedAdr0022 = normalizeWhitespace(adr0022);
+    const adr0022 = await readRepoFile(
+      "docs/adr/adr-0022-three-topical-play-review-fanout.md",
+    );
+    const normalizedAdr0011 = normalizeWhitespace(adr0011);
+    const normalizedAdr0017 = normalizeWhitespace(adr0017);
     const normalizedAdr0018 = normalizeWhitespace(adr0018);
+    const normalizedAdr0022 = normalizeWhitespace(adr0022);
 
     expect(adr0022).toContain("# ADR-0022: Three-Topical `play-review` Fanout");
     for (const section of [
@@ -702,12 +710,24 @@ describe("existing skills source prose contracts", () => {
       "The maximum topical reviewer count is three",
     );
 
+    expect(normalizedAdr0011).toContain(
+      "Current `play-review` fanout and the pending `data-safety-reviewer` promotion decision are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
+    );
+    expect(normalizedAdr0011).toContain("This audit remains accepted history");
+    expect(normalizedAdr0017).toContain(
+      "Current `play-review` fanout and tiny-diff suppression scope are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
+    );
+    expect(normalizedAdr0017).toContain(
+      "The guarded tiny-diff optimization rationale remains accepted history",
+    );
     expect(normalizedAdr0018).toContain(
       "Final whole-diff `play-review` fanout claims in this ADR are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
     );
     expect(normalizedAdr0018).toContain(
       "The per-task risk-routing decision remains accepted",
     );
+    expect(adr0011).not.toContain("## Amendment");
+    expect(adr0017).not.toContain("## Amendment");
     expect(adr0018).not.toContain("## Amendment");
   });
 
