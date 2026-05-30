@@ -573,6 +573,205 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("defines the play-review three-topic reviewer routing contract", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const phase2 = getMarkdownSection(
+      skillSource,
+      "Phase 2: Doc-impact summary",
+    );
+    const phase2SharedContext = getMarkdownSection(
+      skillSource,
+      "Phase 2.5: Compose shared review context",
+    );
+    const phase3 = getMarkdownSection(skillSource, "Phase 3: Spawn agents");
+    const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
+    const hardRules = getMarkdownSection(skillSource, "Hard Rules");
+    const normalizedPhase2 = normalizeWhitespace(phase2);
+    const normalizedSharedContext = normalizeWhitespace(phase2SharedContext);
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase4 = normalizeWhitespace(phase4);
+    const normalizedHardRules = normalizeWhitespace(hardRules);
+
+    expect(normalizedPhase2).toContain("full-PR routing summary");
+    expect(normalizedPhase2).toContain("architecture-routing risks");
+    expect(normalizedPhase2).toContain("spec-routing risks");
+    expect(normalizedSharedContext).toContain("architecture-routing risks");
+    expect(normalizedSharedContext).toContain("spec-routing risks");
+
+    expect(normalizedPhase3).toMatch(/Code-quality[^.]+always/i);
+    expect(normalizedPhase3).toMatch(
+      /Code-quality[^.]+correctness[^.]+data-safety[^.]+language[^.]+tests[^.]+external-invocation/i,
+    );
+    expect(normalizedPhase3).toMatch(/Architecture[^.]+risk-triggered/i);
+    expect(normalizedPhase3).toMatch(/Spec[^.]+risk-triggered/i);
+    expect(normalizedPhase3).toMatch(
+      /maximum topical reviewer count is three/i,
+    );
+    expect(normalizedPhase3).toMatch(
+      /ambiguous[^.]+dispatching the relevant risk-triggered reviewer/i,
+    );
+    expect(normalizedPhase3).toMatch(
+      /is_followup_narrow[^.]+full-PR routing summary[^.]+Architecture/i,
+    );
+    expect(normalizedPhase3).toMatch(
+      /is_followup_narrow[^.]+full-PR routing summary[^.]+Spec/i,
+    );
+
+    expect(normalizedPhase4).toMatch(/Code-quality[^.]+Substitution audit/i);
+    expect(normalizedPhase4).toMatch(
+      /Code-quality[^.]+Documented-behavior verification/i,
+    );
+    expect(normalizedPhase4).toMatch(/Code-quality[^.]+data-safety/i);
+    expect(normalizedPhase4).toMatch(/Architecture[^.]+ADR-coverage/i);
+    expect(normalizedPhase4).toMatch(
+      /Spec[^.]+Within-document identifier drift/i,
+    );
+    expect(normalizedPhase4).toMatch(
+      /Spec[^.]+Cross-document identifier drift/i,
+    );
+
+    expect(normalizedHardRules).toContain(
+      "Always spawn the Code-quality reviewer",
+    );
+    expect(normalizedHardRules).not.toContain(
+      "Always spawn the Data-safety agent",
+    );
+    expect(normalizedPhase3).not.toContain("**Core agents (always spawned):**");
+    expect(normalizedPhase3).not.toContain("**Dynamic agents");
+    expect(normalizedPhase3).not.toMatch(/\| Correctness \|/);
+    expect(normalizedPhase3).not.toMatch(/\| Data-safety \|/);
+    expect(normalizedPhase3).not.toMatch(/\| Test \|/);
+    expect(normalizedPhase3).not.toMatch(/\| Docs /);
+    expect(normalizedPhase3).not.toMatch(/\| Documentation /);
+  });
+
+  it("keeps play-review tiny-diff mode scoped to risk-triggered reviewer suppression", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const tinyDiffSection = getMarkdownSection(
+      skillSource,
+      "Phase 2.75: Guarded tiny-diff mode",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-review/references/red-flags.md",
+    );
+    const normalizedTinyDiff = normalizeWhitespace(tinyDiffSection);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+
+    expect(normalizedTinyDiff).toContain(
+      "suppresses only the risk-triggered Architecture and Spec reviewers",
+    );
+    expect(normalizedTinyDiff).toContain(
+      "must never suppress Code-quality or the critic",
+    );
+    expect(normalizedTinyDiff).toContain(
+      "small-but-risky diffs still use the full risk-triggered path",
+    );
+    expect(normalizedTinyDiff).not.toContain("dynamic-agent fanout");
+    expect(normalizedTinyDiff).not.toContain("full dynamic fanout");
+    expect(normalizedTinyDiff).not.toContain(
+      "Correctness, Data-safety, and critic",
+    );
+    expect(normalizedRedFlags).toContain(
+      "suppress Code-quality or critic verification in tiny-diff mode",
+    );
+    expect(normalizedRedFlags).not.toContain("dynamic fanout");
+  });
+
+  it("preserves play-review lifecycle sentinels around topical reviewers and critic", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const phase3 = sliceBetween(
+      skillSource,
+      "## Phase 3: Spawn agents",
+      "## Phase 4: Sub-checks",
+    );
+    const phase5 = sliceBetween(
+      skillSource,
+      "## Phase 5: Critic verification",
+      "## Hard Rules",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+
+    expectSharedLifecycleReference(phase3);
+    expect(normalizedPhase3).toContain(
+      "Before spawning Phase 3 topical reviewer agents",
+    );
+    expect(normalizedPhase3).toContain(
+      "Capture each reviewer session's role-specific state before closing or superseding it",
+    );
+    expect(normalizedPhase3).toContain(
+      "Critic verdicts are captured with the critic session in Phase 5",
+    );
+
+    expectSharedLifecycleReference(phase5);
+    expect(normalizedPhase5).toContain(
+      "Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate",
+    );
+    expect(normalizedPhase5).toContain("critic report");
+    expect(normalizedPhase5).toContain("verdicts");
+  });
+
+  it("keeps wrapper language hints from implying dynamic or language-agent fanout", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const prReview = await readSkillSource("pr-review");
+    const branchReviewNormalized = normalizeWhitespace(branchReview);
+    const prReviewNormalized = normalizeWhitespace(prReview);
+
+    for (const wrapperSource of [branchReview, prReview]) {
+      expect(wrapperSource).toContain("language_hints");
+    }
+
+    expect(branchReviewNormalized).toContain(
+      "language_hints shape Code-quality checks and risk-triggered routing context",
+    );
+    expect(prReviewNormalized).toContain(
+      "language_hints shape Code-quality checks and risk-triggered routing context",
+    );
+
+    for (const wrapperSource of [branchReviewNormalized, prReviewNormalized]) {
+      expect(wrapperSource).not.toMatch(/dynamic-agent triggers/i);
+      expect(wrapperSource).not.toMatch(/spawns language agents/i);
+      expect(wrapperSource).not.toMatch(/dynamic agents/i);
+      expect(wrapperSource).not.toMatch(/language agents/i);
+    }
+  });
+
+  it("removes stale old-role owner names from play-review wrapper and reference prose", async () => {
+    const briefingTemplate = await readRepoFile(
+      "skills/play-review/references/agent-briefing-template.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-review/references/red-flags.md",
+    );
+    const subCheckExamples = await readRepoFile(
+      "skills/play-review/references/sub-check-examples.md",
+    );
+    const branchReview = await readSkillSource("branch-review");
+    const prReview = await readSkillSource("pr-review");
+
+    const currentDispatchSurfaces = normalizeWhitespace(
+      [
+        briefingTemplate,
+        redFlags,
+        subCheckExamples,
+        branchReview,
+        prReview,
+      ].join("\n"),
+    );
+
+    expect(currentDispatchSurfaces).toContain(
+      "Code-quality reviewer is skill-local",
+    );
+    expect(currentDispatchSurfaces).toContain(
+      "Spec owns within-document and cross-document identifier drift",
+    );
+    expect(currentDispatchSurfaces).not.toMatch(/Correctness agent/i);
+    expect(currentDispatchSurfaces).not.toMatch(/Data-safety agent/i);
+    expect(currentDispatchSurfaces).not.toMatch(/Docs agent/i);
+    expect(currentDispatchSurfaces).not.toMatch(/Documentation agent/i);
+    expect(currentDispatchSurfaces).not.toMatch(/Correctness, Data-safety/i);
+  });
+
   it("keeps review-response commit continuity policy in source", async () => {
     const skillSource = await readSkillSource("play-review-response");
     const implementationOrderIndex = skillSource.indexOf(
