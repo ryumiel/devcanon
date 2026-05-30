@@ -263,8 +263,8 @@ Generated preview inspection confirmed the same `Per-reviewer` wording in:
 
 Targeted stale-role grep across the source wrappers and listed generated
 preview outputs found no current dispatch instructions for old topical
-reviewer roles. The only remaining match was the allowed `Documentation`
-finding category enum in `play-review` output-format prose.
+reviewer roles. Remaining `Documentation` matches are finding-category or
+example guidance, not old reviewer dispatch instructions.
 
 ### Repository Verification Evidence
 
