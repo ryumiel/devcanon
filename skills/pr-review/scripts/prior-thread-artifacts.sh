@@ -452,7 +452,7 @@ validate_scope_decision() {
   require_jq
   local expected_prior_threads
   expected_prior_threads="$(expected_prior_threads_path)"
-  jq -e -s --arg head_sha "$HEAD_SHA" --arg expected_prior_threads "$expected_prior_threads" '
+  jq -e -s --arg head_sha "$HEAD_SHA" --arg expected_prior_threads "$expected_prior_threads" --argjson max_narrow_changed_files 5 '
     def exactly($keys): (keys_unsorted | sort) == ($keys | sort);
     def one_of($values; $value): ($values | index($value)) != null;
     def sha: type == "string" and test("^[0-9a-f]{40}$");
@@ -523,6 +523,7 @@ validate_scope_decision() {
         and .selected_range != .full_range
         and .mechanical_facts.followup_sha_usable == true
         and .mechanical_facts.mechanical_escalate_full == false
+        and .mechanical_facts.changed_file_count <= $max_narrow_changed_files
         and (.escalation_reasons | length == 0)
       else
         .selected_range == .full_range

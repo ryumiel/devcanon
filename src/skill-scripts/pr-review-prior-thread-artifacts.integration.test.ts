@@ -61,6 +61,20 @@ async function commitFile(cwd: string, relPath: string, contents: string) {
   ).stdout.trim();
 }
 
+async function commitFiles(cwd: string, relPaths: string[]) {
+  for (const relPath of relPaths) {
+    await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
+    await writeFile(path.join(cwd, relPath), `${relPath}\n`);
+  }
+  await execFileAsync("git", ["add", "--", ...relPaths], { cwd });
+  await execFileAsync("git", ["commit", "-m", "test: update multiple files"], {
+    cwd,
+  });
+  return (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+}
+
 async function makeNarrowScope(cwd: string) {
   const lastReviewedSha = (
     await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
@@ -1021,6 +1035,51 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
             followup_sha_usable: true,
             mechanical_escalate_full: true,
             mechanical_escalation_reason: "file-count",
+          },
+        }),
+      );
+      await expect(
+        runHelper(cwd, "validate-scope-decision", {
+          SCOPE_DECISION_FILE: scopeDecisionFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision schema mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects narrow pr-review scope when the selected diff changes more than five files", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const changedFiles = [
+        "src/file-1.ts",
+        "src/file-2.ts",
+        "src/file-3.ts",
+        "src/file-4.ts",
+        "src/file-5.ts",
+        "src/file-6.ts",
+      ];
+      await commitFiles(cwd, changedFiles);
+      const selectedRange = `${lastReviewedSha}..HEAD`;
+
+      await writeJson(
+        cwd,
+        scopeDecisionFile,
+        scopeDecision({
+          selected_range: selectedRange,
+          candidate_narrow_range: selectedRange,
+          last_reviewed_sha: lastReviewedSha,
+          changed_files: changedFiles,
+          mechanical_facts: {
+            ...scopeDecision().mechanical_facts,
+            changed_file_count: changedFiles.length,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
           },
         }),
       );

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
@@ -33,6 +34,8 @@ const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const reviewBodyFile = ".ephemeral/topic-review-body.md";
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
+const missingFilePrefix =
+  "Missing-file finding (no natural anchor — see body):";
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -164,6 +167,12 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
 }
 
+async function sha256File(cwd: string, relPath: string) {
+  return createHash("sha256")
+    .update(await readFile(path.join(cwd, relPath)))
+    .digest("hex");
+}
+
 async function writeInputs(cwd: string) {
   await writeJson(cwd, findingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
@@ -230,7 +239,7 @@ describe.skipIf(!jqAvailable)(
             sourceFinding({
               line: 8,
               anchor: "missing-file",
-              body: "**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.",
+              body: `${missingFilePrefix}\n\n**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.`,
             }),
             sourceFinding({
               line: 9,
@@ -285,7 +294,7 @@ describe.skipIf(!jqAvailable)(
           path: "src/review-target.ts",
           line: 8,
           side: "RIGHT",
-          body: "**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.",
+          body: `${missingFilePrefix}\n\n**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.`,
         });
         expect(reviewPayload.comments[2]).toMatchObject({
           path: "src/review-target.ts",
@@ -302,6 +311,110 @@ describe.skipIf(!jqAvailable)(
           "start_line",
           "start_side",
         ]);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects missing-file inline bodies without the required explanatory prefix", async () => {
+      const { cwd, reviewHeadSha, reviewFindingsFile, reviewPayloadFile } =
+        await makeReviewSourceWorkspace();
+      const approvedFile = `.ephemeral/topic-${reviewHeadSha}-approved-review.json`;
+      try {
+        const validMissingFileFinding = sourceFinding({
+          line: 8,
+          anchor: "missing-file",
+          body: `${missingFilePrefix}\n\n**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.`,
+        });
+        const malformedMissingFileFinding = sourceFinding({
+          line: 8,
+          anchor: "missing-file",
+          body: "**Blocking | Contracts** - Missing-file body.\n\n**Recommendation:** Anchor to fallback.",
+        });
+
+        await writeFile(path.join(cwd, reviewBodyFile), "Top-level summary\n");
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [malformedMissingFileFinding],
+          carry_forward: [],
+        });
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: reviewFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_EVENT: "COMMENT",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "missing-file finding body prefix mismatch",
+          ),
+        });
+
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [validMissingFileFinding],
+          carry_forward: [],
+        });
+        const { stdout } = await runHelper(cwd, "build-github-review-payload", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: reviewFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_EVENT: "COMMENT",
+        });
+        await writeFile(path.join(cwd, reviewPayloadFile), stdout);
+
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [malformedMissingFileFinding],
+          carry_forward: [],
+        });
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: reviewFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: reviewPayloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "missing-file finding body prefix mismatch",
+          ),
+        });
+
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [validMissingFileFinding],
+          carry_forward: [],
+        });
+        await runHelper(cwd, "freeze-approved-review", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: reviewFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: reviewPayloadFile,
+        });
+
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [malformedMissingFileFinding],
+          carry_forward: [],
+        });
+        const approved = JSON.parse(
+          await readFile(path.join(cwd, approvedFile), "utf-8"),
+        );
+        approved.findings_sha256 = await sha256File(cwd, reviewFindingsFile);
+        await writeJson(cwd, approvedFile, approved);
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            HEAD_SHA: reviewHeadSha,
+            APPROVED_REVIEW_FILE: approvedFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "missing-file finding body prefix mismatch",
+          ),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }

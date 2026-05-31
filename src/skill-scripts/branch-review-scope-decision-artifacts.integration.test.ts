@@ -62,6 +62,20 @@ async function commitFile(cwd: string, relPath: string, contents: string) {
   ).stdout.trim();
 }
 
+async function commitFiles(cwd: string, relPaths: string[]) {
+  for (const relPath of relPaths) {
+    await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
+    await writeFile(path.join(cwd, relPath), `${relPath}\n`);
+  }
+  await execFileAsync("git", ["add", "--", ...relPaths], { cwd });
+  await execFileAsync("git", ["commit", "-m", "test: update multiple files"], {
+    cwd,
+  });
+  return (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+}
+
 async function makeNarrowScope(cwd: string) {
   const rangeBaseSha = (
     await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
@@ -671,6 +685,57 @@ describe.skipIf(!jqAvailable)(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
             ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects narrow branch-review scope when the selected diff changes more than five files", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const rangeBaseSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const changedFiles = [
+          "skills/branch-review/file-1.md",
+          "skills/branch-review/file-2.md",
+          "skills/branch-review/file-3.md",
+          "skills/branch-review/file-4.md",
+          "skills/branch-review/file-5.md",
+          "skills/branch-review/file-6.md",
+        ];
+        await commitFiles(cwd, changedFiles);
+        const selectedRange = `${rangeBaseSha}..HEAD`;
+        const priorFindings = `.ephemeral/topic-${rangeBaseSha}-findings.json`;
+
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            selected_range: selectedRange,
+            candidate_narrow_range: selectedRange,
+            last_reviewed_sha: rangeBaseSha,
+            changed_files: changedFiles,
+            prior_context: {
+              kind: "branch-findings",
+              path: priorFindings,
+            },
+            mechanical_facts: {
+              ...scopeDecision().mechanical_facts,
+              changed_file_count: changedFiles.length,
+              mechanical_escalate_full: false,
+              mechanical_escalation_reason: "",
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            PRIOR_BRANCH_FINDINGS: priorFindings,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),

@@ -295,6 +295,22 @@ validate_inline_source_anchors() {
   )
 }
 
+validate_missing_file_inline_bodies() {
+  local file="$1"
+  local prefix="Missing-file finding (no natural anchor — see body):"
+  require_jq
+  jq -e --arg prefix "$prefix" '
+    all((.findings + .carry_forward)[]; if .anchor == "missing-file" then
+      (.body | type == "string" and startswith($prefix))
+    else
+      true
+    end)
+  ' "$file" >/dev/null || {
+    echo "missing-file finding body prefix mismatch: $file" >&2
+    exit 1
+  }
+}
+
 build_review_body() {
   local base_body
   local out_of_diff
@@ -355,6 +371,7 @@ build_github_review_payload() {
   assert_readable_file "review body file" "$REVIEW_BODY_FILE"
   validate_findings_with_owner "$FINDINGS_FILE" "$HEAD_SHA"
   validate_review_event
+  validate_missing_file_inline_bodies "$FINDINGS_FILE"
   validate_inline_source_anchors
   review_body="$(build_review_body)"
   jq -n \
@@ -490,6 +507,7 @@ freeze_approved_review() {
   assert_readable_file "review body file" "$REVIEW_BODY_FILE"
   assert_readable_file "review payload file" "$REVIEW_PAYLOAD_FILE"
   validate_findings_with_owner "$FINDINGS_FILE" "$HEAD_SHA"
+  validate_missing_file_inline_bodies "$FINDINGS_FILE"
   assert_single_json_object "review payload" "$REVIEW_PAYLOAD_FILE"
   assert_payload_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
   assert_payload_matches_generated "$REVIEW_PAYLOAD_FILE"
@@ -576,6 +594,7 @@ validate_approved_review() {
   assert_readable_file "review body file" "$review_body_file"
   assert_readable_file "review payload file" "$payload_file"
   validate_findings_with_owner "$findings_file" "$review_head_sha"
+  validate_missing_file_inline_bodies "$findings_file"
   assert_single_json_object "review payload" "$payload_file"
   assert_payload_shape "$payload_file" "$review_head_sha"
   validate_digest "findings" "$findings_file" "$findings_sha256"
