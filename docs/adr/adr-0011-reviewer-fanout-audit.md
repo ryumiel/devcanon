@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md) for
+current `play-review` fanout and the pending `data-safety-reviewer` promotion
+decision; accepted history for the Wave 3-bis audit.
 
 ## Context
 

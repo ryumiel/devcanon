@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Partially superseded by
+[ADR-0022](adr-0022-three-topical-play-review-fanout.md) for final whole-diff
+`play-review` fanout claims; accepted for per-task risk-based routing.
 
 ## Context
 

@@ -32,7 +32,7 @@ rather than proceeding with defaults.
 | `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this                       |
 | `head_sha`           | string                                    | Briefings; reused by `pr-review` for `gh api` `commit_id` |
 | `mode`               | `"present"` \| `"fix"` \| `"github-post"` | Activates conditional sub-checks                          |
-| `language_hints`     | derived file-extension set                | Dynamic agent triggers                                    |
+| `language_hints`     | derived file-extension set                | Code-quality checks and routing context                   |
 
 **Optional (follow-up review):**
 
@@ -41,7 +41,7 @@ rather than proceeding with defaults.
 | `prior_threads`         | PR review context from GitHub threads: array of `{file, line, body, author, status}` — critic carry-forward; "still open" detection |
 | `prior_branch_findings` | Branch review context from a validated local `play-review/findings/v1` envelope path supplied by `branch-review --prior-findings`   |
 | `last_reviewed_sha`     | string — incremental vs full-scope semantics                                                                                        |
-| `is_followup_narrow`    | bool — Architecture / Documentation agent override                                                                                  |
+| `is_followup_narrow`    | bool — Architecture / Spec reviewer override                                                                                        |
 
 `prior_branch_findings` is accepted only as already-validated wrapper input:
 the wrapper must run the installed `play-review` helper with
@@ -329,11 +329,14 @@ governance or workflow policy, or needed to resolve a concrete contradiction.
 
 ## Phase 2: Doc-impact summary
 
-Compute a structured summary that the Architecture agent's AFDS v2
-ADR-coverage sub-check uses as anchor data. **Always run against
-`full_pr_diff_range`** even when `active_diff_range` is narrower (e.g.,
-follow-up narrow mode). Rationale: ADR coverage is a PR-scope governance
-question, not a delta question.
+Compute a structured full-PR routing summary that the risk-triggered
+Architecture and Spec reviewers use for follow-up overrides, and that
+the Architecture reviewer's AFDS v2 ADR-coverage sub-check uses as
+anchor data. **Always run against `full_pr_diff_range`** even when
+`active_diff_range` is narrower (e.g., follow-up narrow mode). Rationale:
+ADR coverage is a PR-scope governance question, not a delta question.
+Architecture risk and spec/documentation impact are also PR-scope governance
+questions, not only delta questions.
 
 ```bash
 cd "$WORKING_DIRECTORY"
@@ -346,10 +349,51 @@ NEW_ADRS=$(git diff --name-only --diff-filter=A "$FULL_PR_DIFF_RANGE" \
 # Existing ADRs modified in this diff
 MODIFIED_ADRS=$(git diff --name-only --diff-filter=M "$FULL_PR_DIFF_RANGE" \
   | grep -E '^docs/adr/adr-[0-9]+' || true)
+# Mechanical path signals for architecture-routing risks in the full PR
+ARCHITECTURE_ROUTING_PATH_SIGNALS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
+  | grep -E '^(Cargo\.toml|package\.json|tsconfig\.json|[^/]+\.config\.[^/]+|src/.*/(mod\.rs|index\.ts)|docs/(adr|arch)/|MAP\.md$|AGENTS\.md$|agents/|skills/)' || true)
+# Mechanical path signals for spec-routing risks in the full PR
+SPEC_ROUTING_PATH_SIGNALS=$(git diff --name-only "$FULL_PR_DIFF_RANGE" \
+  | grep -E '^(docs/|.*\.md$|src/cli/|src/config/|skills/|agents/|.*(README|CONTRIBUTING|WORKFLOW).*|.*(example|fixture).*)' || true)
 ```
 
-This summary is passed to the Architecture agent's briefing in Phase 3
-as anchor data. No findings are emitted at this step.
+The shell-derived path signals are only the mechanical seed data for the
+routing summary. They are not sufficient by themselves. After collecting
+them, inspect the full PR diff and write the stable routing fields as
+reviewer-visible lists that include both:
+
+- **Mechanical path signals** from `ARCHITECTURE_ROUTING_PATH_SIGNALS`
+  and `SPEC_ROUTING_PATH_SIGNALS`.
+- **Semantic classification notes** for trigger classes that cannot be
+  represented by path grep alone.
+
+Stable field names:
+
+- `ARCH_FILES` — architectural-knowledge files touched in the full PR.
+- `NEW_ADRS` — new ADR files added in the full PR.
+- `MODIFIED_ADRS` — existing ADR files modified in the full PR.
+- `ARCHITECTURE_ROUTING_RISKS` — full-PR architecture-routing risks
+  used to decide whether `Architecture` must dispatch during
+  `is_followup_narrow == true`. Include mechanical path signals plus
+  semantic classification notes for module-boundary changes,
+  generated/source ownership changes, responsibility drift, durable
+  decision indicators, and 3+ changed modules.
+- `SPEC_ROUTING_RISKS` — full-PR spec-routing risks used to decide
+  whether `Spec` must dispatch during `is_followup_narrow == true`.
+  Include mechanical path signals plus semantic classification notes for
+  docs/spec/API/user-facing behavior changes, CLI/operator guidance,
+  examples, public config schemas, files referenced by existing docs,
+  and prose that changes a documented pattern's canonical direction.
+
+If a semantic classification note is ambiguous, write that ambiguity into
+the relevant routing field and treat the field as non-empty. Ambiguity
+fails closed to the relevant risk-triggered reviewer in Phase 3; do not
+let an empty path-signal list suppress `Architecture` or `Spec` when the
+full PR diff raises a semantic trigger.
+
+This summary is passed through the shared review context and into any
+risk-triggered reviewer briefing in Phase 3 as full-PR routing summary
+anchor data. No findings are emitted at this step.
 
 This is a same-PR documentation impact check, not documentation gardening. The
 review pipeline verifies whether durable documentation impact from the diff was
@@ -393,9 +437,15 @@ Compose the file with these sections, in order:
    `active_diff_range`, `full_pr_diff_range`, `mode`, `language_hints`
    as a key/value list.
 2. **Changed files (active diff)** — `git diff --name-status "$ACTIVE_DIFF_RANGE"` output, fenced.
-3. **Doc-impact summary** — the `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`
-   lists from Phase 2 (always computed against `full_pr_diff_range`).
-   Emit `(none)` per list when empty so layout is stable.
+3. **Doc-impact summary and full-PR routing summary** — the `ARCH_FILES`,
+   `NEW_ADRS`, `MODIFIED_ADRS`, `ARCHITECTURE_ROUTING_RISKS`, and
+   `SPEC_ROUTING_RISKS` lists from Phase 2 (always computed against
+   `full_pr_diff_range`). Emit `(none)` per list only when both
+   mechanical path signals and semantic classification notes are empty.
+   Label the last two lists as architecture-routing risks and
+   spec-routing risks, with separate bullets for mechanical path signals
+   and semantic classification notes, so follow-up narrow overrides can
+   fail closed from full-PR context.
 4. **Relevant ADR references** — list repo-relative ADR paths, including
    `docs/adr/adr-template.md` only when relevant, with short keywords or a
    one-line reason for relevance. Do not copy full ADR bodies into the shared
@@ -467,10 +517,10 @@ See [`references/internal-rationale.md`](references/internal-rationale.md#why-no
 
 ## Phase 2.75: Guarded tiny-diff mode
 
-Before spawning dynamic agents, classify the active diff for a narrow
-tiny-diff exception. This exception narrows only the dynamic-agent
-fanout. **Correctness, Data-safety, and critic verification remain
-mandatory.**
+Before spawning topical reviewers, classify the active diff for a narrow
+tiny-diff exception. This exception suppresses only the risk-triggered
+Architecture and Spec reviewers. It must never suppress Code-quality or
+the critic.
 
 Tiny-diff mode activates only when **all** of these are true for
 `active_diff_range`:
@@ -481,7 +531,7 @@ Tiny-diff mode activates only when **all** of these are true for
 4. No high-risk disqualifier below is present.
 5. `is_followup_narrow` is **false**.
 
-If any check is ambiguous, fall back to the normal full dynamic fanout.
+If any check is ambiguous, fall back to the full risk-triggered path.
 False negatives are acceptable; false positives are not.
 
 **Low-risk allowlist (all touched files must qualify):**
@@ -506,28 +556,31 @@ tool-invocation examples, or review hard-rule text.
 - any diff that adds or changes shell commands, external-invocation
   examples, path-validation guards, or critic / core-review rules
 - any diff that changes reviewer-routing policy such as tiny-diff
-  thresholds, allowlists, disqualifiers, the dynamic-agent trigger
-  table, or follow-up override behavior
+  thresholds, allowlists, disqualifiers, risk-triggered reviewer
+  triggers, or follow-up override behavior
 - any follow-up narrow diff (`is_followup_narrow == true`)
 
-When tiny-diff mode activates, suppress **all** dynamic agents from the
-Phase 3 table. When tiny-diff mode does **not** activate, use the normal
-Phase 3 dispatch table unchanged.
+When tiny-diff mode activates, suppress only the risk-triggered
+Architecture and Spec reviewers from Phase 3. Code-quality still runs
+and the critic still verifies blocking findings in Phase 5. When
+tiny-diff mode does **not** activate, small-but-risky diffs still use the
+full risk-triggered path.
 
 **safe tiny diff example:** two wording-only edits in
 `docs/guidelines/code-review-guideline.md` and
 `skills/play-review/references/red-flags.md`, 8 lines changed total,
 no commands or guards touched. Result: tiny-diff mode may suppress the
-dynamic fanout; Correctness, Data-safety, and critic still run.
+risk-triggered Architecture and Spec reviewers; Code-quality and critic
+still run.
 
 **small-but-risky diff example:** a 6-line edit in
 `skills/play-review/SKILL.md` that changes a path-validation guard or a
-`gh` command example. Result: normal full dynamic fanout, because the
-line count is small but the change class is risky.
+`gh` command example. Result: full risk-triggered path, because the line
+count is small but the change class is risky.
 
 ## Phase 3: Spawn agents
 
-Before spawning Phase 3 reviewer agents, use `subagent-lifecycle` for the
+Before spawning Phase 3 topical reviewer agents, use `subagent-lifecycle` for the
 controller-local lifecycle ledger, target lifecycle capability classification,
 cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
 recovery. Capture each reviewer session's role-specific state before closing
@@ -536,38 +589,50 @@ concrete findings, and any output envelope state needed by downstream
 consumers. Critic verdicts are captured with the critic session in Phase 5,
 after the critic has been spawned and has produced those verdicts.
 
-**Core agents (always spawned):**
+The maximum topical reviewer count is three: `Code-quality`,
+`Architecture`, and `Spec`. The critic is a separate verification phase
+and does not count against this cap.
 
-| Agent       | Focus                                                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Correctness | Logic bugs, panic discipline, error propagation, API contracts, external-invocation audit (substitution + documented behavior) |
-| Data-safety | Secrets/credentials, injection (path traversal, SQL, XSS, command), PII in logs/errors, untrusted input                        |
+`Code-quality` is a skill-local `play-review` topical reviewer prompt,
+not the source `agents/code-quality-reviewer.yaml` role. Always spawn the
+Code-quality reviewer for any non-empty active review, including
+tiny-diff mode. Code-quality owns correctness, data-safety, language
+quality, tests, error handling, API contracts, and external-invocation
+audits. Shape its inline checks with `language_hints`, active diff paths,
+and changed test files; do not spawn separate language or test reviewers.
 
-**Dynamic agents (by file types in the active diff or by `language_hints`):**
+Risk-triggered reviewers:
 
-| Trigger                                                                                                                                                             | Agent                                                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `*.rs`                                                                                                                                                              | Rust — clippy, unsafe, ECS, serde, WASM                                                                                    |
-| `*.ts` / `*.tsx`                                                                                                                                                    | TypeScript — types, React patterns, bridge sync                                                                            |
-| `tests/` or `*_test.*`                                                                                                                                              | Test — coverage, correctness, fixtures                                                                                     |
-| `docs/` or `*.md`                                                                                                                                                   | Docs — accuracy, staleness, contract alignment, identifier drift (within-document and cross-document)                      |
-| `Cargo.toml`, `package.json`, `tsconfig.json`, `*.config.*`, `mod.rs`, `index.ts`, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, or 3+ modules | Architecture — boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage |
-| CLI command handlers, public API surfaces, user-facing config schemas, or files referenced by existing docs                                                         | Documentation — missing/stale docs for changed behavior, contract alignment, operator guidance gaps                        |
+| Reviewer     | Dispatch trigger                                                                                                                                                                                                                                                                                                                                                    | Focus                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Spawn when the active diff or full-PR routing summary includes architecture-routing risks: dependency manifests, config, major entry points, `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow policy, generated/source ownership, module-boundary changes, durable decision indicators, responsibility drift, or 3+ modules. | Boundary violations, dependency justification, responsibility drift, contract changes, AFDS v2 ADR coverage               |
+| Spec         | Spawn when the active diff or full-PR routing summary includes spec-routing risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples, public config schemas, files referenced by existing docs, or prose that changes a documented pattern's canonical direction.                                                                                 | Missing/stale docs for changed behavior, contract alignment, examples, operator guidance, identifier drift, spec accuracy |
 
-**Architecture-agent override (full-PR scope on follow-up narrow mode):**
-when `is_followup_narrow == true` and `ARCH_FILES` (from the Phase 2
-doc-impact summary) is non-empty, **always spawn the Architecture
-agent** even when the active diff alone would not trigger it. The
-agent's _active_ diff stays incremental (for code-review fidelity), but
-its briefing carries the full-PR doc-impact summary plus an explicit
-instruction: "the ADR-coverage sub-check applies to the full PR, not
-just the incremental diff."
+If either risk-triggered reviewer classification is ambiguous, fail
+closed by spawning the relevant reviewer. Tiny-diff mode is the only
+exception, and only after all Phase 2.75 eligibility checks clearly pass.
+For follow-up narrow reviews, the Phase 2 full-PR routing summary is
+authoritative only when it includes both the mechanical path-signal
+evidence and the semantic classification notes above; a path-only empty
+list cannot override semantic risk seen in the full PR diff.
 
-**Documentation-agent override (parallel to the Architecture override):**
-when `is_followup_narrow == true` and the doc-impact summary indicates
-user-facing changes elsewhere in the PR, the same override applies to
-the Documentation agent: always spawn it, briefing carries the full-PR
-doc-impact summary, active diff stays incremental.
+**Architecture override (full-PR scope on follow-up narrow mode):**
+when `is_followup_narrow == true` and `ARCHITECTURE_ROUTING_RISKS` or
+`ARCH_FILES` from the Phase 2 full-PR routing summary is non-empty,
+always spawn `Architecture` even when the active diff alone would not
+trigger it. The reviewer's _active_ diff stays incremental (for
+code-review fidelity), but its briefing carries the full-PR routing
+summary plus an explicit instruction: "ADR coverage and architecture
+routing checks apply to the full PR, not just the incremental diff."
+
+**Spec override (full-PR scope on follow-up narrow mode):**
+when `is_followup_narrow == true` and `SPEC_ROUTING_RISKS` from the Phase
+2 full-PR routing summary is non-empty, always spawn `Spec` even when the
+active diff alone would not trigger it. The reviewer's _active_ diff
+stays incremental, but its briefing carries the full-PR routing summary
+plus an explicit instruction: "spec, documentation, API, examples, and
+operator-guidance checks apply to the full PR, not just the incremental
+diff."
 
 **Agent briefing — each prompt MUST include:**
 
@@ -581,15 +646,15 @@ doc-impact summary, active diff stays incremental.
    `play-review/findings/v1` envelope and `Findings written to <repo-relative-path>.`
    notice line stay unchanged.
 
-The skeleton lives at [`skills/play-review/references/agent-briefing-template.md`](references/agent-briefing-template.md); follow it when adding a new dynamic agent.
+The skeleton lives at [`skills/play-review/references/agent-briefing-template.md`](references/agent-briefing-template.md); follow it when adjusting topical reviewer prompts.
 
-Per-agent role-specific sub-checks (item 4) must reference actual files
+Per-reviewer role-specific sub-checks (item 4) must reference actual files
 and line counts from the diff. Generic prompts like "review this diff"
 are prohibited. The shared review-context block is path-referenced (see
 Phase 2.5) — that is the deliberate exception; each agent's role-specific
 block remains diff-specific.
 
-Run all agents in parallel.
+Run all selected topical reviewers in parallel.
 
 **Model selection:** Use `{{model:deep}}` for all review agents and the
 critic. Review is the final quality gate — the cost of missing a real
@@ -597,9 +662,10 @@ bug far outweighs the cost of a more capable model.
 
 ## Phase 4: Sub-checks
 
-### Architecture agent — AFDS v2 ADR-coverage sub-check
+### Architecture reviewer — AFDS v2 ADR-coverage sub-check
 
-When the Architecture agent fires, include the doc-impact summary from
+When the Architecture reviewer fires, include the doc-impact summary and
+full-PR routing summary from
 Phase 2 in its briefing and add this rubric to its prompt:
 
 > Evaluate whether the diff makes a _durable architectural decision_ per
@@ -607,9 +673,9 @@ Phase 2 in its briefing and add this rubric to its prompt:
 > decisions, technology adoption/removal, boundary changes, major
 > tradeoffs/rejected alternatives).
 >
-> - Durable decision + new `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
+> - Durable decision + new covering `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
 > - Durable decision + existing covering ADR modified: PASS, no finding.
-> - Durable decision + no new/modified ADR: `Blocking | Documentation` —
+> - Durable decision + no new/modified covering ADR: `Blocking | Documentation` —
 >   _"diff makes durable decision X but lacks ADR coverage; create
 >   `docs/adr/adr-NNNN-<title>.md` per `docs/adr/adr-template.md`."_
 > - Implementation detail or refactor without durable decision: no finding.
@@ -641,7 +707,7 @@ When `mode != "github-post"`, do not anchor — tag the finding with
 `Anchor: missing-file` anyway and let the wrapper describe the missing
 file directly in conversation.
 
-### Correctness agent — Sub-check 1: Substitution audit
+### Code-quality reviewer — Sub-check 1: Substitution audit
 
 Fires when the active diff replaces one external invocation token with a
 sibling at the same call site (e.g., `git branch -d` → `git branch -D`,
@@ -664,7 +730,7 @@ Procedure:
 
 See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-1-substitution-audit--worked-example) for a worked example (`git branch -d` → `-D`).
 
-### Correctness agent — Sub-check 2: Documented-behavior verification
+### Code-quality reviewer — Sub-check 2: Documented-behavior verification
 
 Fires when the active diff adds a new external invocation, or modifies an
 existing one's flags / body shape / query parameters. Substitutions
@@ -689,7 +755,26 @@ Procedure:
 
 See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (`gh api -f` vs `--input`).
 
-### Docs agent — Sub-check A: Within-document identifier drift
+### Code-quality reviewer — Data-safety, language, and tests
+
+Always include these Code-quality checks so data-safety, language, and
+test coverage cannot be dropped during the reviewer consolidation:
+
+- **Data-safety:** review secrets/credentials, injection risk including
+  path traversal, SQL, XSS, and command injection, PII in logs/errors,
+  destructive filesystem behavior, and untrusted input handling. Findings
+  surface as `Blocking` when a safety property is missing or silently
+  weakened.
+- **Language quality:** use `language_hints` and active diff paths to
+  shape language-specific checks such as TypeScript type safety and React
+  patterns, Rust panic/unsafe/error discipline, serialization boundaries,
+  and runtime-specific footguns.
+- **Tests:** when tests or test-adjacent files changed, or when changed
+  behavior lacks corresponding coverage, review assertions, fixtures,
+  failure modes, and whether the tests would fail for the bug they claim
+  to cover.
+
+### Spec reviewer — Sub-check A: Within-document identifier drift
 
 For each changed `*.md` file in the active diff:
 
@@ -697,9 +782,9 @@ For each changed `*.md` file in the active diff:
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as `Blocking`, category `Documentation`. Auto-fixable via wrapper `--fix` (the code block is canonical; rewrite prose to match). If the code block is itself wrong, reclassify as judgment-required and route to nits — do not auto-fix.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (worktree-cleanup prose vs. code drift).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (worktree-cleanup prose vs. code drift).
 
-### Docs agent — Sub-check B: Cross-document identifier drift
+### Spec reviewer — Sub-check B: Cross-document identifier drift
 
 Fires only when the active diff adds prose explicitly labeling a pattern
 as broken, deprecated, superseded, or wrong. A silent example-replacement
@@ -717,14 +802,25 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
+
+### Spec reviewer — Documentation guidance checks
+
+When `Spec` fires, check changed docs/spec/API/user-facing behavior,
+CLI/operator guidance, examples, public config schemas, files referenced
+by existing docs, and operator workflow prose for missing, stale, or
+contradictory documentation. Preserve the existing output categories:
+use `Documentation` for stale or missing docs, `Contracts` for mismatches
+between documented and actual public behavior, and `Safety` when stale
+guidance would lead to unsafe operation.
 
 ## Phase 5: Critic verification
 
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate
-for completed or superseded reviewer sessions, then record the critic session
-in the controller-local lifecycle ledger. Capture the critic's role-specific
-state before closing or superseding it: review scope, merged findings input,
+for completed or superseded reviewer sessions, preserving target-honest cleanup outcomes,
+slot-limit recovery, and the controller-local lifecycle ledger, then record
+the critic session in that ledger. Capture the critic's role-specific state
+before closing or superseding it: review scope, merged findings input,
 critic report, verdicts, and any carry-forward state.
 
 Spawn a critic agent with all findings merged. The critic reads actual
@@ -752,15 +848,17 @@ Nits skip critic verification.
 
 ## Hard Rules
 
-1. **Always spawn the Data-safety agent** regardless of file types.
-2. **Always include evidence code** (3-7 lines) in findings.
-3. **Cite specific lines.** No generic warnings without code references.
-4. **Verify every concrete reference in the critic phase.** No assumptions.
-5. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
-6. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
-7. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
-8. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line.
-9. **Always write the shared review-context file (Phase 2.5) before dispatching Phase 3 agents** — agents reference it by path. An absent or empty shared review-context file is a violation.
+1. **Always spawn the Code-quality reviewer** for any non-empty active review, regardless of file types. It owns baseline correctness, data-safety, language, tests, and external-invocation coverage.
+2. **Always run critic verification** for blocking findings. The critic is separate from the three topical reviewers and must not be suppressed by tiny-diff mode.
+3. **Dispatch risk-triggered Architecture and Spec reviewers fail-closed** when their routing classification is ambiguous, except when guarded tiny-diff mode clearly suppresses them.
+4. **Always include evidence code** (3-7 lines) in findings.
+5. **Cite specific lines.** No generic warnings without code references.
+6. **Verify every concrete reference in the critic phase.** No assumptions.
+7. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
+8. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
+9. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
+10. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line.
+11. **Always write the shared review-context file (Phase 2.5) before dispatching Phase 3 agents** — agents reference it by path. An absent or empty shared review-context file is a violation.
 
 ## Red Flags — You Are Violating This Skill
 

@@ -205,10 +205,10 @@ mechanical and semantic escalation check clearly passes, set
 After final active range selection, recompute `LANGUAGE_HINTS` from changed file
 extensions in `ACTIVE_DIFF_RANGE` (e.g., `*.ts`, `*.rs`, `*.md`). The helper's
 `LANGUAGE_HINTS` is only an initial mechanical hint. Recompute after semantic
-escalation so dynamic-agent triggers match the selected review scope; deriving
-the final hints from the full branch during a narrow follow-up would defeat the
-follow-up scope, while keeping narrow hints after full escalation would hide
-review-relevant languages.
+escalation so `Code-quality` checks and risk-triggered routing context match
+the selected review scope; deriving the final hints from the full branch during
+a narrow follow-up would defeat the follow-up scope, while keeping narrow hints
+after full escalation would hide review-relevant languages.
 
 ## Phase 2: Invoke the play-review skill workflow
 
@@ -309,8 +309,8 @@ process grouped members as individual findings. For each unit:
 1. **If the unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
    - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
-     `Blocking | Safety` from Correctness Sub-check 1 (substitution audit) or
-     `Blocking | Contracts` from Correctness Sub-check 2
+     `Blocking | Safety` from Code-quality Sub-check 1 (substitution audit) or
+     `Blocking | Contracts` from Code-quality Sub-check 2
      (documented-behavior verification), or
    - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit.
 
