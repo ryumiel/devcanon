@@ -104,6 +104,11 @@ expected_approved_path_for() {
   printf '.ephemeral/%s-%s-approved-review.json\n' "$(branch_slug)" "$review_head_sha"
 }
 
+expected_scope_decision_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$review_head_sha"
+}
+
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
@@ -173,6 +178,18 @@ validate_approved_path_identity() {
   expected="$(expected_approved_path_for "$review_head_sha")"
   [ "$approved_review_file" = "$expected" ] || {
     echo "approved review path mismatch: $approved_review_file" >&2
+    exit 1
+  }
+}
+
+validate_scope_decision_path_shape() {
+  local scope_decision_file="$1"
+  local review_head_sha="$2"
+  local expected
+  validate_direct_child_path "scope decision" "$scope_decision_file" "-scope-decision.json"
+  expected="$(expected_scope_decision_path_for "$review_head_sha")"
+  [ "$scope_decision_file" = "$expected" ] || {
+    echo "scope decision path mismatch: $scope_decision_file" >&2
     exit 1
   }
 }
@@ -295,6 +312,153 @@ validate_inline_source_anchors() {
   )
 }
 
+findings_has_inline_comments() {
+  local file="$1"
+  jq -e '
+    any((.findings + .carry_forward)[];
+      .anchor == "natural" or .anchor == "missing-file"
+    )
+  ' "$file" >/dev/null
+}
+
+scope_decision_file_for() {
+  local review_head_sha="$1"
+  if [ -n "${SCOPE_DECISION_FILE:-}" ]; then
+    printf '%s\n' "$SCOPE_DECISION_FILE"
+  else
+    expected_scope_decision_path_for "$review_head_sha"
+  fi
+}
+
+pr_review_scope_helper() {
+  if [ -n "${PR_REVIEW_SCOPE_HELPER:-}" ]; then
+    printf '%s\n' "$PR_REVIEW_SCOPE_HELPER"
+  else
+    printf '%s\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/prior-thread-artifacts.sh"
+  fi
+}
+
+validate_scope_decision_with_owner() {
+  local file="$1"
+  local review_head_sha="$2"
+  local helper
+  helper="$(pr_review_scope_helper)"
+  [ -f "$helper" ] || {
+    echo "pr-review scope helper missing or not a regular file: $helper" >&2
+    exit 1
+  }
+  [ -r "$helper" ] || {
+    echo "pr-review scope helper missing or unreadable: $helper" >&2
+    exit 1
+  }
+  HEAD_SHA="$review_head_sha" SCOPE_DECISION_FILE="$file" bash "$helper" validate-scope-decision || {
+    echo "scope decision validation failed via pr-review helper: $file" >&2
+    exit 1
+  }
+}
+
+write_diff_right_line_hunks() {
+  local range="$1"
+  local entry_path="$2"
+  local out_file="$3"
+  git diff --unified=3 "$range" -- "$entry_path" | awk '
+    /^@@ / {
+      hunk += 1
+      spec = $3
+      sub(/^\+/, "", spec)
+      split(spec, parts, ",")
+      next_line = parts[1] + 0
+      remaining = (parts[2] == "" ? 1 : parts[2] + 0)
+      in_hunk = 1
+      next
+    }
+    in_hunk && remaining > 0 {
+      marker = substr($0, 1, 1)
+      if (marker != "-") {
+        print hunk "\t" next_line
+        next_line += 1
+        remaining -= 1
+      }
+    }
+  ' >"$out_file"
+}
+
+line_hunk_in_file() {
+  local line_hunks_file="$1"
+  local line="$2"
+  awk -v target="$line" '$2 == target { print $1; found = 1; exit } END { exit(found ? 0 : 1) }' "$line_hunks_file"
+}
+
+validate_inline_diff_anchor() {
+  local range="$1"
+  local entry_path="$2"
+  local line="$3"
+  local start_line="$4"
+  local line_hunks_file
+  local line_hunk
+  local start_hunk
+
+  line_hunks_file="$(mktemp ".ephemeral/.diff-lines-${HEAD_SHA}.XXXXXX")"
+  write_diff_right_line_hunks "$range" "$entry_path" "$line_hunks_file" || {
+    rm -f "$line_hunks_file"
+    exit 1
+  }
+  line_hunk="$(line_hunk_in_file "$line_hunks_file" "$line")" || {
+    rm -f "$line_hunks_file"
+    echo "inline anchor is outside selected review diff: $entry_path:$line" >&2
+    exit 1
+  }
+  if [ "$start_line" != "null" ]; then
+    start_hunk="$(line_hunk_in_file "$line_hunks_file" "$start_line")" || {
+      rm -f "$line_hunks_file"
+      echo "inline range start is outside selected review diff: $entry_path:$start_line" >&2
+      exit 1
+    }
+    [ "$start_hunk" = "$line_hunk" ] || {
+      rm -f "$line_hunks_file"
+      echo "inline range crosses selected review diff hunks: $entry_path:$start_line-$line" >&2
+      exit 1
+    }
+  fi
+  rm -f "$line_hunks_file"
+}
+
+validate_inline_diff_anchors() {
+  local findings_file="$1"
+  local scope_decision_file="$2"
+  local selected_range
+  local entry_json
+  local entry_path
+  local line
+  local start_line
+
+  selected_range="$(jq -r '.selected_range' "$scope_decision_file")"
+  while IFS= read -r entry_json; do
+    entry_path="$(jq -r '.path' <<<"$entry_json")"
+    line="$(jq -r '.line' <<<"$entry_json")"
+    start_line="$(jq -r '.start_line' <<<"$entry_json")"
+    validate_inline_diff_anchor "$selected_range" "$entry_path" "$line" "$start_line"
+  done < <(
+    jq -c '
+      (.findings + .carry_forward)[]
+      | select(.anchor == "natural" or .anchor == "missing-file")
+    ' "$findings_file"
+  )
+}
+
+validate_scope_for_inline_findings() {
+  local findings_file="$1"
+  local review_head_sha="$2"
+  local scope_decision_file
+  scope_decision_file="$(scope_decision_file_for "$review_head_sha")"
+  validate_scope_decision_path_shape "$scope_decision_file" "$review_head_sha"
+  assert_readable_file "scope decision file" "$scope_decision_file"
+  validate_scope_decision_with_owner "$scope_decision_file" "$review_head_sha"
+  if findings_has_inline_comments "$findings_file"; then
+    validate_inline_diff_anchors "$findings_file" "$scope_decision_file"
+  fi
+}
+
 validate_missing_file_inline_bodies() {
   local file="$1"
   local prefix="Missing-file finding (no natural anchor — see body):"
@@ -373,6 +537,7 @@ build_github_review_payload() {
   validate_review_event
   validate_missing_file_inline_bodies "$FINDINGS_FILE"
   validate_inline_source_anchors
+  validate_scope_for_inline_findings "$FINDINGS_FILE" "$HEAD_SHA"
   review_body="$(build_review_body)"
   jq -n \
     --arg commit_id "$HEAD_SHA" \
@@ -468,9 +633,11 @@ assert_approved_schema() {
     and (.findings_file | type == "string")
     and (.review_body_file | type == "string")
     and (.review_payload_file | type == "string")
+    and (.scope_decision_file | type == "string")
     and (.findings_sha256 | hex_sha256)
     and (.review_body_sha256 | hex_sha256)
     and (.review_payload_sha256 | hex_sha256)
+    and (.scope_decision_sha256 | hex_sha256)
     and (.payload | type == "object")
   ' "$file" >/dev/null || {
     echo "approved review schema mismatch: $file" >&2
@@ -495,6 +662,8 @@ freeze_approved_review() {
   local findings_sha256
   local review_body_sha256
   local payload_sha256
+  local scope_decision_file
+  local scope_decision_sha256
   require_repo_root
   validate_head_sha
   require_env FINDINGS_FILE
@@ -508,6 +677,14 @@ freeze_approved_review() {
   assert_readable_file "review payload file" "$REVIEW_PAYLOAD_FILE"
   validate_findings_with_owner "$FINDINGS_FILE" "$HEAD_SHA"
   validate_missing_file_inline_bodies "$FINDINGS_FILE"
+  validate_inline_source_anchors
+  scope_decision_file="$(scope_decision_file_for "$HEAD_SHA")"
+  validate_scope_decision_path_shape "$scope_decision_file" "$HEAD_SHA"
+  assert_readable_file "scope decision file" "$scope_decision_file"
+  validate_scope_decision_with_owner "$scope_decision_file" "$HEAD_SHA"
+  if findings_has_inline_comments "$FINDINGS_FILE"; then
+    validate_inline_diff_anchors "$FINDINGS_FILE" "$scope_decision_file"
+  fi
   assert_single_json_object "review payload" "$REVIEW_PAYLOAD_FILE"
   assert_payload_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
   assert_payload_matches_generated "$REVIEW_PAYLOAD_FILE"
@@ -518,6 +695,7 @@ freeze_approved_review() {
   findings_sha256="$(sha256_file "$FINDINGS_FILE")"
   review_body_sha256="$(sha256_file "$REVIEW_BODY_FILE")"
   payload_sha256="$(sha256_file "$REVIEW_PAYLOAD_FILE")"
+  scope_decision_sha256="$(sha256_file "$scope_decision_file")"
   tmp_file="$(mktemp ".ephemeral/.approved-review-${HEAD_SHA}.XXXXXX")"
   trap 'rm -f "${tmp_file:-}"' EXIT
   jq -n \
@@ -526,9 +704,11 @@ freeze_approved_review() {
     --arg findings_file "$FINDINGS_FILE" \
     --arg review_body_file "$REVIEW_BODY_FILE" \
     --arg review_payload_file "$REVIEW_PAYLOAD_FILE" \
+    --arg scope_decision_file "$scope_decision_file" \
     --arg findings_sha256 "$findings_sha256" \
     --arg review_body_sha256 "$review_body_sha256" \
     --arg review_payload_sha256 "$payload_sha256" \
+    --arg scope_decision_sha256 "$scope_decision_sha256" \
     --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
     '{
       schema: $schema,
@@ -540,7 +720,11 @@ freeze_approved_review() {
       review_body_sha256: $review_body_sha256,
       review_payload_sha256: $review_payload_sha256,
       payload: $payload[0]
-    }' > "$tmp_file"
+    }
+    | . + {
+        scope_decision_file: $scope_decision_file,
+        scope_decision_sha256: $scope_decision_sha256
+      }' > "$tmp_file"
   mv -f "$tmp_file" "$approved_review_file"
   tmp_file=""
   printf '%s\n' "$approved_review_file"
@@ -563,9 +747,11 @@ validate_approved_review() {
   local findings_file
   local review_body_file
   local payload_file
+  local scope_decision_file
   local findings_sha256
   local review_body_sha256
   local payload_sha256
+  local scope_decision_sha256
   require_repo_root
   validate_head_sha
   require_env APPROVED_REVIEW_FILE
@@ -583,9 +769,11 @@ validate_approved_review() {
   findings_file="$(jq -r '.findings_file' "$APPROVED_REVIEW_FILE")"
   review_body_file="$(jq -r '.review_body_file' "$APPROVED_REVIEW_FILE")"
   payload_file="$(jq -r '.review_payload_file' "$APPROVED_REVIEW_FILE")"
+  scope_decision_file="$(jq -r '.scope_decision_file' "$APPROVED_REVIEW_FILE")"
   findings_sha256="$(jq -r '.findings_sha256' "$APPROVED_REVIEW_FILE")"
   review_body_sha256="$(jq -r '.review_body_sha256' "$APPROVED_REVIEW_FILE")"
   payload_sha256="$(jq -r '.review_payload_sha256' "$APPROVED_REVIEW_FILE")"
+  scope_decision_sha256="$(jq -r '.scope_decision_sha256' "$APPROVED_REVIEW_FILE")"
 
   validate_findings_path_shape "$findings_file" "$review_head_sha"
   validate_review_body_path_shape "$review_body_file"
@@ -595,11 +783,19 @@ validate_approved_review() {
   assert_readable_file "review payload file" "$payload_file"
   validate_findings_with_owner "$findings_file" "$review_head_sha"
   validate_missing_file_inline_bodies "$findings_file"
+  validate_inline_source_anchors
+  validate_scope_decision_path_shape "$scope_decision_file" "$review_head_sha"
+  assert_readable_file "scope decision file" "$scope_decision_file"
+  validate_scope_decision_with_owner "$scope_decision_file" "$review_head_sha"
+  if findings_has_inline_comments "$findings_file"; then
+    validate_inline_diff_anchors "$findings_file" "$scope_decision_file"
+  fi
   assert_single_json_object "review payload" "$payload_file"
   assert_payload_shape "$payload_file" "$review_head_sha"
   validate_digest "findings" "$findings_file" "$findings_sha256"
   validate_digest "review body" "$review_body_file" "$review_body_sha256"
   validate_digest "payload" "$payload_file" "$payload_sha256"
+  validate_digest "scope decision" "$scope_decision_file" "$scope_decision_sha256"
   jq -e --slurpfile payload "$payload_file" '.payload == $payload[0]' "$APPROVED_REVIEW_FILE" >/dev/null || {
     echo "payload content mismatch: $payload_file" >&2
     exit 1

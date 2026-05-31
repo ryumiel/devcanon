@@ -73,6 +73,7 @@ async function makeReviewSourceWorkspace(): Promise<{
   reviewHeadSha: string;
   reviewFindingsFile: string;
   reviewPayloadFile: string;
+  reviewScopeDecisionFile: string;
 }> {
   const cwd = await makeGitWorkspace();
   await mkdir(path.join(cwd, "src"));
@@ -99,11 +100,43 @@ async function makeReviewSourceWorkspace(): Promise<{
     cwd,
   });
   const reviewHeadSha = stdout.trim();
+  const reviewScopeDecisionFile = `.ephemeral/topic-${reviewHeadSha}-scope-decision.json`;
+  await writeJson(cwd, reviewScopeDecisionFile, {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
+    mode: "initial",
+    selected_range: "main...HEAD",
+    full_range: "main...HEAD",
+    candidate_narrow_range: "main...HEAD",
+    is_followup_narrow: false,
+    selection_reason: "initial review",
+    escalation_reasons: ["not-followup"],
+    last_reviewed_sha: null,
+    head_sha: reviewHeadSha,
+    changed_files: ["src/review-target.ts"],
+    language_hints: ["ts"],
+    prior_context: {
+      kind: "none",
+      path: null,
+    },
+    mechanical_facts: {
+      changed_file_count: 1,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "Initial review.",
+    },
+  });
   return {
     cwd,
     reviewHeadSha,
     reviewFindingsFile: `.ephemeral/topic-${reviewHeadSha}-findings.json`,
     reviewPayloadFile: `.ephemeral/topic-${reviewHeadSha}-review-payload.json`,
+    reviewScopeDecisionFile,
   };
 }
 
@@ -173,10 +206,71 @@ async function sha256File(cwd: string, relPath: string) {
     .digest("hex");
 }
 
+async function currentHead(cwd: string) {
+  return (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+}
+
+async function writeScopeDecision(
+  cwd: string,
+  reviewHeadSha: string,
+  scopeDecisionFile: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await writeJson(cwd, scopeDecisionFile, {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
+    mode: "initial",
+    selected_range: "main...HEAD",
+    full_range: "main...HEAD",
+    candidate_narrow_range: "main...HEAD",
+    is_followup_narrow: false,
+    selection_reason: "initial review",
+    escalation_reasons: ["not-followup"],
+    last_reviewed_sha: null,
+    head_sha: reviewHeadSha,
+    changed_files: [],
+    language_hints: [],
+    prior_context: {
+      kind: "none",
+      path: null,
+    },
+    mechanical_facts: {
+      changed_file_count: 0,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "Initial review.",
+    },
+    ...overrides,
+  });
+}
+
 async function writeInputs(cwd: string) {
-  await writeJson(cwd, findingsFile, findingsEnvelope());
+  const reviewHeadSha = await currentHead(cwd);
+  const reviewFindingsFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+  const reviewPayloadFile = `.ephemeral/topic-${reviewHeadSha}-review-payload.json`;
+  const reviewApprovedFile = `.ephemeral/topic-${reviewHeadSha}-approved-review.json`;
+  const reviewScopeDecisionFile = `.ephemeral/topic-${reviewHeadSha}-scope-decision.json`;
+  const reviewPayload = payload({ commit_id: reviewHeadSha });
+  await writeJson(cwd, reviewFindingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
-  await writeJson(cwd, payloadFile, payload());
+  await writeJson(cwd, reviewPayloadFile, reviewPayload);
+  await writeScopeDecision(cwd, reviewHeadSha, reviewScopeDecisionFile);
+  return {
+    reviewHeadSha,
+    reviewFindingsFile,
+    reviewBodyFile,
+    reviewPayloadFile,
+    reviewApprovedFile,
+    reviewScopeDecisionFile,
+    reviewPayload,
+  };
 }
 
 async function runHelper(
@@ -420,6 +514,89 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects inline comments on HEAD lines outside the selected review diff", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/review-target.ts"),
+          "export const unchanged = 1;\n",
+        );
+        await execFileAsync("git", ["add", "src/review-target.ts"], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add target"], {
+          cwd,
+        });
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await writeFile(
+          path.join(cwd, "src/changed.ts"),
+          "export const changed = 1;\n",
+        );
+        await execFileAsync("git", ["add", "src/changed.ts"], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add changed"], {
+          cwd,
+        });
+        const reviewHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const reviewFindingsFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+        const reviewScopeDecisionFile = `.ephemeral/topic-${reviewHeadSha}-scope-decision.json`;
+
+        await writeFile(path.join(cwd, reviewBodyFile), "Top-level summary\n");
+        await writeJson(cwd, reviewFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [sourceFinding({ line: 1 })],
+          carry_forward: [],
+        });
+        await writeJson(cwd, reviewScopeDecisionFile, {
+          schema: "pr-review/scope-decision/v1",
+          surface: "pr-review",
+          mode: "follow-up",
+          selected_range: `${baseSha}..HEAD`,
+          full_range: "main...HEAD",
+          candidate_narrow_range: `${baseSha}..HEAD`,
+          is_followup_narrow: true,
+          selection_reason: "mechanical and semantic checks passed",
+          escalation_reasons: [],
+          last_reviewed_sha: baseSha,
+          head_sha: reviewHeadSha,
+          changed_files: ["src/changed.ts"],
+          language_hints: ["ts"],
+          prior_context: {
+            kind: "github-prior-threads",
+            path: `.ephemeral/topic-${reviewHeadSha}-prior-threads.json`,
+          },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+          semantic_decision: {
+            checked: true,
+            ambiguous: false,
+            notes: "No escalation.",
+          },
+        });
+
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: reviewFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_EVENT: "COMMENT",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "inline anchor is outside selected review diff",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("allows empty comments when every finding is out-of-diff or the envelope is empty", async () => {
       const { cwd, reviewHeadSha, reviewFindingsFile } =
         await makeReviewSourceWorkspace();
@@ -539,39 +716,44 @@ describe.skipIf(!jqAvailable)(
     it("freezes an approved-review artifact with schema, paths, digests, and complete payload", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
 
         const { stdout } = await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
-        expect(stdout).toBe(`${approvedReviewFile}\n`);
+        expect(stdout).toBe(`${inputs.reviewApprovedFile}\n`);
 
         const artifact = JSON.parse(
-          await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+          await readFile(path.join(cwd, inputs.reviewApprovedFile), "utf-8"),
         ) as {
           schema: string;
           review_head_sha: string;
           findings_file: string;
           review_body_file: string;
           review_payload_file: string;
+          scope_decision_file: string;
           findings_sha256: string;
           review_body_sha256: string;
           review_payload_sha256: string;
+          scope_decision_sha256: string;
           payload: unknown;
         };
         expect(artifact).toMatchObject({
           schema: "pr-review/approved-review/v1",
-          review_head_sha: headSha,
-          findings_file: findingsFile,
+          review_head_sha: inputs.reviewHeadSha,
+          findings_file: inputs.reviewFindingsFile,
           review_body_file: reviewBodyFile,
-          review_payload_file: payloadFile,
-          payload: payload(),
+          review_payload_file: inputs.reviewPayloadFile,
+          scope_decision_file: inputs.reviewScopeDecisionFile,
+          payload: inputs.reviewPayload,
         });
         expect(artifact.findings_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(artifact.scope_decision_sha256).toMatch(/^[0-9a-f]{64}$/);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -580,18 +762,22 @@ describe.skipIf(!jqAvailable)(
     it("rejects stale payload content before freezing approved reviews", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         await writeJson(
           cwd,
-          payloadFile,
-          payload({ body: "Stale review body" }),
+          inputs.reviewPayloadFile,
+          payload({
+            commit_id: inputs.reviewHeadSha,
+            body: "Stale review body",
+          }),
         );
 
         await expect(
           runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
@@ -600,7 +786,7 @@ describe.skipIf(!jqAvailable)(
         });
 
         await expect(
-          readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+          readFile(path.join(cwd, inputs.reviewApprovedFile), "utf-8"),
         ).rejects.toMatchObject({ code: "ENOENT" });
       } finally {
         await cleanupTempDir(cwd);
@@ -644,13 +830,14 @@ describe.skipIf(!jqAvailable)(
     it("requires the review event when freezing approved reviews", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
 
         await expect(
           runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
             REVIEW_EVENT: "",
           }),
         ).rejects.toMatchObject({
@@ -664,18 +851,20 @@ describe.skipIf(!jqAvailable)(
     it("validates the approved review and prints the exact frozen payload", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
 
         const { stdout } = await runHelper(cwd, "validate-approved-review", {
-          APPROVED_REVIEW_FILE: approvedReviewFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
         });
 
-        expect(JSON.parse(stdout)).toEqual(payload());
+        expect(JSON.parse(stdout)).toEqual(inputs.reviewPayload);
         expect(stdout).toContain('"body": "Review body"');
       } finally {
         await cleanupTempDir(cwd);
@@ -683,8 +872,13 @@ describe.skipIf(!jqAvailable)(
     });
 
     it("allows start_side only on ranged inline comments", async () => {
-      const { cwd, reviewHeadSha, reviewFindingsFile, reviewPayloadFile } =
-        await makeReviewSourceWorkspace();
+      const {
+        cwd,
+        reviewHeadSha,
+        reviewFindingsFile,
+        reviewPayloadFile,
+        reviewScopeDecisionFile,
+      } = await makeReviewSourceWorkspace();
       try {
         const reviewApprovedFile = `.ephemeral/topic-${reviewHeadSha}-approved-review.json`;
         await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
@@ -721,6 +915,18 @@ describe.skipIf(!jqAvailable)(
           REVIEW_BODY_FILE: reviewBodyFile,
           REVIEW_PAYLOAD_FILE: reviewPayloadFile,
         });
+        const approvedArtifact = JSON.parse(
+          await readFile(path.join(cwd, reviewApprovedFile), "utf-8"),
+        ) as {
+          scope_decision_file?: string;
+          scope_decision_sha256?: string;
+        };
+        expect(approvedArtifact.scope_decision_file).toBe(
+          reviewScopeDecisionFile,
+        );
+        expect(approvedArtifact.scope_decision_sha256).toMatch(
+          /^[0-9a-f]{64}$/,
+        );
 
         const { stdout } = await runHelper(cwd, "validate-approved-review", {
           HEAD_SHA: reviewHeadSha,
@@ -744,11 +950,12 @@ describe.skipIf(!jqAvailable)(
     it("rejects malformed start_side relationships in frozen payload validation", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
 
         const malformedPayloads = [
@@ -799,10 +1006,14 @@ describe.skipIf(!jqAvailable)(
         ];
 
         for (const malformedPayload of malformedPayloads) {
-          await writeJson(cwd, payloadFile, malformedPayload);
+          await writeJson(cwd, inputs.reviewPayloadFile, {
+            ...malformedPayload,
+            commit_id: inputs.reviewHeadSha,
+          });
           await expect(
             runHelper(cwd, "validate-approved-review", {
-              APPROVED_REVIEW_FILE: approvedReviewFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining("payload shape mismatch"),
@@ -816,7 +1027,7 @@ describe.skipIf(!jqAvailable)(
     it("rejects findings, review body, payload, and approved artifact paths that are unsafe or non-canonical", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
 
         await expect(
           runHelper(cwd, "prepare-review-payload-write", {
@@ -840,31 +1051,34 @@ describe.skipIf(!jqAvailable)(
           runHelper(cwd, "freeze-approved-review", {
             FINDINGS_FILE: ".ephemeral/wrong-findings.json",
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("findings path mismatch"),
         });
         await expect(
           runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: "review-body.md",
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("review body path validation failed"),
         });
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
         await writeFile(
           path.join(cwd, ".ephemeral/wrong-approved-review.json"),
-          await readFile(path.join(cwd, approvedReviewFile)),
+          await readFile(path.join(cwd, inputs.reviewApprovedFile)),
         );
         await expect(
           runHelper(cwd, "validate-approved-review", {
+            HEAD_SHA: inputs.reviewHeadSha,
             APPROVED_REVIEW_FILE: ".ephemeral/wrong-approved-review.json",
           }),
         ).rejects.toMatchObject({
@@ -878,39 +1092,47 @@ describe.skipIf(!jqAvailable)(
     it("rejects schema mismatch, malformed payload JSON, and malformed approved-review schema", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
-        await writeJson(cwd, payloadFile, payload({ event: "DISMISS" }));
+        const inputs = await writeInputs(cwd);
+        await writeJson(cwd, inputs.reviewPayloadFile, {
+          ...inputs.reviewPayload,
+          event: "DISMISS",
+        });
         await expect(
           runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("payload shape mismatch"),
         });
 
-        await writeJson(cwd, payloadFile, payload());
+        await writeJson(cwd, inputs.reviewPayloadFile, inputs.reviewPayload);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
-        await writeJson(cwd, approvedReviewFile, {
+        await writeJson(cwd, inputs.reviewApprovedFile, {
           schema: "wrong/v1",
-          review_head_sha: headSha,
-          findings_file: findingsFile,
+          review_head_sha: inputs.reviewHeadSha,
+          findings_file: inputs.reviewFindingsFile,
           review_body_file: reviewBodyFile,
-          review_payload_file: payloadFile,
+          review_payload_file: inputs.reviewPayloadFile,
+          scope_decision_file: inputs.reviewScopeDecisionFile,
           findings_sha256: "0".repeat(64),
           review_body_sha256: "0".repeat(64),
           review_payload_sha256: "0".repeat(64),
-          payload: payload(),
+          scope_decision_sha256: "0".repeat(64),
+          payload: inputs.reviewPayload,
         });
 
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("approved review schema mismatch"),
@@ -923,54 +1145,62 @@ describe.skipIf(!jqAvailable)(
     it("rejects digest drift for findings, review body, payload files, and recorded digests", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
 
-        await writeJson(cwd, findingsFile, {
+        await writeJson(cwd, inputs.reviewFindingsFile, {
           ...findingsEnvelope(),
           extra: "drift",
         });
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("findings digest mismatch"),
         });
 
-        await writeJson(cwd, findingsFile, findingsEnvelope());
+        await writeJson(cwd, inputs.reviewFindingsFile, findingsEnvelope());
         await writeFile(path.join(cwd, reviewBodyFile), "Changed body\n");
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("review body digest mismatch"),
         });
 
         await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
-        await writeJson(cwd, payloadFile, payload({ body: "Changed payload" }));
+        await writeJson(cwd, inputs.reviewPayloadFile, {
+          ...inputs.reviewPayload,
+          body: "Changed payload",
+        });
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("payload digest mismatch"),
         });
 
-        await writeJson(cwd, payloadFile, payload());
+        await writeJson(cwd, inputs.reviewPayloadFile, inputs.reviewPayload);
         const artifact = JSON.parse(
-          await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+          await readFile(path.join(cwd, inputs.reviewApprovedFile), "utf-8"),
         );
         artifact.review_payload_sha256 = "0".repeat(64);
-        await writeJson(cwd, approvedReviewFile, artifact);
+        await writeJson(cwd, inputs.reviewApprovedFile, artifact);
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("payload digest mismatch"),
@@ -983,7 +1213,7 @@ describe.skipIf(!jqAvailable)(
     it("rejects invalid findings entries before freezing or validating approved reviews", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         const invalidFreezeEntries = [
           {
             line: 12,
@@ -1010,7 +1240,7 @@ describe.skipIf(!jqAvailable)(
         ];
 
         for (const invalidEntry of invalidFreezeEntries) {
-          await writeJson(cwd, findingsFile, {
+          await writeJson(cwd, inputs.reviewFindingsFile, {
             schema: "play-review/findings/v1",
             findings: [invalidEntry],
             carry_forward: [],
@@ -1018,9 +1248,10 @@ describe.skipIf(!jqAvailable)(
 
           await expect(
             runHelper(cwd, "freeze-approved-review", {
-              FINDINGS_FILE: findingsFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              FINDINGS_FILE: inputs.reviewFindingsFile,
               REVIEW_BODY_FILE: reviewBodyFile,
-              REVIEW_PAYLOAD_FILE: payloadFile,
+              REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining("envelope schema mismatch"),
@@ -1029,16 +1260,17 @@ describe.skipIf(!jqAvailable)(
 
         await writeInputs(cwd);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
         const artifact = JSON.parse(
-          await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
+          await readFile(path.join(cwd, inputs.reviewApprovedFile), "utf-8"),
         );
         artifact.findings_sha256 = "0".repeat(64);
-        await writeJson(cwd, approvedReviewFile, artifact);
-        await writeJson(cwd, findingsFile, {
+        await writeJson(cwd, inputs.reviewApprovedFile, artifact);
+        await writeJson(cwd, inputs.reviewFindingsFile, {
           schema: "play-review/findings/v1",
           findings: [
             {
@@ -1059,7 +1291,8 @@ describe.skipIf(!jqAvailable)(
 
         await expect(
           runHelper(cwd, "validate-approved-review", {
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("envelope schema mismatch"),
@@ -1072,18 +1305,21 @@ describe.skipIf(!jqAvailable)(
     it("rejects multi-document review payload JSON streams", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeJson(cwd, findingsFile, findingsEnvelope());
-        await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        const inputs = await writeInputs(cwd);
         await writeFile(
-          path.join(cwd, payloadFile),
-          `${JSON.stringify(payload())}\n${JSON.stringify(payload({ event: "APPROVE" }))}\n`,
+          path.join(cwd, inputs.reviewPayloadFile),
+          `${JSON.stringify(inputs.reviewPayload)}\n${JSON.stringify({
+            ...inputs.reviewPayload,
+            event: "APPROVE",
+          })}\n`,
         );
 
         await expect(
           runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
@@ -1098,17 +1334,18 @@ describe.skipIf(!jqAvailable)(
     it("rejects stale PR heads before printing a frozen payload", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
 
         await expect(
           runHelper(cwd, "validate-approved-review", {
             HEAD_SHA: staleHeadSha,
-            APPROVED_REVIEW_FILE: approvedReviewFile,
+            APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("review head mismatch"),
@@ -1124,22 +1361,24 @@ describe.skipIf(!jqAvailable)(
         const cwd = await makeGitWorkspace();
         const outside = path.join(cwd, "outside-approved-review.json");
         try {
-          await writeInputs(cwd);
+          const inputs = await writeInputs(cwd);
           await runHelper(cwd, "freeze-approved-review", {
-            FINDINGS_FILE: findingsFile,
+            HEAD_SHA: inputs.reviewHeadSha,
+            FINDINGS_FILE: inputs.reviewFindingsFile,
             REVIEW_BODY_FILE: reviewBodyFile,
-            REVIEW_PAYLOAD_FILE: payloadFile,
+            REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
           });
           await writeFile(
             outside,
-            await readFile(path.join(cwd, approvedReviewFile)),
+            await readFile(path.join(cwd, inputs.reviewApprovedFile)),
           );
-          await rm(path.join(cwd, approvedReviewFile));
-          await symlink(outside, path.join(cwd, approvedReviewFile));
+          await rm(path.join(cwd, inputs.reviewApprovedFile));
+          await symlink(outside, path.join(cwd, inputs.reviewApprovedFile));
 
           await expect(
             runHelper(cwd, "validate-approved-review", {
-              APPROVED_REVIEW_FILE: approvedReviewFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining(
@@ -1176,14 +1415,18 @@ describe.skipIf(!jqAvailable)(
         const outsidePayload = path.join(cwd, "outside-payload.json");
         const outsideApproved = path.join(cwd, "outside-approved-review.json");
         try {
-          await writeInputs(cwd);
-          await rm(path.join(cwd, payloadFile));
+          const inputs = await writeInputs(cwd);
+          await rm(path.join(cwd, inputs.reviewPayloadFile));
           await writeFile(outsidePayload, "do not remove\n");
-          await symlink(outsidePayload, path.join(cwd, payloadFile));
+          await symlink(
+            outsidePayload,
+            path.join(cwd, inputs.reviewPayloadFile),
+          );
 
           await expect(
             runHelper(cwd, "prepare-review-payload-write", {
-              REVIEW_PAYLOAD_FILE: payloadFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining(
@@ -1194,19 +1437,25 @@ describe.skipIf(!jqAvailable)(
             "do not remove\n",
           );
           expect(
-            (await lstat(path.join(cwd, payloadFile))).isSymbolicLink(),
+            (
+              await lstat(path.join(cwd, inputs.reviewPayloadFile))
+            ).isSymbolicLink(),
           ).toBe(true);
 
-          await rm(path.join(cwd, payloadFile));
-          await writeJson(cwd, payloadFile, payload());
+          await rm(path.join(cwd, inputs.reviewPayloadFile));
+          await writeJson(cwd, inputs.reviewPayloadFile, inputs.reviewPayload);
           await writeFile(outsideApproved, "do not remove\n");
-          await symlink(outsideApproved, path.join(cwd, approvedReviewFile));
+          await symlink(
+            outsideApproved,
+            path.join(cwd, inputs.reviewApprovedFile),
+          );
 
           await expect(
             runHelper(cwd, "freeze-approved-review", {
-              FINDINGS_FILE: findingsFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              FINDINGS_FILE: inputs.reviewFindingsFile,
               REVIEW_BODY_FILE: reviewBodyFile,
-              REVIEW_PAYLOAD_FILE: payloadFile,
+              REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining(
@@ -1217,7 +1466,9 @@ describe.skipIf(!jqAvailable)(
             "do not remove\n",
           );
           expect(
-            (await lstat(path.join(cwd, approvedReviewFile))).isSymbolicLink(),
+            (
+              await lstat(path.join(cwd, inputs.reviewApprovedFile))
+            ).isSymbolicLink(),
           ).toBe(true);
         } finally {
           await cleanupTempDir(cwd);
@@ -1249,13 +1500,15 @@ describe.skipIf(!jqAvailable)(
 
     it("rejects unreadable approved-review files where the platform enforces chmod permissions", async () => {
       const cwd = await makeGitWorkspace();
-      const absoluteApprovedReviewFile = path.join(cwd, approvedReviewFile);
+      let absoluteApprovedReviewFile = "";
       try {
-        await writeInputs(cwd);
+        const inputs = await writeInputs(cwd);
+        absoluteApprovedReviewFile = path.join(cwd, inputs.reviewApprovedFile);
         await runHelper(cwd, "freeze-approved-review", {
-          FINDINGS_FILE: findingsFile,
+          HEAD_SHA: inputs.reviewHeadSha,
+          FINDINGS_FILE: inputs.reviewFindingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_PAYLOAD_FILE: payloadFile,
+          REVIEW_PAYLOAD_FILE: inputs.reviewPayloadFile,
         });
         await chmod(absoluteApprovedReviewFile, 0o000);
         try {
@@ -1264,7 +1517,8 @@ describe.skipIf(!jqAvailable)(
         } catch {
           await expect(
             runHelper(cwd, "validate-approved-review", {
-              APPROVED_REVIEW_FILE: approvedReviewFile,
+              HEAD_SHA: inputs.reviewHeadSha,
+              APPROVED_REVIEW_FILE: inputs.reviewApprovedFile,
             }),
           ).rejects.toMatchObject({
             stderr: expect.stringContaining(

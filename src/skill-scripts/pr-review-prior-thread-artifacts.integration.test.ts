@@ -49,6 +49,31 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
 }
 
+async function currentHead(cwd: string) {
+  return (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+}
+
+async function changedFilesForRange(cwd: string, range: string) {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["diff", "--name-only", range],
+    {
+      cwd,
+    },
+  );
+  return stdout.split("\n").filter(Boolean);
+}
+
+function priorThreadsPathFor(reviewHeadSha: string) {
+  return `.ephemeral/topic-${reviewHeadSha}-prior-threads.json`;
+}
+
+function scopeDecisionPathFor(reviewHeadSha: string) {
+  return `.ephemeral/topic-${reviewHeadSha}-scope-decision.json`;
+}
+
 async function commitFile(cwd: string, relPath: string, contents: string) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   await writeFile(path.join(cwd, relPath), contents);
@@ -215,8 +240,23 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
     const cwd = await makeGitWorkspace();
     try {
       const narrowScope = await makeNarrowScope(cwd);
+      const reviewHeadSha = await currentHead(cwd);
+      const reviewScopeDecisionFile = scopeDecisionPathFor(reviewHeadSha);
       await writeJson(cwd, priorThreadsFile, priorThreads());
       await writeJson(cwd, scopeDecisionFile, scopeDecision(narrowScope));
+      await writeJson(
+        cwd,
+        reviewScopeDecisionFile,
+        scopeDecision({
+          ...narrowScope,
+          full_range: "main...HEAD",
+          head_sha: reviewHeadSha,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(reviewHeadSha),
+          },
+        }),
+      );
 
       await expect(
         runHelper(cwd, "validate-prior-threads", {
@@ -249,17 +289,20 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       ).resolves.toMatchObject({ stdout: "" });
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        reviewScopeDecisionFile,
         scopeDecision({
+          head_sha: reviewHeadSha,
           mode: "initial",
-          selected_range: "origin/main...HEAD",
-          candidate_narrow_range: "origin/main...HEAD",
+          selected_range: "main...HEAD",
+          full_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
           is_followup_narrow: false,
           selection_reason: "initial review",
           escalation_reasons: ["not-followup"],
@@ -275,26 +318,43 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
+      const fileCountBaseSha = reviewHeadSha;
+      const fileCountPaths = [
+        "src/example-a.ts",
+        "src/example-b.ts",
+        "src/example-c.ts",
+        "src/example-d.ts",
+        "src/example-e.ts",
+        "src/example-f.ts",
+      ];
+      await commitFiles(cwd, fileCountPaths);
+      const fileCountHeadSha = await currentHead(cwd);
+      const fileCountScopeDecisionFile = scopeDecisionPathFor(fileCountHeadSha);
+      const fullChangedFiles = await changedFilesForRange(cwd, "main...HEAD");
+      const candidateFileCountRange = `${fileCountBaseSha}..HEAD`;
+
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        fileCountScopeDecisionFile,
         scopeDecision({
-          selected_range: "origin/main...HEAD",
+          head_sha: fileCountHeadSha,
+          selected_range: "main...HEAD",
+          full_range: "main...HEAD",
+          candidate_narrow_range: candidateFileCountRange,
           is_followup_narrow: false,
           selection_reason: "file-count escalation",
           escalation_reasons: ["file-count"],
-          changed_files: [
-            "src/example-a.ts",
-            "src/example-b.ts",
-            "src/example-c.ts",
-            "src/example-d.ts",
-            "src/example-e.ts",
-            "src/example-f.ts",
-          ],
+          last_reviewed_sha: fileCountBaseSha,
+          changed_files: fullChangedFiles,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(fileCountHeadSha),
+          },
           mechanical_facts: {
             changed_file_count: 6,
             followup_sha_usable: true,
@@ -305,21 +365,31 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: fileCountHeadSha,
+          SCOPE_DECISION_FILE: fileCountScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
+      const missingSha = "fedcba9876543210fedcba9876543210fedcba98";
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        fileCountScopeDecisionFile,
         scopeDecision({
-          selected_range: "origin/main...HEAD",
-          candidate_narrow_range: "origin/main...HEAD",
+          head_sha: fileCountHeadSha,
+          selected_range: "main...HEAD",
+          full_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
           is_followup_narrow: false,
           selection_reason: "unusable baseline escalation",
           escalation_reasons: ["last-reviewed-unusable"],
+          last_reviewed_sha: missingSha,
+          changed_files: fullChangedFiles,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(fileCountHeadSha),
+          },
           mechanical_facts: {
-            changed_file_count: 1,
+            changed_file_count: fullChangedFiles.length,
             followup_sha_usable: false,
             mechanical_escalate_full: true,
             mechanical_escalation_reason: "last-reviewed-unusable",
@@ -328,7 +398,8 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: fileCountHeadSha,
+          SCOPE_DECISION_FILE: fileCountScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
@@ -707,6 +778,8 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
     const cwd = await makeGitWorkspace();
     try {
       const narrowScope = await makeNarrowScope(cwd);
+      const reviewHeadSha = await currentHead(cwd);
+      const reviewScopeDecisionFile = scopeDecisionPathFor(reviewHeadSha);
       await writeFile(
         path.join(cwd, scopeDecisionFile),
         `${JSON.stringify({ raw_scope_claim: true })}\n${JSON.stringify(scopeDecision())}`,
@@ -911,8 +984,14 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
 
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        reviewScopeDecisionFile,
         scopeDecision({
+          ...narrowScope,
+          head_sha: reviewHeadSha,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(reviewHeadSha),
+          },
           semantic_decision: {
             checked: false,
             ambiguous: true,
@@ -922,23 +1001,36 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("scope decision schema mismatch"),
       });
 
+      await execFileAsync(
+        "git",
+        ["update-ref", "refs/remotes/origin/release+1", reviewHeadSha],
+        { cwd },
+      );
+
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        reviewScopeDecisionFile,
         scopeDecision({
           ...narrowScope,
+          head_sha: reviewHeadSha,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(reviewHeadSha),
+          },
           full_range: "origin/release+1...HEAD",
         }),
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
@@ -1066,15 +1158,23 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       ];
       await commitFiles(cwd, changedFiles);
       const selectedRange = `${lastReviewedSha}..HEAD`;
+      const reviewHeadSha = await currentHead(cwd);
+      const reviewScopeDecisionFile = scopeDecisionPathFor(reviewHeadSha);
 
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        reviewScopeDecisionFile,
         scopeDecision({
           selected_range: selectedRange,
+          full_range: "main...HEAD",
           candidate_narrow_range: selectedRange,
           last_reviewed_sha: lastReviewedSha,
+          head_sha: reviewHeadSha,
           changed_files: changedFiles,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: priorThreadsPathFor(reviewHeadSha),
+          },
           mechanical_facts: {
             ...scopeDecision().mechanical_facts,
             changed_file_count: changedFiles.length,
@@ -1085,7 +1185,8 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -1104,21 +1205,30 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       await commitFile(cwd, "src/example.ts", "narrow\n");
       await commitFile(cwd, "src/extra.ts", "extra\n");
       const selectedRange = `${lastReviewedSha}..HEAD`;
+      const reviewHeadSha = await currentHead(cwd);
+      const reviewScopeDecisionFile = scopeDecisionPathFor(reviewHeadSha);
       const validScope = {
         selected_range: selectedRange,
+        full_range: "main...HEAD",
         candidate_narrow_range: selectedRange,
         last_reviewed_sha: lastReviewedSha,
+        head_sha: reviewHeadSha,
         changed_files: ["src/example.ts", "src/extra.ts"],
+        prior_context: {
+          kind: "github-prior-threads",
+          path: priorThreadsPathFor(reviewHeadSha),
+        },
         mechanical_facts: {
           ...scopeDecision().mechanical_facts,
           changed_file_count: 2,
         },
       };
 
-      await writeJson(cwd, scopeDecisionFile, scopeDecision(validScope));
+      await writeJson(cwd, reviewScopeDecisionFile, scopeDecision(validScope));
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
@@ -1131,7 +1241,7 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       ]) {
         await writeJson(
           cwd,
-          scopeDecisionFile,
+          reviewScopeDecisionFile,
           scopeDecision({
             ...validScope,
             changed_files,
@@ -1143,7 +1253,8 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
         );
         await expect(
           runHelper(cwd, "validate-scope-decision", {
-            SCOPE_DECISION_FILE: scopeDecisionFile,
+            HEAD_SHA: reviewHeadSha,
+            SCOPE_DECISION_FILE: reviewScopeDecisionFile,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),
@@ -1153,8 +1264,9 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       const missingSha = "fedcba9876543210fedcba9876543210fedcba98";
       await writeJson(
         cwd,
-        scopeDecisionFile,
+        reviewScopeDecisionFile,
         scopeDecision({
+          ...validScope,
           selected_range: `${missingSha}..HEAD`,
           candidate_narrow_range: `${missingSha}..HEAD`,
           last_reviewed_sha: missingSha,
@@ -1167,7 +1279,8 @@ describe.skipIf(!jqAvailable)("pr-review prior thread artifact helper", () => {
       );
       await expect(
         runHelper(cwd, "validate-scope-decision", {
-          SCOPE_DECISION_FILE: scopeDecisionFile,
+          HEAD_SHA: reviewHeadSha,
+          SCOPE_DECISION_FILE: reviewScopeDecisionFile,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("scope decision schema mismatch"),

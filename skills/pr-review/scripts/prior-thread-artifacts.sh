@@ -2,6 +2,7 @@
 set -euo pipefail
 
 command_name="${1:-}"
+governed_path_pattern='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
 
 require_env() {
   local name="$1"
@@ -256,14 +257,33 @@ validate_scope_decision_ranges() {
   done
 }
 
-validate_narrow_changed_files_match_diff() {
-  local is_followup_narrow
-  is_followup_narrow="$(jq -r '.is_followup_narrow' "$SCOPE_DECISION_FILE")" || return 1
-  [ "$is_followup_narrow" = "true" ] || return 0
+assert_head_matches_artifact() {
+  local current_head
+  current_head="$(git rev-parse HEAD 2>/dev/null)" || return 1
+  [ "$current_head" = "$HEAD_SHA" ] || {
+    echo "scope decision head mismatch: artifact $HEAD_SHA, checkout $current_head" >&2
+    return 1
+  }
+}
 
-  local selected_range
-  selected_range="$(jq -er '.selected_range' "$SCOPE_DECISION_FILE")" || return 1
+write_artifact_changed_files_z() {
+  local out_file="$1"
+  jq -j '.changed_files[] | ., "\u0000"' "$SCOPE_DECISION_FILE" >"$out_file"
+}
 
+write_git_changed_files_z() {
+  local range="$1"
+  local out_file="$2"
+  git diff --name-only -z "$range" >"$out_file"
+}
+
+count_nul_entries() {
+  local file="$1"
+  tr -cd '\000' <"$file" | wc -c | tr -d ' '
+}
+
+validate_changed_files_match_range() {
+  local range="$1"
   local actual_file
   local expected_file
   actual_file="$(mktemp)" || return 1
@@ -272,12 +292,11 @@ validate_narrow_changed_files_match_diff() {
     return 1
   }
 
-  jq -j '.changed_files[] | ., "\u0000"' "$SCOPE_DECISION_FILE" >"$actual_file" || {
+  write_artifact_changed_files_z "$actual_file" || {
     rm -f "$actual_file" "$expected_file"
     return 1
   }
-
-  git diff --name-only -z "$selected_range" >"$expected_file" || {
+  write_git_changed_files_z "$range" "$expected_file" || {
     rm -f "$actual_file" "$expected_file"
     return 1
   }
@@ -288,6 +307,174 @@ validate_narrow_changed_files_match_diff() {
   }
 
   rm -f "$actual_file" "$expected_file"
+}
+
+language_hints_for_range() {
+  local range="$1"
+  git diff --name-only "$range" |
+    sed -n 's/.*\.\([[:alnum:]_+-][[:alnum:]_+-]*\)$/\1/p' |
+    tr '[:upper:]' '[:lower:]' |
+    sort -u
+}
+
+validate_language_hints_match_range() {
+  local range="$1"
+  local actual_file
+  local expected_file
+  actual_file="$(mktemp)" || return 1
+  expected_file="$(mktemp)" || {
+    rm -f "$actual_file"
+    return 1
+  }
+  jq -r '.language_hints[]' "$SCOPE_DECISION_FILE" >"$actual_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+  language_hints_for_range "$range" >"$expected_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+  cmp -s "$actual_file" "$expected_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+  rm -f "$actual_file" "$expected_file"
+}
+
+range_changed_file_count() {
+  local range="$1"
+  local file
+  file="$(mktemp)" || return 1
+  write_git_changed_files_z "$range" "$file" || {
+    rm -f "$file"
+    return 1
+  }
+  count_nul_entries "$file"
+  rm -f "$file"
+}
+
+range_has_governed_path() {
+  local range="$1"
+  git diff --name-only "$range" | grep -E -- "$governed_path_pattern" >/dev/null
+}
+
+validate_derived_scope_facts() {
+  assert_head_matches_artifact || return 1
+
+  local mode
+  local selected_range
+  local full_range
+  local candidate_narrow_range
+  local is_followup_narrow
+  local last_reviewed_sha
+  local artifact_followup_usable
+  local derived_followup_usable=false
+  local mechanical_count_range
+  local derived_changed_file_count
+  local artifact_changed_file_count
+  local artifact_mechanical_escalate
+  local artifact_mechanical_reason
+  local derived_file_count_escalates=false
+  local derived_governance_escalates=false
+  local derived_mechanical_escalates=false
+  local escalation_reasons_file
+
+  mode="$(jq -r '.mode' "$SCOPE_DECISION_FILE")" || return 1
+  selected_range="$(jq -er '.selected_range' "$SCOPE_DECISION_FILE")" || return 1
+  full_range="$(jq -er '.full_range' "$SCOPE_DECISION_FILE")" || return 1
+  candidate_narrow_range="$(jq -er '.candidate_narrow_range' "$SCOPE_DECISION_FILE")" || return 1
+  is_followup_narrow="$(jq -r '.is_followup_narrow' "$SCOPE_DECISION_FILE")" || return 1
+  last_reviewed_sha="$(jq -r '.last_reviewed_sha // empty' "$SCOPE_DECISION_FILE")" || return 1
+
+  git diff --name-only "$selected_range" >/dev/null || return 1
+  git diff --name-only "$full_range" >/dev/null || return 1
+  git diff --name-only "$candidate_narrow_range" >/dev/null || return 1
+
+  validate_changed_files_match_range "$selected_range" || return 1
+  validate_language_hints_match_range "$selected_range" || return 1
+
+  mechanical_count_range="$selected_range"
+  if [ "$mode" = "follow-up" ]; then
+    case "$last_reviewed_sha" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+        if git cat-file -e "$last_reviewed_sha^{commit}" 2>/dev/null &&
+          git merge-base --is-ancestor "$last_reviewed_sha" HEAD 2>/dev/null; then
+          derived_followup_usable=true
+          mechanical_count_range="$candidate_narrow_range"
+        fi
+        ;;
+    esac
+  fi
+
+  artifact_followup_usable="$(jq -r '.mechanical_facts.followup_sha_usable' "$SCOPE_DECISION_FILE")" || return 1
+  [ "$artifact_followup_usable" = "$derived_followup_usable" ] || return 1
+
+  derived_changed_file_count="$(range_changed_file_count "$mechanical_count_range")" || return 1
+  artifact_changed_file_count="$(jq -r '.mechanical_facts.changed_file_count' "$SCOPE_DECISION_FILE")" || return 1
+  [ "$artifact_changed_file_count" = "$derived_changed_file_count" ] || return 1
+
+  if [ "$mode" = "follow-up" ]; then
+    if [ "$derived_followup_usable" = "false" ]; then
+      derived_mechanical_escalates=true
+    else
+      if [ "$derived_changed_file_count" -gt 5 ]; then
+        derived_file_count_escalates=true
+        derived_mechanical_escalates=true
+      fi
+      if range_has_governed_path "$candidate_narrow_range"; then
+        derived_governance_escalates=true
+        derived_mechanical_escalates=true
+      fi
+    fi
+  else
+    derived_mechanical_escalates=true
+  fi
+
+  artifact_mechanical_escalate="$(jq -r '.mechanical_facts.mechanical_escalate_full' "$SCOPE_DECISION_FILE")" || return 1
+  [ "$artifact_mechanical_escalate" = "$derived_mechanical_escalates" ] || return 1
+
+  artifact_mechanical_reason="$(jq -r '.mechanical_facts.mechanical_escalation_reason' "$SCOPE_DECISION_FILE")" || return 1
+  escalation_reasons_file="$(mktemp)" || return 1
+  jq -r '.escalation_reasons[]' "$SCOPE_DECISION_FILE" >"$escalation_reasons_file" || {
+    rm -f "$escalation_reasons_file"
+    return 1
+  }
+
+  if [ "$derived_file_count_escalates" = "true" ]; then
+    grep -Fx 'file-count' "$escalation_reasons_file" >/dev/null || {
+      rm -f "$escalation_reasons_file"
+      return 1
+    }
+    case "$artifact_mechanical_reason" in *file-count*) ;; *) rm -f "$escalation_reasons_file"; return 1 ;; esac
+  fi
+  if [ "$derived_governance_escalates" = "true" ]; then
+    grep -Fx 'governance-path' "$escalation_reasons_file" >/dev/null || {
+      rm -f "$escalation_reasons_file"
+      return 1
+    }
+    case "$artifact_mechanical_reason" in *governance-path*) ;; *) rm -f "$escalation_reasons_file"; return 1 ;; esac
+  fi
+  if [ "$mode" = "follow-up" ] && [ "$derived_followup_usable" = "false" ]; then
+    case "$artifact_mechanical_reason" in *last-reviewed-unusable*) ;; *) rm -f "$escalation_reasons_file"; return 1 ;; esac
+  fi
+  if [ "$mode" != "follow-up" ]; then
+    grep -Fx 'not-followup' "$escalation_reasons_file" >/dev/null || {
+      rm -f "$escalation_reasons_file"
+      return 1
+    }
+    case "$artifact_mechanical_reason" in *not-followup*) ;; *) rm -f "$escalation_reasons_file"; return 1 ;; esac
+  fi
+  if [ "$derived_mechanical_escalates" = "false" ] && [ -n "$artifact_mechanical_reason" ]; then
+    rm -f "$escalation_reasons_file"
+    return 1
+  fi
+  rm -f "$escalation_reasons_file"
+
+  if [ "$is_followup_narrow" = "true" ]; then
+    [ "$derived_followup_usable" = "true" ] || return 1
+    [ "$derived_file_count_escalates" = "false" ] || return 1
+    [ "$derived_governance_escalates" = "false" ] || return 1
+  fi
 }
 
 prepare_prior_threads_write() {
@@ -403,6 +590,8 @@ validate_prior_threads() {
       and (.original_line | nullable_positive_integer)
       and (.start_line | nullable_positive_integer)
       and (.original_start_line | nullable_positive_integer)
+      and (.start_line == null or .line == null or .start_line <= .line)
+      and (.original_start_line == null or .original_line == null or .original_start_line <= .original_line)
       and (.classification | valid_classification)
       and (.model_context | valid_model_context)
       and (if .model_context == "include" then .classification == "actionable" and (.is_resolved | not) and (.is_outdated | not) else true end)
@@ -495,8 +684,6 @@ validate_scope_decision() {
       and (.ambiguous | type == "boolean")
       and (.notes | type == "string");
     def valid_scope_invariants:
-      .mechanical_facts.changed_file_count == (.changed_files | length)
-      and
       (if .mode == "initial" then
         .is_followup_narrow == false
         and .last_reviewed_sha == null
@@ -579,7 +766,7 @@ validate_scope_decision() {
     echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
     exit 1
   }
-  validate_narrow_changed_files_match_diff || {
+  validate_derived_scope_facts || {
     echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
     exit 1
   }
