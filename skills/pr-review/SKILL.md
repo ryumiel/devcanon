@@ -172,7 +172,7 @@ Hand off to `play-review` with these inputs:
 - `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
 - `head_sha` = `$HEAD_SHA` captured in Phase 2
 - `mode` = `"github-post"`
-- `language_hints` = derived from the **active diff's** changed-files set (so follow-up narrow mode only spawns language agents matching the incremental diff; deriving from the full PR would re-run earlier-touched language agents on docs-only follow-ups, defeating the narrow-mode scoping)
+- `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)
 - `scope_decision` = validated `pr-review/scope-decision/v1` artifact path
 - `prior_threads` = validated `pr-review/prior-threads/v1` artifact path
   (follow-up only; omit for initial reviews with no prior GitHub context)

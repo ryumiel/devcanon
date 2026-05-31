@@ -84,17 +84,19 @@ Task tool (general-purpose):
     Scope: this check runs only when the effective route dispatches the
     spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
     `none-final-only` reduced routes and the `issue-priming-workflow --auto`
-    single-task path, Phase 7 `branch-review --fix` is mandatory, but ADR-0017
-    guarded tiny-diff mode may suppress dynamic Docs-agent dispatch for
-    qualifying tiny low-risk diffs. Direct/manual single-task paths get only the
-    local final reviewer unless the operator also runs `branch-review` or
-    `pr-review`.
+    single-task path, Phase 7 `branch-review --fix` is mandatory. Under the
+    current `play-review` model, tiny-diff mode may suppress only the
+    risk-triggered `Spec` and `Architecture` reviewers for qualifying tiny
+    low-risk diffs; it must not suppress the always-on `Code-quality` reviewer
+    or critic. Direct/manual single-task paths get only the local final
+    reviewer unless the operator also runs `branch-review` or `pr-review`.
 
     Apply the check only to `*.md` files the implementer's report identifies
     as changed for this task — you are already reading those files to verify
     spec compliance, so this adds no extra scope. Do not scan unchanged
     `*.md` files; cross-document checks are out of scope here and live in
-    `play-review`'s Docs agent (Sub-check B), invoked by both `branch-review` and `pr-review`.
+    `play-review`'s risk-triggered `Spec` reviewer, invoked by both
+    `branch-review` and `pr-review` when the routing conditions require it.
 
     - Does prose backtick an identifier that the adjacent code block does not use?
       Example: prose says `git worktree prune` but the code block runs
@@ -122,13 +124,14 @@ Task tool (general-purpose):
     spec-compliance reviewer (`spec-and-quality` or `spec-only`). For
     `none-final-only` reduced routes and the `issue-priming-workflow --auto`
     single-task path, equivalent coverage lives in mandatory Phase 7
-    `branch-review --fix` through `play-review`'s Correctness agent under the
-    same name. Direct/manual single-task paths get only the local final
-    reviewer unless the operator also runs `branch-review` or `pr-review`. The
-    broader documented-behavior verification (for new or modified invocations
-    that aren't substitutions) is out of scope here and lives in `play-review`
-    only (invoked by both `branch-review` and `pr-review`) — see that skill
-    for Sub-check 2.
+    `branch-review --fix` through `play-review`'s always-on `Code-quality`
+    reviewer under the same name. Direct/manual single-task paths get only the
+    local final reviewer unless the operator also runs `branch-review` or
+    `pr-review`. The broader documented-behavior verification (for new or
+    modified invocations that aren't substitutions) is out of scope here and
+    also lives in `play-review`'s `Code-quality` reviewer, invoked by both
+    `branch-review` and `pr-review` — see that skill for the
+    documented-behavior verification sub-check.
 
     Apply the check whenever the task's diff replaces an external CLI /
     REST / system primitive invocation token with a sibling at the same
