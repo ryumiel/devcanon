@@ -240,7 +240,9 @@ initial vs follow-up mode, selected range, full range, candidate narrow range,
 `is_followup_narrow`, escalation reason(s), last reviewed SHA, changed files,
 language hints, prior findings path, mechanical facts, and semantic decision
 notes. It represents local branch-review follow-up state only; never use
-GitHub prior-thread kinds in this artifact.
+GitHub prior-thread kinds in this artifact. Narrow follow-up validation
+cross-checks `changed_files` against `git diff --name-only "$selected_range"`
+and rejects missing, extra, duplicate, reordered, or unresolvable diff entries.
 
 ## Phase 2: Invoke the play-review skill workflow
 

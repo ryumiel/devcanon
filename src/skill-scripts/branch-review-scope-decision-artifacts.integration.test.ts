@@ -50,6 +50,39 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
 }
 
+async function commitFile(cwd: string, relPath: string, contents: string) {
+  await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
+  await writeFile(path.join(cwd, relPath), contents);
+  await execFileAsync("git", ["add", relPath], { cwd });
+  await execFileAsync("git", ["commit", "-m", `test: update ${relPath}`], {
+    cwd,
+  });
+  return (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+}
+
+async function makeNarrowScope(cwd: string) {
+  const rangeBaseSha = (
+    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+  ).stdout.trim();
+  await commitFile(cwd, "skills/branch-review/SKILL.md", "narrow\n");
+  return {
+    selected_range: `${rangeBaseSha}..HEAD`,
+    candidate_narrow_range: `${rangeBaseSha}..HEAD`,
+    last_reviewed_sha: rangeBaseSha,
+    changed_files: ["skills/branch-review/SKILL.md"],
+    prior_context: {
+      kind: "branch-findings",
+      path: `.ephemeral/topic-${rangeBaseSha}-findings.json`,
+    },
+    mechanical_facts: {
+      ...scopeDecision().mechanical_facts,
+      changed_file_count: 1,
+    },
+  };
+}
+
 async function runHelper(
   cwd: string,
   command: string,
@@ -116,11 +149,15 @@ describe.skipIf(!jqAvailable)(
     it("validates initial, narrow follow-up, and full-escalation decisions", async () => {
       const cwd = await makeGitWorkspace();
       try {
-        await writeJson(cwd, scopeDecisionFile, scopeDecision());
+        const narrowScope = await makeNarrowScope(cwd);
+        const narrowEnv = {
+          PRIOR_BRANCH_FINDINGS: narrowScope.prior_context.path,
+        };
+        await writeJson(cwd, scopeDecisionFile, scopeDecision(narrowScope));
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
-            ...validateFollowupEnv,
+            ...narrowEnv,
           }),
         ).resolves.toMatchObject({ stdout: "" });
 
@@ -213,13 +250,14 @@ describe.skipIf(!jqAvailable)(
           cwd,
           scopeDecisionFile,
           scopeDecision({
+            ...narrowScope,
             full_range: "origin/release+1...HEAD",
           }),
         );
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
-            ...validateFollowupEnv,
+            ...narrowEnv,
           }),
         ).resolves.toMatchObject({ stdout: "" });
 
@@ -227,16 +265,17 @@ describe.skipIf(!jqAvailable)(
           cwd,
           scopeDecisionFile,
           scopeDecision({
+            ...narrowScope,
             prior_context: {
               kind: "branch-findings",
-              path: `.ephemeral/renamed-${lastReviewedSha}-findings.json`,
+              path: `.ephemeral/renamed-${narrowScope.last_reviewed_sha}-findings.json`,
             },
           }),
         );
         await expect(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
-            PRIOR_BRANCH_FINDINGS: `.ephemeral/renamed-${lastReviewedSha}-findings.json`,
+            PRIOR_BRANCH_FINDINGS: `.ephemeral/renamed-${narrowScope.last_reviewed_sha}-findings.json`,
           }),
         ).resolves.toMatchObject({ stdout: "" });
       } finally {
@@ -632,6 +671,114 @@ describe.skipIf(!jqAvailable)(
           runHelper(cwd, "validate-scope-decision", {
             SCOPE_DECISION_FILE: scopeDecisionFile,
             ...validateFollowupEnv,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects narrow branch-review changed_files that do not match the selected diff", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const rangeBaseSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await commitFile(cwd, "skills/branch-review/SKILL.md", "narrow\n");
+        await commitFile(cwd, "skills/branch-review/README.md", "extra\n");
+        const selectedRange = `${rangeBaseSha}..HEAD`;
+        const priorFindings = `.ephemeral/topic-${rangeBaseSha}-findings.json`;
+        const validScope = {
+          selected_range: selectedRange,
+          candidate_narrow_range: selectedRange,
+          last_reviewed_sha: rangeBaseSha,
+          changed_files: [
+            "skills/branch-review/README.md",
+            "skills/branch-review/SKILL.md",
+          ],
+          prior_context: {
+            kind: "branch-findings",
+            path: priorFindings,
+          },
+          mechanical_facts: {
+            ...scopeDecision().mechanical_facts,
+            changed_file_count: 2,
+          },
+        };
+        const env = {
+          PRIOR_BRANCH_FINDINGS: priorFindings,
+        };
+
+        await writeJson(cwd, scopeDecisionFile, scopeDecision(validScope));
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            ...env,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        for (const changed_files of [
+          ["skills/branch-review/SKILL.md"],
+          [
+            "skills/branch-review/README.md",
+            "skills/branch-review/SKILL.md",
+            "skills/branch-review/untracked.md",
+          ],
+          ["skills/branch-review/SKILL.md", "skills/branch-review/README.md"],
+          ["skills/branch-review/README.md\nskills/branch-review/SKILL.md"],
+          ["skills/branch-review/README.md\0skills/branch-review/SKILL.md"],
+        ]) {
+          await writeJson(
+            cwd,
+            scopeDecisionFile,
+            scopeDecision({
+              ...validScope,
+              changed_files,
+              mechanical_facts: {
+                ...validScope.mechanical_facts,
+                changed_file_count: changed_files.length,
+              },
+            }),
+          );
+          await expect(
+            runHelper(cwd, "validate-scope-decision", {
+              SCOPE_DECISION_FILE: scopeDecisionFile,
+              ...env,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("scope decision schema mismatch"),
+          });
+        }
+
+        const missingSha = "fedcba9876543210fedcba9876543210fedcba98";
+        const missingFindings = `.ephemeral/topic-${missingSha}-findings.json`;
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          scopeDecision({
+            selected_range: `${missingSha}..HEAD`,
+            candidate_narrow_range: `${missingSha}..HEAD`,
+            last_reviewed_sha: missingSha,
+            changed_files: [
+              "skills/branch-review/README.md",
+              "skills/branch-review/SKILL.md",
+            ],
+            prior_context: {
+              kind: "branch-findings",
+              path: missingFindings,
+            },
+            mechanical_facts: {
+              ...validScope.mechanical_facts,
+              changed_file_count: 2,
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "validate-scope-decision", {
+            SCOPE_DECISION_FILE: scopeDecisionFile,
+            PRIOR_BRANCH_FINDINGS: missingFindings,
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("scope decision schema mismatch"),

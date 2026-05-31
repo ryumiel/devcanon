@@ -246,6 +246,40 @@ validate_scope_decision_ranges() {
   done
 }
 
+validate_narrow_changed_files_match_diff() {
+  local is_followup_narrow
+  is_followup_narrow="$(jq -r '.is_followup_narrow' "$SCOPE_DECISION_FILE")" || return 1
+  [ "$is_followup_narrow" = "true" ] || return 0
+
+  local selected_range
+  selected_range="$(jq -er '.selected_range' "$SCOPE_DECISION_FILE")" || return 1
+
+  local actual_file
+  local expected_file
+  actual_file="$(mktemp)" || return 1
+  expected_file="$(mktemp)" || {
+    rm -f "$actual_file"
+    return 1
+  }
+
+  jq -j '.changed_files[] | ., "\u0000"' "$SCOPE_DECISION_FILE" >"$actual_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+
+  git diff --name-only -z "$selected_range" >"$expected_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+
+  cmp -s "$actual_file" "$expected_file" || {
+    rm -f "$actual_file" "$expected_file"
+    return 1
+  }
+
+  rm -f "$actual_file" "$expected_file"
+}
+
 prepare_scope_decision_write() {
   validate_head_sha
   local file
@@ -275,10 +309,11 @@ validate_scope_decision() {
       type == "string"
       and length > 0;
     def repo_relative_path:
-      type == "string"
-      and length > 0
-      and (startswith("/") | not)
-      and (split("/") | all(. != "" and . != "." and . != ".."));
+	      type == "string"
+	      and length > 0
+	      and (startswith("/") | not)
+	      and (explode | all(. >= 32))
+	      and (split("/") | all(. != "" and . != "." and . != ".."));
     def direct_ephemeral_path:
       type == "string"
       and test("^\\.ephemeral/[^/]+$")
@@ -389,6 +424,10 @@ validate_scope_decision() {
     exit 1
   }
   validate_scope_decision_ranges || {
+    echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
+    exit 1
+  }
+  validate_narrow_changed_files_match_diff || {
     echo "scope decision schema mismatch: $SCOPE_DECISION_FILE" >&2
     exit 1
   }

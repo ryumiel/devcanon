@@ -110,7 +110,8 @@ The artifact classifies each thread as actionable,
 resolved, outdated, bot boilerplate, review request, reaction-only,
 conversation, or unknown, and records whether model context should include,
 summarize, or drop it. Entries marked `drop` or `summarize` must not retain raw
-comment bodies in `comments[]`; use `summary` for compact non-include context.
+comment bodies in `comments[]`; entries marked `summarize` must carry a
+non-empty `summary` for compact non-include context.
 
 ## Phase 3: Determine diff ranges
 
@@ -157,7 +158,9 @@ range, candidate narrow range, `is_followup_narrow`, escalation reason(s), last
 reviewed SHA, changed files, language hints, prior context path, mechanical
 facts, and semantic decision notes. Missing, malformed, stale, conflicting, or
 untrusted facts needed to justify narrow review fail closed to full review or
-stop before invoking `play-review`.
+stop before invoking `play-review`. Narrow follow-up validation cross-checks
+`changed_files` against `git diff --name-only "$selected_range"` and rejects
+missing, extra, duplicate, reordered, or unresolvable diff entries.
 
 ## Phase 4: Run play-review
 
