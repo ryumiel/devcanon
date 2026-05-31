@@ -673,9 +673,9 @@ Phase 2 in its briefing and add this rubric to its prompt:
 > decisions, technology adoption/removal, boundary changes, major
 > tradeoffs/rejected alternatives).
 >
-> - Durable decision + new `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
+> - Durable decision + new covering `docs/adr/adr-NNNN-*.md` added: PASS, no finding.
 > - Durable decision + existing covering ADR modified: PASS, no finding.
-> - Durable decision + no new/modified ADR: `Blocking | Documentation` —
+> - Durable decision + no new/modified covering ADR: `Blocking | Documentation` —
 >   _"diff makes durable decision X but lacks ADR coverage; create
 >   `docs/adr/adr-NNNN-<title>.md` per `docs/adr/adr-template.md`."_
 > - Implementation detail or refactor without durable decision: no finding.
@@ -782,7 +782,7 @@ For each changed `*.md` file in the active diff:
 - Flag any prose identifier whose code-block counterpart uses a different name, or any code-block identifier whose surrounding prose names something else.
 - Report as `Blocking`, category `Documentation`. Auto-fixable via wrapper `--fix` (the code block is canonical; rewrite prose to match). If the code block is itself wrong, reclassify as judgment-required and route to nits — do not auto-fix.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (worktree-cleanup prose vs. code drift).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-a-within-document-identifier-drift--illustrative-scenario) for an illustrative scenario (worktree-cleanup prose vs. code drift).
 
 ### Spec reviewer — Sub-check B: Cross-document identifier drift
 
@@ -802,7 +802,7 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
 
 ### Spec reviewer — Documentation guidance checks
 

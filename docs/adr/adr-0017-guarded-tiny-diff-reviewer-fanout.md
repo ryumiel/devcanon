@@ -2,11 +2,9 @@
 
 ## Status
 
-Accepted
-
-Current `play-review` fanout and tiny-diff suppression scope are superseded by
-[ADR-0022](adr-0022-three-topical-play-review-fanout.md). The guarded
-tiny-diff optimization rationale remains accepted history.
+Superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md) for
+current `play-review` fanout and tiny-diff suppression scope; accepted history
+for the guarded tiny-diff optimization rationale.
 
 ## Context
 

@@ -666,6 +666,22 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase3).not.toMatch(/\| Documentation /);
   });
 
+  it("requires covering ADR changes for durable play-review Architecture decisions", async () => {
+    const skillSource = await readSkillSource("play-review");
+    const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
+    const normalizedPhase4 = normalizeWhitespace(phase4);
+
+    expect(normalizedPhase4).toContain(
+      "Durable decision + new covering `docs/adr/adr-NNNN-*.md` added",
+    );
+    expect(normalizedPhase4).toContain(
+      "Durable decision + existing covering ADR modified",
+    );
+    expect(normalizedPhase4).toContain(
+      "Durable decision + no new/modified covering ADR",
+    );
+  });
+
   it("records ADR-0022 as the successor for stale play-review fanout claims", async () => {
     const adr0011 = await readRepoFile(
       "docs/adr/adr-0011-reviewer-fanout-audit.md",
@@ -681,10 +697,17 @@ describe("existing skills source prose contracts", () => {
     );
     const map = await readRepoFile("MAP.md");
     const normalizedAdr0011 = normalizeWhitespace(adr0011);
-    const normalizedAdr0017 = normalizeWhitespace(adr0017);
-    const normalizedAdr0018 = normalizeWhitespace(adr0018);
     const normalizedAdr0022 = normalizeWhitespace(adr0022);
     const normalizedMap = normalizeWhitespace(map);
+    const adr0011Status = normalizeWhitespace(
+      getMarkdownSection(adr0011, "Status"),
+    );
+    const adr0017Status = normalizeWhitespace(
+      getMarkdownSection(adr0017, "Status"),
+    );
+    const adr0018Status = normalizeWhitespace(
+      getMarkdownSection(adr0018, "Status"),
+    );
 
     expect(adr0022).toContain("# ADR-0022: Three-Topical `play-review` Fanout");
     for (const section of [
@@ -712,22 +735,22 @@ describe("existing skills source prose contracts", () => {
       "The maximum topical reviewer count is three",
     );
 
-    expect(normalizedAdr0011).toContain(
-      "Current `play-review` fanout and the pending `data-safety-reviewer` promotion decision are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
+    expect(adr0011Status).toContain(
+      "Superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md) for current `play-review` fanout and the pending `data-safety-reviewer` promotion decision; accepted history for the Wave 3-bis audit",
     );
-    expect(normalizedAdr0011).toContain("This audit remains accepted history");
-    expect(normalizedAdr0017).toContain(
-      "Current `play-review` fanout and tiny-diff suppression scope are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
+    expect(adr0011Status).not.toBe("Accepted");
+    expect(adr0011Status).not.toContain("## Context");
+    expect(normalizedAdr0011).toContain("Wave 3-bis");
+    expect(adr0017Status).toContain(
+      "Superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md) for current `play-review` fanout and tiny-diff suppression scope; accepted history for the guarded tiny-diff optimization rationale",
     );
-    expect(normalizedAdr0017).toContain(
-      "The guarded tiny-diff optimization rationale remains accepted history",
+    expect(adr0017Status).not.toBe("Accepted");
+    expect(adr0017Status).not.toContain("## Context");
+    expect(adr0018Status).toContain(
+      "Partially superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md) for final whole-diff `play-review` fanout claims; accepted for per-task risk-based routing",
     );
-    expect(normalizedAdr0018).toContain(
-      "Final whole-diff `play-review` fanout claims in this ADR are superseded by [ADR-0022](adr-0022-three-topical-play-review-fanout.md)",
-    );
-    expect(normalizedAdr0018).toContain(
-      "The per-task risk-routing decision remains accepted",
-    );
+    expect(adr0018Status).not.toBe("Accepted");
+    expect(adr0018Status).not.toContain("## Context");
     expect(adr0011).not.toContain("## Amendment");
     expect(adr0017).not.toContain("## Amendment");
     expect(adr0018).not.toContain("## Amendment");
@@ -836,6 +859,7 @@ describe("existing skills source prose contracts", () => {
     const subCheckExamples = await readRepoFile(
       "skills/play-review/references/sub-check-examples.md",
     );
+    const playReview = await readSkillSource("play-review");
     const branchReview = await readSkillSource("branch-review");
     const prReview = await readSkillSource("pr-review");
 
@@ -853,10 +877,29 @@ describe("existing skills source prose contracts", () => {
     expect(currentDispatchSurfaces).toContain("skill-local");
     expect(currentDispatchSurfaces).toContain("Spec");
     expect(currentDispatchSurfaces).toContain("identifier drift");
+    expect(subCheckExamples).toContain(
+      "## Spec reviewer — Sub-check A: Within-document identifier drift — illustrative scenario",
+    );
+    expect(subCheckExamples).toContain(
+      "## Spec reviewer — Sub-check B: Cross-document identifier drift — illustrative scenario",
+    );
+    expect(playReview).toContain(
+      "references/sub-check-examples.md#spec-reviewer--sub-check-a-within-document-identifier-drift--illustrative-scenario",
+    );
+    expect(playReview).toContain(
+      "references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario",
+    );
+    expect(playReview).not.toContain(
+      "references/sub-check-examples.md#docs-sub-check-a-within-document-identifier-drift--illustrative-scenario",
+    );
+    expect(playReview).not.toContain(
+      "references/sub-check-examples.md#docs-sub-check-b-cross-document-identifier-drift--illustrative-scenario",
+    );
     expect(currentDispatchSurfaces).not.toMatch(/Correctness agent/i);
     expect(currentDispatchSurfaces).not.toMatch(/Data-safety agent/i);
     expect(currentDispatchSurfaces).not.toMatch(/Docs agent/i);
     expect(currentDispatchSurfaces).not.toMatch(/Documentation agent/i);
+    expect(currentDispatchSurfaces).not.toMatch(/Docs Sub-check [AB]/i);
     expect(currentDispatchSurfaces).not.toMatch(/Correctness, Data-safety/i);
   });
 

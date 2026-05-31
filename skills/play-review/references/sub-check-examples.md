@@ -13,10 +13,10 @@ Worked example: a diff replaces `git branch -d` with `git branch -D` to silence 
 
 Worked example: a diff adds a `gh api repos/{owner}/{repo}/pulls/<N>/reviews` invocation that mixes `-f commit_id=...`, `-f event=...`, `-f body=...` with `--input <file>`. The `Code-quality` reviewer reads `gh api --help` and identifies that when `--input` is supplied, sibling `-f` flags become URL query parameters, not body fields — so `commit_id`, `event`, and `body` are silently dropped from the POST body. Verdict: DOCUMENTED-BEHAVIOR MISMATCH — `Blocking | Contracts`, with the recommendation to build the entire payload inside `jq -n` so all fields land in the JSON body.
 
-## Docs Sub-check A: Within-document identifier drift — illustrative scenario
+## Spec reviewer — Sub-check A: Within-document identifier drift — illustrative scenario
 
 Illustrative scenario: a single `.md` file describes a worktree-cleanup procedure where the prose narrates "`git worktree prune` removes the directory" while the adjacent code block invokes `git worktree remove <path>`. The two identifiers diverged across review rounds — code was updated; prose was not. Sub-check A flags this as `Blocking | Documentation`, with the recommendation "the code block is canonical; rewrite prose to match."
 
-## Docs Sub-check B: Cross-document identifier drift — illustrative scenario
+## Spec reviewer — Sub-check B: Cross-document identifier drift — illustrative scenario
 
 Illustrative scenario (hypothetical): suppose a diff to one skill adds prose explicitly calling out that `gh api -f <field>=<value>` combined with `--input <file>` is broken because `-f` arguments become URL query parameters when `--input` is supplied. Sub-check B greps the corpus for the broken pattern. Any unchanged sibling files still demonstrating it would each be flagged as a blocking, out-of-diff finding.
