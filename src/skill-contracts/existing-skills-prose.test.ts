@@ -1475,6 +1475,104 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps review-response plan self-review semantic and structural", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    const normalizedExecutionMode = normalizeWhitespace(executionMode);
+
+    expect(normalizedExecutionMode).toContain("### Plan Self-Review");
+    expect(normalizedExecutionMode).toContain(
+      "semantic validation of the review-response plan",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Markdown lint may be useful, but it is not plan self-review",
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Plan Self-Review.*before asking for approval/i,
+    );
+
+    for (const requiredCheck of [
+      "reviewer concern is accurately restated",
+      "current thread state was fetched and used",
+      "current code evidence supports the disposition",
+      "executable, stale/invalid, already addressed, explanation-only, unclear, or unresolved",
+      "execution mode is justified under inline/planned/no-code rules",
+      "acceptance criteria directly close the reviewer's failure mode",
+      "tests and verification match the risk and touched contract",
+      "GitHub side effects are separated from implementation approval",
+      "direct/manual executor handoff",
+    ]) {
+      expect(normalizedExecutionMode).toContain(requiredCheck);
+    }
+
+    expect(normalizedExecutionMode).toContain(
+      "### Root Cause / Structural Diagnosis",
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /multiple related comments.*contract-sensitive.*policy-sensitive.*lifecycle-sensitive.*cross-module/i,
+    );
+
+    for (const diagnosisClass of [
+      "isolated implementation mistake",
+      "duplicated source of truth",
+      "unclear ownership or authority",
+      "contract drift between producer and consumer",
+      "missing validation boundary",
+      "lifecycle or correlation gap",
+      "test fixture mismatch hiding the real contract",
+    ]) {
+      expect(normalizedExecutionMode).toContain(diagnosisClass);
+    }
+
+    for (const fixStrategy of [
+      "patch local symptoms",
+      "consolidate authority",
+      "extract or strengthen a shared validation layer",
+      "update producer contract",
+      "update consumer adapter",
+      "document a no-code policy boundary",
+    ]) {
+      expect(normalizedExecutionMode).toContain(fixStrategy);
+    }
+
+    for (const planConstructionRule of [
+      "review-thread intake as a ledger of evidence",
+      "derive executor work items from those root-cause clusters",
+      "rather than mechanically creating one implementation task per review comment",
+      "every review comment maps to either a no-code disposition or an implementation work item",
+      "work items address the structural cause rather than only the visible comment text",
+    ]) {
+      expect(normalizedExecutionMode).toContain(planConstructionRule);
+    }
+
+    for (const invalidExample of [
+      "Markdown lint passed",
+      "Plan looks good",
+      "All comments listed",
+      "without concern-to-fix mapping",
+    ]) {
+      expect(normalizedExecutionMode).toContain(invalidExample);
+    }
+
+    for (const validExampleSurface of [
+      "comment mapping",
+      "current thread and code evidence",
+      "gaps",
+      "root-cause diagnosis",
+      "residual risks",
+      "executor handoff suitability",
+    ]) {
+      expect(normalizedExecutionMode).toContain(validExampleSurface);
+    }
+
+    expect(normalizedExecutionMode).toMatch(
+      /GitHub reply, refetch, and resolution closeout.*must not be dispatched as `play-subagent-execution` implementation tasks/i,
+    );
+  });
+
   it("keeps pr-merge final reports separate from local cleanup outcomes", async () => {
     const skillSource = await readSkillSource("pr-merge");
     const mergeSection = getMarkdownSection(

@@ -258,6 +258,78 @@ The plan approval gate is explicit:
   gate; that cap governs planning-agent review rounds, not how many times the
   user may request plan changes before approval.
 
+### Plan Self-Review
+
+Plan self-review is semantic validation of the review-response plan before
+asking for approval. Markdown lint may be useful, but it is not plan
+self-review; formatting checks do not prove that reviewer concerns are
+understood, current, correctly classified, or executable.
+
+Before asking for approval, the plan must include a `Plan Self-Review` section
+or equivalent evidence showing every current review thread/comment maps to one
+of these dispositions: executable, stale/invalid, already addressed,
+explanation-only, unclear, or unresolved.
+
+For each concern, validate that:
+
+- The reviewer concern is accurately restated.
+- The current thread state was fetched and used.
+- The current code evidence supports the disposition.
+- The execution mode is justified under inline/planned/no-code rules.
+- The acceptance criteria directly close the reviewer's failure mode.
+- The tests and verification match the risk and touched contract.
+- GitHub side effects are separated from implementation approval.
+- The direct/manual executor handoff suitability is checked when the plan will be
+  handed to `play-subagent-execution`.
+
+Treat review-thread intake as a ledger of evidence. Record enough thread state,
+code evidence, disposition reasoning, and gaps to prove every review comment
+maps to either a no-code disposition or an implementation work item. Then derive
+executor work items from those root-cause clusters rather than mechanically
+creating one implementation task per review comment. The work items address the
+structural cause rather than only the visible comment text.
+
+Invalid self-review examples:
+
+- `Markdown lint passed`
+- `Plan looks good`
+- `All comments listed` without concern-to-fix mapping
+
+Valid self-review surfaces include comment mapping, current thread and code
+evidence, gaps, root-cause diagnosis, residual risks, and executor handoff
+suitability.
+
+GitHub reply, refetch, and resolution closeout remain owned by
+`play-review-response` and must not be dispatched as `play-subagent-execution`
+implementation tasks.
+
+### Root Cause / Structural Diagnosis
+
+For multiple related comments, contract-sensitive, policy-sensitive,
+lifecycle-sensitive, or cross-module feedback, include a `Root Cause /
+Structural Diagnosis` section or equivalent evidence before deriving work
+items.
+
+Classify each related feedback cluster using the closest diagnosis:
+
+- isolated implementation mistake.
+- duplicated source of truth.
+- unclear ownership or authority.
+- contract drift between producer and consumer.
+- missing validation boundary.
+- lifecycle or correlation gap.
+- test fixture mismatch hiding the real contract.
+
+For each cluster, identify the authoritative source for the disputed behavior
+and classify the fix strategy:
+
+- patch local symptoms.
+- consolidate authority.
+- extract or strengthen a shared validation layer.
+- update producer contract.
+- update consumer adapter.
+- document a no-code policy boundary.
+
 After the executor returns, this skill resumes ownership of explanation-only
 replies, thread refetching, resolution eligibility, and final PR-thread
 closeout.
