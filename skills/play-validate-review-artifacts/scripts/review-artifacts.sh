@@ -934,21 +934,19 @@ assert_findings_envelope() {
       type == "object"
       and (.path | repo_path)
       and (.line | positive_integer)
-      and has("start_line")
-      and (.start_line == null or (.start_line | positive_integer))
+      and ((has("start_line") | not) or .start_line == null or (.start_line | positive_integer))
       and one_of(["Blocking", "Nit"]; .severity)
       and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
-      and has("critic")
       and (
         if .severity == "Nit" then .critic == null
-        else .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
+        else ((has("critic") | not) or .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic))
         end
       )
       and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
-      and (.why | type == "string" and length > 0)
-      and (.recommendation | type == "string" and length > 0)
-      and (.body | type == "string" and length > 0)
-      and (.start_line == null or .start_line <= .line);
+      and (.why | type == "string")
+      and (.recommendation | type == "string")
+      and (.body | type == "string")
+      and ((has("start_line") | not) or .start_line == null or .start_line <= .line);
     type == "object"
     and .schema == "play-review/findings/v1"
     and (.findings | type == "array")
@@ -1017,7 +1015,7 @@ compare_approved_payload() {
                 .body
               end)
             }
-          | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
+          | if ($finding.start_line // null) == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]
       }
     ' >"$expected_file"

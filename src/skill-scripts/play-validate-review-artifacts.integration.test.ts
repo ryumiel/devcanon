@@ -1847,6 +1847,73 @@ describe.skipIf(!jqAvailable)(
         });
 
         await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          schema: "play-review/findings/v1",
+          findings: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              severity: "Blocking",
+              category: "Logic",
+              anchor: "natural",
+              why: "",
+              recommendation: "",
+              body: "",
+            },
+            {
+              path: "src/app.ts",
+              line: 2,
+              severity: "Nit",
+              category: "Documentation",
+              critic: null,
+              anchor: "natural",
+              why: "",
+              recommendation: "",
+              body: "",
+            },
+          ],
+          carry_forward: [],
+        });
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "",
+            },
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "",
+            },
+          ],
+        });
+        await expect(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining('"comments"'),
+        });
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
           ...findingsEnvelope(),
           findings: [
             {
@@ -2080,13 +2147,7 @@ describe.skipIf(!jqAvailable)(
           },
           {
             ...findingsEnvelope(),
-            findings: [
-              Object.fromEntries(
-                Object.entries(finding()).filter(
-                  ([key]) => key !== "start_line",
-                ),
-              ),
-            ],
+            findings: [finding({ start_line: 3 })],
           },
         ]) {
           await writeJson(
