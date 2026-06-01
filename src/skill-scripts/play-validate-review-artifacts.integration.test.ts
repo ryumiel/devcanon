@@ -68,6 +68,22 @@ async function makeGitWorkspace(): Promise<{
   return { cwd, baseSha, firstSha, headSha };
 }
 
+async function makeLaterCheckoutWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  reviewHeadSha: string;
+  laterHeadSha: string;
+}> {
+  const { cwd, baseSha, headSha: reviewHeadSha } = await makeGitWorkspace();
+  await writeFile(path.join(cwd, "src/later.py"), "value = 1\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "test: later checkout"], {
+    cwd,
+  });
+  const laterHeadSha = await git(cwd, "rev-parse", "HEAD");
+  return { cwd, baseSha, reviewHeadSha, laterHeadSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
@@ -353,6 +369,50 @@ describe.skipIf(!jqAvailable)(
             scopeArgs(headSha, baseSha),
           ),
         ).resolves.toMatchObject({ stdout: "" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("derives initial scope facts from the review head sha when checkout has advanced", async () => {
+      const { cwd, baseSha, reviewHeadSha, laterHeadSha } =
+        await makeLaterCheckoutWorkspace();
+      try {
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, reviewHeadSha),
+        );
+
+        await expect(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(reviewHeadSha, baseSha),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, reviewHeadSha),
+          changed_files: ["src/app.ts", "src/later.py"],
+          language_hints: ["py", "ts"],
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        });
+
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(reviewHeadSha, baseSha),
+          ),
+          "changed files do not match selected range",
+        );
+        expect(laterHeadSha).not.toBe(reviewHeadSha);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -1722,6 +1782,47 @@ describe.skipIf(!jqAvailable)(
           ]),
           "inline anchor is outside selected review diff",
         );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("validates diff anchors against the review head sha when checkout has advanced", async () => {
+      const { cwd, baseSha, headSha: reviewHeadSha } = await makeGitWorkspace();
+      try {
+        await writeFile(
+          path.join(cwd, "src/app.ts"),
+          "export const value = 9;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "test: rewrite app"], {
+          cwd,
+        });
+        const laterHeadSha = await git(cwd, "rev-parse", "HEAD");
+
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, reviewHeadSha, "pr-review"),
+        );
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [finding()],
+        });
+
+        await expect(
+          runValidator(cwd, "validate-diff-anchors", [
+            ...scopeArgs(
+              reviewHeadSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+          ]),
+        ).resolves.toMatchObject({ stdout: "" });
+        expect(laterHeadSha).not.toBe(reviewHeadSha);
       } finally {
         await cleanupTempDir(cwd);
       }

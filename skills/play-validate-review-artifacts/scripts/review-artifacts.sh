@@ -219,15 +219,24 @@ require_flag() {
   [ -n "$value" ] || fail "$label is required"
 }
 
-validate_current_head() {
-  local current_head
-
+validate_head_sha_commit() {
   require_flag "--head-sha" "$HEAD_SHA"
   validate_sha_value "--head-sha" "$HEAD_SHA"
-  current_head="$(git rev-parse HEAD 2>/dev/null)" ||
-    fail "failed to resolve HEAD"
-  [ "$current_head" = "$HEAD_SHA" ] ||
-    fail "HEAD_SHA does not match current HEAD"
+  git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null ||
+    fail "--head-sha does not resolve to a commit"
+}
+
+git_execution_range() {
+  local public_range="$1"
+
+  case "$public_range" in
+    *...HEAD | *..HEAD)
+      printf '%s%s\n' "${public_range%HEAD}" "$HEAD_SHA"
+      ;;
+    *)
+      printf '%s\n' "$public_range"
+      ;;
+  esac
 }
 
 changed_files_json() {
@@ -483,7 +492,7 @@ validate_scope_decision() {
   require_jq
   require_repo_root
   require_scope_flags
-  validate_current_head
+  validate_head_sha_commit
   validate_pattern "--governed-path-pattern" "$GOVERNED_PATH_PATTERN"
   validate_pattern "--configured-path-pattern" "$CONFIGURED_PATH_PATTERN"
   assert_readable_file "--scope-decision-file" "$SCOPE_DECISION"
@@ -496,6 +505,7 @@ validate_scope_decision() {
   local artifact_followup_usable artifact_mechanical_reason
   local expected_files actual_files expected_hints actual_hints
   local expected_count actual_count expected_selected_range count_range_label
+  local full_exec_range selected_exec_range candidate_exec_range
   local followup_usable=false
 
   artifact_surface="$(jq_value "$SCOPE_DECISION" '.surface')"
@@ -542,11 +552,12 @@ validate_scope_decision() {
       fail "full range does not match caller base ref"
   fi
 
-  range_exists "$full_range" || fail "review range does not resolve"
+  full_exec_range="$(git_execution_range "$full_range")"
+  range_exists "$full_exec_range" || fail "review range does not resolve"
 
   if [ -n "$last_reviewed" ] &&
     git cat-file -e "$last_reviewed^{commit}" 2>/dev/null &&
-    git merge-base --is-ancestor "$last_reviewed" HEAD 2>/dev/null; then
+    git merge-base --is-ancestor "$last_reviewed" "$HEAD_SHA" 2>/dev/null; then
     followup_usable=true
   fi
   [ "$artifact_followup_usable" = "$followup_usable" ] ||
@@ -572,7 +583,8 @@ validate_scope_decision() {
       [ "$mode" = "initial" ] || fail "full baseline requires initial mode"
       [ "$candidate_range" = "$full_range" ] ||
         fail "initial candidate_narrow_range must equal full_range"
-      range_exists "$candidate_range" || fail "review range does not resolve"
+      candidate_exec_range="$(git_execution_range "$candidate_range")"
+      range_exists "$candidate_exec_range" || fail "review range does not resolve"
       reason_present "not-followup" ||
         fail "not-followup escalation reason missing"
       [ "$(reason_count)" -eq 1 ] ||
@@ -584,7 +596,8 @@ validate_scope_decision() {
     fi
   fi
 
-  range_exists "$selected_range" || fail "review range does not resolve"
+  selected_exec_range="$(git_execution_range "$selected_range")"
+  range_exists "$selected_exec_range" || fail "review range does not resolve"
 
   if [ "$semantic_ambiguous" = "true" ] && [ "$is_narrow" = "true" ]; then
     fail "ambiguous semantic scope requires full review"
@@ -596,14 +609,14 @@ validate_scope_decision() {
       fail "ambiguous-classification escalation reason missing"
   fi
 
-  expected_files="$(changed_files_json "$selected_range")"
+  expected_files="$(changed_files_json "$selected_exec_range")"
   actual_files="$(jq_json "$SCOPE_DECISION" '.changed_files | sort')"
   json_equal "$expected_files" "$actual_files" ||
     fail "changed files do not match selected range"
   expected_count="$(printf '%s\n' "$expected_files" | jq 'length')"
   count_range_label="selected range"
   if [ -n "$last_reviewed" ] && [ "$followup_usable" = "true" ]; then
-    expected_count="$(changed_files_json "$last_reviewed..HEAD" | jq 'length')"
+    expected_count="$(changed_files_json "$(git_execution_range "$last_reviewed..HEAD")" | jq 'length')"
     count_range_label="candidate range"
   fi
   actual_count="$changed_count"
@@ -638,7 +651,8 @@ validate_scope_decision() {
       if [ -n "$candidate_range" ] && [ "$candidate_range" != "$expected_candidate_range" ]; then
         fail "narrow scope must use last-reviewed-sha..HEAD"
       fi
-      candidate_files="$(changed_files_json "$expected_candidate_range")"
+      candidate_exec_range="$(git_execution_range "$expected_candidate_range")"
+      candidate_files="$(changed_files_json "$candidate_exec_range")"
       candidate_count="$(printf '%s\n' "$candidate_files" | jq 'length')"
       if [ "$candidate_count" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
         [ "$is_narrow" != "true" ] || fail "file count requires full review"
@@ -744,7 +758,7 @@ validate_prior_threads() {
   [ "$EXPECTED_SCHEMA" = "pr-review/prior-threads/v1" ] ||
     fail "--expected-schema must be pr-review/prior-threads/v1"
   [ "$PROVIDER" = "github" ] || fail "--provider must be github"
-  validate_current_head
+  validate_head_sha_commit
   assert_readable_file "--prior-threads-file" "$PRIOR_THREADS"
   validate_suffix "--prior-threads-file" "$PRIOR_THREADS" "-prior-threads.json"
 
@@ -940,7 +954,9 @@ validate_diff_anchors() {
 
 validate_selected_diff_anchors() {
   local selected_range
+  local selected_exec_range
   selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
+  selected_exec_range="$(git_execution_range "$selected_range")"
 
   while IFS=$'\t' read -r file line start_line; do
     file="${file%$'\r'}"
@@ -948,11 +964,11 @@ validate_selected_diff_anchors() {
     start_line="${start_line%$'\r'}"
     [ -n "$file" ] || continue
     local line_hunk start_hunk
-    line_hunk="$(diff_hunk_for_line "$selected_range" "$file" "$line")" ||
+    line_hunk="$(diff_hunk_for_line "$selected_exec_range" "$file" "$line")" ||
       fail "inline anchor is outside selected review diff"
     if [ -n "$start_line" ] && [ "$start_line" != "null" ]; then
       [ "$start_line" -le "$line" ] || fail "diff anchor line range is inverted"
-      start_hunk="$(diff_hunk_for_line "$selected_range" "$file" "$start_line")" ||
+      start_hunk="$(diff_hunk_for_line "$selected_exec_range" "$file" "$start_line")" ||
         fail "inline anchor is outside selected review diff"
       [ "$start_hunk" = "$line_hunk" ] ||
         fail "inline anchor range crosses selected review diff hunks"
