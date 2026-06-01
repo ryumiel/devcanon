@@ -70,7 +70,7 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 ## Phase 3: Determine diff ranges
 
-`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode.
+`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode. Keep the PR base ref name and the full-range left side distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name, while `REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"` is the ref passed to scope-decision and approved-review validators because the canonical full range is `"$REVIEW_SCOPE_BASE_REF...HEAD"`.
 
 Apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
@@ -100,6 +100,49 @@ and carried forward.
 After final active range selection, compute `language_hints` from that selected
 active diff only. The scope-decision artifact and adapter validation must agree
 with those selected-range facts before invoking `play-review`.
+
+Before invoking `play-review`, prepare, write, validate, and bind the canonical
+Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
+resolve to the installed `pr-review` skill bundle. The artifact's `full_range`
+must be `"$REVIEW_SCOPE_BASE_REF...HEAD"`, where `REVIEW_SCOPE_BASE_REF` is the
+same left side used in `full_pr_diff_range`; do not store `main...HEAD` when
+Phase 3 selected `origin/main...HEAD`.
+
+```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
+PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
+PR_BASE_REF="<base-ref>"
+REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"
+FULL_PR_DIFF_RANGE="$REVIEW_SCOPE_BASE_REF...HEAD"
+REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+
+bind_scope_decision_artifact() {
+  cd "$WORKING_DIRECTORY" || return 1
+  HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  SCOPE_DECISION_FILE=$(
+    HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
+  ) || return 1
+  # Write the pr-review/scope-decision/v1 envelope to "$SCOPE_DECISION_FILE".
+  # It must record full_range="$FULL_PR_DIFF_RANGE", selected_range="$active_diff_range",
+  # is_followup_narrow, language_hints, changed_files, prior_context, mechanical_facts,
+  # and semantic_decision for the final Phase 3 scope choice.
+  HEAD_SHA="$HEAD_SHA" \
+  SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
+  REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
+}
+
+SCOPE_DECISION_STATUS=0
+bind_scope_decision_artifact || SCOPE_DECISION_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$SCOPE_DECISION_STATUS" -eq 0 ] || exit "$SCOPE_DECISION_STATUS"
+```
+
+Pass `REVIEW_SCOPE_DECISION_FILE` and `REVIEW_SCOPE_BASE_REF` through the Phase
+5 gate unchanged. Phase 6 must freeze and validate the approved review against
+that exact scope-decision artifact and base-range ref.
 
 ## Phase 4: Run play-review
 
@@ -269,8 +312,8 @@ Only after user approval:
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
-   : "${BASE_REF:?base ref missing from Phase 4 handoff}"
-   : "${SCOPE_DECISION_FILE:?Phase 3 scope-decision artifact path missing}"
+   : "${REVIEW_SCOPE_BASE_REF:?Phase 3 scope base ref missing}"
+   : "${REVIEW_SCOPE_DECISION_FILE:?Phase 3 scope-decision artifact path missing}"
 
    build_and_freeze_approved_review() {
      cd "$WORKING_DIRECTORY" || return 1
@@ -293,8 +336,8 @@ Only after user approval:
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
-       BASE_REF="$BASE_REF" \
-       SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+       SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
      ) || return 1
      [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; return 1; }
@@ -346,7 +389,7 @@ Only after user approval:
      [ ! -d "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path is a directory" >&2; exit 1; }
      [ ! -e "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || [ -f "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path exists but is not a regular file" >&2; exit 1; }
      if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
-       BASE_REF="$BASE_REF" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
        rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"
