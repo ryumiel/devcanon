@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -93,11 +93,31 @@ async function readChangedFiles(cwd: string, changedFilesFile: string) {
   return content.trim().split("\n").filter(Boolean);
 }
 
+async function writeFailingSupportValidator(cwd: string, message: string) {
+  const validator = path.join(cwd, ".ephemeral/failing-support-validator.sh");
+  await mkdir(path.dirname(validator), { recursive: true });
+  await writeFile(
+    validator,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `printf '%s\\n' ${JSON.stringify(message)} >&2`,
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
 describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
   it("defaults to full branch review without follow-up inputs", async () => {
     const cwd = await makeGitWorkspace();
     try {
       await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+      const headSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
 
       const values = await runHelper(cwd);
 
@@ -107,11 +127,16 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe("not-followup");
-      expect(values.FOLLOWUP_SHA_USABLE).toBe("false");
-      expect(values.CHANGED_FILE_COUNT).toBe("1");
-      expect(values.LANGUAGE_HINTS).toBe("ts");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
+      );
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("scope-validation-delegated");
+      expect(values.CHANGED_FILE_COUNT).toBe("scope-validation-delegated");
+      expect(values.LANGUAGE_HINTS).toBe("");
       expect(path.dirname(values.CHANGED_FILES_FILE)).toBe(".ephemeral");
+      expect(values.SCOPE_DECISION_FILE).toBe(
+        `.ephemeral/topic-${headSha}-scope-decision.json`,
+      );
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
@@ -144,13 +169,14 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.CANDIDATE_ACTIVE_DIFF_RANGE).toBe(
         `${lastReviewedSha}..HEAD`,
       );
-      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
-        `${lastReviewedSha}..HEAD`,
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
       );
-      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
-      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
-      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
-      expect(values.CHANGED_FILE_COUNT).toBe("1");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("scope-validation-delegated");
+      expect(values.CHANGED_FILE_COUNT).toBe("scope-validation-delegated");
       expect(values.PRIOR_BRANCH_FINDINGS).toBe(findingsFile);
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
@@ -190,8 +216,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("file-count");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -220,7 +247,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -246,11 +275,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         findingsFile,
       ]);
 
-      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
-        `${lastReviewedSha}..HEAD`,
-      );
-      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
-      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/cli/commands/foo.ts"]);
@@ -279,7 +306,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -305,7 +334,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "scope-validation-delegated",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -339,8 +370,44 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
       expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "last-reviewed-unusable",
+        "scope-validation-delegated",
       );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("delegates existing scope-decision validation failures through the branch adapter", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+      const headSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      await mkdir(path.join(cwd, ".ephemeral"), { recursive: true });
+      await writeFile(
+        path.join(cwd, `.ephemeral/topic-${headSha}-scope-decision.json`),
+        "{}\n",
+      );
+      const validator = await writeFailingSupportValidator(
+        cwd,
+        "changed file count does not match selected range",
+      );
+
+      await expect(
+        execFileAsync("bash", [helperScript], {
+          cwd,
+          env: {
+            ...process.env,
+            PLAY_REVIEW_DIR: playReviewDir,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "changed file count does not match selected range",
+        ),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

@@ -136,7 +136,6 @@ async function runHelper(
     env: {
       ...process.env,
       HEAD_SHA: headSha,
-      REVIEW_EVENT: "COMMENT",
       PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
       ...env,
     },

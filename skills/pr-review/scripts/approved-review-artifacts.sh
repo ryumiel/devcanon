@@ -240,7 +240,6 @@ assert_readable_file() {
 }
 
 validate_review_event() {
-  require_env REVIEW_EVENT
   case "$REVIEW_EVENT" in
     APPROVE | REQUEST_CHANGES | COMMENT) ;;
     *)
@@ -459,11 +458,12 @@ assert_approved_schema() {
     and (.findings_file | type == "string")
     and (.review_body_file | type == "string")
     and (.review_payload_file | type == "string")
-    and (.scope_decision_file | type == "string")
+    and ((has("scope_decision_file") | not) or (.scope_decision_file | type == "string"))
     and (.findings_sha256 | hex_sha256)
     and (.review_body_sha256 | hex_sha256)
     and (.review_payload_sha256 | hex_sha256)
-    and (.scope_decision_sha256 | hex_sha256)
+    and ((has("scope_decision_sha256") | not) or (.scope_decision_sha256 | hex_sha256))
+    and (has("scope_decision_file") == has("scope_decision_sha256"))
     and (.payload | type == "object")
   ' "$file" >/dev/null || {
     echo "approved review schema mismatch: $file" >&2
@@ -490,12 +490,13 @@ freeze_approved_review() {
   local payload_sha256
   local scope_decision_file
   local scope_decision_sha256
+  local review_event
+  local has_scope_decision=false
   require_repo_root
   validate_head_sha
   require_env FINDINGS_FILE
   require_env REVIEW_BODY_FILE
   require_env REVIEW_PAYLOAD_FILE
-  validate_review_event
   validate_findings_path_shape "$FINDINGS_FILE" "$HEAD_SHA"
   validate_review_body_path_shape "$REVIEW_BODY_FILE"
   validate_payload_path_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
@@ -505,10 +506,16 @@ freeze_approved_review() {
   assert_findings_envelope "$FINDINGS_FILE"
   assert_single_json_object "review payload" "$REVIEW_PAYLOAD_FILE"
   assert_payload_shape "$REVIEW_PAYLOAD_FILE" "$HEAD_SHA"
+  review_event="$(jq -r '.event' "$REVIEW_PAYLOAD_FILE")"
+  REVIEW_EVENT="$review_event"
+  validate_review_event
   scope_decision_file="$(scope_decision_file_for "$HEAD_SHA")"
   validate_scope_decision_path_shape "$scope_decision_file" "$HEAD_SHA"
-  assert_readable_file "scope decision file" "$scope_decision_file"
-  compare_payload_with_support "$HEAD_SHA" "$scope_decision_file" "$FINDINGS_FILE" "$REVIEW_BODY_FILE" "$REVIEW_PAYLOAD_FILE" "$REVIEW_EVENT" >/dev/null
+  if [ -n "${SCOPE_DECISION_FILE:-}" ] || [ -e "$scope_decision_file" ]; then
+    assert_readable_file "scope decision file" "$scope_decision_file"
+    compare_payload_with_support "$HEAD_SHA" "$scope_decision_file" "$FINDINGS_FILE" "$REVIEW_BODY_FILE" "$REVIEW_PAYLOAD_FILE" "$REVIEW_EVENT" >/dev/null
+    has_scope_decision=true
+  fi
 
   approved_review_file="$(expected_approved_path_for "$HEAD_SHA")"
   validate_approved_path_shape "$approved_review_file"
@@ -516,34 +523,60 @@ freeze_approved_review() {
   findings_sha256="$(sha256_file "$FINDINGS_FILE")"
   review_body_sha256="$(sha256_file "$REVIEW_BODY_FILE")"
   payload_sha256="$(sha256_file "$REVIEW_PAYLOAD_FILE")"
-  scope_decision_sha256="$(sha256_file "$scope_decision_file")"
+  if [ "$has_scope_decision" = true ]; then
+    scope_decision_sha256="$(sha256_file "$scope_decision_file")"
+  fi
   tmp_file="$(mktemp ".ephemeral/.approved-review-${HEAD_SHA}.XXXXXX")"
   trap 'rm -f "${tmp_file:-}"' EXIT
-  jq -n \
-    --arg schema "pr-review/approved-review/v1" \
-    --arg review_head_sha "$HEAD_SHA" \
-    --arg findings_file "$FINDINGS_FILE" \
-    --arg review_body_file "$REVIEW_BODY_FILE" \
-    --arg review_payload_file "$REVIEW_PAYLOAD_FILE" \
-    --arg scope_decision_file "$scope_decision_file" \
-    --arg findings_sha256 "$findings_sha256" \
-    --arg review_body_sha256 "$review_body_sha256" \
-    --arg review_payload_sha256 "$payload_sha256" \
-    --arg scope_decision_sha256 "$scope_decision_sha256" \
-    --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
-    '{
-      schema: $schema,
-      review_head_sha: $review_head_sha,
-      findings_file: $findings_file,
-      review_body_file: $review_body_file,
-      review_payload_file: $review_payload_file,
-      scope_decision_file: $scope_decision_file,
-      findings_sha256: $findings_sha256,
-      review_body_sha256: $review_body_sha256,
-      review_payload_sha256: $review_payload_sha256,
-      scope_decision_sha256: $scope_decision_sha256,
-      payload: $payload[0]
-    }' > "$tmp_file"
+  if [ "$has_scope_decision" = true ]; then
+    jq -n \
+      --arg schema "pr-review/approved-review/v1" \
+      --arg review_head_sha "$HEAD_SHA" \
+      --arg findings_file "$FINDINGS_FILE" \
+      --arg review_body_file "$REVIEW_BODY_FILE" \
+      --arg review_payload_file "$REVIEW_PAYLOAD_FILE" \
+      --arg scope_decision_file "$scope_decision_file" \
+      --arg findings_sha256 "$findings_sha256" \
+      --arg review_body_sha256 "$review_body_sha256" \
+      --arg review_payload_sha256 "$payload_sha256" \
+      --arg scope_decision_sha256 "$scope_decision_sha256" \
+      --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
+      '{
+        schema: $schema,
+        review_head_sha: $review_head_sha,
+        findings_file: $findings_file,
+        review_body_file: $review_body_file,
+        review_payload_file: $review_payload_file,
+        scope_decision_file: $scope_decision_file,
+        findings_sha256: $findings_sha256,
+        review_body_sha256: $review_body_sha256,
+        review_payload_sha256: $review_payload_sha256,
+        scope_decision_sha256: $scope_decision_sha256,
+        payload: $payload[0]
+      }' > "$tmp_file"
+  else
+    jq -n \
+      --arg schema "pr-review/approved-review/v1" \
+      --arg review_head_sha "$HEAD_SHA" \
+      --arg findings_file "$FINDINGS_FILE" \
+      --arg review_body_file "$REVIEW_BODY_FILE" \
+      --arg review_payload_file "$REVIEW_PAYLOAD_FILE" \
+      --arg findings_sha256 "$findings_sha256" \
+      --arg review_body_sha256 "$review_body_sha256" \
+      --arg review_payload_sha256 "$payload_sha256" \
+      --slurpfile payload "$REVIEW_PAYLOAD_FILE" \
+      '{
+        schema: $schema,
+        review_head_sha: $review_head_sha,
+        findings_file: $findings_file,
+        review_body_file: $review_body_file,
+        review_payload_file: $review_payload_file,
+        findings_sha256: $findings_sha256,
+        review_body_sha256: $review_body_sha256,
+        review_payload_sha256: $review_payload_sha256,
+        payload: $payload[0]
+      }' > "$tmp_file"
+  fi
   mv -f "$tmp_file" "$approved_review_file"
   tmp_file=""
   printf '%s\n' "$approved_review_file"
@@ -589,33 +622,37 @@ validate_approved_review() {
   findings_file="$(jq -r '.findings_file' "$APPROVED_REVIEW_FILE")"
   review_body_file="$(jq -r '.review_body_file' "$APPROVED_REVIEW_FILE")"
   payload_file="$(jq -r '.review_payload_file' "$APPROVED_REVIEW_FILE")"
-  scope_decision_file="$(jq -r '.scope_decision_file' "$APPROVED_REVIEW_FILE")"
+  scope_decision_file="$(jq -r '.scope_decision_file // ""' "$APPROVED_REVIEW_FILE")"
   findings_sha256="$(jq -r '.findings_sha256' "$APPROVED_REVIEW_FILE")"
   review_body_sha256="$(jq -r '.review_body_sha256' "$APPROVED_REVIEW_FILE")"
   payload_sha256="$(jq -r '.review_payload_sha256' "$APPROVED_REVIEW_FILE")"
-  scope_decision_sha256="$(jq -r '.scope_decision_sha256' "$APPROVED_REVIEW_FILE")"
+  scope_decision_sha256="$(jq -r '.scope_decision_sha256 // ""' "$APPROVED_REVIEW_FILE")"
   review_event="$(jq -r '.payload.event' "$APPROVED_REVIEW_FILE")"
 
   validate_findings_path_shape "$findings_file" "$review_head_sha"
   validate_review_body_path_shape "$review_body_file"
   validate_payload_path_shape "$payload_file" "$review_head_sha"
-  validate_scope_decision_path_shape "$scope_decision_file" "$review_head_sha"
   assert_readable_file "findings file" "$findings_file"
   assert_readable_file "review body file" "$review_body_file"
   assert_readable_file "review payload file" "$payload_file"
-  assert_readable_file "scope decision file" "$scope_decision_file"
   assert_findings_envelope "$findings_file"
   assert_single_json_object "review payload" "$payload_file"
   assert_payload_shape "$payload_file" "$review_head_sha"
   validate_digest "findings" "$findings_file" "$findings_sha256"
   validate_digest "review body" "$review_body_file" "$review_body_sha256"
   validate_digest "payload" "$payload_file" "$payload_sha256"
-  validate_digest "scope decision" "$scope_decision_file" "$scope_decision_sha256"
+  if jq -e 'has("scope_decision_file")' "$APPROVED_REVIEW_FILE" >/dev/null; then
+    validate_scope_decision_path_shape "$scope_decision_file" "$review_head_sha"
+    assert_readable_file "scope decision file" "$scope_decision_file"
+    validate_digest "scope decision" "$scope_decision_file" "$scope_decision_sha256"
+  fi
   jq -e --slurpfile payload "$payload_file" '.payload == $payload[0]' "$APPROVED_REVIEW_FILE" >/dev/null || {
     echo "payload content mismatch: $payload_file" >&2
     exit 1
   }
-  compare_payload_with_support "$review_head_sha" "$scope_decision_file" "$findings_file" "$review_body_file" "$payload_file" "$review_event" >/dev/null
+  if jq -e 'has("scope_decision_file")' "$APPROVED_REVIEW_FILE" >/dev/null; then
+    compare_payload_with_support "$review_head_sha" "$scope_decision_file" "$findings_file" "$review_body_file" "$payload_file" "$review_event" >/dev/null
+  fi
   jq '.payload' "$APPROVED_REVIEW_FILE"
 }
 
