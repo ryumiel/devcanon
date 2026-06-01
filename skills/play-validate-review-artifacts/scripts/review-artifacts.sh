@@ -92,6 +92,31 @@ assert_readable_file() {
   [ -r "$file" ] || fail "$label missing or unreadable: $file"
 }
 
+validate_review_body_path() {
+  local file="$1"
+
+  [ -n "$file" ] || fail "--review-body-file is required"
+  case "$file" in
+    /* | *..* | ./* | *//*) fail "review body path validation failed: $file" ;;
+  esac
+  [ -L .ephemeral ] && fail ".ephemeral must be a directory, not a symlink"
+  case "$file" in
+    .ephemeral/*/*) fail "nested review body path rejected: $file" ;;
+    .ephemeral/*) ;;
+    *.md | *.markdown) ;;
+    *) fail "review body path validation failed: $file" ;;
+  esac
+  [ ! -L "$file" ] || fail "review body must not be a symlink: $file"
+}
+
+assert_readable_review_body_file() {
+  local file="$1"
+
+  validate_review_body_path "$file"
+  [ -f "$file" ] || fail "review body missing or not a regular file: $file"
+  [ -r "$file" ] || fail "review body missing or unreadable: $file"
+}
+
 parse_common_args() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -527,6 +552,8 @@ validate_scope_decision() {
       fail "narrow scope must use last-reviewed-sha..HEAD"
     [ "$mechanical_escalate" = "false" ] ||
       fail "narrow scope cannot claim full escalation"
+    [ "$(reason_count)" -eq 0 ] ||
+      fail "narrow scope cannot contain escalation reasons"
   else
     [ "$selected_range" = "$full_range" ] ||
       fail "full escalation selected_range must equal full_range"
@@ -968,7 +995,7 @@ compare_approved_payload() {
     *) fail "--review-event must be APPROVE, REQUEST_CHANGES, or COMMENT" ;;
   esac
   assert_readable_file "--findings-file" "$FINDINGS_FILE"
-  assert_readable_file "--review-body-file" "$REVIEW_BODY_FILE"
+  assert_readable_review_body_file "$REVIEW_BODY_FILE"
   assert_readable_file "--review-payload-file" "$REVIEW_PAYLOAD_FILE"
   validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
   validate_suffix "--review-payload-file" "$REVIEW_PAYLOAD_FILE" "-review-payload.json"

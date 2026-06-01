@@ -1332,6 +1332,19 @@ describe.skipIf(!jqAvailable)(
 
         await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
+          escalation_reasons: ["public-api"],
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "narrow scope cannot contain escalation reasons",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
           semantic_decision: {
             checked: false,
             ambiguous: false,
@@ -1805,6 +1818,7 @@ describe.skipIf(!jqAvailable)(
           ],
         });
         await writeFile(path.join(cwd, ".ephemeral/review-body.md"), "Body\n");
+        await writeFile(path.join(cwd, "review-body.md"), "Body\n");
         await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
           commit_id: headSha,
           event: "COMMENT",
@@ -1845,6 +1859,52 @@ describe.skipIf(!jqAvailable)(
         ).resolves.toMatchObject({
           stdout: expect.stringContaining('"commit_id"'),
         });
+
+        await expect(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            "review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining('"commit_id"'),
+        });
+
+        for (const unsafeReviewBody of [
+          "../review-body.md",
+          path.join(cwd, "review-body.md"),
+        ]) {
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              unsafeReviewBody,
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "review body path validation failed",
+          );
+        }
 
         await writeJson(cwd, ".ephemeral/topic-findings.json", {
           schema: "play-review/findings/v1",
