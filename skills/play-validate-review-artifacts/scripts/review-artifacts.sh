@@ -263,12 +263,19 @@ json_any_path_matches() {
   local files_json="$1"
   local pattern="$2"
   local encoded
+  local decoded
 
   [ -n "$pattern" ] || return 1
   while IFS= read -r encoded; do
     [ -n "$encoded" ] || continue
-    if { printf '%s' "$encoded" | base64 --decode 2>/dev/null || printf '%s' "$encoded" | base64 -D 2>/dev/null; } |
-      grep -E -- "$pattern" >/dev/null; then
+    if decoded="$(printf '%s' "$encoded" | base64 --decode 2>/dev/null)"; then
+      :
+    elif decoded="$(printf '%s' "$encoded" | base64 -D 2>/dev/null)"; then
+      :
+    else
+      fail "failed to decode changed file path"
+    fi
+    if printf '%s' "$decoded" | grep -E -- "$pattern" >/dev/null; then
       return 0
     fi
   done < <(printf '%s\n' "$files_json" | jq -r '.[] | @base64')
@@ -821,27 +828,31 @@ validate_prior_threads() {
   ' "$PRIOR_THREADS" >/dev/null || fail "prior-thread shape validation failed"
 
   jq -e '
+    def leap($year): (($year % 400 == 0) or (($year % 4 == 0) and ($year % 100 != 0)));
+    def days_in_month($year; $month):
+      if $month == 2 then (if leap($year) then 29 else 28 end)
+      elif ([4, 6, 9, 11] | index($month)) != null then 30
+      else 31
+      end;
     def valid_timestamp:
-      type == "string"
-      and (capture("^(?<year>[0-9]{4})-(?<month>[0-9]{2})-(?<day>[0-9]{2})T(?<hour>[0-9]{2}):(?<minute>[0-9]{2}):(?<second>[0-9]{2})(?:\\.[0-9]+)?Z$")? // null) as $parts
-      | $parts != null
-        and ($parts.year | tonumber) as $year
-        | ($parts.month | tonumber) as $month
-        | ($parts.day | tonumber) as $day
-        | ($parts.hour | tonumber) as $hour
-        | ($parts.minute | tonumber) as $minute
-        | ($parts.second | tonumber) as $second
-        | def leap($year): (($year % 400 == 0) or (($year % 4 == 0) and ($year % 100 != 0)));
-        def days_in_month($year; $month):
-          if $month == 2 then (if leap($year) then 29 else 28 end)
-          elif [4, 6, 9, 11] | index($month) then 30
-          else 31
-          end;
-        $month >= 1 and $month <= 12
-        and $day >= 1 and $day <= days_in_month($year; $month)
-        and $hour >= 0 and $hour <= 23
-        and $minute >= 0 and $minute <= 59
-        and $second >= 0 and $second <= 59;
+      if type != "string" then false
+      else
+        (capture("^(?<year>[0-9]{4})-(?<month>[0-9]{2})-(?<day>[0-9]{2})T(?<hour>[0-9]{2}):(?<minute>[0-9]{2}):(?<second>[0-9]{2})(?:\\.[0-9]+)?Z$")? // null) as $parts
+        | if $parts == null then false
+          else
+            ($parts.year | tonumber) as $year
+            | ($parts.month | tonumber) as $month
+            | ($parts.day | tonumber) as $day
+            | ($parts.hour | tonumber) as $hour
+            | ($parts.minute | tonumber) as $minute
+            | ($parts.second | tonumber) as $second
+            | $month >= 1 and $month <= 12
+              and $day >= 1 and $day <= days_in_month($year; $month)
+              and $hour >= 0 and $hour <= 23
+              and $minute >= 0 and $minute <= 59
+              and $second >= 0 and $second <= 59
+          end
+      end;
     .threads | all(.[]; .comments | all(.[]; (.created_at | valid_timestamp) and (.updated_at | valid_timestamp)))
   ' "$PRIOR_THREADS" >/dev/null || fail "prior-thread timestamp validation failed"
 
@@ -928,6 +939,9 @@ validate_selected_diff_anchors() {
   selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
 
   while IFS=$'\t' read -r file line start_line; do
+    file="${file%$'\r'}"
+    line="${line%$'\r'}"
+    start_line="${start_line%$'\r'}"
     [ -n "$file" ] || continue
     local line_hunk start_hunk
     line_hunk="$(diff_hunk_for_line "$selected_range" "$file" "$line")" ||
