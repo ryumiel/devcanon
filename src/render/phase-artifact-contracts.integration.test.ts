@@ -800,17 +800,20 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("Upstream Review-Scope Handoff");
       expect(branchReview).toContain("planning/execution categorization");
       expect(branchReview).toContain("non-authoritative context");
-      expect(branchReview).toContain("docs/product-requirements/**");
       expect(normalizedBranchReview).toContain("may only preserve or escalate");
       expect(normalizedBranchReview).toContain(
-        "configured repo-owned path triggers",
+        "configured path escalation from `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`",
+      );
+      expect(branchReview).toContain("play-validate-review-artifacts");
+      expect(branchReview).toContain("scope-decision-artifacts.sh");
+      expect(normalizedBranchReview).toContain(
+        "Do not copy the support validator's shell/JQ policy into this skill prose",
       );
       expect(branchReview).toContain("full_pr_diff_range");
       expect(branchReview).toContain("Escalate back to full branch review");
       expect(normalizedBranchReview).toContain(
-        "`--last-reviewed` does not resolve or is not an ancestor of `HEAD`",
+        "support-validator decision to use the full range",
       );
-      expect(branchReview).toContain("path-validation guards");
       expect(branchReview).toContain("prior_branch_findings");
       expect(branchReview).toContain("carry_forward[]");
       expect(branchReview).toContain(

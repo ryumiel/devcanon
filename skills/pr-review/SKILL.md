@@ -74,25 +74,32 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 Apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
-`play-review`. Phase 3 owns GitHub-specific facts and final range selection;
-the shared policy owns full-vs-narrow escalation criteria.
+`play-review`. Phase 3 owns GitHub-specific facts and final range selection.
+The `pr-review` adapter
+`skills/pr-review/scripts/prior-thread-artifacts.sh` preserves the wrapper
+commands for prior-thread and scope-decision artifacts, then delegates
+deterministic validation to the support validator
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh` through
+that support skill's sibling-script contract.
 
 `active_diff_range` depends on mode:
 
 - **Initial:** `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-- **Follow-up:** apply the shared follow-up scope policy to choose narrow vs full.
+- **Follow-up:** apply the shared follow-up scope policy and validated
+  scope-decision artifact to choose narrow vs full.
   - **Narrow** (incremental): `active_diff_range = "<last_reviewed_sha>..HEAD"`; `is_followup_narrow = true`.
   - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
 
-When classification is ambiguous, fail closed to full review. If the policy
-escalates, keep `prior_threads` in the `play-review` handoff so unresolved prior
-GitHub comments can still be verified and carried forward.
+When classification is ambiguous, fail closed to full review. If the shared
+policy or support validator escalates, keep `prior_threads` in the
+`play-review` handoff so unresolved prior GitHub comments can still be verified
+and carried forward.
 
 **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
 
 After final active range selection, compute `language_hints` from that selected
-active diff only. Narrow follow-ups use the incremental changed-files set; full
-escalations recompute from the full PR diff.
+active diff only. The scope-decision artifact and adapter validation must agree
+with those selected-range facts before invoking `play-review`.
 
 ## Phase 4: Run play-review
 

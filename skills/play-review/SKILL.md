@@ -52,10 +52,13 @@ version and does not treat branch findings as GitHub threads.
 Wrappers own final follow-up scope selection before invoking this skill. For
 shared full-vs-narrow policy, wrapper authors must apply
 `references/follow-up-scope-policy.md`: initial reviews use full diff,
-follow-up reviews may narrow only after mechanical and semantic checks clearly
-pass, ambiguous cases escalate to full review with prior context preserved, and
-`language_hints` are recomputed from the final selected active diff. This skill
-does not compute the final `active_diff_range`.
+follow-up reviews may narrow only after
+`play-validate-review-artifacts`-backed mechanical checks and wrapper semantic
+checks clearly pass, ambiguous cases escalate to full review with prior context
+preserved, and `language_hints` are recomputed from the final selected active
+diff. This skill does not compute the final `active_diff_range`, does not
+invoke the support validator directly, and does not restate the support
+validator's shell/JQ policy.
 
 ## Output
 

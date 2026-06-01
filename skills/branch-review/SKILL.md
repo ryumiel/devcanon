@@ -80,13 +80,16 @@ git diff "$FULL_DIFF_RANGE" --stat
 
 If the diff is empty, report "no changes to review" and stop.
 
-`prepare-review-inputs.sh` is the authoritative implementation for
-deterministic Phase 1 mechanics: argument parsing, base resolution, paired
-follow-up input validation, installed `play-review` helper validation, prior
-findings review-head matching, candidate range computation, portable mechanical
-escalation checks, changed-file fact emission, and initial language-hint
-extraction. The helper must run from the repository root. It is not
-authoritative for semantic review scope.
+`prepare-review-inputs.sh` owns branch-specific Phase 1 adapter mechanics:
+argument parsing, base resolution, paired follow-up input validation,
+installed `play-review` helper validation, prior findings review-head matching,
+candidate range computation, changed-file fact emission, and initial
+language-hint extraction. For scope-decision artifact validation it calls
+`skills/branch-review/scripts/scope-decision-artifacts.sh`, which translates
+branch-review inputs into explicit support-validator flags for
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. The helper
+must run from the repository root. It is not authoritative for semantic review
+scope.
 
 The helper writes `KEY=VALUE` lines to stdout:
 
@@ -122,16 +125,13 @@ Missing values stop with `--last-reviewed requires a SHA` or
 context, not GitHub thread state, and this skill still performs no GitHub
 posting.
 
-The helper's built-in mechanical escalation triggers are intentionally portable:
-More than 5 files changed since `--last-reviewed`, unusable follow-up SHAs,
-root governance files (`MAP.md`, `AGENTS.md`, `CONTRIBUTING.md`), and
-conventional AFDS documentation paths (`docs/adr/**`, `docs/arch/**`,
-`docs/product-requirements/**`, `docs/specs/**`, `docs/guidelines/**`).
-Repositories may provide configured repo-owned path triggers through
-`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`; matching paths force mechanical full
-review. Missing configured repo-owned path triggers never prove a narrow review
-is safe. Do not add shared defaults such as `src/**`; source layout belongs to
-the repository or upstream handoff, not this reusable helper.
+The shared support validator owns deterministic review-artifact mechanics such
+as follow-up SHA usability, changed-file facts, language-hint derivation,
+portable governed-path escalation, configured path escalation from
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, and range invariants. The
+branch-review adapter owns only branch-specific path derivation, environment
+translation, and compatibility with the `KEY=VALUE` stdout contract above. Do
+not copy the support validator's shell/JQ policy into this skill prose.
 
 ## Upstream Review-Scope Handoff
 
@@ -150,9 +150,9 @@ are inputs, the executor/reviewer owns the effective route, and revalidation may
 
 In follow-up mode, apply
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
-`play-review` and finalize the active range conservatively. The helper's local
-mechanical facts remain inputs to that shared policy; they do not replace the
-semantic classification below:
+`play-review` and finalize the active range conservatively. The helper's
+validator-checked mechanical facts remain inputs to that shared policy; they do
+not replace wrapper-level semantic classification:
 
 - `full_pr_diff_range = "$BASE...HEAD"` for whole-branch governance and
   documentation impact.
@@ -161,33 +161,20 @@ semantic classification below:
   lowercase hex validation.
 - Start from `MECHANICAL_ACTIVE_DIFF_RANGE`, then inspect
   `CHANGED_FILES_FILE`, any upstream handoff, and the current follow-up diff.
-- `active_diff_range = candidate_active_diff_range` only when the mechanical
-  and semantic escalation checks below all pass.
+- `active_diff_range = candidate_active_diff_range` only when support-validator
+  checks and wrapper semantic classification both permit narrow review.
 - `is_followup_narrow = true` only when the final selected range is narrow.
 - The Phase 1 control flow must assign both final `ACTIVE_DIFF_RANGE` and
   `IS_FOLLOWUP_NARROW` after semantic classification; do not pass the helper's
   mechanical range to `play-review` as if it were final.
 
-Escalate back to full branch review when the shared policy requires it,
-including when any of these are true:
-
-- `MECHANICAL_ESCALATE_FULL=true` because more than 5 files changed since
-  `--last-reviewed`, `--last-reviewed` does not resolve or is not an ancestor of `HEAD`, a portable governance path changed, or configured repo-owned path
-  triggers matched.
-- Upstream planning/execution categorization marks the work hard-risk.
-- Upstream planning/execution categorization is missing, stale, malformed,
-  conflicting, or untrusted and would be needed to justify a narrow review.
-- New public API functions or types are introduced.
-- Logic is restructured beyond previously flagged lines or adjacent changed
-  lines.
-- The increment touches architecture surfaces, shared workflow policy,
-  source-owned contracts, generated-output behavior, safety boundaries, or
-  broad file/module scope.
-- The increment touches `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`,
-  `CONTRIBUTING.md`, `agents/**`, reviewer-routing policy, output schemas,
-  install/sync behavior, path-validation guards, external-invocation guards,
-  generated-output renderers, or generated-output contracts.
-- Scope classification is ambiguous.
+Escalate back to full branch review when the shared policy requires it. Treat
+`MECHANICAL_ESCALATE_FULL=true` as a support-validator decision to use the full
+range. Wrapper-level semantic inspection may also escalate for hard-risk
+handoff facts, architecture or contract impact, generated-output behavior,
+safety boundaries, broad scope, or ambiguous classification. Do not restate the
+support validator's deterministic path, count, SHA, range, or language policy
+here; the adapter contract keeps those mechanics in the shared script.
 
 Before finalizing a narrow review, read `CHANGED_FILES_FILE` and inspect the
 candidate diff. The helper writes repo-relative paths from the candidate active

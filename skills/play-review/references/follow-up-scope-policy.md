@@ -8,14 +8,23 @@ the final `active_diff_range`, `full_pr_diff_range`, prior context,
 `last_reviewed_sha`, `is_followup_narrow`, and `language_hints`; do not compute
 `active_diff_range` inside `play-review`.
 
+Deterministic review-artifact validation belongs to the support skill
+`play-validate-review-artifacts`. PR and branch wrappers use their local
+adapter scripts to pass explicit surface, head SHA, prior-context, governed
+path, configured path, range, changed-file, and language-hint inputs to
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. This
+reference states the human workflow contract around final scope selection; it
+does not duplicate the support validator's shell/JQ policy.
+
 ## Baseline Selection
 
 Initial reviews always use the full PR or branch diff and set
 `is_followup_narrow = false`.
 
 Follow-up reviews start with a candidate narrow range of
-`<last_reviewed_sha>..HEAD`. Narrow review is allowed only when mechanical and
-semantic checks clearly pass. Any uncertainty escalates to full review.
+`<last_reviewed_sha>..HEAD`. Narrow review is allowed only when the support
+validator accepts the mechanical facts and wrapper semantic checks clearly
+pass. Any uncertainty escalates to full review.
 
 Full escalation preserves prior context. When a follow-up broadens back to the
 full diff, the wrapper still passes `prior_threads` or validated
@@ -30,11 +39,11 @@ full escalation recomputes hints from the full range.
 
 A wrapper may select the candidate narrow range only when all of these are true:
 
-- The review is a follow-up with a usable `last_reviewed_sha`.
-- Mechanical facts needed for the narrow decision are present, trusted, and
-  matched to the current branch or PR head.
-- The candidate range is `<last_reviewed_sha>..HEAD`.
-- Mechanical escalation checks do not require full review.
+- The review is a follow-up with a support-validator-accepted
+  `last_reviewed_sha` and candidate range.
+- Mechanical facts needed for the narrow decision are present, trusted,
+  matched to the current branch or PR head, and accepted by the wrapper's
+  support-validator adapter.
 - Semantic inspection of the candidate diff does not require full review.
 - Scope classification is unambiguous.
 
@@ -44,36 +53,13 @@ before review, such as local paired follow-up argument validation.
 
 ## Full Escalation Triggers
 
-Escalate to full review when any of these surfaces appear in the follow-up
-candidate diff or in trusted handoff facts:
-
-- more than five changed files
-- unusable or non-ancestor `last_reviewed_sha`
-- new public API functions or types
-- logic restructured beyond previously flagged or adjacent lines
-- explicit governance paths:
-  - `docs/adr/**`
-  - `docs/arch/**`
-  - `docs/product-requirements/**`
-  - `docs/specs/**`
-  - `docs/guidelines/**`
-  - `MAP.md`
-  - `AGENTS.md`
-  - `CONTRIBUTING.md`
-- `agents/**`
-- reviewer-routing policy
-- output schemas
-- install/sync behavior
-- path-validation guards
-- external-invocation guards
-- generated-output renderers
-- generated-output contracts
-- source-owned contracts
-- safety boundaries
-- broad file/module scope
-- architecture surfaces
-- shared workflow policy
-- ambiguous classification
+Escalate to full review when the support validator rejects or escalates the
+scope-decision artifact, or when wrapper-level semantic inspection identifies
+work that needs whole-diff review. Examples of semantic escalation include new
+public API surface, logic restructured beyond previously reviewed lines,
+architecture or source-contract impact, safety boundaries, generated-output
+behavior, broad module scope, shared workflow policy, or ambiguous
+classification.
 
 Upstream planning or execution handoff can justify full review, but it cannot
 by itself justify narrow review. Missing, stale, malformed, conflicting, or

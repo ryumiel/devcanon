@@ -99,7 +99,7 @@ const TOUCHED_SKILL_COVERAGE = {
   "play-verification":
     "explicit-only workflow metadata coverage protects completion checks from implicit workflow selection",
   "play-validate-review-artifacts":
-    "explicit metadata expectations cover the support-only validator policy sidecar and script packaging",
+    "explicit metadata expectations cover the support-only validator policy sidecar, support references, and script packaging",
   "write-product-requirements":
     "Codex frontmatter smoke coverage protects recently touched product requirements skill prose from invalid Codex keys",
   "write-product-spec":

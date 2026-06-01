@@ -528,12 +528,16 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("non-authoritative context");
     expect(normalizedBranchReview).toContain("may only preserve or escalate");
     expect(normalizedBranchReview).toContain(
-      "configured repo-owned path triggers",
+      "configured path escalation from `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`",
+    );
+    expect(branchReview).toContain("play-validate-review-artifacts");
+    expect(branchReview).toContain("scope-decision-artifacts.sh");
+    expect(normalizedBranchReview).toContain(
+      "Do not copy the support validator's shell/JQ policy into this skill prose",
     );
     expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
     expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
     expect(branchReview).toContain("CHANGED_FILES_FILE");
-    expect(branchReview).toContain("docs/product-requirements/**");
     expect(branchReviewHelper).toContain("product-requirements");
     expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
     expect(branchReview).toContain(
@@ -541,21 +545,17 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain("is_followup_narrow = true");
     expect(branchReview).toContain("Escalate back to full branch review");
-    expect(branchReview).toContain("More than 5 files changed");
     expect(normalizedBranchReview).toContain(
-      "`--last-reviewed` does not resolve or is not an ancestor of `HEAD`",
-    );
-    expect(branchReview).toContain("New public API functions or types");
-    expect(branchReview).toContain(
-      "Logic is restructured beyond previously flagged lines",
-    );
-    expect(branchReview).toContain(
-      "architecture surfaces, shared workflow policy",
+      "support-validator decision to use the full range",
     );
     expect(branchReview).toContain("generated-output behavior");
-    expect(branchReview).toContain("path-validation guards");
-    expect(branchReview).toContain("generated-output contracts");
-    expect(branchReview).toContain("Scope classification is ambiguous");
+    expect(branchReview).toContain("ambiguous classification");
+    expect(normalizedBranchReview).not.toContain(
+      "more than 5 files changed since `--last-reviewed`, unusable follow-up shas",
+    );
+    expect(normalizedBranchReview).not.toContain(
+      "conventional afds documentation paths",
+    );
     expect(branchReview).toContain(
       "still pass the validated prior findings to",
     );
@@ -676,7 +676,7 @@ describe("phase artifact source contracts", () => {
       "Follow-up reviews start with a candidate narrow range of `<last_reviewed_sha>..HEAD`",
     );
     expect(normalizedPolicy).toContain(
-      "Narrow review is allowed only when mechanical and semantic checks clearly pass",
+      "Narrow review is allowed only when the support validator accepts the mechanical facts and wrapper semantic checks clearly pass",
     );
     expect(normalizedPolicy).toContain(
       "Any uncertainty escalates to full review",
@@ -701,34 +701,27 @@ describe("phase artifact source contracts", () => {
     );
 
     for (const escalationSurface of [
-      "more than five changed files",
-      "unusable or non-ancestor `last_reviewed_sha`",
-      "new public API functions or types",
-      "logic restructured beyond previously flagged or adjacent lines",
-      "docs/adr/**",
-      "docs/arch/**",
-      "docs/product-requirements/**",
-      "docs/specs/**",
-      "docs/guidelines/**",
-      "MAP.md",
-      "AGENTS.md",
-      "CONTRIBUTING.md",
-      "agents/**",
-      "reviewer-routing policy",
-      "output schemas",
-      "install/sync behavior",
-      "path-validation guards",
-      "external-invocation guards",
-      "generated-output renderers",
-      "generated-output contracts",
-      "source-owned contracts",
+      "new public API surface",
+      "logic restructured beyond previously reviewed lines",
+      "source-contract impact",
       "safety boundaries",
-      "broad file/module scope",
-      "architecture surfaces",
+      "broad module scope",
+      "architecture",
       "shared workflow policy",
       "ambiguous classification",
     ]) {
       expect(normalizedPolicy).toContain(escalationSurface);
+    }
+    for (const delegatedPolicySurface of [
+      "more than five changed files",
+      "unusable or non-ancestor `last_reviewed_sha`",
+      "docs/adr/**",
+      "docs/product-requirements/**",
+      "CONTRIBUTING.md",
+      "path-validation guards",
+      "generated-output renderers",
+    ]) {
+      expect(normalizedPolicy).not.toContain(delegatedPolicySurface);
     }
 
     expect(normalizedPolicy).toContain(
@@ -743,17 +736,26 @@ describe("phase artifact source contracts", () => {
   });
 
   it("keeps review wrappers aligned to the shared follow-up scope policy", async () => {
+    const playReview = await readSkillSource("play-review");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
+    const normalizedPlayReview = normalizeWhitespace(playReview);
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
 
+    expect(playReview).toContain("play-validate-review-artifacts");
+    expect(normalizedPlayReview).toContain(
+      "does not restate the support validator's shell/JQ policy",
+    );
+
     expect(prReview).toContain("references/follow-up-scope-policy.md");
+    expect(prReview).toContain("play-validate-review-artifacts");
+    expect(prReview).toContain("prior-thread-artifacts.sh");
     expect(normalizedPrReview).toContain(
       "apply the shared follow-up scope policy",
     );
     expect(normalizedPrReview).toContain(
-      "If the policy escalates, keep `prior_threads`",
+      "If the shared policy or support validator escalates, keep `prior_threads`",
     );
     expect(normalizedPrReview).toContain(
       "When classification is ambiguous, fail closed to full review",
@@ -763,14 +765,16 @@ describe("phase artifact source contracts", () => {
     );
 
     expect(branchReview).toContain("references/follow-up-scope-policy.md");
+    expect(branchReview).toContain("play-validate-review-artifacts");
+    expect(branchReview).toContain("scope-decision-artifacts.sh");
     expect(normalizedBranchReview).toContain(
       "apply `skills/play-review/references/follow-up-scope-policy.md`",
     );
     expect(normalizedBranchReview).toContain(
-      "The helper's local mechanical facts remain inputs to that shared policy",
+      "The helper's validator-checked mechanical facts remain inputs to that shared policy",
     );
     expect(normalizedBranchReview).toContain(
-      'When the shared policy escalates, set `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"`',
+      "Treat `MECHANICAL_ESCALATE_FULL=true` as a support-validator decision to use the full range",
     );
     expect(normalizedBranchReview).toContain(
       "still pass the validated prior findings to `play-review`",
