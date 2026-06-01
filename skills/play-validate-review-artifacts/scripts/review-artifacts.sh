@@ -268,6 +268,7 @@ json_any_path_matches() {
 
   [ -n "$pattern" ] || return 1
   while IFS= read -r encoded; do
+    encoded="${encoded%$'\r'}"
     [ -n "$encoded" ] || continue
     if decoded="$(printf '%s' "$encoded" | base64 --decode 2>/dev/null)"; then
       :
