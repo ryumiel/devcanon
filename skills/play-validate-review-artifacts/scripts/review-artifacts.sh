@@ -315,6 +315,10 @@ require_scope_flags() {
   case "$MAX_NARROW_CHANGED_FILES" in
     '' | *[!0-9]*) fail "--max-narrow-changed-files must be an integer" ;;
   esac
+  case "$ALLOW_AMBIGUOUS_FULL" in
+    true | false) ;;
+    *) fail "--allow-ambiguous-full-escalation must be true or false" ;;
+  esac
 }
 
 range_exists() {
@@ -338,6 +342,7 @@ reject_unknown_escalation_reasons() {
       "governed-path",
       "configured-path",
       "ambiguous-semantic-scope",
+      "semantic-scope",
       "unusable-follow-up-sha"
     ] | index($reason) != null)
   ' "$SCOPE_DECISION" >/dev/null || fail "unknown escalation reason"
@@ -510,6 +515,8 @@ validate_scope_decision() {
       fi
     fi
     if [ "$semantic_scope" = "ambiguous" ]; then
+      has_real_followup_trigger=true
+    elif reason_present "semantic-scope"; then
       has_real_followup_trigger=true
     elif reason_present "ambiguous-semantic-scope"; then
       fail "ambiguous-semantic-scope escalation reason missing"
@@ -705,6 +712,7 @@ assert_findings_envelope() {
       type == "object"
       and (.path | repo_path)
       and (.line | positive_integer)
+      and has("start_line")
       and (.start_line == null or (.start_line | positive_integer))
       and one_of(["Blocking", "Nit"]; .severity)
       and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
@@ -745,7 +753,7 @@ compare_approved_payload() {
   validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
   validate_suffix "--review-payload-file" "$REVIEW_PAYLOAD_FILE" "-review-payload.json"
   assert_findings_envelope "$FINDINGS_FILE"
-  jq -e 'type == "object"' "$REVIEW_PAYLOAD_FILE" >/dev/null ||
+  jq -s -e 'length == 1 and (.[0] | type == "object")' "$REVIEW_PAYLOAD_FILE" >/dev/null ||
     fail "review payload JSON validation failed"
 
   local review_body out_of_diff expected_file

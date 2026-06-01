@@ -197,6 +197,46 @@ async function expectRejectsWith(
   });
 }
 
+async function writeFixtureConsumerAdapter(adapter: string) {
+  await mkdir(path.dirname(adapter), { recursive: true });
+  await writeFile(
+    adapter,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'validator="${PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT:-}"',
+      'if [ -z "$validator" ]; then',
+      '  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"',
+      '  validator="$(cd "$script_dir/../.." && pwd -P)/play-validate-review-artifacts/scripts/review-artifacts.sh"',
+      "fi",
+      '[ -x "$validator" ] || { echo "play-validate-review-artifacts validator missing" >&2; exit 1; }',
+      'bash "$validator" "$@"',
+      "",
+    ].join("\n"),
+  );
+  await chmod(adapter, 0o755);
+}
+
+async function writeMarkerValidator(
+  root: string,
+  marker: string,
+  validatorRelPath = "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+) {
+  const validator = path.join(root, validatorRelPath);
+  await mkdir(path.dirname(validator), { recursive: true });
+  await writeFile(
+    validator,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `printf '%s\\n' ${JSON.stringify(marker)}`,
+      "",
+    ].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
 describe.skipIf(!jqAvailable)(
   "play-validate-review-artifacts validator",
   () => {
@@ -491,6 +531,24 @@ describe.skipIf(!jqAvailable)(
           last_reviewed_sha: firstSha,
           candidate_narrow_range: `${firstSha}..HEAD`,
           escalation: {
+            escalate_full: true,
+            reasons: ["semantic-scope"],
+            semantic_scope: "clear",
+          },
+        });
+        await expect(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          escalation: {
             escalate_full: false,
             reasons: [],
             semantic_scope: "clear",
@@ -727,6 +785,15 @@ describe.skipIf(!jqAvailable)(
             "true",
           ]),
         ).resolves.toMatchObject({ stdout: "" });
+
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(headSha, baseSha),
+            "--allow-ambiguous-full-escalation",
+            "maybe",
+          ]),
+          "--allow-ambiguous-full-escalation must be true or false",
+        );
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -1194,6 +1261,83 @@ describe.skipIf(!jqAvailable)(
           "approved review payload does not match generated payload",
         );
 
+        await writeFile(
+          path.join(cwd, ".ephemeral/topic-review-payload.json"),
+          `${JSON.stringify({
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [],
+          })}\n${JSON.stringify({ extra: true })}\n`,
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+          "review payload JSON validation failed",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", [
+          {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [],
+          },
+        ]);
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+          "review payload JSON validation failed",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Blocking: The new export needs review.",
+            },
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+            },
+          ],
+        });
+
         for (const malformedFindings of [
           {
             ...findingsEnvelope(),
@@ -1208,6 +1352,16 @@ describe.skipIf(!jqAvailable)(
             findings: [
               Object.fromEntries(
                 Object.entries(finding()).filter(([key]) => key !== "why"),
+              ),
+            ],
+          },
+          {
+            ...findingsEnvelope(),
+            findings: [
+              Object.fromEntries(
+                Object.entries(finding()).filter(
+                  ([key]) => key !== "start_line",
+                ),
               ),
             ],
           },
@@ -1295,29 +1449,105 @@ describe.skipIf(!jqAvailable)(
 );
 
 describe("play-validate-review-artifacts validator packaging diagnostics", () => {
+  it("fixture adapter resolves source-layout sibling support validator", async () => {
+    const cwd = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-validator-source-layout-"),
+    );
+    try {
+      const adapter = path.join(cwd, "skills/branch-review/scripts/adapter.sh");
+      await writeFixtureConsumerAdapter(adapter);
+      await writeMarkerValidator(cwd, "source-layout");
+
+      await expect(
+        execFileAsync("bash", [adapter], { cwd }),
+      ).resolves.toMatchObject({ stdout: "source-layout\n" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("fixture adapter resolves generated-layout sibling support validator", async () => {
+    const cwd = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-validator-generated-layout-"),
+    );
+    try {
+      const adapter = path.join(
+        cwd,
+        "generated/codex/skills/branch-review/scripts/adapter.sh",
+      );
+      await writeFixtureConsumerAdapter(adapter);
+      await writeMarkerValidator(
+        cwd,
+        "generated-layout",
+        "generated/codex/skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+      );
+
+      await expect(
+        execFileAsync("bash", [adapter], { cwd }),
+      ).resolves.toMatchObject({ stdout: "generated-layout\n" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("fixture adapter resolves installed-style sibling support validator", async () => {
+    const cwd = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-validator-installed-layout-"),
+    );
+    try {
+      const adapter = path.join(
+        cwd,
+        ".codex/skills/branch-review/scripts/adapter.sh",
+      );
+      await writeFixtureConsumerAdapter(adapter);
+      await writeMarkerValidator(
+        cwd,
+        "installed-layout",
+        ".codex/skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+      );
+
+      await expect(
+        execFileAsync("bash", [adapter], { cwd }),
+      ).resolves.toMatchObject({ stdout: "installed-layout\n" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("fixture adapter resolves explicit support validator override", async () => {
+    const cwd = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-validator-override-"),
+    );
+    try {
+      const adapter = path.join(cwd, "skills/branch-review/scripts/adapter.sh");
+      await writeFixtureConsumerAdapter(adapter);
+      const override = await writeMarkerValidator(
+        cwd,
+        "override-layout",
+        ".ephemeral/custom-review-artifacts.sh",
+      );
+
+      await expect(
+        execFileAsync("bash", [adapter], {
+          cwd,
+          env: {
+            ...process.env,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: override,
+          },
+        }),
+      ).resolves.toMatchObject({ stdout: "override-layout\n" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("fixture adapter fails loudly when the support validator is missing", async () => {
     const cwd = await mkdtemp(
       path.join(os.tmpdir(), "devcanon-validator-missing-"),
     );
     try {
       const adapter = path.join(cwd, "skills/branch-review/scripts/adapter.sh");
-      await mkdir(path.dirname(adapter), { recursive: true });
-      await writeFile(
-        adapter,
-        [
-          "#!/usr/bin/env bash",
-          "set -euo pipefail",
-          'validator="${PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT:-}"',
-          'if [ -z "$validator" ]; then',
-          '  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"',
-          '  validator="$(cd "$script_dir/../.." && pwd -P)/play-validate-review-artifacts/scripts/review-artifacts.sh"',
-          "fi",
-          '[ -x "$validator" ] || { echo "play-validate-review-artifacts validator missing" >&2; exit 1; }',
-          'bash "$validator" "$@"',
-          "",
-        ].join("\n"),
-      );
-      await chmod(adapter, 0o755);
+      await writeFixtureConsumerAdapter(adapter);
 
       await expectRejectsWith(
         execFileAsync("bash", [adapter, "validate-scope-decision"], { cwd }),
