@@ -1533,6 +1533,24 @@ describe.skipIf(!jqAvailable)(
           cwd,
           threadsPath,
           priorThreadsEnvelope(headSha, {
+            dropped: [
+              {
+                thread_id: "PRRT_kwDOActionable",
+                classification: "actionable",
+                reason: "Actionable threads must remain model-eligible.",
+              },
+            ],
+          }),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-prior-threads", priorThreadArgs),
+          "dropped-thread shape validation failed",
+        );
+
+        await writeJson(
+          cwd,
+          threadsPath,
+          priorThreadsEnvelope(headSha, {
             dropped: [{ thread_id: "PRRT_kwDODropped", reason: 1 }],
           }),
         );
@@ -1578,7 +1596,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              body: "Carry-forward body.",
             },
           ],
         });
@@ -1753,7 +1771,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              body: "Carry-forward body.",
             },
           ],
         });
@@ -1864,43 +1882,6 @@ describe.skipIf(!jqAvailable)(
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
               body: "Carry-forward body.",
-            },
-          ],
-        });
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "findings envelope validation failed",
-        );
-
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          ...findingsEnvelope(),
-          carry_forward: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "missing-file",
-              why: "Carry forward still applies.",
-              recommendation: "Keep the comment.",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });
@@ -2046,7 +2027,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              body: "Carry-forward body.",
             },
           ],
         });

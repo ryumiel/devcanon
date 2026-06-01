@@ -925,11 +925,6 @@ assert_findings_envelope() {
       and (.why | type == "string" and length > 0)
       and (.recommendation | type == "string" and length > 0)
       and (.body | type == "string" and length > 0)
-      and (if .anchor == "missing-file" then
-        (.body | startswith("Missing-file finding (no natural anchor — see body):"))
-      else
-        true
-      end)
       and (.start_line == null or .start_line <= .line);
     type == "object"
     and .schema == "play-review/findings/v1"
@@ -993,7 +988,11 @@ compare_approved_payload() {
               path: .path,
               line: .line,
               side: "RIGHT",
-              body: .body
+              body: (if .anchor == "missing-file" then
+                "Missing-file finding (no natural anchor — see body):\n\n" + .body
+              else
+                .body
+              end)
             }
           | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]
