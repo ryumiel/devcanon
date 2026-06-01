@@ -8,6 +8,7 @@ fi
 
 SURFACE=""
 HEAD_SHA=""
+BASE_REF=""
 SCOPE_DECISION=""
 EXPECTED_SCHEMA=""
 PRIOR_CONTEXT_KIND=""
@@ -102,6 +103,11 @@ parse_common_args() {
       --head-sha)
         [ -n "${2:-}" ] || fail "--head-sha requires a value"
         HEAD_SHA="$2"
+        shift 2
+        ;;
+      --base-ref)
+        [ -n "${2:-}" ] || fail "--base-ref requires a value"
+        BASE_REF="$2"
         shift 2
         ;;
       --scope-decision-file)
@@ -262,10 +268,10 @@ validate_scope_shape() {
     and (.language_hints | type == "array" and all(.[]; type == "string"))
     and (.escalation | type == "object")
     and (.escalation.escalate_full | type == "boolean")
-    and (.escalation.reasons | type == "array" and all(.[]; type == "string"))
+    and (.escalation.reasons | type == "array" and all(.[]; type == "string" and length > 0))
     and one_of(["clear", "ambiguous"]; .escalation.semantic_scope)
     and (.prior_context | type == "object")
-    and (.prior_context.kind | type == "string")
+    and one_of(["github-prior-threads", "branch-findings", "none"]; .prior_context.kind)
     and (.prior_context.path == null or (.prior_context.path | type == "string"))
   ' "$SCOPE_DECISION" >/dev/null || fail "scope decision schema mismatch"
 }
@@ -274,6 +280,7 @@ require_scope_flags() {
   require_flag "--scope-decision-file" "$SCOPE_DECISION"
   require_flag "--surface" "$SURFACE"
   require_flag "--expected-schema" "$EXPECTED_SCHEMA"
+  require_flag "--base-ref" "$BASE_REF"
   require_flag "--expected-prior-context-kind" "$PRIOR_CONTEXT_KIND"
   require_flag "--expected-prior-context-path" "$PRIOR_CONTEXT_PATH"
   require_flag "--governed-path-pattern" "$GOVERNED_PATH_PATTERN"
@@ -282,12 +289,24 @@ require_scope_flags() {
     pr-review | branch-review) ;;
     *) fail "--surface must be pr-review or branch-review" ;;
   esac
+  case "$EXPECTED_SCHEMA" in
+    pr-review/scope-decision/v1 | branch-review/scope-decision/v1) ;;
+    *) fail "--expected-schema is invalid" ;;
+  esac
   [ "$EXPECTED_SCHEMA" = "${SURFACE}/scope-decision/v1" ] ||
     fail "--expected-schema does not match --surface"
   case "$PRIOR_CONTEXT_KIND" in
     github-prior-threads | branch-findings | none) ;;
     *) fail "--expected-prior-context-kind is invalid" ;;
   esac
+  case "$PRIOR_CONTEXT_KIND:$SURFACE" in
+    github-prior-threads:pr-review | branch-findings:branch-review | none:*) ;;
+    github-prior-threads:*) fail "github-prior-threads prior context is pr-review only" ;;
+    branch-findings:*) fail "branch-findings prior context is branch-review only" ;;
+  esac
+  if [ "$PRIOR_CONTEXT_KIND" = "none" ] && [ "$PRIOR_CONTEXT_PATH" != "null" ]; then
+    fail "none prior context requires null path"
+  fi
   if [ "$PRIOR_CONTEXT_PATH" != "null" ]; then
     case "$PRIOR_CONTEXT_PATH" in
       '' | /* | *..* | */./* | ./* | */../* | *//*) fail "--expected-prior-context-path must be repo-relative or null" ;;
@@ -300,6 +319,28 @@ require_scope_flags() {
 
 range_exists() {
   git diff --quiet "$1" >/dev/null 2>&1 || [ "$?" -eq 1 ]
+}
+
+reason_present() {
+  local reason="$1"
+  jq -e --arg reason "$reason" '.escalation.reasons | index($reason) != null' "$SCOPE_DECISION" >/dev/null
+}
+
+reason_count() {
+  jq -r '.escalation.reasons | length' "$SCOPE_DECISION"
+}
+
+reject_unknown_escalation_reasons() {
+  jq -e '
+    .escalation.reasons | all(.[]; . as $reason | [
+      "not-followup",
+      "file-count",
+      "governed-path",
+      "configured-path",
+      "ambiguous-semantic-scope",
+      "unusable-follow-up-sha"
+    ] | index($reason) != null)
+  ' "$SCOPE_DECISION" >/dev/null || fail "unknown escalation reason"
 }
 
 validate_pattern() {
@@ -325,10 +366,11 @@ validate_scope_decision() {
   validate_suffix "--scope-decision-file" "$SCOPE_DECISION" "-scope-decision.json"
   validate_scope_shape
 
-  local artifact_surface artifact_head full_range selected_range candidate_range last_reviewed
-  local is_narrow escalate_full semantic_scope changed_count
+  local artifact_surface artifact_head artifact_base full_range selected_range candidate_range last_reviewed
+  local is_narrow escalate_full semantic_scope changed_count expected_full_range
   local expected_files actual_files expected_hints actual_hints
   local expected_count actual_count expected_selected_range
+  local followup_usable=false
 
   artifact_surface="$(jq_value "$SCOPE_DECISION" '.surface')"
   [ "$artifact_surface" = "$SURFACE" ] ||
@@ -336,6 +378,11 @@ validate_scope_decision() {
   artifact_head="$(jq_value "$SCOPE_DECISION" '.head_sha')"
   [ "$artifact_head" = "$HEAD_SHA" ] ||
     fail "scope decision head mismatch"
+  artifact_base="$(jq_value "$SCOPE_DECISION" '.base_ref')"
+  [ "$artifact_base" = "$BASE_REF" ] ||
+    fail "scope decision base_ref mismatch"
+  git cat-file -e "$BASE_REF^{commit}" 2>/dev/null ||
+    fail "base ref does not resolve"
 
   full_range="$(jq_value "$SCOPE_DECISION" '.full_range')"
   selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
@@ -345,18 +392,23 @@ validate_scope_decision() {
   escalate_full="$(jq_value "$SCOPE_DECISION" '.escalation.escalate_full')"
   semantic_scope="$(jq_value "$SCOPE_DECISION" '.escalation.semantic_scope')"
   changed_count="$(jq_value "$SCOPE_DECISION" '.changed_file_count')"
+  expected_full_range="$BASE_REF...HEAD"
 
-  if [ -n "$last_reviewed" ]; then
-    git cat-file -e "$last_reviewed^{commit}" 2>/dev/null &&
-      git merge-base --is-ancestor "$last_reviewed" HEAD 2>/dev/null ||
-      fail "narrow scope requires usable follow-up sha"
-  fi
+  reject_unknown_escalation_reasons
+  [ "$full_range" = "$expected_full_range" ] ||
+    fail "full range does not match caller base ref"
 
   range_exists "$full_range" || fail "review range does not resolve"
-  range_exists "$selected_range" || fail "review range does not resolve"
+
+  if [ -n "$last_reviewed" ] &&
+    git cat-file -e "$last_reviewed^{commit}" 2>/dev/null &&
+    git merge-base --is-ancestor "$last_reviewed" HEAD 2>/dev/null; then
+    followup_usable=true
+  fi
 
   if [ "$is_narrow" = "true" ]; then
     [ -n "$last_reviewed" ] || fail "narrow scope requires last_reviewed_sha"
+    [ "$followup_usable" = "true" ] || fail "narrow scope requires usable follow-up sha"
     expected_selected_range="$last_reviewed..HEAD"
     [ "$selected_range" = "$expected_selected_range" ] ||
       fail "narrow scope must use last-reviewed-sha..HEAD"
@@ -367,13 +419,32 @@ validate_scope_decision() {
   else
     [ "$selected_range" = "$full_range" ] ||
       fail "full escalation selected_range must equal full_range"
+    if [ -z "$last_reviewed" ]; then
+      [ "$escalate_full" = "true" ] ||
+        fail "full baseline requires explicit escalation"
+      reason_present "not-followup" ||
+        fail "not-followup escalation reason missing"
+      [ "$(reason_count)" -eq 1 ] ||
+        fail "not-followup escalation reason missing"
+    else
+      [ "$escalate_full" = "true" ] ||
+        fail "full follow-up requires explicit escalation"
+      [ "$(reason_count)" -gt 0 ] ||
+        fail "full follow-up requires escalation reason"
+    fi
   fi
+
+  range_exists "$selected_range" || fail "review range does not resolve"
 
   if [ "$semantic_scope" = "ambiguous" ] && [ "$escalate_full" != "true" ]; then
     fail "ambiguous semantic scope requires full review"
   fi
   if [ "$semantic_scope" = "ambiguous" ] && [ "$ALLOW_AMBIGUOUS_FULL" != "true" ]; then
     fail "ambiguous semantic scope requires full review"
+  fi
+  if [ "$semantic_scope" = "ambiguous" ] && [ "$escalate_full" = "true" ]; then
+    reason_present "ambiguous-semantic-scope" ||
+      fail "ambiguous-semantic-scope escalation reason missing"
   fi
 
   expected_files="$(changed_files_json "$selected_range")"
@@ -390,35 +461,78 @@ validate_scope_decision() {
     fail "language hints do not match selected range"
 
   if [ -n "$last_reviewed" ]; then
+    local has_real_followup_trigger=false
+    if [ "$followup_usable" != "true" ]; then
+      [ "$is_narrow" != "true" ] || fail "narrow scope requires usable follow-up sha"
+      reason_present "unusable-follow-up-sha" ||
+        fail "unusable-follow-up-sha escalation reason missing"
+      reason_present "file-count" && fail "file-count escalation reason missing"
+      reason_present "governed-path" && fail "governed-path escalation reason missing"
+      reason_present "configured-path" && fail "configured-path escalation reason missing"
+      has_real_followup_trigger=true
+    fi
     local candidate_count
     local candidate_files
     local expected_candidate_range="$last_reviewed..HEAD"
     if [ -n "$candidate_range" ] && [ "$candidate_range" != "$expected_candidate_range" ]; then
       fail "narrow scope must use last-reviewed-sha..HEAD"
     fi
-    candidate_files="$(changed_files_json "$expected_candidate_range")"
-    candidate_count="$(printf '%s\n' "$candidate_files" | jq 'length')"
-    if [ "$candidate_count" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
-      [ "$is_narrow" != "true" ] || fail "file count requires full review"
-      jq -e '.escalation.reasons | index("file-count") != null' "$SCOPE_DECISION" >/dev/null ||
+    if [ "$followup_usable" = "true" ]; then
+      candidate_files="$(changed_files_json "$expected_candidate_range")"
+      candidate_count="$(printf '%s\n' "$candidate_files" | jq 'length')"
+      if [ "$candidate_count" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
+        [ "$is_narrow" != "true" ] || fail "file count requires full review"
+        reason_present "file-count" ||
+          fail "file-count escalation reason missing"
+        has_real_followup_trigger=true
+      elif reason_present "file-count"; then
         fail "file-count escalation reason missing"
-    fi
-    if printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
-      [ "$is_narrow" != "true" ] || fail "governed path requires full review"
-      jq -e '.escalation.reasons | index("governance-path") != null' "$SCOPE_DECISION" >/dev/null ||
-        fail "governance-path escalation reason missing"
-    fi
-    if [ -n "$CONFIGURED_PATH_PATTERN" ] &&
-      printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
-      [ "$is_narrow" != "true" ] || fail "configured path requires full review"
-      jq -e '.escalation.reasons | index("configured-path") != null' "$SCOPE_DECISION" >/dev/null ||
+      fi
+      if printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
+        [ "$is_narrow" != "true" ] || fail "governed path requires full review"
+        reason_present "governed-path" ||
+          fail "governed-path escalation reason missing"
+        has_real_followup_trigger=true
+      elif reason_present "governed-path"; then
+        fail "governed-path escalation reason missing"
+      fi
+      if [ -n "$CONFIGURED_PATH_PATTERN" ] &&
+        printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
+        [ "$is_narrow" != "true" ] || fail "configured path requires full review"
+        reason_present "configured-path" ||
+          fail "configured-path escalation reason missing"
+        has_real_followup_trigger=true
+      elif reason_present "configured-path"; then
         fail "configured-path escalation reason missing"
+      fi
+      if reason_present "unusable-follow-up-sha"; then
+        fail "unusable-follow-up-sha escalation reason missing"
+      fi
+    fi
+    if [ "$semantic_scope" = "ambiguous" ]; then
+      has_real_followup_trigger=true
+    elif reason_present "ambiguous-semantic-scope"; then
+      fail "ambiguous-semantic-scope escalation reason missing"
+    fi
+    if reason_present "not-followup"; then
+      fail "not-followup escalation reason missing"
+    fi
+    if [ "$is_narrow" != "true" ] && [ "$has_real_followup_trigger" != "true" ]; then
+      fail "full follow-up requires justified escalation"
     fi
   fi
 
   local artifact_prior_kind artifact_prior_path
   artifact_prior_kind="$(jq_value "$SCOPE_DECISION" '.prior_context.kind')"
   artifact_prior_path="$(jq_value "$SCOPE_DECISION" 'if .prior_context.path == null then "null" else .prior_context.path end')"
+  case "$artifact_prior_kind:$SURFACE" in
+    github-prior-threads:pr-review | branch-findings:branch-review | none:*) ;;
+    github-prior-threads:*) fail "github-prior-threads prior context is pr-review only" ;;
+    branch-findings:*) fail "branch-findings prior context is branch-review only" ;;
+  esac
+  if [ "$artifact_prior_kind" = "none" ] && [ "$artifact_prior_path" != "null" ]; then
+    fail "none prior context requires null path"
+  fi
   [ "$artifact_prior_kind" = "$PRIOR_CONTEXT_KIND" ] ||
     fail "prior context kind mismatch"
   [ "$artifact_prior_path" = "$PRIOR_CONTEXT_PATH" ] ||
@@ -460,18 +574,59 @@ validate_prior_threads() {
   ' "$PRIOR_THREADS" >/dev/null || fail "prior-thread shape validation failed"
 
   jq -e '
-    .threads | all(.[]; (.created_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
-      and (.updated_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))
+    def valid_timestamp:
+      type == "string"
+      and (capture("^(?<year>[0-9]{4})-(?<month>[0-9]{2})-(?<day>[0-9]{2})T(?<hour>[0-9]{2}):(?<minute>[0-9]{2}):(?<second>[0-9]{2})Z$")? // null) as $parts
+      | $parts != null
+        and ($parts.year | tonumber) as $year
+        | ($parts.month | tonumber) as $month
+        | ($parts.day | tonumber) as $day
+        | ($parts.hour | tonumber) as $hour
+        | ($parts.minute | tonumber) as $minute
+        | ($parts.second | tonumber) as $second
+        | def leap($year): (($year % 400 == 0) or (($year % 4 == 0) and ($year % 100 != 0)));
+        def days_in_month($year; $month):
+          if $month == 2 then (if leap($year) then 29 else 28 end)
+          elif [4, 6, 9, 11] | index($month) then 30
+          else 31
+          end;
+        $month >= 1 and $month <= 12
+        and $day >= 1 and $day <= days_in_month($year; $month)
+        and $hour >= 0 and $hour <= 23
+        and $minute >= 0 and $minute <= 59
+        and $second >= 0 and $second <= 59;
+    .threads | all(.[]; (.created_at | valid_timestamp) and (.updated_at | valid_timestamp))
   ' "$PRIOR_THREADS" >/dev/null || fail "prior-thread timestamp validation failed"
 
   jq -e '.threads | all(.[]; .model_context_eligible | type == "boolean")' "$PRIOR_THREADS" >/dev/null ||
     fail "prior-thread model-context eligibility validation failed"
 
   jq -e '
+    def valid_timestamp:
+      type == "string"
+      and (capture("^(?<year>[0-9]{4})-(?<month>[0-9]{2})-(?<day>[0-9]{2})T(?<hour>[0-9]{2}):(?<minute>[0-9]{2}):(?<second>[0-9]{2})Z$")? // null) as $parts
+      | $parts != null
+        and ($parts.year | tonumber) as $year
+        | ($parts.month | tonumber) as $month
+        | ($parts.day | tonumber) as $day
+        | ($parts.hour | tonumber) as $hour
+        | ($parts.minute | tonumber) as $minute
+        | ($parts.second | tonumber) as $second
+        | def leap($year): (($year % 400 == 0) or (($year % 4 == 0) and ($year % 100 != 0)));
+        def days_in_month($year; $month):
+          if $month == 2 then (if leap($year) then 29 else 28 end)
+          elif [4, 6, 9, 11] | index($month) then 30
+          else 31
+          end;
+        $month >= 1 and $month <= 12
+        and $day >= 1 and $day <= days_in_month($year; $month)
+        and $hour >= 0 and $hour <= 23
+        and $minute >= 0 and $minute <= 59
+        and $second >= 0 and $second <= 59;
     .threads | all(.[]; .dropped == null or
       ((.dropped | type == "object")
       and (.dropped.reason | type == "string" and length > 0)
-      and (.dropped.at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))))
+      and (.dropped.at | valid_timestamp)))
   ' "$PRIOR_THREADS" >/dev/null || fail "dropped-thread shape validation failed"
 
   jq -e '.threads | all(.[]; .start_line == null or .start_line <= .line)' "$PRIOR_THREADS" >/dev/null ||
@@ -552,9 +707,18 @@ assert_findings_envelope() {
       and (.line | positive_integer)
       and (.start_line == null or (.start_line | positive_integer))
       and one_of(["Blocking", "Nit"]; .severity)
-      and (.category | type == "string")
-      and (.anchor | type == "string")
-      and (.body | type == "string");
+      and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
+      and has("critic")
+      and (
+        if .severity == "Nit" then .critic == null
+        else .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
+        end
+      )
+      and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
+      and (.why | type == "string" and length > 0)
+      and (.recommendation | type == "string" and length > 0)
+      and (.body | type == "string" and length > 0)
+      and (.start_line == null or .start_line <= .line);
     type == "object"
     and .schema == "play-review/findings/v1"
     and (.findings | type == "array")

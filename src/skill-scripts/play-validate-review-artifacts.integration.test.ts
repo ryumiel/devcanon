@@ -88,6 +88,7 @@ async function runValidator(cwd: string, command: string, args: string[] = []) {
 
 function scopeArgs(
   headSha: string,
+  baseRef: string,
   scopeDecision = ".ephemeral/topic-scope-decision.json",
   surface = "branch-review",
   expectedPriorContextKind = "none",
@@ -98,6 +99,8 @@ function scopeArgs(
     surface,
     "--head-sha",
     headSha,
+    "--base-ref",
+    baseRef,
     "--scope-decision-file",
     scopeDecision,
     "--expected-schema",
@@ -161,23 +164,26 @@ function narrowScope(
   };
 }
 
+function finding(overrides: JsonObject = {}): JsonObject {
+  return {
+    path: "src/app.ts",
+    line: 2,
+    start_line: null,
+    severity: "Blocking",
+    category: "Logic",
+    critic: "VALID",
+    anchor: "natural",
+    why: "The new export needs review.",
+    recommendation: "Check the value before posting.",
+    body: "Blocking: The new export needs review.",
+    ...overrides,
+  };
+}
+
 function findingsEnvelope(): JsonObject {
   return {
     schema: "play-review/findings/v1",
-    findings: [
-      {
-        path: "src/app.ts",
-        line: 2,
-        start_line: null,
-        severity: "Blocking",
-        category: "Logic",
-        critic: "VALID",
-        anchor: "natural",
-        why: "The new export needs review.",
-        recommendation: "Check the value before posting.",
-        body: "Blocking: The new export needs review.",
-      },
-    ],
+    findings: [finding()],
     carry_forward: [],
   };
 }
@@ -204,7 +210,11 @@ describe.skipIf(!jqAvailable)(
         );
 
         await expect(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
         ).resolves.toMatchObject({ stdout: "" });
       } finally {
         await cleanupTempDir(cwd);
@@ -221,8 +231,37 @@ describe.skipIf(!jqAvailable)(
         );
 
         await expect(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
         ).resolves.toMatchObject({ stdout: "" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects self-consistent ranges that do not match the caller-derived full review range", async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          full_range: "HEAD..HEAD",
+          selected_range: "HEAD..HEAD",
+          changed_files: [],
+          changed_file_count: 0,
+          language_hints: [],
+        });
+
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "full range does not match caller base ref",
+        );
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -261,7 +300,11 @@ describe.skipIf(!jqAvailable)(
         await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
 
         await expect(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(newHead)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(newHead, baseSha),
+          ),
         ).resolves.toMatchObject({ stdout: "" });
         expect(headSha).not.toBe(newHead);
       } finally {
@@ -291,7 +334,7 @@ describe.skipIf(!jqAvailable)(
           language_hints: ["md", "ts"],
           escalation: {
             escalate_full: true,
-            reasons: ["governance-path"],
+            reasons: ["governed-path"],
             semantic_scope: "clear",
           },
         });
@@ -299,7 +342,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(
             governed.cwd,
             "validate-scope-decision",
-            scopeArgs(headSha),
+            scopeArgs(headSha, governed.baseSha),
           ),
         ).resolves.toMatchObject({ stdout: "" });
       } finally {
@@ -333,7 +376,7 @@ describe.skipIf(!jqAvailable)(
         );
         await expect(
           runValidator(configured.cwd, "validate-scope-decision", [
-            ...scopeArgs(headSha),
+            ...scopeArgs(headSha, configured.baseSha),
             "--configured-path-pattern",
             "generated",
           ]),
@@ -370,7 +413,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(
             fileCount.cwd,
             "validate-scope-decision",
-            scopeArgs(headSha),
+            scopeArgs(headSha, fileCount.baseSha),
           ),
           "file count requires full review",
         );
@@ -401,7 +444,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(
             governed.cwd,
             "validate-scope-decision",
-            scopeArgs(headSha),
+            scopeArgs(headSha, governed.baseSha),
           ),
           "governed path requires full review",
         );
@@ -429,7 +472,7 @@ describe.skipIf(!jqAvailable)(
 
         await expectRejectsWith(
           runValidator(configured.cwd, "validate-scope-decision", [
-            ...scopeArgs(headSha),
+            ...scopeArgs(headSha, configured.baseSha),
             "--configured-path-pattern",
             "generated",
           ]),
@@ -437,6 +480,212 @@ describe.skipIf(!jqAvailable)(
         );
       } finally {
         await cleanupTempDir(configured.cwd);
+      }
+    });
+
+    it("rejects full follow-up artifacts without explicit justified escalation", async () => {
+      const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          escalation: {
+            escalate_full: false,
+            reasons: [],
+            semantic_scope: "clear",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "full follow-up requires explicit escalation",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          escalation: {
+            escalate_full: true,
+            reasons: [],
+            semantic_scope: "clear",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "full follow-up requires escalation reason",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          escalation: {
+            escalate_full: true,
+            reasons: ["surprising-reason"],
+            semantic_scope: "clear",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "unknown escalation reason",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          escalation: {
+            escalate_full: true,
+            reasons: ["file-count"],
+            semantic_scope: "clear",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "file-count escalation reason missing",
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects invalid prior-context kind, surface, and path combinations", async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(headSha, baseSha),
+            "--expected-schema",
+            "play-review/scope-decision/v1",
+          ]),
+          "--expected-schema is invalid",
+        );
+
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "branch-review",
+              "mystery-context",
+              "null",
+            ),
+          ]),
+          "--expected-prior-context-kind is invalid",
+        );
+
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "pr-review", {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          }),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+              "branch-findings",
+              ".ephemeral/topic-findings.json",
+            ),
+          ]),
+          "branch-findings prior context is branch-review only",
+        );
+
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "branch-review", {
+            kind: "github-prior-threads",
+            path: ".ephemeral/topic-prior-threads.json",
+          }),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "branch-review",
+              "github-prior-threads",
+              ".ephemeral/topic-prior-threads.json",
+            ),
+          ]),
+          "github-prior-threads prior context is pr-review only",
+        );
+
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "branch-review", {
+            kind: "none",
+            path: ".ephemeral/unexpected.json",
+          }),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "branch-review",
+              "none",
+              "null",
+            ),
+          ]),
+          "none prior context requires null path",
+        );
+
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "branch-review", {
+            kind: "none",
+            path: null,
+          }),
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "branch-review",
+              "none",
+              ".ephemeral/unexpected.json",
+            ),
+          ]),
+          "none prior context requires null path",
+        );
+      } finally {
+        await cleanupTempDir(cwd);
       }
     });
 
@@ -453,7 +702,11 @@ describe.skipIf(!jqAvailable)(
         });
 
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "ambiguous semantic scope requires full review",
         );
 
@@ -469,7 +722,7 @@ describe.skipIf(!jqAvailable)(
         });
         await expect(
           runValidator(cwd, "validate-scope-decision", [
-            ...scopeArgs(headSha),
+            ...scopeArgs(headSha, baseSha),
             "--allow-ambiguous-full-escalation",
             "true",
           ]),
@@ -487,7 +740,11 @@ describe.skipIf(!jqAvailable)(
           head_sha: firstSha,
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "scope decision head mismatch",
         );
 
@@ -496,7 +753,11 @@ describe.skipIf(!jqAvailable)(
           changed_files: ["src/other.ts"],
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "changed files do not match selected range",
         );
 
@@ -505,7 +766,11 @@ describe.skipIf(!jqAvailable)(
           changed_file_count: 99,
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "changed file count does not match selected range",
         );
 
@@ -514,7 +779,11 @@ describe.skipIf(!jqAvailable)(
           language_hints: ["rs"],
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "language hints do not match selected range",
         );
       } finally {
@@ -533,7 +802,11 @@ describe.skipIf(!jqAvailable)(
           candidate_narrow_range: `${badSha}..HEAD`,
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "narrow scope requires usable follow-up sha",
         );
 
@@ -542,7 +815,11 @@ describe.skipIf(!jqAvailable)(
           selected_range: `${baseSha}..HEAD`,
         });
         await expectRejectsWith(
-          runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
           "narrow scope must use last-reviewed-sha..HEAD",
         );
       } finally {
@@ -597,6 +874,38 @@ describe.skipIf(!jqAvailable)(
               side: "RIGHT",
               created_at: "not-a-time",
               updated_at: "2026-01-01T00:00:01Z",
+              model_context_eligible: true,
+              dropped: null,
+            },
+          ],
+        });
+        await expectRejectsWith(
+          runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
+            "--head-sha",
+            headSha,
+            "--prior-threads-file",
+            threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
+          ]),
+          "prior-thread timestamp validation failed",
+        );
+
+        await writeJson(cwd, threadsPath, {
+          schema: "pr-review/prior-threads/v1",
+          head_sha: headSha,
+          threads: [
+            {
+              id: "T1",
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              created_at: "2026-13-01T00:00:00Z",
+              updated_at: "2026-02-30T00:00:01Z",
               model_context_eligible: true,
               dropped: null,
             },
@@ -748,6 +1057,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(cwd, "validate-diff-anchors", [
             ...scopeArgs(
               headSha,
+              baseSha,
               ".ephemeral/topic-scope-decision.json",
               "pr-review",
             ),
@@ -777,6 +1087,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(cwd, "validate-diff-anchors", [
             ...scopeArgs(
               headSha,
+              baseSha,
               ".ephemeral/topic-scope-decision.json",
               "pr-review",
             ),
@@ -840,6 +1151,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(cwd, "compare-approved-payload", [
             ...scopeArgs(
               headSha,
+              baseSha,
               ".ephemeral/topic-scope-decision.json",
               "pr-review",
             ),
@@ -866,6 +1178,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(cwd, "compare-approved-payload", [
             ...scopeArgs(
               headSha,
+              baseSha,
               ".ephemeral/topic-scope-decision.json",
               "pr-review",
             ),
@@ -880,17 +1193,61 @@ describe.skipIf(!jqAvailable)(
           ]),
           "approved review payload does not match generated payload",
         );
+
+        for (const malformedFindings of [
+          {
+            ...findingsEnvelope(),
+            findings: [finding({ anchor: "bogus" })],
+          },
+          {
+            ...findingsEnvelope(),
+            findings: [finding({ category: "Bogus" })],
+          },
+          {
+            ...findingsEnvelope(),
+            findings: [
+              Object.fromEntries(
+                Object.entries(finding()).filter(([key]) => key !== "why"),
+              ),
+            ],
+          },
+        ]) {
+          await writeJson(
+            cwd,
+            ".ephemeral/topic-findings.json",
+            malformedFindings,
+          );
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "findings envelope validation failed",
+          );
+        }
       } finally {
         await cleanupTempDir(cwd);
       }
     });
 
     it("rejects unsafe paths and missing explicit flags", async () => {
-      const { cwd, headSha } = await makeGitWorkspace();
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
       try {
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", [
-            ...scopeArgs(headSha, "../scope.json"),
+            ...scopeArgs(headSha, baseSha, "../scope.json"),
           ]),
           "path traversal",
         );
@@ -904,6 +1261,8 @@ describe.skipIf(!jqAvailable)(
             "branch-review",
             "--head-sha",
             headSha,
+            "--base-ref",
+            baseSha,
             "--scope-decision-file",
             ".ephemeral/topic-scope-decision.json",
             "--expected-schema",
