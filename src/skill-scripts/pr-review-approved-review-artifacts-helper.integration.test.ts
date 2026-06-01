@@ -340,6 +340,31 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("requires BASE_REF before invoking the support validator", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: "",
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("BASE_REF is required"),
+        });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/support-validator-args.txt")),
+        ).rejects.toThrow();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("surfaces missing and failing support-validator delegation", async () => {
       const cwd = await makeGitWorkspace();
       try {
@@ -762,6 +787,16 @@ describe.skipIf(!jqAvailable)(
         });
 
         await writeJson(cwd, payloadFile, payload());
+        await writeJson(cwd, scopeDecisionFile, { drift: true });
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision digest mismatch"),
+        });
+
+        await writeJson(cwd, scopeDecisionFile, {});
         const artifact = JSON.parse(
           await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
         );

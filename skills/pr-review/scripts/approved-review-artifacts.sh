@@ -320,7 +320,6 @@ support_scope_args() {
     prior_kind="github-prior-threads"
     prior_path="$expected_prior_threads"
   fi
-  require_env BASE_REF
 
   printf '%s\0' \
     --surface pr-review \
@@ -344,6 +343,7 @@ compare_payload_with_support() {
   local validator
   local args=()
 
+  require_env BASE_REF
   validator="$(resolve_validator)"
   while IFS= read -r -d '' arg; do
     args+=("$arg")
