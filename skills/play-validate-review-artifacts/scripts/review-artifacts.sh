@@ -101,6 +101,7 @@ validate_review_body_path() {
   esac
   [ -L .ephemeral ] && fail ".ephemeral must be a directory, not a symlink"
   case "$file" in
+    [A-Za-z]:* | *\\*) fail "review body path validation failed: $file" ;;
     .ephemeral/*/*) fail "nested review body path rejected: $file" ;;
     .ephemeral/*) ;;
     *.md | *.markdown) ;;
@@ -269,6 +270,8 @@ json_any_path_matches() {
   while IFS= read -r encoded; do
     [ -n "$encoded" ] || continue
     if decoded="$(printf '%s' "$encoded" | base64 --decode 2>/dev/null)"; then
+      :
+    elif decoded="$(printf '%s' "$encoded" | base64 -d 2>/dev/null)"; then
       :
     elif decoded="$(printf '%s' "$encoded" | base64 -D 2>/dev/null)"; then
       :
