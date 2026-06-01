@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
@@ -112,8 +113,52 @@ function payloadWithRange(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function prReviewInitialScope(
+  baseSha: string,
+  headShaValue: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
+    mode: "initial",
+    head_sha: headShaValue,
+    full_range: `${baseSha}...HEAD`,
+    selected_range: `${baseSha}...HEAD`,
+    candidate_narrow_range: `${baseSha}...HEAD`,
+    last_reviewed_sha: null,
+    is_followup_narrow: false,
+    selection_reason: "Initial PR review uses the full review range.",
+    changed_files: ["src/example.ts"],
+    language_hints: ["ts"],
+    escalation_reasons: ["not-followup"],
+    prior_context: {
+      kind: "none",
+      path: null,
+    },
+    mechanical_facts: {
+      changed_file_count: 1,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "",
+    },
+    ...overrides,
+  };
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+}
+
+async function sha256File(cwd: string, relPath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(path.join(cwd, relPath)))
+    .digest("hex");
 }
 
 async function writeInputs(cwd: string) {
@@ -135,6 +180,7 @@ async function runHelper(
     cwd,
     env: {
       ...process.env,
+      BASE_REF: "main",
       HEAD_SHA: headSha,
       PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
       ...env,
@@ -260,11 +306,35 @@ describe.skipIf(!jqAvailable)(
           "utf8",
         );
         expect(args).toContain("compare-approved-payload");
+        expect(args).toContain("--base-ref");
+        expect(args).toContain("main");
         expect(args).toContain("--expected-schema");
         expect(args).toContain("pr-review/scope-decision/v1");
         expect(args).toContain("--expected-prior-context-kind");
         expect(args).toContain("--governed-path-pattern");
         expect(args).toContain("--max-narrow-changed-files");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects freezing when the canonical scope decision artifact is missing", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await rm(path.join(cwd, scopeDecisionFile));
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "scope decision file missing or not a regular file",
+          ),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -302,6 +372,126 @@ describe.skipIf(!jqAvailable)(
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
             "approved review payload does not match generated payload",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects wrong-base scope decisions through the real support validator", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realApprovedReviewFile = `.ephemeral/topic-${realHeadSha}-approved-review.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(realHeadSha, realHeadSha, {
+            changed_files: [],
+            language_hints: [],
+            mechanical_facts: {
+              changed_file_count: 0,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "full range does not match caller base ref",
+          ),
+        });
+
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha),
+        );
+        await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: baseSha,
+          HEAD_SHA: realHeadSha,
+          FINDINGS_FILE: realFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: realPayloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(realHeadSha, realHeadSha, {
+            changed_files: [],
+            language_hints: [],
+            mechanical_facts: {
+              changed_file_count: 0,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+        const approvedArtifact = JSON.parse(
+          await readFile(path.join(cwd, realApprovedReviewFile), "utf-8"),
+        );
+        approvedArtifact.scope_decision_sha256 = await sha256File(
+          cwd,
+          realScopeDecisionFile,
+        );
+        await writeJson(cwd, realApprovedReviewFile, approvedArtifact);
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            APPROVED_REVIEW_FILE: realApprovedReviewFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "full range does not match caller base ref",
           ),
         });
       } finally {
