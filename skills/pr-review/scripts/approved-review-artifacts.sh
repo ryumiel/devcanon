@@ -304,21 +304,44 @@ scope_decision_file_for() {
 support_scope_args() {
   local review_head_sha="$1"
   local scope_decision_file="$2"
-  local prior_kind="none"
-  local prior_path="null"
-  local expected_prior_threads
+  local prior_context
+  local prior_kind
+  local prior_path
 
-  expected_prior_threads=".ephemeral/$(branch_slug)-${review_head_sha}-prior-threads.json"
+  prior_context="$(jq -er '
+    if (.prior_context | type) != "object" then
+      empty
+    elif (.prior_context.kind | type) != "string" then
+      empty
+    elif .prior_context.kind == "none" then
+      if .prior_context.path == null then
+        [.prior_context.kind, "null"] | @tsv
+      else
+        empty
+      end
+    elif (.prior_context.kind == "github-prior-threads" or .prior_context.kind == "branch-findings") then
+      if (.prior_context.path | type) == "string" and .prior_context.path != "" then
+        [.prior_context.kind, .prior_context.path] | @tsv
+      else
+        empty
+      end
+    else
+      empty
+    end
+  ' "$scope_decision_file")" || {
+    echo "scope decision prior_context is missing or malformed" >&2
+    exit 1
+  }
+  IFS=$'\t' read -r prior_kind prior_path <<EOF
+$prior_context
+EOF
+
   if [ -n "${PRIOR_THREADS_FILE:-}" ]; then
-    [ "$PRIOR_THREADS_FILE" = "$expected_prior_threads" ] || {
-      echo "prior threads path mismatch: $PRIOR_THREADS_FILE" >&2
+    [ "$prior_kind" = "github-prior-threads" ] &&
+      [ "$PRIOR_THREADS_FILE" = "$prior_path" ] || {
+      echo "prior threads context mismatch: $PRIOR_THREADS_FILE" >&2
       exit 1
     }
-    prior_kind="github-prior-threads"
-    prior_path="$PRIOR_THREADS_FILE"
-  elif [ -f "$expected_prior_threads" ]; then
-    prior_kind="github-prior-threads"
-    prior_path="$expected_prior_threads"
   fi
 
   printf '%s\0' \
