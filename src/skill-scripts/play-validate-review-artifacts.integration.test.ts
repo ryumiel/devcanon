@@ -1726,13 +1726,13 @@ describe.skipIf(!jqAvailable)(
           ...findingsEnvelope(),
           carry_forward: [
             {
-              path: "src/app.ts",
-              line: 2,
+              path: "README.md",
+              line: 1,
               start_line: null,
               severity: "Blocking",
               category: "Logic",
               critic: "VALID",
-              anchor: "missing-file",
+              anchor: "natural",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
               body: "Carry-forward body.",
@@ -1779,6 +1779,131 @@ describe.skipIf(!jqAvailable)(
             ),
             "--findings-file",
             ".ephemeral/topic-findings.json",
+          ]),
+          "inline anchor is outside selected review diff",
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("does not validate carry-forward anchors against a narrow follow-up diff", async () => {
+      const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
+          schema: "pr-review/scope-decision/v1",
+          surface: "pr-review",
+          prior_context: {
+            kind: "github-prior-threads",
+            path: ".ephemeral/topic-prior-threads.json",
+          },
+        });
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          carry_forward: [
+            {
+              path: "README.md",
+              line: 1,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "Carry forward still applies.",
+              recommendation: "Keep the comment.",
+              body: "Carry-forward body.",
+            },
+          ],
+        });
+        await writeFile(path.join(cwd, ".ephemeral/review-body.md"), "Body\n");
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Blocking: The new export needs review.",
+            },
+          ],
+        });
+
+        await expect(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+              "github-prior-threads",
+              ".ephemeral/topic-prior-threads.json",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining('"commit_id"'),
+        });
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [
+            {
+              path: "README.md",
+              line: 1,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "README was not in the narrow review diff.",
+              recommendation: "Do not anchor there.",
+              body: "Bad current anchor.",
+            },
+          ],
+          carry_forward: [],
+        });
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "README.md",
+              line: 1,
+              side: "RIGHT",
+              body: "Bad current anchor.",
+            },
+          ],
+        });
+
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+              "github-prior-threads",
+              ".ephemeral/topic-prior-threads.json",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
           ]),
           "inline anchor is outside selected review diff",
         );
@@ -1968,12 +2093,6 @@ describe.skipIf(!jqAvailable)(
               side: "RIGHT",
               body: "Blocking: The new export needs review.",
             },
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
-            },
           ],
         });
 
@@ -1996,6 +2115,59 @@ describe.skipIf(!jqAvailable)(
           ]),
         ).resolves.toMatchObject({
           stdout: expect.stringContaining('"commit_id"'),
+        });
+
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Blocking: The new export needs review.",
+            },
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Missing-file finding (no natural anchor - see body):\n\nCarry-forward body.",
+            },
+          ],
+        });
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+          "approved review payload does not match generated payload",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Blocking: The new export needs review.",
+            },
+          ],
         });
 
         await expect(
@@ -2274,12 +2446,6 @@ describe.skipIf(!jqAvailable)(
               side: "RIGHT",
               body: "Blocking: The new export needs review.",
             },
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
-            },
           ],
         });
 
@@ -2346,6 +2512,11 @@ describe.skipIf(!jqAvailable)(
           {
             ...findingsEnvelope(),
             findings: [finding({ start_line: 3 })],
+          },
+          {
+            ...findingsEnvelope(),
+            findings: [],
+            carry_forward: [finding({ anchor: "bogus" })],
           },
         ]) {
           await writeJson(

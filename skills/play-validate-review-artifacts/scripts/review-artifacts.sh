@@ -975,7 +975,7 @@ validate_selected_diff_anchors() {
     fi
   done < <(
     jq -r '
-      (.findings + .carry_forward)[]
+      .findings[]
       | select(.anchor == "natural" or .anchor == "missing-file")
       | [.path, .line, (.start_line // "null")]
       | @tsv
@@ -1067,7 +1067,7 @@ compare_approved_payload() {
         event: $event,
         body: $body,
         comments: [
-          ($findings[0].findings + $findings[0].carry_forward)[]
+          $findings[0].findings[]
           | select(.anchor == "natural" or .anchor == "missing-file")
           | . as $finding
           | {
