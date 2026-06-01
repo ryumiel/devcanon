@@ -301,7 +301,7 @@ scope_decision_file_for() {
   printf '%s\n' "$expected"
 }
 
-support_scope_args() {
+build_support_scope_args() {
   local review_head_sha="$1"
   local scope_decision_file="$2"
   local prior_context
@@ -344,16 +344,17 @@ EOF
     }
   fi
 
-  printf '%s\0' \
-    --surface pr-review \
-    --head-sha "$review_head_sha" \
-    --base-ref "$BASE_REF" \
-    --scope-decision-file "$scope_decision_file" \
-    --expected-schema pr-review/scope-decision/v1 \
-    --expected-prior-context-kind "$prior_kind" \
-    --expected-prior-context-path "$prior_path" \
-    --governed-path-pattern "$governed_path_pattern" \
+  validator_scope_args=(
+    --surface pr-review
+    --head-sha "$review_head_sha"
+    --base-ref "$BASE_REF"
+    --scope-decision-file "$scope_decision_file"
+    --expected-schema pr-review/scope-decision/v1
+    --expected-prior-context-kind "$prior_kind"
+    --expected-prior-context-path "$prior_path"
+    --governed-path-pattern "$governed_path_pattern"
     --max-narrow-changed-files "$max_narrow_changed_files"
+  )
 }
 
 compare_payload_with_support() {
@@ -364,16 +365,14 @@ compare_payload_with_support() {
   local payload_file="$5"
   local review_event="$6"
   local validator
-  local args=()
 
   require_env BASE_REF
   validator="$(resolve_validator)"
-  while IFS= read -r -d '' arg; do
-    args+=("$arg")
-  done < <(support_scope_args "$review_head_sha" "$scope_decision_file")
+  validator_scope_args=()
+  build_support_scope_args "$review_head_sha" "$scope_decision_file"
 
   bash "$validator" compare-approved-payload \
-    "${args[@]}" \
+    "${validator_scope_args[@]}" \
     --findings-file "$findings_file" \
     --review-body-file "$review_body_file" \
     --review-payload-file "$payload_file" \
