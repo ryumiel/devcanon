@@ -62,7 +62,7 @@ git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 
 Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
@@ -126,7 +126,8 @@ bind_scope_decision_artifact() {
   # Write the pr-review/scope-decision/v1 envelope to "$SCOPE_DECISION_FILE".
   # It must record full_range="$FULL_PR_DIFF_RANGE", selected_range="$active_diff_range",
   # is_followup_narrow, language_hints, changed_files, prior_context, mechanical_facts,
-  # and semantic_decision for the final Phase 3 scope choice.
+  # and semantic_decision for the final Phase 3 scope choice. Phase 6 revalidates
+  # the same artifact against "$REVIEW_SCOPE_BASE_REF" before posting.
   HEAD_SHA="$HEAD_SHA" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
   PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
