@@ -804,6 +804,72 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("uses byte-safe changed-file identity for governed paths with newlines", async () => {
+      const { cwd, baseSha, firstSha } = await makeGitWorkspace();
+      try {
+        const governedPath = "docs/adr/a\nb.md";
+        await mkdir(path.join(cwd, "docs/adr"), { recursive: true });
+        await writeFile(path.join(cwd, governedPath), "ADR\n");
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "docs: newline adr"], {
+          cwd,
+        });
+        const headSha = await git(cwd, "rev-parse", "HEAD");
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
+          changed_files: [governedPath, "src/app.ts"],
+          language_hints: ["md", "ts"],
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "governed path requires full review",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          changed_files: ['"docs/adr/a\\nb.md"', "src/app.ts"],
+          language_hints: ["md", "ts"],
+          mode: "follow-up",
+          selection_reason:
+            "Governance path escalates the follow-up to full review.",
+          escalation_reasons: ["governance-path"],
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: true,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "governance-path",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "changed files do not match selected range",
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("rejects full follow-up artifacts without explicit justified escalation", async () => {
       const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
       try {
@@ -1512,7 +1578,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });
@@ -1687,7 +1753,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });
@@ -1731,6 +1797,112 @@ describe.skipIf(!jqAvailable)(
           ]),
         ).resolves.toMatchObject({
           stdout: expect.stringContaining('"commit_id"'),
+        });
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [
+            {
+              path: "README.md",
+              line: 1,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "README was not in the review diff.",
+              recommendation: "Do not anchor there.",
+              body: "Bad anchor.",
+            },
+          ],
+          carry_forward: [],
+        });
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+          commit_id: headSha,
+          event: "COMMENT",
+          body: "Body",
+          comments: [
+            {
+              path: "README.md",
+              line: 1,
+              side: "RIGHT",
+              body: "Bad anchor.",
+            },
+          ],
+        });
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+          "inline anchor is outside selected review diff",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          carry_forward: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "missing-file",
+              why: "Carry forward still applies.",
+              recommendation: "Keep the comment.",
+              body: "Carry-forward body.",
+            },
+          ],
+        });
+        await expectRejectsWith(
+          runValidator(cwd, "compare-approved-payload", [
+            ...scopeArgs(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+            "--review-body-file",
+            ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
+            "--review-event",
+            "COMMENT",
+          ]),
+          "findings envelope validation failed",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          carry_forward: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "missing-file",
+              why: "Carry forward still applies.",
+              recommendation: "Keep the comment.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+            },
+          ],
         });
 
         await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
@@ -1874,7 +2046,7 @@ describe.skipIf(!jqAvailable)(
               anchor: "missing-file",
               why: "Carry forward still applies.",
               recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });

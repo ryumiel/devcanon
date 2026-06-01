@@ -206,7 +206,7 @@ validate_current_head() {
 
 changed_files_json() {
   local range="$1"
-  git diff --name-only "$range" | LC_ALL=C sort | jq -R -s 'split("\n")[:-1]'
+  git diff -z --name-only "$range" | jq -R -s -c 'split("\u0000")[:-1] | sort'
 }
 
 language_hints_json_for_files() {
@@ -214,7 +214,7 @@ language_hints_json_for_files() {
     [
       .[]
       | select(test("\\.[A-Za-z0-9_+-]+$"))
-      | sub("^.*\\."; "")
+      | capture("\\.(?<ext>[A-Za-z0-9_+-]+)$").ext
       | ascii_downcase
     ]
     | sort
@@ -232,6 +232,15 @@ json_equal() {
   local actual="$2"
   jq -n -e --argjson expected "$expected" --argjson actual "$actual" \
     '$expected == $actual' >/dev/null
+}
+
+json_any_path_matches() {
+  local files_json="$1"
+  local pattern="$2"
+
+  [ -n "$pattern" ] || return 1
+  printf '%s\n' "$files_json" |
+    jq -e --arg pattern "$pattern" 'any(.[]; test($pattern))' >/dev/null
 }
 
 jq_value() {
@@ -580,7 +589,7 @@ validate_scope_decision() {
       elif reason_present "file-count"; then
         fail "file-count escalation reason missing"
       fi
-      if printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
+      if json_any_path_matches "$candidate_files" "$GOVERNED_PATH_PATTERN"; then
         [ "$is_narrow" != "true" ] || fail "governed path requires full review"
         reason_present "governance-path" ||
           fail "governance-path escalation reason missing"
@@ -590,8 +599,7 @@ validate_scope_decision() {
       elif reason_present "governance-path"; then
         fail "governance-path escalation reason missing"
       fi
-      if [ -n "$CONFIGURED_PATH_PATTERN" ] &&
-        printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
+      if json_any_path_matches "$candidate_files" "$CONFIGURED_PATH_PATTERN"; then
         [ "$is_narrow" != "true" ] || fail "configured path requires full review"
         reason_present "configured-path" ||
           fail "configured-path escalation reason missing"
@@ -858,6 +866,10 @@ validate_diff_anchors() {
   assert_readable_file "--findings-file" "$FINDINGS_FILE"
   validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
   assert_findings_envelope "$FINDINGS_FILE"
+  validate_selected_diff_anchors
+}
+
+validate_selected_diff_anchors() {
   local selected_range
   selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
 
@@ -913,6 +925,11 @@ assert_findings_envelope() {
       and (.why | type == "string" and length > 0)
       and (.recommendation | type == "string" and length > 0)
       and (.body | type == "string" and length > 0)
+      and (if .anchor == "missing-file" then
+        (.body | startswith("Missing-file finding (no natural anchor — see body):"))
+      else
+        true
+      end)
       and (.start_line == null or .start_line <= .line);
     type == "object"
     and .schema == "play-review/findings/v1"
@@ -940,6 +957,7 @@ compare_approved_payload() {
   validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
   validate_suffix "--review-payload-file" "$REVIEW_PAYLOAD_FILE" "-review-payload.json"
   assert_findings_envelope "$FINDINGS_FILE"
+  validate_selected_diff_anchors
   jq -s -e 'length == 1 and (.[0] | type == "object")' "$REVIEW_PAYLOAD_FILE" >/dev/null ||
     fail "review payload JSON validation failed"
 
@@ -975,11 +993,7 @@ compare_approved_payload() {
               path: .path,
               line: .line,
               side: "RIGHT",
-              body: (if .anchor == "missing-file" then
-                "Missing-file finding (no natural anchor — see body):\n\n" + .body
-              else
-                .body
-              end)
+              body: .body
             }
           | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]
