@@ -17,7 +17,7 @@ PROVIDER=""
 GOVERNED_PATH_PATTERN=""
 CONFIGURED_PATH_PATTERN=""
 MAX_NARROW_CHANGED_FILES=""
-ALLOW_AMBIGUOUS_FULL="false"
+ALLOW_AMBIGUOUS_FULL="true"
 PRIOR_THREADS=""
 FINDINGS_FILE=""
 REVIEW_BODY_FILE=""
@@ -237,10 +237,17 @@ json_equal() {
 json_any_path_matches() {
   local files_json="$1"
   local pattern="$2"
+  local encoded
 
   [ -n "$pattern" ] || return 1
-  printf '%s\n' "$files_json" |
-    jq -e --arg pattern "$pattern" 'any(.[]; test($pattern))' >/dev/null
+  while IFS= read -r encoded; do
+    [ -n "$encoded" ] || continue
+    if { printf '%s' "$encoded" | base64 --decode 2>/dev/null || printf '%s' "$encoded" | base64 -D 2>/dev/null; } |
+      grep -E -- "$pattern" >/dev/null; then
+      return 0
+    fi
+  done < <(printf '%s\n' "$files_json" | jq -r '.[] | @base64')
+  return 1
 }
 
 jq_value() {
@@ -335,7 +342,6 @@ require_scope_flags() {
   require_flag "--scope-decision-file" "$SCOPE_DECISION"
   require_flag "--surface" "$SURFACE"
   require_flag "--expected-schema" "$EXPECTED_SCHEMA"
-  require_flag "--base-ref" "$BASE_REF"
   require_flag "--expected-prior-context-kind" "$PRIOR_CONTEXT_KIND"
   require_flag "--expected-prior-context-path" "$PRIOR_CONTEXT_PATH"
   require_flag "--governed-path-pattern" "$GOVERNED_PATH_PATTERN"
@@ -450,6 +456,7 @@ validate_scope_decision() {
 
   local artifact_surface artifact_head mode full_range selected_range candidate_range last_reviewed
   local is_narrow mechanical_escalate semantic_checked semantic_ambiguous changed_count expected_full_range
+  local full_range_base
   local artifact_followup_usable artifact_mechanical_reason
   local expected_files actual_files expected_hints actual_hints
   local expected_count actual_count expected_selected_range count_range_label
@@ -461,8 +468,6 @@ validate_scope_decision() {
   artifact_head="$(jq_value "$SCOPE_DECISION" '.head_sha')"
   [ "$artifact_head" = "$HEAD_SHA" ] ||
     fail "scope decision head mismatch"
-  git cat-file -e "$BASE_REF^{commit}" 2>/dev/null ||
-    fail "base ref does not resolve"
 
   mode="$(jq_value "$SCOPE_DECISION" '.mode')"
   full_range="$(jq_value "$SCOPE_DECISION" '.full_range')"
@@ -476,12 +481,30 @@ validate_scope_decision() {
   semantic_checked="$(jq_value "$SCOPE_DECISION" '.semantic_decision.checked')"
   semantic_ambiguous="$(jq_value "$SCOPE_DECISION" '.semantic_decision.ambiguous')"
   changed_count="$(jq_value "$SCOPE_DECISION" '.mechanical_facts.changed_file_count')"
-  expected_full_range="$BASE_REF...HEAD"
 
   reject_unknown_escalation_reasons
   [ "$semantic_checked" = "true" ] || fail "semantic decision must be checked"
-  [ "$full_range" = "$expected_full_range" ] ||
-    fail "full range does not match caller base ref"
+  case "$full_range" in
+    *...HEAD)
+      full_range_base="${full_range%"...HEAD"}"
+      ;;
+    *)
+      fail "full range must end at HEAD"
+      ;;
+  esac
+  [ -n "$full_range_base" ] || fail "full range base ref is invalid"
+  case "$full_range_base" in
+    -* | *..* | *[[:space:]]*) fail "full range base ref is invalid" ;;
+  esac
+  git cat-file -e "$full_range_base^{commit}" 2>/dev/null ||
+    fail "base ref does not resolve"
+  if [ -n "$BASE_REF" ]; then
+    git cat-file -e "$BASE_REF^{commit}" 2>/dev/null ||
+      fail "base ref does not resolve"
+    expected_full_range="$BASE_REF...HEAD"
+    [ "$full_range" = "$expected_full_range" ] ||
+      fail "full range does not match caller base ref"
+  fi
 
   range_exists "$full_range" || fail "review range does not resolve"
 

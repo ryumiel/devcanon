@@ -88,7 +88,7 @@ async function runValidator(cwd: string, command: string, args: string[] = []) {
 
 function scopeArgs(
   headSha: string,
-  baseRef: string,
+  _baseRef: string,
   scopeDecision = ".ephemeral/topic-scope-decision.json",
   surface = "branch-review",
   expectedPriorContextKind = "none",
@@ -99,8 +99,6 @@ function scopeArgs(
     surface,
     "--head-sha",
     headSha,
-    "--base-ref",
-    baseRef,
     "--scope-decision-file",
     scopeDecision,
     "--expected-schema",
@@ -113,6 +111,28 @@ function scopeArgs(
     "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)",
     "--max-narrow-changed-files",
     "5",
+  ];
+}
+
+function scopeArgsWithBaseRef(
+  headSha: string,
+  baseRef: string,
+  scopeDecision = ".ephemeral/topic-scope-decision.json",
+  surface = "branch-review",
+  expectedPriorContextKind = "none",
+  expectedPriorContextPath = "null",
+) {
+  return [
+    ...scopeArgs(
+      headSha,
+      baseRef,
+      scopeDecision,
+      surface,
+      expectedPriorContextKind,
+      expectedPriorContextPath,
+    ),
+    "--base-ref",
+    baseRef,
   ];
 }
 
@@ -364,8 +384,9 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...initialScope(baseSha, headSha),
-          full_range: "HEAD..HEAD",
-          selected_range: "HEAD..HEAD",
+          full_range: `${headSha}...HEAD`,
+          selected_range: `${headSha}...HEAD`,
+          candidate_narrow_range: `${headSha}...HEAD`,
           changed_files: [],
           language_hints: [],
           mechanical_facts: {
@@ -380,7 +401,14 @@ describe.skipIf(!jqAvailable)(
           runValidator(
             cwd,
             "validate-scope-decision",
-            branchFollowupScopeArgs(headSha, baseSha),
+            scopeArgsWithBaseRef(
+              headSha,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "branch-review",
+              "none",
+              "null",
+            ),
           ),
           "full range does not match caller base ref",
         );
@@ -684,7 +712,7 @@ describe.skipIf(!jqAvailable)(
           runValidator(configured.cwd, "validate-scope-decision", [
             ...branchFollowupScopeArgs(headSha, configured.baseSha),
             "--configured-path-pattern",
-            "generated",
+            "\\<generated\\>",
           ]),
         ).resolves.toMatchObject({ stdout: "" });
       } finally {
@@ -1180,21 +1208,22 @@ describe.skipIf(!jqAvailable)(
             notes: "Ambiguous candidate scope.",
           },
         });
-        await expectRejectsWith(
+        await expect(
           runValidator(
             cwd,
             "validate-scope-decision",
             branchFollowupScopeArgs(headSha, baseSha),
           ),
-          "ambiguous semantic scope requires explicit allowance",
-        );
-        await expect(
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", [
             ...branchFollowupScopeArgs(headSha, baseSha),
             "--allow-ambiguous-full-escalation",
-            "true",
+            "false",
           ]),
-        ).resolves.toMatchObject({ stdout: "" });
+          "ambiguous semantic scope requires explicit allowance",
+        );
 
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", [
