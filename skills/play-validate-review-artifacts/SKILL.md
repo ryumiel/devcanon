@@ -36,10 +36,11 @@ The script does not own:
 - `play-review/findings/v1` envelope production;
 - a general shared runtime utility model for unrelated skills.
 
-ADR-0019 owns the narrow script-authority exception that permits this support
-skill to serve multiple Play review consumers. The approved design for shared
-review-artifact validation owns required behavior until the script and adapters
-are implemented.
+This support skill is a narrow exception because multiple review surfaces must
+share one deterministic artifact-validation authority. That exception does not
+make the skill a user-facing workflow or a general shared runtime model. The
+approved design for shared review-artifact validation owns required behavior
+until the script and adapters are implemented.
 
 ## Consumer Relationship
 
