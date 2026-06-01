@@ -259,6 +259,106 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps play-planning boundary-contract traceability contracts in source", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const boundaryTraceability = getMarkdownSection(
+      playPlanning,
+      "Boundary-Contract Traceability",
+    );
+    const contractChecklist = getMarkdownSection(
+      playPlanning,
+      "Contract Checklist Triggers",
+    );
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedBoundaryTraceability =
+      normalizeWhitespace(boundaryTraceability);
+    const normalizedContractChecklist = normalizeWhitespace(contractChecklist);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+
+    expect(normalizedBoundaryTraceability).toContain(
+      "contract-heavy plans involving producer, validator, adapter, or consumer boundaries",
+    );
+
+    for (const requiredBoundaryField of [
+      "boundary name",
+      "authoritative source",
+      "required input tuple",
+      "producer",
+      "validator or policy authority",
+      "adapter or consumer",
+      "failure mode",
+      "required proof per boundary participant",
+    ]) {
+      expect(normalizedBoundaryTraceability).toContain(requiredBoundaryField);
+    }
+
+    expect(normalizedBoundaryTraceability).toContain(
+      "at least one implementation task or an explicit no-code disposition",
+    );
+    expect(normalizedContractChecklist).toContain(
+      "must reference relevant boundary row IDs",
+    );
+    expect(normalizedContractChecklist).toContain(
+      "explicitly name the boundary rows",
+    );
+    expect(normalizedContractChecklist).toContain(
+      "omits relevant boundary row IDs or row ownership",
+    );
+    expect(normalizedContractChecklist).toContain(
+      "even when the checklist precisely restates boundary details",
+    );
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+    ]) {
+      expect(reviewSurface).toContain(
+        "named boundary participant has no task coverage",
+      );
+      expect(reviewSurface).toContain(
+        "named boundary participant has no proof obligation",
+      );
+      expect(reviewSurface).toContain(
+        "final consumer path is covered but an earlier adapter",
+      );
+      expect(reviewSurface).toContain(
+        "restate vague contract concepts without tying back to the boundary rows",
+      );
+      expect(reviewSurface).toContain(
+        "omits relevant boundary row IDs or row ownership",
+      );
+      expect(reviewSurface).toContain("precisely restates boundary details");
+    }
+
+    expect(normalizedBoundaryTraceability).toContain("Invalid example");
+    expect(normalizedBoundaryTraceability).toContain(
+      "final posting validation",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "scope-decision validation",
+    );
+    expect(normalizedBoundaryTraceability).toContain("Valid example");
+
+    for (const requiredParticipant of [
+      "producer artifact",
+      "shared validator",
+      "prior-thread adapter",
+      "approved-review adapter",
+      "workflow prose",
+    ]) {
+      expect(normalizedBoundaryTraceability).toContain(requiredParticipant);
+    }
+
+    expect(normalizedBoundaryTraceability).toContain("boundary row");
+    expect(normalizedBoundaryTraceability).toContain(
+      "does not prescribe concrete implementation code",
+    );
+    expect(normalizedBoundaryTraceability).toContain("command recipes");
+  });
+
   it("makes the play-brainstorm interactive design review gate explicit", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const userReviewGate = getMarkdownSection(
