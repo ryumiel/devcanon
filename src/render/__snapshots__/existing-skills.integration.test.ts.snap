@@ -94,6 +94,14 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 }
 `;
 
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > play-validate-review-artifacts-sidecar 1`] = `
+{
+  "policy": {
+    "allow_implicit_invocation": false,
+  },
+}
+`;
+
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > pr-review-sidecar 1`] = `
 {
   "interface": {

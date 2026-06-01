@@ -16,6 +16,7 @@ const PHASE_ARTIFACT_SKILLS = [
   "play-review",
   "branch-review",
   "pr-review",
+  "play-validate-review-artifacts",
   "pr-authoring",
   "play-branch-finish",
   "play-subagent-execution",
@@ -174,6 +175,16 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Do not call `build-github-review-payload` again after user approval",
+    );
+
+    const supportValidator = bodyFor("play-validate-review-artifacts");
+    expect(supportValidator).toContain("scripts/review-artifacts.sh");
+    expect(supportValidator).toContain("validate-scope-decision");
+    expect(supportValidator).toContain("validate-prior-threads");
+    expect(supportValidator).toContain("validate-diff-anchors");
+    expect(supportValidator).toContain("compare-approved-payload");
+    expect(supportValidator).toContain(
+      "play-validate-review-artifacts validator missing",
     );
 
     for (const target of ["claude", "codex"] as const) {
@@ -648,6 +659,52 @@ describe("rendered phase artifact smoke coverage", () => {
           "pr-review",
           "scripts",
           "approved-review-artifacts.sh",
+        );
+
+        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
+  it("mirrors the play-validate-review-artifacts support validator required by review adapter contracts", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+      const sourceHelper = await readFile(
+        path.join(
+          repoRoot,
+          "skills",
+          "play-validate-review-artifacts",
+          "scripts",
+          "review-artifacts.sh",
+        ),
+        "utf-8",
+      );
+
+      for (const target of ["claude", "codex"] as const) {
+        const helperPath = path.join(
+          generatedDir,
+          target,
+          "skills",
+          "play-validate-review-artifacts",
+          "scripts",
+          "review-artifacts.sh",
         );
 
         expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);

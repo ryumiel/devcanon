@@ -34,6 +34,7 @@ const SKILLS_WITH_METADATA = {
   policySidecar: [
     "issue-priming-workflow",
     "play-review",
+    "play-validate-review-artifacts",
     "subagent-lifecycle",
   ] as const,
 };
@@ -97,6 +98,8 @@ const TOUCHED_SKILL_COVERAGE = {
     "explicit-only workflow metadata coverage protects implementation-adjacent discussion from implicit TDD selection",
   "play-verification":
     "explicit-only workflow metadata coverage protects completion checks from implicit workflow selection",
+  "play-validate-review-artifacts":
+    "explicit metadata expectations cover the support-only validator policy sidecar and script packaging",
   "write-product-requirements":
     "Codex frontmatter smoke coverage protects recently touched product requirements skill prose from invalid Codex keys",
   "write-product-spec":
