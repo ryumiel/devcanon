@@ -50,6 +50,28 @@ a shared runtime utility layer. Ownership boundaries matter: a helper for
 `play-review/findings/v1` belongs to `play-review`; a helper for an
 `issue-priming-workflow` artifact belongs to `issue-priming-workflow`.
 
+The narrow exception is the `play-validate-review-artifacts` support skill. Its
+script may be the shared deterministic authority for review-artifact validation
+when multiple Play review surfaces consume the same review-artifact contract.
+That exception is limited to review-artifact validation mechanics for Play
+review consumers such as PR review, branch review, related Play review wrappers,
+and their rendered or installed skill bundles.
+
+Consumer scripts that use this support skill remain adapters owned by their
+surface skills. They retain their existing skill-facing command names,
+surface-specific path derivation, stdout contracts, and operator workflow
+policy, then pass explicit inputs to the support validator. They must resolve
+the validator as a sibling skill script, with an explicit override for tests and
+packaging diagnostics, and must fail before validation when the executable
+support validator is missing.
+
+This exception does not create a general cross-skill runtime utility layer. The
+support validator remains shell/JQ self-contained for installed skill bundles
+and must not require the installed `devcanon` CLI or a Node.js runtime solely to
+validate review artifacts. A later TypeScript implementation may replace the
+mechanics only behind the same support-skill command surface, or after a
+separate accepted decision expands shared runtime authority.
+
 ## Consequences
 
 - Prompt context shrinks because repeated shell blocks are replaced with compact
@@ -60,6 +82,11 @@ a shared runtime utility layer. Ownership boundaries matter: a helper for
 - Skill bundles remain self-contained under the existing render and sync model.
 - Shared utility extraction remains possible later, but requires a separate
   packaging and path-resolution decision.
+- Play review artifact validation has one named support-skill owner rather than
+  duplicated PR-review and branch-review script policy.
+- The architecture overview remains unchanged for this decision because the
+  exception is recorded here and in the support skill contract, not as a new
+  general module or runtime layer.
 
 ## Alternatives considered
 
