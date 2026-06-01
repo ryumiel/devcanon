@@ -1574,6 +1574,27 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(
       /Valid self-review example:.*Comment mapping:.*Current thread and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
     );
+    expect(normalizedExecutionMode).toMatch(
+      /Comment mapping:.*C1 and C3 map to lifecycle or correlation gap.*C2 is explanation-only/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Current thread and code evidence:.*fetched unresolved threads at \d{4}-\d{2}-\d{2}.*`src\/worker\.ts`.*stale completion callbacks/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Gaps:.*no test covers same-tick cancellation followed by stale completion/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Root-cause diagnosis:.*missing validation boundary at the operation owner/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Root-cause-derived work items:.*strengthen the owner-side completion guard.*add stale-callback coverage.*rather than one task per comment/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Residual risks:.*retry cleanup still needs focused verification/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Executor handoff suitability:.*direct\/manual plan has source authority.*acceptance criteria.*TDD expectations.*verification.*GitHub closeout left with `play-review-response`/i,
+    );
 
     expect(normalizedExecutionMode).toMatch(
       /GitHub reply, refetch, and resolution closeout.*must not be dispatched as `play-subagent-execution` implementation tasks/i,
