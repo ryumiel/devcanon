@@ -250,6 +250,8 @@ a semantic escalation reason such as `source-owned-contract`,
 `shared-workflow-policy`, `broad-scope`, or `ambiguous-classification`.
 The final artifact must record `selected_range` equal to `FULL_DIFF_RANGE`,
 `is_followup_narrow: false`, and `semantic_decision.checked: true`.
+When the semantic escalation reason is `ambiguous-classification`, the
+finalizer records `semantic_decision.ambiguous: true`.
 `semantic_decision.checked` means wrapper classification has completed; do not
 write the final artifact earlier.
 

@@ -345,6 +345,53 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("finalizes ambiguous semantic classification with semantic ambiguity recorded", async () => {
+    const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: "main...HEAD",
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          IS_FOLLOWUP_NARROW: "false",
+          LAST_REVIEWED_SHA: lastReviewedSha,
+          PRIOR_BRANCH_FINDINGS: ".ephemeral/topic-findings.json",
+          CHANGED_FILE_COUNT: "1",
+          FOLLOWUP_SHA_USABLE: "true",
+          MECHANICAL_ESCALATE_FULL: "false",
+          MECHANICAL_ESCALATION_REASON: "",
+          SEMANTIC_ESCALATION_REASON: "ambiguous-classification",
+          SEMANTIC_DECISION_NOTES:
+            "Wrapper semantic classification could not prove narrow scope.",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify([
+            "notes/followup.md",
+            "src/full-only.ts",
+          ]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md", "ts"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: "main...HEAD",
+        is_followup_narrow: false,
+        escalation_reasons: ["ambiguous-classification"],
+        semantic_decision: {
+          checked: true,
+          ambiguous: true,
+          notes:
+            "Wrapper semantic classification could not prove narrow scope.",
+        },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("finalizes a mechanically narrow follow-up as narrow when semantic classification preserves it", async () => {
     const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
     try {

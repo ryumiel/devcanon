@@ -274,6 +274,9 @@ finalize_scope_decision() {
     true | false) ;;
     *) fail "SEMANTIC_DECISION_AMBIGUOUS must be true or false" ;;
   esac
+  case ",${SEMANTIC_ESCALATION_REASON:-}," in
+    *,ambiguous-classification,*) semantic_ambiguous=true ;;
+  esac
   if [ "$IS_FOLLOWUP_NARROW" = "false" ] &&
     [ "$MECHANICAL_ESCALATE_FULL" = "false" ] &&
     [ -z "${SEMANTIC_ESCALATION_REASON:-}" ] &&
