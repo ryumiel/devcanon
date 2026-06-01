@@ -188,6 +188,52 @@ Cover the applicable surfaces:
 Keep the table concise. It records invariants and authority surfaces; it does
 not copy helper implementations or command recipes.
 
+## Boundary-Contract Traceability
+
+For contract-heavy plans involving producer, validator, adapter, or consumer
+boundaries, add boundary-contract traceability before task planning. Use it
+when the work touches validators, adapters, generated artifacts, derived paths,
+fail-closed behavior, or cross-skill handoffs.
+
+Boundary-contract traceability means the plan names every participant that
+produces, validates, adapts, or consumes the shared contract, then proves that
+each participant is covered by implementation work or by an explicit no-code
+disposition. The boundary table should use stable row IDs so task contract
+checklists can reference relevant boundary rows instead of restating all
+details.
+
+Each boundary row must identify:
+
+- boundary name;
+- authoritative source;
+- required input tuple;
+- producer;
+- validator or policy authority;
+- adapter or consumer;
+- failure mode when an authority input is missing or mismatched;
+- required proof per boundary participant.
+
+Every boundary row must map to at least one implementation task or an explicit
+no-code disposition. A named participant with no task coverage or proof
+obligation is a plan-review failure. A plan-review result must also fail when a
+final consumer path is covered but an earlier adapter, producer, or validator
+for the same contract is not covered.
+
+Invalid example: a contract-heavy review workflow plan tests only final posting
+validation while an earlier scope-decision validation path for the same
+artifact contract remains under-bound. The plan mentions upstream context, but
+it does not assign task coverage or proof obligations to the earlier adapter.
+
+Valid example: a review workflow plan names the producer artifact, shared
+validator, prior-thread adapter, approved-review adapter, workflow prose, and
+final posting consumer in boundary rows. Each row has task coverage or an
+explicit no-code disposition, and proof obligations are tied to the boundary
+row that owns the participant.
+
+This table constrains contract authority, participant coverage, and proof. It
+does not prescribe concrete implementation code, test bodies, helper names,
+line edits, shell recipes, or command recipes.
+
 ## Contract Checklist Triggers
 
 For non-trivial work, every task must include a contract checklist. Non-trivial
@@ -277,6 +323,17 @@ Do not require PR guideline, PR template, `WORKFLOW.md`, ADR, MAP, generated
 output, or installed-output updates unless the repository's existing AFDS
 triggers apply; when a surface is not updated, the plan should state why it is
 not in scope.
+
+For contract-heavy work with boundary-contract traceability, contract
+checklists must reference relevant boundary row IDs or explicitly name the
+boundary rows that own the task's participant coverage and proof obligations.
+If a checklist covers only a final consumer while an earlier producer,
+validator, or adapter row for the same contract has no task coverage or proof
+obligation, the plan must fail review. If an applicable checklist omits
+relevant boundary row IDs or row ownership, the plan must fail review even when
+the checklist precisely restates boundary details. If a checklist restates
+vague contract concepts without tying back to the boundary rows that own
+participant coverage, the plan must fail review.
 
 ## Requirements Traceability
 
@@ -525,6 +582,18 @@ governance surfaces from the named set owned by
 `docs/guidelines/documentation-checklists.md`? Fix missing contract surfaces
 before task planning.
 
+**4a. Boundary-contract traceability check:** If contract-heavy work touches
+producer, validator, adapter, or consumer boundaries, does the plan include
+boundary rows for every participant? Fail and fix the plan when a named
+boundary participant has no task coverage, when a named boundary participant
+has no proof obligation, or when a final consumer path is covered but an
+earlier adapter, producer, or validator for the same contract is not covered.
+Fail and fix the plan when task checklists restate vague contract concepts
+without tying back to the boundary rows that own participant coverage.
+Fail and fix the plan when an applicable task checklist omits relevant
+boundary row IDs or row ownership, even when it precisely restates boundary
+details.
+
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
 include owner/authority, affected consumers/generated outputs, must-preserve,
@@ -625,6 +694,22 @@ inline content remains valid.
 - No placeholder violations (catches what self-review missed)
 - Contract-heavy work includes the applicable contract table surfaces before
   task planning
+- Contract-heavy work touching producer, validator, adapter, or consumer
+  boundaries includes boundary-contract traceability rows before task planning
+- Boundary rows identify boundary name, authoritative source, required input
+  tuple, producer, validator or policy authority, adapter or consumer, failure
+  mode for missing or mismatched authority inputs, and required proof per
+  boundary participant
+- Every boundary row maps to at least one task or an explicit no-code
+  disposition
+- The plan fails when a named boundary participant has no task coverage, when a
+  named boundary participant has no proof obligation, or when a final consumer
+  path is covered but an earlier adapter, producer, or validator for the same
+  contract is not covered
+- The plan fails when task checklists restate vague contract concepts without
+  tying back to the boundary rows that own participant coverage
+- The plan fails when an applicable task checklist omits relevant boundary row
+  IDs or row ownership, even when it precisely restates boundary details
 - The contract checklist is present for every triggered task, or the task gives
   a specific reason no trigger applies
 - Required checklist fields cover trigger criteria, owner/authority,

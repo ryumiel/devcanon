@@ -62,6 +62,13 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
       expect(playPlanning).toContain("## Contract Checklist Triggers");
+      expect(playPlanning).toContain("## Boundary-Contract Traceability");
+      expect(playPlanning).toContain("required proof per boundary participant");
+      expect(playPlanning).toContain("Invalid example");
+      expect(playPlanning).toContain("final posting");
+      expect(playPlanning).toContain("scope-decision validation");
+      expect(playPlanning).toContain("prior-thread adapter");
+      expect(playPlanning).toContain("approved-review adapter");
       expect(playPlanning).toContain("## Execution Handoff");
       expect(playPlanning).toContain("play-subagent-execution");
 
