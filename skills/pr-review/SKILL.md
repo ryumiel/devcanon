@@ -269,6 +269,8 @@ Only after user approval:
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+   : "${BASE_REF:?base ref missing from Phase 4 handoff}"
+   : "${SCOPE_DECISION_FILE:?Phase 3 scope-decision artifact path missing}"
 
    build_and_freeze_approved_review() {
      cd "$WORKING_DIRECTORY" || return 1
@@ -291,6 +293,8 @@ Only after user approval:
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       BASE_REF="$BASE_REF" \
+       SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
      ) || return 1
      [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; return 1; }
@@ -304,8 +308,10 @@ Only after user approval:
 
    The frozen artifact schema is `pr-review/approved-review/v1`. It stores the
    approved `review_head_sha`, findings path, review body path, review payload
-   path, SHA-256 digests for all three source artifacts, and the exact payload
-   object. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
+   path, Phase 3 scope-decision path, SHA-256 digests for all four source
+   artifacts including the scope-decision artifact, and the exact payload
+   object. The helper validates the stored scope-decision artifact and digest
+   before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
    and requires ranged inline comments to pair `start_line` with
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
@@ -340,6 +346,7 @@ Only after user approval:
      [ ! -d "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path is a directory" >&2; exit 1; }
      [ ! -e "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || [ -f "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path exists but is not a regular file" >&2; exit 1; }
      if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
+       BASE_REF="$BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
        rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"
