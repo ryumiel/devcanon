@@ -2132,7 +2132,7 @@ describe.skipIf(!jqAvailable)(
               path: "src/app.ts",
               line: 2,
               side: "RIGHT",
-              body: "Missing-file finding (no natural anchor - see body):\n\nCarry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });

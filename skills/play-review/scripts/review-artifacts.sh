@@ -426,7 +426,7 @@ validate_inline_source_anchors() {
     validate_source_anchor "$entry_path" "$line" "$start_line" >/dev/null
   done < <(
     jq -c '
-      (.findings + .carry_forward)[]
+      .findings[]
       | select(.anchor == "natural" or .anchor == "missing-file")
     ' "$FINDINGS_FILE"
   )
@@ -506,7 +506,7 @@ build_github_review_payload() {
       event: $event,
       body: $body,
       comments: (
-        ($envelope[0].findings + $envelope[0].carry_forward)
+        $envelope[0].findings
         | map(select(.anchor == "natural" or .anchor == "missing-file"))
         | map({
             path,
