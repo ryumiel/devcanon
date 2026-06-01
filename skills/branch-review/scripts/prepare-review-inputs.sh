@@ -7,6 +7,8 @@ LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
 SCOPE_DECISION_FILE=""
 CHANGED_FILES_FILE=""
+GOVERNED_PATH_PATTERN='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
+MAX_NARROW_CHANGED_FILES=5
 
 emit_line() {
   local key="$1"
@@ -105,17 +107,11 @@ prepare_scope_decision_file() {
   )"
 }
 
-validate_scope_decision_if_present() {
+validate_scope_decision() {
   local helper
-  local review_head_sha
 
-  [ -f "$SCOPE_DECISION_FILE" ] || return 0
   helper="$(branch_scope_helper)"
-  review_head_sha="$(git rev-parse HEAD 2>/dev/null)" || {
-    echo "failed to resolve HEAD" >&2
-    exit 1
-  }
-  HEAD_SHA="$review_head_sha" \
+  HEAD_SHA="$HEAD_SHA" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
   PRIOR_BRANCH_FINDINGS="$PRIOR_FINDINGS_FILE" \
     bash "$helper" validate-scope-decision
@@ -177,7 +173,253 @@ write_changed_files_file() {
   git diff --name-only "$range" >"$CHANGED_FILES_FILE"
 }
 
+require_jq() {
+  command -v jq >/dev/null 2>&1 || {
+    echo "jq is required to prepare branch review inputs" >&2
+    exit 1
+  }
+}
+
+changed_files_json() {
+  local range="$1"
+
+  git diff -z --name-only "$range" |
+    jq -R -s -c 'split("\u0000")[:-1] | sort'
+}
+
+language_hints_json_for_files() {
+  jq -c '
+    [
+      .[]
+      | select(test("\\.[A-Za-z0-9_+-]+$"))
+      | capture("\\.(?<ext>[A-Za-z0-9_+-]+)$").ext
+      | ascii_downcase
+    ]
+    | sort
+    | unique
+  '
+}
+
+changed_file_count() {
+  local range="$1"
+
+  changed_files_json "$range" | jq 'length'
+}
+
+sha_is_usable_followup() {
+  local sha="$1"
+
+  git cat-file -e "$sha^{commit}" 2>/dev/null &&
+    git merge-base --is-ancestor "$sha" HEAD 2>/dev/null
+}
+
+regex_is_valid() {
+  local pattern="$1"
+
+  [ -n "$pattern" ] || return 1
+  set +e
+  grep -E -- "$pattern" /dev/null >/dev/null 2>&1
+  local status=$?
+  set -e
+  [ "$status" -le 1 ]
+}
+
+any_changed_path_matches() {
+  local range="$1"
+  local pattern="$2"
+
+  [ -n "$pattern" ] || return 1
+  git diff --name-only "$range" | grep -E -- "$pattern" >/dev/null 2>&1
+}
+
+append_escalation_reason() {
+  local reason="$1"
+
+  if [ -z "$MECHANICAL_ESCALATION_REASON" ]; then
+    MECHANICAL_ESCALATION_REASON="$reason"
+  else
+    MECHANICAL_ESCALATION_REASON="$MECHANICAL_ESCALATION_REASON,$reason"
+  fi
+}
+
+escalation_reasons_json() {
+  if [ -z "$MECHANICAL_ESCALATION_REASON" ]; then
+    printf '[]\n'
+  else
+    printf '%s\n' "$MECHANICAL_ESCALATION_REASON" |
+      jq -R -c 'split(",") | map(select(length > 0))'
+  fi
+}
+
+prepare_regular_file_for_write() {
+  local file="$1"
+
+  if [[ -L ".ephemeral" ]]; then
+    echo ".ephemeral must not be a symlink" >&2
+    exit 1
+  fi
+  if [[ -e ".ephemeral" && ! -d ".ephemeral" ]]; then
+    echo ".ephemeral exists but is not a directory" >&2
+    exit 1
+  fi
+  mkdir -p ".ephemeral"
+  [ ! -L "$file" ] || {
+    echo "scope decision path must not be a symlink: $file" >&2
+    exit 1
+  }
+  [ ! -d "$file" ] || {
+    echo "scope decision path is a directory: $file" >&2
+    exit 1
+  }
+  [ ! -e "$file" ] || [ -f "$file" ] || {
+    echo "scope decision path exists but is not a regular file: $file" >&2
+    exit 1
+  }
+}
+
+write_scope_decision_artifact() {
+  local selected_files_json="$1"
+  local selected_language_hints_json="$2"
+  local escalation_reasons="$3"
+  local last_reviewed_json prior_kind prior_path_json
+  local mode selection_reason semantic_notes
+  local tmp_file
+
+  if [ -n "$LAST_REVIEWED_SHA" ]; then
+    mode="follow-up"
+    last_reviewed_json="$(printf '%s\n' "$LAST_REVIEWED_SHA" | jq -R '.')"
+    prior_kind="branch-findings"
+    prior_path_json="$(printf '%s\n' "$PRIOR_FINDINGS_FILE" | jq -R '.')"
+  else
+    mode="initial"
+    last_reviewed_json="null"
+    prior_kind="none"
+    prior_path_json="null"
+  fi
+  if [ "$MECHANICAL_IS_FOLLOWUP_NARROW" = "true" ]; then
+    selection_reason="follow-up-narrow"
+  else
+    selection_reason="$MECHANICAL_ESCALATION_REASON"
+  fi
+  semantic_notes=""
+
+  prepare_regular_file_for_write "$SCOPE_DECISION_FILE"
+  tmp_file="$(mktemp ".ephemeral/branch-review-scope-decision.XXXXXX")"
+  jq -n \
+    --arg schema "branch-review/scope-decision/v1" \
+    --arg surface "branch-review" \
+    --arg mode "$mode" \
+    --arg selected_range "$MECHANICAL_ACTIVE_DIFF_RANGE" \
+    --arg full_range "$FULL_DIFF_RANGE" \
+    --arg candidate_range "$CANDIDATE_ACTIVE_DIFF_RANGE" \
+    --arg selection_reason "$selection_reason" \
+    --arg head_sha "$HEAD_SHA" \
+    --arg prior_kind "$prior_kind" \
+    --arg mechanical_reason "$MECHANICAL_ESCALATION_REASON" \
+    --arg notes "$semantic_notes" \
+    --argjson is_narrow "$MECHANICAL_IS_FOLLOWUP_NARROW" \
+    --argjson escalation_reasons "$escalation_reasons" \
+    --argjson last_reviewed "$last_reviewed_json" \
+    --argjson changed_files "$selected_files_json" \
+    --argjson language_hints "$selected_language_hints_json" \
+    --argjson prior_path "$prior_path_json" \
+    --argjson changed_file_count "$CHANGED_FILE_COUNT" \
+    --argjson followup_sha_usable "$FOLLOWUP_SHA_USABLE" \
+    --argjson mechanical_escalate "$MECHANICAL_ESCALATE_FULL" \
+    '{
+      schema: $schema,
+      surface: $surface,
+      mode: $mode,
+      selected_range: $selected_range,
+      full_range: $full_range,
+      candidate_narrow_range: $candidate_range,
+      is_followup_narrow: $is_narrow,
+      selection_reason: $selection_reason,
+      escalation_reasons: $escalation_reasons,
+      last_reviewed_sha: $last_reviewed,
+      head_sha: $head_sha,
+      changed_files: $changed_files,
+      language_hints: $language_hints,
+      prior_context: {
+        kind: $prior_kind,
+        path: $prior_path
+      },
+      mechanical_facts: {
+        changed_file_count: $changed_file_count,
+        followup_sha_usable: $followup_sha_usable,
+        mechanical_escalate_full: $mechanical_escalate,
+        mechanical_escalation_reason: $mechanical_reason
+      },
+      semantic_decision: {
+        checked: true,
+        ambiguous: false,
+        notes: $notes
+      }
+    }' >"$tmp_file"
+  mv "$tmp_file" "$SCOPE_DECISION_FILE"
+}
+
+compute_scope_values() {
+  local configured_pattern="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
+  local selected_files_json selected_language_hints_json escalation_reasons_json_value
+
+  HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || {
+    echo "failed to resolve HEAD" >&2
+    exit 1
+  }
+  BASE="$(resolve_base)"
+  FULL_DIFF_RANGE="$BASE...HEAD"
+  CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  MECHANICAL_IS_FOLLOWUP_NARROW=false
+  MECHANICAL_ESCALATE_FULL=true
+  MECHANICAL_ESCALATION_REASON=""
+  FOLLOWUP_SHA_USABLE=false
+
+  if [[ -z "$LAST_REVIEWED_SHA" ]]; then
+    append_escalation_reason "not-followup"
+    CHANGED_FILE_COUNT="$(changed_file_count "$FULL_DIFF_RANGE")"
+  elif sha_is_usable_followup "$LAST_REVIEWED_SHA"; then
+    FOLLOWUP_SHA_USABLE=true
+    CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
+    CHANGED_FILE_COUNT="$(changed_file_count "$CANDIDATE_ACTIVE_DIFF_RANGE")"
+
+    if [ "$CHANGED_FILE_COUNT" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
+      append_escalation_reason "file-count"
+    fi
+    if any_changed_path_matches "$CANDIDATE_ACTIVE_DIFF_RANGE" "$GOVERNED_PATH_PATTERN"; then
+      append_escalation_reason "governance-path"
+    fi
+    if regex_is_valid "$configured_pattern" &&
+      any_changed_path_matches "$CANDIDATE_ACTIVE_DIFF_RANGE" "$configured_pattern"; then
+      append_escalation_reason "configured-path"
+    fi
+
+    if [ -z "$MECHANICAL_ESCALATION_REASON" ]; then
+      MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
+      MECHANICAL_IS_FOLLOWUP_NARROW=true
+      MECHANICAL_ESCALATE_FULL=false
+    fi
+  else
+    append_escalation_reason "last-reviewed-unusable"
+    CHANGED_FILE_COUNT="$(changed_file_count "$FULL_DIFF_RANGE")"
+  fi
+
+  selected_files_json="$(changed_files_json "$MECHANICAL_ACTIVE_DIFF_RANGE")"
+  selected_language_hints_json="$(printf '%s\n' "$selected_files_json" | language_hints_json_for_files)"
+  LANGUAGE_HINTS="$(printf '%s\n' "$selected_language_hints_json" | jq -r 'join(",")')"
+  escalation_reasons_json_value="$(escalation_reasons_json)"
+
+  write_changed_files_file "$CANDIDATE_ACTIVE_DIFF_RANGE"
+  write_scope_decision_artifact \
+    "$selected_files_json" \
+    "$selected_language_hints_json" \
+    "$escalation_reasons_json_value"
+  validate_scope_decision
+}
+
 require_repo_root
+require_jq
 parse_args "$@"
 prepare_scope_decision_file
 
@@ -192,23 +434,7 @@ if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
   fi
   validate_prior_findings
 fi
-validate_scope_decision_if_present
-
-BASE="$(resolve_base)"
-FULL_DIFF_RANGE="$BASE...HEAD"
-CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-if [[ -n "$LAST_REVIEWED_SHA" ]]; then
-  CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
-fi
-
-MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-MECHANICAL_IS_FOLLOWUP_NARROW=false
-MECHANICAL_ESCALATE_FULL=true
-MECHANICAL_ESCALATION_REASON="scope-validation-delegated"
-FOLLOWUP_SHA_USABLE="scope-validation-delegated"
-CHANGED_FILE_COUNT="scope-validation-delegated"
-LANGUAGE_HINTS=""
-write_changed_files_file "$FULL_DIFF_RANGE"
+compute_scope_values
 
 emit_line "BASE" "$BASE"
 emit_line "FIX_MODE" "$FIX_MODE"

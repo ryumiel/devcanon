@@ -93,6 +93,10 @@ async function readChangedFiles(cwd: string, changedFilesFile: string) {
   return content.trim().split("\n").filter(Boolean);
 }
 
+async function readJsonFile(cwd: string, filePath: string) {
+  return JSON.parse(await readFile(path.join(cwd, filePath), "utf8"));
+}
+
 async function writeFailingSupportValidator(cwd: string, message: string) {
   const validator = path.join(cwd, ".ephemeral/failing-support-validator.sh");
   await mkdir(path.dirname(validator), { recursive: true });
@@ -127,16 +131,21 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
-      );
-      expect(values.FOLLOWUP_SHA_USABLE).toBe("scope-validation-delegated");
-      expect(values.CHANGED_FILE_COUNT).toBe("scope-validation-delegated");
-      expect(values.LANGUAGE_HINTS).toBe("");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("not-followup");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("false");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
+      expect(values.LANGUAGE_HINTS).toBe("ts");
       expect(path.dirname(values.CHANGED_FILES_FILE)).toBe(".ephemeral");
       expect(values.SCOPE_DECISION_FILE).toBe(
         `.ephemeral/topic-${headSha}-scope-decision.json`,
       );
+      await expect(
+        readJsonFile(cwd, values.SCOPE_DECISION_FILE),
+      ).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: "main...HEAD",
+        escalation_reasons: ["not-followup"],
+      });
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
@@ -169,14 +178,15 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.CANDIDATE_ACTIVE_DIFF_RANGE).toBe(
         `${lastReviewedSha}..HEAD`,
       );
-      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
+        `${lastReviewedSha}..HEAD`,
       );
-      expect(values.FOLLOWUP_SHA_USABLE).toBe("scope-validation-delegated");
-      expect(values.CHANGED_FILE_COUNT).toBe("scope-validation-delegated");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
+      expect(values.LANGUAGE_HINTS).toBe("md");
       expect(values.PRIOR_BRANCH_FINDINGS).toBe(findingsFile);
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
@@ -217,8 +227,11 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
       expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
+        "file-count,governance-path",
       );
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("7");
+      expect(values.LANGUAGE_HINTS).toBe("md,ts");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -247,9 +260,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
-      );
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("governance-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -275,9 +288,12 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         findingsFile,
       ]);
 
-      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
-      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
-      expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
+      expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe(
+        `${lastReviewedSha}..HEAD`,
+      );
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
+      expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("");
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/cli/commands/foo.ts"]);
@@ -306,9 +322,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
-      );
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("configured-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -334,9 +350,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
-      );
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("configured-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -370,8 +386,62 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
       expect(values.MECHANICAL_ESCALATION_REASON).toBe(
-        "scope-validation-delegated",
+        "last-reviewed-unusable",
       );
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("false");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["notes/followup.md"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("fails closed for invalid configured path regexes in the normal path", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+      await expect(
+        execFileAsync("bash", [helperScript], {
+          cwd,
+          env: {
+            ...process.env,
+            PLAY_REVIEW_DIR: playReviewDir,
+            BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "[",
+          },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "--configured-path-pattern must be a valid extended regular expression",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("writes changed files from the candidate follow-up range", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/full-only.ts", "export const fullOnly = 1;\n");
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(cwd, "notes/followup.md", "narrow\n");
+
+      const values = await runHelper(cwd, [
+        "--last-reviewed",
+        lastReviewedSha,
+        "--prior-findings",
+        findingsFile,
+      ]);
+
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["notes/followup.md"]);
     } finally {
       await cleanupTempDir(cwd);
     }

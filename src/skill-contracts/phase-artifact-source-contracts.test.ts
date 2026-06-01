@@ -485,27 +485,31 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReviewHelper).toContain("branch_scope_helper");
     expect(branchReviewHelper).toContain("scope-decision-artifacts.sh");
+    expect(branchReviewHelper).toContain("write_scope_decision_artifact");
     expect(branchReviewHelper).toContain("validate-scope-decision");
     expect(branchReview).toContain('BASE) BASE="$value"');
     expect(branchReview).toContain('FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"');
     expect(branchReviewHelper).not.toContain("|src/|");
     expect(branchReviewHelper).toContain("2>/dev/null");
-    expect(branchReviewHelper).not.toContain("ESCALATE_FULL=false");
-    expect(branchReviewHelper).not.toContain("GOVERNED_PATH_PATTERN");
-    expect(branchReviewHelper).not.toContain("CONFIGURED_PATH_PATTERN");
-    expect(branchReviewHelper).not.toContain(
+    expect(branchReviewHelper).toContain("MECHANICAL_ESCALATE_FULL=false");
+    expect(branchReviewHelper).toContain("GOVERNED_PATH_PATTERN");
+    expect(branchReviewHelper).toContain(
+      "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+    );
+    expect(branchReviewHelper).toContain(
       'MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"',
     );
     expect(branchReviewHelper).toContain(
       'MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"',
     );
-    expect(branchReviewHelper).not.toContain(
-      "MECHANICAL_IS_FOLLOWUP_NARROW=true",
-    );
+    expect(branchReviewHelper).toContain("MECHANICAL_IS_FOLLOWUP_NARROW=true");
     expect(branchReviewHelper).toContain("MECHANICAL_IS_FOLLOWUP_NARROW=false");
     expect(branchReviewHelper).toContain("CHANGED_FILE_COUNT");
     expect(branchReviewHelper).toContain("CHANGED_FILES_FILE");
     expect(branchReviewHelper).toContain("FOLLOWUP_SHA_USABLE");
+    expect(branchReviewHelper).toContain(
+      'write_changed_files_file "$CANDIDATE_ACTIVE_DIFF_RANGE"',
+    );
     expect(branchReviewHelper).toContain('emit_line "BASE" "$BASE"');
     expect(branchReviewHelper).toContain(
       'emit_line "MECHANICAL_ACTIVE_DIFF_RANGE" "$MECHANICAL_ACTIVE_DIFF_RANGE"',
@@ -530,7 +534,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
     expect(branchReview).toContain("CHANGED_FILES_FILE");
     expect(branchReview).toContain("docs/product-requirements/**");
-    expect(branchReviewHelper).not.toContain("product-requirements");
+    expect(branchReviewHelper).toContain("product-requirements");
     expect(branchReview).toContain('full_pr_diff_range = "$BASE...HEAD"');
     expect(branchReview).toContain(
       "active_diff_range = candidate_active_diff_range",
