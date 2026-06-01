@@ -201,6 +201,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await expect(
         runHelper(cwd, helperScript, "validate-scope-decision", {
           HEAD_SHA: headSha,
+          BASE_REF: baseSha,
           SCOPE_DECISION_FILE: decisionPath,
         }),
       ).resolves.toMatchObject({ stdout: "" });
@@ -217,7 +218,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
   });
 
   it("uses an explicit support-validator override and forwards PR scope policy flags", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const temp = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-marker-"));
     try {
       const markerArgs = path.join(temp, "args.txt");
@@ -226,6 +227,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await expect(
         runHelper(cwd, helperScript, "validate-scope-decision", {
           HEAD_SHA: headSha,
+          BASE_REF: baseSha,
           SCOPE_DECISION_FILE: scopePath(headSha),
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
           MARKER_ARGS_FILE: markerArgs,
@@ -234,6 +236,8 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       const args = await readFile(markerArgs, "utf8");
       expect(args).toContain("validate-scope-decision");
       expect(args).toContain("pr-review/scope-decision/v1");
+      expect(args).toContain("--base-ref");
+      expect(args).toContain(baseSha);
       expect(args).toContain("--governed-path-pattern");
     } finally {
       await cleanupTempDir(cwd);
@@ -262,6 +266,64 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
     }
   });
 
+  it("fails before invoking an override validator when BASE_REF is missing", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const temp = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-marker-"));
+    try {
+      const markerArgs = path.join(temp, "args.txt");
+      const validator = await writeMarkerValidator(temp, "override-validator");
+
+      await expect(
+        runHelper(cwd, helperScript, "validate-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: scopePath(headSha),
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          MARKER_ARGS_FILE: markerArgs,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("BASE_REF is required"),
+      });
+      await expect(readFile(markerArgs, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(temp);
+    }
+  });
+
+  it("rejects a self-consistent scope artifact with the wrong full-range base", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const baseTree = await git(cwd, "rev-parse", `${baseSha}^{tree}`);
+      const wrongBaseSha = await git(
+        cwd,
+        "commit-tree",
+        baseTree,
+        "-p",
+        baseSha,
+        "-m",
+        "wrong base",
+      );
+      const decisionPath = scopePath(headSha);
+      await writeJson(cwd, decisionPath, initialScope(wrongBaseSha, headSha));
+
+      await expect(
+        runHelper(cwd, helperScript, "validate-scope-decision", {
+          HEAD_SHA: headSha,
+          BASE_REF: baseSha,
+          SCOPE_DECISION_FILE: decisionPath,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "full range does not match caller base ref",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("fails loud when the support validator is unavailable", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-missing-"));
@@ -270,6 +332,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await expect(
         runHelper(cwd, script, "validate-scope-decision", {
           HEAD_SHA: headSha,
+          BASE_REF: "HEAD^",
           SCOPE_DECISION_FILE: scopePath(headSha),
         }),
       ).rejects.toMatchObject({

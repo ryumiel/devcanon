@@ -129,6 +129,7 @@ bind_scope_decision_artifact() {
   # and semantic_decision for the final Phase 3 scope choice. Phase 6 revalidates
   # the same artifact against "$REVIEW_SCOPE_BASE_REF" before posting.
   HEAD_SHA="$HEAD_SHA" \
+  BASE_REF="$REVIEW_SCOPE_BASE_REF" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
   PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1

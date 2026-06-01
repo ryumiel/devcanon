@@ -175,6 +175,7 @@ validate_scope_decision() {
   require_repo_root
   validate_head_sha
   require_env SCOPE_DECISION_FILE
+  require_env BASE_REF
   expected="$(expected_scope_decision_path)"
   file="$SCOPE_DECISION_FILE"
   validate_direct_child_path "scope decision" "$file" "-scope-decision.json"
@@ -195,6 +196,7 @@ validate_scope_decision() {
   bash "$validator" validate-scope-decision \
     --surface pr-review \
     --head-sha "$HEAD_SHA" \
+    --base-ref "$BASE_REF" \
     --scope-decision-file "$file" \
     --expected-schema pr-review/scope-decision/v1 \
     --expected-prior-context-kind "$prior_kind" \
