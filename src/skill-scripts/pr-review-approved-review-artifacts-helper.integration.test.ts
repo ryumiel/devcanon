@@ -31,6 +31,7 @@ const staleHeadSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const reviewBodyFile = ".ephemeral/topic-review-body.md";
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
+const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
 
 async function commandAvailable(command: string): Promise<boolean> {
@@ -119,6 +120,7 @@ async function writeInputs(cwd: string) {
   await writeJson(cwd, findingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
   await writeJson(cwd, payloadFile, payload());
+  await writeJson(cwd, scopeDecisionFile, {});
 }
 
 async function runHelper(
@@ -126,10 +128,46 @@ async function runHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
+  const supportValidator =
+    env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT ??
+    (await writePassingSupportValidator(cwd));
   return execFileAsync("bash", [helperScript, command], {
     cwd,
-    env: { ...process.env, HEAD_SHA: headSha, ...env },
+    env: {
+      ...process.env,
+      HEAD_SHA: headSha,
+      REVIEW_EVENT: "COMMENT",
+      PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
+      ...env,
+    },
   });
+}
+
+async function writePassingSupportValidator(cwd: string) {
+  const validator = path.join(cwd, ".ephemeral/support-validator.sh");
+  await writeFile(
+    validator,
+    ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
+async function writeRecordingSupportValidator(cwd: string, stderr = "") {
+  const validator = path.join(cwd, ".ephemeral/recording-support-validator.sh");
+  await writeFile(
+    validator,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'printf "%s\\n" "$@" > ".ephemeral/support-validator-args.txt"',
+      stderr ? `printf '%s\\n' ${JSON.stringify(stderr)} >&2` : "",
+      stderr ? "exit 1" : "exit 0",
+      "",
+    ].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
 }
 
 describe.skipIf(!jqAvailable)(
@@ -180,9 +218,11 @@ describe.skipIf(!jqAvailable)(
           findings_file: string;
           review_body_file: string;
           review_payload_file: string;
+          scope_decision_file: string;
           findings_sha256: string;
           review_body_sha256: string;
           review_payload_sha256: string;
+          scope_decision_sha256: string;
           payload: unknown;
         };
         expect(artifact).toMatchObject({
@@ -191,11 +231,80 @@ describe.skipIf(!jqAvailable)(
           findings_file: findingsFile,
           review_body_file: reviewBodyFile,
           review_payload_file: payloadFile,
+          scope_decision_file: scopeDecisionFile,
           payload: payload(),
         });
         expect(artifact.findings_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(artifact.scope_decision_sha256).toMatch(/^[0-9a-f]{64}$/);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("delegates approved payload equivalence with explicit scope-policy inputs", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+
+        const args = await readFile(
+          path.join(cwd, ".ephemeral/support-validator-args.txt"),
+          "utf8",
+        );
+        expect(args).toContain("compare-approved-payload");
+        expect(args).toContain("--expected-schema");
+        expect(args).toContain("pr-review/scope-decision/v1");
+        expect(args).toContain("--expected-prior-context-kind");
+        expect(args).toContain("--governed-path-pattern");
+        expect(args).toContain("--max-narrow-changed-files");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("surfaces missing and failing support-validator delegation", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT:
+              ".ephemeral/missing-validator.sh",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "play-validate-review-artifacts validator missing",
+          ),
+        });
+
+        const failingValidator = await writeRecordingSupportValidator(
+          cwd,
+          "approved review payload does not match generated payload",
+        );
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: failingValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "approved review payload does not match generated payload",
+          ),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -575,6 +684,7 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(cwd, findingsFile, findingsEnvelope());
         await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        await writeJson(cwd, scopeDecisionFile, {});
         await writeFile(
           path.join(cwd, payloadFile),
           `${JSON.stringify(payload())}\n${JSON.stringify(payload({ event: "APPROVE" }))}\n`,

@@ -7,6 +7,7 @@ LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
 GOVERNED_PATH_PATTERN='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
 CONFIGURED_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
+SCOPE_DECISION_FILE=""
 
 emit_line() {
   local key="$1"
@@ -77,6 +78,32 @@ validate_prior_findings() {
   }
   HEAD_SHA="$PRIOR_FINDINGS_HEAD_SHA" FINDINGS_FILE="$PRIOR_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
+}
+
+branch_scope_helper() {
+  if [[ -n "${BRANCH_REVIEW_SCOPE_HELPER:-}" ]]; then
+    printf '%s\n' "$BRANCH_REVIEW_SCOPE_HELPER"
+  else
+    printf '%s\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/scope-decision-artifacts.sh"
+  fi
+}
+
+prepare_scope_decision_file() {
+  local helper
+  local review_head_sha
+
+  helper="$(branch_scope_helper)"
+  [[ -f "$helper" && -r "$helper" ]] || {
+    echo "branch-review scope helper missing or unreadable: $helper" >&2
+    exit 1
+  }
+  review_head_sha="$(git rev-parse HEAD 2>/dev/null)" || {
+    echo "failed to resolve HEAD" >&2
+    exit 1
+  }
+  SCOPE_DECISION_FILE="$(
+    HEAD_SHA="$review_head_sha" bash "$helper" prepare-scope-decision-write
+  )"
 }
 
 parse_args() {
@@ -168,6 +195,7 @@ write_changed_files_file() {
 require_repo_root
 parse_args "$@"
 validate_optional_path_pattern
+prepare_scope_decision_file
 
 if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
   if [[ -z "$LAST_REVIEWED_SHA" || -z "$PRIOR_FINDINGS_FILE" ]]; then
@@ -249,3 +277,4 @@ emit_line "CHANGED_FILES_FILE" "$CHANGED_FILES_FILE"
 emit_line "LANGUAGE_HINTS" "$LANGUAGE_HINTS"
 emit_line "LAST_REVIEWED_SHA" "$LAST_REVIEWED_SHA"
 emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"
+emit_line "SCOPE_DECISION_FILE" "$SCOPE_DECISION_FILE"
