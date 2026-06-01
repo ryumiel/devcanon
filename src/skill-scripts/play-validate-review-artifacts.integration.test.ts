@@ -86,18 +86,26 @@ async function runValidator(cwd: string, command: string, args: string[] = []) {
   });
 }
 
-function scopeArgs(headSha: string, scopeDecision = ".ephemeral/scope.json") {
+function scopeArgs(
+  headSha: string,
+  scopeDecision = ".ephemeral/topic-scope-decision.json",
+  surface = "branch-review",
+  expectedPriorContextKind = "none",
+  expectedPriorContextPath = "null",
+) {
   return [
     "--surface",
-    "branch-review",
+    surface,
     "--head-sha",
     headSha,
-    "--scope-decision",
+    "--scope-decision-file",
     scopeDecision,
     "--expected-schema",
-    "play-review/scope-decision/v1",
-    "--prior-context-kind",
-    "none",
+    `${surface}/scope-decision/v1`,
+    "--expected-prior-context-kind",
+    expectedPriorContextKind,
+    "--expected-prior-context-path",
+    expectedPriorContextPath,
     "--governed-path-pattern",
     "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)",
     "--max-narrow-changed-files",
@@ -105,14 +113,20 @@ function scopeArgs(headSha: string, scopeDecision = ".ephemeral/scope.json") {
   ];
 }
 
-function initialScope(baseSha: string, headSha: string): JsonObject {
+function initialScope(
+  baseSha: string,
+  headSha: string,
+  surface = "branch-review",
+  priorContext: JsonObject = { kind: "none", path: null },
+): JsonObject {
   return {
-    schema: "play-review/scope-decision/v1",
-    surface: "branch-review",
+    schema: `${surface}/scope-decision/v1`,
+    surface,
     head_sha: headSha,
     base_ref: baseSha,
-    full_diff_range: `${baseSha}...HEAD`,
-    active_diff_range: `${baseSha}...HEAD`,
+    full_range: `${baseSha}...HEAD`,
+    selected_range: `${baseSha}...HEAD`,
+    candidate_narrow_range: null,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     changed_files: ["src/app.ts"],
@@ -123,7 +137,7 @@ function initialScope(baseSha: string, headSha: string): JsonObject {
       reasons: ["not-followup"],
       semantic_scope: "clear",
     },
-    prior_context: { kind: "none", path: null },
+    prior_context: priorContext,
   };
 }
 
@@ -134,8 +148,9 @@ function narrowScope(
 ): JsonObject {
   return {
     ...initialScope(baseSha, headSha),
-    full_diff_range: `${baseSha}...HEAD`,
-    active_diff_range: `${firstSha}..HEAD`,
+    full_range: `${baseSha}...HEAD`,
+    selected_range: `${firstSha}..HEAD`,
+    candidate_narrow_range: `${firstSha}..HEAD`,
     last_reviewed_sha: firstSha,
     is_followup_narrow: true,
     escalation: {
@@ -184,7 +199,7 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(
           cwd,
-          ".ephemeral/scope.json",
+          ".ephemeral/topic-scope-decision.json",
           initialScope(baseSha, headSha),
         );
 
@@ -201,7 +216,7 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(
           cwd,
-          ".ephemeral/scope.json",
+          ".ephemeral/topic-scope-decision.json",
           narrowScope(baseSha, firstSha, headSha),
         );
 
@@ -230,6 +245,7 @@ describe.skipIf(!jqAvailable)(
         const scope = {
           ...initialScope(baseSha, newHead),
           last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
           changed_files: [
             "src/app.ts",
             ...Array.from({ length: 6 }, (_, index) => `src/file-${index}.ts`),
@@ -242,7 +258,7 @@ describe.skipIf(!jqAvailable)(
             semantic_scope: "clear",
           },
         };
-        await writeJson(cwd, ".ephemeral/scope.json", scope);
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
 
         await expect(
           runValidator(cwd, "validate-scope-decision", scopeArgs(newHead)),
@@ -266,9 +282,10 @@ describe.skipIf(!jqAvailable)(
           cwd: governed.cwd,
         });
         const headSha = await git(governed.cwd, "rev-parse", "HEAD");
-        await writeJson(governed.cwd, ".ephemeral/scope.json", {
+        await writeJson(governed.cwd, ".ephemeral/topic-scope-decision.json", {
           ...initialScope(governed.baseSha, headSha),
           last_reviewed_sha: governed.firstSha,
+          candidate_narrow_range: `${governed.firstSha}..HEAD`,
           changed_files: ["docs/adr/adr-9999.md", "src/app.ts"],
           changed_file_count: 2,
           language_hints: ["md", "ts"],
@@ -297,18 +314,23 @@ describe.skipIf(!jqAvailable)(
           cwd: configured.cwd,
         });
         const headSha = await git(configured.cwd, "rev-parse", "HEAD");
-        await writeJson(configured.cwd, ".ephemeral/scope.json", {
-          ...initialScope(configured.baseSha, headSha),
-          last_reviewed_sha: configured.firstSha,
-          changed_files: ["src/app.ts", "src/generated.ts"],
-          changed_file_count: 2,
-          language_hints: ["ts"],
-          escalation: {
-            escalate_full: true,
-            reasons: ["configured-path"],
-            semantic_scope: "clear",
+        await writeJson(
+          configured.cwd,
+          ".ephemeral/topic-scope-decision.json",
+          {
+            ...initialScope(configured.baseSha, headSha),
+            last_reviewed_sha: configured.firstSha,
+            candidate_narrow_range: `${configured.firstSha}..HEAD`,
+            changed_files: ["src/app.ts", "src/generated.ts"],
+            changed_file_count: 2,
+            language_hints: ["ts"],
+            escalation: {
+              escalate_full: true,
+              reasons: ["configured-path"],
+              semantic_scope: "clear",
+            },
           },
-        });
+        );
         await expect(
           runValidator(configured.cwd, "validate-scope-decision", [
             ...scopeArgs(headSha),
@@ -321,10 +343,107 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects narrow artifacts that should escalate for file count, governed paths, or configured paths", async () => {
+      const fileCount = await makeGitWorkspace();
+      try {
+        for (let index = 0; index < 6; index += 1) {
+          await writeFile(
+            path.join(fileCount.cwd, `src/file-${index}.ts`),
+            `v${index}\n`,
+          );
+        }
+        await execFileAsync("git", ["add", "."], { cwd: fileCount.cwd });
+        await execFileAsync("git", ["commit", "-m", "test: many files"], {
+          cwd: fileCount.cwd,
+        });
+        const headSha = await git(fileCount.cwd, "rev-parse", "HEAD");
+        await writeJson(fileCount.cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(fileCount.baseSha, fileCount.firstSha, headSha),
+          changed_files: [
+            "src/app.ts",
+            ...Array.from({ length: 6 }, (_, index) => `src/file-${index}.ts`),
+          ],
+          changed_file_count: 7,
+        });
+
+        await expectRejectsWith(
+          runValidator(
+            fileCount.cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha),
+          ),
+          "file count requires full review",
+        );
+      } finally {
+        await cleanupTempDir(fileCount.cwd);
+      }
+
+      const governed = await makeGitWorkspace();
+      try {
+        await mkdir(path.join(governed.cwd, "docs/adr"), { recursive: true });
+        await writeFile(
+          path.join(governed.cwd, "docs/adr/adr-9999.md"),
+          "ADR\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd: governed.cwd });
+        await execFileAsync("git", ["commit", "-m", "docs: adr"], {
+          cwd: governed.cwd,
+        });
+        const headSha = await git(governed.cwd, "rev-parse", "HEAD");
+        await writeJson(governed.cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(governed.baseSha, governed.firstSha, headSha),
+          changed_files: ["docs/adr/adr-9999.md", "src/app.ts"],
+          changed_file_count: 2,
+          language_hints: ["md", "ts"],
+        });
+
+        await expectRejectsWith(
+          runValidator(
+            governed.cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha),
+          ),
+          "governed path requires full review",
+        );
+      } finally {
+        await cleanupTempDir(governed.cwd);
+      }
+
+      const configured = await makeGitWorkspace();
+      try {
+        await writeFile(path.join(configured.cwd, "src/generated.ts"), "gen\n");
+        await execFileAsync("git", ["add", "."], { cwd: configured.cwd });
+        await execFileAsync("git", ["commit", "-m", "chore: generated"], {
+          cwd: configured.cwd,
+        });
+        const headSha = await git(configured.cwd, "rev-parse", "HEAD");
+        await writeJson(
+          configured.cwd,
+          ".ephemeral/topic-scope-decision.json",
+          {
+            ...narrowScope(configured.baseSha, configured.firstSha, headSha),
+            changed_files: ["src/app.ts", "src/generated.ts"],
+            changed_file_count: 2,
+          },
+        );
+
+        await expectRejectsWith(
+          runValidator(configured.cwd, "validate-scope-decision", [
+            ...scopeArgs(headSha),
+            "--configured-path-pattern",
+            "generated",
+          ]),
+          "configured path requires full review",
+        );
+      } finally {
+        await cleanupTempDir(configured.cwd);
+      }
+    });
+
     it("requires ambiguous semantic scope to be full escalation unless explicitly allowed", async () => {
       const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
       try {
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           escalation: {
             escalate_full: false,
@@ -335,12 +454,13 @@ describe.skipIf(!jqAvailable)(
 
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "ambiguous semantic scope requires full escalation",
+          "ambiguous semantic scope requires full review",
         );
 
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...initialScope(baseSha, headSha),
           last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
           escalation: {
             escalate_full: true,
             reasons: ["ambiguous-semantic-scope"],
@@ -350,7 +470,7 @@ describe.skipIf(!jqAvailable)(
         await expect(
           runValidator(cwd, "validate-scope-decision", [
             ...scopeArgs(headSha),
-            "--allow-ambiguous-full",
+            "--allow-ambiguous-full-escalation",
             "true",
           ]),
         ).resolves.toMatchObject({ stdout: "" });
@@ -362,40 +482,40 @@ describe.skipIf(!jqAvailable)(
     it("rejects stale refs and contradictory changed-file, count, and language claims", async () => {
       const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
       try {
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           head_sha: firstSha,
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "scope decision head_sha mismatch",
+          "scope decision head mismatch",
         );
 
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           changed_files: ["src/other.ts"],
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "changed files mismatch",
+          "changed files do not match selected range",
         );
 
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           changed_file_count: 99,
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "changed file count mismatch",
+          "changed file count does not match selected range",
         );
 
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           language_hints: ["rs"],
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "language hints mismatch",
+          "language hints do not match selected range",
         );
       } finally {
         await cleanupTempDir(cwd);
@@ -406,23 +526,24 @@ describe.skipIf(!jqAvailable)(
       const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
       try {
         const badSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           last_reviewed_sha: badSha,
-          active_diff_range: `${badSha}..HEAD`,
+          selected_range: `${badSha}..HEAD`,
+          candidate_narrow_range: `${badSha}..HEAD`,
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "last_reviewed_sha is not a usable ancestor",
+          "narrow scope requires usable follow-up sha",
         );
 
-        await writeJson(cwd, ".ephemeral/scope.json", {
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
-          active_diff_range: `${baseSha}..HEAD`,
+          selected_range: `${baseSha}..HEAD`,
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", scopeArgs(headSha)),
-          "narrow active_diff_range must be last_reviewed_sha..HEAD",
+          "narrow scope must use last-reviewed-sha..HEAD",
         );
       } finally {
         await cleanupTempDir(cwd);
@@ -431,7 +552,7 @@ describe.skipIf(!jqAvailable)(
 
     it("validates prior-thread timestamps, model eligibility, dropped shape, and ranges", async () => {
       const { cwd, headSha } = await makeGitWorkspace();
-      const threadsPath = ".ephemeral/prior-threads.json";
+      const threadsPath = ".ephemeral/topic-prior-threads.json";
       try {
         await writeJson(cwd, threadsPath, {
           schema: "pr-review/prior-threads/v1",
@@ -452,10 +573,16 @@ describe.skipIf(!jqAvailable)(
         });
         await expect(
           runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
             "--head-sha",
             headSha,
-            "--prior-threads",
+            "--prior-threads-file",
             threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
           ]),
         ).resolves.toMatchObject({ stdout: "" });
 
@@ -477,10 +604,16 @@ describe.skipIf(!jqAvailable)(
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
             "--head-sha",
             headSha,
-            "--prior-threads",
+            "--prior-threads-file",
             threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
           ]),
           "prior-thread timestamp validation failed",
         );
@@ -503,10 +636,16 @@ describe.skipIf(!jqAvailable)(
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
             "--head-sha",
             headSha,
-            "--prior-threads",
+            "--prior-threads-file",
             threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
           ]),
           "prior-thread model-context eligibility validation failed",
         );
@@ -529,10 +668,16 @@ describe.skipIf(!jqAvailable)(
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
             "--head-sha",
             headSha,
-            "--prior-threads",
+            "--prior-threads-file",
             threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
           ]),
           "dropped-thread shape validation failed",
         );
@@ -556,10 +701,16 @@ describe.skipIf(!jqAvailable)(
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-prior-threads", [
+            "--surface",
+            "pr-review",
             "--head-sha",
             headSha,
-            "--prior-threads",
+            "--prior-threads-file",
             threadsPath,
+            "--expected-schema",
+            "pr-review/prior-threads/v1",
+            "--provider",
+            "github",
           ]),
           "prior-thread line range is inverted",
         );
@@ -568,53 +719,71 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
-    it("rejects out-of-diff anchors", async () => {
+    it("validates diff anchors from findings against the bound scope decision", async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
       try {
-        const anchorsPath = ".ephemeral/anchors.json";
-        await writeJson(cwd, anchorsPath, {
-          schema: "pr-review/diff-anchors/v1",
-          anchors: [
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "pr-review"),
+        );
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          carry_forward: [
             {
               path: "src/app.ts",
               line: 2,
-              side: "RIGHT",
-              body: "ok",
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "missing-file",
+              why: "Carry forward still applies.",
+              recommendation: "Keep the comment.",
+              body: "Carry-forward body.",
             },
           ],
         });
         await expect(
           runValidator(cwd, "validate-diff-anchors", [
-            "--head-sha",
-            headSha,
-            "--diff-range",
-            `${baseSha}...HEAD`,
-            "--anchors",
-            anchorsPath,
+            ...scopeArgs(
+              headSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
           ]),
         ).resolves.toMatchObject({ stdout: "" });
 
-        await writeJson(cwd, anchorsPath, {
-          schema: "pr-review/diff-anchors/v1",
-          anchors: [
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [
             {
               path: "README.md",
               line: 1,
-              side: "RIGHT",
-              body: "bad",
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "README was not in the review diff.",
+              recommendation: "Do not anchor there.",
+              body: "Bad anchor.",
             },
           ],
         });
         await expectRejectsWith(
           runValidator(cwd, "validate-diff-anchors", [
-            "--head-sha",
-            headSha,
-            "--diff-range",
-            `${baseSha}...HEAD`,
-            "--anchors",
-            anchorsPath,
+            ...scopeArgs(
+              headSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
           ]),
-          "diff anchor outside selected diff",
+          "inline anchor is outside selected review diff",
         );
       } finally {
         await cleanupTempDir(cwd);
@@ -626,15 +795,31 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(
           cwd,
-          ".ephemeral/scope.json",
-          initialScope(baseSha, headSha),
+          ".ephemeral/topic-scope-decision.json",
+          initialScope(baseSha, headSha, "pr-review"),
         );
-        await writeJson(cwd, ".ephemeral/findings.json", findingsEnvelope());
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          carry_forward: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "missing-file",
+              why: "Carry forward still applies.",
+              recommendation: "Keep the comment.",
+              body: "Carry-forward body.",
+            },
+          ],
+        });
         await writeFile(path.join(cwd, ".ephemeral/review-body.md"), "Body\n");
-        await writeJson(cwd, ".ephemeral/payload.json", {
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
           commit_id: headSha,
           event: "COMMENT",
-          body: "Body\n",
+          body: "Body",
           comments: [
             {
               path: "src/app.ts",
@@ -642,26 +827,36 @@ describe.skipIf(!jqAvailable)(
               side: "RIGHT",
               body: "Blocking: The new export needs review.",
             },
+            {
+              path: "src/app.ts",
+              line: 2,
+              side: "RIGHT",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+            },
           ],
         });
 
         await expect(
           runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(headSha),
+            ...scopeArgs(
+              headSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
             "--findings-file",
-            ".ephemeral/findings.json",
+            ".ephemeral/topic-findings.json",
             "--review-body-file",
             ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
             "--review-event",
             "COMMENT",
-            "--approved-payload",
-            ".ephemeral/payload.json",
           ]),
         ).resolves.toMatchObject({
           stdout: expect.stringContaining('"commit_id"'),
         });
 
-        await writeJson(cwd, ".ephemeral/payload.json", {
+        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
           commit_id: headSha,
           event: "COMMENT",
           body: "Edited\n",
@@ -669,17 +864,21 @@ describe.skipIf(!jqAvailable)(
         });
         await expectRejectsWith(
           runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(headSha),
+            ...scopeArgs(
+              headSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
             "--findings-file",
-            ".ephemeral/findings.json",
+            ".ephemeral/topic-findings.json",
             "--review-body-file",
             ".ephemeral/review-body.md",
+            "--review-payload-file",
+            ".ephemeral/topic-review-payload.json",
             "--review-event",
             "COMMENT",
-            "--approved-payload",
-            ".ephemeral/payload.json",
           ]),
-          "approved payload mismatch",
+          "approved review payload does not match generated payload",
         );
       } finally {
         await cleanupTempDir(cwd);
@@ -697,7 +896,37 @@ describe.skipIf(!jqAvailable)(
         );
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", ["--head-sha", headSha]),
-          "--scope-decision is required",
+          "--scope-decision-file is required",
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            "--surface",
+            "branch-review",
+            "--head-sha",
+            headSha,
+            "--scope-decision-file",
+            ".ephemeral/topic-scope-decision.json",
+            "--expected-schema",
+            "branch-review/scope-decision/v1",
+            "--expected-prior-context-kind",
+            "none",
+            "--governed-path-pattern",
+            "^(docs/adr/)",
+            "--max-narrow-changed-files",
+            "5",
+          ]),
+          "--expected-prior-context-path is required",
+        );
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            "--surface",
+            "branch-review",
+            "--head-sha",
+            headSha,
+            "--scope-decision",
+            ".ephemeral/topic-scope-decision.json",
+          ]),
+          "unknown review-artifacts argument: --scope-decision",
         );
       } finally {
         await cleanupTempDir(cwd);

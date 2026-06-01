@@ -12,17 +12,16 @@ SCOPE_DECISION=""
 EXPECTED_SCHEMA=""
 PRIOR_CONTEXT_KIND=""
 PRIOR_CONTEXT_PATH=""
+PROVIDER=""
 GOVERNED_PATH_PATTERN=""
 CONFIGURED_PATH_PATTERN=""
 MAX_NARROW_CHANGED_FILES=""
-ALLOW_AMBIGUOUS_FULL="false"
+ALLOW_AMBIGUOUS_FULL="true"
 PRIOR_THREADS=""
-DIFF_RANGE=""
-ANCHORS=""
 FINDINGS_FILE=""
 REVIEW_BODY_FILE=""
 REVIEW_EVENT=""
-APPROVED_PAYLOAD=""
+REVIEW_PAYLOAD_FILE=""
 
 fail() {
   echo "$1" >&2
@@ -72,6 +71,17 @@ validate_direct_child_path() {
   [ ! -L "$file" ] || fail "$label must not be a symlink: $file"
 }
 
+validate_suffix() {
+  local label="$1"
+  local file="$2"
+  local suffix="$3"
+
+  case "$file" in
+    *"$suffix") ;;
+    *) fail "$label path validation failed: $file" ;;
+  esac
+}
+
 assert_readable_file() {
   local label="$1"
   local file="$2"
@@ -94,8 +104,8 @@ parse_common_args() {
         HEAD_SHA="$2"
         shift 2
         ;;
-      --scope-decision)
-        [ -n "${2:-}" ] || fail "--scope-decision requires a value"
+      --scope-decision-file)
+        [ -n "${2:-}" ] || fail "--scope-decision-file requires a value"
         SCOPE_DECISION="$2"
         shift 2
         ;;
@@ -104,13 +114,13 @@ parse_common_args() {
         EXPECTED_SCHEMA="$2"
         shift 2
         ;;
-      --prior-context-kind)
-        [ -n "${2:-}" ] || fail "--prior-context-kind requires a value"
+      --expected-prior-context-kind)
+        [ -n "${2:-}" ] || fail "--expected-prior-context-kind requires a value"
         PRIOR_CONTEXT_KIND="$2"
         shift 2
         ;;
-      --prior-context-path)
-        [ -n "${2:-}" ] || fail "--prior-context-path requires a value"
+      --expected-prior-context-path)
+        [ -n "${2:-}" ] || fail "--expected-prior-context-path requires a value"
         PRIOR_CONTEXT_PATH="$2"
         shift 2
         ;;
@@ -129,24 +139,19 @@ parse_common_args() {
         MAX_NARROW_CHANGED_FILES="$2"
         shift 2
         ;;
-      --allow-ambiguous-full)
-        [ -n "${2:-}" ] || fail "--allow-ambiguous-full requires a value"
+      --allow-ambiguous-full-escalation)
+        [ -n "${2:-}" ] || fail "--allow-ambiguous-full-escalation requires a value"
         ALLOW_AMBIGUOUS_FULL="$2"
         shift 2
         ;;
-      --prior-threads)
-        [ -n "${2:-}" ] || fail "--prior-threads requires a value"
+      --prior-threads-file)
+        [ -n "${2:-}" ] || fail "--prior-threads-file requires a value"
         PRIOR_THREADS="$2"
         shift 2
         ;;
-      --diff-range)
-        [ -n "${2:-}" ] || fail "--diff-range requires a value"
-        DIFF_RANGE="$2"
-        shift 2
-        ;;
-      --anchors)
-        [ -n "${2:-}" ] || fail "--anchors requires a value"
-        ANCHORS="$2"
+      --provider)
+        [ -n "${2:-}" ] || fail "--provider requires a value"
+        PROVIDER="$2"
         shift 2
         ;;
       --findings-file)
@@ -164,9 +169,9 @@ parse_common_args() {
         REVIEW_EVENT="$2"
         shift 2
         ;;
-      --approved-payload)
-        [ -n "${2:-}" ] || fail "--approved-payload requires a value"
-        APPROVED_PAYLOAD="$2"
+      --review-payload-file)
+        [ -n "${2:-}" ] || fail "--review-payload-file requires a value"
+        REVIEW_PAYLOAD_FILE="$2"
         shift 2
         ;;
       *)
@@ -247,8 +252,9 @@ validate_scope_shape() {
     and one_of(["pr-review", "branch-review"]; .surface)
     and (.head_sha | sha)
     and (.base_ref | type == "string" and length > 0)
-    and (.full_diff_range | type == "string" and length > 0)
-    and (.active_diff_range | type == "string" and length > 0)
+    and (.full_range | type == "string" and length > 0)
+    and (.selected_range | type == "string" and length > 0)
+    and (.candidate_narrow_range == null or (.candidate_narrow_range | type == "string" and length > 0))
     and (.last_reviewed_sha == null or (.last_reviewed_sha | sha))
     and (.is_followup_narrow | type == "boolean")
     and (.changed_files | type == "array" and all(.[]; repo_path))
@@ -265,20 +271,28 @@ validate_scope_shape() {
 }
 
 require_scope_flags() {
-  require_flag "--scope-decision" "$SCOPE_DECISION"
+  require_flag "--scope-decision-file" "$SCOPE_DECISION"
   require_flag "--surface" "$SURFACE"
   require_flag "--expected-schema" "$EXPECTED_SCHEMA"
-  require_flag "--prior-context-kind" "$PRIOR_CONTEXT_KIND"
+  require_flag "--expected-prior-context-kind" "$PRIOR_CONTEXT_KIND"
+  require_flag "--expected-prior-context-path" "$PRIOR_CONTEXT_PATH"
   require_flag "--governed-path-pattern" "$GOVERNED_PATH_PATTERN"
   require_flag "--max-narrow-changed-files" "$MAX_NARROW_CHANGED_FILES"
   case "$SURFACE" in
     pr-review | branch-review) ;;
     *) fail "--surface must be pr-review or branch-review" ;;
   esac
+  [ "$EXPECTED_SCHEMA" = "${SURFACE}/scope-decision/v1" ] ||
+    fail "--expected-schema does not match --surface"
   case "$PRIOR_CONTEXT_KIND" in
-    none | prior-threads | prior-branch-findings) ;;
-    *) fail "--prior-context-kind is invalid" ;;
+    github-prior-threads | branch-findings | none) ;;
+    *) fail "--expected-prior-context-kind is invalid" ;;
   esac
+  if [ "$PRIOR_CONTEXT_PATH" != "null" ]; then
+    case "$PRIOR_CONTEXT_PATH" in
+      '' | /* | *..* | */./* | ./* | */../* | *//*) fail "--expected-prior-context-path must be repo-relative or null" ;;
+    esac
+  fi
   case "$MAX_NARROW_CHANGED_FILES" in
     '' | *[!0-9]*) fail "--max-narrow-changed-files must be an integer" ;;
   esac
@@ -307,23 +321,25 @@ validate_scope_decision() {
   validate_current_head
   validate_pattern "--governed-path-pattern" "$GOVERNED_PATH_PATTERN"
   validate_pattern "--configured-path-pattern" "$CONFIGURED_PATH_PATTERN"
-  assert_readable_file "--scope-decision" "$SCOPE_DECISION"
+  assert_readable_file "--scope-decision-file" "$SCOPE_DECISION"
+  validate_suffix "--scope-decision-file" "$SCOPE_DECISION" "-scope-decision.json"
   validate_scope_shape
 
-  local artifact_surface artifact_head full_range active_range last_reviewed
+  local artifact_surface artifact_head full_range selected_range candidate_range last_reviewed
   local is_narrow escalate_full semantic_scope changed_count
   local expected_files actual_files expected_hints actual_hints
-  local expected_count actual_count expected_active_range
+  local expected_count actual_count expected_selected_range
 
   artifact_surface="$(jq_value "$SCOPE_DECISION" '.surface')"
   [ "$artifact_surface" = "$SURFACE" ] ||
     fail "scope decision surface mismatch"
   artifact_head="$(jq_value "$SCOPE_DECISION" '.head_sha')"
   [ "$artifact_head" = "$HEAD_SHA" ] ||
-    fail "scope decision head_sha mismatch"
+    fail "scope decision head mismatch"
 
-  full_range="$(jq_value "$SCOPE_DECISION" '.full_diff_range')"
-  active_range="$(jq_value "$SCOPE_DECISION" '.active_diff_range')"
+  full_range="$(jq_value "$SCOPE_DECISION" '.full_range')"
+  selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
+  candidate_range="$(jq_value "$SCOPE_DECISION" '.candidate_narrow_range // ""')"
   last_reviewed="$(jq_value "$SCOPE_DECISION" '.last_reviewed_sha // ""')"
   is_narrow="$(jq_value "$SCOPE_DECISION" '.is_followup_narrow')"
   escalate_full="$(jq_value "$SCOPE_DECISION" '.escalation.escalate_full')"
@@ -333,59 +349,68 @@ validate_scope_decision() {
   if [ -n "$last_reviewed" ]; then
     git cat-file -e "$last_reviewed^{commit}" 2>/dev/null &&
       git merge-base --is-ancestor "$last_reviewed" HEAD 2>/dev/null ||
-      fail "last_reviewed_sha is not a usable ancestor"
+      fail "narrow scope requires usable follow-up sha"
   fi
 
-  range_exists "$full_range" || fail "full_diff_range does not resolve"
-  range_exists "$active_range" || fail "active_diff_range does not resolve"
+  range_exists "$full_range" || fail "review range does not resolve"
+  range_exists "$selected_range" || fail "review range does not resolve"
 
   if [ "$is_narrow" = "true" ]; then
     [ -n "$last_reviewed" ] || fail "narrow scope requires last_reviewed_sha"
-    expected_active_range="$last_reviewed..HEAD"
-    [ "$active_range" = "$expected_active_range" ] ||
-      fail "narrow active_diff_range must be last_reviewed_sha..HEAD"
+    expected_selected_range="$last_reviewed..HEAD"
+    [ "$selected_range" = "$expected_selected_range" ] ||
+      fail "narrow scope must use last-reviewed-sha..HEAD"
+    [ "$candidate_range" = "$expected_selected_range" ] ||
+      fail "narrow scope must use last-reviewed-sha..HEAD"
     [ "$escalate_full" = "false" ] ||
       fail "narrow scope cannot claim full escalation"
   else
-    [ "$active_range" = "$full_range" ] ||
-      fail "full escalation active_diff_range must equal full_diff_range"
+    [ "$selected_range" = "$full_range" ] ||
+      fail "full escalation selected_range must equal full_range"
   fi
 
   if [ "$semantic_scope" = "ambiguous" ] && [ "$escalate_full" != "true" ]; then
-    fail "ambiguous semantic scope requires full escalation"
+    fail "ambiguous semantic scope requires full review"
   fi
   if [ "$semantic_scope" = "ambiguous" ] && [ "$ALLOW_AMBIGUOUS_FULL" != "true" ]; then
-    fail "ambiguous semantic scope requires explicit allowance"
+    fail "ambiguous semantic scope requires full review"
   fi
 
-  expected_files="$(changed_files_json "$active_range")"
+  expected_files="$(changed_files_json "$selected_range")"
   actual_files="$(jq_json "$SCOPE_DECISION" '.changed_files | sort')"
   json_equal "$expected_files" "$actual_files" ||
-    fail "changed files mismatch"
+    fail "changed files do not match selected range"
   expected_count="$(printf '%s\n' "$expected_files" | jq 'length')"
   actual_count="$changed_count"
   [ "$expected_count" = "$actual_count" ] ||
-    fail "changed file count mismatch"
+    fail "changed file count does not match selected range"
   expected_hints="$(printf '%s\n' "$expected_files" | language_hints_json_for_files)"
   actual_hints="$(jq_json "$SCOPE_DECISION" '.language_hints | sort | unique')"
   json_equal "$expected_hints" "$actual_hints" ||
-    fail "language hints mismatch"
+    fail "language hints do not match selected range"
 
-  if [ -n "$last_reviewed" ] && [ "$is_narrow" != "true" ]; then
+  if [ -n "$last_reviewed" ]; then
     local candidate_count
     local candidate_files
-    candidate_files="$(changed_files_json "$last_reviewed..HEAD")"
+    local expected_candidate_range="$last_reviewed..HEAD"
+    if [ -n "$candidate_range" ] && [ "$candidate_range" != "$expected_candidate_range" ]; then
+      fail "narrow scope must use last-reviewed-sha..HEAD"
+    fi
+    candidate_files="$(changed_files_json "$expected_candidate_range")"
     candidate_count="$(printf '%s\n' "$candidate_files" | jq 'length')"
     if [ "$candidate_count" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
+      [ "$is_narrow" != "true" ] || fail "file count requires full review"
       jq -e '.escalation.reasons | index("file-count") != null' "$SCOPE_DECISION" >/dev/null ||
         fail "file-count escalation reason missing"
     fi
     if printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
+      [ "$is_narrow" != "true" ] || fail "governed path requires full review"
       jq -e '.escalation.reasons | index("governance-path") != null' "$SCOPE_DECISION" >/dev/null ||
         fail "governance-path escalation reason missing"
     fi
     if [ -n "$CONFIGURED_PATH_PATTERN" ] &&
       printf '%s\n' "$candidate_files" | jq -r '.[]' | grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
+      [ "$is_narrow" != "true" ] || fail "configured path requires full review"
       jq -e '.escalation.reasons | index("configured-path") != null' "$SCOPE_DECISION" >/dev/null ||
         fail "configured-path escalation reason missing"
     fi
@@ -393,28 +418,36 @@ validate_scope_decision() {
 
   local artifact_prior_kind artifact_prior_path
   artifact_prior_kind="$(jq_value "$SCOPE_DECISION" '.prior_context.kind')"
-  artifact_prior_path="$(jq_value "$SCOPE_DECISION" '.prior_context.path // ""')"
+  artifact_prior_path="$(jq_value "$SCOPE_DECISION" 'if .prior_context.path == null then "null" else .prior_context.path end')"
   [ "$artifact_prior_kind" = "$PRIOR_CONTEXT_KIND" ] ||
     fail "prior context kind mismatch"
-  [ -z "$PRIOR_CONTEXT_PATH" ] || [ "$artifact_prior_path" = "$PRIOR_CONTEXT_PATH" ] ||
+  [ "$artifact_prior_path" = "$PRIOR_CONTEXT_PATH" ] ||
     fail "prior context path mismatch"
 }
 
 validate_prior_threads() {
   require_jq
   require_repo_root
-  require_flag "--prior-threads" "$PRIOR_THREADS"
+  require_flag "--surface" "$SURFACE"
+  require_flag "--prior-threads-file" "$PRIOR_THREADS"
+  require_flag "--expected-schema" "$EXPECTED_SCHEMA"
+  require_flag "--provider" "$PROVIDER"
+  [ "$SURFACE" = "pr-review" ] || fail "validate-prior-threads requires --surface pr-review"
+  [ "$EXPECTED_SCHEMA" = "pr-review/prior-threads/v1" ] ||
+    fail "--expected-schema must be pr-review/prior-threads/v1"
+  [ "$PROVIDER" = "github" ] || fail "--provider must be github"
   validate_current_head
-  assert_readable_file "--prior-threads" "$PRIOR_THREADS"
+  assert_readable_file "--prior-threads-file" "$PRIOR_THREADS"
+  validate_suffix "--prior-threads-file" "$PRIOR_THREADS" "-prior-threads.json"
 
-  jq -e --arg head "$HEAD_SHA" '
+  jq -e --arg head "$HEAD_SHA" --arg expected_schema "$EXPECTED_SCHEMA" '
     def repo_path:
       type == "string"
       and length > 0
       and (startswith("/") | not)
       and (split("/") | all(. != "" and . != "." and . != ".."));
     type == "object"
-    and .schema == "pr-review/prior-threads/v1"
+    and .schema == $expected_schema
     and .head_sha == $head
     and (.threads | type == "array")
     and (.threads | all(.[];
@@ -474,40 +507,32 @@ line_in_diff() {
 
 validate_diff_anchors() {
   require_jq
-  require_repo_root
-  require_flag "--diff-range" "$DIFF_RANGE"
-  require_flag "--anchors" "$ANCHORS"
-  validate_current_head
-  range_exists "$DIFF_RANGE" || fail "diff range does not resolve"
-  assert_readable_file "--anchors" "$ANCHORS"
-
-  jq -e '
-    def repo_path:
-      type == "string"
-      and length > 0
-      and (startswith("/") | not)
-      and (split("/") | all(. != "" and . != "." and . != ".."));
-    type == "object"
-    and .schema == "pr-review/diff-anchors/v1"
-    and (.anchors | type == "array")
-    and (.anchors | all(.[];
-      (.path | repo_path)
-      and (.line | type == "number" and . == floor and . >= 1)
-      and (.start_line == null or (.start_line | type == "number" and . == floor and . >= 1))
-      and (.side == "RIGHT")
-      and (.body | type == "string")))
-  ' "$ANCHORS" >/dev/null || fail "diff anchor shape validation failed"
+  validate_scope_decision
+  require_flag "--findings-file" "$FINDINGS_FILE"
+  [ "$SURFACE" = "pr-review" ] || fail "validate-diff-anchors requires --surface pr-review"
+  assert_readable_file "--findings-file" "$FINDINGS_FILE"
+  validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
+  assert_findings_envelope "$FINDINGS_FILE"
+  local selected_range
+  selected_range="$(jq_value "$SCOPE_DECISION" '.selected_range')"
 
   while IFS=$'\t' read -r file line start_line; do
     [ -n "$file" ] || continue
-    line_in_diff "$DIFF_RANGE" "$file" "$line" ||
-      fail "diff anchor outside selected diff"
+    line_in_diff "$selected_range" "$file" "$line" ||
+      fail "inline anchor is outside selected review diff"
     if [ -n "$start_line" ] && [ "$start_line" != "null" ]; then
       [ "$start_line" -le "$line" ] || fail "diff anchor line range is inverted"
-      line_in_diff "$DIFF_RANGE" "$file" "$start_line" ||
-        fail "diff anchor outside selected diff"
+      line_in_diff "$selected_range" "$file" "$start_line" ||
+        fail "inline anchor is outside selected review diff"
     fi
-  done < <(jq -r '.anchors[] | [.path, .line, (.start_line // "null")] | @tsv' "$ANCHORS")
+  done < <(
+    jq -r '
+      (.findings + .carry_forward)[]
+      | select(.anchor == "natural" or .anchor == "missing-file")
+      | [.path, .line, (.start_line // "null")]
+      | @tsv
+    ' "$FINDINGS_FILE"
+  )
 }
 
 assert_findings_envelope() {
@@ -541,52 +566,71 @@ assert_findings_envelope() {
 compare_approved_payload() {
   require_jq
   validate_scope_decision
+  [ "$SURFACE" = "pr-review" ] || fail "compare-approved-payload requires --surface pr-review"
   require_flag "--findings-file" "$FINDINGS_FILE"
   require_flag "--review-body-file" "$REVIEW_BODY_FILE"
+  require_flag "--review-payload-file" "$REVIEW_PAYLOAD_FILE"
   require_flag "--review-event" "$REVIEW_EVENT"
-  require_flag "--approved-payload" "$APPROVED_PAYLOAD"
   case "$REVIEW_EVENT" in
     APPROVE | REQUEST_CHANGES | COMMENT) ;;
     *) fail "--review-event must be APPROVE, REQUEST_CHANGES, or COMMENT" ;;
   esac
   assert_readable_file "--findings-file" "$FINDINGS_FILE"
   assert_readable_file "--review-body-file" "$REVIEW_BODY_FILE"
-  assert_readable_file "--approved-payload" "$APPROVED_PAYLOAD"
+  assert_readable_file "--review-payload-file" "$REVIEW_PAYLOAD_FILE"
+  validate_suffix "--findings-file" "$FINDINGS_FILE" "-findings.json"
+  validate_suffix "--review-payload-file" "$REVIEW_PAYLOAD_FILE" "-review-payload.json"
   assert_findings_envelope "$FINDINGS_FILE"
-  jq -e 'type == "object"' "$APPROVED_PAYLOAD" >/dev/null ||
-    fail "approved payload JSON validation failed"
+  jq -e 'type == "object"' "$REVIEW_PAYLOAD_FILE" >/dev/null ||
+    fail "review payload JSON validation failed"
 
-  local body_json expected_file
-  body_json="$(jq -Rs . "$REVIEW_BODY_FILE")"
+  local review_body out_of_diff expected_file
+  review_body="$(cat "$REVIEW_BODY_FILE")"
+  out_of_diff="$(jq -r '
+    (.findings + .carry_forward)
+    | map(select(.anchor == "out-of-diff") | .body)
+    | if length == 0 then empty
+      else "## Out-of-diff Findings\n\n" + join("\n\n")
+      end
+  ' "$FINDINGS_FILE")"
+  if [ -n "$review_body" ] && [ -n "$out_of_diff" ]; then
+    review_body="$(printf '%s\n\n%s\n' "$review_body" "$out_of_diff")"
+  elif [ -n "$out_of_diff" ]; then
+    review_body="$(printf '%s\n' "$out_of_diff")"
+  fi
   expected_file="$(mktemp ".ephemeral/.expected-approved-payload.XXXXXX")"
   jq -n \
     --arg commit_id "$HEAD_SHA" \
     --arg event "$REVIEW_EVENT" \
-    --argjson body "$body_json" \
+    --arg body "$review_body" \
     --slurpfile findings "$FINDINGS_FILE" '
       {
         commit_id: $commit_id,
         event: $event,
         body: $body,
         comments: [
-          $findings[0].findings[]
-          | select(.anchor == "natural")
+          ($findings[0].findings + $findings[0].carry_forward)[]
+          | select(.anchor == "natural" or .anchor == "missing-file")
           | . as $finding
           | {
               path: .path,
               line: .line,
               side: "RIGHT",
-              body: .body
+              body: (if .anchor == "missing-file" then
+                "Missing-file finding (no natural anchor — see body):\n\n" + .body
+              else
+                .body
+              end)
             }
           | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]
       }
     ' >"$expected_file"
 
-  if ! jq -n -e --slurpfile expected "$expected_file" --slurpfile actual "$APPROVED_PAYLOAD" \
+  if ! jq -n -e --slurpfile expected "$expected_file" --slurpfile actual "$REVIEW_PAYLOAD_FILE" \
     '$expected[0] == $actual[0]' >/dev/null; then
     rm -f "$expected_file"
-    fail "approved payload mismatch"
+    fail "approved review payload does not match generated payload"
   fi
   cat "$expected_file"
   rm -f "$expected_file"
