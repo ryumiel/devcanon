@@ -90,7 +90,7 @@ language-hint extraction. For scope-decision artifact validation it calls
 branch-review inputs into explicit support-validator flags for
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. The helper
 must run from the repository root. It is not authoritative for semantic review
-scope.
+scope and must not be treated as having written the final scope decision.
 
 The helper writes `KEY=VALUE` lines to stdout:
 
@@ -198,6 +198,60 @@ escalation so `Code-quality` checks and risk-triggered routing context match
 the selected review scope; deriving the final hints from the full branch during
 a narrow follow-up would defeat the follow-up scope, while keeping narrow hints
 after full escalation would hide review-relevant languages.
+
+After semantic classification is complete and both `ACTIVE_DIFF_RANGE` and
+`IS_FOLLOWUP_NARROW` are final, rewrite and validate the final
+`branch-review/scope-decision/v1` artifact before invoking `play-review`:
+
+```bash
+SCOPE_DECISION_HELPER="$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"
+
+FINAL_CHANGED_FILES_JSON=$(
+  git diff -z --name-only "$ACTIVE_DIFF_RANGE" |
+    jq -R -s -c 'split("\u0000")[:-1] | sort'
+)
+FINAL_LANGUAGE_HINTS_JSON=$(
+  printf '%s\n' "$FINAL_CHANGED_FILES_JSON" |
+    jq -c '
+      [
+        .[]
+        | select(test("\\.[A-Za-z0-9_+-]+$"))
+        | capture("\\.(?<ext>[A-Za-z0-9_+-]+)$").ext
+        | ascii_downcase
+      ]
+      | sort
+      | unique
+    '
+)
+LANGUAGE_HINTS="$(printf '%s\n' "$FINAL_LANGUAGE_HINTS_JSON" | jq -r 'join(",")')"
+
+HEAD_SHA="$(git rev-parse HEAD)" \
+SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+FULL_DIFF_RANGE="$FULL_DIFF_RANGE" \
+CANDIDATE_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE" \
+ACTIVE_DIFF_RANGE="$ACTIVE_DIFF_RANGE" \
+IS_FOLLOWUP_NARROW="$IS_FOLLOWUP_NARROW" \
+LAST_REVIEWED_SHA="$LAST_REVIEWED_SHA" \
+PRIOR_BRANCH_FINDINGS="$PRIOR_BRANCH_FINDINGS" \
+CHANGED_FILE_COUNT="$CHANGED_FILE_COUNT" \
+FOLLOWUP_SHA_USABLE="$FOLLOWUP_SHA_USABLE" \
+MECHANICAL_ESCALATE_FULL="$MECHANICAL_ESCALATE_FULL" \
+MECHANICAL_ESCALATION_REASON="$MECHANICAL_ESCALATION_REASON" \
+SEMANTIC_ESCALATION_REASON="${SEMANTIC_ESCALATION_REASON:-}" \
+SEMANTIC_DECISION_NOTES="${SEMANTIC_DECISION_NOTES:-}" \
+FINAL_CHANGED_FILES_JSON="$FINAL_CHANGED_FILES_JSON" \
+FINAL_LANGUAGE_HINTS_JSON="$FINAL_LANGUAGE_HINTS_JSON" \
+  bash "$SCOPE_DECISION_HELPER" finalize-scope-decision || exit 1
+```
+
+For a final full escalation caused by wrapper semantic classification, set
+`ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"`, `IS_FOLLOWUP_NARROW=false`, and provide
+a semantic escalation reason such as `source-owned-contract`,
+`shared-workflow-policy`, `broad-scope`, or `ambiguous-classification`.
+The final artifact must record `selected_range` equal to `FULL_DIFF_RANGE`,
+`is_followup_narrow: false`, and `semantic_decision.checked: true`.
+`semantic_decision.checked` means wrapper classification has completed; do not
+write the final artifact earlier.
 
 ## Phase 2: Invoke the play-review skill workflow
 

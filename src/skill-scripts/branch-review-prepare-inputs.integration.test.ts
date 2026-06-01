@@ -93,10 +93,6 @@ async function readChangedFiles(cwd: string, changedFilesFile: string) {
   return content.trim().split("\n").filter(Boolean);
 }
 
-async function readJsonFile(cwd: string, filePath: string) {
-  return JSON.parse(await readFile(path.join(cwd, filePath), "utf8"));
-}
-
 async function writeFailingSupportValidator(cwd: string, message: string) {
   const validator = path.join(cwd, ".ephemeral/failing-support-validator.sh");
   await mkdir(path.dirname(validator), { recursive: true });
@@ -139,13 +135,6 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.SCOPE_DECISION_FILE).toBe(
         `.ephemeral/topic-${headSha}-scope-decision.json`,
       );
-      await expect(
-        readJsonFile(cwd, values.SCOPE_DECISION_FILE),
-      ).resolves.toMatchObject({
-        schema: "branch-review/scope-decision/v1",
-        selected_range: "main...HEAD",
-        escalation_reasons: ["not-followup"],
-      });
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
@@ -447,18 +436,10 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     }
   });
 
-  it("delegates existing scope-decision validation failures through the branch adapter", async () => {
+  it("does not validate the final scope decision during mechanical input preparation", async () => {
     const cwd = await makeGitWorkspace();
     try {
       await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
-      const headSha = (
-        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
-      ).stdout.trim();
-      await mkdir(path.join(cwd, ".ephemeral"), { recursive: true });
-      await writeFile(
-        path.join(cwd, `.ephemeral/topic-${headSha}-scope-decision.json`),
-        "{}\n",
-      );
       const validator = await writeFailingSupportValidator(
         cwd,
         "changed file count does not match selected range",
@@ -473,11 +454,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
             PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
           },
         }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "changed file count does not match selected range",
-        ),
-      });
+      ).resolves.toMatchObject({ stderr: "" });
     } finally {
       await cleanupTempDir(cwd);
     }

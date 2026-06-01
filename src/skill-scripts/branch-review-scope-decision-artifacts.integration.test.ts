@@ -55,6 +55,35 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function commitFile(cwd: string, filePath: string, content: string) {
+  await mkdir(path.dirname(path.join(cwd, filePath)), { recursive: true });
+  await writeFile(path.join(cwd, filePath), content);
+  await execFileAsync("git", ["add", "--", filePath], { cwd });
+  await execFileAsync("git", ["commit", "-m", `test: add ${filePath}`], {
+    cwd,
+  });
+  return git(cwd, "rev-parse", "HEAD");
+}
+
+async function makeFollowupWorkspace() {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-branch-scope-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "README.md"], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  await execFileAsync("git", ["switch", "-C", "topic"], { cwd });
+  await commitFile(cwd, "src/full-only.ts", "export const fullOnly = 1;\n");
+  const lastReviewedSha = await git(cwd, "rev-parse", "HEAD");
+  await commitFile(cwd, "notes/followup.md", "narrow\n");
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  return { cwd, lastReviewedSha, headSha };
+}
+
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
 }
@@ -102,6 +131,10 @@ async function runHelper(
     env: { ...process.env, ...env },
     maxBuffer: 1024 * 1024,
   });
+}
+
+async function readJson(cwd: string, relPath: string) {
+  return JSON.parse(await readFile(path.join(cwd, relPath), "utf8"));
 }
 
 async function writeMarkerValidator(root: string, marker: string) {
@@ -259,6 +292,95 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         stderr: expect.stringContaining(
           "changed file count does not match selected range",
         ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("finalizes a mechanically narrow follow-up as full when semantic classification escalates", async () => {
+    const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: "main...HEAD",
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          IS_FOLLOWUP_NARROW: "false",
+          LAST_REVIEWED_SHA: lastReviewedSha,
+          PRIOR_BRANCH_FINDINGS: ".ephemeral/topic-findings.json",
+          CHANGED_FILE_COUNT: "1",
+          FOLLOWUP_SHA_USABLE: "true",
+          MECHANICAL_ESCALATE_FULL: "false",
+          MECHANICAL_ESCALATION_REASON: "",
+          SEMANTIC_ESCALATION_REASON: "source-owned-contract",
+          SEMANTIC_DECISION_NOTES:
+            "Wrapper semantic classification found source-owned contract impact.",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify([
+            "notes/followup.md",
+            "src/full-only.ts",
+          ]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md", "ts"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: "main...HEAD",
+        is_followup_narrow: false,
+        escalation_reasons: ["source-owned-contract"],
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes:
+            "Wrapper semantic classification found source-owned contract impact.",
+        },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("finalizes a mechanically narrow follow-up as narrow when semantic classification preserves it", async () => {
+    const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: "main...HEAD",
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
+          ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
+          IS_FOLLOWUP_NARROW: "true",
+          LAST_REVIEWED_SHA: lastReviewedSha,
+          PRIOR_BRANCH_FINDINGS: ".ephemeral/topic-findings.json",
+          CHANGED_FILE_COUNT: "1",
+          FOLLOWUP_SHA_USABLE: "true",
+          MECHANICAL_ESCALATE_FULL: "false",
+          MECHANICAL_ESCALATION_REASON: "",
+          SEMANTIC_DECISION_NOTES:
+            "Wrapper semantic classification permits narrow follow-up.",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify(["notes/followup.md"]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: `${lastReviewedSha}..HEAD`,
+        is_followup_narrow: true,
+        escalation_reasons: [],
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes: "Wrapper semantic classification permits narrow follow-up.",
+        },
       });
     } finally {
       await cleanupTempDir(cwd);
