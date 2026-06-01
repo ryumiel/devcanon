@@ -295,9 +295,22 @@ Invalid self-review examples:
 - `Plan looks good`
 - `All comments listed` without concern-to-fix mapping
 
-Valid self-review surfaces include comment mapping, current thread and code
-evidence, gaps, root-cause diagnosis, residual risks, and executor handoff
-suitability.
+Valid self-review example:
+
+```text
+Comment mapping: C1 and C3 map to lifecycle or correlation gap; C2 is
+explanation-only.
+Current thread and code evidence: fetched unresolved threads at 2026-06-02 and
+confirmed `src/worker.ts` still accepts stale completion callbacks.
+Gaps: no test covers same-tick cancellation followed by stale completion.
+Root-cause diagnosis: missing validation boundary at the operation owner.
+Root-cause-derived work items: strengthen the owner-side completion guard and
+add stale-callback coverage, rather than one task per comment.
+Residual risks: retry cleanup still needs focused verification.
+Executor handoff suitability: direct/manual plan has source authority,
+acceptance criteria, TDD expectations, verification, and GitHub closeout left
+with `play-review-response`.
+```
 
 GitHub reply, refetch, and resolution closeout remain owned by
 `play-review-response` and must not be dispatched as `play-subagent-execution`

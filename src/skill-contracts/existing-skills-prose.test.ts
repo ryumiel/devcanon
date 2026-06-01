@@ -1557,16 +1557,23 @@ describe("existing skills source prose contracts", () => {
       expect(normalizedExecutionMode).toContain(invalidExample);
     }
 
+    expect(normalizedExecutionMode).toContain("Valid self-review example:");
+
     for (const validExampleSurface of [
-      "comment mapping",
-      "current thread and code evidence",
-      "gaps",
-      "root-cause diagnosis",
-      "residual risks",
-      "executor handoff suitability",
+      "Comment mapping",
+      "Current thread and code evidence",
+      "Gaps",
+      "Root-cause diagnosis",
+      "Root-cause-derived work items",
+      "Residual risks",
+      "Executor handoff suitability",
     ]) {
       expect(normalizedExecutionMode).toContain(validExampleSurface);
     }
+
+    expect(normalizedExecutionMode).toMatch(
+      /Valid self-review example:.*Comment mapping:.*Current thread and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
+    );
 
     expect(normalizedExecutionMode).toMatch(
       /GitHub reply, refetch, and resolution closeout.*must not be dispatched as `play-subagent-execution` implementation tasks/i,
