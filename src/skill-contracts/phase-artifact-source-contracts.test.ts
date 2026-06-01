@@ -456,6 +456,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("KEY=VALUE");
     expect(branchReview).toContain("PREPARE_INPUTS_HELPER");
     expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
+    expect(branchReview).toContain("- `SCOPE_DECISION_FILE`");
     expect(branchReview).toContain("PLAY_REVIEW_DIR");
     expect(branchReviewHelper).toContain("--last-reviewed requires a SHA");
     expect(branchReviewHelper).toContain(
