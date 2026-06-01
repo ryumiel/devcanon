@@ -704,6 +704,10 @@ validate_scope_decision() {
   local artifact_prior_kind artifact_prior_path
   artifact_prior_kind="$(jq_value "$SCOPE_DECISION" '.prior_context.kind')"
   artifact_prior_path="$(jq_value "$SCOPE_DECISION" 'if .prior_context.path == null then "null" else .prior_context.path end')"
+  if [ "$mode" = "initial" ] &&
+    { [ "$artifact_prior_kind" != "none" ] || [ "$artifact_prior_path" != "null" ]; }; then
+    fail "initial scope requires no prior context"
+  fi
   case "$artifact_prior_kind:$SURFACE" in
     github-prior-threads:pr-review | branch-findings:branch-review | none:*) ;;
     github-prior-threads:*) fail "github-prior-threads prior context is pr-review only" ;;

@@ -1041,7 +1041,7 @@ describe.skipIf(!jqAvailable)(
     });
 
     it("rejects invalid prior-context kind, surface, and path combinations", async () => {
-      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
       try {
         await writeJson(
           cwd,
@@ -1115,14 +1115,48 @@ describe.skipIf(!jqAvailable)(
           "github-prior-threads prior context is pr-review only",
         );
 
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          initialScope(baseSha, headSha, "branch-review", {
+        for (const invalidInitialPriorContext of [
+          {
+            surface: "pr-review",
+            kind: "github-prior-threads",
+            path: ".ephemeral/topic-prior-threads.json",
+          },
+          {
+            surface: "branch-review",
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+        ]) {
+          await writeJson(
+            cwd,
+            ".ephemeral/topic-scope-decision.json",
+            initialScope(baseSha, headSha, invalidInitialPriorContext.surface, {
+              kind: invalidInitialPriorContext.kind,
+              path: invalidInitialPriorContext.path,
+            }),
+          );
+          await expectRejectsWith(
+            runValidator(cwd, "validate-scope-decision", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                invalidInitialPriorContext.surface,
+                invalidInitialPriorContext.kind,
+                invalidInitialPriorContext.path,
+              ),
+            ]),
+            "initial scope requires no prior context",
+          );
+        }
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
+          prior_context: {
             kind: "none",
             path: ".ephemeral/unexpected.json",
-          }),
-        );
+          },
+        });
         await expectRejectsWith(
           runValidator(cwd, "validate-scope-decision", [
             ...scopeArgs(
