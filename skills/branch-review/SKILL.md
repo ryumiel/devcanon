@@ -84,13 +84,15 @@ If the diff is empty, report "no changes to review" and stop.
 `prepare-review-inputs.sh` owns branch-specific Phase 1 adapter mechanics:
 argument parsing, base resolution, paired follow-up input validation,
 installed `play-review` helper validation, prior findings review-head matching,
-candidate range computation, changed-file fact emission, and initial
-language-hint extraction. For scope-decision artifact validation it calls
-`skills/branch-review/scripts/scope-decision-artifacts.sh`, which translates
-branch-review inputs into explicit support-validator flags for
-`skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. The helper
-must run from the repository root. It is not authoritative for semantic review
-scope and must not be treated as having written the final scope decision.
+candidate range computation, changed-file fact emission, initial language-hint
+extraction, and preparing `SCOPE_DECISION_FILE` for the later semantic scope
+decision. `skills/branch-review/scripts/scope-decision-artifacts.sh
+finalize-scope-decision` validates the final scope decision artifact after
+semantic classification by translating branch-review inputs into explicit
+support-validator flags for
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. The helpers
+must run from the repository root. Preparation is not authoritative for semantic
+review scope and must not be treated as having written the final scope decision.
 
 The helper writes `KEY=VALUE` lines to stdout:
 
