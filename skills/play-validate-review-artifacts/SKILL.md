@@ -1,6 +1,8 @@
 ---
 name: play-validate-review-artifacts
 description: Support-only validation contract for shared Play review artifacts. Use when a Play review wrapper or adapter must delegate deterministic review-artifact validation across PR review, branch review, or generated and installed review skill bundles.
+claude:
+  user-invocable: false
 codex_sidecar:
   policy:
     allow_implicit_invocation: false
