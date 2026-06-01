@@ -213,9 +213,11 @@ language_hints_json_for_files() {
   jq -c '
     [
       .[]
-      | select(test("\\.[^./]+$"))
+      | select(test("\\.[A-Za-z0-9_+-]+$"))
       | sub("^.*\\."; "")
+      | ascii_downcase
     ]
+    | sort
     | unique
   '
 }
@@ -429,9 +431,10 @@ validate_scope_decision() {
   validate_scope_shape
 
   local artifact_surface artifact_head mode full_range selected_range candidate_range last_reviewed
-  local is_narrow mechanical_escalate semantic_ambiguous changed_count expected_full_range
+  local is_narrow mechanical_escalate semantic_checked semantic_ambiguous changed_count expected_full_range
+  local artifact_followup_usable artifact_mechanical_reason
   local expected_files actual_files expected_hints actual_hints
-  local expected_count actual_count expected_selected_range
+  local expected_count actual_count expected_selected_range count_range_label
   local followup_usable=false
 
   artifact_surface="$(jq_value "$SCOPE_DECISION" '.surface')"
@@ -450,11 +453,15 @@ validate_scope_decision() {
   last_reviewed="$(jq_value "$SCOPE_DECISION" '.last_reviewed_sha // ""')"
   is_narrow="$(jq_value "$SCOPE_DECISION" '.is_followup_narrow')"
   mechanical_escalate="$(jq_value "$SCOPE_DECISION" '.mechanical_facts.mechanical_escalate_full')"
+  artifact_followup_usable="$(jq_value "$SCOPE_DECISION" '.mechanical_facts.followup_sha_usable')"
+  artifact_mechanical_reason="$(jq_value "$SCOPE_DECISION" '.mechanical_facts.mechanical_escalation_reason')"
+  semantic_checked="$(jq_value "$SCOPE_DECISION" '.semantic_decision.checked')"
   semantic_ambiguous="$(jq_value "$SCOPE_DECISION" '.semantic_decision.ambiguous')"
   changed_count="$(jq_value "$SCOPE_DECISION" '.mechanical_facts.changed_file_count')"
   expected_full_range="$BASE_REF...HEAD"
 
   reject_unknown_escalation_reasons
+  [ "$semantic_checked" = "true" ] || fail "semantic decision must be checked"
   [ "$full_range" = "$expected_full_range" ] ||
     fail "full range does not match caller base ref"
 
@@ -465,6 +472,8 @@ validate_scope_decision() {
     git merge-base --is-ancestor "$last_reviewed" HEAD 2>/dev/null; then
     followup_usable=true
   fi
+  [ "$artifact_followup_usable" = "$followup_usable" ] ||
+    fail "follow-up usability does not match git"
 
   if [ "$is_narrow" = "true" ]; then
     [ "$mode" = "follow-up" ] || fail "narrow scope requires follow-up mode"
@@ -510,9 +519,14 @@ validate_scope_decision() {
   json_equal "$expected_files" "$actual_files" ||
     fail "changed files do not match selected range"
   expected_count="$(printf '%s\n' "$expected_files" | jq 'length')"
+  count_range_label="selected range"
+  if [ -n "$last_reviewed" ] && [ "$followup_usable" = "true" ]; then
+    expected_count="$(changed_files_json "$last_reviewed..HEAD" | jq 'length')"
+    count_range_label="candidate range"
+  fi
   actual_count="$changed_count"
   [ "$expected_count" = "$actual_count" ] ||
-    fail "changed file count does not match selected range"
+    fail "changed file count does not match $count_range_label"
   expected_hints="$(printf '%s\n' "$expected_files" | language_hints_json_for_files)"
   actual_hints="$(jq_json "$SCOPE_DECISION" '.language_hints | sort | unique')"
   json_equal "$expected_hints" "$actual_hints" ||
@@ -520,22 +534,28 @@ validate_scope_decision() {
 
   if [ -n "$last_reviewed" ]; then
     local has_real_followup_trigger=false
+    local derived_mechanical_escalate=false
+    local derived_mechanical_reason=""
     if [ "$followup_usable" != "true" ]; then
       [ "$is_narrow" != "true" ] || fail "narrow scope requires usable follow-up sha"
+      [ "$candidate_range" = "$full_range" ] ||
+        fail "unusable follow-up scope must use full range"
       reason_present "last-reviewed-unusable" ||
         fail "last-reviewed-unusable escalation reason missing"
       reason_present "file-count" && fail "file-count escalation reason missing"
       reason_present "governance-path" && fail "governance-path escalation reason missing"
       reason_present "configured-path" && fail "configured-path escalation reason missing"
       has_real_followup_trigger=true
+      derived_mechanical_escalate=true
+      derived_mechanical_reason="last-reviewed-unusable"
     fi
     local candidate_count
     local candidate_files
     local expected_candidate_range="$last_reviewed..HEAD"
-    if [ -n "$candidate_range" ] && [ "$candidate_range" != "$expected_candidate_range" ]; then
-      fail "narrow scope must use last-reviewed-sha..HEAD"
-    fi
     if [ "$followup_usable" = "true" ]; then
+      if [ -n "$candidate_range" ] && [ "$candidate_range" != "$expected_candidate_range" ]; then
+        fail "narrow scope must use last-reviewed-sha..HEAD"
+      fi
       candidate_files="$(changed_files_json "$expected_candidate_range")"
       candidate_count="$(printf '%s\n' "$candidate_files" | jq 'length')"
       if [ "$candidate_count" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
@@ -543,6 +563,8 @@ validate_scope_decision() {
         reason_present "file-count" ||
           fail "file-count escalation reason missing"
         has_real_followup_trigger=true
+        derived_mechanical_escalate=true
+        derived_mechanical_reason="file-count"
       elif reason_present "file-count"; then
         fail "file-count escalation reason missing"
       fi
@@ -551,6 +573,10 @@ validate_scope_decision() {
         reason_present "governance-path" ||
           fail "governance-path escalation reason missing"
         has_real_followup_trigger=true
+        derived_mechanical_escalate=true
+        if [ -z "$derived_mechanical_reason" ]; then
+          derived_mechanical_reason="governance-path"
+        fi
       elif reason_present "governance-path"; then
         fail "governance-path escalation reason missing"
       fi
@@ -560,12 +586,24 @@ validate_scope_decision() {
         reason_present "configured-path" ||
           fail "configured-path escalation reason missing"
         has_real_followup_trigger=true
+        derived_mechanical_escalate=true
+        if [ -z "$derived_mechanical_reason" ]; then
+          derived_mechanical_reason="configured-path"
+        fi
       elif reason_present "configured-path"; then
         fail "configured-path escalation reason missing"
       fi
       if reason_present "last-reviewed-unusable"; then
         fail "last-reviewed-unusable escalation reason missing"
       fi
+    fi
+    [ "$mechanical_escalate" = "$derived_mechanical_escalate" ] ||
+      fail "mechanical escalation does not match git"
+    if [ "$derived_mechanical_escalate" = "true" ]; then
+      [ "$artifact_mechanical_reason" = "$derived_mechanical_reason" ] ||
+        fail "mechanical escalation reason does not match git"
+    elif [ -n "$artifact_mechanical_reason" ]; then
+      fail "mechanical escalation reason does not match git"
     fi
     if [ "$semantic_ambiguous" = "true" ]; then
       has_real_followup_trigger=true
@@ -593,6 +631,8 @@ validate_scope_decision() {
     if [ "$is_narrow" != "true" ] && [ "$has_real_followup_trigger" != "true" ]; then
       fail "full follow-up requires justified escalation"
     fi
+  elif [ "$mechanical_escalate" != "true" ] || [ "$artifact_mechanical_reason" != "not-followup" ]; then
+    fail "mechanical escalation does not match git"
   fi
 
   local artifact_prior_kind artifact_prior_path
@@ -767,15 +807,17 @@ validate_prior_threads() {
   ' "$PRIOR_THREADS" >/dev/null || fail "prior-thread line range is inverted"
 }
 
-line_in_diff() {
+diff_hunk_for_line() {
   local range="$1"
   local file="$2"
   local line="$3"
 
   git diff --unified=0 "$range" -- "$file" |
     awk -v target="$line" '
+      BEGIN { hunk = 0; found = 0 }
       /^\+\+\+ / { next }
       /^@@ / {
+        hunk += 1
         if (match($0, /\+[0-9]+(,[0-9]+)?/)) {
           spec = substr($0, RSTART + 1, RLENGTH - 1)
           split(spec, parts, ",")
@@ -786,11 +828,17 @@ line_in_diff() {
           }
           end = start + count - 1
           if (target >= start && target <= end) {
-            found = 1
+            found = hunk
           }
         }
       }
-      END { exit(found ? 0 : 1) }
+      END {
+        if (found) {
+          print found
+          exit 0
+        }
+        exit 1
+      }
     '
 }
 
@@ -807,12 +855,15 @@ validate_diff_anchors() {
 
   while IFS=$'\t' read -r file line start_line; do
     [ -n "$file" ] || continue
-    line_in_diff "$selected_range" "$file" "$line" ||
+    local line_hunk start_hunk
+    line_hunk="$(diff_hunk_for_line "$selected_range" "$file" "$line")" ||
       fail "inline anchor is outside selected review diff"
     if [ -n "$start_line" ] && [ "$start_line" != "null" ]; then
       [ "$start_line" -le "$line" ] || fail "diff anchor line range is inverted"
-      line_in_diff "$selected_range" "$file" "$start_line" ||
+      start_hunk="$(diff_hunk_for_line "$selected_range" "$file" "$start_line")" ||
         fail "inline anchor is outside selected review diff"
+      [ "$start_hunk" = "$line_hunk" ] ||
+        fail "inline anchor range crosses selected review diff hunks"
     fi
   done < <(
     jq -r '
@@ -916,11 +967,7 @@ compare_approved_payload() {
               path: .path,
               line: .line,
               side: "RIGHT",
-              body: (if .anchor == "missing-file" then
-                "Missing-file finding (no natural anchor — see body):\n\n" + .body
-              else
-                .body
-              end)
+              body: .body
             }
           | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]

@@ -457,6 +457,69 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("derives follow-up mechanical counts from the candidate range while selected artifacts use the full range", async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        const lastReviewedSha = headSha;
+        await writeFile(
+          path.join(cwd, "src/extra.TS"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: extra"], { cwd });
+        const newHead = await git(cwd, "rev-parse", "HEAD");
+        const scope = {
+          ...initialScope(baseSha, newHead),
+          changed_files: ["src/app.ts", "src/extra.TS"],
+          language_hints: ["ts"],
+          mode: "follow-up",
+          selection_reason:
+            "Public API changes require the full follow-up review range.",
+          escalation_reasons: ["public-api"],
+          last_reviewed_sha: lastReviewedSha,
+          candidate_narrow_range: `${lastReviewedSha}..HEAD`,
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        };
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+        await expect(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(newHead, baseSha),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...scope,
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(newHead, baseSha),
+          ),
+          "changed file count does not match candidate range",
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("accepts governed and configured path full escalation", async () => {
       const governed = await makeGitWorkspace();
       try {
@@ -1042,7 +1105,69 @@ describe.skipIf(!jqAvailable)(
             "validate-scope-decision",
             branchFollowupScopeArgs(headSha, baseSha),
           ),
-          "changed file count does not match selected range",
+          "changed file count does not match candidate range",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "follow-up usability does not match git",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          mode: "follow-up",
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          selection_reason: "Public API changes require full follow-up review.",
+          escalation_reasons: ["public-api"],
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: true,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "file-count",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "mechanical escalation does not match git",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, firstSha, headSha),
+          semantic_decision: {
+            checked: false,
+            ambiguous: false,
+            notes: "",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "semantic decision must be checked",
         );
 
         await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
@@ -1067,10 +1192,71 @@ describe.skipIf(!jqAvailable)(
       try {
         const badSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          mode: "follow-up",
+          selection_reason:
+            "Unusable last-reviewed SHA escalates to the full review range.",
+          escalation_reasons: ["last-reviewed-unusable"],
+          last_reviewed_sha: badSha,
+          candidate_narrow_range: `${baseSha}...HEAD`,
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "last-reviewed-unusable",
+          },
+        });
+        await expect(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          mode: "follow-up",
+          selection_reason:
+            "Unusable last-reviewed SHA escalates to the full review range.",
+          escalation_reasons: ["last-reviewed-unusable"],
+          last_reviewed_sha: badSha,
+          candidate_narrow_range: `${badSha}..HEAD`,
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "last-reviewed-unusable",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "unusable follow-up scope must use full range",
+        );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
           ...narrowScope(baseSha, firstSha, headSha),
           last_reviewed_sha: badSha,
           selected_range: `${badSha}..HEAD`,
           candidate_narrow_range: `${badSha}..HEAD`,
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: false,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
         });
         await expectRejectsWith(
           runValidator(
@@ -1296,6 +1482,83 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects multiline diff anchors that cross selected diff hunks", async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        const lastReviewedSha = headSha;
+        await writeFile(
+          path.join(cwd, "src/multihunk.ts"),
+          `${Array.from(
+            { length: 24 },
+            (_, index) => `export const v${index} = ${index};`,
+          ).join("\n")}\n`,
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "test: add multihunk"], {
+          cwd,
+        });
+        const beforeMultihunkChange = await git(cwd, "rev-parse", "HEAD");
+        await writeFile(
+          path.join(cwd, "src/multihunk.ts"),
+          `${Array.from({ length: 24 }, (_, index) => {
+            if (index === 1) {
+              return "export const v1 = 101;";
+            }
+            if (index === 17) {
+              return "export const v17 = 117;";
+            }
+            return `export const v${index} = ${index};`;
+          }).join("\n")}\n`,
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "test: split hunks"], {
+          cwd,
+        });
+        const newHead = await git(cwd, "rev-parse", "HEAD");
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...narrowScope(baseSha, beforeMultihunkChange, newHead),
+          schema: "pr-review/scope-decision/v1",
+          surface: "pr-review",
+          changed_files: ["src/multihunk.ts"],
+          selected_range: `${beforeMultihunkChange}..HEAD`,
+          candidate_narrow_range: `${beforeMultihunkChange}..HEAD`,
+          prior_context: {
+            kind: "github-prior-threads",
+            path: ".ephemeral/topic-prior-threads.json",
+          },
+        });
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [
+            finding({
+              path: "src/multihunk.ts",
+              start_line: 2,
+              line: 18,
+            }),
+          ],
+        });
+
+        await expectRejectsWith(
+          runValidator(cwd, "validate-diff-anchors", [
+            ...scopeArgs(
+              newHead,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+              "github-prior-threads",
+              ".ephemeral/topic-prior-threads.json",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+          ]),
+          "inline anchor range crosses selected review diff hunks",
+        );
+        expect(lastReviewedSha).not.toBe(beforeMultihunkChange);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("compares approved payloads against findings and review body inputs", async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
       try {
@@ -1337,7 +1600,7 @@ describe.skipIf(!jqAvailable)(
               path: "src/app.ts",
               line: 2,
               side: "RIGHT",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              body: "Carry-forward body.",
             },
           ],
         });
@@ -1461,7 +1724,7 @@ describe.skipIf(!jqAvailable)(
               path: "src/app.ts",
               line: 2,
               side: "RIGHT",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              body: "Carry-forward body.",
             },
           ],
         });
