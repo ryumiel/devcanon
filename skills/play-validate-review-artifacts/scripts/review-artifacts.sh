@@ -380,6 +380,15 @@ reason_count() {
   jq -r '.escalation_reasons | length' "$SCOPE_DECISION"
 }
 
+append_mechanical_reason() {
+  local reason="$1"
+  if [ -z "$derived_mechanical_reason" ]; then
+    derived_mechanical_reason="$reason"
+  else
+    derived_mechanical_reason="$derived_mechanical_reason,$reason"
+  fi
+}
+
 reject_unknown_escalation_reasons() {
   jq -e '
     .escalation_reasons | all(.[]; . as $reason | [
@@ -491,6 +500,9 @@ validate_scope_decision() {
       fail "full escalation selected_range must equal full_range"
     if [ -z "$last_reviewed" ]; then
       [ "$mode" = "initial" ] || fail "full baseline requires initial mode"
+      [ "$candidate_range" = "$full_range" ] ||
+        fail "initial candidate_narrow_range must equal full_range"
+      range_exists "$candidate_range" || fail "review range does not resolve"
       reason_present "not-followup" ||
         fail "not-followup escalation reason missing"
       [ "$(reason_count)" -eq 1 ] ||
@@ -547,7 +559,7 @@ validate_scope_decision() {
       reason_present "configured-path" && fail "configured-path escalation reason missing"
       has_real_followup_trigger=true
       derived_mechanical_escalate=true
-      derived_mechanical_reason="last-reviewed-unusable"
+      append_mechanical_reason "last-reviewed-unusable"
     fi
     local candidate_count
     local candidate_files
@@ -564,7 +576,7 @@ validate_scope_decision() {
           fail "file-count escalation reason missing"
         has_real_followup_trigger=true
         derived_mechanical_escalate=true
-        derived_mechanical_reason="file-count"
+        append_mechanical_reason "file-count"
       elif reason_present "file-count"; then
         fail "file-count escalation reason missing"
       fi
@@ -574,9 +586,7 @@ validate_scope_decision() {
           fail "governance-path escalation reason missing"
         has_real_followup_trigger=true
         derived_mechanical_escalate=true
-        if [ -z "$derived_mechanical_reason" ]; then
-          derived_mechanical_reason="governance-path"
-        fi
+        append_mechanical_reason "governance-path"
       elif reason_present "governance-path"; then
         fail "governance-path escalation reason missing"
       fi
@@ -587,9 +597,7 @@ validate_scope_decision() {
           fail "configured-path escalation reason missing"
         has_real_followup_trigger=true
         derived_mechanical_escalate=true
-        if [ -z "$derived_mechanical_reason" ]; then
-          derived_mechanical_reason="configured-path"
-        fi
+        append_mechanical_reason "configured-path"
       elif reason_present "configured-path"; then
         fail "configured-path escalation reason missing"
       fi
@@ -812,7 +820,7 @@ diff_hunk_for_line() {
   local file="$2"
   local line="$3"
 
-  git diff --unified=0 "$range" -- "$file" |
+  git diff "$range" -- "$file" |
     awk -v target="$line" '
       BEGIN { hunk = 0; found = 0 }
       /^\+\+\+ / { next }
@@ -967,7 +975,11 @@ compare_approved_payload() {
               path: .path,
               line: .line,
               side: "RIGHT",
-              body: .body
+              body: (if .anchor == "missing-file" then
+                "Missing-file finding (no natural anchor — see body):\n\n" + .body
+              else
+                .body
+              end)
             }
           | if $finding.start_line == null then . else . + {start_line: $finding.start_line, start_side: "RIGHT"} end
         ]

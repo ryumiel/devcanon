@@ -399,6 +399,19 @@ describe.skipIf(!jqAvailable)(
           ),
           "scope decision JSON validation failed",
         );
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...initialScope(baseSha, headSha),
+          candidate_narrow_range: "HEAD..HEAD",
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            scopeArgs(headSha, baseSha),
+          ),
+          "initial candidate_narrow_range must equal full_range",
+        );
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -452,6 +465,75 @@ describe.skipIf(!jqAvailable)(
           ),
         ).resolves.toMatchObject({ stdout: "" });
         expect(headSha).not.toBe(newHead);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("accepts comma-joined mechanical reasons when multiple mechanical triggers fire", async () => {
+      const { cwd, baseSha, firstSha } = await makeGitWorkspace();
+      try {
+        await mkdir(path.join(cwd, "docs/adr"), { recursive: true });
+        await writeFile(path.join(cwd, "docs/adr/adr-9999.md"), "ADR\n");
+        for (let index = 0; index < 6; index += 1) {
+          await writeFile(path.join(cwd, `src/multi-${index}.ts`), "x\n");
+        }
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "test: multi trigger"], {
+          cwd,
+        });
+        const headSha = await git(cwd, "rev-parse", "HEAD");
+        const scope = {
+          ...initialScope(baseSha, headSha),
+          changed_files: [
+            "docs/adr/adr-9999.md",
+            "src/app.ts",
+            ...Array.from({ length: 6 }, (_, index) => `src/multi-${index}.ts`),
+          ],
+          language_hints: ["md", "ts"],
+          mode: "follow-up",
+          selection_reason:
+            "File count and governance paths escalate the follow-up to full review.",
+          escalation_reasons: ["file-count", "governance-path"],
+          last_reviewed_sha: firstSha,
+          candidate_narrow_range: `${firstSha}..HEAD`,
+          prior_context: {
+            kind: "branch-findings",
+            path: ".ephemeral/topic-findings.json",
+          },
+          mechanical_facts: {
+            changed_file_count: 8,
+            followup_sha_usable: true,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "file-count,governance-path",
+          },
+        };
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+        await expect(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+          ...scope,
+          mechanical_facts: {
+            changed_file_count: 8,
+            followup_sha_usable: true,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "file-count",
+          },
+        });
+        await expectRejectsWith(
+          runValidator(
+            cwd,
+            "validate-scope-decision",
+            branchFollowupScopeArgs(headSha, baseSha),
+          ),
+          "mechanical escalation reason does not match git",
+        );
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -1532,6 +1614,31 @@ describe.skipIf(!jqAvailable)(
           findings: [
             finding({
               path: "src/multihunk.ts",
+              line: 3,
+              start_line: null,
+            }),
+          ],
+        });
+        await expect(
+          runValidator(cwd, "validate-diff-anchors", [
+            ...scopeArgs(
+              newHead,
+              baseSha,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+              "github-prior-threads",
+              ".ephemeral/topic-prior-threads.json",
+            ),
+            "--findings-file",
+            ".ephemeral/topic-findings.json",
+          ]),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          ...findingsEnvelope(),
+          findings: [
+            finding({
+              path: "src/multihunk.ts",
               start_line: 2,
               line: 18,
             }),
@@ -1600,7 +1707,7 @@ describe.skipIf(!jqAvailable)(
               path: "src/app.ts",
               line: 2,
               side: "RIGHT",
-              body: "Carry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });
@@ -1724,7 +1831,7 @@ describe.skipIf(!jqAvailable)(
               path: "src/app.ts",
               line: 2,
               side: "RIGHT",
-              body: "Carry-forward body.",
+              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
             },
           ],
         });
