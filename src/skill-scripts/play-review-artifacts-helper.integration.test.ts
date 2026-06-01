@@ -233,7 +233,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         REVIEW_BODY_FILE: reviewBodyFile,
         REVIEW_EVENT: "REQUEST_CHANGES",
       });
-      const decoded = JSON.parse(payload.stdout) as { body: string };
+      const decoded = JSON.parse(payload.stdout) as {
+        body: string;
+        comments: Array<Record<string, unknown>>;
+      };
 
       expect(preview.stdout).toContain(`Review head: ${reviewHeadSha}`);
       expect(preview.stdout).toContain(`Findings file: ${findingsFile}`);
@@ -249,6 +252,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       );
       expect(decoded.body).toContain(
         "Carry-forward out-of-diff entries also belong in the body.",
+      );
+      expect(decoded.comments).toHaveLength(1);
+      expect(decoded.comments[0]).toMatchObject({
+        path: "src/review-target.ts",
+        line: 4,
+        side: "RIGHT",
+      });
+      expect(JSON.stringify(decoded.comments)).not.toContain(
+        "The carry-forward finding should still be rendered.",
       );
     } finally {
       await cleanupTempDir(cwd);
@@ -537,7 +549,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(payload.body).toContain("Top-level summary");
       expect(payload.body).toContain("Out of diff body");
       expect(payload.body).toContain("Carry forward out of diff");
-      expect(payload.comments).toHaveLength(3);
+      expect(payload.comments).toHaveLength(2);
       expect(payload.comments[0]).toEqual({
         path: "src/review-target.ts",
         line: 4,
@@ -549,21 +561,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       );
       expect(payload.comments[1]).not.toHaveProperty("start_line");
       expect(payload.comments[1]).not.toHaveProperty("start_side");
-      expect(payload.comments[2]).toMatchObject({
-        path: "src/review-target.ts",
-        start_line: 2,
-        start_side: "RIGHT",
-        line: 3,
-        side: "RIGHT",
-      });
-      expect(Object.keys(payload.comments[2]).sort()).toEqual([
-        "body",
-        "line",
-        "path",
-        "side",
-        "start_line",
-        "start_side",
-      ]);
+      expect(JSON.stringify(payload.comments)).not.toContain("Range body");
     } finally {
       await cleanupTempDir(cwd);
     }

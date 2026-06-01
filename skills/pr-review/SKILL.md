@@ -62,7 +62,7 @@ git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 
 Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses `origin/$BASE_REF...HEAD`, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
 
@@ -70,29 +70,81 @@ Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash 
 
 ## Phase 3: Determine diff ranges
 
-`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode.
+`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode. Keep the PR base ref name and the full-range left side distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name, while `REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"` is the ref passed to scope-decision and approved-review validators because the canonical full range is `"$REVIEW_SCOPE_BASE_REF...HEAD"`.
 
 Apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
-`play-review`. Phase 3 owns GitHub-specific facts and final range selection;
-the shared policy owns full-vs-narrow escalation criteria.
+`play-review`. Phase 3 owns GitHub-specific facts and final range selection.
+The `pr-review` adapter
+`skills/pr-review/scripts/prior-thread-artifacts.sh` preserves the wrapper
+commands for prior-thread and scope-decision artifacts, then delegates
+deterministic validation to the support validator
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh` through
+that support skill's sibling-script contract.
 
 `active_diff_range` depends on mode:
 
 - **Initial:** `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
-- **Follow-up:** apply the shared follow-up scope policy to choose narrow vs full.
+- **Follow-up:** apply the shared follow-up scope policy and validated
+  scope-decision artifact to choose narrow vs full.
   - **Narrow** (incremental): `active_diff_range = "<last_reviewed_sha>..HEAD"`; `is_followup_narrow = true`.
   - **Full** (escalate): `active_diff_range = full_pr_diff_range`; `is_followup_narrow = false`.
 
-When classification is ambiguous, fail closed to full review. If the policy
-escalates, keep `prior_threads` in the `play-review` handoff so unresolved prior
-GitHub comments can still be verified and carried forward.
+When classification is ambiguous, fail closed to full review. If the shared
+policy or support validator escalates, keep `prior_threads` in the
+`play-review` handoff so unresolved prior GitHub comments can still be verified
+and carried forward.
 
 **Unaddressed prior findings:** If a prior blocking finding was NOT addressed by the new commits (the flagged code is unchanged), `play-review`'s critic will carry it forward into the `## Carry-forward` section.
 
 After final active range selection, compute `language_hints` from that selected
-active diff only. Narrow follow-ups use the incremental changed-files set; full
-escalations recompute from the full PR diff.
+active diff only. The scope-decision artifact and adapter validation must agree
+with those selected-range facts before invoking `play-review`.
+
+Before invoking `play-review`, prepare, write, validate, and bind the canonical
+Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
+resolve to the installed `pr-review` skill bundle. The artifact's `full_range`
+must be `"$REVIEW_SCOPE_BASE_REF...HEAD"`, where `REVIEW_SCOPE_BASE_REF` is the
+same left side used in `full_pr_diff_range`; do not store `main...HEAD` when
+Phase 3 selected `origin/main...HEAD`.
+
+```bash
+PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
+PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
+PR_BASE_REF="<base-ref>"
+REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"
+FULL_PR_DIFF_RANGE="$REVIEW_SCOPE_BASE_REF...HEAD"
+REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+
+bind_scope_decision_artifact() {
+  cd "$WORKING_DIRECTORY" || return 1
+  HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  SCOPE_DECISION_FILE=$(
+    HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
+  ) || return 1
+  # Write the pr-review/scope-decision/v1 envelope to "$SCOPE_DECISION_FILE".
+  # It must record full_range="$FULL_PR_DIFF_RANGE", selected_range="$active_diff_range",
+  # is_followup_narrow, language_hints, changed_files, prior_context, mechanical_facts,
+  # and semantic_decision for the final Phase 3 scope choice. Phase 6 revalidates
+  # the same artifact against "$REVIEW_SCOPE_BASE_REF" before posting.
+  HEAD_SHA="$HEAD_SHA" \
+  BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+  SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
+  REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
+}
+
+SCOPE_DECISION_STATUS=0
+bind_scope_decision_artifact || SCOPE_DECISION_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$SCOPE_DECISION_STATUS" -eq 0 ] || exit "$SCOPE_DECISION_STATUS"
+```
+
+Pass `REVIEW_SCOPE_DECISION_FILE` and `REVIEW_SCOPE_BASE_REF` through the Phase
+5 gate unchanged. Phase 6 must freeze and validate the approved review against
+that exact scope-decision artifact and base-range ref.
 
 ## Phase 4: Run play-review
 
@@ -262,6 +314,8 @@ Only after user approval:
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
    REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
+   : "${REVIEW_SCOPE_BASE_REF:?Phase 3 scope base ref missing}"
+   : "${REVIEW_SCOPE_DECISION_FILE:?Phase 3 scope-decision artifact path missing}"
 
    build_and_freeze_approved_review() {
      cd "$WORKING_DIRECTORY" || return 1
@@ -284,6 +338,8 @@ Only after user approval:
        FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
        REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
        REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+       SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
          bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
      ) || return 1
      [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; return 1; }
@@ -297,8 +353,10 @@ Only after user approval:
 
    The frozen artifact schema is `pr-review/approved-review/v1`. It stores the
    approved `review_head_sha`, findings path, review body path, review payload
-   path, SHA-256 digests for all three source artifacts, and the exact payload
-   object. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
+   path, Phase 3 scope-decision path, SHA-256 digests for all four source
+   artifacts including the scope-decision artifact, and the exact payload
+   object. The helper validates the stored scope-decision artifact and digest
+   before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
    and requires ranged inline comments to pair `start_line` with
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
@@ -333,6 +391,7 @@ Only after user approval:
      [ ! -d "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path is a directory" >&2; exit 1; }
      [ ! -e "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || [ -f "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || { echo "validated review payload path exists but is not a regular file" >&2; exit 1; }
      if ! HEAD_SHA="$REVIEW_HEAD_SHA" \
+       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
        APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
        bash "$PR_REVIEW_HELPER" validate-approved-review > "$VALIDATED_REVIEW_PAYLOAD_FILE"; then
        rm -f "$VALIDATED_REVIEW_PAYLOAD_FILE"

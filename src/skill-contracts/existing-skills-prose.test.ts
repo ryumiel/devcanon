@@ -140,6 +140,19 @@ describe("existing skills source prose contracts", () => {
     expect(internalPlayReview).toContain("allow_implicit_invocation: false");
     expect(internalPlayReview).not.toContain("disable-model-invocation: true");
 
+    const supportValidator = await readSkillSource(
+      "play-validate-review-artifacts",
+    );
+    const normalizedSupportValidator = normalizeWhitespace(supportValidator);
+    expect(supportValidator).toContain("user-invocable: false");
+    expect(supportValidator).toContain("allow_implicit_invocation: false");
+    expect(normalizedSupportValidator).toContain(
+      "not a normal human workflow entry point",
+    );
+    expect(normalizedSupportValidator).toContain(
+      "Generated outputs remain disposable previews and are not source authority",
+    );
+
     const writingSkills = await readRepoFile(
       "docs/guidelines/writing-skills.md",
     );

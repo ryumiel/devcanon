@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -93,11 +93,31 @@ async function readChangedFiles(cwd: string, changedFilesFile: string) {
   return content.trim().split("\n").filter(Boolean);
 }
 
+async function writeFailingSupportValidator(cwd: string, message: string) {
+  const validator = path.join(cwd, ".ephemeral/failing-support-validator.sh");
+  await mkdir(path.dirname(validator), { recursive: true });
+  await writeFile(
+    validator,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `printf '%s\\n' ${JSON.stringify(message)} >&2`,
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
 describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
   it("defaults to full branch review without follow-up inputs", async () => {
     const cwd = await makeGitWorkspace();
     try {
       await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+      const headSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
 
       const values = await runHelper(cwd);
 
@@ -112,6 +132,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.CHANGED_FILE_COUNT).toBe("1");
       expect(values.LANGUAGE_HINTS).toBe("ts");
       expect(path.dirname(values.CHANGED_FILES_FILE)).toBe(".ephemeral");
+      expect(values.SCOPE_DECISION_FILE).toBe(
+        `.ephemeral/topic-${headSha}-scope-decision.json`,
+      );
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
@@ -149,8 +172,10 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       );
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("");
       expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
       expect(values.CHANGED_FILE_COUNT).toBe("1");
+      expect(values.LANGUAGE_HINTS).toBe("md");
       expect(values.PRIOR_BRANCH_FINDINGS).toBe(findingsFile);
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
@@ -190,8 +215,12 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("file-count");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe(
+        "file-count,governance-path",
+      );
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("7");
+      expect(values.LANGUAGE_HINTS).toBe("md,ts");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -220,7 +249,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("governance-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("governance-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -251,6 +282,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       );
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("false");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("");
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/cli/commands/foo.ts"]);
@@ -279,7 +311,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("configured-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -305,7 +339,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
       expect(values.MECHANICAL_ESCALATE_FULL).toBe("true");
-      expect(values.MECHANICAL_ESCALATION_REASON).toContain("configured-path");
+      expect(values.MECHANICAL_ESCALATION_REASON).toBe("configured-path");
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -341,6 +377,84 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.MECHANICAL_ESCALATION_REASON).toBe(
         "last-reviewed-unusable",
       );
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("false");
+      expect(values.CHANGED_FILE_COUNT).toBe("1");
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["notes/followup.md"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("fails closed for invalid configured path regexes in the normal path", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+      await expect(
+        execFileAsync("bash", [helperScript], {
+          cwd,
+          env: {
+            ...process.env,
+            PLAY_REVIEW_DIR: playReviewDir,
+            BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "[",
+          },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "--configured-path-pattern must be a valid extended regular expression",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("writes changed files from the candidate follow-up range", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/full-only.ts", "export const fullOnly = 1;\n");
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(cwd, "notes/followup.md", "narrow\n");
+
+      const values = await runHelper(cwd, [
+        "--last-reviewed",
+        lastReviewedSha,
+        "--prior-findings",
+        findingsFile,
+      ]);
+
+      await expect(
+        readChangedFiles(cwd, values.CHANGED_FILES_FILE),
+      ).resolves.toEqual(["notes/followup.md"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("does not validate the final scope decision during mechanical input preparation", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+      const validator = await writeFailingSupportValidator(
+        cwd,
+        "changed file count does not match selected range",
+      );
+
+      await expect(
+        execFileAsync("bash", [helperScript], {
+          cwd,
+          env: {
+            ...process.env,
+            PLAY_REVIEW_DIR: playReviewDir,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          },
+        }),
+      ).resolves.toMatchObject({ stderr: "" });
     } finally {
       await cleanupTempDir(cwd);
     }

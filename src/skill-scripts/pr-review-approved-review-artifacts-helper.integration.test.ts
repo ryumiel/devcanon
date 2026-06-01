@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   lstat,
@@ -31,7 +32,9 @@ const staleHeadSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const reviewBodyFile = ".ephemeral/topic-review-body.md";
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
+const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
+const priorThreadsFile = `.ephemeral/topic-${headSha}-prior-threads.json`;
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -111,14 +114,63 @@ function payloadWithRange(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function prReviewInitialScope(
+  baseSha: string,
+  headShaValue: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
+    mode: "initial",
+    head_sha: headShaValue,
+    full_range: `${baseSha}...HEAD`,
+    selected_range: `${baseSha}...HEAD`,
+    candidate_narrow_range: `${baseSha}...HEAD`,
+    last_reviewed_sha: null,
+    is_followup_narrow: false,
+    selection_reason: "Initial PR review uses the full review range.",
+    changed_files: ["src/example.ts"],
+    language_hints: ["ts"],
+    escalation_reasons: ["not-followup"],
+    prior_context: {
+      kind: "none",
+      path: null,
+    },
+    mechanical_facts: {
+      changed_file_count: 1,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "",
+    },
+    ...overrides,
+  };
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+}
+
+async function sha256File(cwd: string, relPath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(path.join(cwd, relPath)))
+    .digest("hex");
 }
 
 async function writeInputs(cwd: string) {
   await writeJson(cwd, findingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
   await writeJson(cwd, payloadFile, payload());
+  await writeJson(
+    cwd,
+    scopeDecisionFile,
+    prReviewInitialScope(headSha, headSha),
+  );
 }
 
 async function runHelper(
@@ -126,10 +178,60 @@ async function runHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
+  const supportValidator =
+    env.PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT ??
+    (await writePassingSupportValidator(cwd));
   return execFileAsync("bash", [helperScript, command], {
     cwd,
-    env: { ...process.env, HEAD_SHA: headSha, ...env },
+    env: {
+      ...process.env,
+      BASE_REF: "main",
+      HEAD_SHA: headSha,
+      PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: supportValidator,
+      ...env,
+    },
   });
+}
+
+async function writePassingSupportValidator(cwd: string) {
+  const validator = path.join(cwd, ".ephemeral/support-validator.sh");
+  await writeFile(
+    validator,
+    ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
+async function writeRecordingSupportValidator(cwd: string, stderr = "") {
+  const validator = path.join(cwd, ".ephemeral/recording-support-validator.sh");
+  await writeFile(
+    validator,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'printf "%s\\n" "$@" > ".ephemeral/support-validator-args.txt"',
+      stderr ? `printf '%s\\n' ${JSON.stringify(stderr)} >&2` : "",
+      stderr ? "exit 1" : "exit 0",
+      "",
+    ].join("\n"),
+  );
+  await chmod(validator, 0o755);
+  return validator;
+}
+
+async function readRecordedSupportArgs(cwd: string): Promise<string[]> {
+  const args = await readFile(
+    path.join(cwd, ".ephemeral/support-validator-args.txt"),
+    "utf8",
+  );
+  return args.trimEnd().split("\n");
+}
+
+function expectArgValue(args: string[], flag: string, value: string) {
+  const index = args.indexOf(flag);
+  expect(index).toBeGreaterThanOrEqual(0);
+  expect(args[index + 1]).toBe(value);
 }
 
 describe.skipIf(!jqAvailable)(
@@ -180,9 +282,11 @@ describe.skipIf(!jqAvailable)(
           findings_file: string;
           review_body_file: string;
           review_payload_file: string;
+          scope_decision_file: string;
           findings_sha256: string;
           review_body_sha256: string;
           review_payload_sha256: string;
+          scope_decision_sha256: string;
           payload: unknown;
         };
         expect(artifact).toMatchObject({
@@ -191,11 +295,357 @@ describe.skipIf(!jqAvailable)(
           findings_file: findingsFile,
           review_body_file: reviewBodyFile,
           review_payload_file: payloadFile,
+          scope_decision_file: scopeDecisionFile,
           payload: payload(),
         });
         expect(artifact.findings_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_body_sha256).toMatch(/^[0-9a-f]{64}$/);
         expect(artifact.review_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(artifact.scope_decision_sha256).toMatch(/^[0-9a-f]{64}$/);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("delegates approved payload equivalence with explicit scope-policy inputs", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+
+        const args = await readFile(
+          path.join(cwd, ".ephemeral/support-validator-args.txt"),
+          "utf8",
+        );
+        expect(args).toContain("compare-approved-payload");
+        expect(args).toContain("--base-ref");
+        expect(args).toContain("main");
+        expect(args).toContain("--expected-schema");
+        expect(args).toContain("pr-review/scope-decision/v1");
+        expect(args).toContain("--expected-prior-context-kind");
+        expect(args).toContain("--governed-path-pattern");
+        expect(args).toContain("--max-narrow-changed-files");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("uses follow-up prior context from the scope artifact when the sibling prior-thread file is absent", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await rm(path.join(cwd, priorThreadsFile), { force: true });
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          prReviewInitialScope(headSha, headSha, {
+            mode: "follow-up",
+            is_followup_narrow: true,
+            prior_context: {
+              kind: "github-prior-threads",
+              path: priorThreadsFile,
+            },
+          }),
+        );
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+        await runHelper(cwd, "validate-approved-review", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+
+        const args = await readRecordedSupportArgs(cwd);
+        expectArgValue(
+          args,
+          "--expected-prior-context-kind",
+          "github-prior-threads",
+        );
+        expectArgValue(args, "--expected-prior-context-path", priorThreadsFile);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("uses none from an initial scope artifact when a stale sibling prior-thread file exists", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeJson(cwd, priorThreadsFile, {
+          schema: "pr-review/prior-threads/v1",
+          stale: true,
+        });
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await runHelper(cwd, "freeze-approved-review", {
+          FINDINGS_FILE: findingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: payloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+        await runHelper(cwd, "validate-approved-review", {
+          APPROVED_REVIEW_FILE: approvedReviewFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        });
+
+        const args = await readRecordedSupportArgs(cwd);
+        expectArgValue(args, "--expected-prior-context-kind", "none");
+        expectArgValue(args, "--expected-prior-context-path", "null");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("fails closed when explicit PRIOR_THREADS_FILE conflicts with the scope artifact", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await writeJson(
+          cwd,
+          scopeDecisionFile,
+          prReviewInitialScope(headSha, headSha, {
+            mode: "follow-up",
+            is_followup_narrow: true,
+            prior_context: {
+              kind: "github-prior-threads",
+              path: priorThreadsFile,
+            },
+          }),
+        );
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+            PRIOR_THREADS_FILE: `.ephemeral/topic-${staleHeadSha}-prior-threads.json`,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("prior threads context mismatch"),
+        });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/support-validator-args.txt")),
+        ).rejects.toThrow();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects freezing when the canonical scope decision artifact is missing", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await rm(path.join(cwd, scopeDecisionFile));
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "scope decision file missing or not a regular file",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("requires BASE_REF before invoking the support validator", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        const validator = await writeRecordingSupportValidator(cwd);
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: "",
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("BASE_REF is required"),
+        });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/support-validator-args.txt")),
+        ).rejects.toThrow();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("surfaces missing and failing support-validator delegation", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await writeInputs(cwd);
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT:
+              ".ephemeral/missing-validator.sh",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "play-validate-review-artifacts validator missing",
+          ),
+        });
+
+        const failingValidator = await writeRecordingSupportValidator(
+          cwd,
+          "approved review payload does not match generated payload",
+        );
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            FINDINGS_FILE: findingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: payloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: failingValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "approved review payload does not match generated payload",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects wrong-base scope decisions through the real support validator", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realApprovedReviewFile = `.ephemeral/topic-${realHeadSha}-approved-review.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(realHeadSha, realHeadSha, {
+            changed_files: [],
+            language_hints: [],
+            mechanical_facts: {
+              changed_file_count: 0,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "full range does not match caller base ref",
+          ),
+        });
+
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha),
+        );
+        await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: baseSha,
+          HEAD_SHA: realHeadSha,
+          FINDINGS_FILE: realFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: realPayloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(realHeadSha, realHeadSha, {
+            changed_files: [],
+            language_hints: [],
+            mechanical_facts: {
+              changed_file_count: 0,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+        const approvedArtifact = JSON.parse(
+          await readFile(path.join(cwd, realApprovedReviewFile), "utf-8"),
+        );
+        approvedArtifact.scope_decision_sha256 = await sha256File(
+          cwd,
+          realScopeDecisionFile,
+        );
+        await writeJson(cwd, realApprovedReviewFile, approvedArtifact);
+
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            APPROVED_REVIEW_FILE: realApprovedReviewFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "full range does not match caller base ref",
+          ),
+        });
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -464,6 +914,16 @@ describe.skipIf(!jqAvailable)(
         });
 
         await writeJson(cwd, payloadFile, payload());
+        await writeJson(cwd, scopeDecisionFile, { drift: true });
+        await expect(
+          runHelper(cwd, "validate-approved-review", {
+            APPROVED_REVIEW_FILE: approvedReviewFile,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision digest mismatch"),
+        });
+
+        await writeJson(cwd, scopeDecisionFile, {});
         const artifact = JSON.parse(
           await readFile(path.join(cwd, approvedReviewFile), "utf-8"),
         );
@@ -575,6 +1035,7 @@ describe.skipIf(!jqAvailable)(
       try {
         await writeJson(cwd, findingsFile, findingsEnvelope());
         await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
+        await writeJson(cwd, scopeDecisionFile, {});
         await writeFile(
           path.join(cwd, payloadFile),
           `${JSON.stringify(payload())}\n${JSON.stringify(payload({ event: "APPROVE" }))}\n`,

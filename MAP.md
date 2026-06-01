@@ -69,6 +69,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the system architecture overview? -> [`docs/arch/overview.md`](docs/arch/overview.md)
 - Where are architecture decision records? -> [`docs/adr/`](docs/adr/)
 - Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
+- Where is deterministic skill script authority recorded? ->
+  [`docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md`](docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md)
 - Where is subagent lifecycle ownership recorded? ->
   [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is the render loaded boundary decision recorded? ->
@@ -210,6 +212,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where is shared PR title/body authoring policy? -> [`skills/pr-authoring/SKILL.md`](skills/pr-authoring/SKILL.md)
 - Where is the shared review pipeline? -> [`skills/play-review/SKILL.md`](skills/play-review/SKILL.md)
+- Where is the shared Play review-artifact validation support contract? ->
+  [`skills/play-validate-review-artifacts/SKILL.md`](skills/play-validate-review-artifacts/SKILL.md)
 - Where is the shared subagent lifecycle procedure? -> [`skills/subagent-lifecycle/SKILL.md`](skills/subagent-lifecycle/SKILL.md)
 - Where is the subagent execution workflow? -> [`skills/play-subagent-execution/SKILL.md`](skills/play-subagent-execution/SKILL.md)
 - Where is the implementer snapshot manifest recipe? ->

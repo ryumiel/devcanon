@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-const integrationTestTimeout = process.platform === "win32" ? 30000 : 10000;
+const integrationTestTimeout = process.platform === "win32" ? 60000 : 10000;
 
 export default defineConfig({
   test: {

@@ -5,8 +5,10 @@ BASE_ARG=""
 FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
+SCOPE_DECISION_FILE=""
+CHANGED_FILES_FILE=""
 GOVERNED_PATH_PATTERN='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
-CONFIGURED_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
+MAX_NARROW_CHANGED_FILES=5
 
 emit_line() {
   local key="$1"
@@ -79,6 +81,42 @@ validate_prior_findings() {
     bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 }
 
+branch_scope_helper() {
+  if [[ -n "${BRANCH_REVIEW_SCOPE_HELPER:-}" ]]; then
+    printf '%s\n' "$BRANCH_REVIEW_SCOPE_HELPER"
+  else
+    printf '%s\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/scope-decision-artifacts.sh"
+  fi
+}
+
+prepare_scope_decision_file() {
+  local helper
+  local review_head_sha
+
+  helper="$(branch_scope_helper)"
+  [[ -f "$helper" && -r "$helper" ]] || {
+    echo "branch-review scope helper missing or unreadable: $helper" >&2
+    exit 1
+  }
+  review_head_sha="$(git rev-parse HEAD 2>/dev/null)" || {
+    echo "failed to resolve HEAD" >&2
+    exit 1
+  }
+  SCOPE_DECISION_FILE="$(
+    HEAD_SHA="$review_head_sha" bash "$helper" prepare-scope-decision-write
+  )"
+}
+
+validate_scope_decision() {
+  local helper
+
+  helper="$(branch_scope_helper)"
+  HEAD_SHA="$HEAD_SHA" \
+  SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  PRIOR_BRANCH_FINDINGS="$PRIOR_FINDINGS_FILE" \
+    bash "$helper" validate-scope-decision
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -118,36 +156,6 @@ parse_args() {
   done
 }
 
-compute_language_hints() {
-  local range="$1"
-
-  git diff --name-only "$range" |
-    sed -n 's/.*\.\([[:alnum:]_+-][[:alnum:]_+-]*\)$/\1/p' |
-    sort -u |
-    paste -sd ',' -
-}
-
-validate_optional_path_pattern() {
-  if [[ -z "$CONFIGURED_PATH_PATTERN" ]]; then
-    return
-  fi
-
-  set +e
-  grep -E -- "$CONFIGURED_PATH_PATTERN" /dev/null >/dev/null 2>&1
-  local status=$?
-  set -e
-  if [[ "$status" -gt 1 ]]; then
-    echo "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN must be a valid extended regular expression" >&2
-    exit 1
-  fi
-}
-
-append_escalation_reason() {
-  local reason="$1"
-
-  ESCALATION_REASON="${ESCALATION_REASON:+$ESCALATION_REASON,}$reason"
-}
-
 write_changed_files_file() {
   local range="$1"
 
@@ -165,9 +173,139 @@ write_changed_files_file() {
   git diff --name-only "$range" >"$CHANGED_FILES_FILE"
 }
 
+require_jq() {
+  command -v jq >/dev/null 2>&1 || {
+    echo "jq is required to prepare branch review inputs" >&2
+    exit 1
+  }
+}
+
+changed_files_json() {
+  local range="$1"
+
+  git diff -z --name-only "$range" |
+    jq -R -s -c 'split("\u0000")[:-1] | sort'
+}
+
+language_hints_json_for_files() {
+  jq -c '
+    [
+      .[]
+      | select(test("\\.[A-Za-z0-9_+-]+$"))
+      | capture("\\.(?<ext>[A-Za-z0-9_+-]+)$").ext
+      | ascii_downcase
+    ]
+    | sort
+    | unique
+  '
+}
+
+changed_file_count() {
+  local range="$1"
+
+  changed_files_json "$range" | jq 'length'
+}
+
+sha_is_usable_followup() {
+  local sha="$1"
+
+  git cat-file -e "$sha^{commit}" 2>/dev/null &&
+    git merge-base --is-ancestor "$sha" HEAD 2>/dev/null
+}
+
+regex_is_valid() {
+  local pattern="$1"
+
+  [ -n "$pattern" ] || return 1
+  set +e
+  grep -E -- "$pattern" /dev/null >/dev/null 2>&1
+  local status=$?
+  set -e
+  [ "$status" -le 1 ]
+}
+
+any_changed_path_matches() {
+  local range="$1"
+  local pattern="$2"
+
+  [ -n "$pattern" ] || return 1
+  git diff --name-only "$range" | grep -E -- "$pattern" >/dev/null 2>&1
+}
+
+append_escalation_reason() {
+  local reason="$1"
+
+  if [ -z "$MECHANICAL_ESCALATION_REASON" ]; then
+    MECHANICAL_ESCALATION_REASON="$reason"
+  else
+    MECHANICAL_ESCALATION_REASON="$MECHANICAL_ESCALATION_REASON,$reason"
+  fi
+}
+
+# Compatibility note: write_scope_decision_artifact is no longer called here.
+# Final artifacts are written by the scope adapter after wrapper semantic
+# classification.
+compute_scope_values() {
+  local configured_pattern="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"
+
+  HEAD_SHA="$(git rev-parse HEAD 2>/dev/null)" || {
+    echo "failed to resolve HEAD" >&2
+    exit 1
+  }
+  BASE="$(resolve_base)"
+  FULL_DIFF_RANGE="$BASE...HEAD"
+  CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  MECHANICAL_IS_FOLLOWUP_NARROW=false
+  MECHANICAL_ESCALATE_FULL=true
+  MECHANICAL_ESCALATION_REASON=""
+  FOLLOWUP_SHA_USABLE=false
+
+  if [ -n "$configured_pattern" ] && ! regex_is_valid "$configured_pattern"; then
+    echo "--configured-path-pattern must be a valid extended regular expression" >&2
+    exit 1
+  fi
+
+  if [[ -z "$LAST_REVIEWED_SHA" ]]; then
+    append_escalation_reason "not-followup"
+    CHANGED_FILE_COUNT="$(changed_file_count "$FULL_DIFF_RANGE")"
+  elif sha_is_usable_followup "$LAST_REVIEWED_SHA"; then
+    FOLLOWUP_SHA_USABLE=true
+    CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
+    CHANGED_FILE_COUNT="$(changed_file_count "$CANDIDATE_ACTIVE_DIFF_RANGE")"
+
+    if [ "$CHANGED_FILE_COUNT" -gt "$MAX_NARROW_CHANGED_FILES" ]; then
+      append_escalation_reason "file-count"
+    fi
+    if any_changed_path_matches "$CANDIDATE_ACTIVE_DIFF_RANGE" "$GOVERNED_PATH_PATTERN"; then
+      append_escalation_reason "governance-path"
+    fi
+    if regex_is_valid "$configured_pattern" &&
+      any_changed_path_matches "$CANDIDATE_ACTIVE_DIFF_RANGE" "$configured_pattern"; then
+      append_escalation_reason "configured-path"
+    fi
+
+    if [ -z "$MECHANICAL_ESCALATION_REASON" ]; then
+      MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
+      MECHANICAL_IS_FOLLOWUP_NARROW=true
+      MECHANICAL_ESCALATE_FULL=false
+    fi
+  else
+    append_escalation_reason "last-reviewed-unusable"
+    CHANGED_FILE_COUNT="$(changed_file_count "$FULL_DIFF_RANGE")"
+  fi
+
+  LANGUAGE_HINTS="$(changed_files_json "$MECHANICAL_ACTIVE_DIFF_RANGE" |
+    language_hints_json_for_files |
+    jq -r 'join(",")')"
+
+  write_changed_files_file "$CANDIDATE_ACTIVE_DIFF_RANGE"
+}
+
 require_repo_root
+require_jq
 parse_args "$@"
-validate_optional_path_pattern
+prepare_scope_decision_file
 
 if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
   if [[ -z "$LAST_REVIEWED_SHA" || -z "$PRIOR_FINDINGS_FILE" ]]; then
@@ -180,60 +318,7 @@ if [[ -n "$LAST_REVIEWED_SHA" || -n "$PRIOR_FINDINGS_FILE" ]]; then
   fi
   validate_prior_findings
 fi
-
-BASE="$(resolve_base)"
-FULL_DIFF_RANGE="$BASE...HEAD"
-FOLLOWUP_MODE=false
-FOLLOWUP_SHA_USABLE=false
-CANDIDATE_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-CHANGED_FILE_COUNT=0
-
-if [[ "$LAST_REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] &&
-  git cat-file -e "$LAST_REVIEWED_SHA^{commit}" 2>/dev/null &&
-  git merge-base --is-ancestor "$LAST_REVIEWED_SHA" HEAD 2>/dev/null; then
-  FOLLOWUP_MODE=true
-  FOLLOWUP_SHA_USABLE=true
-  CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"
-fi
-
-ESCALATE_FULL=false
-ESCALATION_REASON=""
-CHANGED_FILE_COUNT="$(git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" | wc -l | tr -d ' ')"
-if [[ "$FOLLOWUP_MODE" = true ]]; then
-  if [[ "$CHANGED_FILE_COUNT" -gt 5 ]]; then
-    ESCALATE_FULL=true
-    append_escalation_reason "file-count"
-  fi
-  if git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-    grep -E -- "$GOVERNED_PATH_PATTERN" >/dev/null; then
-    ESCALATE_FULL=true
-    append_escalation_reason "governance-path"
-  fi
-  if [[ -n "$CONFIGURED_PATH_PATTERN" ]] &&
-    git diff --name-only "$CANDIDATE_ACTIVE_DIFF_RANGE" |
-      grep -E -- "$CONFIGURED_PATH_PATTERN" >/dev/null; then
-    ESCALATE_FULL=true
-    append_escalation_reason "configured-path"
-  fi
-else
-  ESCALATE_FULL=true
-  if [[ -n "$LAST_REVIEWED_SHA" ]]; then
-    ESCALATION_REASON="last-reviewed-unusable"
-  else
-    ESCALATION_REASON="not-followup"
-  fi
-fi
-
-if [[ "$FOLLOWUP_MODE" = true && "$FOLLOWUP_SHA_USABLE" = true && "$ESCALATE_FULL" = false ]]; then
-  MECHANICAL_ACTIVE_DIFF_RANGE="$CANDIDATE_ACTIVE_DIFF_RANGE"
-  MECHANICAL_IS_FOLLOWUP_NARROW=true
-else
-  MECHANICAL_ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
-  MECHANICAL_IS_FOLLOWUP_NARROW=false
-fi
-
-LANGUAGE_HINTS="$(compute_language_hints "$MECHANICAL_ACTIVE_DIFF_RANGE")"
-write_changed_files_file "$CANDIDATE_ACTIVE_DIFF_RANGE"
+compute_scope_values
 
 emit_line "BASE" "$BASE"
 emit_line "FIX_MODE" "$FIX_MODE"
@@ -241,11 +326,12 @@ emit_line "FULL_DIFF_RANGE" "$FULL_DIFF_RANGE"
 emit_line "CANDIDATE_ACTIVE_DIFF_RANGE" "$CANDIDATE_ACTIVE_DIFF_RANGE"
 emit_line "MECHANICAL_ACTIVE_DIFF_RANGE" "$MECHANICAL_ACTIVE_DIFF_RANGE"
 emit_line "MECHANICAL_IS_FOLLOWUP_NARROW" "$MECHANICAL_IS_FOLLOWUP_NARROW"
-emit_line "MECHANICAL_ESCALATE_FULL" "$ESCALATE_FULL"
-emit_line "MECHANICAL_ESCALATION_REASON" "$ESCALATION_REASON"
+emit_line "MECHANICAL_ESCALATE_FULL" "$MECHANICAL_ESCALATE_FULL"
+emit_line "MECHANICAL_ESCALATION_REASON" "$MECHANICAL_ESCALATION_REASON"
 emit_line "FOLLOWUP_SHA_USABLE" "$FOLLOWUP_SHA_USABLE"
 emit_line "CHANGED_FILE_COUNT" "$CHANGED_FILE_COUNT"
 emit_line "CHANGED_FILES_FILE" "$CHANGED_FILES_FILE"
 emit_line "LANGUAGE_HINTS" "$LANGUAGE_HINTS"
 emit_line "LAST_REVIEWED_SHA" "$LAST_REVIEWED_SHA"
 emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"
+emit_line "SCOPE_DECISION_FILE" "$SCOPE_DECISION_FILE"
