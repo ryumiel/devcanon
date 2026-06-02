@@ -64,14 +64,19 @@ validator's shell/JQ policy.
 
 This skill produces three outputs per invocation: two artifacts (a markdown surface for operators and a structured file for consumers) plus a one-line notice that links them.
 
-1. **In-conversation markdown** — an optional `## Root-Cause Synthesis` section, followed by a `## Findings` section and (follow-up only) a `## Carry-forward` section, each finding entry shaped as below. Operators read this surface; downstream tools read the side-channel file (section 4).
+1. **In-conversation markdown** — one or two short narrative sentences naming
+   what the implementation got right, followed by an optional
+   `## Root-Cause Synthesis` section, then a `## Findings` section and
+   (follow-up only) a `## Carry-forward` section, each finding entry shaped as
+   below. Operators read this surface; downstream tools read the side-channel
+   file (section 4).
 2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in section 4).
 3. **One-line notice** — appended to the markdown above, naming the file path so consumers can locate it without recomputation.
 
 ### 1. Optional `## Root-Cause Synthesis` section
 
 When Phase 5.5 finds a supported shared cause, render this concise section
-before `## Findings`:
+after the narrative lead and before `## Findings`:
 
 ```markdown
 ## Root-Cause Synthesis

@@ -941,6 +941,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPlayReview).toContain("## Root-Cause Synthesis");
     expect(normalizedPlayReview).toContain(
+      "one or two short narrative sentences naming what the implementation got right",
+    );
+    expect(normalizedPlayReview).toContain(
+      "after the narrative lead and before `## Findings`",
+    );
+    expect(normalizedPlayReview).toContain(
       "at least two related concrete findings",
     );
     expect(normalizedPlayReview).toContain(
@@ -1006,14 +1012,18 @@ describe("phase artifact source contracts", () => {
       "Present exactly that stdout to the user as the preview",
     );
     expect(normalizedPrReview).toContain(
-      "preserve any markdown before the first `## Findings` heading",
+      "Preserve markdown before the first `## Findings` heading",
     );
     expect(normalizedPrReview).toContain(
-      "write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`",
+      "The preserved block must start with the required narrative lead",
     );
     expect(prReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
     expect(prReview).toContain(
       `awk '/^## Findings[[:space:]]*$/ { exit } { print }'`,
+    );
+    expect(prReview).toContain("FIRST_PREFINDINGS_LINE=$(");
+    expect(prReview).toContain(
+      "pre-findings markdown must start with narrative lead before headings",
     );
     expect(prReview).toContain(
       "one or two short narrative sentences naming what the implementation got right before findings",
@@ -1042,6 +1052,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "fallback narrative body required by `docs/guidelines/code-review-guideline.md`",
+    );
+    expect(normalizedPrReview).toContain(
+      "Never write a review body whose first nonblank line is `## Root-Cause Synthesis`",
     );
     expect(normalizedPrReview).toContain(
       "clear the old synthesis before rerendering and replace it with one or two concrete narrative sentences",
@@ -1096,12 +1109,16 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain("HELPER_PREVIEW=$(");
     expect(branchReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
+    expect(branchReview).toContain("FIRST_PREFINDINGS_LINE=$(");
     expect(branchReview).toContain(
-      `[ -z "$PRE_FINDINGS_MARKDOWN" ] || printf '%s\\n\\n' "$PRE_FINDINGS_MARKDOWN"`,
+      "pre-findings markdown must start with narrative lead before headings",
     );
     expect(branchReview).toContain(`printf '%s\\n' "$HELPER_PREVIEW"`);
     expect(normalizedBranchReview).toContain(
-      "emits the preserved pre-findings markdown before the helper-rendered preview",
+      "the required narrative lead and, when present, `play-review`'s optional `## Root-Cause Synthesis`",
+    );
+    expect(normalizedBranchReview).toContain(
+      "fails closed if the preserved block starts with a heading instead of the narrative lead",
     );
     expect(normalizedBranchReview).toContain(
       "After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword)",

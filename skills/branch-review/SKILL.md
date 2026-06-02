@@ -323,15 +323,21 @@ PRE_FINDINGS_MARKDOWN=$(
   printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
     awk '/^## Findings[[:space:]]*$/ { exit } { print }'
 ) || exit 1
-[ -z "$PRE_FINDINGS_MARKDOWN" ] || printf '%s\n\n' "$PRE_FINDINGS_MARKDOWN"
+if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
+  FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
+  case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
+  printf '%s\n\n' "$PRE_FINDINGS_MARKDOWN"
+fi
 printf '%s\n' "$HELPER_PREVIEW"
 ```
 
 The snippet above preserves any markdown before the first `## Findings` heading
-in `PLAY_REVIEW_OUTPUT` (for example, `play-review`'s optional
-`## Root-Cause Synthesis`) and emits the preserved pre-findings markdown before
-the helper-rendered preview. Continue to use the helper-rendered preview for
-findings and evidence snippets; do not manually reshape finding entries.
+in `PLAY_REVIEW_OUTPUT` (the required narrative lead and, when present,
+`play-review`'s optional `## Root-Cause Synthesis`) and emits the preserved
+pre-findings markdown before the helper-rendered preview. It fails closed if the
+preserved block starts with a heading instead of the narrative lead. Continue to
+use the helper-rendered preview for findings and evidence snippets; do not
+manually reshape finding entries.
 Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.

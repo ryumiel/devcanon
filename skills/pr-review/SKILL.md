@@ -203,13 +203,16 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
   [ ! -L "$REVIEW_BODY_FILE" ] || { echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -d "$REVIEW_BODY_FILE" ] || { echo "review body path is a directory: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
-  # preserve any markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT
-  # and write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`.
+  # Preserve markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT.
+  # The preserved block must start with the required narrative lead, then may include
+  # optional presentation such as `## Root-Cause Synthesis`.
   PRE_FINDINGS_MARKDOWN=$(
     printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
       awk '/^## Findings[[:space:]]*$/ { exit } { print }'
   ) || exit 1
   if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
+    FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
+    case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
     printf '%s\n' "$PRE_FINDINGS_MARKDOWN" > "$REVIEW_BODY_FILE" || exit 1
   else
     REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
@@ -252,10 +255,12 @@ affected finding's pre-rendered `body` field after any severity or category
 change. Validate the original path before reading, and immediately before
 overwriting run `prepare-findings-write` for the same immutable review head and
 path. Do not reuse the existing `REVIEW_BODY_FILE` after the finding set
-changes: rerun the review-body write guard and rewrite the file with either a
-new pre-findings synthesis that is supported by the edited finding set or the
-fallback narrative body required by `docs/guidelines/code-review-guideline.md`.
-If a dropped or reclassified finding removes synthesis support, clear the old
+changes: rerun the review-body write guard and rewrite the file with the
+required narrative lead followed by any new pre-findings synthesis that is
+supported by the edited finding set. If no synthesis remains, use the fallback
+narrative body required by `docs/guidelines/code-review-guideline.md`. Never
+write a review body whose first nonblank line is `## Root-Cause Synthesis`. If a
+dropped or reclassified finding removes synthesis support, clear the old
 synthesis before rerendering and replace it with one or two concrete narrative
 sentences naming what the implementation got right before findings:
 
