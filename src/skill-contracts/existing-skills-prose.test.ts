@@ -1833,6 +1833,9 @@ describe("existing skills source prose contracts", () => {
     const issuePrimingCommonMistakes = await readRepoFile(
       "skills/issue-priming-workflow/references/common-mistakes.md",
     );
+    const issuePrimingPhase8Handoff = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
     const issuePrimingRedFlags = await readRepoFile(
       "skills/issue-priming-workflow/references/red-flags.md",
     );
@@ -2004,11 +2007,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(phase8)).toContain("until `pr-merge`");
     expect(normalizeWhitespace(phase8)).toContain(
-      "pr-authoring` owns both project-specific guideline handling and default fallback title/body structure",
+      "Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode",
     );
     expect(normalizeWhitespace(phase8)).toContain(
       "Pass `assignee=@me` to `play-branch-finish` Option 2",
     );
+    expect(phase8).toContain("references/phase-8-pr-handoff.md");
     expect(normalizeWhitespace(phase8)).not.toContain(
       "Pass `--assignee @me` to `gh pr create`",
     );
@@ -2016,6 +2020,27 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(phase8)).not.toContain("Default PR title");
     expect(normalizeWhitespace(phase8)).not.toContain(
       "Default PR description should include",
+    );
+    expect(normalizeWhitespace(phase8)).not.toContain(
+      "Do not embed auto-mode assumptions, unaddressed review nits",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "pr-authoring` owns PR title/body composition and validation through `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "The description body must contain only durable final-state content accepted by `pr-authoring`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Do not embed auto-mode assumptions, unaddressed review nits",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Always pass `assignee=@me` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Do not move these responsibilities across boundaries for prompt-size reasons",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "must not duplicate fallback PR defaults",
     );
     expect(normalizeWhitespace(issuePrimingCommonMistakes)).toContain(
       "Bypassing shared PR authoring",

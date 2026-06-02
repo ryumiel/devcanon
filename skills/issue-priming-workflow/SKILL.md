@@ -493,48 +493,31 @@ auto-fixed, no unresolved remaining `Blocking` findings except findings whose
 commits are made after that review. Phase 8 must not rely on
 `play-branch-finish` to run, validate, classify, or complete branch review.
 
-Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate. PR creation preserves the branch and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or the operator explicitly discards the work.
+Before invoking the handoff, load
+[`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md). That
+reference owns detailed PR body, assumptions, assignee, and nits explanation;
+the eager contract below owns the hard stops and arguments.
 
-**Always assign the PR to yourself:** Pass `assignee=@me` to
-`play-branch-finish` Option 2. Option 2 owns the `gh pr create` side effect and
-turns this into `--assignee @me`.
+Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**.
+Do NOT merge - the PR is the user's review gate. PR creation preserves the
+branch and worktree for review, CI, and follow-up fixes until `pr-merge`
+performs post-merge cleanup or the operator explicitly discards the work.
 
-**Before composing the PR title and description**, rely on `play-branch-finish`
-Option 2 to invoke `pr-authoring` in `compose` mode. `pr-authoring` reads the
-project PR guideline/template surfaces and validates title format, required
-sections, anti-patterns, and content-vs-diff before `gh pr create`.
-`pr-authoring` owns both project-specific guideline handling and default
-fallback title/body structure; do not duplicate fallback PR defaults in this
-workflow.
+Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
+`play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode;
+`pr-authoring` owns project-specific PR guidance, title/body validation, and
+default fallback title/body structure.
 
-**Description body invariant:** The description must contain only the durable
-final-state content accepted by `pr-authoring`. Do not embed auto-mode
-assumptions, unaddressed review nits, commit-by-commit changelogs, "originally /
-now" chronology, "Notes from review" sections, or any logbook content. Auto-mode
-assumptions are routed through the assumptions comment path when needed.
-Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as
-PR review comments after PR creation — see `skills/play-branch-finish/SKILL.md`
-Option 2 for the `nits_file` input contract.
+Pass reviewer-relevant resolved auto-mode assumptions only through
+`assumptions_comment_file`. If there are no auto-mode assumptions to surface,
+omit `assumptions_comment_file` entirely; absence means "no assumptions
+comment." Ambiguous decisions still stop `--auto` and ask the user - do not
+downgrade unresolved ambiguity into an assumptions comment.
 
-**Pass assumptions to `play-branch-finish`:** When Phase 4 made reasonable auto-mode assumptions that reviewers need to see, write them to `assumptions_comment_file` as `.ephemeral/<identifier>-assumptions-comment.md` and pass that path to `play-branch-finish`. The path must be a direct child of `.ephemeral/`; nested paths are rejected. If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely; absence means "no assumptions comment," not an error. Ambiguous decisions still stop `--auto` and ask the user — do not downgrade an unresolved ambiguity into an assumptions comment.
-
-Before writing `.ephemeral/*-assumptions-comment.md`, invoke
-`scripts/write-assumptions-comment.sh` from the issue worktree root. Treat a
-nonzero helper exit as a contract failure. The helper rejects nested paths with
-`assumptions_comment_file must be a direct child of .ephemeral`, rejects bad
-suffixes with `assumptions_comment_file path validation failed`, rejects path
-traversal (`path traversal`), rejects `.ephemeral must be a directory, not a symlink`,
-prepares the write target, and prints the repo-relative assumptions
-comment path on stdout:
-
-```bash
-ASSUMPTIONS_COMMENT_FILE=$(
-  ISSUE_IDENTIFIER="<payload.identifier>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
-)
-```
-
-**Pass nits to `play-branch-finish`:** Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote (`.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`; schema and side-channel transport: `skills/play-review/SKILL.md` § Output). If Phase 7 produced no judgment-required nits, omit `nits_file` entirely; `play-branch-finish` skips the post step when it's absent. See `skills/play-branch-finish/SKILL.md` Option 2 for the posting behavior.
+Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
+produced no judgment-required nits, omit `nits_file` entirely; absence means no
+post-creation nit comments. Phase 8 does not classify findings or prepare the
+nits envelope.
 
 ## Quick Reference
 
