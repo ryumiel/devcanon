@@ -566,7 +566,7 @@ prepare_judgment_nits() {
       .severity == "Blocking" and (.critic != "INVALID" and .critic != "DOWNGRADE");
     def selectable:
       (.severity == "Nit") or (.critic == "DOWNGRADE");
-    if (.findings | any(true_blocking)) then
+    if ((.findings + .carry_forward) | any(true_blocking)) then
       fail("unresolved blocking finding prevents judgment nits preparation")
     elif (selected | any(.critic == "INVALID")) then
       fail("critic INVALID findings must not be selected for judgment nits")

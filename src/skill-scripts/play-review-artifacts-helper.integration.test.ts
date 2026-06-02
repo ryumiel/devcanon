@@ -940,6 +940,45 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("rejects unresolved true blocking carry-forward findings before writing", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            severity: "Nit",
+            critic: null,
+            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+          }),
+        ],
+        carry_forward: [
+          finding({
+            line: 43,
+            critic: "VALID",
+            why: "This carry-forward finding is still blocking.",
+            recommendation: "Stop before Phase 8.",
+            body: "**Blocking | Contracts** - This carry-forward finding is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
+          }),
+        ],
+      });
+
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("judgment nits validation failed"),
+      });
+      await expect(lstat(path.join(cwd, nitsFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("computes and prepares the findings write path from the checked-out git branch", async () => {
     const cwd = await makeGitWorkspace();
     try {
