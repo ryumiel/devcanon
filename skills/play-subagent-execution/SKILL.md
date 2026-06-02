@@ -202,7 +202,8 @@ For the full selection and process diagrams, load
     return to the owning caller when a verified downstream whole-diff gate owns
     that final review. When no owning caller final whole-diff gate exists and
     the final whole-implementation review passes, use the direct/manual
-    terminal handoff to `play-branch-finish`.
+    terminal handoff to resolve branch-level review status before any
+    `play-branch-finish` handoff.
 
 **Trust-boundary summaries:**
 
@@ -310,9 +311,11 @@ computed by the controller. Hard-risk, unclear, or untrusted routes use
 
 If you invoke this skill **directly** (not via `--auto`) on a single-task
 plan, no whole-diff review runs after the final code-quality reviewer. When
-that reviewer passes, continue through the direct/manual terminal handoff to
-`play-branch-finish`; run `branch-review` yourself before opening a PR if you
-want whole-diff coverage.
+that reviewer passes, continue through the direct/manual terminal handoff:
+report that this skill did not run branch-level review, stop before
+`play-branch-finish` when the active workflow requires branch-level review
+before PR creation, and invoke `play-branch-finish` only when that workflow does
+not require branch-level review.
 
 The trade-off here: per-task review on a single task adds review overhead
 without catching regressions across tasks (there is only one), so the

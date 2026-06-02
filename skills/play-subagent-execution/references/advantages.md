@@ -42,9 +42,10 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   final run reports zero blocking findings auto-fixed, no unresolved remaining
   `Blocking` findings except findings whose `critic` verdict is `INVALID` or
   `DOWNGRADE`, and no additional mechanical nit commits
-- Single-task plans rely on either the final code-quality reviewer
-  (direct/manual) or downstream `branch-review --fix` on the
-  `issue-priming-workflow --auto` path
+- Single-task plans skip per-task reviewer dispatch and rely on the final
+  code-quality reviewer plus direct/manual branch-level review status resolution,
+  or downstream `branch-review --fix` on the `issue-priming-workflow --auto`
+  path
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built

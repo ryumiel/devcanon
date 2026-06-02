@@ -684,11 +684,52 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
-  it("keeps process diagrams aligned with direct/manual branch-review status resolution", async () => {
+  it("keeps direct/manual references aligned with branch-review status resolution", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const advantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
     const processDiagrams = await readRepoFile(
       "skills/play-subagent-execution/references/process-diagrams.md",
     );
+    const redFlags = await readRepoFile(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
+    const normalizedSkill = normalizeWhitespace(playSubagentExecution);
+    const normalizedAdvantages = normalizeWhitespace(advantages);
+    const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
     const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+
+    expect(normalizedSkill).toContain(
+      "terminal handoff to resolve branch-level review status before any `play-branch-finish` handoff",
+    );
+    expect(normalizedSkill).toContain(
+      "stop before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "report final review passed and resolve branch-level review status",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "stop for `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "otherwise invoke `play-branch-finish`",
+    );
+    expect(normalizedAdvantages).toContain(
+      "final code-quality reviewer plus direct/manual branch-level review status resolution",
+    );
+    expect(normalizedRedFlags).toContain(
+      "resolving branch-level review status on the direct/manual path",
+    );
+    expect(normalizedRedFlags).toContain(
+      "a review-required workflow must stop for `branch-review` before `play-branch-finish`",
+    );
 
     expect(normalizedProcessDiagrams).toContain(
       "Report implementation and final review passed; resolve branch-level review status",
@@ -714,6 +755,19 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedProcessDiagrams).not.toContain(
       "then invokes `play-branch-finish`",
     );
+    for (const staleUnconditionalHandoff of [
+      "terminal handoff to `play-branch-finish`",
+      "final whole-implementation code-quality reviewer -> `play-branch-finish`",
+      "invoking `play-branch-finish` on the direct/manual path",
+      "run `branch-review` yourself before opening a PR if you want whole-diff coverage",
+    ]) {
+      expect(normalizedSkill).not.toContain(staleUnconditionalHandoff);
+      expect(normalizedAdvantages).not.toContain(staleUnconditionalHandoff);
+      expect(normalizedExampleWorkflow).not.toContain(
+        staleUnconditionalHandoff,
+      );
+      expect(normalizedRedFlags).not.toContain(staleUnconditionalHandoff);
+    }
   });
 
   it("makes direct/manual implementation, verification, and review summaries non-terminal", async () => {
