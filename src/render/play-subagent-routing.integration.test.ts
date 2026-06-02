@@ -115,6 +115,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "spec-compliance and code-quality reviewers concurrently when practical",
       );
       expect(normalizedPlaySubagentExecution).toContain(
+        "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "rely on the final whole-implementation reviewer for direct/manual calls",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
         "A quality result is final only after same-head spec compliance passes",
       );
       expect(normalizedPlaySubagentExecution).toContain(

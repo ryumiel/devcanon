@@ -30,10 +30,11 @@ task head, then join their results before final disposition. The semantic
 spec-first gate is preserved because code-quality results are provisional until
 same-head spec compliance passes and the task head is still current. Reduced
 per-task routes require a mandatory final whole-diff gate. Single-task plans
-skip per-task review and rely on the final whole-implementation reviewer for
-direct/manual calls, or downstream `branch-review --fix` on the
-`issue-priming-workflow --auto` path; bounded fast paths for single-task and
-mechanical cases reduce specific overhead without changing the review contract.
+skip per-task review and use the final whole-implementation reviewer plus
+direct/manual branch-level review status resolution, or downstream
+`branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast
+paths for single-task and mechanical cases reduce specific overhead without
+changing the review contract.
 
 `play-subagent-execution` preserves the task boundaries authored in the plan.
 After extraction, each authored task remains the unit of implementer dispatch

@@ -642,6 +642,12 @@ describe("play subagent routing source contracts", () => {
     const normalizedDirectManualHandoff =
       normalizeWhitespace(directManualHandoff);
 
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
+    );
+    expect(normalizeWhitespace(playSubagentExecution)).not.toContain(
+      "rely on the final whole-implementation reviewer for direct/manual calls",
+    );
     expect(normalizedSingleTaskPlans).toContain(
       "direct/manual terminal handoff resolves whether the active workflow requires `branch-review` before `play-branch-finish`",
     );
@@ -1061,6 +1067,18 @@ describe("play subagent routing source contracts", () => {
 
     expect(normalizedAdr0007).toContain(
       "A later refinement to the `spec-and-quality` route named here permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
+    );
+    expect(normalizedAdr0007).toContain(
+      "the final whole-implementation reviewer remains the built-in implementation review before the direct/manual terminal handoff resolves branch-level review status",
+    );
+    expect(normalizedAdr0007).toContain(
+      "Workflows that require branch-level review before PR creation must stop for `branch-review` before `play-branch-finish`",
+    );
+    expect(normalizedAdr0007).toContain(
+      "only workflows without that requirement treat `branch-review` as optional additional coverage",
+    );
+    expect(normalizedAdr0007).not.toContain(
+      "operators may run `branch-review` manually for additional whole-diff coverage",
     );
     expect(normalizedAdr0007).not.toContain("GitHub issue #344");
     expect(normalizedAdr0018).toContain(
