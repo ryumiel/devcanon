@@ -435,7 +435,7 @@ See [`references/red-flags.md`](references/red-flags.md) for the "Never" and "Al
 
 **Called by:**
 
-- **play-subagent-execution** - After all tasks complete
+- **play-subagent-execution** - After tasks complete and review status is resolved
 
 **Pairs with:**
 

@@ -2076,7 +2076,14 @@ describe("existing skills source prose contracts", () => {
       "#### Option 2: Push and Create PR",
       "#### Option 3: Keep As-Is",
     );
+    const integrationSection = sliceBetween(
+      skillSource,
+      "## Integration",
+      "**Pairs with:**",
+    );
     const normalizedOption2 = normalizeWhitespace(option2);
+    const normalizedIntegrationSection =
+      normalizeWhitespace(integrationSection);
 
     expect(normalizedOption2).toContain("nits_file");
     expect(normalizedOption2).toContain("caller-supplied `nits_file`");
@@ -2111,6 +2118,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toMatch(
       /does not validate (?:branch-review completion|review completeness|final review completeness)|must not validate (?:branch-review completion|review completeness|final review completeness)|do not validate (?:branch-review completion|review completeness|final review completeness)/i,
+    );
+    expect(normalizedIntegrationSection).toContain(
+      "**play-subagent-execution** - After tasks complete and review status is resolved",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "After all tasks complete",
     );
 
     for (const forbiddenClaim of [
