@@ -237,9 +237,18 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
   as a symlink or by pre-staging a symlink at the target file path. Always run
   `prepare-findings-write` immediately before this skill writes the findings
   file, and before `branch-review --fix` overwrites it with the remaining-set
-  envelope. Use `derive-nits-pending` before `issue-priming-workflow` Phase 7
-  writes the sibling `-nits-pending.json` file. These helpers own the symlink,
-  directory, unsafe-path, and non-regular-file write guards.
+  envelope.
+- **Judgment-required nits.** `issue-priming-workflow` Phase 7 uses
+  `prepare-judgment-nits` to validate the remaining-set findings file, reject
+  unresolved true blockers, reject selected `INVALID` findings, normalize
+  selected `DOWNGRADE` copies into postable Nit form, and write the sibling
+  `-nits-pending.json` envelope for Phase 8. The command requires
+  `HEAD_SHA`, `FINDINGS_FILE`, and `JUDGMENT_REQUIRED_FINDING_INDEXES`, prints
+  only the repo-relative nits path on success, and leaves nit-classification
+  judgment to the calling workflow. Use `derive-nits-pending` only when a
+  caller has already built the nits envelope and needs the guarded sibling write
+  target. These helpers own the symlink, directory, unsafe-path, and
+  non-regular-file write guards.
 
 ### 5. One-line notice (consumer hook)
 

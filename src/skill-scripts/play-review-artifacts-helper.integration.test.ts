@@ -787,6 +787,159 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("writes selected judgment-required nits in caller index order and normalizes downgraded findings", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            severity: "Nit",
+            category: "Documentation",
+            critic: null,
+            why: "The wording has a single clear improvement.",
+            recommendation: "Tighten the wording.",
+            body: "**Nit | Documentation** - The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
+          }),
+          finding({
+            line: 43,
+            critic: "DOWNGRADE",
+            why: "The feedback is valid but not blocking.",
+            recommendation: "Mention it as non-blocking review feedback.",
+            body: "**Blocking | Contracts** - The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
+          }),
+          finding({
+            line: 44,
+            critic: "INVALID",
+            why: "The critic rejected this finding.",
+            recommendation: "Do not carry it forward.",
+            body: "**Blocking | Contracts** - The critic rejected this finding.\n\n**Recommendation:** Do not carry it forward.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
+        FINDINGS_FILE: findingsFile,
+        JUDGMENT_REQUIRED_FINDING_INDEXES: "1,0",
+      });
+
+      expect(stdout).toBe(`${nitsFile}\n`);
+      const written = JSON.parse(
+        await readFile(path.join(cwd, nitsFile), "utf-8"),
+      );
+      expect(written).toMatchObject({
+        schema: "play-review/findings/v1",
+        carry_forward: [],
+      });
+      expect(written.findings).toHaveLength(2);
+      expect(written.findings[0]).toMatchObject({
+        line: 43,
+        severity: "Nit",
+        critic: null,
+        body: "**Nit | Contracts** — The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
+      });
+      expect(written.findings[1]).toMatchObject({
+        line: 42,
+        severity: "Nit",
+        critic: null,
+        body: "**Nit | Documentation** - The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
+      });
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects unsafe judgment-nits selections before writing", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            severity: "Nit",
+            critic: null,
+            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+          }),
+          finding({
+            line: 43,
+            critic: "INVALID",
+            why: "The critic rejected this finding.",
+            recommendation: "Do not select it.",
+            body: "**Blocking | Contracts** - The critic rejected this finding.\n\n**Recommendation:** Do not select it.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      for (const selectedIndexes of ["", "0,0", "2", "a", "0, 1"]) {
+        await expect(
+          runHelper(cwd, "prepare-judgment-nits", {
+            FINDINGS_FILE: findingsFile,
+            JUDGMENT_REQUIRED_FINDING_INDEXES: selectedIndexes,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("JUDGMENT_REQUIRED_FINDING_INDEXES"),
+        });
+      }
+
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "1",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("judgment nits validation failed"),
+      });
+      await expect(lstat(path.join(cwd, nitsFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects unresolved true blocking findings even when they are not selected", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            severity: "Nit",
+            critic: null,
+            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+          }),
+          finding({
+            line: 43,
+            critic: "VALID",
+            why: "This is still blocking.",
+            recommendation: "Stop before Phase 8.",
+            body: "**Blocking | Contracts** - This is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("judgment nits validation failed"),
+      });
+      await expect(lstat(path.join(cwd, nitsFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("computes and prepares the findings write path from the checked-out git branch", async () => {
     const cwd = await makeGitWorkspace();
     try {

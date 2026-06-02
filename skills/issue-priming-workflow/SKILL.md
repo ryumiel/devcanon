@@ -464,52 +464,32 @@ except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
 If later mechanical nit handling creates any commit, rerun this same Branch Review step
 on the new `HEAD` before proceeding to Phase 8.
 
-This runs the full multi-agent review (correctness, data-safety, language-specific agents, critic verification) on `git diff <base>...HEAD` where `<base>` is the repository's default branch. With `--fix`, `branch-review` attempts to auto-fix eligible `Blocking` findings and commit them. If any remaining `Blocking` finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and report to the user**. This includes Safety / Contracts hard-rule blockers, design-change blockers, and out-of-diff blockers. `Nit` findings and `DOWNGRADE` findings are collected and passed through the classification flow below for Phase 8 PR review comments when they are judgment-required.
+This runs the full multi-agent review on `git diff <base>...HEAD` where
+`<base>` is the repository's default branch. With `--fix`, `branch-review`
+attempts eligible `Blocking` auto-fixes and commits them. If any remaining
+true `Blocking` finding is unresolved (`critic` is neither `INVALID` nor
+`DOWNGRADE`), **stop `--auto` and report to the user**.
 
-**Classify remaining nits before Phase 8.** `branch-review --fix` returns auto-fixable blockers as already-committed fixups and rewrites the side-channel findings file with the remaining-set `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). Read the immutable review SHA from `branch-review --fix`'s exact `Review head: <40-hex-sha>.` notice line, and read the path from its `Findings written to <path>.` notice line — by convention this is `.ephemeral/<branch_slug>-<head_sha>-findings.json`. Do not recompute the review SHA from post-review `HEAD`, because `branch-review --fix` may have committed auto-fixes after the review file was created. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the issue worktree; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the issue worktree root. Then validate the parsed findings path before reading it with the canonical helper:
+Before classifying findings or preparing Phase 8 nits, load
+[`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
+That reference owns review-head parsing, `play-review/findings/v1` validation,
+blocker checks, nit classification details, mechanical-nit commit rules,
+back-reference footers, edit-staleness rules, and the
+`prepare-judgment-nits` helper handoff.
 
-```bash
-PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
-PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-case "$REVIEW_HEAD_SHA" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-  *) echo "branch-review review head invalid: $REVIEW_HEAD_SHA" >&2; exit 1 ;;
-esac
-HEAD_SHA="$REVIEW_HEAD_SHA"
-HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" validate-findings
-```
+For the eager contract: ignore `critic: "INVALID"` for continuation and never
+pass it to Phase 8; treat `critic: "DOWNGRADE"` as non-blocking,
+judgment-required feedback; fix and commit mechanical nits; pass only
+judgment-required nits and downgraded findings to Phase 8 via the
+helper-produced `-nits-pending.json` path. If the judgment-required set is
+empty, omit `nits_file`.
 
-After the guard passes, load `findings[]` from the file (e.g., `jq '.findings' "$FINDINGS_FILE"`). Do not re-parse the human-readable markdown.
-
-**First, check unresolved blockers.** The `findings[]` array can include `severity: "Blocking"` items that the auto-fixer preserved but that do not require a stop: blockers whose critic verdict was `INVALID` are critic-rejected false positives, and blockers whose critic verdict was `DOWNGRADE` are valid non-blocking feedback. Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`. Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments; do not auto-fix them. If any remaining finding has `severity: "Blocking"` with any other critic value, **stop `--auto` and surface those findings to the user** — these include Safety / Contracts hard-rule blockers and blockers requiring design changes or out-of-diff edits. Only proceed with the per-nit classification flow when every remaining finding is either `severity: "Nit"`, `critic: "DOWNGRADE"`, or `critic: "INVALID"`.
-
-For each `severity: "Nit"` finding object, classify it as **mechanical** or **judgment-required** using its `severity`, `category`, and `why` JSON fields. Treat each `critic: "DOWNGRADE"` finding as judgment-required without mechanical auto-fix.
-
-- **Mechanical** — 1–3 line source change with a single obvious correct fix (e.g., typos, broken sentences with one reconstruction, dead cross-references). See [`references/nit-classification.md`](references/nit-classification.md) for the full taxonomy and examples.
-- **Judgment-required** — anything else (subjective wording, structural suggestions, multiple plausible fixes).
-
-See [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md#phase-7-nit-classification-tie-breakers) for the tie-breaker rule (when in doubt, classify as judgment-required) and the reclassification escape (if multiple plausible reconstructions emerge mid-fix, route to PR comments).
-
-**Handle each class:**
-
-- **Mechanical nits** — apply the fix in the worktree and commit. Use the project's commit guideline (glob `**/commit-guideline*.md`, `**/commit-*.md`, `CONTRIBUTING.md`); default to Conventional Commits (`fix(<scope>): <what was fixed>`) if no guideline is found.
-  - **Back-reference (required).** Each commit body must include the literal footer line `Reported by branch-review at <path>:<line>` for every nit the commit addresses, so the audit trail is unambiguous.
-  - **Grouping.** Multiple mechanical fixes in the same file at the same scope may be grouped into one commit. When grouping, include one back-reference line per nit, each on its own line in the commit body.
-  - **Edit-staleness.** Re-read the target file from disk before applying each Edit. Any implementer snapshot the controller may still be holding from Phase 6 is stale by this point — earlier per-task review fixups and `branch-review --fix` auto-fix commits have already modified the tree, so snapshot content is no longer a reliable Edit anchor. `skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule restates the same constraint for the per-task path.
-  - **Post-nit review loop.** If any mechanical nit commit is made, rerun `branch-review --fix` on the new `HEAD` and restart Phase 7 from the Branch Review step. Continue until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit commits are made after that review.
-- **Judgment-required nits and downgraded findings** — leave unfixed. After classification, write the judgment-required subset as a fresh `play-review/findings/v1` envelope (`{"schema": "play-review/findings/v1", "findings": [<judgment-required items>], "carry_forward": []}`) to the canonical `-nits-pending.json` sibling path derived from `$FINDINGS_FILE` (i.e., `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json`). When carrying a `critic: "DOWNGRADE"` finding into this derived nits envelope, normalize only the derived copy to non-blocking postable form: set `severity` to `"Nit"`, set `critic` to `null`, and recompute `body` from `why` and `recommendation` as `**Nit | <category>** — <why>\n\n**Recommendation:** <recommendation>`. Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path:
-
-  ```bash
-  NITS_PENDING_FILE=$(
-    HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-      bash "$PLAY_REVIEW_HELPER" derive-nits-pending
-  )
-  ```
-
-  The Phase 8 step "Pass nits to `play-branch-finish`" passes `$NITS_PENDING_FILE` as `nits_file`. If the judgment-required set is empty, skip the file write — Phase 8 will omit `nits_file` entirely.
-
-After classification, Phase 8 receives only judgment-required items. **This step is `--auto` only** — manual operators decide nit-handling case by case.
+After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`
+on the new `HEAD` and restart Phase 7. Phase 8 may start only after the final
+Phase 7 run reports zero blocking findings auto-fixed, no unresolved true
+Blocking findings, and no additional mechanical-nit commits after that review.
+**This classification flow is `--auto` only**; manual operators decide
+nit-handling case by case.
 
 ### Phase 8: Create PR
 
