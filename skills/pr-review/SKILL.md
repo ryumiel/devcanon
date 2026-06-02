@@ -205,8 +205,15 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
   [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
   # preserve any markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT
   # and write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`.
-  printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
-    awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE" || exit 1
+  PRE_FINDINGS_MARKDOWN=$(
+    printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
+      awk '/^## Findings[[:space:]]*$/ { exit } { print }'
+  ) || exit 1
+  if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
+    printf '%s\n' "$PRE_FINDINGS_MARKDOWN" > "$REVIEW_BODY_FILE" || exit 1
+  else
+    printf '%s\n' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1
+  fi
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \
@@ -242,7 +249,11 @@ until the user approves that latest preview.
 affected finding's pre-rendered `body` field after any severity or category
 change. Validate the original path before reading, and immediately before
 overwriting run `prepare-findings-write` for the same immutable review head and
-path:
+path. Do not reuse the existing `REVIEW_BODY_FILE` after the finding set
+changes: rerun the review-body write guard and rewrite the file with either a
+new pre-findings synthesis that is supported by the edited finding set or the
+deterministic fallback body. If a dropped or reclassified finding removes
+synthesis support, clear the old synthesis before rerendering:
 
 ```bash
 (
@@ -252,6 +263,14 @@ path:
   HEAD_SHA="$REVIEW_HEAD_SHA" FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
     bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
   # Write the rewritten play-review/findings/v1 envelope to "$REVIEW_FINDINGS_FILE".
+  case "$REVIEW_BODY_FILE" in .ephemeral/*/* | *..*) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; .ephemeral/*) ;; *) echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1 ;; esac
+  [ "$(dirname "$REVIEW_BODY_FILE")" = ".ephemeral" ] || { echo "review body parent must be .ephemeral" >&2; exit 1; }
+  [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+  mkdir -p .ephemeral
+  [ ! -L "$REVIEW_BODY_FILE" ] || { echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2; exit 1; }
+  [ ! -d "$REVIEW_BODY_FILE" ] || { echo "review body path is a directory: $REVIEW_BODY_FILE" >&2; exit 1; }
+  [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
+  printf '%s\n' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \

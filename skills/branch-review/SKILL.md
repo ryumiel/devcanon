@@ -313,19 +313,26 @@ FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings writte
 [ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
 REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 
-HEAD_SHA="$REVIEW_HEAD_SHA" \
-FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-REVIEW_SURFACE="branch-review" \
-  bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
+HELPER_PREVIEW=$(
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+  REVIEW_SURFACE="branch-review" \
+    bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
+) || exit 1
+PRE_FINDINGS_MARKDOWN=$(
+  printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
+    awk '/^## Findings[[:space:]]*$/ { exit } { print }'
+) || exit 1
+[ -z "$PRE_FINDINGS_MARKDOWN" ] || printf '%s\n\n' "$PRE_FINDINGS_MARKDOWN"
+printf '%s\n' "$HELPER_PREVIEW"
 ```
 
-Before re-emitting the helper stdout, preserve any markdown before the first
-`## Findings` heading in `PLAY_REVIEW_OUTPUT` (for example, `play-review`'s
-optional `## Root-Cause Synthesis`); emit the preserved pre-findings markdown
-before the helper-rendered preview. Continue to use the helper-rendered preview
-for findings and evidence snippets; do not manually reshape finding entries.
-Findings tagged `Anchor: out-of-diff` remain report-only and require human
-judgment.
+The snippet above preserves any markdown before the first `## Findings` heading
+in `PLAY_REVIEW_OUTPUT` (for example, `play-review`'s optional
+`## Root-Cause Synthesis`) and emits the preserved pre-findings markdown before
+the helper-rendered preview. Continue to use the helper-rendered preview for
+findings and evidence snippets; do not manually reshape finding entries.
+Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 

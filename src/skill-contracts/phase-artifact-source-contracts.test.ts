@@ -1011,8 +1011,12 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       "write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`",
     );
+    expect(prReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
     expect(prReview).toContain(
-      `awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE" || exit 1`,
+      `awk '/^## Findings[[:space:]]*$/ { exit } { print }'`,
+    );
+    expect(prReview).toContain(
+      'printf \'%s\\n\' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1',
     );
     expect(normalizedPrReview).toContain(
       "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
@@ -1026,6 +1030,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "run `prepare-findings-write` for the same immutable review head and path",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not reuse the existing `REVIEW_BODY_FILE` after the finding set changes",
+    );
+    expect(normalizedPrReview).toContain(
+      "If a dropped or reclassified finding removes synthesis support, clear the old synthesis before rerendering",
     );
     expect(normalizedPrReview).toContain(
       "Do not proceed to Phase 6 until the user approves that latest preview",
@@ -1073,10 +1083,16 @@ describe("phase artifact source contracts", () => {
       "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
     );
     expect(normalizedBranchReview).toContain(
-      "preserve any markdown before the first `## Findings` heading",
+      "preserves any markdown before the first `## Findings` heading",
     );
+    expect(branchReview).toContain("HELPER_PREVIEW=$(");
+    expect(branchReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
+    expect(branchReview).toContain(
+      `[ -z "$PRE_FINDINGS_MARKDOWN" ] || printf '%s\\n\\n' "$PRE_FINDINGS_MARKDOWN"`,
+    );
+    expect(branchReview).toContain(`printf '%s\\n' "$HELPER_PREVIEW"`);
     expect(normalizedBranchReview).toContain(
-      "emit the preserved pre-findings markdown before the helper-rendered preview",
+      "emits the preserved pre-findings markdown before the helper-rendered preview",
     );
     expect(normalizedBranchReview).toContain(
       "After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword)",
