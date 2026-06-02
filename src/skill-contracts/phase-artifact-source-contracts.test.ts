@@ -1016,7 +1016,13 @@ describe("phase artifact source contracts", () => {
       `awk '/^## Findings[[:space:]]*$/ { exit } { print }'`,
     );
     expect(prReview).toContain(
-      'printf \'%s\\n\' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1',
+      "one or two short narrative sentences naming what the implementation got right before findings",
+    );
+    expect(prReview).toContain(
+      "review body fallback must be replaced with concrete narrative summary",
+    );
+    expect(prReview).toContain(
+      `printf '%s\\n' "$REVIEW_BODY_FALLBACK" > "$REVIEW_BODY_FILE" || exit 1`,
     );
     expect(normalizedPrReview).toContain(
       "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
@@ -1035,7 +1041,10 @@ describe("phase artifact source contracts", () => {
       "Do not reuse the existing `REVIEW_BODY_FILE` after the finding set changes",
     );
     expect(normalizedPrReview).toContain(
-      "If a dropped or reclassified finding removes synthesis support, clear the old synthesis before rerendering",
+      "fallback narrative body required by `docs/guidelines/code-review-guideline.md`",
+    );
+    expect(normalizedPrReview).toContain(
+      "clear the old synthesis before rerendering and replace it with one or two concrete narrative sentences",
     );
     expect(normalizedPrReview).toContain(
       "Do not proceed to Phase 6 until the user approves that latest preview",

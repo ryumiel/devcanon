@@ -212,7 +212,9 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
   if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
     printf '%s\n' "$PRE_FINDINGS_MARKDOWN" > "$REVIEW_BODY_FILE" || exit 1
   else
-    printf '%s\n' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1
+    REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
+    case "$REVIEW_BODY_FALLBACK" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
+    printf '%s\n' "$REVIEW_BODY_FALLBACK" > "$REVIEW_BODY_FILE" || exit 1
   fi
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
@@ -252,8 +254,10 @@ overwriting run `prepare-findings-write` for the same immutable review head and
 path. Do not reuse the existing `REVIEW_BODY_FILE` after the finding set
 changes: rerun the review-body write guard and rewrite the file with either a
 new pre-findings synthesis that is supported by the edited finding set or the
-deterministic fallback body. If a dropped or reclassified finding removes
-synthesis support, clear the old synthesis before rerendering:
+fallback narrative body required by `docs/guidelines/code-review-guideline.md`.
+If a dropped or reclassified finding removes synthesis support, clear the old
+synthesis before rerendering and replace it with one or two concrete narrative
+sentences naming what the implementation got right before findings:
 
 ```bash
 (
@@ -270,7 +274,9 @@ synthesis support, clear the old synthesis before rerendering:
   [ ! -L "$REVIEW_BODY_FILE" ] || { echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -d "$REVIEW_BODY_FILE" ] || { echo "review body path is a directory: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
-  printf '%s\n' "Review findings are listed below." > "$REVIEW_BODY_FILE" || exit 1
+  REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"
+  case "$REVIEW_BODY_FALLBACK" in *"<"*">"*) echo "review body fallback must be replaced with concrete narrative summary" >&2; exit 1 ;; esac
+  printf '%s\n' "$REVIEW_BODY_FALLBACK" > "$REVIEW_BODY_FILE" || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \
