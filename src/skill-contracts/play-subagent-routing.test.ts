@@ -580,6 +580,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase8).toContain(
       "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",
     );
+    expect(normalizedPhase8).toContain(
+      "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass",
+    );
+    expect(normalizedPhase8).toContain(
+      "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
+    );
+    expect(normalizedPhase8).toContain(
+      "no additional mechanical nit commits are made after that review",
+    );
   });
 
   it("hands successful direct/manual execution off to play-branch-finish without copying finish choices", async () => {
@@ -639,6 +648,25 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedDirectManualHandoff).toContain(
       "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
     );
+
+    const finishHandoffIndex = normalizedDirectManualHandoff.indexOf(
+      "invoke `play-branch-finish`",
+    );
+    expect(finishHandoffIndex).toBeGreaterThanOrEqual(0);
+
+    for (const branchReviewStatusClaim of [
+      "built-in final whole-implementation review passed",
+      "this skill did not run branch-level review",
+      "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+      "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
+    ]) {
+      const statusClaimIndex = normalizedDirectManualHandoff.indexOf(
+        branchReviewStatusClaim,
+      );
+
+      expect(statusClaimIndex).toBeGreaterThanOrEqual(0);
+      expect(statusClaimIndex).toBeLessThan(finishHandoffIndex);
+    }
 
     for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
       expect(directManualHandoff).not.toMatch(copiedFinishChoicePattern);

@@ -2100,18 +2100,30 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "callers that want to post only a subset write a derived envelope",
     );
+    expect(normalizedOption2).toMatch(
+      /does not own `branch-review`|not the owner of `branch-review`|`branch-review` remains owned outside this skill/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /does not invoke `branch-review`|must not invoke `branch-review`|do not invoke `branch-review`/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /validates? (?:the )?caller-supplied `nits_file` only as (?:a )?(?:posting|PR review comment posting) input|only validates? (?:the )?caller-supplied `nits_file` as (?:a )?(?:posting|PR review comment posting) input/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /does not validate (?:branch-review completion|review completeness|final review completeness)|must not validate (?:branch-review completion|review completeness|final review completeness)|do not validate (?:branch-review completion|review completeness|final review completeness)/i,
+    );
 
     for (const forbiddenClaim of [
-      /invoke `branch-review`/i,
-      /run `branch-review`/i,
-      /create (?:branch-review )?findings/i,
-      /produce (?:branch-review )?findings/i,
-      /validate branch-review completion/i,
-      /review completeness/i,
-      /review invocation/i,
-      /caller-intent filtering/i,
-      /classif(?:y|ication).*nits/i,
-      /nits.*classif(?:y|ication)/i,
+      /(?:this skill|play-branch-finish|Option 2) (?:owns|is the owner of|is authority for) `branch-review`/i,
+      /(?:this skill|play-branch-finish|Option 2) (?:is|acts as|becomes) (?:the )?`?branch-review`? (?:owner|authority)/i,
+      /`branch-review` (?:owner|authority)/i,
+      /branch-review (?:owner|authority)/i,
+      /(?<!not )validates? (?:branch-review completion|review completeness|final review completeness)/i,
+      /(?:review completeness|final review completeness) validation/i,
+      /(?<!not )validates? (?:that )?branch-review (?:ran|completed|passed)/i,
+      /decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
+      /(?:creates?|produces?|derives?) (?:branch-review )?findings/i,
+      /(?:owns|performs|applies) caller-intent filtering/i,
     ]) {
       expect(normalizedOption2).not.toMatch(forbiddenClaim);
     }
