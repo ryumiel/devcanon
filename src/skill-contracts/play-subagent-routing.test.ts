@@ -177,6 +177,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "Re-read the target file from disk before applying each Edit",
     );
+    expect(
+      issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
+    ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
+    expect(normalizedPhase7).toContain(
+      "Phase 8 receives only judgment-required items",
+    );
+    expect(normalizedPhase7).toMatch(
+      /This step is `--auto` only.*manual operators decide nit-handling case by case/,
+    );
 
     expect(normalizedOverrides).toContain(
       "Use `{{model:standard}}` as the floor for agents that make judgment calls",
@@ -599,6 +608,36 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedDirectManualHandoff).toContain(
       "`play-branch-finish` presents its authoritative finish options",
+    );
+
+    for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
+      expect(directManualHandoff).not.toMatch(copiedFinishChoicePattern);
+    }
+  });
+
+  it("reports direct/manual branch-level review status before play-branch-finish handoff", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const directManualHandoff = sliceBetween(
+      playSubagentExecution,
+      "### Direct/manual terminal handoff",
+      "## Subagent Lifecycle",
+    );
+    const normalizedDirectManualHandoff =
+      normalizeWhitespace(directManualHandoff);
+
+    expect(normalizedDirectManualHandoff).toContain(
+      "built-in final whole-implementation review passed",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "this skill did not run branch-level review",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
     );
 
     for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
