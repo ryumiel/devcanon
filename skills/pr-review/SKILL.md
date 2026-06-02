@@ -206,7 +206,7 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
   # preserve any markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT
   # and write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`.
   printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
-    awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE"
+    awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE" || exit 1
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \

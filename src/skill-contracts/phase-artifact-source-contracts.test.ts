@@ -906,9 +906,13 @@ describe("phase artifact source contracts", () => {
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedCodeReviewGuideline =
       normalizeWhitespace(codeReviewGuideline);
+    const envelopeShapeStart = playReview.indexOf("#### Envelope shape");
+    const envelopeShapeEnd = playReview.indexOf("Per-field contract:");
+    expect(envelopeShapeStart).toBeGreaterThanOrEqual(0);
+    expect(envelopeShapeEnd).toBeGreaterThan(envelopeShapeStart);
     const envelopeShape = playReview.slice(
-      playReview.indexOf("#### Envelope shape"),
-      playReview.indexOf("Per-field contract:"),
+      envelopeShapeStart,
+      envelopeShapeEnd,
     );
 
     expect(playReview).toContain("scripts/review-artifacts.sh");
@@ -1006,6 +1010,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`",
+    );
+    expect(prReview).toContain(
+      `awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE" || exit 1`,
     );
     expect(normalizedPrReview).toContain(
       "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",

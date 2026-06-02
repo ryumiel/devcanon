@@ -64,8 +64,8 @@ validator's shell/JQ policy.
 
 This skill produces three outputs per invocation: two artifacts (a markdown surface for operators and a structured file for consumers) plus a one-line notice that links them.
 
-1. **In-conversation markdown** — an optional `## Root-Cause Synthesis` section, followed by a `## Findings` section and (follow-up only) a `## Carry-forward` section, each finding entry shaped as below. Operators read this surface; downstream tools read the side-channel file (part 3).
-2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in part 3).
+1. **In-conversation markdown** — an optional `## Root-Cause Synthesis` section, followed by a `## Findings` section and (follow-up only) a `## Carry-forward` section, each finding entry shaped as below. Operators read this surface; downstream tools read the side-channel file (section 4).
+2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in section 4).
 3. **One-line notice** — appended to the markdown above, naming the file path so consumers can locate it without recomputation.
 
 ### 1. Optional `## Root-Cause Synthesis` section
@@ -236,7 +236,7 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
   writes the sibling `-nits-pending.json` file. These helpers own the symlink,
   directory, unsafe-path, and non-regular-file write guards.
 
-### 4. One-line notice (consumer hook)
+### 5. One-line notice (consumer hook)
 
 After writing the envelope, append exactly one line to the markdown output:
 
@@ -248,7 +248,7 @@ This is the only structured surface in conversation. Consumers parse the path of
 
 The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract.
 
-### 5. Wrapper preview and payload helper contracts
+### 6. Wrapper preview and payload helper contracts
 
 Wrappers must use the installed helper
 `skills/play-review/scripts/review-artifacts.sh` for rendered review surfaces
