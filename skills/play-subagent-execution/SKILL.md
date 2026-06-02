@@ -327,8 +327,13 @@ still run `branch-review` manually.
 When this is a direct or manual invocation and there is no verified owning
 caller final whole-diff gate, the final whole-implementation review is this
 skill's built-in terminal review gate. If that final whole-implementation
-review passes, report that implementation and final review passed, then invoke
-`play-branch-finish`.
+review passes, report that implementation and final review passed. Before
+invoking `play-branch-finish`, also report these observable claims:
+built-in final whole-implementation review passed; this skill did not run
+branch-level review; run `branch-review` before `play-branch-finish` when the
+active workflow requires branch-level review before PR creation; proceeding to
+`play-branch-finish` is acceptable only when that workflow does not require
+branch-level review. Then invoke `play-branch-finish`.
 
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow

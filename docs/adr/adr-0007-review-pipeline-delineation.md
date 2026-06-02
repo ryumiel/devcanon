@@ -83,6 +83,12 @@ This change is internal to `play-subagent-execution`. The
 `github-issue-priming --auto` and `linear-issue-priming --auto`) is
 unchanged.
 
+Branch-level review stays upstream of branch finish. Review-required caller
+workflows run branch review before handing off to branch finish, and branch
+finish consumes caller-supplied review artifacts only for posting or other
+caller-requested follow-through. Branch finish does not become the production,
+validation, completeness, or pass/fail owner for branch-level review.
+
 ## Consequences
 
 - For the common single-task path through `github-issue-priming --auto`, the

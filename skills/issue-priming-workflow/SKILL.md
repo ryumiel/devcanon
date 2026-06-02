@@ -513,6 +513,13 @@ After classification, Phase 8 receives only judgment-required items. **This step
 
 ### Phase 8: Create PR
 
+Phase 7 owns branch review before Phase 8. Phase 8 may start only after Phase 7
+`branch-review --fix` completion criteria pass: zero blocking findings
+auto-fixed, no unresolved remaining `Blocking` findings except findings whose
+`critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit
+commits are made after that review. Phase 8 must not rely on
+`play-branch-finish` to run, validate, classify, or complete branch review.
+
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**. Do NOT merge — the PR is the user's review gate. PR creation preserves the branch and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or the operator explicitly discards the work.
 
 **Always assign the PR to yourself:** Pass `assignee=@me` to
