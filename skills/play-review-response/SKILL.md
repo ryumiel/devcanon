@@ -113,8 +113,10 @@ patch suggestion is small, the diff looks local, the user wants speed, or tests
 currently pass. Downgrade only after verification establishes one of these
 dispositions:
 
-- **Stale/invalid** - current code and thread state show the concern no longer
-  applies or is technically incorrect.
+- **Stale/invalid** - current code and current feedback-source state show the
+  concern no longer applies or is technically incorrect; for
+  GitHub/PR-thread-backed feedback, current thread state also supports that
+  disposition.
 - **Already addressed** - the pushed branch or current local diff contains the
   fix, and the same concern can be mapped to concrete evidence.
 - **Explanation-only** - no code change is required, and a concise reply can
@@ -151,11 +153,12 @@ before writing code or a plan:
 
 ## Execution Mode Selection
 
-After thread-aware intake and verification, classify each verified concern
-before changing code. Thread-aware intake means reading the current review
-thread/comment state, mapping feedback to the same concern, and separating
-executable feedback from stale, already-addressed, explanation-only, or unclear
-feedback before selecting a mode.
+After source-aware feedback intake and verification, classify each verified
+concern before changing code. Source-aware feedback intake means capturing the
+current feedback-source state for every concern, fetching current thread state
+when feedback is GitHub/PR-thread-backed, mapping feedback to the same concern,
+and separating executable feedback from stale, already-addressed,
+explanation-only, or unclear feedback before selecting a mode.
 
 - **Inline execution** - handle directly in this skill.
 - **Planned execution** - write a review-response plan, then hand it to
@@ -218,9 +221,9 @@ verification expectations, and contract checklist fields as applicable.
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
 handling, implementer lifecycle, final whole-implementation review for
 direct/manual calls, and whole-diff gate validation only when a caller-owned
-handoff supplies that gate. This skill owns thread-aware intake, verification,
-execution-mode selection, no-code dispositions, follow-up commit continuity,
-GitHub thread replies/refetching, and resolution eligibility.
+handoff supplies that gate. This skill owns source-aware feedback intake,
+verification, execution-mode selection, no-code dispositions, follow-up commit
+continuity, GitHub thread replies/refetching, and resolution eligibility.
 
 Direct/manual review-response plans do not get an automatic whole-diff review
 after the executor's final code-quality reviewer. Run `branch-review` before
@@ -265,15 +268,18 @@ asking for approval. Markdown lint may be useful, but it is not plan
 self-review; formatting checks do not prove that reviewer concerns are
 understood, current, correctly classified, or executable.
 
-Before asking for approval, the plan must include a `Plan Self-Review` section
-or equivalent evidence showing every current review thread/comment maps to one
+Before asking for approval, the plan must include a named `Plan Self-Review`
+section. The section must show every current review concern/comment maps to one
 of these dispositions: executable, stale/invalid, already addressed,
-explanation-only, unclear, or unresolved.
+explanation-only, unclear, or unresolved. Put the evidence inside that named
+section so the approval gate has one auditable review location.
 
 For each concern, validate that:
 
 - The reviewer concern is accurately restated.
-- The current thread state was fetched and used.
+- The current feedback-source state was captured and used.
+- For GitHub/PR-thread-backed feedback, the current thread state was fetched
+  and used.
 - The current code evidence supports the disposition.
 - The execution mode is justified under inline/planned/no-code rules.
 - The acceptance criteria directly close the reviewer's failure mode.
@@ -282,12 +288,14 @@ For each concern, validate that:
 - The direct/manual executor handoff suitability is checked when the plan will be
   handed to `play-subagent-execution`.
 
-Treat review-thread intake as a ledger of evidence. Record enough thread state,
-code evidence, disposition reasoning, and gaps to prove every review comment
-maps to either a no-code disposition or an implementation work item. Then derive
-executor work items from those root-cause clusters rather than mechanically
-creating one implementation task per review comment. The work items address the
-structural cause rather than only the visible comment text.
+Treat review-feedback intake as a ledger of evidence. Record enough current
+feedback-source state, current thread state when the feedback is
+GitHub/PR-thread-backed, code evidence, disposition reasoning, and gaps to prove
+every review concern/comment maps to either a no-code disposition or an
+implementation work item. Then derive executor work items from those root-cause
+clusters rather than mechanically creating one implementation task per review
+comment. The work items address the structural cause rather than only the
+visible comment text.
 
 Invalid self-review examples:
 
@@ -300,7 +308,8 @@ Valid self-review example:
 ```text
 Comment mapping: C1 and C3 map to lifecycle or correlation gap; C2 is
 explanation-only.
-Current thread and code evidence: fetched unresolved threads at 2026-06-02 and
+Current feedback-source and code evidence: captured the current reviewer
+feedback state, fetched unresolved GitHub PR threads at 2026-06-02, and
 confirmed `src/worker.ts` still accepts stale completion callbacks.
 Gaps: no test covers same-tick cancellation followed by stale completion.
 Root-cause diagnosis: missing validation boundary at the operation owner.

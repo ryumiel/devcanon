@@ -1235,6 +1235,9 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedLifecycle).toContain(exceptionClass);
     }
+    expect(normalizedLifecycle).toMatch(
+      /Stale\/invalid.*current code and current feedback-source state.*GitHub\/PR-thread-backed feedback.*current thread state/i,
+    );
 
     for (const lifecycleTerm of [
       "operation start",
@@ -1313,9 +1316,19 @@ describe("existing skills source prose contracts", () => {
     const normalizedExecutionMode = normalizeWhitespace(executionMode);
     const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
 
-    expect(normalizedExecutionMode).toContain("thread-aware intake");
+    expect(normalizedExecutionMode).toContain("source-aware feedback intake");
     expect(normalizedExecutionMode).toMatch(
-      /After.*thread-aware intake.*verification.*classify/i,
+      /After.*source-aware feedback intake.*verification.*classify/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /capturing the current feedback-source state for every concern.*fetching current thread state when feedback is GitHub\/PR-thread-backed/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /This skill owns source-aware feedback intake.*verification.*execution-mode selection/i,
+    );
+    expect(normalizedExecutionMode).not.toContain("thread-aware intake");
+    expect(normalizedExecutionMode).not.toContain(
+      "current review thread/comment state",
     );
 
     for (const disposition of [
@@ -1493,10 +1506,25 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(
       /Plan Self-Review.*before asking for approval/i,
     );
+    expect(normalizedExecutionMode).toMatch(
+      /must include a named `Plan Self-Review` section/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /evidence inside that named section/i,
+    );
+    const planSelfReview = sliceBetween(
+      executionMode,
+      "### Plan Self-Review",
+      "### Root Cause / Structural Diagnosis",
+    );
+    expect(normalizeWhitespace(planSelfReview)).not.toContain(
+      "or equivalent evidence",
+    );
 
     for (const requiredCheck of [
       "reviewer concern is accurately restated",
-      "current thread state was fetched and used",
+      "current feedback-source state was captured and used",
+      "For GitHub/PR-thread-backed feedback, the current thread state was fetched and used",
       "current code evidence supports the disposition",
       "executable, stale/invalid, already addressed, explanation-only, unclear, or unresolved",
       "execution mode is justified under inline/planned/no-code rules",
@@ -1539,10 +1567,12 @@ describe("existing skills source prose contracts", () => {
     }
 
     for (const planConstructionRule of [
-      "review-thread intake as a ledger of evidence",
+      "review-feedback intake as a ledger of evidence",
+      "current feedback-source state",
+      "current thread state when the feedback is GitHub/PR-thread-backed",
       "derive executor work items from those root-cause clusters",
       "rather than mechanically creating one implementation task per review comment",
-      "every review comment maps to either a no-code disposition or an implementation work item",
+      "every review concern/comment maps to either a no-code disposition or an implementation work item",
       "work items address the structural cause rather than only the visible comment text",
     ]) {
       expect(normalizedExecutionMode).toContain(planConstructionRule);
@@ -1561,7 +1591,7 @@ describe("existing skills source prose contracts", () => {
 
     for (const validExampleSurface of [
       "Comment mapping",
-      "Current thread and code evidence",
+      "Current feedback-source and code evidence",
       "Gaps",
       "Root-cause diagnosis",
       "Root-cause-derived work items",
@@ -1572,13 +1602,13 @@ describe("existing skills source prose contracts", () => {
     }
 
     expect(normalizedExecutionMode).toMatch(
-      /Valid self-review example:.*Comment mapping:.*Current thread and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
+      /Valid self-review example:.*Comment mapping:.*Current feedback-source and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
     );
     expect(normalizedExecutionMode).toMatch(
       /Comment mapping:.*C1 and C3 map to lifecycle or correlation gap.*C2 is explanation-only/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Current thread and code evidence:.*fetched unresolved threads at \d{4}-\d{2}-\d{2}.*`src\/worker\.ts`.*stale completion callbacks/i,
+      /Current feedback-source and code evidence:.*captured the current reviewer feedback state.*fetched unresolved GitHub PR threads at \d{4}-\d{2}-\d{2}.*`src\/worker\.ts`.*stale completion callbacks/i,
     );
     expect(normalizedExecutionMode).toMatch(
       /Gaps:.*no test covers same-tick cancellation followed by stale completion/i,
