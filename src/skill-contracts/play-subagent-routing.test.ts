@@ -101,6 +101,9 @@ describe("play subagent routing source contracts", () => {
     const phase7Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-7-review-handling.md",
     );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
     const phase2 = sliceBetween(
       issuePrimingWorkflow,
       "## Phase 2: Complexity Gate",
@@ -133,6 +136,7 @@ describe("play subagent routing source contracts", () => {
     const normalizedPhase5 = normalizeWhitespace(phase5);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedOverrides = normalizeWhitespace(overrides);
 
     expect(phase2).toContain("payload.research = gated");
@@ -154,13 +158,70 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase6).toContain(
       "cleanup gate for completed or superseded gate and research sessions",
     );
-    expect(phase6).toContain("issue-priming/auto-handoff/v1");
-    expect(phase6).toContain("controller-local parent workflow state");
+    expect(phase6).toContain("Plan written to <path>.");
+    expect(phase6).toContain("validate-read plan");
+    expect(phase6).toContain("scripts/write-auto-handoff.sh");
+    expect(normalizedPhase6).toContain(
+      "Treat a nonzero helper exit as a contract failure and stop before invoking the executor",
+    );
+    expect(phase6).toContain("references/phase-6-auto-handoff.md");
+    expect(phase6Reference).toContain("issue-priming/auto-handoff/v1");
+    expect(normalizedPhase6).toContain(
+      "controller-local state for the executor's handoff validation",
+    );
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
+    expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
+    expect(phase6).toContain("Plan: <PLAN_PATH captured above>");
+    expect(phase6).toContain("Auto handoff: <repo-relative-path>");
+    expect(normalizedPhase6).toContain(
+      "missing, unclear, invalid, or unverified reduced-route state fails closed to `spec-and-quality`",
+    );
     expect(normalizedPhase6).toContain(
       "single-task plans skip per-task review",
     );
     expect(normalizedPhase6).toContain(
       'Phase 6 itself remains "invoke `play-subagent-execution`"',
+    );
+    expect(normalizedPhase6).toContain(
+      "Successful `play-subagent-execution` completion returns control to this owning workflow",
+    );
+
+    for (const heading of [
+      "## Helper Interface",
+      "## Artifact Schema",
+      "## Parent State",
+      "## Executor Route Boundary",
+      "## Lifecycle Before Handoff",
+      "## Single-Task Final-Review Carve-Out",
+      "## Phase 7 Final-Review Guarantee",
+      "## Failure Modes",
+    ]) {
+      expect(phase6Reference).toContain(heading);
+    }
+    expect(phase6Reference).toContain("issue-priming/auto-handoff/v1");
+    expect(phase6Reference).toContain(
+      ".ephemeral/issue-priming-auto-handoff-<head_sha>.json",
+    );
+    expect(phase6Reference).toContain('"phase": "issue-priming-workflow:6"');
+    expect(phase6Reference).toContain('"plan_path": "<PLAN_PATH>"');
+    expect(phase6Reference).toContain(
+      '"phase7_branch_review_fix_required": true',
+    );
+    expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
+    expect(normalizedPhase6Reference).toContain(
+      "controller-local because repository files and copied invocation prose can be forged or replayed",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "`issue-priming-workflow` provides the plan path, auto-handoff path, and controller-local parent state. It does not compute per-task review routes",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "missing, malformed, stale, ambiguous, unclear, invalid, or unverified reduced-route state uses `spec-and-quality`",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "This final whole-diff review is the downstream guarantee that supports both reduced per-task routes and the single-task final-review carve-out",
     );
 
     expect(phase7).toContain("branch-review --fix");
@@ -493,6 +554,9 @@ describe("play subagent routing source contracts", () => {
     const phase7Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-7-review-handling.md",
     );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
     const autoHandoffReference = sliceBetween(
       playSubagentExecution,
       "### Auto handoff reference",
@@ -521,6 +585,7 @@ describe("play subagent routing source contracts", () => {
       "## Quick Reference",
     );
     const normalizedRouting = normalizeWhitespace(routingPolicy);
+    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
     const normalizedPhase8 = normalizeWhitespace(phase8);
@@ -562,8 +627,20 @@ describe("play subagent routing source contracts", () => {
       "`branch-review --fix` as the mandatory next step",
     );
 
-    expect(phase6).toContain("phase7_branch_review_fix_required: true");
-    expect(phase6).toContain("phase7_rerun_after_commits: true");
+    expect(phase6).toContain("references/phase-6-auto-handoff.md");
+    expect(phase6Reference).toContain(
+      '"phase7_branch_review_fix_required": true',
+    );
+    expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
+    expect(phase6Reference).toContain(
+      "play-subagent-execution/references/review-routing-policy.md",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "Direct or manual executor calls do not receive that carve-out",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
+    );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
     expect(phase6).toContain("Auto handoff: <repo-relative-path>");
