@@ -205,6 +205,9 @@ Agent-assisted review follows this contract:
 
 - Lead with one or two short narrative sentences naming what the
   implementation got right before the findings list
+- Include a concise root-cause / best-fix synthesis before findings only when
+  multiple concrete findings support the synthesis; individual line-grounded
+  findings remain authoritative
 - Classify each finding with one severity (`Blocking` or `Nit`) and one
   category (`Logic`, `Safety`, `Architecture`, `Tests`, `Maintainability`,
   `Documentation`, or `Contracts`)

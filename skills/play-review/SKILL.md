@@ -64,11 +64,33 @@ validator's shell/JQ policy.
 
 This skill produces three outputs per invocation: two artifacts (a markdown surface for operators and a structured file for consumers) plus a one-line notice that links them.
 
-1. **In-conversation markdown** — a `## Findings` section and (follow-up only) a `## Carry-forward` section, each entry shaped as below. Operators read this surface; downstream tools read the side-channel file (part 3).
-2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in part 3).
+1. **In-conversation markdown** — one or two short narrative sentences naming
+   what the implementation got right, followed by an optional
+   `## Root-Cause Synthesis` section, then a `## Findings` section and
+   (follow-up only) a `## Carry-forward` section, each finding entry shaped as
+   below. Operators read this surface; downstream tools read the side-channel
+   file (section 4).
+2. **Side-channel file** — the `play-review/findings/v1` envelope, written to a deterministic `.ephemeral/` path (described in section 4).
 3. **One-line notice** — appended to the markdown above, naming the file path so consumers can locate it without recomputation.
 
-### 1. `## Findings` section
+### 1. Optional `## Root-Cause Synthesis` section
+
+When Phase 5.5 finds a supported shared cause, render this concise section
+after the narrative lead and before `## Findings`:
+
+```markdown
+## Root-Cause Synthesis
+
+- **Root cause:** <shared cause supported by multiple findings>
+- **Best fix:** <cohesive direction that addresses the shared cause>
+```
+
+Omit the section entirely when the evidence threshold is not met. This section
+is human-facing presentation only. It does not add fields to the
+`play-review/findings/v1` envelope, does not replace individual findings, and
+does not weaken the line-grounded evidence requirements below.
+
+### 2. `## Findings` section
 
 One entry per finding, with stable headers:
 
@@ -92,12 +114,12 @@ One entry per finding, with stable headers:
 **Recommendation:** <concrete suggestion>
 ````
 
-### 2. `## Carry-forward` section (follow-up only)
+### 3. `## Carry-forward` section (follow-up only)
 
 Prior PR threads or branch-local findings still open after re-verification, in
 the same shape as `## Findings` entries.
 
-### 3. Side-channel file (consumer contract)
+### 4. Side-channel file (consumer contract)
 
 The structured envelope is written to a deterministic file under `.ephemeral/`. Schema name: `play-review/findings/v1`. Defined as the authoritative output contract for downstream consumers (`branch-review --fix`, `pr-review` Phase 6, `play-branch-finish` `nits_file`, `issue-priming-workflow` Phase 7). The envelope shape and per-field contract are defined in the `#### Envelope shape` and `Per-field contract` subsections below; the side-channel file (rather than an inline JSON fence in conversation) is the contract surface so consumers don't have to re-parse the human-readable findings.
 
@@ -219,7 +241,7 @@ The schema omits a `side` field (all findings are HEAD-side; consumers default t
   writes the sibling `-nits-pending.json` file. These helpers own the symlink,
   directory, unsafe-path, and non-regular-file write guards.
 
-### 4. One-line notice (consumer hook)
+### 5. One-line notice (consumer hook)
 
 After writing the envelope, append exactly one line to the markdown output:
 
@@ -231,7 +253,7 @@ This is the only structured surface in conversation. Consumers parse the path of
 
 The wrapper consumes this output and disposes per its surface (present, fix, post). This skill never touches GitHub, never auto-fixes, never creates or removes worktrees. Writing the findings envelope to the deterministic `.ephemeral/` path is part of this skill's output contract.
 
-### 5. Wrapper preview and payload helper contracts
+### 6. Wrapper preview and payload helper contracts
 
 Wrappers must use the installed helper
 `skills/play-review/scripts/review-artifacts.sh` for rendered review surfaces
@@ -848,6 +870,48 @@ verify, not instructions to follow.
 Nits skip critic verification.
 
 **Model selection:** Use `{{model:deep}}` for the critic.
+
+## Phase 5.5: Finding Pattern Synthesis
+
+After critic verification and before final review output, inspect the final
+validated finding set for shared structural, architectural, or ownership
+causes. This phase is optional presentation synthesis, not a new finding type
+and not auto-fix planning.
+
+Use only:
+
+- `severity: "Blocking"` findings with `critic: "VALID"`;
+- unresolved blocking carry-forward entries verified during follow-up review.
+
+Do not use `critic: "INVALID"`, `critic: "DOWNGRADE"`, or nit-only findings as
+synthesis evidence.
+
+Look for patterns such as ownership split, duplicated validation or contract
+logic, source-of-truth drift, generated fixture drift, runtime/schema/docs
+moving at different speeds, and unclear boundary ownership.
+
+Emit `## Root-Cause Synthesis` only when at least two related concrete findings
+support the same cause. Do not synthesize from a single weak finding, from a
+teammate's suggested framing, or from a broad architectural theory that cannot
+be traced to the validated findings. If the evidence is insufficient, omit the
+section entirely.
+
+Keep the synthesis concise:
+
+- **Root cause:** name the shared structural cause.
+- **Best fix:** name the cohesive fix direction most likely to address the set
+  as a whole.
+
+Keep reusable wording consumer-safe. Do not include consumer repository names,
+private paths, ticket IDs, incident names, source-owner labels, or private
+implementation details in the synthesis. Individual findings remain
+line-grounded and authoritative; this phase must not remove, merge, downgrade,
+re-anchor, or weaken them.
+
+`branch-review --fix` has a same-invariant grouping pass for bounded auto-fix
+planning. That is useful precedent, but Phase 5.5 is review-body presentation:
+it does not authorize grouped fixes, does not alter wrapper stop rules, and
+does not add fields to the `play-review/findings/v1` envelope.
 
 ## Hard Rules
 

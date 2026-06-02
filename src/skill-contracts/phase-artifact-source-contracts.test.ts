@@ -898,9 +898,22 @@ describe("phase artifact source contracts", () => {
     const playReview = await readSkillSource("play-review");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
+    const codeReviewGuideline = await readRepoFile(
+      "docs/guidelines/code-review-guideline.md",
+    );
     const normalizedPlayReview = normalizeWhitespace(playReview);
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedCodeReviewGuideline =
+      normalizeWhitespace(codeReviewGuideline);
+    const envelopeShapeStart = playReview.indexOf("#### Envelope shape");
+    const envelopeShapeEnd = playReview.indexOf("Per-field contract:");
+    expect(envelopeShapeStart).toBeGreaterThanOrEqual(0);
+    expect(envelopeShapeEnd).toBeGreaterThan(envelopeShapeStart);
+    const envelopeShape = playReview.slice(
+      envelopeShapeStart,
+      envelopeShapeEnd,
+    );
 
     expect(playReview).toContain("scripts/review-artifacts.sh");
     expect(playReview).toContain("render-review-preview");
@@ -923,6 +936,33 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPlayReview).toContain(
       "refuses `REVIEW_SURFACE=branch-review` with `build-github-review-payload requires REVIEW_SURFACE=pr-review",
     );
+    expect(normalizedPlayReview).toContain(
+      "Phase 5.5: Finding Pattern Synthesis",
+    );
+    expect(normalizedPlayReview).toContain("## Root-Cause Synthesis");
+    expect(normalizedPlayReview).toContain(
+      "one or two short narrative sentences naming what the implementation got right",
+    );
+    expect(normalizedPlayReview).toContain(
+      "after the narrative lead and before `## Findings`",
+    );
+    expect(normalizedPlayReview).toContain(
+      "at least two related concrete findings",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Do not synthesize from a single weak finding",
+    );
+    expect(normalizedPlayReview).toContain(
+      'Do not use `critic: "INVALID"`, `critic: "DOWNGRADE"`, or nit-only findings',
+    );
+    expect(normalizedPlayReview).toContain(
+      "private paths, ticket IDs, incident names, source-owner labels, or private implementation details",
+    );
+    expect(normalizedPlayReview).toContain(
+      "does not add fields to the `play-review/findings/v1` envelope",
+    );
+    expect(envelopeShape).not.toContain('"summary"');
+    expect(envelopeShape).not.toContain("root_cause");
 
     expect(prReview).toContain("scripts/review-artifacts.sh");
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
@@ -972,6 +1012,29 @@ describe("phase artifact source contracts", () => {
       "Present exactly that stdout to the user as the preview",
     );
     expect(normalizedPrReview).toContain(
+      "Preserve markdown before the first `## Findings` heading",
+    );
+    expect(normalizedPrReview).toContain(
+      "The preserved block must start with the required narrative lead",
+    );
+    expect(prReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
+    expect(prReview).toContain(
+      `awk '/^## Findings[[:space:]]*$/ { exit } { print }'`,
+    );
+    expect(prReview).toContain("FIRST_PREFINDINGS_LINE=$(");
+    expect(prReview).toContain(
+      "pre-findings markdown must start with narrative lead before headings",
+    );
+    expect(prReview).toContain(
+      "one or two short narrative sentences naming what the implementation got right before findings",
+    );
+    expect(prReview).toContain(
+      "review body fallback must be replaced with concrete narrative summary",
+    );
+    expect(prReview).toContain(
+      `printf '%s\\n' "$REVIEW_BODY_FALLBACK" > "$REVIEW_BODY_FILE" || exit 1`,
+    );
+    expect(normalizedPrReview).toContain(
       "rewrite `REVIEW_BODY_FILE`, rerun `render-review-preview`",
     );
     expect(normalizedPrReview).toContain(
@@ -983,6 +1046,18 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "run `prepare-findings-write` for the same immutable review head and path",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not reuse the existing `REVIEW_BODY_FILE` after the finding set changes",
+    );
+    expect(normalizedPrReview).toContain(
+      "fallback narrative body required by `docs/guidelines/code-review-guideline.md`",
+    );
+    expect(normalizedPrReview).toContain(
+      "Never write a review body whose first nonblank line is `## Root-Cause Synthesis`",
+    );
+    expect(normalizedPrReview).toContain(
+      "clear the old synthesis before rerendering and replace it with one or two concrete narrative sentences",
     );
     expect(normalizedPrReview).toContain(
       "Do not proceed to Phase 6 until the user approves that latest preview",
@@ -1030,6 +1105,22 @@ describe("phase artifact source contracts", () => {
       "Do not manually reshape findings or rebuild evidence snippets from the current checkout",
     );
     expect(normalizedBranchReview).toContain(
+      "preserves any markdown before the first `## Findings` heading",
+    );
+    expect(branchReview).toContain("HELPER_PREVIEW=$(");
+    expect(branchReview).toContain("PRE_FINDINGS_MARKDOWN=$(");
+    expect(branchReview).toContain("FIRST_PREFINDINGS_LINE=$(");
+    expect(branchReview).toContain(
+      "pre-findings markdown must start with narrative lead before headings",
+    );
+    expect(branchReview).toContain(`printf '%s\\n' "$HELPER_PREVIEW"`);
+    expect(normalizedBranchReview).toContain(
+      "the required narrative lead and, when present, `play-review`'s optional `## Root-Cause Synthesis`",
+    );
+    expect(normalizedBranchReview).toContain(
+      "fails closed if the preserved block starts with a heading instead of the narrative lead",
+    );
+    expect(normalizedBranchReview).toContain(
       "After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword)",
     );
     expect(normalizedBranchReview).toContain(
@@ -1037,6 +1128,15 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "build-github-review-payload` must refuse this surface",
+    );
+    expect(normalizedCodeReviewGuideline).toContain(
+      "Include a concise root-cause / best-fix synthesis before findings",
+    );
+    expect(normalizedCodeReviewGuideline).toContain(
+      "only when multiple concrete findings support the synthesis",
+    );
+    expect(normalizedCodeReviewGuideline).toContain(
+      "individual line-grounded findings remain authoritative",
     );
   });
 

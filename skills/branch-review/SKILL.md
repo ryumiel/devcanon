@@ -274,7 +274,13 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
 - `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown
+document with optional pre-findings presentation such as
+`## Root-Cause Synthesis`, followed by a `## Findings` section, plus a
+side-channel `play-review/findings/v1` envelope file at
+`.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line
+`Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output
+for the contract).
 
 In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.` notice path before applying any auto-fix commits:
 
@@ -307,14 +313,32 @@ FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings writte
 [ -n "$FINDINGS_FILE" ] || { echo "play-review findings notice missing" >&2; exit 1; }
 REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 
-HEAD_SHA="$REVIEW_HEAD_SHA" \
-FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-REVIEW_SURFACE="branch-review" \
-  bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
+HELPER_PREVIEW=$(
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+  REVIEW_SURFACE="branch-review" \
+    bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
+) || exit 1
+PRE_FINDINGS_MARKDOWN=$(
+  printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
+    awk '/^## Findings[[:space:]]*$/ { exit } { print }'
+) || exit 1
+if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
+  FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
+  case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
+  printf '%s\n\n' "$PRE_FINDINGS_MARKDOWN"
+fi
+printf '%s\n' "$HELPER_PREVIEW"
 ```
 
-Re-emit that helper stdout to the user in conversation. Findings tagged
-`Anchor: out-of-diff` remain report-only and require human judgment.
+The snippet above preserves any markdown before the first `## Findings` heading
+in `PLAY_REVIEW_OUTPUT` (the required narrative lead and, when present,
+`play-review`'s optional `## Root-Cause Synthesis`) and emits the preserved
+pre-findings markdown before the helper-rendered preview. It fails closed if the
+preserved block starts with a heading instead of the narrative lead. Continue to
+use the helper-rendered preview for findings and evidence snippets; do not
+manually reshape finding entries.
+Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
