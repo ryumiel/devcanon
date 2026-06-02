@@ -684,6 +684,38 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
+  it("keeps process diagrams aligned with direct/manual branch-review status resolution", async () => {
+    const processDiagrams = await readRepoFile(
+      "skills/play-subagent-execution/references/process-diagrams.md",
+    );
+    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
+
+    expect(normalizedProcessDiagrams).toContain(
+      "Report implementation and final review passed; resolve branch-level review status",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Active workflow requires branch-level review before PR creation?",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Active workflow requires branch-level review before PR creation?" -> "Stop for branch-review before play-branch-finish" [label="yes"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "If that workflow does not require branch-level review, invoke `play-branch-finish`",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      "Report implementation and final review passed; invoke play-branch-finish",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      "then invokes `play-branch-finish`",
+    );
+  });
+
   it("makes direct/manual implementation, verification, and review summaries non-terminal", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
