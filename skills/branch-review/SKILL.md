@@ -274,7 +274,13 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 - `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
 - `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with a `## Findings` section, plus a side-channel `play-review/findings/v1` envelope file at `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output for the contract).
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown
+document with optional pre-findings presentation such as
+`## Root-Cause Synthesis`, followed by a `## Findings` section, plus a
+side-channel `play-review/findings/v1` envelope file at
+`.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line
+`Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output
+for the contract).
 
 In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.` notice path before applying any auto-fix commits:
 
@@ -313,8 +319,13 @@ REVIEW_SURFACE="branch-review" \
   bash "$PLAY_REVIEW_HELPER" render-review-preview || exit 1
 ```
 
-Re-emit that helper stdout to the user in conversation. Findings tagged
-`Anchor: out-of-diff` remain report-only and require human judgment.
+Before re-emitting the helper stdout, preserve any markdown before the first
+`## Findings` heading in `PLAY_REVIEW_OUTPUT` (for example, `play-review`'s
+optional `## Root-Cause Synthesis`); emit the preserved pre-findings markdown
+before the helper-rendered preview. Continue to use the helper-rendered preview
+for findings and evidence snippets; do not manually reshape finding entries.
+Findings tagged `Anchor: out-of-diff` remain report-only and require human
+judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 

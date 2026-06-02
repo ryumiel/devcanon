@@ -161,7 +161,7 @@ Hand off to `play-review` with these inputs:
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
+Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with optional pre-findings presentation such as `## Root-Cause Synthesis`, followed by `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
 
 ```bash
 HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"
@@ -203,7 +203,10 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
   [ ! -L "$REVIEW_BODY_FILE" ] || { echo "review body file must not be a symlink: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -d "$REVIEW_BODY_FILE" ] || { echo "review body path is a directory: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ ! -e "$REVIEW_BODY_FILE" ] || [ -f "$REVIEW_BODY_FILE" ] || { echo "review body path exists but is not a regular file: $REVIEW_BODY_FILE" >&2; exit 1; }
-  # Write the draft top-level review summary to "$REVIEW_BODY_FILE".
+  # preserve any markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT
+  # and write that preserved pre-findings markdown to `$REVIEW_BODY_FILE`.
+  printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
+    awk '/^## Findings[[:space:]]*$/ { exit } { print }' > "$REVIEW_BODY_FILE"
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
   REVIEW_SURFACE="pr-review" \
