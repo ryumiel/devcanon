@@ -1235,6 +1235,9 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedLifecycle).toContain(exceptionClass);
     }
+    expect(normalizedLifecycle).toMatch(
+      /Stale\/invalid.*current code and current feedback-source state.*GitHub\/PR-thread-backed feedback.*current thread state/i,
+    );
 
     for (const lifecycleTerm of [
       "operation start",
@@ -1313,9 +1316,19 @@ describe("existing skills source prose contracts", () => {
     const normalizedExecutionMode = normalizeWhitespace(executionMode);
     const lowerExecutionMode = normalizedExecutionMode.toLowerCase();
 
-    expect(normalizedExecutionMode).toContain("thread-aware intake");
+    expect(normalizedExecutionMode).toContain("source-aware feedback intake");
     expect(normalizedExecutionMode).toMatch(
-      /After.*thread-aware intake.*verification.*classify/i,
+      /After.*source-aware feedback intake.*verification.*classify/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /capturing the current feedback-source state for every concern.*fetching current thread state when feedback is GitHub\/PR-thread-backed/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /This skill owns source-aware feedback intake.*verification.*execution-mode selection/i,
+    );
+    expect(normalizedExecutionMode).not.toContain("thread-aware intake");
+    expect(normalizedExecutionMode).not.toContain(
+      "current review thread/comment state",
     );
 
     for (const disposition of [
@@ -1472,6 +1485,149 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(/inline example/i);
     expect(normalizedExecutionMode).toMatch(
       /plan-plus-executor handoff example/i,
+    );
+  });
+
+  it("keeps review-response plan self-review semantic and structural", async () => {
+    const skillSource = await readSkillSource("play-review-response");
+    const executionMode = getMarkdownSection(
+      skillSource,
+      "Execution Mode Selection",
+    );
+    const normalizedExecutionMode = normalizeWhitespace(executionMode);
+
+    expect(normalizedExecutionMode).toContain("### Plan Self-Review");
+    expect(normalizedExecutionMode).toContain(
+      "semantic validation of the review-response plan",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "Markdown lint may be useful, but it is not plan self-review",
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Plan Self-Review.*before asking for approval/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /must include a named `Plan Self-Review` section/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /evidence inside that named section/i,
+    );
+    const planSelfReview = sliceBetween(
+      executionMode,
+      "### Plan Self-Review",
+      "### Root Cause / Structural Diagnosis",
+    );
+    expect(normalizeWhitespace(planSelfReview)).not.toContain(
+      "or equivalent evidence",
+    );
+
+    for (const requiredCheck of [
+      "reviewer concern is accurately restated",
+      "current feedback-source state was captured and used",
+      "For GitHub/PR-thread-backed feedback, the current thread state was fetched and used",
+      "current code evidence supports the disposition",
+      "executable, stale/invalid, already addressed, explanation-only, unclear, or unresolved",
+      "execution mode is justified under inline/planned/no-code rules",
+      "acceptance criteria directly close the reviewer's failure mode",
+      "tests and verification match the risk and touched contract",
+      "GitHub side effects are separated from implementation approval",
+      "direct/manual executor handoff",
+    ]) {
+      expect(normalizedExecutionMode).toContain(requiredCheck);
+    }
+
+    expect(normalizedExecutionMode).toContain(
+      "### Root Cause / Structural Diagnosis",
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /multiple related comments.*contract-sensitive.*policy-sensitive.*lifecycle-sensitive.*cross-module/i,
+    );
+
+    for (const diagnosisClass of [
+      "isolated implementation mistake",
+      "duplicated source of truth",
+      "unclear ownership or authority",
+      "contract drift between producer and consumer",
+      "missing validation boundary",
+      "lifecycle or correlation gap",
+      "test fixture mismatch hiding the real contract",
+    ]) {
+      expect(normalizedExecutionMode).toContain(diagnosisClass);
+    }
+
+    for (const fixStrategy of [
+      "patch local symptoms",
+      "consolidate authority",
+      "extract or strengthen a shared validation layer",
+      "update producer contract",
+      "update consumer adapter",
+      "document a no-code policy boundary",
+    ]) {
+      expect(normalizedExecutionMode).toContain(fixStrategy);
+    }
+
+    for (const planConstructionRule of [
+      "review-feedback intake as a ledger of evidence",
+      "current feedback-source state",
+      "current thread state when the feedback is GitHub/PR-thread-backed",
+      "derive executor work items from those root-cause clusters",
+      "rather than mechanically creating one implementation task per review comment",
+      "every review concern/comment maps to either a no-code disposition or an implementation work item",
+      "work items address the structural cause rather than only the visible comment text",
+    ]) {
+      expect(normalizedExecutionMode).toContain(planConstructionRule);
+    }
+
+    for (const invalidExample of [
+      "Markdown lint passed",
+      "Plan looks good",
+      "All comments listed",
+      "without concern-to-fix mapping",
+    ]) {
+      expect(normalizedExecutionMode).toContain(invalidExample);
+    }
+
+    expect(normalizedExecutionMode).toContain("Valid self-review example:");
+
+    for (const validExampleSurface of [
+      "Comment mapping",
+      "Current feedback-source and code evidence",
+      "Gaps",
+      "Root-cause diagnosis",
+      "Root-cause-derived work items",
+      "Residual risks",
+      "Executor handoff suitability",
+    ]) {
+      expect(normalizedExecutionMode).toContain(validExampleSurface);
+    }
+
+    expect(normalizedExecutionMode).toMatch(
+      /Valid self-review example:.*Comment mapping:.*Current feedback-source and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Comment mapping:.*C1 and C3 map to lifecycle or correlation gap.*C2 is explanation-only/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Current feedback-source and code evidence:.*captured the current reviewer feedback state.*fetched unresolved GitHub PR threads at \d{4}-\d{2}-\d{2}.*`src\/worker\.ts`.*stale completion callbacks/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Gaps:.*no test covers same-tick cancellation followed by stale completion/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Root-cause diagnosis:.*missing validation boundary at the operation owner/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Root-cause-derived work items:.*strengthen the owner-side completion guard.*add stale-callback coverage.*rather than one task per comment/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Residual risks:.*retry cleanup still needs focused verification/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /Executor handoff suitability:.*direct\/manual plan has source authority.*acceptance criteria.*TDD expectations.*verification.*GitHub closeout left with `play-review-response`/i,
+    );
+
+    expect(normalizedExecutionMode).toMatch(
+      /GitHub reply, refetch, and resolution closeout.*must not be dispatched as `play-subagent-execution` implementation tasks/i,
     );
   });
 
