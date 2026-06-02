@@ -634,13 +634,13 @@ Fail and fix the plan when an applicable task checklist omits relevant
 boundary row IDs or row ownership, even when it precisely restates boundary
 details. Fail and fix the plan when boundary rows or task checklists are
 structurally present but use non-executable boundary or proof language, such as
-stable diagnostic, source inspection, no-code disposition, no recovery surface,
-broad validation ordering, rollback covered, fail-closed covered, or forbidden
-surface absent without the observable diagnostic shape, ordering relationship,
-source target or discovery criteria, evidence location, terminal-state proof,
-or absence check needed to verify pass/fail evidence. When exact executable
-evidence cannot be identified from source or durable requirements, record a
-blocker or assumption instead of inventing authority.
+stable diagnostic, source inspection, no-code disposition, no-recovery surface,
+broad validation ordering, rollback covered, fail-closed covered, or
+forbidden-surface absence without the observable diagnostic shape, ordering
+relationship, source target or discovery criteria, evidence location,
+terminal-state proof, or absence check needed to verify pass/fail evidence. When
+exact executable evidence cannot be identified from source or durable
+requirements, record a blocker or assumption instead of inventing authority.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
@@ -760,8 +760,8 @@ inline content remains valid.
   IDs or row ownership, even when it precisely restates boundary details
 - The plan fails when boundary rows or task checklists are structurally present
   but use non-executable boundary or proof language, such as stable diagnostic,
-  source inspection, no-code disposition, no recovery surface, broad validation
-  ordering, rollback covered, fail-closed covered, or forbidden surface absent
+  source inspection, no-code disposition, no-recovery surface, broad validation
+  ordering, rollback covered, fail-closed covered, or forbidden-surface absence
   without the observable diagnostic shape, ordering relationship, source target
   or discovery criteria, evidence location, terminal-state proof, or absence
   check needed to verify pass/fail evidence
