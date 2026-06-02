@@ -96,6 +96,15 @@ restriction because those paths are echoed through review output and reused by
 wrappers before read or overwrite; design documents keep the generic
 phase-artifact shape.
 
+Parent workflows may pass verified review-response planning inputs through this
+same `Design: <path>` contract. In that route, `play-review-response` owns
+feedback-source state, PR-thread state, dispositions, and GitHub lifecycle side
+effects. This skill owns task decomposition, contract-heavy tables,
+boundary-contract traceability, task contract checklists, traceability
+matrices, plan review, and executor-ready plan shape; it must not turn GitHub
+replies, refetching, resolution, posting, pushing, or PR closeout into executor
+implementation tasks.
+
 ### Inline content (preserved for direct invocations)
 
 A `## Design` heading followed by content body, exactly as the existing
