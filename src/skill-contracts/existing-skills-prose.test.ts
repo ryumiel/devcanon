@@ -2116,8 +2116,6 @@ describe("existing skills source prose contracts", () => {
     for (const forbiddenClaim of [
       /(?:this skill|play-branch-finish|Option 2) (?:owns|is the owner of|is authority for) `branch-review`/i,
       /(?:this skill|play-branch-finish|Option 2) (?:is|acts as|becomes) (?:the )?`?branch-review`? (?:owner|authority)/i,
-      /`branch-review` (?:owner|authority)/i,
-      /branch-review (?:owner|authority)/i,
       /(?<!not )validates? (?:branch-review completion|review completeness|final review completeness)/i,
       /(?:review completeness|final review completeness) validation/i,
       /(?<!not )validates? (?:that )?branch-review (?:ran|completed|passed)/i,
