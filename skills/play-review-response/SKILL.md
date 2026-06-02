@@ -206,6 +206,7 @@ writes a verified `.ephemeral/*-design.md` planning input and invokes
 `play-planning` with:
 
 ```text
+Route: review-response-parent-owned
 Design: <path>
 ```
 
@@ -259,17 +260,21 @@ coverage.
 
 For planned review-response work, create and self-review the written
 `.ephemeral/*-design.md` planning input, invoke `play-planning` with
-`Design: <path>`, and capture the emitted `Plan written to <path>.` notice
-before implementation. This gate borrows the approval-gate shape from
-`play-brainstorm` without invoking `play-brainstorm` and without making it a
-dependency of `play-review-response`.
+`Route: review-response-parent-owned` and `Design: <path>`, and capture the
+emitted `Plan written to <path>.` notice before implementation. This gate
+borrows the approval-gate shape from `play-brainstorm` without invoking
+`play-brainstorm` and without making it a dependency of
+`play-review-response`.
 
 Before handing the generated plan to `play-subagent-execution`, present the
-plan to the user with a distinct producer notice and approval prompt:
+plan to the user with a distinct producer notice and approval prompt. Use the
+captured concrete plan path in human-facing approval text by replacing
+`{captured-plan-path}` below with the path captured from `play-planning`. Do
+not include a second `Plan written to <path>.` placeholder, because
+`play-planning` owns the single contract notice.
 
 ```text
-Plan written to <path>.
-I wrote the review-response plan at <path>.
+I wrote the review-response plan at {captured-plan-path}.
 Please review it. I will not implement it until you approve the plan.
 ```
 
@@ -285,9 +290,9 @@ The plan approval gate is explicit:
 - Wait for user approval before implementation begins.
 - Approval happens after `Plan written to <path>.` and before
   `play-subagent-execution`.
-- If the user requests plan changes, revise the plan through `play-planning` as
-  needed, rerun plan self-review and any applicable plan-review gate, then ask
-  for approval again.
+- If the user requests any generated-plan change, route every generated-plan
+  revision back through `play-planning`, including plan self-review and any
+  applicable plan-review gate, before renewed approval.
 - Repeat the user approval loop until the user approves or stops the work.
   There is no fixed maximum for this human approval loop.
 - Keep the separate `play-planning` agent-review cap out of the user approval
@@ -319,7 +324,8 @@ For each concern, validate that:
 - The authoritative source for each disputed behavior is identified.
 - The required fix strategy by cluster is identified.
 - GitHub side effects are outside executor scope.
-- The planning input is suitable for `play-planning` through `Design: <path>`.
+- The planning input is suitable for `play-planning` through
+  `Route: review-response-parent-owned` and `Design: <path>`.
 
 Treat review-feedback intake as a ledger of evidence. Record enough current
 feedback-source state, current thread state when the feedback is
@@ -349,7 +355,8 @@ Root-cause-derived fix strategy: strengthen the owner-side completion guard and
 add stale-callback coverage, rather than one task per comment.
 Residual risks: retry cleanup still needs focused verification.
 Planning handoff suitability: design has source authority, is ready for
-`Design: <path>`, and leaves GitHub closeout left with `play-review-response`.
+`Route: review-response-parent-owned` and `Design: <path>`, and GitHub closeout
+remains with `play-review-response`.
 ```
 
 GitHub reply, refetch, and resolution closeout remain owned by
@@ -406,9 +413,10 @@ Verification: policy-sensitive, contract-sensitive, multi-surface workflow
 change with traceability needs.
 Mode: Planned execution.
 Action: Write `.ephemeral/<date>-review-response-design.md`, invoke
-`play-planning` with `Design: <path>`, capture `Plan written to <path>.`, ask
-for approval, wait for approval, then invoke `play-subagent-execution` with
-`Plan: <path>`.
+`play-planning` with `Route: review-response-parent-owned` and
+`Design: <path>`, capture `Plan written to <path>.`, ask for approval using
+`{captured-plan-path}` replaced with the captured path, wait for approval, then
+invoke `play-subagent-execution` with `Plan: <path>`.
 ```
 
 No-code feedback example:
