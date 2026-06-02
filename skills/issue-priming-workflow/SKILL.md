@@ -372,7 +372,8 @@ Do not wait for user review of the plan — proceed directly to implementation. 
 
 ### Phase 6: Implement
 
-After `play-planning` returns, capture the literal `Plan written to <path>.` notice line it emitted. Validate the captured path:
+After `play-planning` returns, capture the literal
+`Plan written to <path>.` notice line it emitted. Validate the captured path:
 
 ```bash
 bash "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
@@ -381,16 +382,13 @@ bash "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
 Use the helper contract from the issue worktree root; success is silent and a
 nonzero exit stops the phase.
 
-Before invoking `play-subagent-execution`, write a controller-owned auto-mode
-handoff artifact under `.ephemeral/` and pass its path alongside the plan. The
-artifact is audit evidence for reduced per-task review routes; authorization
-also depends on this controller-local parent workflow state, which invocation
-prose or repo files alone cannot provide. `ISSUE_PRIMING_WORKFLOW_DIR` must
-resolve to the installed `issue-priming-workflow` skill bundle, not the issue
-worktree. Bind
-`AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`
-and invoke it from the issue worktree root so it can enforce repo-root
-`.ephemeral` semantics.
+Before invoking `play-subagent-execution`, invoke
+`scripts/write-auto-handoff.sh` from the issue worktree root. Resolve the
+script from the installed `issue-priming-workflow` skill bundle, pass
+`PLAN_PATH`, and capture stdout as the repo-relative auto-handoff artifact path.
+Treat a nonzero helper exit as a contract failure and stop before invoking the
+executor. See [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
+for the helper interface, artifact schema, artifact path shape, and rationale.
 
 ```bash
 ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
@@ -402,14 +400,6 @@ AUTO_HANDOFF_FILE=$(
 )
 ```
 
-The helper writes the `issue-priming/auto-handoff/v1` artifact for phase
-`issue-priming-workflow:6` in `mode: "auto"`, records `plan_path`,
-`head_sha`, `phase7_branch_review_fix_required: true`, and
-`phase7_rerun_after_commits: true`, enforces unsafe-path and repository-root
-checks, guards symlink and non-regular-file targets, creates `.ephemeral` when
-needed, and prints the repo-relative artifact path. Treat a nonzero helper exit
-as a contract failure; do not invoke `play-subagent-execution`.
-
 Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate for
 completed or superseded gate and research sessions. Capture their
 role-specific state first, then close them when the target is
@@ -418,12 +408,15 @@ role-specific state first, then close them when the target is
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT
-as inline content. Use the `$AUTO_HANDOFF_FILE` path captured above for that
-placeholder. The artifact is audit evidence; the authorization for reduced
-routes is the controller-local parent state from this active workflow run, which
-direct/manual calls cannot supply. Carry `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true`
-and `ISSUE_PRIMING_AUTO_HEAD` in controller-local state for the executor's
-handoff validation. The invocation skeleton:
+as inline content. Use the `$AUTO_HANDOFF_FILE` path captured above. Carry
+`ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
+controller-local state for the executor's handoff validation. Reduced routes
+are allowed only through the verified `issue-priming-workflow --auto` handoff
+path; missing, unclear, invalid, or unverified reduced-route state fails closed
+to `spec-and-quality`. The executor-owned route authority is
+`play-subagent-execution` and its
+[`review-routing-policy.md`](../play-subagent-execution/references/review-routing-policy.md)
+reference. The invocation skeleton:
 
 ```
 Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
@@ -438,15 +431,15 @@ Auto handoff: <repo-relative-path>
 
 All `play-subagent-execution` rules apply (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
-single-task plans skip per-task review). The parent-owned contract above activates
-its narrow single-task final-review carve-out because this workflow
-guarantees the Phase 7 `branch-review --fix` loop; the same mandatory Phase 7
+single-task plans skip per-task review). The parent-owned contract above
+activates its narrow single-task final-review carve-out because this workflow
+guarantees the mandatory Phase 7 `branch-review --fix` loop. The same Phase 7
 loop is also the final whole-diff no-Blocking guarantee for reduced per-task
-routes. If any `branch-review --fix` run commits auto-fixes, rerun Phase 7 on
-the new `HEAD`. Only a run that reports zero blocking findings auto-fixed and
-leaves no unresolved remaining `Blocking` findings except findings whose
-`critic` verdict is `INVALID` or `DOWNGRADE`, followed by no mechanical nit
-commits, satisfies the final-review guarantee.
+routes. If any Phase 7 run commits auto-fixes or mechanical nit fixes, rerun
+Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
+auto-fixed and leaves no unresolved remaining `Blocking` findings except
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, followed by no
+mechanical nit commits, satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
