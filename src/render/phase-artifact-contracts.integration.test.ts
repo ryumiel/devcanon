@@ -349,6 +349,7 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(phase8).toContain("play-branch-finish");
       expect(phase8).toContain("option 2: push and create PR");
+      expect(phase8).toContain("phase-8-pr-handoff.md");
       expect(normalizedPhase8).toContain(
         "Pass `assignee=@me` to `play-branch-finish` Option 2",
       );
@@ -357,39 +358,31 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPhase8).toContain("until `pr-merge`");
       expect(normalizedPhase8).toContain(
-        'Do not embed auto-mode assumptions, unaddressed review nits, commit-by-commit changelogs, "originally / now" chronology, "Notes from review" sections, or any logbook content',
-      );
-      expect(normalizedPhase8).toContain(
-        "Auto-mode assumptions are routed through the assumptions comment path",
-      );
-      expect(normalizedPhase8).toContain(
-        "Unaddressed nits from Phase 7 are routed to `play-branch-finish` and posted as PR review comments after PR creation",
+        "Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode",
       );
       expect(phase8).toContain("assumptions_comment_file");
-      expect(phase8).toContain("scripts/write-assumptions-comment.sh");
-      expect(phase8).toContain(
-        ".ephemeral/<identifier>-assumptions-comment.md",
-      );
-      expect(phase8).toContain(
-        "assumptions_comment_file must be a direct child of .ephemeral",
-      );
-      expect(phase8).toContain(
-        "assumptions_comment_file path validation failed",
-      );
-      expect(phase8).toContain("path traversal");
-      expect(phase8).toContain(".ephemeral must be a directory, not a symlink");
       expect(normalizedPhase8).toContain(
-        "If there are no auto-mode assumptions to surface, omit `assumptions_comment_file` entirely",
+        "Pass reviewer-relevant resolved auto-mode assumptions only through `assumptions_comment_file`",
       );
       expect(normalizedPhase8).toContain(
         "Ambiguous decisions still stop `--auto` and ask the user",
       );
-      expect(phase8).toContain("Pass `nits_file`");
-      expect(phase8).toContain(
-        ".ephemeral/<branch_slug>-<head_sha>-nits-pending.json",
+      expect(normalizedPhase8).toContain(
+        "Pass judgment-required Phase 7 feedback only through `nits_file`",
       );
       expect(normalizedPhase8).toContain(
-        "If Phase 7 produced no judgment-required nits, omit `nits_file` entirely",
+        "Phase 8 does not classify findings or prepare the nits envelope",
+      );
+      expect(phase8).not.toContain("scripts/write-assumptions-comment.sh");
+      expect(phase8).not.toContain(
+        "assumptions_comment_file must be a direct child of .ephemeral",
+      );
+      expect(phase8).not.toContain(
+        "assumptions_comment_file path validation failed",
+      );
+      expect(phase8).not.toContain("path traversal");
+      expect(phase8).not.toContain(
+        ".ephemeral must be a directory, not a symlink",
       );
     }
   });

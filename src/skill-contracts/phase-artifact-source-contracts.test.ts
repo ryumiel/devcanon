@@ -15,8 +15,12 @@ describe("phase artifact source contracts", () => {
     const phase6Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
     );
+    const phase8Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
     const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
+    const normalizedPhase8Reference = normalizeWhitespace(phase8Reference);
 
     /*
      * play-skill-authoring pressure-run fallback:
@@ -38,8 +42,18 @@ describe("phase artifact source contracts", () => {
     expect(issuePrimingWorkflow).toContain(
       "references/phase-6-auto-handoff.md",
     );
+    expect(issuePrimingWorkflow).toContain("references/phase-8-pr-handoff.md");
     expect(normalizedPhase6Reference).toContain(
       "it invokes the helper from the issue worktree root",
+    );
+    expect(normalizedPhase8Reference).toContain(
+      "If a future design creates or changes a boundary, record the owner, contract surface, and non-owner responsibilities",
+    );
+    expect(normalizedPhase8Reference).toContain(
+      "`issue-priming-workflow` owns when Phase 8 may start and which arguments are passed to `play-branch-finish`",
+    );
+    expect(normalizedPhase8Reference).toContain(
+      "`scripts/write-assumptions-comment.sh` owns assumptions comment path preparation and deterministic path guards",
     );
   });
 

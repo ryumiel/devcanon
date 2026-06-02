@@ -557,6 +557,9 @@ describe("play subagent routing source contracts", () => {
     const phase6Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
     );
+    const phase8Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
     const autoHandoffReference = sliceBetween(
       playSubagentExecution,
       "### Auto handoff reference",
@@ -684,8 +687,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizeWhitespace(phase7Reference)).toContain(
       "normalizes selected `DOWNGRADE` copies to postable Nit form",
     );
+    expect(phase8).toContain("references/phase-8-pr-handoff.md");
     expect(normalizedPhase8).toContain(
-      "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",
+      "Pass judgment-required Phase 7 feedback only through `nits_file`",
     );
     expect(normalizedPhase8).toContain(
       "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass",
@@ -695,6 +699,18 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase8).toContain(
       "no additional mechanical nit commits are made after that review",
+    );
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope",
+    );
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "Do not pass mechanical nits to Phase 8",
+    );
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "Do not classify findings in Phase 8",
+    );
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "must not be embedded in the PR description body",
     );
   });
 
