@@ -98,6 +98,9 @@ describe("play subagent routing source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
     const phase2 = sliceBetween(
       issuePrimingWorkflow,
       "## Phase 2: Complexity Gate",
@@ -161,30 +164,49 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(phase7).toContain("branch-review --fix");
-    expect(phase7).toContain("Review head: <40-hex-sha>.");
-    expect(phase7).toContain("PLAY_REVIEW_HELPER");
-    expect(phase7).toContain("scripts/review-artifacts.sh");
-    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
+    expect(phase7).toContain("references/phase-7-review-handling.md");
+    expect(phase7).toContain("prepare-judgment-nits");
+    expect(phase7).toContain("-nits-pending.json");
     expect(normalizedPhase7).toContain(
-      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
+      'ignore `critic: "INVALID"` for continuation and never pass it to Phase 8',
     );
     expect(normalizedPhase7).toContain(
-      "Do not recompute the review SHA from post-review `HEAD`",
+      'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "Reported by branch-review at <path>:<line>",
-    );
-    expect(normalizedPhase7).toContain(
-      "Re-read the target file from disk before applying each Edit",
+      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
     );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
-    expect(normalizedPhase7).toContain(
-      "Phase 8 receives only judgment-required items",
+    expect(normalizedPhase7).toContain("classification flow is `--auto` only");
+
+    for (const heading of [
+      "## Review Artifact Parsing",
+      "## Blocker Stop Rules",
+      "## Nit Classification",
+      "## Mechanical Nit Commits",
+      "## Judgment-Required Nits Envelope",
+      "## Phase 8 Handoff",
+    ]) {
+      expect(phase7Reference).toContain(heading);
+    }
+    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
+    expect(phase7Reference).toContain("Findings written to <path>.");
+    expect(phase7Reference).toContain("PLAY_REVIEW_HELPER");
+    expect(phase7Reference).toContain("scripts/review-artifacts.sh");
+    expect(phase7Reference).toContain("prepare-judgment-nits");
+    expect(phase7Reference).toContain(
+      "Reported by branch-review at <path>:<line>",
     );
-    expect(normalizedPhase7).toMatch(
-      /This step is `--auto` only.*manual operators decide nit-handling case by case/,
+    expect(normalizeWhitespace(phase7Reference)).toContain(
+      "only after the final Phase 7 review run satisfies",
+    );
+    expect(normalizeWhitespace(phase7Reference)).toContain(
+      "Re-read the target file from disk before each edit",
+    );
+    expect(normalizeWhitespace(phase7Reference)).toContain(
+      "Manual operators decide nit handling case by case",
     );
 
     expect(normalizedOverrides).toContain(
@@ -361,8 +383,12 @@ describe("play subagent routing source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
     const normalizedIssuePrimingWorkflow =
       normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedPhase7Reference = normalizeWhitespace(phase7Reference);
 
     expect(normalizedIssuePrimingWorkflow).toContain(
       "skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)",
@@ -370,7 +396,7 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedIssuePrimingWorkflow).not.toContain(
       "SKILL.md § Skip-Dispatch Path",
     );
-    expect(normalizedIssuePrimingWorkflow).toContain(
+    expect(normalizedPhase7Reference).toContain(
       "`skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule",
     );
     expect(normalizedIssuePrimingWorkflow).not.toContain(
@@ -464,6 +490,9 @@ describe("play subagent routing source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
     const autoHandoffReference = sliceBetween(
       playSubagentExecution,
       "### Auto handoff reference",
@@ -552,30 +581,31 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
     );
-    expect(phase7).toContain("Review head: <40-hex-sha>.");
-    expect(phase7).toContain("Findings written to <path>.");
-    expect(phase7).toContain("PLAY_REVIEW_HELPER");
-    expect(phase7).toContain("validate-findings");
-    expect(phase7).toContain("derive-nits-pending");
+    expect(phase7).toContain("references/phase-7-review-handling.md");
+    expect(phase7).toContain("prepare-judgment-nits");
     expect(phase7).toContain("-nits-pending.json");
-    expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
-    expect(normalizedPhase7).toContain(
-      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
-    );
-    expect(normalizedPhase7).toContain(
-      'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
-    );
-    expect(normalizedPhase7).toContain(
-      "Do not recompute the review SHA from post-review `HEAD`",
-    );
     expect(normalizedPhase7).toContain(
       'no unresolved `severity: "Blocking"` entries except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
     );
     expect(normalizedPhase7).toContain(
-      'Ignore `critic: "INVALID"` findings for continuation and do not pass them to `play-branch-finish`',
+      'ignore `critic: "INVALID"` for continuation and never pass it to Phase 8',
     );
     expect(normalizedPhase7).toContain(
-      'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments',
+      'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
+    );
+    expect(normalizedPhase7).toContain(
+      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+    );
+    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
+    expect(phase7Reference).toContain("Findings written to <path>.");
+    expect(phase7Reference).toContain("PLAY_REVIEW_HELPER");
+    expect(phase7Reference).toContain("validate the findings path");
+    expect(phase7Reference).toContain("prepare-judgment-nits");
+    expect(phase7Reference).toContain(
+      "Reported by branch-review at <path>:<line>",
+    );
+    expect(normalizeWhitespace(phase7Reference)).toContain(
+      "normalizes selected `DOWNGRADE` copies to postable Nit form",
     );
     expect(normalizedPhase8).toContain(
       "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",

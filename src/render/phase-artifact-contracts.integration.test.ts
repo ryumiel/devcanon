@@ -104,7 +104,8 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-review/findings/v1");
-    expect(issuePrimingWorkflow).toContain("PLAY_REVIEW_HELPER");
+    expect(issuePrimingWorkflow).toContain("phase-7-review-handling.md");
+    expect(issuePrimingWorkflow).toContain("prepare-judgment-nits");
 
     const playBrainstorm = bodyFor("play-brainstorm");
     expect(playBrainstorm).toContain("Issue body:");
@@ -313,55 +314,27 @@ describe("rendered phase artifact smoke coverage", () => {
       );
 
       expect(phase7).toContain("branch-review --fix");
-      expect(phase7).toContain("Review head: <40-hex-sha>.");
-      expect(phase7).toContain("Findings written to <path>.");
-      expect(phase7).toContain(
-        "Do not recompute the review SHA from post-review `HEAD`",
-      );
-      expect(phase7).toContain("PLAY_REVIEW_DIR");
-      expect(phase7).toContain("PLAY_REVIEW_HELPER");
-      expect(phase7).toContain("scripts/review-artifacts.sh");
-      expect(phase7).toContain("validate-findings");
-      expect(normalizedPhase7).toContain(
-        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
-      );
-      expect(normalizedPhase7).toContain(
-        "invoke it from the issue worktree root",
-      );
-      expect(phase7).toContain('HEAD_SHA="$REVIEW_HEAD_SHA"');
-      expect(normalizedPhase7).toContain(
-        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" validate-findings',
-      );
-      expect(normalizedPhase7).toContain(
-        "Then validate the parsed findings path before reading it with the canonical helper",
-      );
-      expect(normalizedPhase7).toContain(
-        "After the guard passes, load `findings[]` from the file",
-      );
-      expect(normalizedPhase7).toContain(
-        "Do not re-parse the human-readable markdown",
-      );
-      expect(normalizedPhase7).toContain(
-        'Treat `critic: "DOWNGRADE"` findings as non-blocking, judgment-required feedback for PR comments',
-      );
-      expect(phase7).toContain("Mechanical nits");
-      expect(phase7).toContain(
-        "Judgment-required nits and downgraded findings",
-      );
+      expect(phase7).toContain("phase-7-review-handling.md");
+      expect(phase7).toContain("prepare-judgment-nits");
       expect(phase7).toContain("play-review/findings/v1");
       expect(phase7).toContain("-nits-pending.json");
-      expect(phase7).toContain("derive-nits-pending");
       expect(normalizedPhase7).toContain(
-        'HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \\ bash "$PLAY_REVIEW_HELPER" derive-nits-pending',
+        'ignore `critic: "INVALID"` for continuation and never pass it to Phase 8',
       );
       expect(normalizedPhase7).toContain(
-        "Use the canonical helper to validate the findings path, derive the sibling path, prepare the write target, and print the repo-relative nits path",
+        'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
       );
       expect(normalizedPhase7).toContain(
-        "passes `$NITS_PENDING_FILE` as `nits_file`",
+        "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
       );
       expect(normalizedPhase7).toContain(
-        "If the judgment-required set is empty, skip the file write",
+        "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
+      );
+      expect(normalizedPhase7).toContain(
+        "classification flow is `--auto` only",
+      );
+      expect(normalizedPhase7).toContain(
+        "manual operators decide nit-handling case by case",
       );
 
       expect(phase8).toContain("play-branch-finish");

@@ -523,6 +523,91 @@ build_github_review_payload() {
     }'
 }
 
+prepare_judgment_nits() {
+  local nits_pending_file
+  local tmp_file
+  require_repo_root
+  validate_head_sha
+  require_env FINDINGS_FILE
+  require_env JUDGMENT_REQUIRED_FINDING_INDEXES
+  validate_findings_path_shape "$FINDINGS_FILE"
+  assert_readable_envelope "findings file" "$FINDINGS_FILE"
+
+  case "$JUDGMENT_REQUIRED_FINDING_INDEXES" in
+    *[[:space:]]* | "" | *, | ,* | *,,*)
+      echo "JUDGMENT_REQUIRED_FINDING_INDEXES must be comma-separated zero-based indexes" >&2
+      exit 1
+      ;;
+  esac
+
+  jq -e --arg indexes "$JUDGMENT_REQUIRED_FINDING_INDEXES" '
+    def fail($message): error($message);
+    def valid_index_string:
+      test("^[0-9]+(,[0-9]+)*$");
+    def selected_indexes:
+      $indexes
+      | if valid_index_string then split(",") | map(tonumber)
+        else fail("JUDGMENT_REQUIRED_FINDING_INDEXES must be comma-separated zero-based indexes")
+        end;
+    def duplicate_indexes:
+      selected_indexes as $xs
+      | ($xs | unique | length) != ($xs | length);
+    def selected:
+      . as $envelope
+      | selected_indexes as $xs
+      | if duplicate_indexes then
+          fail("JUDGMENT_REQUIRED_FINDING_INDEXES must not contain duplicate indexes")
+        elif ($xs | any(. < 0 or . >= ($envelope.findings | length))) then
+          fail("JUDGMENT_REQUIRED_FINDING_INDEXES contains out-of-range index")
+        else
+          $xs | map(. as $index | $envelope.findings[$index])
+        end;
+    def true_blocking:
+      .severity == "Blocking" and (.critic != "INVALID" and .critic != "DOWNGRADE");
+    def selectable:
+      (.severity == "Nit") or (.critic == "DOWNGRADE");
+    if ((.findings + .carry_forward) | any(true_blocking)) then
+      fail("unresolved blocking finding prevents judgment nits preparation")
+    elif (selected | any(.critic == "INVALID")) then
+      fail("critic INVALID findings must not be selected for judgment nits")
+    elif (selected | any(select(selectable | not))) then
+      fail("selected finding is not judgment-required nit feedback")
+    else
+      true
+    end
+  ' "$FINDINGS_FILE" >/dev/null || {
+    echo "judgment nits validation failed" >&2
+    exit 1
+  }
+
+  nits_pending_file="${FINDINGS_FILE%-findings.json}-nits-pending.json"
+  validate_nits_path_shape "$nits_pending_file"
+  prepare_write_target "nits pending" "$nits_pending_file"
+  tmp_file="${nits_pending_file}.tmp.$$"
+  rm -f "$tmp_file"
+  trap 'rm -f "$tmp_file"' EXIT
+  jq --arg indexes "$JUDGMENT_REQUIRED_FINDING_INDEXES" '
+    def selected_indexes: $indexes | split(",") | map(tonumber);
+    def normalize_downgrade:
+      if .critic == "DOWNGRADE" then
+        .severity = "Nit"
+        | .critic = null
+        | .body = ("**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation)
+      else
+        .
+      end;
+    . as $envelope
+    | {
+      schema: "play-review/findings/v1",
+      findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
+      carry_forward: []
+    }
+  ' "$FINDINGS_FILE" >"$tmp_file"
+  mv "$tmp_file" "$nits_pending_file"
+  trap - EXIT
+  printf '%s\n' "$nits_pending_file"
+}
+
 case "$command_name" in
   validate-findings)
     require_repo_root
@@ -548,6 +633,9 @@ case "$command_name" in
     prepare_write_target "nits pending" "$NITS_PENDING_FILE"
     printf '%s\n' "$NITS_PENDING_FILE"
     ;;
+  prepare-judgment-nits)
+    prepare_judgment_nits
+    ;;
   prepare-findings-write)
     require_repo_root
     validate_head_sha
@@ -565,7 +653,7 @@ case "$command_name" in
     build_github_review_payload
     ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-findings-write|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|render-review-preview|build-github-review-payload" >&2
     exit 1
     ;;
 esac

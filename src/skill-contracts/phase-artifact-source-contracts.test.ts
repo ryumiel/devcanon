@@ -41,6 +41,9 @@ describe("phase artifact source contracts", () => {
       "issue-priming-workflow",
     );
     const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const phase7ReviewHandling = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
     );
@@ -65,10 +68,10 @@ describe("phase artifact source contracts", () => {
       "Research brief written to <repo-relative-path>.",
       "Design written to <path>.",
       "Plan written to <path>.",
-      "Findings written to <path>.",
     ]) {
       expect(issuePrimingWorkflow).toContain(noticeLine);
     }
+    expect(phase7ReviewHandling).toContain("Findings written to <path>.");
 
     expect(normalizedIssuePriming).toContain(
       "do not suppress or replace child skill approval gates",
