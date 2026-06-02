@@ -210,6 +210,18 @@ Route: review-response-parent-owned
 Design: <path>
 ```
 
+Before the `Write` tool call for that planning input, compute the design path
+and apply the canonical `.ephemeral` write guard:
+
+```bash
+DESIGN_PATH=".ephemeral/$(date +%F)-review-response-design.md"
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"
+[ ! -d "$DESIGN_PATH" ] || { echo "design path is a directory: $DESIGN_PATH" >&2; exit 1; }
+[ ! -e "$DESIGN_PATH" ] || [ -f "$DESIGN_PATH" ] || { echo "design path exists but is not a regular file: $DESIGN_PATH" >&2; exit 1; }
+```
+
 The planning input must explicitly include:
 
 - review thread/comment mapping;
@@ -412,11 +424,12 @@ thread closeout behavior."
 Verification: policy-sensitive, contract-sensitive, multi-surface workflow
 change with traceability needs.
 Mode: Planned execution.
-Action: Write `.ephemeral/<date>-review-response-design.md`, invoke
-`play-planning` with `Route: review-response-parent-owned` and
-`Design: <path>`, capture `Plan written to <path>.`, ask for approval using
-`{captured-plan-path}` replaced with the captured path, wait for approval, then
-invoke `play-subagent-execution` with `Plan: <path>`.
+Action: Apply the canonical `.ephemeral` write guard, write
+`.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
+`Route: review-response-parent-owned` and `Design: <path>`, capture
+`Plan written to <path>.`, ask for approval using `{captured-plan-path}`
+replaced with the captured path, wait for approval, then invoke
+`play-subagent-execution` with `Plan: <path>`.
 ```
 
 No-code feedback example:

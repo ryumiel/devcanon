@@ -1481,6 +1481,18 @@ describe("existing skills source prose contracts", () => {
     expect(plannedExecutionHandoff).toContain(
       "```text\nRoute: review-response-parent-owned\nDesign: <path>\n```",
     );
+    expect(plannedExecutionHandoff).toContain(
+      'DESIGN_PATH=".ephemeral/$(date +%F)-review-response-design.md"',
+    );
+    for (const writeGuardLine of [
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+      "mkdir -p .ephemeral",
+      '[ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"',
+      '[ ! -d "$DESIGN_PATH" ] || { echo "design path is a directory: $DESIGN_PATH" >&2; exit 1; }',
+      '[ ! -e "$DESIGN_PATH" ] || [ -f "$DESIGN_PATH" ] || { echo "design path exists but is not a regular file: $DESIGN_PATH" >&2; exit 1; }',
+    ]) {
+      expect(plannedExecutionHandoff).toContain(writeGuardLine);
+    }
     expect(normalizedExecutionMode).toMatch(
       /structural planned.*\.ephemeral\/\*-design\.md.*Route: review-response-parent-owned.*Design: <path>/i,
     );
@@ -1508,7 +1520,7 @@ describe("existing skills source prose contracts", () => {
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Action: Write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
     );
 
     expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
