@@ -632,7 +632,15 @@ Fail and fix the plan when task checklists restate vague contract concepts
 without tying back to the boundary rows that own participant coverage.
 Fail and fix the plan when an applicable task checklist omits relevant
 boundary row IDs or row ownership, even when it precisely restates boundary
-details.
+details. Fail and fix the plan when boundary rows or task checklists are
+structurally present but use non-executable boundary or proof language, such as
+stable diagnostic, source inspection, no-code disposition, no recovery surface,
+broad validation ordering, rollback covered, fail-closed covered, or forbidden
+surface absent without the observable diagnostic shape, ordering relationship,
+source target or discovery criteria, evidence location, terminal-state proof,
+or absence check needed to verify pass/fail evidence. When exact executable
+evidence cannot be identified from source or durable requirements, record a
+blocker or assumption instead of inventing authority.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
@@ -750,6 +758,16 @@ inline content remains valid.
   tying back to the boundary rows that own participant coverage
 - The plan fails when an applicable task checklist omits relevant boundary row
   IDs or row ownership, even when it precisely restates boundary details
+- The plan fails when boundary rows or task checklists are structurally present
+  but use non-executable boundary or proof language, such as stable diagnostic,
+  source inspection, no-code disposition, no recovery surface, broad validation
+  ordering, rollback covered, fail-closed covered, or forbidden surface absent
+  without the observable diagnostic shape, ordering relationship, source target
+  or discovery criteria, evidence location, terminal-state proof, or absence
+  check needed to verify pass/fail evidence
+- When exact executable evidence cannot be identified from source or durable
+  requirements, the plan records a blocker or assumption rather than inventing
+  authority
 - The contract checklist is present for every triggered task, or the task gives
   a specific reason no trigger applies
 - Required checklist fields cover trigger criteria, owner/authority,
