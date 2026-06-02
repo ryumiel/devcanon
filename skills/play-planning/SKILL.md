@@ -205,12 +205,17 @@ boundaries, add boundary-contract traceability before task planning. Use it
 when the work touches validators, adapters, generated artifacts, derived paths,
 fail-closed behavior, or cross-skill handoffs.
 
-Boundary-contract traceability means the plan names every participant that
-produces, validates, adapts, or consumes the shared contract, then proves that
-each participant is covered by implementation work or by an explicit no-code
-disposition. The boundary table should use stable row IDs so task contract
-checklists can reference relevant boundary rows instead of restating all
-details.
+Boundary-contract traceability has two required layers:
+
+- coverage: the plan names every participant that produces, validates, adapts,
+  or consumes the shared contract, then proves that each participant is covered
+  by implementation work or by an explicit no-code disposition;
+- executability: each covered participant has observable pass/fail evidence
+  that an implementer or reviewer can verify without inferring the missing
+  contract details.
+
+The boundary table should use stable row IDs so task contract checklists can
+reference relevant boundary rows instead of restating all details.
 
 Each boundary row must identify:
 
@@ -229,6 +234,13 @@ obligation is a plan-review failure. A plan-review result must also fail when a
 final consumer path is covered but an earlier adapter, producer, or validator
 for the same contract is not covered.
 
+Structurally present rows still fail when an implementer or reviewer cannot
+verify pass/fail evidence without inference. Required proof should name the
+observable evidence category that makes the row executable where relevant:
+diagnostic shape, validation ordering, source inspection targets or discovery
+criteria, no-code disposition evidence location, rollback/fail-closed proof,
+and forbidden-surface absence proof.
+
 Invalid example: a contract-heavy review workflow plan tests only final posting
 validation while an earlier scope-decision validation path for the same
 artifact contract remains under-bound. The plan mentions upstream context, but
@@ -239,6 +251,24 @@ validator, prior-thread adapter, approved-review adapter, workflow prose, and
 final posting consumer in boundary rows. Each row has task coverage or an
 explicit no-code disposition, and proof obligations are tied to the boundary
 row that owns the participant.
+
+Invalid structurally complete but non-executable row:
+
+| ID  | Boundary name                    | Authoritative source                      | Required input tuple                                      | Producer                 | Validator or policy authority | Adapter or consumer      | Failure mode                                                                   | Required proof per boundary participant                                                                                                                                                              |
+| --- | -------------------------------- | ----------------------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B2  | Review-response handoff boundary | Approved design and source skill contract | Review feedback, disposition, and generated plan artifact | Review-response workflow | Planning policy               | Plan author and reviewer | Missing or mismatched authority input lets vague feedback drive implementation | Producer: emits stable diagnostic. Validator: confirms validation ordering. Consumer: performs source inspection. No-code paths record a disposition. Rollback covered. No-recovery surface covered. |
+
+This row is invalid because it has every required field, but the proof language
+does not say what diagnostic shape is observable, what ordering must be
+verified, which source targets or discovery criteria define inspection, where
+the no-code disposition evidence lives, what proves rollback or fail-closed
+behavior, or how forbidden surfaces are proven absent.
+
+Tightened executable row:
+
+| ID  | Boundary name                    | Authoritative source                      | Required input tuple                                      | Producer                 | Validator or policy authority | Adapter or consumer      | Failure mode                                                                   | Required proof per boundary participant                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | -------------------------------- | ----------------------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B2  | Review-response handoff boundary | Approved design and source skill contract | Review feedback, disposition, and generated plan artifact | Review-response workflow | Planning policy               | Plan author and reviewer | Missing or mismatched authority input lets vague feedback drive implementation | Producer: diagnostic artifact shows `thread_id`, `comment_id`, `feedback_state`, `disposition`, and `route` fields; uses the `review-thread` location category; and lists related items in review feedback, approved design, generated plan order. Validator: feedback-source current-state validation precedes disposition validation, and both precede plan handoff validation. Consumer: inspect the approved design artifact and `skills/play-planning/SKILL.md`; if the design path is absent, use the controller handoff record containing `Route: review-response-parent-owned` and `Design:` fields. No-code disposition evidence is recorded in the design's concern-disposition table with the source skill contract cited as authority. Fail-closed proof is an executor report of `BLOCKED` with no generated plan artifact accepted when either required authority input is missing. Forbidden-surface absence proof is that executor task scope contains no push, reply, resolve, refetch, or PR closeout surface. |
 
 This table constrains contract authority, participant coverage, and proof. It
 does not prescribe concrete implementation code, test bodies, helper names,
@@ -602,7 +632,15 @@ Fail and fix the plan when task checklists restate vague contract concepts
 without tying back to the boundary rows that own participant coverage.
 Fail and fix the plan when an applicable task checklist omits relevant
 boundary row IDs or row ownership, even when it precisely restates boundary
-details.
+details. Fail and fix the plan when boundary rows or task checklists are
+structurally present but use non-executable boundary or proof language, such as
+stable diagnostic, source inspection, no-code disposition, no-recovery surface,
+broad validation ordering, rollback covered, fail-closed covered, or
+forbidden-surface absence without the observable diagnostic shape, ordering
+relationship, source target or discovery criteria, evidence location,
+terminal-state proof, or absence check needed to verify pass/fail evidence. When
+exact executable evidence cannot be identified from source or durable
+requirements, record a blocker or assumption instead of inventing authority.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
@@ -720,6 +758,16 @@ inline content remains valid.
   tying back to the boundary rows that own participant coverage
 - The plan fails when an applicable task checklist omits relevant boundary row
   IDs or row ownership, even when it precisely restates boundary details
+- The plan fails when boundary rows or task checklists are structurally present
+  but use non-executable boundary or proof language, such as stable diagnostic,
+  source inspection, no-code disposition, no-recovery surface, broad validation
+  ordering, rollback covered, fail-closed covered, or forbidden-surface absence
+  without the observable diagnostic shape, ordering relationship, source target
+  or discovery criteria, evidence location, terminal-state proof, or absence
+  check needed to verify pass/fail evidence
+- When exact executable evidence cannot be identified from source or durable
+  requirements, the plan records a blocker or assumption rather than inventing
+  authority
 - The contract checklist is present for every triggered task, or the task gives
   a specific reason no trigger applies
 - Required checklist fields cover trigger criteria, owner/authority,
