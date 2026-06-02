@@ -115,6 +115,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "spec-compliance and code-quality reviewers concurrently when practical",
       );
       expect(normalizedPlaySubagentExecution).toContain(
+        "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
+      );
+      expect(normalizedPlaySubagentExecution).not.toContain(
+        "rely on the final whole-implementation reviewer for direct/manual calls",
+      );
+      expect(normalizedPlaySubagentExecution).toContain(
         "A quality result is final only after same-head spec compliance passes",
       );
       expect(normalizedPlaySubagentExecution).toContain(
@@ -136,7 +142,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     );
   });
 
-  it("renders direct/manual execution handoff to play-branch-finish for both targets", () => {
+  it("renders direct/manual execution handoff with branch-review status resolution for both targets", () => {
     for (const target of ["claude", "codex"] as const) {
       const playSubagentExecution = bodies[`play-subagent-execution:${target}`];
       const startMarker = "### Direct/manual terminal handoff";
@@ -174,7 +180,10 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "they are not terminal workflow states",
       );
       expect(normalizedHandoff).toContain(
-        "After the final whole-implementation review passes, the next action is to invoke `play-branch-finish`",
+        "After the final whole-implementation review passes, the next action is to resolve the branch-level review status above and then either stop for required branch review or invoke `play-branch-finish`",
+      );
+      expect(normalizedHandoff).toContain(
+        "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
       );
       expect(normalizedHandoff).toContain(
         "summary-only completion is a workflow violation",

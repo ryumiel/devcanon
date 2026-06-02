@@ -119,6 +119,12 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 The file is a `play-review/findings/v1` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
+`branch-review` remains owned outside this skill. Option 2 does not invoke
+`branch-review`, does not validate branch-review completion or review
+completeness, and has no branch-review pass/fail authority. It validates the
+caller-supplied `nits_file` only as a PR review comment posting input, and only
+at posting time for path, readability, and envelope schema.
+
 **Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
 
 **Optional input — assignee.** Callers may pass an `assignee=<value>` argument
@@ -167,6 +173,11 @@ to push/PR creation. When approved, require a clean worktree, capture the
 pre-autosquash commit and tree, compute the merge-base for the resolved base,
 run autosquash noninteractively against that local commit range, and verify the
 post-autosquash tree is unchanged before push:
+
+Autosquash must preserve the reviewed-tree invariant. If autosquash or any
+other post-review tree change would invalidate review, stop before push and
+require a new branch review outside this skill before re-entering Option 2; any
+post-review tree change requires a new branch review.
 
 ```bash
 test -z "$(git status --porcelain)" || {
@@ -424,7 +435,7 @@ See [`references/red-flags.md`](references/red-flags.md) for the "Never" and "Al
 
 **Called by:**
 
-- **play-subagent-execution** - After all tasks complete
+- **play-subagent-execution** - After tasks complete and review status is resolved
 
 **Pairs with:**
 

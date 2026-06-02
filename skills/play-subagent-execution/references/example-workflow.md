@@ -21,9 +21,12 @@ final run reports zero blocking findings auto-fixed, no unresolved remaining
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
 -> mark task complete -> final whole-implementation code-quality reviewer ->
-`play-branch-finish`. On the `issue-priming-workflow --auto` single-task path,
-the flow instead returns to the caller after task completion so Phase 7
-`branch-review --fix` becomes the whole-diff gate.
+report final review passed and resolve branch-level review status -> stop for
+`branch-review` before `play-branch-finish` when the active workflow requires
+branch-level review before PR creation, otherwise invoke `play-branch-finish`.
+On the `issue-priming-workflow --auto` single-task path, the flow instead
+returns to the caller after task completion so Phase 7 `branch-review --fix`
+becomes the whole-diff gate.
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.

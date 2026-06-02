@@ -2069,6 +2069,77 @@ describe("existing skills source prose contracts", () => {
     expect(map).toContain("skills/pr-authoring/SKILL.md");
   });
 
+  it("keeps play-branch-finish out of branch-review ownership while posting caller-supplied nits", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const integrationSection = sliceBetween(
+      skillSource,
+      "## Integration",
+      "**Pairs with:**",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+    const normalizedIntegrationSection =
+      normalizeWhitespace(integrationSection);
+
+    expect(normalizedOption2).toContain("nits_file");
+    expect(normalizedOption2).toContain("caller-supplied `nits_file`");
+    expect(normalizedOption2).toContain("validate-nits-file");
+    expect(normalizedOption2).toContain(
+      "path MUST be a direct child of `.ephemeral/`",
+    );
+    expect(normalizedOption2).toContain("MUST NOT contain `..`");
+    expect(normalizedOption2).toContain("MUST NOT be a symlink");
+    expect(normalizedOption2).toContain("MUST be a readable regular file");
+    expect(normalizedOption2).toContain(
+      "MUST carry schema `play-review/findings/v1`",
+    );
+    expect(normalizedOption2).toContain(
+      "posts them as PR review comments after `gh pr create` succeeds",
+    );
+    expect(normalizedOption2).toContain(
+      "they MUST NOT be embedded in the PR description body",
+    );
+    expect(normalizedOption2).toContain("No filtering inside this skill");
+    expect(normalizedOption2).toContain(
+      "callers that want to post only a subset write a derived envelope",
+    );
+    expect(normalizedOption2).toMatch(
+      /does not own `branch-review`|not the owner of `branch-review`|`branch-review` remains owned outside this skill/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /does not invoke `branch-review`|must not invoke `branch-review`|do not invoke `branch-review`/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /validates? (?:the )?caller-supplied `nits_file` only as (?:a )?(?:posting|PR review comment posting) input|only validates? (?:the )?caller-supplied `nits_file` as (?:a )?(?:posting|PR review comment posting) input/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /does not validate (?:branch-review completion|review completeness|final review completeness)|must not validate (?:branch-review completion|review completeness|final review completeness)|do not validate (?:branch-review completion|review completeness|final review completeness)/i,
+    );
+    expect(normalizedIntegrationSection).toContain(
+      "**play-subagent-execution** - After tasks complete and review status is resolved",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "After all tasks complete",
+    );
+
+    for (const forbiddenClaim of [
+      /(?:this skill|play-branch-finish|Option 2) (?:owns|is the owner of|is authority for) `branch-review`/i,
+      /(?:this skill|play-branch-finish|Option 2) (?:is|acts as|becomes) (?:the )?`?branch-review`? (?:owner|authority)/i,
+      /(?<!not )validates? (?:branch-review completion|review completeness|final review completeness)/i,
+      /(?:review completeness|final review completeness) validation/i,
+      /(?<!not )validates? (?:that )?branch-review (?:ran|completed|passed)/i,
+      /decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
+      /(?:creates?|produces?|derives?) (?:branch-review )?findings/i,
+      /(?:owns|performs|applies) caller-intent filtering/i,
+    ]) {
+      expect(normalizedOption2).not.toMatch(forbiddenClaim);
+    }
+  });
+
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(
@@ -2150,6 +2221,33 @@ describe("existing skills source prose contracts", () => {
     expect(commonMistakes).toMatch(/autosquash/i);
     expect(commonMistakes).toMatch(/unchanged tree|tree.*unchanged/i);
     expect(commonMistakes).toMatch(/commit-history narration/i);
+  });
+
+  it("keeps play-branch-finish autosquash bound to the reviewed-tree invariant", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+
+    expect(normalizedOption2).toContain("reviewed-tree invariant");
+    expect(normalizedOption2).toMatch(
+      /autosquash[^.]*must preserve the reviewed-tree invariant/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /If autosquash or any other post-review tree change would invalidate review, stop before push/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /require a new branch review outside this skill before re-entering Option 2/i,
+    );
+    expect(normalizedOption2).toMatch(
+      /post-review tree change[^.]*requires a new branch review/i,
+    );
+    expect(normalizedOption2).not.toMatch(
+      /run a new `branch-review` before creating the PR/i,
+    );
   });
 
   it("keeps the documented autosquash command noninteractive for squash markers", async () => {

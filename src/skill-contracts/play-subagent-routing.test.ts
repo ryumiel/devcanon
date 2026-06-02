@@ -177,6 +177,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "Re-read the target file from disk before applying each Edit",
     );
+    expect(
+      issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
+    ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
+    expect(normalizedPhase7).toContain(
+      "Phase 8 receives only judgment-required items",
+    );
+    expect(normalizedPhase7).toMatch(
+      /This step is `--auto` only.*manual operators decide nit-handling case by case/,
+    );
 
     expect(normalizedOverrides).toContain(
       "Use `{{model:standard}}` as the floor for agents that make judgment calls",
@@ -571,6 +580,15 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase8).toContain(
       "Pass `nits_file` — the path to the judgment-required-nits envelope Phase 7 wrote",
     );
+    expect(normalizedPhase8).toContain(
+      "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass",
+    );
+    expect(normalizedPhase8).toContain(
+      "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
+    );
+    expect(normalizedPhase8).toContain(
+      "no additional mechanical nit commits are made after that review",
+    );
   });
 
   it("hands successful direct/manual execution off to play-branch-finish without copying finish choices", async () => {
@@ -606,6 +624,199 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
+  it("reports direct/manual branch-level review status before play-branch-finish handoff", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const singleTaskPlans = sliceBetween(
+      playSubagentExecution,
+      "## Single-Task Plans",
+      "### Direct/manual terminal handoff",
+    );
+    const directManualHandoff = sliceBetween(
+      playSubagentExecution,
+      "### Direct/manual terminal handoff",
+      "## Subagent Lifecycle",
+    );
+    const normalizedSingleTaskPlans = normalizeWhitespace(singleTaskPlans);
+    const normalizedDirectManualHandoff =
+      normalizeWhitespace(directManualHandoff);
+
+    expect(normalizeWhitespace(playSubagentExecution)).toContain(
+      "Single-task plans skip per-task review and use the final whole-implementation reviewer plus direct/manual branch-level review status resolution",
+    );
+    expect(normalizeWhitespace(playSubagentExecution)).not.toContain(
+      "rely on the final whole-implementation reviewer for direct/manual calls",
+    );
+    expect(normalizedSingleTaskPlans).toContain(
+      "direct/manual terminal handoff resolves whether the active workflow requires `branch-review` before `play-branch-finish`",
+    );
+    expect(normalizedSingleTaskPlans).not.toContain(
+      "the user can still run `branch-review` manually",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "built-in final whole-implementation review passed",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "this skill did not run branch-level review",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "If that workflow does not require branch-level review, then invoke `play-branch-finish`",
+    );
+
+    const requiredReviewStopIndex = normalizedDirectManualHandoff.indexOf(
+      "stop before invoking `play-branch-finish`",
+    );
+    const conditionalFinishHandoffIndex = normalizedDirectManualHandoff.indexOf(
+      "then invoke `play-branch-finish`",
+    );
+    expect(requiredReviewStopIndex).toBeGreaterThanOrEqual(0);
+    expect(conditionalFinishHandoffIndex).toBeGreaterThanOrEqual(0);
+    expect(requiredReviewStopIndex).toBeLessThan(conditionalFinishHandoffIndex);
+
+    for (const branchReviewStatusClaim of [
+      "built-in final whole-implementation review passed",
+      "this skill did not run branch-level review",
+      "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+      "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
+    ]) {
+      const statusClaimIndex = normalizedDirectManualHandoff.indexOf(
+        branchReviewStatusClaim,
+      );
+
+      expect(statusClaimIndex).toBeGreaterThanOrEqual(0);
+      expect(statusClaimIndex).toBeLessThan(conditionalFinishHandoffIndex);
+    }
+
+    for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
+      expect(directManualHandoff).not.toMatch(copiedFinishChoicePattern);
+    }
+  });
+
+  it("keeps direct/manual references aligned with branch-review status resolution", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const advantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const processDiagrams = await readRepoFile(
+      "skills/play-subagent-execution/references/process-diagrams.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-subagent-execution/references/red-flags.md",
+    );
+    const normalizedSkill = normalizeWhitespace(playSubagentExecution);
+    const normalizedAdvantages = normalizeWhitespace(advantages);
+    const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
+    const normalizedProcessDiagrams = normalizeWhitespace(processDiagrams);
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+
+    expect(normalizedSkill).toContain(
+      "terminal handoff to resolve branch-level review status before any `play-branch-finish` handoff",
+    );
+    expect(normalizedSkill).toContain(
+      "stop before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "report final review passed and resolve branch-level review status",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "stop for `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedExampleWorkflow).toContain(
+      "otherwise invoke `play-branch-finish`",
+    );
+    expect(normalizedAdvantages).toContain(
+      "final code-quality reviewer plus direct/manual branch-level review status resolution",
+    );
+    expect(normalizedRedFlags).toContain(
+      "resolving branch-level review status on the direct/manual path",
+    );
+    expect(normalizedRedFlags).toContain(
+      "a review-required workflow must stop for `branch-review` before `play-branch-finish`",
+    );
+
+    expect(normalizedProcessDiagrams).toContain(
+      "Report implementation and final review passed; resolve branch-level review status",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Active workflow requires branch-level review before PR creation?",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Active workflow requires branch-level review before PR creation?" -> "Stop for branch-review before play-branch-finish" [label="yes"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "If that workflow does not require branch-level review, invoke `play-branch-finish`",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      "Report implementation and final review passed; invoke play-branch-finish",
+    );
+    expect(normalizedProcessDiagrams).not.toContain(
+      "then invokes `play-branch-finish`",
+    );
+    for (const staleUnconditionalHandoff of [
+      "terminal handoff to `play-branch-finish`",
+      "final whole-implementation code-quality reviewer -> `play-branch-finish`",
+      "invoking `play-branch-finish` on the direct/manual path",
+      "run `branch-review` yourself before opening a PR if you want whole-diff coverage",
+    ]) {
+      expect(normalizedSkill).not.toContain(staleUnconditionalHandoff);
+      expect(normalizedAdvantages).not.toContain(staleUnconditionalHandoff);
+      expect(normalizedExampleWorkflow).not.toContain(
+        staleUnconditionalHandoff,
+      );
+      expect(normalizedRedFlags).not.toContain(staleUnconditionalHandoff);
+    }
+  });
+
+  it("keeps play-subagent related skills from owning branch-review", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const integrationStartIndex =
+      playSubagentExecution.indexOf("## Integration");
+    expect(integrationStartIndex).toBeGreaterThanOrEqual(0);
+
+    const integrationSection = playSubagentExecution.slice(
+      integrationStartIndex,
+    );
+    const normalizedIntegrationSection =
+      normalizeWhitespace(integrationSection);
+
+    expect(normalizedIntegrationSection).toContain("Related workflow skills");
+    expect(normalizedIntegrationSection).toContain(
+      "**branch-review** - External branch-level review before finish when the active workflow requires it",
+    );
+    expect(normalizedIntegrationSection).toContain(
+      "**play-branch-finish** - Complete development after review status is resolved",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "Required workflow skills",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "Code review for reviewer subagents",
+    );
+  });
+
   it("makes direct/manual implementation, verification, and review summaries non-terminal", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
@@ -625,7 +836,7 @@ describe("play subagent routing source contracts", () => {
       "they are not terminal workflow states",
     );
     expect(normalizedDirectManualHandoff).toContain(
-      "After the final whole-implementation review passes, the next action is to invoke `play-branch-finish`",
+      "After the final whole-implementation review passes, the next action is to resolve the branch-level review status above and then either stop for required branch review or invoke `play-branch-finish`",
     );
     expect(normalizedDirectManualHandoff).toContain(
       "summary-only completion is a workflow violation",
@@ -856,6 +1067,18 @@ describe("play subagent routing source contracts", () => {
 
     expect(normalizedAdr0007).toContain(
       "A later refinement to the `spec-and-quality` route named here permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
+    );
+    expect(normalizedAdr0007).toContain(
+      "the final whole-implementation reviewer remains the built-in implementation review before the direct/manual terminal handoff resolves branch-level review status",
+    );
+    expect(normalizedAdr0007).toContain(
+      "Workflows that require branch-level review before PR creation must stop for `branch-review` before `play-branch-finish`",
+    );
+    expect(normalizedAdr0007).toContain(
+      "only workflows without that requirement treat `branch-review` as optional additional coverage",
+    );
+    expect(normalizedAdr0007).not.toContain(
+      "operators may run `branch-review` manually for additional whole-diff coverage",
     );
     expect(normalizedAdr0007).not.toContain("GitHub issue #344");
     expect(normalizedAdr0018).toContain(

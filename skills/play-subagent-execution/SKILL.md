@@ -30,10 +30,11 @@ task head, then join their results before final disposition. The semantic
 spec-first gate is preserved because code-quality results are provisional until
 same-head spec compliance passes and the task head is still current. Reduced
 per-task routes require a mandatory final whole-diff gate. Single-task plans
-skip per-task review and rely on the final whole-implementation reviewer for
-direct/manual calls, or downstream `branch-review --fix` on the
-`issue-priming-workflow --auto` path; bounded fast paths for single-task and
-mechanical cases reduce specific overhead without changing the review contract.
+skip per-task review and use the final whole-implementation reviewer plus
+direct/manual branch-level review status resolution, or downstream
+`branch-review --fix` on the `issue-priming-workflow --auto` path; bounded fast
+paths for single-task and mechanical cases reduce specific overhead without
+changing the review contract.
 
 `play-subagent-execution` preserves the task boundaries authored in the plan.
 After extraction, each authored task remains the unit of implementer dispatch
@@ -202,7 +203,8 @@ For the full selection and process diagrams, load
     return to the owning caller when a verified downstream whole-diff gate owns
     that final review. When no owning caller final whole-diff gate exists and
     the final whole-implementation review passes, use the direct/manual
-    terminal handoff to `play-branch-finish`.
+    terminal handoff to resolve branch-level review status before any
+    `play-branch-finish` handoff.
 
 **Trust-boundary summaries:**
 
@@ -310,31 +312,44 @@ computed by the controller. Hard-risk, unclear, or untrusted routes use
 
 If you invoke this skill **directly** (not via `--auto`) on a single-task
 plan, no whole-diff review runs after the final code-quality reviewer. When
-that reviewer passes, continue through the direct/manual terminal handoff to
-`play-branch-finish`; run `branch-review` yourself before opening a PR if you
-want whole-diff coverage.
+that reviewer passes, continue through the direct/manual terminal handoff:
+report that this skill did not run branch-level review, stop before
+`play-branch-finish` when the active workflow requires branch-level review
+before PR creation, and invoke `play-branch-finish` only when that workflow does
+not require branch-level review.
 
 The trade-off here: per-task review on a single task adds review overhead
 without catching regressions across tasks (there is only one), so the
 per-task review is skipped. On the `issue-priming-workflow --auto`
 single-task path, downstream `branch-review --fix` becomes the whole-diff
 gate; on direct/manual single-task invocations, the final
-whole-implementation reviewer remains the built-in gate and the user can
-still run `branch-review` manually.
+whole-implementation reviewer remains the built-in gate, then the
+direct/manual terminal handoff resolves whether the active workflow requires
+`branch-review` before `play-branch-finish`.
 
 ### Direct/manual terminal handoff
 
 When this is a direct or manual invocation and there is no verified owning
 caller final whole-diff gate, the final whole-implementation review is this
 skill's built-in terminal review gate. If that final whole-implementation
-review passes, report that implementation and final review passed, then invoke
-`play-branch-finish`.
+review passes, report that implementation and final review passed. Before
+invoking `play-branch-finish`, also report these observable claims:
+built-in final whole-implementation review passed; this skill did not run
+branch-level review; run `branch-review` before `play-branch-finish` when the
+active workflow requires branch-level review before PR creation; proceeding to
+`play-branch-finish` is acceptable only when that workflow does not require
+branch-level review. If the active workflow requires branch-level review before
+PR creation, stop before invoking `play-branch-finish` so the operator can run
+`branch-review` first. If that workflow does not require branch-level review,
+then invoke `play-branch-finish`.
 
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow
 states. After the final whole-implementation review passes, the next action is
-to invoke `play-branch-finish`. Treating a summary as completion and stopping
-there is invalid: summary-only completion is a workflow violation.
+to resolve the branch-level review status above and then either stop for
+required branch review or invoke `play-branch-finish`. Treating a summary as
+completion and stopping there is invalid: summary-only completion is a workflow
+violation.
 
 Do not present or restate branch finish choices in this skill.
 `play-branch-finish` presents its authoritative finish options and owns their
@@ -485,11 +500,11 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list (star
 
 ## Integration
 
-**Required workflow skills:**
+**Related workflow skills:**
 
 - **play-planning** - Creates the plan this skill executes
-- **branch-review** - Code review for reviewer subagents
-- **play-branch-finish** - Complete development after all tasks
+- **branch-review** - External branch-level review before finish when the active workflow requires it
+- **play-branch-finish** - Complete development after review status is resolved
 
 **Subagents should use:**
 

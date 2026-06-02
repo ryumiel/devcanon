@@ -58,7 +58,10 @@ digraph process {
     "Implementer fixes final-review findings" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
-    "Report implementation and final review passed; invoke play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
+    "Report implementation and final review passed; resolve branch-level review status" [shape=box];
+    "Active workflow requires branch-level review before PR creation?" [shape=diamond];
+    "Stop for branch-review before play-branch-finish" [shape=box style=filled fillcolor=lightyellow];
+    "Invoke play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
     "Stop: BLOCKED/NEEDS_CONTEXT for task contract" [shape=box];
 
     "Read plan and extract authored tasks" -> "Task contract structurally valid?";
@@ -102,7 +105,10 @@ digraph process {
     "Implementer fixes final-review findings" -> "Dispatch final whole-implementation code-quality reviewer";
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
-    "Owning caller final whole-diff gate present?" -> "Report implementation and final review passed; invoke play-branch-finish" [label="no"];
+    "Owning caller final whole-diff gate present?" -> "Report implementation and final review passed; resolve branch-level review status" [label="no"];
+    "Report implementation and final review passed; resolve branch-level review status" -> "Active workflow requires branch-level review before PR creation?";
+    "Active workflow requires branch-level review before PR creation?" -> "Stop for branch-review before play-branch-finish" [label="yes"];
+    "Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"];
 }
 ```
 
@@ -125,12 +131,16 @@ task route after all tasks are complete.
 The terminal path splits on ownership. If a verified owning caller final
 whole-diff gate exists, return to that caller. For direct/manual invocations
 without that owning caller gate, a passing final whole-implementation review
-reports that implementation and final review passed, then invokes
-`play-branch-finish`; that skill presents the authoritative finish options.
-Implementation summaries, verification summaries, and review pass reports are
-status reports only on both paths, not terminal workflow states. The
-return-to-caller path leaves final continuation ownership with the caller; the
-direct/manual path hands finish ownership to `play-branch-finish`.
+reports that implementation and final review passed, then resolves branch-level
+review status before any finish handoff. If the active workflow requires
+branch-level review before PR creation, stop before invoking
+`play-branch-finish` so the operator can run `branch-review` first. If that
+workflow does not require branch-level review, invoke `play-branch-finish`;
+that skill presents the authoritative finish options. Implementation summaries,
+verification summaries, and review pass reports are status reports only on both
+paths, not terminal workflow states. The return-to-caller path leaves final
+continuation ownership with the caller; the direct/manual path either stops for
+required branch review or hands finish ownership to `play-branch-finish`.
 
 The implementer dispatch boxes use `references/implementer-prompt.md` by
 default. When the task header carries `**Mode:** mechanical`, swap in

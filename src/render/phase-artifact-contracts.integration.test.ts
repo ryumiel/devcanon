@@ -458,8 +458,14 @@ describe("rendered phase artifact smoke coverage", () => {
         "### Step 5: Cleanup Worktree",
         "## Quick Reference",
       );
+      const integration = sliceRenderedSection(
+        playBranchFinish,
+        "## Integration",
+        "**Pairs with:**",
+      );
       const normalizedOption2 = normalizeRenderedWhitespace(option2);
       const normalizedCleanup = normalizeRenderedWhitespace(cleanup);
+      const normalizedIntegration = normalizeRenderedWhitespace(integration);
 
       expect(normalizedOption2).toContain(
         "may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope",
@@ -473,6 +479,21 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedOption2).toContain("No filtering inside this skill");
       expect(normalizedOption2).toContain(
         "issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits",
+      );
+      expect(normalizedOption2).toContain(
+        "`branch-review` remains owned outside this skill",
+      );
+      expect(normalizedOption2).toContain(
+        "Option 2 does not invoke `branch-review`",
+      );
+      expect(normalizedOption2).toContain(
+        "does not validate branch-review completion or review completeness",
+      );
+      expect(normalizedOption2).toContain(
+        "has no branch-review pass/fail authority",
+      );
+      expect(normalizedOption2).toContain(
+        "validates the caller-supplied `nits_file` only as a PR review comment posting input",
       );
       expect(normalizedOption2).toContain(
         "may pass an `assumptions_comment_file` argument",
@@ -573,6 +594,11 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedCleanup).not.toContain(
         "Option 2 reaches Step 5 only after PR creation",
       );
+
+      expect(normalizedIntegration).toContain(
+        "**play-subagent-execution** - After tasks complete and review status is resolved",
+      );
+      expect(normalizedIntegration).not.toContain("After all tasks complete");
     }
   });
 
