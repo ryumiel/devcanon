@@ -12,7 +12,11 @@ describe("phase artifact source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
     const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
 
     /*
      * play-skill-authoring pressure-run fallback:
@@ -31,8 +35,11 @@ describe("phase artifact source contracts", () => {
     expect(normalizedIssuePriming).toContain(
       "Treat a nonzero helper exit as a contract failure",
     );
-    expect(normalizedIssuePriming).toContain(
-      "invoke it from the issue worktree root",
+    expect(issuePrimingWorkflow).toContain(
+      "references/phase-6-auto-handoff.md",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "it invokes the helper from the issue worktree root",
     );
   });
 

@@ -103,6 +103,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
+    expect(issuePrimingWorkflow).toContain("phase-6-auto-handoff.md");
     expect(issuePrimingWorkflow).toContain("play-review/findings/v1");
     expect(issuePrimingWorkflow).toContain("phase-7-review-handling.md");
     expect(issuePrimingWorkflow).toContain("prepare-judgment-nits");
@@ -305,6 +306,15 @@ describe("rendered phase artifact smoke coverage", () => {
       const normalizedPhase7 = normalizeRenderedWhitespace(phase7);
       const normalizedPhase8 = normalizeRenderedWhitespace(phase8);
 
+      expect(phase6).toContain("Plan written to <path>.");
+      expect(phase6).toContain("scripts/write-auto-handoff.sh");
+      expect(phase6).toContain("phase-6-auto-handoff.md");
+      expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
+      expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
+      expect(phase6).toContain("Auto handoff: <repo-relative-path>");
+      expect(normalizedPhase6).toContain(
+        "missing, unclear, invalid, or unverified reduced-route state fails closed to `spec-and-quality`",
+      );
       expect(normalizedPhase6).toContain(
         "Successful `play-subagent-execution` completion returns control to this owning workflow",
       );
