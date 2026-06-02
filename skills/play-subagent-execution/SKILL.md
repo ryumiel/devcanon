@@ -498,11 +498,11 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list (star
 
 ## Integration
 
-**Required workflow skills:**
+**Related workflow skills:**
 
 - **play-planning** - Creates the plan this skill executes
-- **branch-review** - Code review for reviewer subagents
-- **play-branch-finish** - Complete development after all tasks
+- **branch-review** - External branch-level review before finish when the active workflow requires it
+- **play-branch-finish** - Complete development after review status is resolved
 
 **Subagents should use:**
 

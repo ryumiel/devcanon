@@ -770,6 +770,35 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
+  it("keeps play-subagent related skills from owning branch-review", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const integrationStartIndex =
+      playSubagentExecution.indexOf("## Integration");
+    expect(integrationStartIndex).toBeGreaterThanOrEqual(0);
+
+    const integrationSection = playSubagentExecution.slice(
+      integrationStartIndex,
+    );
+    const normalizedIntegrationSection =
+      normalizeWhitespace(integrationSection);
+
+    expect(normalizedIntegrationSection).toContain("Related workflow skills");
+    expect(normalizedIntegrationSection).toContain(
+      "**branch-review** - External branch-level review before finish when the active workflow requires it",
+    );
+    expect(normalizedIntegrationSection).toContain(
+      "**play-branch-finish** - Complete development after review status is resolved",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "Required workflow skills",
+    );
+    expect(normalizedIntegrationSection).not.toContain(
+      "Code review for reviewer subagents",
+    );
+  });
+
   it("makes direct/manual implementation, verification, and review summaries non-terminal", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
