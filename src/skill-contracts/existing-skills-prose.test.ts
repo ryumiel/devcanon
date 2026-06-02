@@ -359,6 +359,117 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBoundaryTraceability).toContain("command recipes");
   });
 
+  it("keeps boundary-changing brainstorm designs contract-decision complete", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const contractDecisions = getMarkdownSection(
+      playBrainstorm,
+      "Contract Decisions",
+    );
+    const designSelfReview = getMarkdownSection(
+      playBrainstorm,
+      "After the Design",
+    );
+    const normalizedContractDecisions = normalizeWhitespace(contractDecisions);
+    const normalizedDesignSelfReview = normalizeWhitespace(designSelfReview);
+
+    expect(normalizedContractDecisions).toContain(
+      "creates or changes a boundary",
+    );
+    expect(normalizedContractDecisions).toContain(
+      "before planning can proceed",
+    );
+
+    for (const requiredDecisionField of [
+      "boundary name",
+      "owner",
+      "accepted inputs",
+      "valid and invalid values",
+      "missing or empty behavior",
+      "outputs and side effects",
+      "validation and failure ordering",
+      "explicit non-goals",
+      "fixed names versus intentionally deferred implementation choices",
+    ]) {
+      expect(normalizedContractDecisions).toContain(requiredDecisionField);
+    }
+
+    for (const unresolvedDesignGap of [
+      "unresolved boundary names",
+      "ownership",
+      "input shape",
+      "side effects",
+      "failure behavior",
+    ]) {
+      expect(normalizedDesignSelfReview).toContain(unresolvedDesignGap);
+    }
+    expect(normalizedDesignSelfReview).toContain(
+      "blockers or intentional implementation choices",
+    );
+  });
+
+  it("keeps play-planning contract decisions executable without command recipes", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const contractHeavyWork = getMarkdownSection(
+      playPlanning,
+      "Contract-Heavy Work",
+    );
+    const boundaryTraceability = getMarkdownSection(
+      playPlanning,
+      "Boundary-Contract Traceability",
+    );
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedContractHeavyWork = normalizeWhitespace(contractHeavyWork);
+    const normalizedBoundaryTraceability =
+      normalizeWhitespace(boundaryTraceability);
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+
+    expect(normalizedContractHeavyWork).toContain(
+      "design `Contract Decisions`",
+    );
+    expect(normalizedContractHeavyWork).toContain(
+      "before implementation tasks begin",
+    );
+    expect(normalizedContractHeavyWork).toContain(
+      "task coverage, acceptance criteria, ownership, and proof obligations",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "design contract decisions",
+    );
+
+    for (const ioContractField of [
+      "required inputs",
+      "optional inputs",
+      "missing or empty behavior",
+      "outputs",
+      "write targets",
+      "validation-before-write ordering",
+      "failure behavior",
+      "forbidden side effects",
+    ]) {
+      expect(normalizedTaskStructure).toContain(ioContractField);
+    }
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+    ]) {
+      expect(reviewSurface).toContain(
+        "observable evidence categories and source surfaces",
+      );
+      expect(reviewSurface.toLowerCase()).toContain(
+        'vague evidence such as "run tests"',
+      );
+      expect(reviewSurface).toContain(
+        "does not fail solely because exact command sequences are omitted",
+      );
+    }
+  });
+
   it("makes the play-brainstorm interactive design review gate explicit", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const userReviewGate = getMarkdownSection(

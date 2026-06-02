@@ -178,6 +178,14 @@ it when the plan depends on cross-skill handoffs, generated or derived paths,
 helper scripts, source-owned policy, schema or interface authority, execution
 cwd assumptions, or fail-closed behavior.
 
+When the input design includes design `Contract Decisions`, treat those
+decisions as source material for contract-heavy planning; before implementation
+tasks begin, map each design contract decision into task coverage, acceptance
+criteria, ownership, and proof obligations. Planning may decompose and sequence
+contract decisions, but it must not invent missing boundary names, ownership,
+input shape, side effects, validation order, or failure behavior that the design
+should have fixed; record a blocker or explicit assumption instead.
+
 When contract-heavy work changes governance or workflow policy, include the
 adjacent governance surfaces identified from the named Adjacent Governance
 Policy Set owned by `docs/guidelines/documentation-checklists.md`. The table
@@ -213,6 +221,12 @@ Boundary-contract traceability has two required layers:
 - executability: each covered participant has observable pass/fail evidence
   that an implementer or reviewer can verify without inferring the missing
   contract details.
+
+When the design includes contract decisions, boundary rows must reference the
+relevant design contract decisions or explicitly state why a boundary
+participant is not governed by them. The boundary table is where design contract
+decisions become executable coverage; it is not a place to substitute new
+unstated decisions for missing design authority.
 
 The boundary table should use stable row IDs so task contract checklists can
 reference relevant boundary rows instead of restating all details.
@@ -503,6 +517,14 @@ the implementer writes the concrete test after reading source. Use a clear
 `**TDD expectation:**` field for this so `play-subagent-execution` can treat the
 task as one where tests need to be authored.
 
+For helper, script, API, adapter, validator, producer, or consumer tasks that
+touch boundaries, include a small I/O contract table or equivalent fields in
+the task spec. The task-local contract must name required inputs, optional
+inputs, missing or empty behavior, outputs, write targets,
+validation-before-write ordering, failure behavior, and forbidden side effects.
+These fields make the task executable without prescribing concrete code, test
+bodies, shell recipes, helper names, line edits, or exact command sequences.
+
 When optional comment evidence is present, do not convert it into requirements.
 Use it to clarify why a requirement matters, what supporting observations exist,
 or what ambiguity the implementer should resolve against authoritative sources.
@@ -662,6 +684,13 @@ shell recipes, exact command sequences, helper-name prescriptions, line-number
 edits, or commit recipes unless the content is explicitly labeled as
 already-approved verbatim artifact content with an authority source.
 
+Verification expectations should name observable evidence categories and source
+surfaces, not exact command recipes. Fail and fix vague evidence such as "run
+tests" when it does not name behavior coverage, source surfaces, validation
+ordering, rendered-output surfaces, absence checks, or another observable proof
+surface. The plan does not fail solely because exact command sequences are
+omitted; implementers choose concrete commands after reading source.
+
 **8. Citation verification:** For any task reference that purports to cite
 existing code, files, behavior, docs, history, issue or PR numbers, ADRs,
 helpers, or generated paths, verify the cited artifact exists and supports the
@@ -789,6 +818,10 @@ inline content remains valid.
   an authority source
 - Task specs prefer references to existing behavior and source-of-truth files
   over copied logic
+- Verification expectations name observable evidence categories and source
+  surfaces. Vague evidence such as "run tests" fails when no behavior or source
+  surface is named, but a plan does not fail solely because exact command
+  sequences are omitted
 - Every "Documentation impact" item from the issue, design, or owning source
   artifact maps to at least one task in the plan
 - When the design includes a `## Hard Requirements` ledger, the plan includes a

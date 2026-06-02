@@ -61,8 +61,16 @@ describe("play-subagent planning and routing render smoke coverage", () => {
   it("keeps rendered planning and execution handoff surfaces available", () => {
     for (const target of ["claude", "codex"] as const) {
       const playPlanning = bodies[`play-planning:${target}`];
+      const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
       expect(playPlanning).toContain("## Contract Checklist Triggers");
       expect(playPlanning).toContain("## Boundary-Contract Traceability");
+      expect(playPlanning).toContain("design `Contract Decisions`");
+      expect(normalizedPlayPlanning).toContain(
+        "observable evidence categories and source surfaces",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "does not fail solely because exact command sequences are omitted",
+      );
       expect(playPlanning).toContain("required proof per boundary participant");
       expect(playPlanning).toContain("Invalid example");
       expect(playPlanning).toContain("final posting");

@@ -80,6 +80,34 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("renders boundary contract decision guidance to both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const playBrainstorm = bodies[`play-brainstorm:${target}`];
+      const playPlanning = bodies[`play-planning:${target}`];
+      const normalizedPlayBrainstorm =
+        normalizeRenderedWhitespace(playBrainstorm);
+      const normalizedPlayPlanning = normalizeRenderedWhitespace(playPlanning);
+
+      expect(playBrainstorm).toContain("## Contract Decisions");
+      expect(playBrainstorm).toContain("creates or changes a boundary");
+      expect(playBrainstorm).toContain(
+        "fixed names versus intentionally deferred implementation choices",
+      );
+      expect(normalizedPlayBrainstorm).toContain(
+        "blockers or intentional implementation choices",
+      );
+
+      expect(playPlanning).toContain("design `Contract Decisions`");
+      expect(playPlanning).toContain("validation-before-write ordering");
+      expect(normalizedPlayPlanning).toContain(
+        "observable evidence categories and source surfaces",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "does not fail solely because exact command sequences are omitted",
+      );
+    }
+  });
+
   it("keeps rendered phase artifact handoff and helper reference surfaces", () => {
     const bodyFor = (skillName: string) => bodies[`${skillName}:codex`];
 
