@@ -161,7 +161,8 @@ and separating executable feedback from stale, already-addressed,
 explanation-only, or unclear feedback before selecting a mode.
 
 - **Inline execution** - handle directly in this skill.
-- **Planned execution** - write a review-response plan, then hand it to
+- **Planned execution** - write a verified review-response planning input,
+  invoke `play-planning`, then hand the approved generated plan to
   `play-subagent-execution`.
 - **No-code response** - reply, report, or ask without changing code.
 
@@ -199,31 +200,68 @@ Planned execution is required when independent implementation/review gates are
 needed. Planned execution is required when explanation-only feedback is mixed
 with code changes.
 
-For planned execution, create a direct/manual `.ephemeral/*-plan.md` handoff
-and invoke the executor with:
+For planned execution, do not independently author the full executor-ready
+implementation plan in this skill. Structural planned review-response work
+writes a verified `.ephemeral/*-design.md` planning input and invokes
+`play-planning` with:
+
+```text
+Route: review-response-parent-owned
+Design: <path>
+```
+
+Before the `Write` tool call for that planning input, compute the design path
+and apply the canonical `.ephemeral` write guard:
+
+```bash
+DESIGN_PATH=".ephemeral/$(date +%F)-review-response-design.md"
+[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
+mkdir -p .ephemeral
+[ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"
+[ ! -d "$DESIGN_PATH" ] || { echo "design path is a directory: $DESIGN_PATH" >&2; exit 1; }
+[ ! -e "$DESIGN_PATH" ] || [ -f "$DESIGN_PATH" ] || { echo "design path exists but is not a regular file: $DESIGN_PATH" >&2; exit 1; }
+```
+
+The planning input must explicitly include:
+
+- review thread/comment mapping;
+- current feedback-source state;
+- current thread state evidence when feedback is GitHub/PR-thread-backed;
+- current code evidence;
+- concern dispositions;
+- root-cause or structural diagnosis for related, policy-sensitive,
+  contract-sensitive, lifecycle-sensitive, or cross-module feedback;
+- authoritative source for each disputed behavior;
+- required fix strategy by cluster;
+- GitHub side effects outside executor scope.
+
+`play-planning` owns task decomposition, contract-heavy tables,
+boundary-contract traceability, task contract checklists, traceability
+matrices, plan review, and executor-ready plan shape. This skill owns
+source-aware feedback intake, verification, execution-mode selection, no-code
+dispositions, follow-up commit continuity, GitHub thread replies/refetching,
+resolution eligibility, and final PR closeout. It also owns the verified
+review-response planning input.
+
+After `play-planning` emits `Plan written to <path>.`, capture that path,
+present the generated plan for user approval, and invoke
+`play-subagent-execution` only after approval with:
 
 ```text
 Plan: <path>
 ```
 
-Review-response-created plans must be valid direct/manual
-`play-subagent-execution` plans under the executor's current structural
-task-contract gate. They must not rely on issue-priming `--auto` reduced-route
-behavior, because direct/manual review-response plans do not carry
-parent-owned issue-priming state, validated auto-handoff evidence, or a
-guaranteed downstream `branch-review --fix` loop.
-
-Each planned task must include the reviewer concern, verified evidence,
-disposition, source authority, acceptance criteria, TDD expectations,
-verification expectations, and contract checklist fields as applicable.
+The generated plan remains a valid direct/manual `play-subagent-execution`
+handoff under the executor's current structural task-contract gate. It must not
+rely on issue-priming `--auto` reduced-route behavior, because direct/manual
+review-response plans do not carry parent-owned issue-priming state, validated
+auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
 
 `play-subagent-execution` owns executor-owned mechanics after the handoff:
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
 handling, implementer lifecycle, final whole-implementation review for
 direct/manual calls, and whole-diff gate validation only when a caller-owned
-handoff supplies that gate. This skill owns source-aware feedback intake,
-verification, execution-mode selection, no-code dispositions, follow-up commit
-continuity, GitHub thread replies/refetching, and resolution eligibility.
+handoff supplies that gate.
 
 Direct/manual review-response plans do not get an automatic whole-diff review
 after the executor's final code-quality reviewer. Run `branch-review` before
@@ -232,47 +270,60 @@ coverage.
 
 ### Plan Approval Gate
 
-For planned review-response work, create a written `.ephemeral/*-plan.md`
-before implementation. This gate borrows the approval-gate shape from
-`play-brainstorm` without invoking `play-brainstorm` and without making it a
-dependency of `play-review-response`.
+For planned review-response work, create and self-review the written
+`.ephemeral/*-design.md` planning input, invoke `play-planning` with
+`Route: review-response-parent-owned` and `Design: <path>`, and capture the
+emitted `Plan written to <path>.` notice before implementation. This gate
+borrows the approval-gate shape from `play-brainstorm` without invoking
+`play-brainstorm` and without making it a dependency of
+`play-review-response`.
 
-Before handing the plan to `play-subagent-execution`, present the plan to the
-user with a distinct producer notice and approval prompt:
+Before handing the generated plan to `play-subagent-execution`, present the
+plan to the user with a distinct producer notice and approval prompt. Use the
+captured concrete plan path in human-facing approval text by replacing
+`{captured-plan-path}` below with the path captured from `play-planning`. Do
+not include a second `Plan written to <path>.` placeholder, because
+`play-planning` owns the single contract notice.
 
 ```text
-I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`.
+I wrote the review-response plan at {captured-plan-path}.
 Please review it. I will not implement it until you approve the plan.
 ```
 
 The plan approval gate is explicit:
 
-- The plan must be Markdown-valid enough for explicit repository scans and
-  remains agent-local evidence under `.ephemeral/`; it is not durable product,
-  architecture, or workflow documentation.
-- Run plan self-review and any applicable plan-review gate before asking for
-  approval.
+- The planning input and generated plan must be Markdown-valid enough for
+  explicit repository scans and remain agent-local evidence under
+  `.ephemeral/`; they are not durable product, architecture, or workflow
+  documentation.
+- Run planning input self-review before invoking `play-planning`;
+  `play-planning` owns plan self-review and any applicable plan-review gate
+  before it emits `Plan written to <path>.`.
 - Wait for user approval before implementation begins.
-- If the user requests plan changes, revise the plan, rerun plan self-review
-  and any applicable plan-review gate, then ask for approval again.
+- Approval happens after `Plan written to <path>.` and before
+  `play-subagent-execution`.
+- If the user requests any generated-plan change, route every generated-plan
+  revision back through `play-planning`, including plan self-review and any
+  applicable plan-review gate, before renewed approval.
 - Repeat the user approval loop until the user approves or stops the work.
   There is no fixed maximum for this human approval loop.
 - Keep the separate `play-planning` agent-review cap out of the user approval
   gate; that cap governs planning-agent review rounds, not how many times the
   user may request plan changes before approval.
 
-### Plan Self-Review
+### Planning Input Self-Review
 
-Plan self-review is semantic validation of the review-response plan before
-asking for approval. Markdown lint may be useful, but it is not plan
-self-review; formatting checks do not prove that reviewer concerns are
-understood, current, correctly classified, or executable.
+Planning input self-review is semantic validation of the review-response
+planning input before invoking `play-planning`. Markdown lint may be useful,
+but it is not planning input self-review; formatting checks do not prove that
+reviewer concerns are understood, current, correctly classified, or executable.
 
-Before asking for approval, the plan must include a named `Plan Self-Review`
-section. The section must show every current review concern/comment maps to one
-of these dispositions: executable, stale/invalid, already addressed,
-explanation-only, unclear, or unresolved. Put the evidence inside that named
-section so the approval gate has one auditable review location.
+Before invoking `play-planning`, the planning input must include a named
+`Planning Input Self-Review` section. The section must show every current
+review concern/comment maps to one of these dispositions: executable,
+stale/invalid, already addressed, explanation-only, unclear, or unresolved.
+Put the evidence inside that named section so the approval gate has one
+auditable review location.
 
 For each concern, validate that:
 
@@ -282,25 +333,24 @@ For each concern, validate that:
   and used.
 - The current code evidence supports the disposition.
 - The execution mode is justified under inline/planned/no-code rules.
-- The acceptance criteria directly close the reviewer's failure mode.
-- The tests and verification match the risk and touched contract.
-- GitHub side effects are separated from implementation approval.
-- The direct/manual executor handoff suitability is checked when the plan will be
-  handed to `play-subagent-execution`.
+- The authoritative source for each disputed behavior is identified.
+- The required fix strategy by cluster is identified.
+- GitHub side effects are outside executor scope.
+- The planning input is suitable for `play-planning` through
+  `Route: review-response-parent-owned` and `Design: <path>`.
 
 Treat review-feedback intake as a ledger of evidence. Record enough current
 feedback-source state, current thread state when the feedback is
 GitHub/PR-thread-backed, code evidence, disposition reasoning, and gaps to prove
 every review concern/comment maps to either a no-code disposition or an
-implementation work item. Then derive executor work items from those root-cause
-clusters rather than mechanically creating one implementation task per review
-comment. The work items address the structural cause rather than only the
-visible comment text.
+implementation work item. Then derive required fix strategy by cluster rather
+than mechanically creating one implementation task per review comment. The work
+items address the structural cause rather than only the visible comment text.
 
 Invalid self-review examples:
 
 - `Markdown lint passed`
-- `Plan looks good`
+- `Planning input looks good`
 - `All comments listed` without concern-to-fix mapping
 
 Valid self-review example:
@@ -313,12 +363,12 @@ feedback state, fetched unresolved GitHub PR threads at 2026-06-02, and
 confirmed `src/worker.ts` still accepts stale completion callbacks.
 Gaps: no test covers same-tick cancellation followed by stale completion.
 Root-cause diagnosis: missing validation boundary at the operation owner.
-Root-cause-derived work items: strengthen the owner-side completion guard and
+Root-cause-derived fix strategy: strengthen the owner-side completion guard and
 add stale-callback coverage, rather than one task per comment.
 Residual risks: retry cleanup still needs focused verification.
-Executor handoff suitability: direct/manual plan has source authority,
-acceptance criteria, TDD expectations, verification, and GitHub closeout left
-with `play-review-response`.
+Planning handoff suitability: design has source authority, is ready for
+`Route: review-response-parent-owned` and `Design: <path>`, and GitHub closeout
+remains with `play-review-response`.
 ```
 
 GitHub reply, refetch, and resolution closeout remain owned by
@@ -374,9 +424,36 @@ thread closeout behavior."
 Verification: policy-sensitive, contract-sensitive, multi-surface workflow
 change with traceability needs.
 Mode: Planned execution.
-Action: Write `.ephemeral/<date>-review-response-plan.md`, run plan
-self-review and applicable plan-review, ask for approval, wait for
-approval, then invoke `play-subagent-execution` with `Plan: <path>`.
+Action: Apply the canonical `.ephemeral` write guard, write
+`.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
+`Route: review-response-parent-owned` and `Design: <path>`, capture
+`Plan written to <path>.`, ask for approval using `{captured-plan-path}`
+replaced with the captured path, wait for approval, then invoke
+`play-subagent-execution` with `Plan: <path>`.
+```
+
+No-code feedback example:
+
+```text
+Reviewer: "This endpoint is missing validation."
+Verification: current feedback-source state and current code show the endpoint
+was deleted in this branch; the concern is stale.
+Mode: No-code response.
+Action: Prepare a concise evidence-backed disposition and keep any unclear or
+unresolved thread open under the GitHub reply/refetching rules.
+```
+
+GitHub closeout exclusion example:
+
+```text
+Reviewer: "After the planned fix lands, reply and resolve these threads."
+Verification: implementation needs a plan, but GitHub replies, refetching,
+resolution, posting, push, and closeout remain outside executor tasks.
+Mode: Planned execution plus parent-owned closeout.
+Action: Leave GitHub side effects in the review-response planning input as
+outside executor scope. After the executor returns, this skill re-fetches
+thread state, runs the Pre-Push Review Gate, replies, and resolves only
+eligible threads after approval.
 ```
 
 ## YAGNI Check for "Professional" Features

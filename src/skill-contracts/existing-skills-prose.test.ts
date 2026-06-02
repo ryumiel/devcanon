@@ -467,6 +467,54 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBrainstormGate).not.toContain("Which approach?");
   });
 
+  it("keeps play-planning review-response parent-owned handoffs out of execution-mode prompting", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const executionHandoff = getMarkdownSection(
+      playPlanning,
+      "Execution Handoff",
+    );
+    const normalizedExecutionHandoff = normalizeWhitespace(executionHandoff);
+    const reviewResponseRoute = markdownBlocksContaining(
+      executionHandoff,
+      /review-response parent-owned handoffs/i,
+    );
+    const normalizedReviewResponseRoute =
+      normalizeWhitespace(reviewResponseRoute);
+
+    expect(normalizedReviewResponseRoute).toContain(
+      "selected only when the invocation includes `Route: review-response-parent-owned`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "`play-review-response` invokes `play-planning` with both `Route: review-response-parent-owned` and `Design: <path>`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "does not require `play-brainstorm`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "Return after emitting `Plan written to <path>.`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "`play-review-response` owns presenting the generated plan for approval",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "invoke `play-subagent-execution` only after approval",
+    );
+    expect(normalizedReviewResponseRoute).not.toContain("Subagent-Driven");
+    expect(normalizedReviewResponseRoute).not.toContain("Inline Execution");
+    expect(normalizedReviewResponseRoute).not.toContain("Which approach?");
+    expect(normalizedReviewResponseRoute).not.toContain(
+      "Review-response diagnosis: <path>",
+    );
+
+    expect(normalizedExecutionHandoff).toContain(
+      "Route: review-response-parent-owned",
+    );
+    expect(normalizedExecutionHandoff).toContain(
+      "Otherwise, offer execution choice",
+    );
+    expect(normalizedExecutionHandoff).toContain("Which approach?");
+  });
+
   it("keeps generated/reference coverage triggers owned by the skill writing guideline", async () => {
     const guideline = await readRepoFile("docs/guidelines/writing-skills.md");
     const coverageRule = getMarkdownSection(
@@ -1390,14 +1438,15 @@ describe("existing skills source prose contracts", () => {
     }
 
     for (const plannedTaskRequirement of [
-      "reviewer concern",
-      "verified evidence",
-      "disposition",
-      "source authority",
-      "acceptance criteria",
-      "TDD expectations",
-      "verification expectations",
-      "contract checklist",
+      "review thread/comment mapping",
+      "current feedback-source state",
+      "current thread state evidence",
+      "current code evidence",
+      "concern dispositions",
+      "root-cause or structural diagnosis",
+      "authoritative source for each disputed behavior",
+      "required fix strategy by cluster",
+      "GitHub side effects outside executor scope",
     ]) {
       expect(lowerExecutionMode).toContain(
         plannedTaskRequirement.toLowerCase(),
@@ -1405,16 +1454,51 @@ describe("existing skills source prose contracts", () => {
     }
 
     for (const handoffBoundary of [
-      "direct/manual",
+      ".ephemeral/*-design.md",
+      "play-planning",
+      "Design: <path>",
+      "Route: review-response-parent-owned",
+      "Plan written to <path>.",
       "play-subagent-execution",
       "Plan: <path>",
-      ".ephemeral/*-plan.md",
       "issue-priming",
       "`--auto`",
       "reduced-route",
     ]) {
       expect(normalizedExecutionMode).toContain(handoffBoundary);
     }
+    expect(normalizedExecutionMode).not.toContain(
+      "Review-response diagnosis: <path>",
+    );
+    expect(normalizedExecutionMode).not.toMatch(
+      /For planned execution, create a direct\/manual `.ephemeral\/\*-plan\.md` handoff/i,
+    );
+    const plannedExecutionHandoff = sliceBetween(
+      executionMode,
+      "For planned execution, do not independently author",
+      "The planning input must explicitly include:",
+    );
+    expect(plannedExecutionHandoff).toContain(
+      "```text\nRoute: review-response-parent-owned\nDesign: <path>\n```",
+    );
+    expect(plannedExecutionHandoff).toContain(
+      'DESIGN_PATH=".ephemeral/$(date +%F)-review-response-design.md"',
+    );
+    for (const writeGuardLine of [
+      '[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }',
+      "mkdir -p .ephemeral",
+      '[ -L "$DESIGN_PATH" ] && rm "$DESIGN_PATH"',
+      '[ ! -d "$DESIGN_PATH" ] || { echo "design path is a directory: $DESIGN_PATH" >&2; exit 1; }',
+      '[ ! -e "$DESIGN_PATH" ] || [ -f "$DESIGN_PATH" ] || { echo "design path exists but is not a regular file: $DESIGN_PATH" >&2; exit 1; }',
+    ]) {
+      expect(plannedExecutionHandoff).toContain(writeGuardLine);
+    }
+    expect(normalizedExecutionMode).toMatch(
+      /structural planned.*\.ephemeral\/\*-design\.md.*Route: review-response-parent-owned.*Design: <path>/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /capture.*Plan written to <path>\./i,
+    );
     expect(normalizedExecutionMode).toMatch(
       /must not rely on.*issue-priming.*`--auto`.*reduced-route/i,
     );
@@ -1433,13 +1517,10 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizedExecutionMode).toMatch(/executor-owned mechanics/i);
     expect(normalizedExecutionMode).toMatch(
-      /Direct\/manual review-response plans.*do not get.*automatic whole-diff review/i,
-    );
-    expect(normalizedExecutionMode).toMatch(
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Action: Write `.ephemeral\/<date>-review-response-plan.md`, run plan self-review and applicable plan-review, ask for approval, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
     );
 
     expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
@@ -1451,7 +1532,35 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecutionMode).toContain("producer notice");
     expect(normalizedExecutionMode).toContain("approval prompt");
+    expect(normalizedExecutionMode).toContain("Plan written to <path>.");
+    const planApprovalGate = sliceBetween(
+      executionMode,
+      "### Plan Approval Gate",
+      "### Planning Input Self-Review",
+    );
+    const normalizedPlanApprovalGate = normalizeWhitespace(planApprovalGate);
+    const approvalPromptMatch = planApprovalGate.match(
+      /```text\n([\s\S]*?)\n```/,
+    );
+    expect(approvalPromptMatch).not.toBeNull();
+    const approvalPromptBlock = approvalPromptMatch?.[1] ?? "";
+    expect(approvalPromptBlock).not.toContain("Plan written to <path>.");
+    expect(approvalPromptBlock).toContain(
+      "I wrote the review-response plan at {captured-plan-path}.",
+    );
+    expect(approvalPromptBlock).not.toContain(
+      "the captured concrete plan path",
+    );
     expect(normalizedExecutionMode).toContain(
+      "replacing `{captured-plan-path}` below with the path captured from `play-planning`",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "I wrote the review-response plan at {captured-plan-path}",
+    );
+    expect(normalizedPlanApprovalGate).toContain(
+      "Do not include a second `Plan written to <path>.` placeholder",
+    );
+    expect(normalizedExecutionMode).not.toContain(
       "I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`",
     );
     expect(normalizedExecutionMode).toContain(
@@ -1462,13 +1571,16 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecutionMode).toContain("agent-local evidence");
     expect(normalizedExecutionMode).toContain(
-      "Run plan self-review and any applicable plan-review gate",
-    );
-    expect(normalizedExecutionMode).toContain(
       "Wait for user approval before implementation begins",
     );
     expect(normalizedExecutionMode).toMatch(
-      /If the user requests plan changes.*revise the plan.*rerun plan self-review.*ask for approval again/i,
+      /approval.*after.*Plan written to <path>\..*before.*play-subagent-execution/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
+      /If the user requests any generated-plan change.*route every generated-plan revision back through `play-planning`.*before renewed approval/i,
+    );
+    expect(normalizedPlanApprovalGate).not.toContain(
+      "revise the plan through `play-planning` as needed",
     );
     expect(normalizedExecutionMode).toContain(
       "Repeat the user approval loop until the user approves or stops the work",
@@ -1480,6 +1592,9 @@ describe("existing skills source prose contracts", () => {
       "Keep the separate `play-planning` agent-review cap out of the user approval gate",
     );
     expect(normalizedExecutionMode).toMatch(
+      /GitHub.*replies.*refetching.*resolution.*posting.*push.*closeout.*outside executor/i,
+    );
+    expect(normalizedExecutionMode).toMatch(
       /After.*executor.*returns.*thread refetching.*resolution eligibility.*final PR-thread closeout/i,
     );
     expect(normalizedExecutionMode).toMatch(/inline example/i);
@@ -1488,7 +1603,7 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps review-response plan self-review semantic and structural", async () => {
+  it("keeps review-response planning-input self-review semantic and structural", async () => {
     const skillSource = await readSkillSource("play-review-response");
     const executionMode = getMarkdownSection(
       skillSource,
@@ -1496,25 +1611,25 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedExecutionMode = normalizeWhitespace(executionMode);
 
-    expect(normalizedExecutionMode).toContain("### Plan Self-Review");
+    expect(normalizedExecutionMode).toContain("### Planning Input Self-Review");
     expect(normalizedExecutionMode).toContain(
-      "semantic validation of the review-response plan",
+      "semantic validation of the review-response planning input",
     );
     expect(normalizedExecutionMode).toContain(
-      "Markdown lint may be useful, but it is not plan self-review",
+      "Markdown lint may be useful, but it is not planning input self-review",
     );
     expect(normalizedExecutionMode).toMatch(
-      /Plan Self-Review.*before asking for approval/i,
+      /Planning Input Self-Review.*before invoking `play-planning`/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /must include a named `Plan Self-Review` section/i,
+      /must include a named `Planning Input Self-Review` section/i,
     );
     expect(normalizedExecutionMode).toMatch(
       /evidence inside that named section/i,
     );
     const planSelfReview = sliceBetween(
       executionMode,
-      "### Plan Self-Review",
+      "### Planning Input Self-Review",
       "### Root Cause / Structural Diagnosis",
     );
     expect(normalizeWhitespace(planSelfReview)).not.toContain(
@@ -1528,10 +1643,10 @@ describe("existing skills source prose contracts", () => {
       "current code evidence supports the disposition",
       "executable, stale/invalid, already addressed, explanation-only, unclear, or unresolved",
       "execution mode is justified under inline/planned/no-code rules",
-      "acceptance criteria directly close the reviewer's failure mode",
-      "tests and verification match the risk and touched contract",
-      "GitHub side effects are separated from implementation approval",
-      "direct/manual executor handoff",
+      "authoritative source for each disputed behavior is identified",
+      "required fix strategy by cluster is identified",
+      "GitHub side effects are outside executor scope",
+      "planning input is suitable for `play-planning` through `Route: review-response-parent-owned` and `Design: <path>`",
     ]) {
       expect(normalizedExecutionMode).toContain(requiredCheck);
     }
@@ -1570,7 +1685,7 @@ describe("existing skills source prose contracts", () => {
       "review-feedback intake as a ledger of evidence",
       "current feedback-source state",
       "current thread state when the feedback is GitHub/PR-thread-backed",
-      "derive executor work items from those root-cause clusters",
+      "derive required fix strategy by cluster",
       "rather than mechanically creating one implementation task per review comment",
       "every review concern/comment maps to either a no-code disposition or an implementation work item",
       "work items address the structural cause rather than only the visible comment text",
@@ -1580,7 +1695,7 @@ describe("existing skills source prose contracts", () => {
 
     for (const invalidExample of [
       "Markdown lint passed",
-      "Plan looks good",
+      "Planning input looks good",
       "All comments listed",
       "without concern-to-fix mapping",
     ]) {
@@ -1594,15 +1709,15 @@ describe("existing skills source prose contracts", () => {
       "Current feedback-source and code evidence",
       "Gaps",
       "Root-cause diagnosis",
-      "Root-cause-derived work items",
+      "Root-cause-derived fix strategy",
       "Residual risks",
-      "Executor handoff suitability",
+      "Planning handoff suitability",
     ]) {
       expect(normalizedExecutionMode).toContain(validExampleSurface);
     }
 
     expect(normalizedExecutionMode).toMatch(
-      /Valid self-review example:.*Comment mapping:.*Current feedback-source and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived work items:.*Residual risks:.*Executor handoff suitability:/i,
+      /Valid self-review example:.*Comment mapping:.*Current feedback-source and code evidence:.*Gaps:.*Root-cause diagnosis:.*Root-cause-derived fix strategy:.*Residual risks:.*Planning handoff suitability:/i,
     );
     expect(normalizedExecutionMode).toMatch(
       /Comment mapping:.*C1 and C3 map to lifecycle or correlation gap.*C2 is explanation-only/i,
@@ -1617,13 +1732,13 @@ describe("existing skills source prose contracts", () => {
       /Root-cause diagnosis:.*missing validation boundary at the operation owner/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Root-cause-derived work items:.*strengthen the owner-side completion guard.*add stale-callback coverage.*rather than one task per comment/i,
+      /Root-cause-derived fix strategy:.*strengthen the owner-side completion guard.*add stale-callback coverage.*rather than one task per comment/i,
     );
     expect(normalizedExecutionMode).toMatch(
       /Residual risks:.*retry cleanup still needs focused verification/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Executor handoff suitability:.*direct\/manual plan has source authority.*acceptance criteria.*TDD expectations.*verification.*GitHub closeout left with `play-review-response`/i,
+      /Planning handoff suitability:.*design has source authority.*Route: review-response-parent-owned.*Design: <path>.*GitHub closeout remains with `play-review-response`/i,
     );
 
     expect(normalizedExecutionMode).toMatch(
