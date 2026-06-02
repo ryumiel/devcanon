@@ -269,7 +269,7 @@ plan to the user with a distinct producer notice and approval prompt:
 
 ```text
 Plan written to <path>.
-I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`.
+I wrote the review-response plan at <path>.
 Please review it. I will not implement it until you approve the plan.
 ```
 

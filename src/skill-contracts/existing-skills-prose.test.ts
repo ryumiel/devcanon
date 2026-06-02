@@ -467,6 +467,48 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBrainstormGate).not.toContain("Which approach?");
   });
 
+  it("keeps play-planning review-response parent-owned handoffs out of execution-mode prompting", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const executionHandoff = getMarkdownSection(
+      playPlanning,
+      "Execution Handoff",
+    );
+    const normalizedExecutionHandoff = normalizeWhitespace(executionHandoff);
+    const reviewResponseRoute = markdownBlocksContaining(
+      executionHandoff,
+      /review-response parent-owned handoffs/i,
+    );
+    const normalizedReviewResponseRoute =
+      normalizeWhitespace(reviewResponseRoute);
+
+    expect(normalizedReviewResponseRoute).toContain(
+      "`play-review-response` invokes `play-planning` with `Design: <path>`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "does not require `play-brainstorm`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "Return after emitting `Plan written to <path>.`",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "`play-review-response` owns presenting the generated plan for approval",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "invoke `play-subagent-execution` only after approval",
+    );
+    expect(normalizedReviewResponseRoute).not.toContain("Subagent-Driven");
+    expect(normalizedReviewResponseRoute).not.toContain("Inline Execution");
+    expect(normalizedReviewResponseRoute).not.toContain("Which approach?");
+    expect(normalizedReviewResponseRoute).not.toContain(
+      "Review-response diagnosis: <path>",
+    );
+
+    expect(normalizedExecutionHandoff).toContain(
+      "Otherwise, offer execution choice",
+    );
+    expect(normalizedExecutionHandoff).toContain("Which approach?");
+  });
+
   it("keeps generated/reference coverage triggers owned by the skill writing guideline", async () => {
     const guideline = await readRepoFile("docs/guidelines/writing-skills.md");
     const coverageRule = getMarkdownSection(
@@ -1464,6 +1506,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toContain("producer notice");
     expect(normalizedExecutionMode).toContain("approval prompt");
     expect(normalizedExecutionMode).toContain("Plan written to <path>.");
+    expect(normalizedExecutionMode).toContain(
+      "I wrote the review-response plan at <path>",
+    );
+    expect(normalizedExecutionMode).not.toContain(
+      "I wrote the review-response plan at `.ephemeral/<date>-review-response-plan.md`",
+    );
     expect(normalizedExecutionMode).toContain(
       "I will not implement it until you approve the plan",
     );

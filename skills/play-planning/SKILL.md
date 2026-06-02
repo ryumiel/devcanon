@@ -767,6 +767,15 @@ must not dump raw artifact bodies or broad commentary.
 
 **In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`. The parent skill receives the plan path from the `Plan written to <path>.` notice line emitted after the save and passes it to `play-subagent-execution` as `Plan: <path>`.
 
+**In review-response parent-owned handoffs**: When `play-review-response`
+invokes `play-planning` with `Design: <path>` for structural planned
+review-response work, this route does not require `play-brainstorm` and is not
+an issue-priming `--auto` flow. Return after emitting
+`Plan written to <path>.` Do not prompt for an execution mode. In this route,
+`play-review-response` owns presenting the generated plan for approval,
+capturing the approved plan path, and the implementation handoff; it must
+invoke `play-subagent-execution` only after approval with `Plan: <path>`.
+
 Otherwise, offer execution choice:
 
 **"Plan complete and saved to `.ephemeral/<filename>.md`. Two execution options:**
