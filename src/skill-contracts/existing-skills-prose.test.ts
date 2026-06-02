@@ -2007,6 +2007,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(phase8)).toContain("until `pr-merge`");
     expect(normalizeWhitespace(phase8)).toContain(
+      "Do NOT merge - the PR is the user's review gate",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
       "Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode",
     );
     expect(normalizeWhitespace(phase8)).toContain(
@@ -2029,6 +2032,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "The description body must contain only durable final-state content accepted by `pr-authoring`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Do not merge. The PR is the user's review gate",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "Do not embed auto-mode assumptions, unaddressed review nits",
