@@ -628,14 +628,26 @@ describe("play subagent routing source contracts", () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
     );
+    const singleTaskPlans = sliceBetween(
+      playSubagentExecution,
+      "## Single-Task Plans",
+      "### Direct/manual terminal handoff",
+    );
     const directManualHandoff = sliceBetween(
       playSubagentExecution,
       "### Direct/manual terminal handoff",
       "## Subagent Lifecycle",
     );
+    const normalizedSingleTaskPlans = normalizeWhitespace(singleTaskPlans);
     const normalizedDirectManualHandoff =
       normalizeWhitespace(directManualHandoff);
 
+    expect(normalizedSingleTaskPlans).toContain(
+      "direct/manual terminal handoff resolves whether the active workflow requires `branch-review` before `play-branch-finish`",
+    );
+    expect(normalizedSingleTaskPlans).not.toContain(
+      "the user can still run `branch-review` manually",
+    );
     expect(normalizedDirectManualHandoff).toContain(
       "built-in final whole-implementation review passed",
     );

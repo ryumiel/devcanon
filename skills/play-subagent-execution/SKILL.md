@@ -322,8 +322,9 @@ without catching regressions across tasks (there is only one), so the
 per-task review is skipped. On the `issue-priming-workflow --auto`
 single-task path, downstream `branch-review --fix` becomes the whole-diff
 gate; on direct/manual single-task invocations, the final
-whole-implementation reviewer remains the built-in gate and the user can
-still run `branch-review` manually.
+whole-implementation reviewer remains the built-in gate, then the
+direct/manual terminal handoff resolves whether the active workflow requires
+`branch-review` before `play-branch-finish`.
 
 ### Direct/manual terminal handoff
 
