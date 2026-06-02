@@ -648,11 +648,22 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedDirectManualHandoff).toContain(
       "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
     );
-
-    const finishHandoffIndex = normalizedDirectManualHandoff.indexOf(
-      "invoke `play-branch-finish`",
+    expect(normalizedDirectManualHandoff).toContain(
+      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
     );
-    expect(finishHandoffIndex).toBeGreaterThanOrEqual(0);
+    expect(normalizedDirectManualHandoff).toContain(
+      "If that workflow does not require branch-level review, then invoke `play-branch-finish`",
+    );
+
+    const requiredReviewStopIndex = normalizedDirectManualHandoff.indexOf(
+      "stop before invoking `play-branch-finish`",
+    );
+    const conditionalFinishHandoffIndex = normalizedDirectManualHandoff.indexOf(
+      "then invoke `play-branch-finish`",
+    );
+    expect(requiredReviewStopIndex).toBeGreaterThanOrEqual(0);
+    expect(conditionalFinishHandoffIndex).toBeGreaterThanOrEqual(0);
+    expect(requiredReviewStopIndex).toBeLessThan(conditionalFinishHandoffIndex);
 
     for (const branchReviewStatusClaim of [
       "built-in final whole-implementation review passed",
@@ -665,7 +676,7 @@ describe("play subagent routing source contracts", () => {
       );
 
       expect(statusClaimIndex).toBeGreaterThanOrEqual(0);
-      expect(statusClaimIndex).toBeLessThan(finishHandoffIndex);
+      expect(statusClaimIndex).toBeLessThan(conditionalFinishHandoffIndex);
     }
 
     for (const copiedFinishChoicePattern of COPIED_BRANCH_FINISH_CHOICE_PATTERNS) {
@@ -692,7 +703,7 @@ describe("play subagent routing source contracts", () => {
       "they are not terminal workflow states",
     );
     expect(normalizedDirectManualHandoff).toContain(
-      "After the final whole-implementation review passes, the next action is to invoke `play-branch-finish`",
+      "After the final whole-implementation review passes, the next action is to resolve the branch-level review status above and then either stop for required branch review or invoke `play-branch-finish`",
     );
     expect(normalizedDirectManualHandoff).toContain(
       "summary-only completion is a workflow violation",

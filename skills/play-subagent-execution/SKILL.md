@@ -333,13 +333,18 @@ built-in final whole-implementation review passed; this skill did not run
 branch-level review; run `branch-review` before `play-branch-finish` when the
 active workflow requires branch-level review before PR creation; proceeding to
 `play-branch-finish` is acceptable only when that workflow does not require
-branch-level review. Then invoke `play-branch-finish`.
+branch-level review. If the active workflow requires branch-level review before
+PR creation, stop before invoking `play-branch-finish` so the operator can run
+`branch-review` first. If that workflow does not require branch-level review,
+then invoke `play-branch-finish`.
 
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow
 states. After the final whole-implementation review passes, the next action is
-to invoke `play-branch-finish`. Treating a summary as completion and stopping
-there is invalid: summary-only completion is a workflow violation.
+to resolve the branch-level review status above and then either stop for
+required branch review or invoke `play-branch-finish`. Treating a summary as
+completion and stopping there is invalid: summary-only completion is a workflow
+violation.
 
 Do not present or restate branch finish choices in this skill.
 `play-branch-finish` presents its authoritative finish options and owns their

@@ -175,9 +175,9 @@ run autosquash noninteractively against that local commit range, and verify the
 post-autosquash tree is unchanged before push:
 
 Autosquash must preserve the reviewed-tree invariant. If autosquash or any
-other post-review tree change would invalidate review, stop before push and run
-a new `branch-review` before creating the PR; any post-review tree change
-requires a new branch review.
+other post-review tree change would invalidate review, stop before push and
+require a new branch review outside this skill before re-entering Option 2; any
+post-review tree change requires a new branch review.
 
 ```bash
 test -z "$(git status --porcelain)" || {

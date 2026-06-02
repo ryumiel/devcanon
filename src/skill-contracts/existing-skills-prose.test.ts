@@ -2227,10 +2227,13 @@ describe("existing skills source prose contracts", () => {
       /If autosquash or any other post-review tree change would invalidate review, stop before push/i,
     );
     expect(normalizedOption2).toMatch(
-      /run a new `branch-review` before creating the PR/i,
+      /require a new branch review outside this skill before re-entering Option 2/i,
     );
     expect(normalizedOption2).toMatch(
       /post-review tree change[^.]*requires a new branch review/i,
+    );
+    expect(normalizedOption2).not.toMatch(
+      /run a new `branch-review` before creating the PR/i,
     );
   });
 
