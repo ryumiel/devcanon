@@ -441,6 +441,17 @@ describe("existing skills source prose contracts", () => {
       "design contract decisions",
     );
 
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+    ]) {
+      expect(reviewSurface).toContain(
+        "every contract decision maps to task coverage, acceptance criteria, ownership, and proof obligations",
+      );
+      expect(reviewSurface).toContain("governed boundary row");
+      expect(reviewSurface).toContain("design contract decisions");
+    }
+
     for (const ioContractField of [
       "required inputs",
       "optional inputs",
@@ -452,6 +463,8 @@ describe("existing skills source prose contracts", () => {
       "forbidden side effects",
     ]) {
       expect(normalizedTaskStructure).toContain(ioContractField);
+      expect(normalizedPlanningSelfReview).toContain(ioContractField);
+      expect(normalizedPlanningReview).toContain(ioContractField);
     }
 
     for (const reviewSurface of [
@@ -468,6 +481,45 @@ describe("existing skills source prose contracts", () => {
         "does not fail solely because exact command sequences are omitted",
       );
     }
+  });
+
+  it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
+    const playSkillAuthoring = await readSkillSource("play-skill-authoring");
+    const overview = getMarkdownSection(playSkillAuthoring, "Overview");
+    const ruleSection = sliceBetween(
+      playSkillAuthoring,
+      "## The Rule (Same as TDD)",
+      "How future agents find your skill:",
+    );
+    const redGreenRefactorSection = sliceBetween(
+      playSkillAuthoring,
+      "## RED-GREEN-REFACTOR for Skills",
+      "## Anti-Patterns",
+    );
+    const checklistSection = sliceBetween(
+      playSkillAuthoring,
+      "## Skill Creation Checklist (TDD Adapted)",
+      "## Discovery Workflow",
+    );
+
+    expect(normalizeWhitespace(overview)).toContain(
+      "pressure scenarios with subagents",
+    );
+    expect(normalizeWhitespace(overview)).toContain("baseline behavior");
+    expect(ruleSection).toContain("NO SKILL WITHOUT A FAILING TEST FIRST");
+    expect(ruleSection).toContain(
+      "This applies to NEW skills AND EDITS to existing skills.",
+    );
+    expect(ruleSection).toContain(
+      "Edit skill without testing? Same violation.",
+    );
+    expect(redGreenRefactorSection).toContain(
+      "Run pressure scenario with subagent WITHOUT the skill",
+    );
+    expect(checklistSection).toContain("Create pressure scenarios");
+    expect(checklistSection).toContain(
+      "Run scenarios WITHOUT skill - document baseline behavior verbatim",
+    );
   });
 
   it("makes the play-brainstorm interactive design review gate explicit", async () => {

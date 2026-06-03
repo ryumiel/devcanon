@@ -663,6 +663,11 @@ relationship, source target or discovery criteria, evidence location,
 terminal-state proof, or absence check needed to verify pass/fail evidence. When
 exact executable evidence cannot be identified from source or durable
 requirements, record a blocker or assumption instead of inventing authority.
+When the design includes design `Contract Decisions`, fail and fix the plan
+unless every contract decision maps to task coverage, acceptance criteria,
+ownership, and proof obligations, and every governed boundary row references
+the relevant design contract decisions or explains why that participant is not
+governed by them.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
@@ -671,6 +676,10 @@ required behavior, spec/procedure work, risk surfaces, and proof obligations.
 Trivial tasks may omit the checklist only when they state why no trigger applies.
 For governance or workflow-policy changes, confirm triggered tasks include the
 relevant adjacent governance surfaces in the applicable checklist fields.
+For helper, script, API, adapter, validator, producer, or consumer tasks that
+touch boundaries, confirm the task-local I/O contract names required inputs,
+optional inputs, missing or empty behavior, outputs, write targets,
+validation-before-write ordering, failure behavior, and forbidden side effects.
 
 **6. Contract checklist completeness:** For every required checklist, confirm
 each field is populated or marked `N/A` with a task-specific reason. Blank
@@ -777,6 +786,10 @@ inline content remains valid.
   tuple, producer, validator or policy authority, adapter or consumer, failure
   mode for missing or mismatched authority inputs, and required proof per
   boundary participant
+- When the design includes design `Contract Decisions`, every contract decision
+  maps to task coverage, acceptance criteria, ownership, and proof obligations,
+  and every governed boundary row references the relevant design contract
+  decisions or explains why that participant is not governed by them
 - Every boundary row maps to at least one task or an explicit no-code
   disposition
 - The plan fails when a named boundary participant has no task coverage, when a
@@ -803,6 +816,11 @@ inline content remains valid.
   must-preserve boundaries, affected consumers/generated outputs, required
   behavior including state and failure behavior, spec/procedure work, risk
   surfaces, and proof obligations
+- Boundary-touching helper, script, API, adapter, validator, producer, or
+  consumer tasks include task-local I/O contract fields for required inputs,
+  optional inputs, missing or empty behavior, outputs, write targets,
+  validation-before-write ordering, failure behavior, and forbidden side
+  effects
 - Every checklist field is populated or marked `N/A` with a task-specific
   reason; blank fields, unreplaced placeholders, and unexplained `N/A` entries
   are failures
