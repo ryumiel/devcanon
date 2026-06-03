@@ -129,17 +129,17 @@ assert_readable_envelope() {
       end;
     def valid_body:
       . as $finding
-      | ("**" + $finding.severity + " | " + $finding.category + "** — ") as $prefix
-      | "\n\n**Recommendation:** " as $separator
       | ($finding.body | type == "string")
-      and ($finding.body | startswith($prefix))
-      and ($finding.body | contains($separator))
+      and ($finding.why | type == "string" and length > 0)
+      and ($finding.recommendation | type == "string" and length > 0)
       and (
-        ($finding.body | .[($prefix | length):]) as $body_after_prefix
-        | ($body_after_prefix | index($separator)) as $separator_index
-        | $separator_index != null
-        and $separator_index > 0
-        and ($body_after_prefix[($separator_index + ($separator | length)):] | length) > 0
+        $finding.body
+        == (
+          "**" + $finding.severity + " | " + $finding.category + "** — "
+          + $finding.why
+          + "\n\n**Recommendation:** "
+          + $finding.recommendation
+        )
       );
     def valid_finding:
       type == "object"
@@ -604,11 +604,9 @@ prepare_judgment_nits() {
     def selected_indexes: $indexes | split(",") | map(tonumber);
     def normalize_downgrade:
       if .critic == "DOWNGRADE" then
-        ("**" + .severity + " | " + .category + "** — ") as $old_prefix
-        | ("**Nit | " + .category + "** — ") as $new_prefix
-        | .severity = "Nit"
+        .severity = "Nit"
         | .critic = null
-        | .body = ($new_prefix + (.body[($old_prefix | length):]))
+        | .body = ("**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation)
       else
         .
       end;

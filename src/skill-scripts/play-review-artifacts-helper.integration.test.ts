@@ -392,7 +392,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("renders exact post-ready inline bodies even when body diverges from live fields", async () => {
+  it("renders exact post-ready inline bodies from validated body fields", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
@@ -408,9 +408,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           sourceFinding({
             line: 4,
             anchor: "natural",
-            why: "STALE natural why must not drive the approved inline text.",
-            recommendation:
-              "STALE natural recommendation must not drive the approved inline text.",
+            why: "Posted natural body from the frozen artifact.",
+            recommendation: "Post this natural recommendation.",
             body: naturalBody,
           }),
           sourceFinding({
@@ -419,9 +418,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             severity: "Nit",
             category: "Tests",
             critic: null,
-            why: "STALE missing-file why must not drive the approved inline text.",
-            recommendation:
-              "STALE missing-file recommendation must not drive the approved inline text.",
+            why: "Posted missing-file body from the frozen artifact.",
+            recommendation: "Post this missing-file recommendation.",
             body: missingBody,
           }),
         ],
@@ -456,12 +454,70 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(normalizedPreview).toContain(
         `#### Rendered Finding Body\n\n${decoded.comments[1].body}\n\n`,
       );
-      expect(normalizedPreview).not.toContain("STALE natural why");
-      expect(normalizedPreview).not.toContain("STALE missing-file why");
-      expect(normalizedPreview).not.toContain("STALE natural recommendation");
-      expect(normalizedPreview).not.toContain(
-        "STALE missing-file recommendation",
-      );
+      expect(normalizedPreview).toContain(naturalBody);
+      expect(normalizedPreview).toContain(missingBody);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects bodies that diverge from live finding fields", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            line: 4,
+            why: "The structured why must match the body.",
+            recommendation: "The structured recommendation must match too.",
+            body: "**Blocking | Contracts** — Posted natural body from the frozen artifact.\n\n**Recommendation:** Post this natural recommendation.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects empty why and recommendation fields before writing downgraded nits", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            critic: "DOWNGRADE",
+            why: "",
+            recommendation: "",
+            body: "**Blocking | Contracts** — \n\n**Recommendation:** ",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(lstat(path.join(cwd, nitsFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -511,16 +567,22 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           sourceFinding({
             anchor: "natural",
+            why: "Natural body.",
+            recommendation: "Fix it.",
             body: "**Blocking | Contracts** — Natural body.\n\n**Recommendation:** Fix it.",
           }),
           sourceFinding({
             line: 8,
             anchor: "missing-file",
+            why: "Missing file body.",
+            recommendation: "Anchor to fallback.",
             body: "**Blocking | Contracts** — Missing file body.\n\n**Recommendation:** Anchor to fallback.",
           }),
           sourceFinding({
             line: 9,
             anchor: "out-of-diff",
+            why: "Out of diff body.",
+            recommendation: "Put in body.",
             body: "**Blocking | Contracts** — Out of diff body.\n\n**Recommendation:** Put in body.",
           }),
         ],
@@ -532,11 +594,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             category: "Tests",
             critic: null,
             anchor: "natural",
+            why: "Range body.",
+            recommendation: "Keep range.",
             body: "**Nit | Tests** — Range body.\n\n**Recommendation:** Keep range.",
           }),
           sourceFinding({
             line: 7,
             anchor: "out-of-diff",
+            why: "Carry forward out of diff.",
+            recommendation: "Put in body too.",
             body: "**Blocking | Contracts** — Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
           }),
         ],
@@ -888,46 +954,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("normalizes downgraded nits from frozen bodies even when live prose fields are empty", async () => {
-    const cwd = await makeTopicGitWorkspace();
-    try {
-      await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v1",
-        findings: [
-          finding({
-            critic: "DOWNGRADE",
-            why: "",
-            recommendation: "",
-            body: "**Blocking | Contracts** — The frozen body remains the posting source.\n\n**Recommendation:** Preserve the frozen recommendation.",
-          }),
-        ],
-        carry_forward: [],
-      });
-
-      const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
-        FINDINGS_FILE: findingsFile,
-        JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
-      });
-
-      expect(stdout).toBe(`${nitsFile}\n`);
-      const written = JSON.parse(
-        await readFile(path.join(cwd, nitsFile), "utf-8"),
-      );
-      expect(written.findings[0]).toMatchObject({
-        severity: "Nit",
-        critic: null,
-        why: "",
-        recommendation: "",
-        body: "**Nit | Contracts** — The frozen body remains the posting source.\n\n**Recommendation:** Preserve the frozen recommendation.",
-      });
-      await expect(
-        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
-      ).resolves.toMatchObject({ stdout: "" });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
   it("rejects unsafe judgment-nits selections before writing", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
@@ -936,7 +962,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
             body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
           finding({
@@ -985,7 +1014,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
             body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
           finding({
@@ -1023,7 +1055,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
             body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
         ],
