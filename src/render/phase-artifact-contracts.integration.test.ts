@@ -156,6 +156,21 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
     );
+    expect(issuePrimingWorkflow).toContain(
+      "references/helper-invocation-contracts.md",
+    );
+    expect(normalizeRenderedWhitespace(issuePrimingWorkflow)).toContain(
+      "Treat a nonzero helper exit as a contract failure",
+    );
+    expect(normalizeRenderedWhitespace(issuePrimingWorkflow)).toContain(
+      "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
+    );
+    expect(issuePrimingWorkflow).not.toContain(
+      "nested issue body path rejected",
+    );
+    expect(issuePrimingWorkflow).not.toContain(
+      "assumptions_comment_file must be a direct child of .ephemeral",
+    );
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
@@ -772,7 +787,7 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors issue-priming helper scripts required by rendered Phase 1, Phase 3, and Phase 8 contracts", async () => {
+  it("mirrors issue-priming helper scripts and invocation reference required by rendered contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -783,6 +798,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "write-research-brief.sh",
       "write-assumptions-comment.sh",
     ] as const;
+    const referenceName = "helper-invocation-contracts.md";
 
     try {
       await renderAll(
@@ -818,6 +834,34 @@ describe("rendered phase artifact smoke coverage", () => {
 
           expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
         }
+      }
+
+      const sourceReferencePath = path.join(
+        repoRoot,
+        "skills",
+        "issue-priming-workflow",
+        "references",
+        referenceName,
+      );
+      const sourceReference = await readFile(sourceReferencePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const referencePath = path.join(
+          generatedDir,
+          target,
+          "skills",
+          "issue-priming-workflow",
+          "references",
+          referenceName,
+        );
+        const renderedReference = await readFile(referencePath, "utf-8");
+
+        expect(renderedReference).toBe(sourceReference);
+        expect(renderedReference).toContain("nested <label> path rejected");
+        expect(renderedReference).toContain("<label> must not be a symlink");
+        expect(renderedReference).toContain(
+          "assumptions_comment_file must be a direct child of .ephemeral",
+        );
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });

@@ -12,6 +12,9 @@ describe("phase artifact source contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const helperInvocationReference = await readRepoFile(
+      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    );
     const phase6Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
     );
@@ -19,6 +22,16 @@ describe("phase artifact source contracts", () => {
       "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
     );
     const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const helperInvocationSection = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Helper Invocation Contracts",
+    );
+    const normalizedHelperInvocationSection = normalizeWhitespace(
+      helperInvocationSection,
+    );
+    const normalizedHelperInvocationReference = normalizeWhitespace(
+      helperInvocationReference,
+    );
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedPhase8Reference = normalizeWhitespace(phase8Reference);
 
@@ -36,8 +49,62 @@ describe("phase artifact source contracts", () => {
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
     );
-    expect(normalizedIssuePriming).toContain(
+    expect(normalizedHelperInvocationSection).toContain(
+      "Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
+      'after Phase 1 has run `cd "$WORKTREE_PATH"`',
+    );
+    expect(normalizedHelperInvocationSection).toContain(
       "Treat a nonzero helper exit as a contract failure",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
+      "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
+    );
+    expect(normalizedHelperInvocationSection).toContain(
+      "detailed helper interfaces, stdout contracts, path vocabulary, and common diagnostics",
+    );
+    expect(helperInvocationSection).toContain(
+      "references/helper-invocation-contracts.md",
+    );
+    for (const eagerDiagnosticDetail of [
+      "nested issue body path rejected",
+      "issue body must not be a symlink",
+      "issue body missing or not a regular file",
+      "nested comment evidence path rejected",
+      "comment evidence must not be a symlink",
+      "comment evidence missing or not a regular file",
+      "assumptions_comment_file must be a direct child of .ephemeral",
+      "research brief path validation failed",
+      "Suffix vocabulary",
+    ]) {
+      expect(helperInvocationSection).not.toContain(eagerDiagnosticDetail);
+    }
+    expect(helperInvocationReference).toContain("scripts/phase-artifacts.sh");
+    expect(helperInvocationReference).toContain(
+      "scripts/write-research-brief.sh",
+    );
+    expect(helperInvocationReference).toContain(
+      "scripts/write-assumptions-comment.sh",
+    );
+    expect(normalizedHelperInvocationReference).toContain(
+      "Any nonzero helper exit is a fatal contract failure for the current phase",
+    );
+    expect(helperInvocationReference).toContain("nested <label> path rejected");
+    expect(helperInvocationReference).toContain(
+      "<label> must not be a symlink",
+    );
+    expect(helperInvocationReference).toContain(
+      "<label> missing or not a regular file",
+    );
+    expect(helperInvocationReference).toContain(
+      "Labels are `issue body`, `comment evidence`, `research`, `design`, or `plan`",
+    );
+    expect(helperInvocationReference).toContain(
+      "research brief path validation failed",
+    );
+    expect(helperInvocationReference).toContain(
+      "assumptions_comment_file must be a direct child of .ephemeral",
     );
     expect(issuePrimingWorkflow).toContain(
       "references/phase-6-auto-handoff.md",
@@ -347,34 +414,45 @@ describe("phase artifact source contracts", () => {
       );
     }
 
-    for (const skillName of ["issue-priming-workflow", "play-brainstorm"]) {
-      const skillSource = await readSkillSource(skillName);
+    const helperInvocationReference = await readRepoFile(
+      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    );
 
-      expect(skillSource).toContain("nested issue body path rejected");
-      expect(skillSource).toContain("issue body must not be a symlink");
-      expect(skillSource).toContain("issue body missing or not a regular file");
-    }
+    expect(helperInvocationReference).toContain("nested <label> path rejected");
+    expect(helperInvocationReference).toContain(
+      "<label> must not be a symlink",
+    );
+    expect(helperInvocationReference).toContain(
+      "<label> missing or not a regular file",
+    );
+    expect(helperInvocationReference).toContain("`issue body`");
 
-    for (const skillName of [
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    expect(playBrainstorm).toContain("nested issue body path rejected");
+    expect(playBrainstorm).toContain("issue body must not be a symlink");
+    expect(playBrainstorm).toContain(
+      "issue body missing or not a regular file",
+    );
+    const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
-      "play-brainstorm",
-      "play-planning",
-    ]) {
+    );
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+
+    for (const skillName of ["play-brainstorm", "play-planning"]) {
       const skillSource = await readSkillSource(skillName);
 
-      expect(skillSource).toContain("nested comment evidence path rejected");
       expect(skillSource).toContain(".ephemeral/*-comment-evidence.md");
-      expect(skillSource).toContain("comment evidence must not be a symlink");
-      expect(skillSource).toContain(
-        "comment evidence missing or not a regular file",
-      );
       expect(skillSource).toContain("comment evidence missing or unreadable");
       expect(skillSource).toContain("non-authoritative");
     }
 
-    const issuePrimingWorkflow = await readSkillSource(
-      "issue-priming-workflow",
+    expect(issuePrimingWorkflow).toContain(".ephemeral/*-comment-evidence.md");
+    expect(normalizedIssuePriming).toContain(
+      "present comment-evidence file later goes missing or unreadable",
     );
+    expect(issuePrimingWorkflow).toContain("non-authoritative");
+
+    expect(helperInvocationReference).toContain("`comment evidence`");
 
     expect(issuePrimingWorkflow).toContain("worktree path missing");
     expect(issuePrimingWorkflow).toContain("worktree path must be absolute");
