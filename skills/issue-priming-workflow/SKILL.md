@@ -493,27 +493,13 @@ Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
 default fallback title/body structure.
 
 Pass reviewer-relevant resolved auto-mode assumptions only through
-`assumptions_comment_file`. When assumptions need to be surfaced, invoke
-`scripts/write-assumptions-comment.sh` from the issue worktree root with
-`ISSUE_IDENTIFIER`. The optional `ASSUMPTIONS_COMMENT_FILE` environment
-variable is allowed only when the caller has already selected the
-repo-relative target path. Treat a nonzero helper exit as a contract failure.
-The helper prints the repo-relative assumptions-comment path on stdout and
-prepares the write target; it does not write the comment. Write only those
-resolved, reviewer-relevant assumptions to that path, then pass that path to
-`play-branch-finish` as `assumptions_comment_file`.
-
-```bash
-ASSUMPTIONS_COMMENT_FILE=$(
-  ISSUE_IDENTIFIER="<payload.identifier>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
-)
-```
-
-If there are no auto-mode assumptions to surface, omit
-`assumptions_comment_file` entirely; absence means "no assumptions comment."
-Ambiguous decisions still stop `--auto` and ask the user - do not downgrade
-unresolved ambiguity into an assumptions comment.
+`assumptions_comment_file`. Write only resolved, reviewer-relevant assumptions
+to the prepared assumptions-comment target, then pass that path to
+`play-branch-finish` as `assumptions_comment_file`; load the helper invocation
+reference if target preparation details are needed. If there are no auto-mode
+assumptions to surface, omit `assumptions_comment_file` entirely; absence means
+"no assumptions comment." Ambiguous decisions still stop `--auto` and ask the
+user - do not downgrade unresolved ambiguity into an assumptions comment.
 
 Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
 produced no judgment-required nits, omit `nits_file` entirely; absence means no
