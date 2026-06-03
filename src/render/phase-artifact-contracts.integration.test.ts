@@ -13,6 +13,7 @@ const PHASE_ARTIFACT_SKILLS = [
   "issue-priming-workflow",
   "play-brainstorm",
   "play-planning",
+  "play-review-response",
   "play-review",
   "branch-review",
   "pr-review",
@@ -77,6 +78,61 @@ describe("rendered phase artifact smoke coverage", () => {
         expect(body.trim()).not.toHaveLength(0);
         expect(body).not.toContain("{{model:");
       }
+    }
+  });
+
+  it("renders boundary contract decision guidance to both targets", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const playBrainstorm = bodies[`play-brainstorm:${target}`];
+      const playPlanning = bodies[`play-planning:${target}`];
+      const normalizedPlayBrainstorm =
+        normalizeRenderedWhitespace(playBrainstorm);
+      const normalizedPlayPlanning = normalizeRenderedWhitespace(playPlanning);
+
+      expect(playBrainstorm).toContain("## Contract Decisions");
+      expect(playBrainstorm).toContain("creates or changes a boundary");
+      expect(normalizedPlayBrainstorm).toContain(
+        "equivalent clearly labeled contract-decision section",
+      );
+      expect(playBrainstorm).toContain(
+        "fixed names versus intentionally deferred implementation choices",
+      );
+      expect(playBrainstorm).toContain("authority and ownership");
+      expect(playBrainstorm).toContain("required inputs");
+      expect(playBrainstorm).toContain("forbidden behavior");
+      expect(normalizedPlayBrainstorm).toContain(
+        "blockers or intentional implementation choices",
+      );
+
+      expect(normalizedPlayPlanning).toContain(
+        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "explicit blocker or intentional implementation choice disposition",
+      );
+      expect(playPlanning).toContain("validation-before-write ordering");
+      expect(normalizedPlayPlanning).toContain(
+        "observable evidence categories and source surfaces",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "does not fail solely because exact command sequences are omitted",
+      );
+
+      const playReviewResponse = bodies[`play-review-response:${target}`];
+      const normalizedPlayReviewResponse =
+        normalizeRenderedWhitespace(playReviewResponse);
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "Boundary-changing review-response planning inputs include `Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "GitHub side effects are outside executor scope",
+      );
     }
   });
 

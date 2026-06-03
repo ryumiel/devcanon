@@ -317,6 +317,40 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
 - Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
 - Don't propose unrelated refactoring. Stay focused on what serves the current goal.
 
+## Contract Decisions
+
+For any design that creates or changes a boundary, include
+`## Contract Decisions` or an equivalent clearly labeled contract-decision
+section before planning can proceed. This applies to workflow handoffs,
+helpers, scripts, APIs, validators, adapters, producers, consumers, generated
+or derived artifacts, source-owned policy boundaries, and fail-closed behavior.
+
+Each boundary-changing design must record:
+
+- boundary name;
+- participants, including producer, validator or policy authority, adapter, and
+  consumer when those roles apply;
+- authority and ownership;
+- required inputs;
+- optional inputs;
+- valid and invalid values;
+- missing or empty behavior;
+- outputs;
+- side effects and write targets;
+- validation-before-write ordering;
+- failure behavior;
+- forbidden behavior;
+- assumptions and blockers;
+- explicit non-goals;
+- fixed names versus intentionally deferred implementation choices.
+
+Contract decisions are design authority, not planning fill-in work. Planning may
+decompose, sequence, and prove those decisions, but it must not invent missing
+boundary names, ownership, input shape, side effects, or failure behavior that
+the design should have fixed. If a decision cannot be made safely during
+brainstorming, record it as a blocker or as an intentional implementation choice
+with the owning authority, risk, and proof expectation.
+
 ## Hard Requirements Ledger
 
 For non-trivial executable designs when normative requirements must be
@@ -386,6 +420,16 @@ After writing the design document, look at it with fresh eyes:
    design includes a `## Hard Requirements` ledger. Fix any missing or
    ambiguous hard-requirements ledger row before handoff, and confirm each row
    has an ID, requirement, source, and rationale.
+8. **Contract decisions:** If the design creates or changes a boundary, confirm
+   it includes `Contract Decisions` or an equivalent clearly labeled
+   contract-decision section. Fix unresolved boundary names, participants,
+   authority or ownership, required inputs, optional inputs, input shape,
+   missing or empty behavior, valid or invalid values, outputs, side effects or
+   write targets, validation-before-write ordering, failure behavior, forbidden
+   behavior, assumptions, blockers, explicit non-goals, fixed names, or
+   intentionally deferred implementation choices before handoff unless the
+   design records them as blockers or intentional implementation choices with
+   authority, risk, and proof expectations.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

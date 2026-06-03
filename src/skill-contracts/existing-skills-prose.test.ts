@@ -359,6 +359,210 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBoundaryTraceability).toContain("command recipes");
   });
 
+  it("keeps boundary-changing brainstorm designs contract-decision complete", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const contractDecisions = getMarkdownSection(
+      playBrainstorm,
+      "Contract Decisions",
+    );
+    const designSelfReview = getMarkdownSection(
+      playBrainstorm,
+      "After the Design",
+    );
+    const normalizedContractDecisions = normalizeWhitespace(contractDecisions);
+    const normalizedDesignSelfReview = normalizeWhitespace(designSelfReview);
+
+    expect(normalizedContractDecisions).toContain(
+      "creates or changes a boundary",
+    );
+    expect(normalizedContractDecisions).toContain(
+      "before planning can proceed",
+    );
+    expect(normalizedContractDecisions).toContain(
+      "equivalent clearly labeled contract-decision section",
+    );
+
+    for (const requiredDecisionField of [
+      "boundary name",
+      "participants",
+      "authority and ownership",
+      "required inputs",
+      "optional inputs",
+      "valid and invalid values",
+      "missing or empty behavior",
+      "outputs",
+      "side effects and write targets",
+      "validation-before-write ordering",
+      "failure behavior",
+      "forbidden behavior",
+      "assumptions and blockers",
+      "explicit non-goals",
+      "fixed names versus intentionally deferred implementation choices",
+    ]) {
+      expect(normalizedContractDecisions).toContain(requiredDecisionField);
+    }
+
+    for (const unresolvedDesignGap of [
+      "unresolved boundary names",
+      "participants",
+      "ownership",
+      "required inputs",
+      "optional inputs",
+      "input shape",
+      "missing or empty behavior",
+      "valid or invalid values",
+      "side effects",
+      "write targets",
+      "validation-before-write ordering",
+      "failure behavior",
+      "forbidden behavior",
+      "assumptions",
+      "blockers",
+      "explicit non-goals",
+      "fixed names",
+      "intentionally deferred implementation choices",
+    ]) {
+      expect(normalizedDesignSelfReview).toContain(unresolvedDesignGap);
+    }
+    expect(normalizedDesignSelfReview).toContain(
+      "blockers or intentional implementation choices",
+    );
+    expect(normalizedDesignSelfReview).toContain(
+      "equivalent clearly labeled contract-decision section",
+    );
+    expect(playBrainstorm).not.toContain("`## Contract\nDecisions`");
+  });
+
+  it("keeps play-planning contract decisions executable without command recipes", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const contractHeavyWork = getMarkdownSection(
+      playPlanning,
+      "Contract-Heavy Work",
+    );
+    const boundaryTraceability = getMarkdownSection(
+      playPlanning,
+      "Boundary-Contract Traceability",
+    );
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const normalizedContractHeavyWork = normalizeWhitespace(contractHeavyWork);
+    const normalizedBoundaryTraceability =
+      normalizeWhitespace(boundaryTraceability);
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+
+    expect(normalizedContractHeavyWork).toContain(
+      "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+    );
+    expect(normalizedContractHeavyWork).toContain(
+      "before implementation tasks begin",
+    );
+    expect(normalizedContractHeavyWork).toContain(
+      "task coverage, acceptance criteria, ownership, and proof obligations",
+    );
+    expect(normalizedContractHeavyWork).toContain(
+      "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
+    );
+    expect(normalizedContractHeavyWork).toContain("stop before task planning");
+    expect(normalizedContractHeavyWork).toContain(
+      "explicit blocker or intentional implementation choice disposition",
+    );
+    expect(normalizedBoundaryTraceability).toContain(
+      "design contract decisions",
+    );
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+    ]) {
+      expect(reviewSurface).toContain(
+        "every contract decision maps to task coverage, acceptance criteria, ownership, and proof obligations",
+      );
+      expect(reviewSurface).toContain(
+        "exact or equivalent contract-decision authority",
+      );
+      expect(reviewSurface).toContain("governed boundary row");
+      expect(reviewSurface).toContain("design contract decisions");
+      expect(reviewSurface).toContain(
+        "explicit blocker or intentional implementation choice disposition",
+      );
+    }
+
+    for (const ioContractField of [
+      "required inputs",
+      "optional inputs",
+      "missing or empty behavior",
+      "outputs",
+      "write targets",
+      "validation-before-write ordering",
+      "failure behavior",
+      "forbidden side effects",
+    ]) {
+      expect(normalizedTaskStructure).toContain(ioContractField);
+      expect(normalizedPlanningSelfReview).toContain(ioContractField);
+      expect(normalizedPlanningReview).toContain(ioContractField);
+    }
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+    ]) {
+      expect(reviewSurface).toContain(
+        "observable evidence categories and source surfaces",
+      );
+      expect(reviewSurface.toLowerCase()).toContain(
+        'vague evidence such as "run tests"',
+      );
+      expect(reviewSurface).toContain(
+        "does not fail solely because exact command sequences are omitted",
+      );
+    }
+
+    expect(playPlanning).not.toContain("`Contract\nDecisions`");
+  });
+
+  it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
+    const playSkillAuthoring = await readSkillSource("play-skill-authoring");
+    const overview = getMarkdownSection(playSkillAuthoring, "Overview");
+    const ruleSection = sliceBetween(
+      playSkillAuthoring,
+      "## The Rule (Same as TDD)",
+      "How future agents find your skill:",
+    );
+    const redGreenRefactorSection = sliceBetween(
+      playSkillAuthoring,
+      "## RED-GREEN-REFACTOR for Skills",
+      "## Anti-Patterns",
+    );
+    const checklistSection = sliceBetween(
+      playSkillAuthoring,
+      "## Skill Creation Checklist (TDD Adapted)",
+      "## Discovery Workflow",
+    );
+
+    expect(normalizeWhitespace(overview)).toContain(
+      "pressure scenarios with subagents",
+    );
+    expect(normalizeWhitespace(overview)).toContain("baseline behavior");
+    expect(ruleSection).toContain("NO SKILL WITHOUT A FAILING TEST FIRST");
+    expect(ruleSection).toContain(
+      "This applies to NEW skills AND EDITS to existing skills.",
+    );
+    expect(ruleSection).toContain(
+      "Edit skill without testing? Same violation.",
+    );
+    expect(redGreenRefactorSection).toContain(
+      "Run pressure scenario with subagent WITHOUT the skill",
+    );
+    expect(checklistSection).toContain("Create pressure scenarios");
+    expect(checklistSection).toContain(
+      "Run scenarios WITHOUT skill - document baseline behavior verbatim",
+    );
+  });
+
   it("makes the play-brainstorm interactive design review gate explicit", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const userReviewGate = getMarkdownSection(
@@ -1446,6 +1650,8 @@ describe("existing skills source prose contracts", () => {
       "root-cause or structural diagnosis",
       "authoritative source for each disputed behavior",
       "required fix strategy by cluster",
+      "`Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      "explicit blocker or intentional implementation choice disposition with authority, risk, and proof expectation",
       "GitHub side effects outside executor scope",
     ]) {
       expect(lowerExecutionMode).toContain(
@@ -1645,6 +1851,8 @@ describe("existing skills source prose contracts", () => {
       "execution mode is justified under inline/planned/no-code rules",
       "authoritative source for each disputed behavior is identified",
       "required fix strategy by cluster is identified",
+      "Boundary-changing review-response planning inputs include `Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      "explicit blocker or intentional implementation choice disposition with authority, risk, and proof expectation for missing contract decisions",
       "GitHub side effects are outside executor scope",
       "planning input is suitable for `play-planning` through `Route: review-response-parent-owned` and `Design: <path>`",
     ]) {
