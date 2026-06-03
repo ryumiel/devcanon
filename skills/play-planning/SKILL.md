@@ -178,7 +178,8 @@ it when the plan depends on cross-skill handoffs, generated or derived paths,
 helper scripts, source-owned policy, schema or interface authority, execution
 cwd assumptions, or fail-closed behavior.
 
-When the input design includes design `Contract Decisions`, treat those
+Exact `Contract Decisions` sections and equivalent clearly labeled
+contract-decision sections are both design contract authority. Treat those
 decisions as source material for contract-heavy planning; before implementation
 tasks begin, map each design contract decision into task coverage, acceptance
 criteria, ownership, and proof obligations. Planning may decompose and sequence
@@ -186,11 +187,11 @@ contract decisions, but it must not invent missing boundary names, ownership,
 input shape, side effects, validation order, or failure behavior that the design
 should have fixed; record a blocker or explicit assumption instead.
 
-When the input design creates or changes a boundary but lacks design `Contract
-Decisions` or an equivalent clearly labeled section, stop before task planning
-unless the design records an explicit blocker or intentional implementation
-choice disposition for the missing contract decisions, including owning
-authority, risk, and proof expectation. Planning must not treat an absent
+When the input design creates or changes a boundary but lacks exact or
+equivalent contract-decision authority, stop before task planning unless the
+design records an explicit blocker or intentional implementation choice
+disposition for the missing contract decisions, including owning authority,
+risk, and proof expectation. Planning must not treat an absent
 contract-decision section as permission to infer boundary authority.
 
 When contract-heavy work changes governance or workflow policy, include the
@@ -670,16 +671,16 @@ relationship, source target or discovery criteria, evidence location,
 terminal-state proof, or absence check needed to verify pass/fail evidence. When
 exact executable evidence cannot be identified from source or durable
 requirements, record a blocker or assumption instead of inventing authority.
-When the design includes design `Contract Decisions`, fail and fix the plan
-unless every contract decision maps to task coverage, acceptance criteria,
-ownership, and proof obligations, and every governed boundary row references
-the relevant design contract decisions or explains why that participant is not
-governed by them.
-When the design creates or changes a boundary but lacks design `Contract
-Decisions` or an equivalent clearly labeled section, fail before task planning
-unless the design records an explicit blocker or intentional implementation
-choice disposition for the missing contract decisions, including owning
-authority, risk, and proof expectation.
+When the design includes exact or equivalent contract-decision authority, fail
+and fix the plan unless every contract decision maps to task coverage,
+acceptance criteria, ownership, and proof obligations, and every governed
+boundary row references the relevant design contract decisions or explains why
+that participant is not governed by them.
+When the design creates or changes a boundary but lacks exact or equivalent
+contract-decision authority, fail before task planning unless the design
+records an explicit blocker or intentional implementation choice disposition
+for the missing contract decisions, including owning authority, risk, and proof
+expectation.
 
 **5. Contract checklist trigger check:** For every task, determine whether any
 non-trivial trigger applies. Triggered tasks must name the trigger criteria and
@@ -798,15 +799,15 @@ inline content remains valid.
   tuple, producer, validator or policy authority, adapter or consumer, failure
   mode for missing or mismatched authority inputs, and required proof per
   boundary participant
-- When the design includes design `Contract Decisions`, every contract decision
-  maps to task coverage, acceptance criteria, ownership, and proof obligations,
-  and every governed boundary row references the relevant design contract
-  decisions or explains why that participant is not governed by them
-- Boundary-changing designs without design `Contract Decisions` or an
-  equivalent clearly labeled section fail before task planning unless the
-  design records an explicit blocker or intentional implementation choice
-  disposition for the missing contract decisions, including owning authority,
-  risk, and proof expectation
+- When the design includes exact or equivalent contract-decision authority,
+  every contract decision maps to task coverage, acceptance criteria,
+  ownership, and proof obligations, and every governed boundary row references
+  the relevant design contract decisions or explains why that participant is not
+  governed by them
+- Boundary-changing designs without exact or equivalent contract-decision
+  authority fail before task planning unless the design records an explicit
+  blocker or intentional implementation choice disposition for the missing
+  contract decisions, including owning authority, risk, and proof expectation
 - Every boundary row maps to at least one task or an explicit no-code
   disposition
 - The plan fails when a named boundary participant has no task coverage, when a

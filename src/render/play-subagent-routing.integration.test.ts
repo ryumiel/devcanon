@@ -64,9 +64,11 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       const normalizedPlayPlanning = normalizeWhitespace(playPlanning);
       expect(playPlanning).toContain("## Contract Checklist Triggers");
       expect(playPlanning).toContain("## Boundary-Contract Traceability");
-      expect(playPlanning).toContain("design `Contract Decisions`");
       expect(normalizedPlayPlanning).toContain(
-        "creates or changes a boundary but lacks design `Contract Decisions`",
+        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
       );
       expect(normalizedPlayPlanning).toContain(
         "explicit blocker or intentional implementation choice disposition",

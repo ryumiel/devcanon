@@ -319,11 +319,11 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
 
 ## Contract Decisions
 
-For any design that creates or changes a boundary, include a `## Contract
-Decisions` section, or an equivalent clearly labeled section, before planning
-can proceed. This applies to workflow handoffs, helpers, scripts, APIs,
-validators, adapters, producers, consumers, generated or derived artifacts,
-source-owned policy boundaries, and fail-closed behavior.
+For any design that creates or changes a boundary, include
+`## Contract Decisions` or an equivalent clearly labeled section before
+planning can proceed. This applies to workflow handoffs, helpers, scripts,
+APIs, validators, adapters, producers, consumers, generated or derived
+artifacts, source-owned policy boundaries, and fail-closed behavior.
 
 Each boundary-changing design must record:
 

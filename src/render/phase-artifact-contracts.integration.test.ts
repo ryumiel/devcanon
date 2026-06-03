@@ -13,6 +13,7 @@ const PHASE_ARTIFACT_SKILLS = [
   "issue-priming-workflow",
   "play-brainstorm",
   "play-planning",
+  "play-review-response",
   "play-review",
   "branch-review",
   "pr-review",
@@ -100,9 +101,11 @@ describe("rendered phase artifact smoke coverage", () => {
         "blockers or intentional implementation choices",
       );
 
-      expect(playPlanning).toContain("design `Contract Decisions`");
       expect(normalizedPlayPlanning).toContain(
-        "creates or changes a boundary but lacks design `Contract Decisions`",
+        "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
       );
       expect(normalizedPlayPlanning).toContain(
         "explicit blocker or intentional implementation choice disposition",
@@ -113,6 +116,19 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPlayPlanning).toContain(
         "does not fail solely because exact command sequences are omitted",
+      );
+
+      const playReviewResponse = bodies[`play-review-response:${target}`];
+      const normalizedPlayReviewResponse =
+        normalizeRenderedWhitespace(playReviewResponse);
+      expect(normalizedPlayReviewResponse).toContain(
+        "`Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "Boundary-changing review-response planning inputs include `Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      );
+      expect(normalizedPlayReviewResponse).toContain(
+        "GitHub side effects are outside executor scope",
       );
     }
   });

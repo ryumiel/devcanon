@@ -424,6 +424,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedDesignSelfReview).toContain(
       "blockers or intentional implementation choices",
     );
+    expect(playBrainstorm).not.toContain("`## Contract\nDecisions`");
   });
 
   it("keeps play-planning contract decisions executable without command recipes", async () => {
@@ -448,7 +449,7 @@ describe("existing skills source prose contracts", () => {
     const normalizedPlanningReview = normalizeWhitespace(planningReview);
 
     expect(normalizedContractHeavyWork).toContain(
-      "design `Contract Decisions`",
+      "Exact `Contract Decisions` sections and equivalent clearly labeled contract-decision sections are both design contract authority",
     );
     expect(normalizedContractHeavyWork).toContain(
       "before implementation tasks begin",
@@ -457,7 +458,7 @@ describe("existing skills source prose contracts", () => {
       "task coverage, acceptance criteria, ownership, and proof obligations",
     );
     expect(normalizedContractHeavyWork).toContain(
-      "creates or changes a boundary but lacks design `Contract Decisions`",
+      "creates or changes a boundary but lacks exact or equivalent contract-decision authority",
     );
     expect(normalizedContractHeavyWork).toContain("stop before task planning");
     expect(normalizedContractHeavyWork).toContain(
@@ -473,6 +474,9 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(reviewSurface).toContain(
         "every contract decision maps to task coverage, acceptance criteria, ownership, and proof obligations",
+      );
+      expect(reviewSurface).toContain(
+        "exact or equivalent contract-decision authority",
       );
       expect(reviewSurface).toContain("governed boundary row");
       expect(reviewSurface).toContain("design contract decisions");
@@ -510,6 +514,8 @@ describe("existing skills source prose contracts", () => {
         "does not fail solely because exact command sequences are omitted",
       );
     }
+
+    expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
@@ -1638,6 +1644,8 @@ describe("existing skills source prose contracts", () => {
       "root-cause or structural diagnosis",
       "authoritative source for each disputed behavior",
       "required fix strategy by cluster",
+      "`Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      "explicit blocker or intentional implementation choice disposition with authority, risk, and proof expectation",
       "GitHub side effects outside executor scope",
     ]) {
       expect(lowerExecutionMode).toContain(
@@ -1837,6 +1845,8 @@ describe("existing skills source prose contracts", () => {
       "execution mode is justified under inline/planned/no-code rules",
       "authoritative source for each disputed behavior is identified",
       "required fix strategy by cluster is identified",
+      "Boundary-changing review-response planning inputs include `Contract Decisions` or an equivalent clearly labeled contract-decision section",
+      "explicit blocker or intentional implementation choice disposition with authority, risk, and proof expectation for missing contract decisions",
       "GitHub side effects are outside executor scope",
       "planning input is suitable for `play-planning` through `Route: review-response-parent-owned` and `Design: <path>`",
     ]) {

@@ -233,6 +233,10 @@ The planning input must explicitly include:
   contract-sensitive, lifecycle-sensitive, or cross-module feedback;
 - authoritative source for each disputed behavior;
 - required fix strategy by cluster;
+- `Contract Decisions` or an equivalent clearly labeled contract-decision
+  section when review-response work creates or changes a boundary, or an
+  explicit blocker or intentional implementation choice disposition with
+  authority, risk, and proof expectation for any missing contract decisions;
 - GitHub side effects outside executor scope.
 
 `play-planning` owns task decomposition, contract-heavy tables,
@@ -335,6 +339,10 @@ For each concern, validate that:
 - The execution mode is justified under inline/planned/no-code rules.
 - The authoritative source for each disputed behavior is identified.
 - The required fix strategy by cluster is identified.
+- Boundary-changing review-response planning inputs include `Contract Decisions`
+  or an equivalent clearly labeled contract-decision section, or record an
+  explicit blocker or intentional implementation choice disposition with
+  authority, risk, and proof expectation for missing contract decisions.
 - GitHub side effects are outside executor scope.
 - The planning input is suitable for `play-planning` through
   `Route: review-response-parent-owned` and `Design: <path>`.
