@@ -99,37 +99,13 @@ See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the D
 
 Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
 
-`scripts/phase-artifacts.sh` owns deterministic read guards for issue-priming-owned `.ephemeral/` artifacts:
+The script-owned deterministic surfaces are:
 
-```bash
-PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh"
-bash "$PHASE_ARTIFACTS_HELPER" validate-read <kind> <repo-relative-path>
-```
+- `scripts/phase-artifacts.sh` for read guards on issue-priming-owned phase artifacts.
+- `scripts/write-research-brief.sh` for preparing the Phase 3 research-brief write target.
+- `scripts/write-assumptions-comment.sh` for preparing the Phase 8 assumptions-comment write target.
 
-Inputs are `<kind>` (`issue-body`, `comment-evidence`, `research`, `design`, or `plan`) and a repo-relative direct-child `.ephemeral/*` path. Success is silent; stderr names the failed suffix/traversal/symlink/regular-file/readability/cwd contract. Consumer-visible vocabulary includes `nested issue body path rejected`, `issue body must not be a symlink`, `issue body missing or not a regular file`, `nested comment evidence path rejected`, `.ephemeral/*-comment-evidence.md`, `comment evidence must not be a symlink`, `comment evidence missing or not a regular file`, and `comment evidence missing or unreadable`.
-
-`scripts/write-research-brief.sh` owns deterministic preparation of the Phase 3 research-brief write target:
-
-```bash
-RESEARCH_BRIEF_PATH=$(
-  ISSUE_IDENTIFIER="<payload.identifier>" \
-  ISSUE_PRIMING_TODAY="<YYYY-MM-DD>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.sh"
-)
-```
-
-Inputs are `ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY`. The helper slugifies the identifier, prepares `.ephemeral/<date>-<id>-research.md`, enforces research suffix/direct-child/traversal/symlink/non-regular guards, and prints only the repo-relative path on stdout. The controller writes the returned `research-agent` brief content verbatim with the Write tool and emits `Research brief written to <repo-relative-path>.`.
-
-`scripts/write-assumptions-comment.sh` owns deterministic preparation of the Phase 8 assumptions-comment write target:
-
-```bash
-ASSUMPTIONS_COMMENT_FILE=$(
-  ISSUE_IDENTIFIER="<payload.identifier>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
-)
-```
-
-Inputs are `ISSUE_IDENTIFIER` plus optional `ASSUMPTIONS_COMMENT_FILE` when the caller has already selected a repo-relative direct-child `.ephemeral/*-assumptions-comment.md` path. The helper rejects nested paths with `assumptions_comment_file must be a direct child of .ephemeral`, rejects bad suffixes with `assumptions_comment_file path validation failed`, rejects `path traversal` and symlinked `.ephemeral`, prepares the write target, and prints only the repo-relative path on stdout. The controller writes only reviewer-relevant, resolved auto-mode assumptions to that file.
+Keep phase-local command snippets where the workflow executes them. For detailed helper interfaces, stdout contracts, path vocabulary, and common diagnostics, load [`references/helper-invocation-contracts.md`](references/helper-invocation-contracts.md).
 
 ## Phase 1: Adopt the Handoff Artifacts
 
@@ -257,6 +233,14 @@ and prepares the write target; it does not write the brief. Write the
 then emit the literal line `Research brief written to <repo-relative-path>.` to
 the conversation output. This is the consumer contract surface; do not reword.
 Carry the path forward to Phase 4's args.
+
+```bash
+RESEARCH_BRIEF_PATH=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+  ISSUE_PRIMING_TODAY="<YYYY-MM-DD>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.sh"
+)
+```
 
 ## Phase 4: Invoke Brainstorming
 
@@ -509,10 +493,27 @@ Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
 default fallback title/body structure.
 
 Pass reviewer-relevant resolved auto-mode assumptions only through
-`assumptions_comment_file`. If there are no auto-mode assumptions to surface,
-omit `assumptions_comment_file` entirely; absence means "no assumptions
-comment." Ambiguous decisions still stop `--auto` and ask the user - do not
-downgrade unresolved ambiguity into an assumptions comment.
+`assumptions_comment_file`. When assumptions need to be surfaced, invoke
+`scripts/write-assumptions-comment.sh` from the issue worktree root with
+`ISSUE_IDENTIFIER`. The optional `ASSUMPTIONS_COMMENT_FILE` environment
+variable is allowed only when the caller has already selected the
+repo-relative target path. Treat a nonzero helper exit as a contract failure.
+The helper prints the repo-relative assumptions-comment path on stdout and
+prepares the write target; it does not write the comment. Write only those
+resolved, reviewer-relevant assumptions to that path, then pass that path to
+`play-branch-finish` as `assumptions_comment_file`.
+
+```bash
+ASSUMPTIONS_COMMENT_FILE=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
+)
+```
+
+If there are no auto-mode assumptions to surface, omit
+`assumptions_comment_file` entirely; absence means "no assumptions comment."
+Ambiguous decisions still stop `--auto` and ask the user - do not downgrade
+unresolved ambiguity into an assumptions comment.
 
 Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
 produced no judgment-required nits, omit `nits_file` entirely; absence means no
