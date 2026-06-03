@@ -7,6 +7,18 @@ import {
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 
+const MOVED_HELPER_DIAGNOSTICS = [
+  "nested issue body path rejected",
+  "issue body must not be a symlink",
+  "issue body missing or not a regular file",
+  "nested comment evidence path rejected",
+  "comment evidence must not be a symlink",
+  "comment evidence missing or not a regular file",
+  "assumptions_comment_file must be a direct child of .ephemeral",
+  "research brief path validation failed",
+  "Suffix vocabulary",
+] as const;
+
 describe("phase artifact source contracts", () => {
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -25,6 +37,10 @@ describe("phase artifact source contracts", () => {
     const helperInvocationSection = getMarkdownSection(
       issuePrimingWorkflow,
       "Helper Invocation Contracts",
+    );
+    const phase1Section = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Phase 1: Adopt the Handoff Artifacts",
     );
     const normalizedHelperInvocationSection = normalizeWhitespace(
       helperInvocationSection,
@@ -45,6 +61,13 @@ describe("phase artifact source contracts", () => {
      */
     expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
     expect(issuePrimingWorkflow).toContain("validate-read");
+    expect(phase1Section).toContain(
+      'bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"',
+    );
+    expect(phase1Section).toContain('if [ -n "$COMMENT_EVIDENCE_PATH" ]; then');
+    expect(phase1Section).toContain(
+      'bash "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"',
+    );
     expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
@@ -67,18 +90,8 @@ describe("phase artifact source contracts", () => {
     expect(helperInvocationSection).toContain(
       "references/helper-invocation-contracts.md",
     );
-    for (const eagerDiagnosticDetail of [
-      "nested issue body path rejected",
-      "issue body must not be a symlink",
-      "issue body missing or not a regular file",
-      "nested comment evidence path rejected",
-      "comment evidence must not be a symlink",
-      "comment evidence missing or not a regular file",
-      "assumptions_comment_file must be a direct child of .ephemeral",
-      "research brief path validation failed",
-      "Suffix vocabulary",
-    ]) {
-      expect(helperInvocationSection).not.toContain(eagerDiagnosticDetail);
+    for (const eagerDiagnosticDetail of MOVED_HELPER_DIAGNOSTICS) {
+      expect(issuePrimingWorkflow).not.toContain(eagerDiagnosticDetail);
     }
     expect(helperInvocationReference).toContain("scripts/phase-artifacts.sh");
     expect(helperInvocationReference).toContain(

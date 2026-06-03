@@ -23,6 +23,18 @@ const PHASE_ARTIFACT_SKILLS = [
   "play-subagent-execution",
 ] as const;
 
+const MOVED_HELPER_DIAGNOSTICS = [
+  "nested issue body path rejected",
+  "issue body must not be a symlink",
+  "issue body missing or not a regular file",
+  "nested comment evidence path rejected",
+  "comment evidence must not be a symlink",
+  "comment evidence missing or not a regular file",
+  "assumptions_comment_file must be a direct child of .ephemeral",
+  "research brief path validation failed",
+  "Suffix vocabulary",
+] as const;
+
 type RenderedBodies = Record<string, string>;
 
 const normalizeRenderedWhitespace = (value: string): string =>
@@ -146,6 +158,34 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(body).toContain("worktree-path");
     }
 
+    for (const target of ["claude", "codex"] as const) {
+      const renderedIssuePrimingWorkflow =
+        bodies[`issue-priming-workflow:${target}`];
+
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"',
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'if [ -n "$COMMENT_EVIDENCE_PATH" ]; then',
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'bash "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"',
+      );
+      expect(
+        normalizeRenderedWhitespace(renderedIssuePrimingWorkflow),
+      ).toContain("Treat a nonzero helper exit as a contract failure");
+      expect(
+        normalizeRenderedWhitespace(renderedIssuePrimingWorkflow),
+      ).toContain(
+        "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
+      );
+      for (const eagerDiagnosticDetail of MOVED_HELPER_DIAGNOSTICS) {
+        expect(renderedIssuePrimingWorkflow).not.toContain(
+          eagerDiagnosticDetail,
+        );
+      }
+    }
+
     const issuePrimingWorkflow = bodyFor("issue-priming-workflow");
     expect(issuePrimingWorkflow).toContain("Issue body:");
     expect(issuePrimingWorkflow).toContain("Comment evidence:");
@@ -158,18 +198,6 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(issuePrimingWorkflow).toContain(
       "references/helper-invocation-contracts.md",
-    );
-    expect(normalizeRenderedWhitespace(issuePrimingWorkflow)).toContain(
-      "Treat a nonzero helper exit as a contract failure",
-    );
-    expect(normalizeRenderedWhitespace(issuePrimingWorkflow)).toContain(
-      "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
-    );
-    expect(issuePrimingWorkflow).not.toContain(
-      "nested issue body path rejected",
-    );
-    expect(issuePrimingWorkflow).not.toContain(
-      "assumptions_comment_file must be a direct child of .ephemeral",
     );
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
