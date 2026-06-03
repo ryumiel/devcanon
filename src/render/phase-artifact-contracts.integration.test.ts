@@ -91,6 +91,9 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(playBrainstorm).toContain("## Contract Decisions");
       expect(playBrainstorm).toContain("creates or changes a boundary");
+      expect(normalizedPlayBrainstorm).toContain(
+        "equivalent clearly labeled contract-decision section",
+      );
       expect(playBrainstorm).toContain(
         "fixed names versus intentionally deferred implementation choices",
       );

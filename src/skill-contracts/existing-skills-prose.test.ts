@@ -378,6 +378,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedContractDecisions).toContain(
       "before planning can proceed",
     );
+    expect(normalizedContractDecisions).toContain(
+      "equivalent clearly labeled contract-decision section",
+    );
 
     for (const requiredDecisionField of [
       "boundary name",
@@ -423,6 +426,9 @@ describe("existing skills source prose contracts", () => {
     }
     expect(normalizedDesignSelfReview).toContain(
       "blockers or intentional implementation choices",
+    );
+    expect(normalizedDesignSelfReview).toContain(
+      "equivalent clearly labeled contract-decision section",
     );
     expect(playBrainstorm).not.toContain("`## Contract\nDecisions`");
   });

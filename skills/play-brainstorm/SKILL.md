@@ -320,10 +320,10 @@ not make `play-brainstorm` write those owner artifacts or slice issues itself.
 ## Contract Decisions
 
 For any design that creates or changes a boundary, include
-`## Contract Decisions` or an equivalent clearly labeled section before
-planning can proceed. This applies to workflow handoffs, helpers, scripts,
-APIs, validators, adapters, producers, consumers, generated or derived
-artifacts, source-owned policy boundaries, and fail-closed behavior.
+`## Contract Decisions` or an equivalent clearly labeled contract-decision
+section before planning can proceed. This applies to workflow handoffs,
+helpers, scripts, APIs, validators, adapters, producers, consumers, generated
+or derived artifacts, source-owned policy boundaries, and fail-closed behavior.
 
 Each boundary-changing design must record:
 
@@ -421,15 +421,15 @@ After writing the design document, look at it with fresh eyes:
    ambiguous hard-requirements ledger row before handoff, and confirm each row
    has an ID, requirement, source, and rationale.
 8. **Contract decisions:** If the design creates or changes a boundary, confirm
-   it includes `Contract Decisions` or an equivalent clearly labeled section.
-   Fix unresolved boundary names, participants, authority or ownership,
-   required inputs, optional inputs, input shape, missing or empty behavior,
-   valid or invalid values, outputs, side effects or write targets,
-   validation-before-write ordering, failure behavior, forbidden behavior,
-   assumptions, blockers, explicit non-goals, fixed names, or intentionally
-   deferred implementation choices before handoff unless the design records
-   them as blockers or intentional implementation choices with authority, risk,
-   and proof expectations.
+   it includes `Contract Decisions` or an equivalent clearly labeled
+   contract-decision section. Fix unresolved boundary names, participants,
+   authority or ownership, required inputs, optional inputs, input shape,
+   missing or empty behavior, valid or invalid values, outputs, side effects or
+   write targets, validation-before-write ordering, failure behavior, forbidden
+   behavior, assumptions, blockers, explicit non-goals, fixed names, or
+   intentionally deferred implementation choices before handoff unless the
+   design records them as blockers or intentional implementation choices with
+   authority, risk, and proof expectations.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
