@@ -536,6 +536,13 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             critic: null,
             body: "**Nit | Tests** — The reviewed source has a problem.\n\n**Recommendation:** Adjust the reviewed source.",
           }),
+          sourceFinding({
+            line: 5,
+            critic: null,
+            why: "The critic phase failed before verdicts were available.",
+            recommendation: "Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** — The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+          }),
         ],
         carry_forward: [],
       });
@@ -549,6 +556,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(stdout).toContain("## Findings");
       expect(stdout).toContain("src/review-target.ts");
       expect(stdout).toContain("- **Critic:** (skipped — nit)");
+      expect(stdout).toContain(
+        "- **Critic:** (unverified — critic unavailable)",
+      );
       expect(stdout).not.toContain("GitHub Review Body");
       expect(stdout).not.toContain("posting");
     } finally {
