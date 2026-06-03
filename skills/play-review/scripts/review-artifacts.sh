@@ -127,6 +127,20 @@ assert_readable_envelope() {
       else
         .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
       end;
+    def valid_body:
+      . as $finding
+      | ("**" + $finding.severity + " | " + $finding.category + "** — ") as $prefix
+      | "\n\n**Recommendation:** " as $separator
+      | ($finding.body | type == "string")
+      and ($finding.body | startswith($prefix))
+      and ($finding.body | contains($separator))
+      and (
+        ($finding.body | .[($prefix | length):]) as $body_after_prefix
+        | ($body_after_prefix | index($separator)) as $separator_index
+        | $separator_index != null
+        and $separator_index > 0
+        and ($body_after_prefix[($separator_index + ($separator | length)):] | length) > 0
+      );
     def valid_finding:
       type == "object"
       and (.path | repo_relative_path)
@@ -138,7 +152,7 @@ assert_readable_envelope() {
       and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
       and (.why | type == "string")
       and (.recommendation | type == "string")
-      and (.body | type == "string");
+      and valid_body;
     .schema == "play-review/findings/v1"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
@@ -367,7 +381,7 @@ render_entry() {
   start_line="$(jq -r '.start_line' <<<"$entry_json")"
   severity="$(jq -r '.severity' <<<"$entry_json")"
   category="$(jq -r '.category' <<<"$entry_json")"
-  critic="$(jq -r 'if .critic == null then "(skipped - nit)" else .critic end' <<<"$entry_json")"
+  critic="$(jq -r 'if .critic == null then "(skipped — nit)" else .critic end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
   body="$(jq -r '.body' <<<"$entry_json")"
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then
