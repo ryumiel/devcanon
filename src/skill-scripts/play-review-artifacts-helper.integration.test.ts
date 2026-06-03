@@ -888,6 +888,46 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("normalizes downgraded nits from frozen bodies even when live prose fields are empty", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            critic: "DOWNGRADE",
+            why: "",
+            recommendation: "",
+            body: "**Blocking | Contracts** — The frozen body remains the posting source.\n\n**Recommendation:** Preserve the frozen recommendation.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
+        FINDINGS_FILE: findingsFile,
+        JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+      });
+
+      expect(stdout).toBe(`${nitsFile}\n`);
+      const written = JSON.parse(
+        await readFile(path.join(cwd, nitsFile), "utf-8"),
+      );
+      expect(written.findings[0]).toMatchObject({
+        severity: "Nit",
+        critic: null,
+        why: "",
+        recommendation: "",
+        body: "**Nit | Contracts** — The frozen body remains the posting source.\n\n**Recommendation:** Preserve the frozen recommendation.",
+      });
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects unsafe judgment-nits selections before writing", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {

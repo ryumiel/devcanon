@@ -604,9 +604,11 @@ prepare_judgment_nits() {
     def selected_indexes: $indexes | split(",") | map(tonumber);
     def normalize_downgrade:
       if .critic == "DOWNGRADE" then
-        .severity = "Nit"
+        ("**" + .severity + " | " + .category + "** — ") as $old_prefix
+        | ("**Nit | " + .category + "** — ") as $new_prefix
+        | .severity = "Nit"
         | .critic = null
-        | .body = ("**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation)
+        | .body = ($new_prefix + (.body[($old_prefix | length):]))
       else
         .
       end;
