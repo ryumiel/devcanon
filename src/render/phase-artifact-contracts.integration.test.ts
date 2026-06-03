@@ -463,6 +463,14 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase8).toContain(
         "Pass reviewer-relevant resolved auto-mode assumptions only through `assumptions_comment_file`",
       );
+      expect(phase8).toContain("helper invocation reference");
+      expect(phase8).toContain("ASSUMPTIONS_COMMENT_FILE=$(");
+      expect(phase8).toContain(
+        'bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"',
+      );
+      expect(normalizedPhase8).toContain(
+        "treat nonzero exit as a contract failure before writing or passing the path",
+      );
       expect(normalizedPhase8).toContain(
         "Ambiguous decisions still stop `--auto` and ask the user",
       );
@@ -472,7 +480,6 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase8).toContain(
         "Phase 8 does not classify findings or prepare the nits envelope",
       );
-      expect(phase8).not.toContain("scripts/write-assumptions-comment.sh");
       expect(phase8).not.toContain(
         "assumptions_comment_file must be a direct child of .ephemeral",
       );

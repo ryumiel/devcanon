@@ -493,13 +493,24 @@ Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
 default fallback title/body structure.
 
 Pass reviewer-relevant resolved auto-mode assumptions only through
-`assumptions_comment_file`. Write only resolved, reviewer-relevant assumptions
-to the prepared assumptions-comment target, then pass that path to
-`play-branch-finish` as `assumptions_comment_file`; load the helper invocation
-reference if target preparation details are needed. If there are no auto-mode
-assumptions to surface, omit `assumptions_comment_file` entirely; absence means
-"no assumptions comment." Ambiguous decisions still stop `--auto` and ask the
-user - do not downgrade unresolved ambiguity into an assumptions comment.
+`assumptions_comment_file`. When resolved assumptions need reviewer visibility,
+load the helper invocation reference, invoke the assumptions-comment helper,
+and treat nonzero exit as a contract failure before writing or passing the
+path:
+
+```bash
+ASSUMPTIONS_COMMENT_FILE=$(
+  ISSUE_IDENTIFIER="<payload.identifier>" \
+    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
+)
+```
+
+Write only resolved, reviewer-relevant assumptions to the helper-returned path,
+then pass that path to `play-branch-finish` as `assumptions_comment_file`. If
+there are no auto-mode assumptions to surface, omit `assumptions_comment_file`
+entirely; absence means "no assumptions comment." Ambiguous decisions still
+stop `--auto` and ask the user - do not downgrade unresolved ambiguity into an
+assumptions comment.
 
 Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
 produced no judgment-required nits, omit `nits_file` entirely; absence means no

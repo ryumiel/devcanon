@@ -42,6 +42,14 @@ describe("phase artifact source contracts", () => {
       issuePrimingWorkflow,
       "Phase 1: Adopt the Handoff Artifacts",
     );
+    const phase8Start = issuePrimingWorkflow.indexOf("### Phase 8: Create PR");
+    const phase8End = issuePrimingWorkflow.indexOf(
+      "## Quick Reference",
+      phase8Start,
+    );
+    expect(phase8Start).toBeGreaterThanOrEqual(0);
+    expect(phase8End).toBeGreaterThan(phase8Start);
+    const phase8Section = issuePrimingWorkflow.slice(phase8Start, phase8End);
     const normalizedHelperInvocationSection = normalizeWhitespace(
       helperInvocationSection,
     );
@@ -71,6 +79,14 @@ describe("phase artifact source contracts", () => {
     expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
+    );
+    expect(phase8Section).toContain("helper invocation reference");
+    expect(phase8Section).toContain("ASSUMPTIONS_COMMENT_FILE=$(");
+    expect(phase8Section).toContain(
+      'bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"',
+    );
+    expect(normalizeWhitespace(phase8Section)).toContain(
+      "treat nonzero exit as a contract failure before writing or passing the path",
     );
     expect(normalizedHelperInvocationSection).toContain(
       "Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle",
