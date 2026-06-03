@@ -124,7 +124,7 @@ function finding(overrides: Record<string, unknown> = {}) {
     anchor: "natural",
     why: "The contract would otherwise be ambiguous.",
     recommendation: "Keep the helper contract explicit.",
-    body: "**Blocking | Contracts** - The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
+    body: "**Blocking | Contracts** — The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
     ...overrides,
   };
 }
@@ -136,7 +136,7 @@ function sourceFinding(overrides: Record<string, unknown> = {}) {
     start_line: null,
     why: "The reviewed source has a problem.",
     recommendation: "Adjust the reviewed source.",
-    body: "**Blocking | Contracts** - The reviewed source has a problem.\n\n**Recommendation:** Adjust the reviewed source.",
+    body: "**Blocking | Contracts** — The reviewed source has a problem.\n\n**Recommendation:** Adjust the reviewed source.",
     ...overrides,
   });
 }
@@ -184,14 +184,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             anchor: "natural",
             why: "The natural finding should show reviewed HEAD source.",
             recommendation: "Keep preview evidence tied to HEAD_SHA.",
-            body: "**Blocking | Contracts** - The natural finding should show reviewed HEAD source.\n\n**Recommendation:** Keep preview evidence tied to HEAD_SHA.",
+            body: "**Blocking | Contracts** — The natural finding should show reviewed HEAD source.\n\n**Recommendation:** Keep preview evidence tied to HEAD_SHA.",
           }),
           sourceFinding({
             line: 8,
             anchor: "out-of-diff",
             why: "The out-of-diff finding belongs in the review body.",
             recommendation: "Append it to the top-level body.",
-            body: "**Blocking | Contracts** - The out-of-diff finding belongs in the review body.\n\n**Recommendation:** Append it to the top-level body.",
+            body: "**Blocking | Contracts** — The out-of-diff finding belongs in the review body.\n\n**Recommendation:** Append it to the top-level body.",
           }),
         ],
         carry_forward: [
@@ -204,14 +204,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             anchor: "missing-file",
             why: "The carry-forward finding should still be rendered.",
             recommendation: "Include carry-forward evidence.",
-            body: "**Nit | Tests** - The carry-forward finding should still be rendered.\n\n**Recommendation:** Include carry-forward evidence.",
+            body: "**Nit | Tests** — The carry-forward finding should still be rendered.\n\n**Recommendation:** Include carry-forward evidence.",
           }),
           sourceFinding({
             line: 7,
             anchor: "out-of-diff",
             why: "Carry-forward out-of-diff entries also belong in the body.",
             recommendation: "Keep them out of inline comments.",
-            body: "**Blocking | Contracts** - Carry-forward out-of-diff entries also belong in the body.\n\n**Recommendation:** Keep them out of inline comments.",
+            body: "**Blocking | Contracts** — Carry-forward out-of-diff entries also belong in the body.\n\n**Recommendation:** Keep them out of inline comments.",
           }),
         ],
       });
@@ -242,6 +242,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(preview.stdout).toContain(`Findings file: ${findingsFile}`);
       expect(preview.stdout).toContain("## Findings");
       expect(preview.stdout).toContain("## Carry-forward");
+      expect(preview.stdout).toContain("- **Critic:** (skipped — nit)");
       expect(preview.stdout).toContain("// src/review-target.ts:3-5");
       expect(preview.stdout).toContain("  const second = 2;");
       expect(preview.stdout).not.toContain("working tree content");
@@ -297,7 +298,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             line: 2,
             why: "The trailing blank line remains valid review-head source.",
             recommendation: "Keep trailing source lines anchorable.",
-            body: "**Blocking | Contracts** - The trailing blank line remains valid review-head source.\n\n**Recommendation:** Keep trailing source lines anchorable.",
+            body: "**Blocking | Contracts** — The trailing blank line remains valid review-head source.\n\n**Recommendation:** Keep trailing source lines anchorable.",
           }),
         ],
         carry_forward: [],
@@ -355,7 +356,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             line: 1,
             why: "The empty source file has no line to anchor.",
             recommendation: "Reject empty-file inline anchors.",
-            body: "**Blocking | Contracts** - The empty source file has no line to anchor.\n\n**Recommendation:** Reject empty-file inline anchors.",
+            body: "**Blocking | Contracts** — The empty source file has no line to anchor.\n\n**Recommendation:** Reject empty-file inline anchors.",
           }),
         ],
         carry_forward: [],
@@ -391,15 +392,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("renders exact post-ready inline bodies even when body diverges from live fields", async () => {
+  it("renders exact post-ready inline bodies from validated body fields", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
       const reviewBodyFile = ".ephemeral/review-body.md";
       const naturalBody =
-        "**Blocking | Contracts** - Posted natural body from the frozen artifact.\n\n**Recommendation:** Post this natural recommendation.";
+        "**Blocking | Contracts** — Posted natural body from the frozen artifact.\n\n**Recommendation:** Post this natural recommendation.";
       const missingBody =
-        "**Nit | Tests** - Posted missing-file body from the frozen artifact.\n\n**Recommendation:** Post this missing-file recommendation.";
+        "**Nit | Tests** — Posted missing-file body from the frozen artifact.\n\n**Recommendation:** Post this missing-file recommendation.";
       await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
         schema: "play-review/findings/v1",
@@ -407,17 +408,18 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           sourceFinding({
             line: 4,
             anchor: "natural",
-            why: "STALE natural why must not drive the approved inline text.",
-            recommendation:
-              "STALE natural recommendation must not drive the approved inline text.",
+            why: "Posted natural body from the frozen artifact.",
+            recommendation: "Post this natural recommendation.",
             body: naturalBody,
           }),
           sourceFinding({
             line: 8,
             anchor: "missing-file",
-            why: "STALE missing-file why must not drive the approved inline text.",
-            recommendation:
-              "STALE missing-file recommendation must not drive the approved inline text.",
+            severity: "Nit",
+            category: "Tests",
+            critic: null,
+            why: "Posted missing-file body from the frozen artifact.",
+            recommendation: "Post this missing-file recommendation.",
             body: missingBody,
           }),
         ],
@@ -452,12 +454,70 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(normalizedPreview).toContain(
         `#### Rendered Finding Body\n\n${decoded.comments[1].body}\n\n`,
       );
-      expect(normalizedPreview).not.toContain("STALE natural why");
-      expect(normalizedPreview).not.toContain("STALE missing-file why");
-      expect(normalizedPreview).not.toContain("STALE natural recommendation");
-      expect(normalizedPreview).not.toContain(
-        "STALE missing-file recommendation",
-      );
+      expect(normalizedPreview).toContain(naturalBody);
+      expect(normalizedPreview).toContain(missingBody);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects bodies that diverge from live finding fields", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          sourceFinding({
+            line: 4,
+            why: "The structured why must match the body.",
+            recommendation: "The structured recommendation must match too.",
+            body: "**Blocking | Contracts** — Posted natural body from the frozen artifact.\n\n**Recommendation:** Post this natural recommendation.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects empty why and recommendation fields before writing downgraded nits", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            critic: "DOWNGRADE",
+            why: "",
+            recommendation: "",
+            body: "**Blocking | Contracts** — \n\n**Recommendation:** ",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "prepare-judgment-nits", {
+          FINDINGS_FILE: findingsFile,
+          JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(lstat(path.join(cwd, nitsFile))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -469,7 +529,21 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     try {
       await writeRawEnvelope(cwd, findingsFile, {
         schema: "play-review/findings/v1",
-        findings: [sourceFinding()],
+        findings: [
+          sourceFinding({
+            severity: "Nit",
+            category: "Tests",
+            critic: null,
+            body: "**Nit | Tests** — The reviewed source has a problem.\n\n**Recommendation:** Adjust the reviewed source.",
+          }),
+          sourceFinding({
+            line: 5,
+            critic: null,
+            why: "The critic phase failed before verdicts were available.",
+            recommendation: "Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** — The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+          }),
+        ],
         carry_forward: [],
       });
 
@@ -481,6 +555,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       expect(stdout).toContain("## Findings");
       expect(stdout).toContain("src/review-target.ts");
+      expect(stdout).toContain("- **Critic:** (skipped — nit)");
+      expect(stdout).toContain(
+        "- **Critic:** (unverified — critic unavailable)",
+      );
       expect(stdout).not.toContain("GitHub Review Body");
       expect(stdout).not.toContain("posting");
     } finally {
@@ -499,17 +577,23 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           sourceFinding({
             anchor: "natural",
-            body: "**Blocking | Contracts** - Natural body.\n\n**Recommendation:** Fix it.",
+            why: "Natural body.",
+            recommendation: "Fix it.",
+            body: "**Blocking | Contracts** — Natural body.\n\n**Recommendation:** Fix it.",
           }),
           sourceFinding({
             line: 8,
             anchor: "missing-file",
-            body: "**Blocking | Contracts** - Missing file body.\n\n**Recommendation:** Anchor to fallback.",
+            why: "Missing file body.",
+            recommendation: "Anchor to fallback.",
+            body: "**Blocking | Contracts** — Missing file body.\n\n**Recommendation:** Anchor to fallback.",
           }),
           sourceFinding({
             line: 9,
             anchor: "out-of-diff",
-            body: "**Blocking | Contracts** - Out of diff body.\n\n**Recommendation:** Put in body.",
+            why: "Out of diff body.",
+            recommendation: "Put in body.",
+            body: "**Blocking | Contracts** — Out of diff body.\n\n**Recommendation:** Put in body.",
           }),
         ],
         carry_forward: [
@@ -520,12 +604,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             category: "Tests",
             critic: null,
             anchor: "natural",
-            body: "**Nit | Tests** - Range body.\n\n**Recommendation:** Keep range.",
+            why: "Range body.",
+            recommendation: "Keep range.",
+            body: "**Nit | Tests** — Range body.\n\n**Recommendation:** Keep range.",
           }),
           sourceFinding({
             line: 7,
             anchor: "out-of-diff",
-            body: "**Blocking | Contracts** - Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
+            why: "Carry forward out of diff.",
+            recommendation: "Put in body too.",
+            body: "**Blocking | Contracts** — Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
           }),
         ],
       });
@@ -554,7 +642,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         path: "src/review-target.ts",
         line: 4,
         side: "RIGHT",
-        body: "**Blocking | Contracts** - Natural body.\n\n**Recommendation:** Fix it.",
+        body: "**Blocking | Contracts** — Natural body.\n\n**Recommendation:** Fix it.",
       });
       expect(payload.comments[1].body).toContain(
         "Missing-file finding (no natural anchor — see body):",
@@ -741,7 +829,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             critic: null,
             why: "The critic phase failed before verdicts were available.",
             recommendation: "Preserve the unverified blocking finding.",
-            body: "**Blocking | Contracts** - The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** — The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
           }),
         ],
         carry_forward: [
@@ -753,7 +841,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             critic: null,
             why: "The coverage should prove non-empty carry-forward entries.",
             recommendation: "Keep this positive fixture.",
-            body: "**Nit | Tests** - The coverage should prove non-empty carry-forward entries.\n\n**Recommendation:** Keep this positive fixture.",
+            body: "**Nit | Tests** — The coverage should prove non-empty carry-forward entries.\n\n**Recommendation:** Keep this positive fixture.",
           }),
         ],
       };
@@ -769,6 +857,29 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await expect(
         runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects findings whose body uses a plain hyphen separator", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            body: "**Blocking | Contracts** - The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
+          }),
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -799,21 +910,21 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             critic: null,
             why: "The wording has a single clear improvement.",
             recommendation: "Tighten the wording.",
-            body: "**Nit | Documentation** - The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
+            body: "**Nit | Documentation** — The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
           }),
           finding({
             line: 43,
             critic: "DOWNGRADE",
             why: "The feedback is valid but not blocking.",
             recommendation: "Mention it as non-blocking review feedback.",
-            body: "**Blocking | Contracts** - The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
+            body: "**Blocking | Contracts** — The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
           }),
           finding({
             line: 44,
             critic: "INVALID",
             why: "The critic rejected this finding.",
             recommendation: "Do not carry it forward.",
-            body: "**Blocking | Contracts** - The critic rejected this finding.\n\n**Recommendation:** Do not carry it forward.",
+            body: "**Blocking | Contracts** — The critic rejected this finding.\n\n**Recommendation:** Do not carry it forward.",
           }),
         ],
         carry_forward: [],
@@ -843,7 +954,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         line: 42,
         severity: "Nit",
         critic: null,
-        body: "**Nit | Documentation** - The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
+        body: "**Nit | Documentation** — The wording has a single clear improvement.\n\n**Recommendation:** Tighten the wording.",
       });
       await expect(
         runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
@@ -861,15 +972,18 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
-            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
+            body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
           finding({
             line: 43,
             critic: "INVALID",
             why: "The critic rejected this finding.",
             recommendation: "Do not select it.",
-            body: "**Blocking | Contracts** - The critic rejected this finding.\n\n**Recommendation:** Do not select it.",
+            body: "**Blocking | Contracts** — The critic rejected this finding.\n\n**Recommendation:** Do not select it.",
           }),
         ],
         carry_forward: [],
@@ -910,15 +1024,18 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
-            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
+            body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
           finding({
             line: 43,
             critic: "VALID",
             why: "This is still blocking.",
             recommendation: "Stop before Phase 8.",
-            body: "**Blocking | Contracts** - This is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
+            body: "**Blocking | Contracts** — This is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
           }),
         ],
         carry_forward: [],
@@ -948,8 +1065,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [
           finding({
             severity: "Nit",
+            category: "Contracts",
             critic: null,
-            body: "**Nit | Contracts** - Carry this forward.\n\n**Recommendation:** Keep it.",
+            why: "Carry this forward.",
+            recommendation: "Keep it.",
+            body: "**Nit | Contracts** — Carry this forward.\n\n**Recommendation:** Keep it.",
           }),
         ],
         carry_forward: [
@@ -958,7 +1078,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             critic: "VALID",
             why: "This carry-forward finding is still blocking.",
             recommendation: "Stop before Phase 8.",
-            body: "**Blocking | Contracts** - This carry-forward finding is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
+            body: "**Blocking | Contracts** — This carry-forward finding is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
           }),
         ],
       });
@@ -1184,6 +1304,20 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             ...finding(),
             body: undefined,
           },
+        ],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [finding({ body: 42 })],
+        carry_forward: [],
+      },
+      {
+        schema: "play-review/findings/v1",
+        findings: [
+          finding({
+            body: "**Blocking | Contracts** — Missing the recommendation label.",
+          }),
         ],
         carry_forward: [],
       },
