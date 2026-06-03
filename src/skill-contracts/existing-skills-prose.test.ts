@@ -407,6 +407,7 @@ describe("existing skills source prose contracts", () => {
       "optional inputs",
       "input shape",
       "missing or empty behavior",
+      "valid or invalid values",
       "side effects",
       "write targets",
       "validation-before-write ordering",
@@ -414,6 +415,9 @@ describe("existing skills source prose contracts", () => {
       "forbidden behavior",
       "assumptions",
       "blockers",
+      "explicit non-goals",
+      "fixed names",
+      "intentionally deferred implementation choices",
     ]) {
       expect(normalizedDesignSelfReview).toContain(unresolvedDesignGap);
     }

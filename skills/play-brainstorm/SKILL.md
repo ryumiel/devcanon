@@ -424,10 +424,12 @@ After writing the design document, look at it with fresh eyes:
    it includes `Contract Decisions` or an equivalent clearly labeled section.
    Fix unresolved boundary names, participants, authority or ownership,
    required inputs, optional inputs, input shape, missing or empty behavior,
-   outputs, side effects or write targets, validation-before-write ordering,
-   failure behavior, forbidden behavior, assumptions, or blockers before
-   handoff unless the design records them as blockers or intentional
-   implementation choices with authority, risk, and proof expectations.
+   valid or invalid values, outputs, side effects or write targets,
+   validation-before-write ordering, failure behavior, forbidden behavior,
+   assumptions, blockers, explicit non-goals, fixed names, or intentionally
+   deferred implementation choices before handoff unless the design records
+   them as blockers or intentional implementation choices with authority, risk,
+   and proof expectations.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
