@@ -328,11 +328,19 @@ source-owned policy boundaries, and fail-closed behavior.
 Each boundary-changing design must record:
 
 - boundary name;
-- owner;
-- accepted inputs;
-- valid and invalid values, including missing or empty behavior when relevant;
-- outputs and side effects;
-- validation and failure ordering;
+- participants, including producer, validator or policy authority, adapter, and
+  consumer when those roles apply;
+- authority and ownership;
+- required inputs;
+- optional inputs;
+- valid and invalid values;
+- missing or empty behavior;
+- outputs;
+- side effects and write targets;
+- validation-before-write ordering;
+- failure behavior;
+- forbidden behavior;
+- assumptions and blockers;
 - explicit non-goals;
 - fixed names versus intentionally deferred implementation choices.
 
@@ -414,10 +422,12 @@ After writing the design document, look at it with fresh eyes:
    has an ID, requirement, source, and rationale.
 8. **Contract decisions:** If the design creates or changes a boundary, confirm
    it includes `Contract Decisions` or an equivalent clearly labeled section.
-   Fix unresolved boundary names, ownership, input shape, side effects, or
-   failure behavior before handoff unless the design records them as blockers
-   or intentional implementation choices with authority, risk, and proof
-   expectations.
+   Fix unresolved boundary names, participants, authority or ownership,
+   required inputs, optional inputs, input shape, missing or empty behavior,
+   outputs, side effects or write targets, validation-before-write ordering,
+   failure behavior, forbidden behavior, assumptions, or blockers before
+   handoff unless the design records them as blockers or intentional
+   implementation choices with authority, risk, and proof expectations.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

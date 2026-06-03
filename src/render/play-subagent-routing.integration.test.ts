@@ -66,6 +66,12 @@ describe("play-subagent planning and routing render smoke coverage", () => {
       expect(playPlanning).toContain("## Boundary-Contract Traceability");
       expect(playPlanning).toContain("design `Contract Decisions`");
       expect(normalizedPlayPlanning).toContain(
+        "creates or changes a boundary but lacks design `Contract Decisions`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "explicit blocker or intentional implementation choice disposition",
+      );
+      expect(normalizedPlayPlanning).toContain(
         "observable evidence categories and source surfaces",
       );
       expect(normalizedPlayPlanning).toContain(

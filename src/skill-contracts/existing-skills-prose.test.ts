@@ -381,12 +381,18 @@ describe("existing skills source prose contracts", () => {
 
     for (const requiredDecisionField of [
       "boundary name",
-      "owner",
-      "accepted inputs",
+      "participants",
+      "authority and ownership",
+      "required inputs",
+      "optional inputs",
       "valid and invalid values",
       "missing or empty behavior",
-      "outputs and side effects",
-      "validation and failure ordering",
+      "outputs",
+      "side effects and write targets",
+      "validation-before-write ordering",
+      "failure behavior",
+      "forbidden behavior",
+      "assumptions and blockers",
       "explicit non-goals",
       "fixed names versus intentionally deferred implementation choices",
     ]) {
@@ -395,10 +401,19 @@ describe("existing skills source prose contracts", () => {
 
     for (const unresolvedDesignGap of [
       "unresolved boundary names",
+      "participants",
       "ownership",
+      "required inputs",
+      "optional inputs",
       "input shape",
+      "missing or empty behavior",
       "side effects",
+      "write targets",
+      "validation-before-write ordering",
       "failure behavior",
+      "forbidden behavior",
+      "assumptions",
+      "blockers",
     ]) {
       expect(normalizedDesignSelfReview).toContain(unresolvedDesignGap);
     }
@@ -437,6 +452,13 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedContractHeavyWork).toContain(
       "task coverage, acceptance criteria, ownership, and proof obligations",
     );
+    expect(normalizedContractHeavyWork).toContain(
+      "creates or changes a boundary but lacks design `Contract Decisions`",
+    );
+    expect(normalizedContractHeavyWork).toContain("stop before task planning");
+    expect(normalizedContractHeavyWork).toContain(
+      "explicit blocker or intentional implementation choice disposition",
+    );
     expect(normalizedBoundaryTraceability).toContain(
       "design contract decisions",
     );
@@ -450,6 +472,9 @@ describe("existing skills source prose contracts", () => {
       );
       expect(reviewSurface).toContain("governed boundary row");
       expect(reviewSurface).toContain("design contract decisions");
+      expect(reviewSurface).toContain(
+        "explicit blocker or intentional implementation choice disposition",
+      );
     }
 
     for (const ioContractField of [

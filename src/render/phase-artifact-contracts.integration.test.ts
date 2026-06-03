@@ -93,11 +93,20 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playBrainstorm).toContain(
         "fixed names versus intentionally deferred implementation choices",
       );
+      expect(playBrainstorm).toContain("authority and ownership");
+      expect(playBrainstorm).toContain("required inputs");
+      expect(playBrainstorm).toContain("forbidden behavior");
       expect(normalizedPlayBrainstorm).toContain(
         "blockers or intentional implementation choices",
       );
 
       expect(playPlanning).toContain("design `Contract Decisions`");
+      expect(normalizedPlayPlanning).toContain(
+        "creates or changes a boundary but lacks design `Contract Decisions`",
+      );
+      expect(normalizedPlayPlanning).toContain(
+        "explicit blocker or intentional implementation choice disposition",
+      );
       expect(playPlanning).toContain("validation-before-write ordering");
       expect(normalizedPlayPlanning).toContain(
         "observable evidence categories and source surfaces",
