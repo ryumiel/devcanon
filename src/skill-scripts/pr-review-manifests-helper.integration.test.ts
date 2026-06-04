@@ -404,6 +404,44 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
   });
 
   it.skipIf(isWindows)(
+    "rejects handoff manifests with whitespace in head_ref",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        const handoff = await readJson(cwd, handoffPath(headSha));
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          head_ref: "topic branch",
+        });
+
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
     "accepts language hints containing plus from normalized extensions",
     async () => {
       const { cwd, baseSha } = await makeGitWorkspace();

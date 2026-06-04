@@ -2,8 +2,6 @@
 set -euo pipefail
 
 command_name="${1:-}"
-governed_path_pattern='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
-max_narrow_changed_files="5"
 
 fail() {
   echo "$1" >&2
@@ -408,7 +406,6 @@ validate_handoff_schema() {
     def repo: type == "string" and test("^[^/[:space:]]+/[^/[:space:]]+$");
     def nonempty_string: type == "string" and length > 0;
     def ref_string: nonempty_string and (test("[[:space:][:cntrl:]]") | not);
-    def head_ref_string: nonempty_string and (test("[[:cntrl:]]") | not);
     def absolute_path:
       type == "string"
       and length > 1
@@ -443,7 +440,7 @@ validate_handoff_schema() {
     and .execution.kind == "review-worktree"
     and (.execution.working_directory | absolute_path)
     and (.base_ref | ref_string)
-    and (.head_ref | head_ref_string)
+    and (.head_ref | ref_string)
     and (.review_scope_base_ref | ref_string)
     and (.active_diff_range | nonempty_string)
     and (.full_pr_diff_range | nonempty_string)
