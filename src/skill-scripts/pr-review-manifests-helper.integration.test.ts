@@ -84,6 +84,10 @@ async function bashPhysicalCwd(cwd: string) {
   return stdout.trim();
 }
 
+async function acceptedPhysicalRoots(cwd: string) {
+  return Array.from(new Set([cwd, await bashPhysicalCwd(cwd)]));
+}
+
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
 }
@@ -337,9 +341,12 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       ).resolves.toMatchObject({ stdout: "" });
       await expect(readJson(cwd, handoffPath(headSha))).resolves.toMatchObject({
         execution: {
-          working_directory: await bashPhysicalCwd(cwd),
+          working_directory: expect.stringMatching(/^(\/|[A-Za-z]:[\\/])/u),
         },
       });
+      await expect(acceptedPhysicalRoots(cwd)).resolves.toContain(
+        (await readJson(cwd, handoffPath(headSha))).execution.working_directory,
+      );
 
       await expect(
         runHelper(cwd, "write-result", resultEnv(headSha)),

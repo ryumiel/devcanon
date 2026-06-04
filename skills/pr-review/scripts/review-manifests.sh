@@ -91,6 +91,10 @@ normalize_execution_working_directory_for_manifest() {
     if command -v cygpath >/dev/null 2>&1; then
       normalized="$(cygpath -u "$working_directory")" ||
         fail "failed to normalize execution working_directory"
+      if [ -d "$normalized" ]; then
+        normalized="$(cd "$normalized" && pwd -P)" ||
+          fail "failed to normalize execution working_directory"
+      fi
     fi
     case "$normalized" in
       /*) ;;
@@ -328,6 +332,7 @@ validate_execution_root() {
 
   case "$working_directory" in
     /*) ;;
+    [A-Za-z]:/* | [A-Za-z]:\\*) ;;
     *) fail "execution working_directory must be absolute" ;;
   esac
   [ -d "$working_directory" ] || fail "execution working_directory missing: $working_directory"
@@ -337,8 +342,10 @@ validate_execution_root() {
     fail "failed to resolve git repository root"
   execution_directory="$(cd "$working_directory" && pwd -P)" ||
     fail "failed to resolve execution working_directory"
-  [ "$working_directory" = "$manifest_root" ] ||
-    fail "execution working_directory must equal repository root"
+  if ! is_windows_absolute_path "$working_directory"; then
+    [ "$working_directory" = "$manifest_root" ] ||
+      fail "execution working_directory must equal repository root"
+  fi
   [ "$execution_directory" = "$manifest_root" ] ||
     fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||
@@ -363,6 +370,10 @@ validate_handoff_schema() {
     def nonempty_string: type == "string" and length > 0;
     def ref_string: nonempty_string and (test("[[:space:][:cntrl:]]") | not);
     def head_ref_string: nonempty_string and (test("[[:cntrl:]]") | not);
+    def absolute_path:
+      type == "string"
+      and length > 1
+      and (startswith("/") or test("^[A-Za-z]:[\\\\/]"));
     def direct_ephemeral_path($suffix):
       type == "string"
       and test("^\\.ephemeral/[^/]+$")
@@ -390,7 +401,7 @@ validate_handoff_schema() {
     and (.execution | type == "object")
     and ((.execution | keys_unsorted | sort) == (["kind", "working_directory"] | sort))
     and .execution.kind == "review-worktree"
-    and (.execution.working_directory | type == "string" and startswith("/") and length > 1)
+    and (.execution.working_directory | absolute_path)
     and (.base_ref | ref_string)
     and (.head_ref | head_ref_string)
     and (.review_scope_base_ref | ref_string)
