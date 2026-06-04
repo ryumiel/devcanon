@@ -493,6 +493,14 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("PR_NUMBER must be a positive integer"),
       });
+      await expect(
+        runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          SCOPE_DECISION_FILE: ".ephemeral/nested/scope-decision.json",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("nested scope decision path rejected"),
+      });
 
       const handoff = await readJson(cwd, handoffPath(headSha));
       const { repository: _handoffRepository, ...handoffMissingRepository } =
@@ -1036,6 +1044,41 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         });
       } finally {
         await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a symlinked scope decision before result validation reads it",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const external = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-pr-symlink-scope-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const externalScope = path.join(external, "scope-decision.json");
+        await writeFile(
+          externalScope,
+          JSON.stringify(initialScope(baseSha, headSha), null, 2),
+        );
+        await rm(path.join(cwd, scopePath(headSha)));
+        await symlink(externalScope, path.join(cwd, scopePath(headSha)));
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "scope decision file must not be a symlink",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(external);
       }
     },
   );

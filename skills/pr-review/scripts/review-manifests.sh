@@ -266,6 +266,13 @@ EOF
   fi
 }
 
+guarded_scope_base_ref() {
+  local scope_decision_file="$1"
+  validate_direct_child_path "scope decision" "$scope_decision_file" "-scope-decision.json"
+  assert_readable_file "scope decision file" "$scope_decision_file"
+  jq_value "$scope_decision_file" '.full_range | sub("\\.\\.\\.HEAD$"; "")'
+}
+
 validate_execution_root() {
   local working_directory="$1"
   local review_head_sha="$2"
@@ -521,7 +528,7 @@ validate_result_file() {
 
   scope_decision_file="$(jq_value "$file" '.artifacts.scope_decision_file')"
   prior_threads_file="$(jq_value "$file" 'if .artifacts.prior_threads_file == null then "null" else .artifacts.prior_threads_file end')"
-  validate_scope_authority "$scope_decision_file" "$(jq_value "$scope_decision_file" '.full_range | sub("\\.\\.\\.HEAD$"; "")')" "$prior_threads_file"
+  validate_scope_authority "$scope_decision_file" "$(guarded_scope_base_ref "$scope_decision_file")" "$prior_threads_file"
 
   selected_range="$(jq_value "$scope_decision_file" '.selected_range')"
   full_range="$(jq_value "$scope_decision_file" '.full_range')"
@@ -696,7 +703,7 @@ write_result() {
   fi
 
   validate_findings_authority "$FINDINGS_FILE"
-  validate_scope_authority "$SCOPE_DECISION_FILE" "$(jq_value "$SCOPE_DECISION_FILE" '.full_range | sub("\\.\\.\\.HEAD$"; "")')" "$(jq -rn --argjson value "$prior_json" '$value // "null"')"
+  validate_scope_authority "$SCOPE_DECISION_FILE" "$(guarded_scope_base_ref "$SCOPE_DECISION_FILE")" "$(jq -rn --argjson value "$prior_json" '$value // "null"')"
 
   summary="$(jq_value "$SCOPE_DECISION_FILE" '.selection_reason')"
   selected_range="$(jq_value "$SCOPE_DECISION_FILE" '.selected_range')"
