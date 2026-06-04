@@ -64,9 +64,13 @@ Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play
 
 **Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
-Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
+Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
+calls.
 
-`working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
+`working_directory` for the play-review handoff = the physical absolute path to
+`.worktrees/pr-<N>-review`, for example
+`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
+validation rejects subdirectories, `.` aliases, and symlinked aliases.
 
 ## Phase 3: Determine diff ranges
 
@@ -146,9 +150,111 @@ Pass `REVIEW_SCOPE_DECISION_FILE` and `REVIEW_SCOPE_BASE_REF` through the Phase
 5 gate unchanged. Phase 6 must freeze and validate the approved review against
 that exact scope-decision artifact and base-range ref.
 
+After scope-decision validation succeeds and before Phase 4 can consume review
+inputs, write and validate the Phase 3 handoff manifest with the installed
+`pr-review` manifest helper. The helper owns deterministic mechanics:
+direct-child `.ephemeral` path validation, temp-file writes, atomic replacement,
+closed-schema validation, scope-decision authority checks, and worktree HEAD
+binding. Skill prose owns when the helper runs and what later phases may infer
+from the manifest.
+
+Canonical manifest schemas:
+
+- `pr-review/handoff/v1` records Phase 3 review execution inputs, range choice,
+  immutable review head, follow-up classification, language hints, and paths to
+  the validated scope-decision and optional prior-threads artifacts.
+- `pr-review/result/v1` records the deterministic handoff path, validated
+  review findings, optional review body and preview paths, content digests for
+  mutable result inputs, the scope-decision summary, and presentation status.
+
+Deterministic manifest paths:
+
+- `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-handoff.json`
+- `.ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-result.json`
+
+Helper command surface:
+
+- `prepare-handoff-write`
+- `write-handoff`
+- `validate-handoff`
+- `prepare-result-write`
+- `write-result`
+- `validate-result`
+
+Exact controller-facing notice lines:
+
+```text
+PR review handoff manifest written to <repo-relative-path>.
+PR review result manifest written to <repo-relative-path>.
+PR review result manifest updated at <repo-relative-path>.
+```
+
+Downstream consumers parse only those exact notice lines for manifest paths.
+Do not reword them.
+
+```bash
+PR_REVIEW_MANIFEST_HELPER="$PR_REVIEW_DIR/scripts/review-manifests.sh"
+write_pr_review_handoff_manifest() {
+  cd "$WORKING_DIRECTORY" || return 1
+  REVIEW_HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  REVIEW_HANDOFF_FILE=$(
+    PR_NUMBER="$PR_NUMBER" \
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    REPOSITORY="<owner/repo>" \
+    EXECUTION_WORKING_DIRECTORY="$WORKING_DIRECTORY" \
+    BASE_REF="$PR_BASE_REF" \
+    HEAD_REF="<head-ref>" \
+    REVIEW_SCOPE_BASE_REF="$REVIEW_SCOPE_BASE_REF" \
+    ACTIVE_DIFF_RANGE="$active_diff_range" \
+    FULL_PR_DIFF_RANGE="$FULL_PR_DIFF_RANGE" \
+    MODE="github-post" \
+    LANGUAGE_HINTS_JSON='<json-array>' \
+    FOLLOW_UP_STATE="<initial|follow-up-full|follow-up-narrow>" \
+    LAST_REVIEWED_SHA="${last_reviewed_sha:-}" \
+    IS_FOLLOWUP_NARROW="$is_followup_narrow" \
+    SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
+    PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" write-handoff || return 1
+  ) || return 1
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || return 1
+  printf 'PR review handoff manifest written to %s.\n' "$REVIEW_HANDOFF_FILE"
+}
+
+HANDOFF_MANIFEST_STATUS=0
+write_pr_review_handoff_manifest || HANDOFF_MANIFEST_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$HANDOFF_MANIFEST_STATUS" -eq 0 ] || exit "$HANDOFF_MANIFEST_STATUS"
+```
+
+The helper output is the repo-relative path only. The controller-facing notice
+line is emitted by this wrapper after validation succeeds. Run this as a
+caller-shell function, not a subshell, so `REVIEW_HEAD_SHA` and
+`REVIEW_HANDOFF_FILE` remain bound for Phase 4 and later guards.
+
 ## Phase 4: Run play-review
 
-Hand off to `play-review` with these inputs:
+Start by validating and consuming the Phase 3 handoff manifest from the target
+worktree root. Phase 4 must not rebuild range, scope, or prior-thread facts from
+conversation text when the manifest is present. The `pr-review/handoff/v1`
+closed schema is the controller-to-review handoff record, but it carries no
+approval state, no lease state, and no GitHub review payload.
+
+```bash
+(
+  cd "$WORKING_DIRECTORY" || exit 1
+  : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || exit 1
+  CURRENT_WORKTREE_HEAD="$(git rev-parse HEAD)" || exit 1
+  [ "$CURRENT_WORKTREE_HEAD" = "$REVIEW_HEAD_SHA" ] || {
+    echo "review worktree HEAD changed since handoff; refusing stale review" >&2
+    exit 1
+  }
+)
+```
+
+Hand off to `play-review` with these manifest-backed inputs:
 
 - `working_directory` = absolute path to `.worktrees/pr-<N>-review`
 - `base_ref` = the PR's base ref name (e.g., `main`)
@@ -171,9 +277,91 @@ FINDINGS_FILE=$(printf '%s\n' "$PLAY_REVIEW_OUTPUT" | sed -n 's/^Findings writte
 REVIEW_FINDINGS_FILE="$FINDINGS_FILE"
 ```
 
+Then write and validate the initial result manifest before the Phase 5 preview.
+This records that findings and scope-decision validation succeeded before any
+user approval gate. It does not record approval intent, review event, lease
+state, approved-review artifact paths, or payload JSON.
+
+```bash
+write_initial_pr_review_result_manifest() {
+  cd "$WORKING_DIRECTORY" || return 1
+  REVIEW_RESULT_FILE=$(
+    PR_NUMBER="$PR_NUMBER" \
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    REPOSITORY="<owner/repo>" \
+    FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+    SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
+    PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    PRESENTATION_STATUS="not-presented" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
+  ) || return 1
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
+  printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
+}
+
+RESULT_MANIFEST_STATUS=0
+write_initial_pr_review_result_manifest || RESULT_MANIFEST_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$RESULT_MANIFEST_STATUS" -eq 0 ] || exit "$RESULT_MANIFEST_STATUS"
+```
+
 ## Phase 5: Present (USER GATE)
 
 **STOP HERE. Present the report. Wait for user response.**
+
+Before presenting or resuming this gate after a user-requested edit, consume the
+current `pr-review/result/v1` manifest from the target worktree root. Phase 5
+renders and resumes from the validated result manifest, not from ambient
+conversation variables. Validate `REVIEW_RESULT_FILE` first, then extract and
+rebind the manifest-backed paths and review head needed for rendering:
+`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`,
+`REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
+`PRIOR_THREADS_FILE` when present, and `RENDERED_PREVIEW_FILE` when present.
+Then re-read the live PR head from GitHub and compare it to the rebound
+`REVIEW_HEAD_SHA`. If it changed, stop and return to Phase 1; do not present,
+edit, approve, or post a stale review result.
+
+```bash
+read_pr_review_result_manifest_for_preview() {
+  cd "$WORKING_DIRECTORY" || return 1
+  : "${REVIEW_RESULT_FILE:?Phase 5 result manifest path missing}"
+  : "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"
+  PR_NUMBER="$PR_NUMBER" \
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
+  RESULT_JSON=$(mktemp) || return 1
+  trap 'rm -f "$RESULT_JSON"' RETURN
+  cp "$REVIEW_RESULT_FILE" "$RESULT_JSON" || return 1
+  REVIEW_HEAD_SHA="$(jq -r '.review_head_sha' "$RESULT_JSON")" || return 1
+  REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
+  REVIEW_FINDINGS_FILE="$(jq -r '.findings_file' "$RESULT_JSON")" || return 1
+  REVIEW_BODY_FILE="$(jq -r '.review_body_file // empty' "$RESULT_JSON")" || return 1
+  REVIEW_SCOPE_DECISION_FILE="$(jq -r '.artifacts.scope_decision_file' "$RESULT_JSON")" || return 1
+  PRIOR_THREADS_FILE="$(jq -r '.artifacts.prior_threads_file // empty' "$RESULT_JSON")" || return 1
+  RENDERED_PREVIEW_FILE="$(jq -r '.artifacts.rendered_preview_file // empty' "$RESULT_JSON")" || return 1
+}
+
+RESULT_READ_STATUS=0
+read_pr_review_result_manifest_for_preview || RESULT_READ_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$RESULT_READ_STATUS" -eq 0 ] || exit "$RESULT_READ_STATUS"
+```
+
+Result-manifest consumption is only for rendering or resume. It does not store
+or imply approval intent, a review event, a lease, lifecycle ownership, an
+approved-review artifact, or a GitHub payload. Phase 6 still requires fresh
+explicit user approval for the latest preview and a separate approved-review
+freeze before posting.
+
+```sh
+CURRENT_HEAD_SHA="$(gh pr view <N> --json headRefOid -q .headRefOid)"
+[ "$CURRENT_HEAD_SHA" = "$REVIEW_HEAD_SHA" ] || {
+  echo "PR head changed since review; refusing stale review result" >&2
+  exit 1
+}
+```
 
 Use the installed `play-review` helper to render the artifact-backed preview;
 do not manually reshape findings. `PLAY_REVIEW_DIR` must resolve to the
@@ -227,6 +415,36 @@ REVIEW_BODY_FILE=".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-review-body.md"
 )
 ```
 
+After each successful preview render, update and validate the result manifest
+with the current review body and preview status, then emit the exact update
+notice:
+
+```bash
+update_pr_review_result_manifest() {
+  cd "$WORKING_DIRECTORY" || return 1
+  REVIEW_RESULT_FILE=$(
+    PR_NUMBER="$PR_NUMBER" \
+    HEAD_SHA="$REVIEW_HEAD_SHA" \
+    REPOSITORY="<owner/repo>" \
+    FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+    REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
+    SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
+    PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    RENDERED_PREVIEW_FILE="${RENDERED_PREVIEW_FILE:-}" \
+    PRESENTATION_STATUS="preview-current" \
+      bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
+  ) || return 1
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
+  printf 'PR review result manifest updated at %s.\n' "$REVIEW_RESULT_FILE"
+}
+
+RESULT_MANIFEST_STATUS=0
+update_pr_review_result_manifest || RESULT_MANIFEST_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$RESULT_MANIFEST_STATUS" -eq 0 ] || exit "$RESULT_MANIFEST_STATUS"
+```
+
 Present exactly that stdout to the user as the preview, plus the thread
 resolution list for follow-up reviews when applicable:
 
@@ -245,9 +463,10 @@ is captured only when the user approves a specific preview.
 **Body edits:** rewrite `REVIEW_BODY_FILE`, rerun
 `render-review-preview` with the same `REVIEW_HEAD_SHA`,
 `REVIEW_FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, and `REVIEW_BODY_FILE`,
-then present the new stdout and wait again. Run the same `REVIEW_BODY_FILE`
-pre-write guard immediately before every rewrite. Do not proceed to Phase 6
-until the user approves that latest preview.
+then update `pr-review/result/v1`, present the new stdout and result-manifest
+update notice, and wait again. Run the same `REVIEW_BODY_FILE` pre-write guard
+immediately before every rewrite. Do not proceed to Phase 6 until the user
+approves that latest preview.
 
 **Dropped or reclassified findings:** rewrite the
 `play-review/findings/v1` envelope at `REVIEW_FINDINGS_FILE`, recomputing each
@@ -291,7 +510,9 @@ sentences naming what the implementation got right before findings:
 ```
 
 Then present the re-rendered stdout and wait again. Do not rebuild a preview
-from conversation text or current checkout state.
+from conversation text or current checkout state. After findings edits, rewrite
+`pr-review/result/v1` with `PRESENTATION_STATUS="edited"` and emit
+`PR review result manifest updated at <repo-relative-path>.`.
 
 **User actions:**
 
@@ -310,7 +531,20 @@ from conversation text or current checkout state.
 
 Only after user approval:
 
-1. **Bind the approved review event from the user-approved intent.** Do not
+1. **Resume from the current result separately from approval.** Re-run the
+   Phase 5 result-manifest read before binding any approved review event. That
+   read validates `REVIEW_RESULT_FILE`, rebinds `REVIEW_HEAD_SHA`,
+   `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE`,
+   `REVIEW_SCOPE_DECISION_FILE`, and optional prior-thread or rendered-preview
+   paths, then performs the live PR head guard before approval handling. The
+   result manifest is evidence that the handoff, findings, body, preview, and
+   scope-decision inputs were validated and digest-bound for rendering or resume;
+   it is not approval, a lease, lifecycle state, an approved-review freeze, or a
+   GitHub payload. If validation fails, stop before payload construction or any
+   GitHub mutation. Fresh explicit user approval for the latest preview is still
+   required after this read.
+
+2. **Bind the approved review event from the user-approved intent.** Do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
    derive it from the explicit Phase 5 approval that applies to the latest
    rendered preview. Approval intent maps to GitHub review events as follows:
@@ -329,7 +563,7 @@ Only after user approval:
    esac
    ```
 
-2. **Build and freeze the approved payload artifact before posting.** Use the
+3. **Build and freeze the approved payload artifact before posting.** Use the
    approved Phase 5 artifacts; do not rebuild findings or the review body from
    conversation text. `PR_REVIEW_DIR` must resolve to the installed
    `pr-review` skill bundle, not the repository under review. Bind
@@ -394,7 +628,7 @@ Only after user approval:
    `start_side: "RIGHT"` while single-line comments omit both fields.
    Any nonzero helper exit is a contract failure; fail closed before posting.
 
-3. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
+4. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
    immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
    return to Phase 1; do not post an approved artifact against a stale head.
 
@@ -406,7 +640,7 @@ Only after user approval:
    }
    ```
 
-4. **Post exactly the validated approved payload.** After the stale-head guard
+5. **Post exactly the validated approved payload.** After the stale-head guard
    passes, call `validate-approved-review` into a guarded direct-child
    `.ephemeral` payload file first. Only invoke `gh api` after validation exits
    zero. Do not call `build-github-review-payload` again after user approval.
@@ -438,14 +672,14 @@ Only after user approval:
    )
    ```
 
-5. Resolve threads via GraphQL only after the approved review post succeeds and
+6. Resolve threads via GraphQL only after the approved review post succeeds and
    only for threads the user approved for resolution:
 
    ```sh
    gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
    ```
 
-6. Verify each API response succeeded. Report failures, stop on error.
+7. Verify each API response succeeded. Report failures, stop on error.
 
 ## Phase 7: Cleanup
 
