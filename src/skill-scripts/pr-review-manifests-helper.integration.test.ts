@@ -39,6 +39,7 @@ const supportValidatorScript = path.join(
 );
 const jqAvailable = await commandAvailable("jq");
 const symlinkAvailable = await canCreateSymlinks();
+const isWindows = process.platform === "win32";
 const prNumber = "390";
 
 async function commandAvailable(command: string): Promise<boolean> {
@@ -402,179 +403,189 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     }
   });
 
-  it("accepts language hints containing plus from normalized extensions", async () => {
-    const { cwd, baseSha } = await makeGitWorkspace();
-    try {
-      await writeFile(path.join(cwd, "src/native.c++"), "int value = 1;\n");
-      await execFileAsync("git", ["add", "src/native.c++"], { cwd });
-      await execFileAsync("git", ["commit", "-m", "feat: add native"], {
-        cwd,
-      });
-      const headSha = await git(cwd, "rev-parse", "HEAD");
-      await writeJson(
-        cwd,
-        scopePath(headSha),
-        initialScope(baseSha, headSha, {
-          changed_files: ["src/app.ts", "src/native.c++"],
-          language_hints: ["c++", "ts"],
-          mechanical_facts: {
-            changed_file_count: 2,
-            followup_sha_usable: false,
-            mechanical_escalate_full: true,
-            mechanical_escalation_reason: "not-followup",
+  it.skipIf(isWindows)(
+    "accepts language hints containing plus from normalized extensions",
+    async () => {
+      const { cwd, baseSha } = await makeGitWorkspace();
+      try {
+        await writeFile(path.join(cwd, "src/native.c++"), "int value = 1;\n");
+        await execFileAsync("git", ["add", "src/native.c++"], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add native"], {
+          cwd,
+        });
+        const headSha = await git(cwd, "rev-parse", "HEAD");
+        await writeJson(
+          cwd,
+          scopePath(headSha),
+          initialScope(baseSha, headSha, {
+            changed_files: ["src/app.ts", "src/native.c++"],
+            language_hints: ["c++", "ts"],
+            mechanical_facts: {
+              changed_file_count: 2,
+              followup_sha_usable: false,
+              mechanical_escalate_full: true,
+              mechanical_escalation_reason: "not-followup",
+            },
+          }),
+        );
+
+        await expect(
+          runHelper(cwd, "write-handoff", {
+            ...handoffEnv(cwd, baseSha, headSha),
+            LANGUAGE_HINTS_JSON: '["c++","ts"]',
+          }),
+        ).resolves.toMatchObject({ stdout: `${handoffPath(headSha)}\n` });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "rejects unknown and forbidden top-level or nested fields",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+
+        const handoff = await readJson(cwd, handoffPath(headSha));
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          unexpected: "extra",
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff schema mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          approval_state: "approved",
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff schema mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          execution: { ...handoff.execution, extra: true },
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff schema mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          follow_up: { ...handoff.follow_up, approval: true },
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff schema mismatch"),
+        });
+
+        const result = await readJson(cwd, resultPath(headSha));
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          unexpected: "extra",
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
+
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          artifacts: {
+            ...result.artifacts,
+            lease_file: ".ephemeral/lease.json",
           },
-        }),
-      );
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
 
-      await expect(
-        runHelper(cwd, "write-handoff", {
-          ...handoffEnv(cwd, baseSha, headSha),
-          LANGUAGE_HINTS_JSON: '["c++","ts"]',
-        }),
-      ).resolves.toMatchObject({ stdout: `${handoffPath(headSha)}\n` });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).resolves.toMatchObject({ stdout: "" });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          review_payload_file: ".ephemeral/payload.json",
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
 
-  it("rejects unknown and forbidden top-level or nested fields", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          presentation: { ...result.presentation, payload: {} },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
 
-      const handoff = await readJson(cwd, handoffPath(headSha));
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        unexpected: "extra",
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff schema mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        approval_state: "approved",
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff schema mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        execution: { ...handoff.execution, extra: true },
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff schema mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        follow_up: { ...handoff.follow_up, approval: true },
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff schema mismatch"),
-      });
-
-      const result = await readJson(cwd, resultPath(headSha));
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        unexpected: "extra",
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        artifacts: {
-          ...result.artifacts,
-          lease_file: ".ephemeral/lease.json",
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        review_payload_file: ".ephemeral/payload.json",
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        presentation: { ...result.presentation, payload: {} },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        validation: { ...result.validation, lease: "active" },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          validation: { ...result.validation, lease: "active" },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("rejects missing required fields, invalid identities, nested paths, and relative execution roots", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
@@ -881,465 +892,514 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     }
   });
 
-  it("rejects handoff and result mismatches against scope and prior-thread authority", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-
-      const handoff = await readJson(cwd, handoffPath(headSha));
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        active_diff_range: "HEAD^..HEAD",
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff active diff range mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        full_pr_diff_range: "HEAD^..HEAD",
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff full diff range mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        language_hints: ["ts", "ts"],
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff language hints mismatch"),
-      });
-
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        follow_up: {
-          state: "follow-up-full",
-          last_reviewed_sha: baseSha,
-          is_followup_narrow: false,
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff follow-up state mismatch"),
-      });
-
-      await writeJson(cwd, scopePath(headSha), {
-        ...initialScope(baseSha, headSha),
-        head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      });
-      await writeJson(cwd, handoffPath(headSha), handoff);
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("scope decision head mismatch"),
-      });
-      await writeJson(cwd, scopePath(headSha), initialScope(baseSha, headSha));
-
-      const result = await readJson(cwd, resultPath(headSha));
-      await writeJson(cwd, resultPath(headSha), {
-        ...result,
-        artifacts: {
-          ...result.artifacts,
-          prior_threads_file: priorThreadsPath(headSha),
-        },
-        digests: {
-          ...result.digests,
-          prior_threads_sha256:
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "result handoff prior threads mismatch",
-        ),
-      });
-
-      await writeJson(
-        cwd,
-        priorThreadsPath(headSha),
-        priorThreadsEnvelope(headSha),
-      );
-      await writeJson(
-        cwd,
-        scopePath(headSha),
-        initialScope(baseSha, headSha, {
-          mode: "follow-up",
-          last_reviewed_sha: baseSha,
-          is_followup_narrow: true,
-          selected_range: `${baseSha}..HEAD`,
-          candidate_narrow_range: `${baseSha}..HEAD`,
-          escalation_reasons: [],
-          prior_context: {
-            kind: "github-prior-threads",
-            path: priorThreadsPath(headSha),
-          },
-          mechanical_facts: {
-            changed_file_count: 1,
-            followup_sha_usable: true,
-            mechanical_escalate_full: false,
-            mechanical_escalation_reason: "",
-          },
-        }),
-      );
-      await writeJson(cwd, handoffPath(headSha), {
-        ...handoff,
-        artifacts: {
-          ...handoff.artifacts,
-          prior_threads_file: `.ephemeral/topic-${headSha}-stale-prior-threads.json`,
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("prior threads path mismatch"),
-      });
-
-      await writeJson(cwd, resultPath(headSha), result);
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("prior threads path mismatch"),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("binds result manifests to the deterministic handoff and rejects handoff drift", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-
-      const alternateHandoff = `.ephemeral/pr-${prNumber}-${headSha}-alternate-handoff.json`;
-      await copyFile(
-        path.join(cwd, handoffPath(headSha)),
-        path.join(cwd, alternateHandoff),
-      );
-      await writeJson(cwd, resultPath(headSha), {
-        ...(await readJson(cwd, resultPath(headSha))),
-        artifacts: {
-          ...(await readJson(cwd, resultPath(headSha))).artifacts,
-          handoff_file: alternateHandoff,
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff path mismatch"),
-      });
-
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-      const wrongPrHandoff = `.ephemeral/pr-999-${headSha}-handoff.json`;
-      await writeJson(cwd, wrongPrHandoff, {
-        ...(await readJson(cwd, handoffPath(headSha))),
-        pr_number: 999,
-      });
-      const currentResult = await readJson(cwd, resultPath(headSha));
-      await writeJson(cwd, resultPath(headSha), {
-        ...currentResult,
-        artifacts: {
-          ...currentResult.artifacts,
-          handoff_file: wrongPrHandoff,
-        },
-        digests: {
-          ...currentResult.digests,
-          handoff_sha256: await sha256File(cwd, wrongPrHandoff),
-        },
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result handoff path mismatch"),
-      });
-
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-      await rm(path.join(cwd, handoffPath(headSha)));
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff file missing"),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("rejects result manifest content drift after write", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Ready.\n");
-      await writeFile(path.join(cwd, previewPath(headSha)), "Preview.\n");
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", {
-        ...resultEnv(headSha),
-        REVIEW_BODY_FILE: reviewBodyPath(headSha),
-        RENDERED_PREVIEW_FILE: previewPath(headSha),
-      });
-
-      await writeFile(
-        path.join(cwd, findingsPath(headSha)),
-        `${JSON.stringify(findingsEnvelope(), null, 2)}\n`,
-      );
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("findings digest mismatch"),
-      });
-
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-result", {
-        ...resultEnv(headSha),
-        REVIEW_BODY_FILE: reviewBodyPath(headSha),
-        RENDERED_PREVIEW_FILE: previewPath(headSha),
-      });
-      await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Edited.\n");
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("review body digest mismatch"),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("delegates findings validation to explicit and sibling-discovered play-review helpers", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    const installed = await mkdtemp(
-      path.join(os.tmpdir(), "devcanon-installed-"),
-    );
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await copyInstalledPrManifestHelper(installed);
-      await copyInstalledPrPriorHelper(installed);
-      await copyInstalledPlayHelper(installed);
-      await copyInstalledSupportValidator(installed);
-
-      const recordingPlayHelper = path.join(cwd, ".ephemeral/play-helper.sh");
-      await writeFile(
-        recordingPlayHelper,
-        [
-          "#!/usr/bin/env bash",
-          "set -euo pipefail",
-          'printf "%s\\n" "$@" > ".ephemeral/play-helper-args.txt"',
-          "exit 0",
-          "",
-        ].join("\n"),
-      );
-      await chmod(recordingPlayHelper, 0o755);
-
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", {
-        ...resultEnv(headSha),
-        PLAY_REVIEW_HELPER: recordingPlayHelper,
-      });
-      await expect(
-        readFile(path.join(cwd, ".ephemeral/play-helper-args.txt"), "utf8"),
-      ).resolves.toContain("validate-findings");
-
-      await expect(
-        runHelper(
+  it.skipIf(isWindows)(
+    "rejects handoff and result mismatches against scope and prior-thread authority",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
           cwd,
-          "validate-result",
-          {
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+
+        const handoff = await readJson(cwd, handoffPath(headSha));
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          active_diff_range: "HEAD^..HEAD",
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff active diff range mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          full_pr_diff_range: "HEAD^..HEAD",
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff full diff range mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          language_hints: ["ts", "ts"],
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff language hints mismatch"),
+        });
+
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          follow_up: {
+            state: "follow-up-full",
+            last_reviewed_sha: baseSha,
+            is_followup_narrow: false,
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff follow-up state mismatch"),
+        });
+
+        await writeJson(cwd, scopePath(headSha), {
+          ...initialScope(baseSha, headSha),
+          head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        });
+        await writeJson(cwd, handoffPath(headSha), handoff);
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("scope decision head mismatch"),
+        });
+        await writeJson(
+          cwd,
+          scopePath(headSha),
+          initialScope(baseSha, headSha),
+        );
+
+        const result = await readJson(cwd, resultPath(headSha));
+        await writeJson(cwd, resultPath(headSha), {
+          ...result,
+          artifacts: {
+            ...result.artifacts,
+            prior_threads_file: priorThreadsPath(headSha),
+          },
+          digests: {
+            ...result.digests,
+            prior_threads_sha256:
+              "0000000000000000000000000000000000000000000000000000000000000000",
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
             HEAD_SHA: headSha,
             RESULT_FILE: resultPath(headSha),
-          },
-          path.join(installed, "pr-review/scripts/review-manifests.sh"),
-        ),
-      ).resolves.toMatchObject({ stdout: "" });
-
-      await writeJson(cwd, findingsPath(headSha), {
-        schema: "play-review/findings/v1",
-        findings: [{ invalid: true }],
-        carry_forward: [],
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("envelope shape mismatch"),
-      });
-
-      const invalidFindingsFile = `.ephemeral/topic-${headSha}-bad-findings.json`;
-      await writeJson(cwd, invalidFindingsFile, {
-        schema: "play-review/findings/v1",
-        findings: [{ invalid: true }],
-        carry_forward: [],
-      });
-      await writeJson(cwd, resultPath(headSha), {
-        ...(await readJson(cwd, resultPath(headSha))),
-        findings_file: invalidFindingsFile,
-      });
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("findings path mismatch"),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-      await cleanupTempDir(installed);
-    }
-  });
-
-  it("fails closed for missing or non-executable helper authorities before continuing", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    const installed = await mkdtemp(
-      path.join(os.tmpdir(), "devcanon-missing-"),
-    );
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-      const installedScript = await copyInstalledPrManifestHelper(installed);
-      await copyInstalledPrPriorHelper(installed);
-      await copyInstalledSupportValidator(installed);
-
-      await expect(
-        runHelper(
-          cwd,
-          "validate-result",
-          {
-            HEAD_SHA: headSha,
-            RESULT_FILE: resultPath(headSha),
-          },
-          installedScript,
-        ),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "play-review findings helper missing or not executable",
-        ),
-      });
-
-      await expect(
-        runHelper(cwd, "validate-handoff", {
-          HEAD_SHA: headSha,
-          HANDOFF_FILE: handoffPath(headSha),
-          PR_REVIEW_DIR: path.join(installed, "missing-pr-review"),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "pr-review prior-thread artifact helper missing or not executable",
-        ),
-      });
-
-      const nonExecutablePlayHelper = path.join(
-        cwd,
-        ".ephemeral/non-exec-play.sh",
-      );
-      await writeFile(nonExecutablePlayHelper, "#!/usr/bin/env bash\nexit 0\n");
-      await chmod(nonExecutablePlayHelper, 0o644);
-      await expect(
-        runHelper(cwd, "validate-result", {
-          HEAD_SHA: headSha,
-          RESULT_FILE: resultPath(headSha),
-          PLAY_REVIEW_HELPER: nonExecutablePlayHelper,
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "play-review findings helper missing or not executable",
-        ),
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-      await cleanupTempDir(installed);
-    }
-  });
-
-  it("preserves final manifests and removes temp files when temp validation fails", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    try {
-      await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
-      const before = await readFile(
-        path.join(cwd, resultPath(headSha)),
-        "utf8",
-      );
-
-      await expect(
-        runHelper(cwd, "write-result", {
-          ...resultEnv(headSha),
-          PRESENTATION_STATUS: "approved",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result schema mismatch"),
-      });
-      await expect(
-        readFile(path.join(cwd, resultPath(headSha)), "utf8"),
-      ).resolves.toBe(before);
-      await expect(
-        readFile(
-          path.join(
-            cwd,
-            `.ephemeral/.pr-${prNumber}-${headSha}-result.json.tmp`,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "result handoff prior threads mismatch",
           ),
+        });
+
+        await writeJson(
+          cwd,
+          priorThreadsPath(headSha),
+          priorThreadsEnvelope(headSha),
+        );
+        await writeJson(
+          cwd,
+          scopePath(headSha),
+          initialScope(baseSha, headSha, {
+            mode: "follow-up",
+            last_reviewed_sha: baseSha,
+            is_followup_narrow: true,
+            selected_range: `${baseSha}..HEAD`,
+            candidate_narrow_range: `${baseSha}..HEAD`,
+            escalation_reasons: [],
+            prior_context: {
+              kind: "github-prior-threads",
+              path: priorThreadsPath(headSha),
+            },
+            mechanical_facts: {
+              changed_file_count: 1,
+              followup_sha_usable: true,
+              mechanical_escalate_full: false,
+              mechanical_escalation_reason: "",
+            },
+          }),
+        );
+        await writeJson(cwd, handoffPath(headSha), {
+          ...handoff,
+          artifacts: {
+            ...handoff.artifacts,
+            prior_threads_file: `.ephemeral/topic-${headSha}-stale-prior-threads.json`,
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("prior threads path mismatch"),
+        });
+
+        await writeJson(cwd, resultPath(headSha), result);
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("prior threads path mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "binds result manifests to the deterministic handoff and rejects handoff drift",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+
+        const alternateHandoff = `.ephemeral/pr-${prNumber}-${headSha}-alternate-handoff.json`;
+        await copyFile(
+          path.join(cwd, handoffPath(headSha)),
+          path.join(cwd, alternateHandoff),
+        );
+        await writeJson(cwd, resultPath(headSha), {
+          ...(await readJson(cwd, resultPath(headSha))),
+          artifacts: {
+            ...(await readJson(cwd, resultPath(headSha))).artifacts,
+            handoff_file: alternateHandoff,
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff path mismatch"),
+        });
+
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const wrongPrHandoff = `.ephemeral/pr-999-${headSha}-handoff.json`;
+        await writeJson(cwd, wrongPrHandoff, {
+          ...(await readJson(cwd, handoffPath(headSha))),
+          pr_number: 999,
+        });
+        const currentResult = await readJson(cwd, resultPath(headSha));
+        await writeJson(cwd, resultPath(headSha), {
+          ...currentResult,
+          artifacts: {
+            ...currentResult.artifacts,
+            handoff_file: wrongPrHandoff,
+          },
+          digests: {
+            ...currentResult.digests,
+            handoff_sha256: await sha256File(cwd, wrongPrHandoff),
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result handoff path mismatch"),
+        });
+
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        await rm(path.join(cwd, handoffPath(headSha)));
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("handoff file missing"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "rejects result manifest content drift after write",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Ready.\n");
+        await writeFile(path.join(cwd, previewPath(headSha)), "Preview.\n");
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: reviewBodyPath(headSha),
+          RENDERED_PREVIEW_FILE: previewPath(headSha),
+        });
+
+        await writeFile(
+          path.join(cwd, findingsPath(headSha)),
+          `${JSON.stringify(findingsEnvelope(), null, 2)}\n`,
+        );
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings digest mismatch"),
+        });
+
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: reviewBodyPath(headSha),
+          RENDERED_PREVIEW_FILE: previewPath(headSha),
+        });
+        await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Edited.\n");
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("review body digest mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "delegates findings validation to explicit and sibling-discovered play-review helpers",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const installed = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-installed-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await copyInstalledPrManifestHelper(installed);
+        await copyInstalledPrPriorHelper(installed);
+        await copyInstalledPlayHelper(installed);
+        await copyInstalledSupportValidator(installed);
+
+        const recordingPlayHelper = path.join(cwd, ".ephemeral/play-helper.sh");
+        await writeFile(
+          recordingPlayHelper,
+          [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            'printf "%s\\n" "$@" > ".ephemeral/play-helper-args.txt"',
+            "exit 0",
+            "",
+          ].join("\n"),
+        );
+        await chmod(recordingPlayHelper, 0o755);
+
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          PLAY_REVIEW_HELPER: recordingPlayHelper,
+        });
+        await expect(
+          readFile(path.join(cwd, ".ephemeral/play-helper-args.txt"), "utf8"),
+        ).resolves.toContain("validate-findings");
+
+        await expect(
+          runHelper(
+            cwd,
+            "validate-result",
+            {
+              HEAD_SHA: headSha,
+              RESULT_FILE: resultPath(headSha),
+            },
+            path.join(installed, "pr-review/scripts/review-manifests.sh"),
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await writeJson(cwd, findingsPath(headSha), {
+          schema: "play-review/findings/v1",
+          findings: [{ invalid: true }],
+          carry_forward: [],
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("envelope shape mismatch"),
+        });
+
+        const invalidFindingsFile = `.ephemeral/topic-${headSha}-bad-findings.json`;
+        await writeJson(cwd, invalidFindingsFile, {
+          schema: "play-review/findings/v1",
+          findings: [{ invalid: true }],
+          carry_forward: [],
+        });
+        await writeJson(cwd, resultPath(headSha), {
+          ...(await readJson(cwd, resultPath(headSha))),
+          findings_file: invalidFindingsFile,
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings path mismatch"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(installed);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "fails closed for missing or non-executable helper authorities before continuing",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const installed = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-missing-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const installedScript = await copyInstalledPrManifestHelper(installed);
+        await copyInstalledPrPriorHelper(installed);
+        await copyInstalledSupportValidator(installed);
+
+        await expect(
+          runHelper(
+            cwd,
+            "validate-result",
+            {
+              HEAD_SHA: headSha,
+              RESULT_FILE: resultPath(headSha),
+            },
+            installedScript,
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "play-review findings helper missing or not executable",
+          ),
+        });
+
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+            PR_REVIEW_DIR: path.join(installed, "missing-pr-review"),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "pr-review prior-thread artifact helper missing or not executable",
+          ),
+        });
+
+        const nonExecutablePlayHelper = path.join(
+          cwd,
+          ".ephemeral/non-exec-play.sh",
+        );
+        await writeFile(
+          nonExecutablePlayHelper,
+          "#!/usr/bin/env bash\nexit 0\n",
+        );
+        await chmod(nonExecutablePlayHelper, 0o644);
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_REVIEW_HELPER: nonExecutablePlayHelper,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "play-review findings helper missing or not executable",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(installed);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "preserves final manifests and removes temp files when temp validation fails",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const before = await readFile(
+          path.join(cwd, resultPath(headSha)),
           "utf8",
-        ),
-      ).rejects.toMatchObject({ code: "ENOENT" });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        );
+
+        await expect(
+          runHelper(cwd, "write-result", {
+            ...resultEnv(headSha),
+            PRESENTATION_STATUS: "approved",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("result schema mismatch"),
+        });
+        await expect(
+          readFile(path.join(cwd, resultPath(headSha)), "utf8"),
+        ).resolves.toBe(before);
+        await expect(
+          readFile(
+            path.join(
+              cwd,
+              `.ephemeral/.pr-${prNumber}-${headSha}-result.json.tmp`,
+            ),
+            "utf8",
+          ),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it.skipIf(!symlinkAvailable)(
     "guards direct-child write targets and symlinked .ephemeral",
