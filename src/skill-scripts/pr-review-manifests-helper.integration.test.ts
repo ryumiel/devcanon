@@ -345,6 +345,19 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       const handoff = await readJson(cwd, handoffPath(headSha));
       await writeJson(cwd, handoffPath(headSha), {
         ...handoff,
+        unexpected: "extra",
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff schema mismatch"),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
         approval_state: "approved",
       });
       await expect(
@@ -369,7 +382,33 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         stderr: expect.stringContaining("handoff schema mismatch"),
       });
 
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        follow_up: { ...handoff.follow_up, approval: true },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff schema mismatch"),
+      });
+
       const result = await readJson(cwd, resultPath(headSha));
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        unexpected: "extra",
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result schema mismatch"),
+      });
+
       await writeJson(cwd, resultPath(headSha), {
         ...result,
         artifacts: {
@@ -397,6 +436,121 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("result schema mismatch"),
+      });
+
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        presentation: { ...result.presentation, payload: {} },
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result schema mismatch"),
+      });
+
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        validation: { ...result.validation, lease: "active" },
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result schema mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects missing required fields, invalid identities, nested paths, and relative execution roots", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      await expect(
+        runHelper(cwd, "prepare-handoff-write", {
+          PR_NUMBER: prNumber,
+          HEAD_SHA: "not-a-sha",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "HEAD_SHA must be a 40-character lowercase hex SHA",
+        ),
+      });
+      await expect(
+        runHelper(cwd, "prepare-result-write", {
+          PR_NUMBER: "0",
+          HEAD_SHA: headSha,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("PR_NUMBER must be a positive integer"),
+      });
+
+      const handoff = await readJson(cwd, handoffPath(headSha));
+      const { repository: _handoffRepository, ...handoffMissingRepository } =
+        handoff;
+      await writeJson(cwd, handoffPath(headSha), handoffMissingRepository);
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff schema mismatch"),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        execution: { ...handoff.execution, working_directory: "." },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff schema mismatch"),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), handoff);
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: ".ephemeral/nested/bad-handoff.json",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("nested handoff path rejected"),
+      });
+
+      const result = await readJson(cwd, resultPath(headSha));
+      const { repository: _resultRepository, ...resultMissingRepository } =
+        result;
+      await writeJson(cwd, resultPath(headSha), resultMissingRepository);
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result schema mismatch"),
+      });
+
+      await writeJson(cwd, resultPath(headSha), result);
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: ".ephemeral/nested/bad-result.json",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("nested result path rejected"),
       });
     } finally {
       await cleanupTempDir(cwd);
@@ -430,6 +584,33 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff path mismatch"),
+      });
+
+      const result = await readJson(cwd, resultPath(headSha));
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        pr_number: 999,
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result path mismatch"),
+      });
+
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        review_head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("review head mismatch"),
       });
 
       await writeJson(cwd, handoffPath(headSha), {
@@ -481,7 +662,6 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       });
 
       await execFileAsync("git", ["checkout", "--detach", headSha], { cwd });
-      const result = await readJson(cwd, resultPath(headSha));
       await writeJson(cwd, resultPath(headSha), {
         ...result,
         context_file: ".ephemeral/current.txt",
@@ -521,6 +701,64 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff active diff range mismatch"),
       });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        full_pr_diff_range: "HEAD^..HEAD",
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff full diff range mismatch"),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        language_hints: ["ts", "ts"],
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff language hints mismatch"),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        follow_up: {
+          state: "follow-up-full",
+          last_reviewed_sha: baseSha,
+          is_followup_narrow: false,
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff follow-up state mismatch"),
+      });
+
+      await writeJson(cwd, scopePath(headSha), {
+        ...initialScope(baseSha, headSha),
+        head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      });
+      await writeJson(cwd, handoffPath(headSha), handoff);
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("scope decision head mismatch"),
+      });
+      await writeJson(cwd, scopePath(headSha), initialScope(baseSha, headSha));
 
       const result = await readJson(cwd, resultPath(headSha));
       await writeJson(cwd, resultPath(headSha), {
@@ -566,6 +804,22 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           },
         }),
       );
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        artifacts: {
+          ...handoff.artifacts,
+          prior_threads_file: `.ephemeral/topic-${headSha}-stale-prior-threads.json`,
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("prior threads path mismatch"),
+      });
+
       await writeJson(cwd, resultPath(headSha), result);
       await expect(
         runHelper(cwd, "validate-result", {
@@ -624,6 +878,20 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           path.join(installed, "pr-review/scripts/review-manifests.sh"),
         ),
       ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(cwd, findingsPath(headSha), {
+        schema: "play-review/findings/v1",
+        findings: [{ invalid: true }],
+        carry_forward: [],
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
 
       const invalidFindingsFile = `.ephemeral/topic-${headSha}-bad-findings.json`;
       await writeJson(cwd, invalidFindingsFile, {

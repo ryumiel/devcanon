@@ -451,8 +451,8 @@ validate_handoff_file() {
     fail "handoff active diff range mismatch"
   [ "$full_range" = "$(jq_value "$scope_decision_file" '.full_range')" ] ||
     fail "handoff full diff range mismatch"
-  language_hints="$(jq_json "$file" '.language_hints | sort | unique')"
-  scope_language_hints="$(jq_json "$scope_decision_file" '.language_hints | sort | unique')"
+  language_hints="$(jq_json "$file" '.language_hints')"
+  scope_language_hints="$(jq_json "$scope_decision_file" '.language_hints')"
   json_equal "$language_hints" "$scope_language_hints" ||
     fail "handoff language hints mismatch"
 
