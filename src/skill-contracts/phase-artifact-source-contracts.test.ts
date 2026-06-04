@@ -19,6 +19,12 @@ const MOVED_HELPER_DIAGNOSTICS = [
   "Suffix vocabulary",
 ] as const;
 
+const PR_REVIEW_MANIFEST_NOTICE_LINES = [
+  "PR review handoff manifest written to <repo-relative-path>.",
+  "PR review result manifest written to <repo-relative-path>.",
+  "PR review result manifest updated at <repo-relative-path>.",
+] as const;
+
 describe("phase artifact source contracts", () => {
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -556,6 +562,82 @@ describe("phase artifact source contracts", () => {
       "commit_id`, `event`, `body`, and `comments` all land in the JSON body",
     );
     expect(prReview).toContain("fail closed before posting");
+  });
+
+  it("keeps pr-review manifest handoff/result contracts in source", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const manifestHelper = await readRepoFile(
+      "skills/pr-review/scripts/review-manifests.sh",
+    );
+    const normalizedPrReview = normalizeWhitespace(prReview);
+    const normalizedManifestHelper = normalizeWhitespace(manifestHelper);
+
+    expect(prReview).toContain("scripts/review-manifests.sh");
+    expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
+    expect(prReview).toContain("pr-review/handoff/v1");
+    expect(prReview).toContain("pr-review/result/v1");
+    expect(prReview).toContain(
+      ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-handoff.json",
+    );
+    expect(prReview).toContain(
+      ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-result.json",
+    );
+
+    for (const helperCommand of [
+      "prepare-handoff-write",
+      "write-handoff",
+      "validate-handoff",
+      "prepare-result-write",
+      "write-result",
+      "validate-result",
+    ]) {
+      expect(prReview).toContain(helperCommand);
+      expect(manifestHelper).toContain(helperCommand);
+    }
+
+    for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
+      expect(prReview).toContain(noticeLine);
+    }
+
+    expect(normalizedPrReview).toContain(
+      "temp-file writes, atomic replacement, closed-schema validation",
+    );
+    expect(normalizedPrReview).toContain(
+      "scope-decision authority checks, and worktree HEAD binding",
+    );
+    expect(normalizedPrReview).toContain(
+      "Phase 4 must not rebuild range, scope, or prior-thread facts from conversation text when the manifest is present",
+    );
+    expect(normalizedPrReview).toContain(
+      "review worktree HEAD changed since handoff; refusing stale review",
+    );
+    expect(normalizedPrReview).toContain(
+      "PR head changed since review; refusing stale review result",
+    );
+    expect(normalizedPrReview).toContain(
+      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+    );
+    expect(normalizedPrReview).toContain(
+      "Approval intent is captured only when the user approves a specific preview",
+    );
+    expect(normalizedPrReview).toContain(
+      "Build and freeze the approved payload artifact before posting",
+    );
+    expect(normalizedPrReview).toContain("Refuse stale heads before posting");
+    expect(normalizedPrReview).toContain(
+      "Only invoke `gh api` after validation exits zero",
+    );
+    expect(normalizedPrReview).toContain(
+      "Do not call `build-github-review-payload` again after user approval",
+    );
+
+    expect(normalizedManifestHelper).toContain(
+      "schema: $schema, pr_number: $pr_number",
+    );
+    expect(manifestHelper).toContain('"approval_state"');
+    expect(manifestHelper).toContain('"lease_state"');
+    expect(manifestHelper).toContain('"review_payload_file"');
+    expect(manifestHelper).toContain('"payload_sha256"');
   });
 
   it("keeps branch-review follow-up input, range, escalation, and fix-preservation contracts", async () => {

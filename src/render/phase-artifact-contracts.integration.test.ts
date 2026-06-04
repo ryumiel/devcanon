@@ -35,6 +35,12 @@ const MOVED_HELPER_DIAGNOSTICS = [
   "Suffix vocabulary",
 ] as const;
 
+const PR_REVIEW_MANIFEST_NOTICE_LINES = [
+  "PR review handoff manifest written to <repo-relative-path>.",
+  "PR review result manifest written to <repo-relative-path>.",
+  "PR review result manifest updated at <repo-relative-path>.",
+] as const;
+
 type RenderedBodies = Record<string, string>;
 
 const normalizeRenderedWhitespace = (value: string): string =>
@@ -252,10 +258,13 @@ describe("rendered phase artifact smoke coverage", () => {
 
     const prReview = bodyFor("pr-review");
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
+    expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("build-github-review-payload");
     expect(prReview).toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
     expect(prReview).toContain("validate-approved-review");
+    expect(prReview).toContain("pr-review/handoff/v1");
+    expect(prReview).toContain("pr-review/result/v1");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
     expect(prReview).toContain("REVIEW_BODY_FILE");
@@ -274,8 +283,17 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain(
       "PR head changed since review; refusing to post stale approved review",
     );
+    expect(prReview).toContain(
+      "PR head changed since review; refusing stale review result",
+    );
+    expect(prReview).toContain(
+      "review worktree HEAD changed since handoff; refusing stale review",
+    );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Do not call `build-github-review-payload` again after user approval",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
     );
 
     const supportValidator = bodyFor("play-validate-review-artifacts");
@@ -305,12 +323,35 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         "scripts/approved-review-artifacts.sh",
       );
+      expect(renderedPrReview).toContain("scripts/review-manifests.sh");
+      expect(renderedPrReview).toContain("PR_REVIEW_MANIFEST_HELPER");
+      expect(renderedPrReview).toContain("pr-review/handoff/v1");
+      expect(renderedPrReview).toContain("pr-review/result/v1");
       expect(renderedPrReview).toContain("render-review-preview");
       expect(renderedPrReview).toContain("prepare-review-payload-write");
       expect(renderedPrReview).toContain("build-github-review-payload");
       expect(renderedPrReview).toContain("freeze-approved-review");
       expect(renderedPrReview).toContain("validate-approved-review");
       expect(renderedPrReview).toContain("pr-review/approved-review/v1");
+      expect(renderedPrReview).toContain(
+        ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-handoff.json",
+      );
+      expect(renderedPrReview).toContain(
+        ".ephemeral/pr-${PR_NUMBER}-${REVIEW_HEAD_SHA}-result.json",
+      );
+      for (const helperCommand of [
+        "prepare-handoff-write",
+        "write-handoff",
+        "validate-handoff",
+        "prepare-result-write",
+        "write-result",
+        "validate-result",
+      ]) {
+        expect(renderedPrReview).toContain(helperCommand);
+      }
+      for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
+        expect(renderedPrReview).toContain(noticeLine);
+      }
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Run this as a caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains bound",
       );
@@ -332,6 +373,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         "PR head changed since review; refusing to post stale approved review",
       );
+      expect(renderedPrReview).toContain(
+        "PR head changed since review; refusing stale review result",
+      );
+      expect(renderedPrReview).toContain(
+        "review worktree HEAD changed since handoff; refusing stale review",
+      );
       expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
       expect(renderedPrReview).toContain(
         "validated review payload path exists but is not a regular file",
@@ -348,6 +395,18 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Do not call `build-github-review-payload` again after user approval",
       );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Approval intent is captured only when the user approves a specific preview",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Only invoke `gh api` after validation exits zero",
+      );
+      expect(renderedPrReview).not.toContain("approval_state:");
+      expect(renderedPrReview).not.toContain("lease_state:");
+      expect(renderedPrReview).not.toContain("review_payload_sha256:");
 
       expect(renderedBranchReview).toContain('REVIEW_SURFACE="branch-review"');
       expect(renderedBranchReview).toContain("Findings written to <path>.");

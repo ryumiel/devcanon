@@ -1214,6 +1214,80 @@ describe("existing skills source prose contracts", () => {
     }
   });
 
+  it("keeps pr-review manifest prose aligned with user-gate and posting boundaries", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const phase3 = sliceBetween(
+      prReview,
+      "## Phase 3: Determine diff ranges",
+      "## Phase 4: Run play-review",
+    );
+    const phase4 = sliceBetween(
+      prReview,
+      "## Phase 4: Run play-review",
+      "## Phase 5: Present (USER GATE)",
+    );
+    const phase5 = sliceBetween(
+      prReview,
+      "## Phase 5: Present (USER GATE)",
+      "## Phase 6: Post",
+    );
+    const phase6 = sliceBetween(
+      prReview,
+      "## Phase 6: Post",
+      "## Phase 7: Cleanup",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPhase4 = normalizeWhitespace(phase4);
+    const normalizedPhase5 = normalizeWhitespace(phase5);
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+
+    expect(normalizedPhase3).toContain(
+      "write and validate the Phase 3 handoff manifest",
+    );
+    expect(normalizedPhase3).toContain(
+      "Skill prose owns when the helper runs and what later phases may infer from the manifest",
+    );
+    expect(normalizedPhase3).toContain(
+      "Downstream consumers parse only those exact notice lines for manifest paths",
+    );
+    expect(normalizedPhase4).toContain(
+      "validating and consuming the Phase 3 handoff manifest",
+    );
+    expect(normalizedPhase4).toContain(
+      "Then write and validate the initial result manifest before the Phase 5 preview",
+    );
+    expect(normalizedPhase5).toContain(
+      "Before presenting or resuming this gate after a user-requested edit",
+    );
+    expect(normalizedPhase5).toContain(
+      "After each successful preview render, update and validate the result manifest",
+    );
+    expect(normalizedPhase5).toContain(
+      "The Phase 5 preview is not approval by itself",
+    );
+    expect(normalizedPhase6).toContain(
+      "Validate the current result separately from approval",
+    );
+    expect(normalizedPhase6).toContain(
+      "Bind the approved review event from the user-approved intent",
+    );
+    expect(normalizedPhase6).toContain(
+      "Build and freeze the approved payload artifact before posting",
+    );
+    expect(normalizedPhase6).toContain("Refuse stale heads before posting");
+
+    for (const staleApprovalLeak of [
+      "result manifest is approval",
+      "handoff manifest is approval",
+      "manifest owns approval",
+      "manifest owns lease",
+    ]) {
+      expect(normalizeWhitespace(prReview).toLowerCase()).not.toContain(
+        staleApprovalLeak,
+      );
+    }
+  });
+
   it("removes stale old-role owner names from play-review wrapper and reference prose", async () => {
     const briefingTemplate = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
