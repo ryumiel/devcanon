@@ -45,4 +45,6 @@ Include:
 - Risky issue IDs and their current state.
 - Linked PRs, CI state, and merge/review status.
 - Notes when a risk was downgraded after direct inspection.
-- Exact proposed write action against the latest update ID; do not propose creating a new update unless explicitly requested.
+- Exact proposed write action and action mode.
+- For default `create` mode, note the project target for the new project update.
+- For explicit `update` mode, note the confirmed target update ID separately from any style/tone reference update ID or body.
