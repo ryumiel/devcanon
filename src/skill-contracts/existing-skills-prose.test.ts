@@ -2200,7 +2200,7 @@ describe("existing skills source prose contracts", () => {
     const phase8 = sliceBetween(
       issuePrimingWorkflow,
       "### Phase 8: Create PR",
-      "## Quick Reference",
+      "## Phase Flow Reference",
     );
     const issuePrimingCommonMistakesPointer = getMarkdownSection(
       issuePrimingWorkflow,

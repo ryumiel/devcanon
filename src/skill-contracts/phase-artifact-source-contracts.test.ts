@@ -44,7 +44,7 @@ describe("phase artifact source contracts", () => {
     );
     const phase8Start = issuePrimingWorkflow.indexOf("### Phase 8: Create PR");
     const phase8End = issuePrimingWorkflow.indexOf(
-      "## Quick Reference",
+      "## Phase Flow Reference",
       phase8Start,
     );
     expect(phase8Start).toBeGreaterThanOrEqual(0);
@@ -501,9 +501,8 @@ describe("phase artifact source contracts", () => {
       "Present comment evidence introduces ambiguity, risk, or a design choice",
     );
     expect(issuePrimingWorkflow).toContain("forced by --research");
-    expect(issuePrimingWorkflow).toContain(
-      "Runs for gated research; forced research uses `forced by --research`",
-    );
+    expect(issuePrimingWorkflow).toContain("payload.research = gated");
+    expect(issuePrimingWorkflow).toContain("payload.research = forced");
 
     const commonMistakes = await readRepoFile(
       "skills/issue-priming-workflow/references/common-mistakes.md",

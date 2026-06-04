@@ -399,7 +399,7 @@ describe("rendered phase artifact smoke coverage", () => {
       const phase8 = sliceRenderedSection(
         issuePrimingWorkflow,
         "### Phase 8: Create PR",
-        "## Quick Reference",
+        "## Phase Flow Reference",
       );
       const normalizedPhase6 = normalizeRenderedWhitespace(phase6);
       const normalizedPhase7 = normalizeRenderedWhitespace(phase7);
