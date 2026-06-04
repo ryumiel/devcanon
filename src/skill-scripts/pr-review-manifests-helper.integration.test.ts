@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -49,7 +50,10 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 async function makeGitWorkspace() {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-pr-manifest-"));
+  const logicalCwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-pr-manifest-"),
+  );
+  const cwd = await realpath(logicalCwd);
   await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
   await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
   await execFileAsync("git", ["config", "user.email", "test@example.com"], {
@@ -652,7 +656,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "execution working_directory git root mismatch",
+          "execution working_directory must equal repository root",
         ),
       });
 
@@ -667,8 +671,36 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "execution working_directory git root mismatch",
+          "execution working_directory must equal repository root",
         ),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        execution: {
+          ...handoff.execution,
+          working_directory: path.join(cwd, "src"),
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "execution working_directory must equal repository root",
+        ),
+      });
+
+      await writeJson(cwd, handoffPath(headSha), handoff);
+      await expect(
+        runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          REVIEW_BODY_FILE: ".ephemeral/nested/body-review-body.md",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("nested review body path rejected"),
       });
 
       await writeFile(
@@ -1169,7 +1201,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
   );
 
   it.skipIf(!symlinkAvailable)(
-    "rejects a symlinked scope decision before result validation reads it",
+    "rejects symlinked execution and result artifact paths before reading them",
     async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
       const external = await mkdtemp(
@@ -1184,6 +1216,49 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         );
         await runHelper(cwd, "write-result", resultEnv(headSha));
         const externalScope = path.join(external, "scope-decision.json");
+        const linkedRoot = path.join(external, "linked-root");
+        await symlink(cwd, linkedRoot);
+        await writeJson(cwd, handoffPath(headSha), {
+          ...(await readJson(cwd, handoffPath(headSha))),
+          execution: {
+            kind: "review-worktree",
+            working_directory: linkedRoot,
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-handoff", {
+            HEAD_SHA: headSha,
+            HANDOFF_FILE: handoffPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "execution working_directory must equal repository root",
+          ),
+        });
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+
+        const externalReviewBody = path.join(external, "review-body.md");
+        await writeFile(externalReviewBody, "external body\n");
+        await symlink(
+          externalReviewBody,
+          path.join(cwd, reviewBodyPath(headSha)),
+        );
+        await expect(
+          runHelper(cwd, "write-result", {
+            ...resultEnv(headSha),
+            REVIEW_BODY_FILE: reviewBodyPath(headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "review body file must not be a symlink",
+          ),
+        });
+        await rm(path.join(cwd, reviewBodyPath(headSha)));
+
         await writeFile(
           externalScope,
           JSON.stringify(initialScope(baseSha, headSha), null, 2),

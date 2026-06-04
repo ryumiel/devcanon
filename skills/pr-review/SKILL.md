@@ -64,9 +64,13 @@ Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play
 
 **Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
 
-Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash calls.
+Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
+calls.
 
-`working_directory` for the play-review handoff = the absolute path to `.worktrees/pr-<N>-review`.
+`working_directory` for the play-review handoff = the physical absolute path to
+`.worktrees/pr-<N>-review`, for example
+`WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
+validation rejects subdirectories, `.` aliases, and symlinked aliases.
 
 ## Phase 3: Determine diff ranges
 

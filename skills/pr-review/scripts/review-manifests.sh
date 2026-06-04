@@ -287,7 +287,7 @@ guarded_scope_base_ref() {
 validate_execution_root() {
   local working_directory="$1"
   local review_head_sha="$2"
-  local manifest_root execution_root execution_head
+  local manifest_root execution_directory execution_root execution_head
 
   case "$working_directory" in
     /*) ;;
@@ -298,6 +298,12 @@ validate_execution_root() {
     fail "failed to determine git repository root"
   manifest_root="$(cd "$manifest_root" && pwd -P)" ||
     fail "failed to resolve git repository root"
+  execution_directory="$(cd "$working_directory" && pwd -P)" ||
+    fail "failed to resolve execution working_directory"
+  [ "$working_directory" = "$manifest_root" ] ||
+    fail "execution working_directory must equal repository root"
+  [ "$execution_directory" = "$manifest_root" ] ||
+    fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||
     fail "execution working_directory is not a git repository"
   execution_root="$(cd "$execution_root" && pwd -P)" ||
@@ -521,6 +527,15 @@ validate_optional_readable_artifact() {
   local file="$2"
   [ "$file" = "null" ] && return
   assert_readable_file "$label" "$file"
+}
+
+validate_optional_direct_child_readable_artifact() {
+  local label="$1"
+  local file="$2"
+  local suffix="$3"
+  [ "$file" = "null" ] && return
+  validate_direct_child_path "$label" "$file" "$suffix"
+  assert_readable_file "$label file" "$file"
 }
 
 validate_digest() {
@@ -783,6 +798,9 @@ write_result() {
   validate_scope_authority "$SCOPE_DECISION_FILE" "$(guarded_scope_base_ref "$SCOPE_DECISION_FILE")" "$(jq -rn --argjson value "$prior_json" '$value // "null"')"
   handoff_file="$(expected_handoff_path_for "$PR_NUMBER" "$HEAD_SHA")"
   validate_handoff_file "$handoff_file"
+  validate_optional_direct_child_readable_artifact "review body" "$(jq -rn --argjson value "$review_body_json" '$value // "null"')" "-review-body.md"
+  validate_optional_direct_child_readable_artifact "context" "$(jq -rn --argjson value "$context_json" '$value // "null"')" "-context.md"
+  validate_optional_direct_child_readable_artifact "rendered preview" "$(jq -rn --argjson value "$preview_json" '$value // "null"')" "-review-preview.md"
 
   summary="$(jq_value "$SCOPE_DECISION_FILE" '.selection_reason')"
   selected_range="$(jq_value "$SCOPE_DECISION_FILE" '.selected_range')"
