@@ -286,6 +286,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain(
       "PR head changed since review; refusing stale review result",
     );
+    expect(prReview).toContain("read_pr_review_result_manifest_for_preview");
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+    );
     expect(prReview).toContain(
       "review worktree HEAD changed since handoff; refusing stale review",
     );
@@ -293,7 +297,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Do not call `build-github-review-payload` again after user approval",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
     );
 
     const supportValidator = bodyFor("play-validate-review-artifacts");
@@ -377,6 +381,30 @@ describe("rendered phase artifact smoke coverage", () => {
         "PR head changed since review; refusing stale review result",
       );
       expect(renderedPrReview).toContain(
+        "read_pr_review_result_manifest_for_preview",
+      );
+      expect(renderedPrReview).toContain(
+        'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+      );
+      expect(renderedPrReview).toContain(
+        'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+      );
+      expect(renderedPrReview).toContain(
+        'REVIEW_FINDINGS_FILE="$(jq -r \'.findings_file\' "$RESULT_JSON")"',
+      );
+      expect(renderedPrReview).toContain(
+        'REVIEW_SCOPE_DECISION_FILE="$(jq -r \'.artifacts.scope_decision_file\' "$RESULT_JSON")"',
+      );
+      expect(renderedPrReview).toContain(
+        'RENDERED_PREVIEW_FILE="$(jq -r \'.artifacts.rendered_preview_file // empty\' "$RESULT_JSON")"',
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Result-manifest consumption is only for rendering or resume",
+      );
+      expect(renderedPrReview).toContain(
         "review worktree HEAD changed since handoff; refusing stale review",
       );
       expect(renderedPrReview).toContain("VALIDATED_REVIEW_PAYLOAD_FILE");
@@ -396,7 +424,10 @@ describe("rendered phase artifact smoke coverage", () => {
         "Do not call `build-github-review-payload` again after user approval",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+        "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Re-run the Phase 5 result-manifest read before binding any approved review event",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Approval intent is captured only when the user approves a specific preview",

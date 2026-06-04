@@ -305,10 +305,47 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 
 **STOP HERE. Present the report. Wait for user response.**
 
-Before presenting or resuming this gate after a user-requested edit, re-read the
-live PR head from GitHub and compare it to `REVIEW_HEAD_SHA`. If it changed,
-stop and return to Phase 1; do not present, edit, approve, or post a stale
-review result.
+Before presenting or resuming this gate after a user-requested edit, consume the
+current `pr-review/result/v1` manifest from the target worktree root. Phase 5
+renders and resumes from the validated result manifest, not from ambient
+conversation variables. Validate `REVIEW_RESULT_FILE` first, then extract and
+rebind the manifest-backed paths and review head needed for rendering:
+`REVIEW_HEAD_SHA`, `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE` when present,
+`REVIEW_SCOPE_DECISION_FILE`, `PRIOR_THREADS_FILE` when present, and
+`RENDERED_PREVIEW_FILE` when present. Then re-read the live PR head from GitHub
+and compare it to the rebound `REVIEW_HEAD_SHA`. If it changed, stop and return
+to Phase 1; do not present, edit, approve, or post a stale review result.
+
+```bash
+read_pr_review_result_manifest_for_preview() {
+  cd "$WORKING_DIRECTORY" || return 1
+  : "${REVIEW_RESULT_FILE:?Phase 5 result manifest path missing}"
+  RESULT_JSON=$(mktemp) || return 1
+  trap 'rm -f "$RESULT_JSON"' RETURN
+  cp "$REVIEW_RESULT_FILE" "$RESULT_JSON" || return 1
+  RESULT_REVIEW_HEAD_SHA="$(jq -r '.review_head_sha' "$RESULT_JSON")" || return 1
+  HEAD_SHA="$RESULT_REVIEW_HEAD_SHA" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
+  REVIEW_HEAD_SHA="$(jq -r '.review_head_sha' "$RESULT_JSON")" || return 1
+  REVIEW_FINDINGS_FILE="$(jq -r '.findings_file' "$RESULT_JSON")" || return 1
+  REVIEW_BODY_FILE="$(jq -r '.review_body_file // empty' "$RESULT_JSON")" || return 1
+  REVIEW_SCOPE_DECISION_FILE="$(jq -r '.artifacts.scope_decision_file' "$RESULT_JSON")" || return 1
+  PRIOR_THREADS_FILE="$(jq -r '.artifacts.prior_threads_file // empty' "$RESULT_JSON")" || return 1
+  RENDERED_PREVIEW_FILE="$(jq -r '.artifacts.rendered_preview_file // empty' "$RESULT_JSON")" || return 1
+}
+
+RESULT_READ_STATUS=0
+read_pr_review_result_manifest_for_preview || RESULT_READ_STATUS=$?
+cd "$REVIEW_CALLER_DIR" || exit 1
+[ "$RESULT_READ_STATUS" -eq 0 ] || exit "$RESULT_READ_STATUS"
+```
+
+Result-manifest consumption is only for rendering or resume. It does not store
+or imply approval intent, a review event, a lease, lifecycle ownership, an
+approved-review artifact, or a GitHub payload. Phase 6 still requires fresh
+explicit user approval for the latest preview and a separate approved-review
+freeze before posting.
 
 ```sh
 CURRENT_HEAD_SHA="$(gh pr view <N> --json headRefOid -q .headRefOid)"
@@ -485,13 +522,18 @@ from conversation text or current checkout state. After findings edits, rewrite
 
 Only after user approval:
 
-1. **Validate the current result separately from approval.** Run
-   `validate-result` from the target worktree root against
-   `REVIEW_RESULT_FILE` and `REVIEW_HEAD_SHA` before binding any approved review
-   event. The result manifest is evidence that findings, body, preview, and
-   scope-decision inputs were validated; it is not approval, a lease, lifecycle
-   state, an approved-review freeze, or a GitHub payload. If validation fails,
-   stop before payload construction or any GitHub mutation.
+1. **Resume from the current result separately from approval.** Re-run the
+   Phase 5 result-manifest read before binding any approved review event. That
+   read validates `REVIEW_RESULT_FILE`, rebinds `REVIEW_HEAD_SHA`,
+   `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE`,
+   `REVIEW_SCOPE_DECISION_FILE`, and optional prior-thread or rendered-preview
+   paths, then performs the live PR head guard before approval handling. The
+   result manifest is evidence that findings, body, preview, and scope-decision
+   inputs were validated for rendering or resume; it is not approval, a lease,
+   lifecycle state, an approved-review freeze, or a GitHub payload. If
+   validation fails, stop before payload construction or any GitHub mutation.
+   Fresh explicit user approval for the latest preview is still required after
+   this read.
 
 2. **Bind the approved review event from the user-approved intent.** Do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then

@@ -1260,13 +1260,25 @@ describe("existing skills source prose contracts", () => {
       "Before presenting or resuming this gate after a user-requested edit",
     );
     expect(normalizedPhase5).toContain(
+      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+    );
+    expect(normalizedPhase5).toContain(
+      "Validate `REVIEW_RESULT_FILE` first, then extract and rebind the manifest-backed paths and review head needed for rendering",
+    );
+    expect(normalizedPhase5).toContain(
+      "Result-manifest consumption is only for rendering or resume",
+    );
+    expect(normalizedPhase5).toContain(
       "After each successful preview render, update and validate the result manifest",
     );
     expect(normalizedPhase5).toContain(
       "The Phase 5 preview is not approval by itself",
     );
     expect(normalizedPhase6).toContain(
-      "Validate the current result separately from approval",
+      "Resume from the current result separately from approval",
+    );
+    expect(normalizedPhase6).toContain(
+      "Re-run the Phase 5 result-manifest read before binding any approved review event",
     );
     expect(normalizedPhase6).toContain(
       "Bind the approved review event from the user-approved intent",

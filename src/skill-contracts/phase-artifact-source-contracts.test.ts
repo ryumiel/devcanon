@@ -615,7 +615,31 @@ describe("phase artifact source contracts", () => {
       "PR head changed since review; refusing stale review result",
     );
     expect(normalizedPrReview).toContain(
-      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+    );
+    expect(normalizedPrReview).toContain(
+      "read_pr_review_result_manifest_for_preview",
+    );
+    expect(normalizedPrReview).toContain(
+      'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
+      'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
+      'REVIEW_FINDINGS_FILE="$(jq -r \'.findings_file\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
+      'REVIEW_SCOPE_DECISION_FILE="$(jq -r \'.artifacts.scope_decision_file\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
+      'RENDERED_PREVIEW_FILE="$(jq -r \'.artifacts.rendered_preview_file // empty\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
+      "Result-manifest consumption is only for rendering or resume",
+    );
+    expect(normalizedPrReview).toContain(
+      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
     );
     expect(normalizedPrReview).toContain(
       "Approval intent is captured only when the user approves a specific preview",
