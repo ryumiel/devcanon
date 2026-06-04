@@ -517,18 +517,12 @@ produced no judgment-required nits, omit `nits_file` entirely; absence means no
 post-creation nit comments. Phase 8 does not classify findings or prepare the
 nits envelope.
 
-## Quick Reference
+## Phase Flow Reference
 
-| Phase            | What                                   | Key constraint                                                               |
-| ---------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
-| 1. Worktree      | Adopt handed-off worktree + issue body | Fail loudly on malformed or missing paths                                    |
-| 2. Gate          | Dedicated agent assesses complexity    | Runs for gated research; forced research uses `forced by --research`         |
-| 3. Research      | Dedicated agent synthesizes brief      | Runs if gate says so or research is forced                                   |
-| 4. Brainstorm    | Invoke `play-brainstorm`               | Never skip; durable owner referrals clean up worktree before stopping        |
-| 5. Plan          | `play-planning`                        | `--auto` only; skipped only after durable owner referral cleanup             |
-| 6. Implement     | `play-subagent-execution`              | `--auto` only; single-task path may return directly to Phase 7               |
-| 7. Branch Review | `branch-review --fix` + classify nits  | `--auto` only; mechanical nits auto-fixed, judgment-required nits to Phase 8 |
-| 8. Create PR     | Push + `gh pr create`                  | `--auto` only; never auto-merge; preserve worktree until merge cleanup       |
+For a visual phase-flow map only, see
+[`references/workflow-diagram.md`](references/workflow-diagram.md). The phase
+procedures, helper contracts, notice lines, auto-mode rules, review rules, and
+PR handoff rules above remain authoritative.
 
 ## Common Mistakes
 
@@ -546,22 +540,6 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list and t
 | Gate agent fails                  | Default to `RESEARCH_NEEDED` (safer to over-research than under-research) |
 | Research agent fails/times out    | Report partial results, invoke brainstorming with what's available        |
 | No `docs/adr/` directory          | Gate treats as "no covering ADR" (research signal)                        |
-
-## Project-Specific Overrides
-
-These rules apply to any project using this skill. They override defaults from downstream skills.
-
-### Model selection
-
-Use `{{model:standard}}` as the floor for agents that make judgment calls during exploration and planning. Reviewer roles run at `{{model:deep}}` to match the downstream `branch-review` / `pr-review` floor — the authoritative defaults are pinned in `agents/spec-compliance-reviewer.yaml` and `agents/code-quality-reviewer.yaml`; the rows below mirror those for reader convenience and are not enforced by this skill. Only `{{model:fast}}` is acceptable for mechanical implementer tasks with fully-specified plans.
-
-| Agent                    | Minimum model        | Notes                                                           |
-| ------------------------ | -------------------- | --------------------------------------------------------------- |
-| Gate (Phase 2)           | `{{model:standard}}` | Escalate to `{{model:deep}}` for ambiguous or conflicting scope |
-| Research (Phase 3)       | `{{model:standard}}` | Escalate to `{{model:deep}}` for cross-module issues            |
-| Spec compliance reviewer | `{{model:deep}}`     | Per-task for `spec-and-quality` and `spec-only` routes          |
-| Code quality reviewer    | `{{model:deep}}`     | Per-task for `spec-and-quality`; final/local gates separately   |
-| PR review agents         | `{{model:deep}}`     | Always — final gate                                             |
 
 ## What This Skill Does NOT Do
 
