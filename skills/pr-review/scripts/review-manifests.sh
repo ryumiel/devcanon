@@ -76,6 +76,14 @@ is_windows_absolute_path() {
   esac
 }
 
+normalize_absolute_path_text() {
+  local path_value="$1"
+  if is_windows_absolute_path "$path_value"; then
+    path_value="${path_value//\\//}"
+  fi
+  printf '%s\n' "$path_value"
+}
+
 normalize_execution_working_directory_for_manifest() {
   local working_directory="$1"
   local normalized=""
@@ -329,6 +337,7 @@ validate_execution_root() {
   local working_directory="$1"
   local review_head_sha="$2"
   local manifest_root execution_directory execution_root execution_head
+  local normalized_working_directory normalized_manifest_root
 
   case "$working_directory" in
     /*) ;;
@@ -342,10 +351,10 @@ validate_execution_root() {
     fail "failed to resolve git repository root"
   execution_directory="$(cd "$working_directory" && pwd -P)" ||
     fail "failed to resolve execution working_directory"
-  if ! is_windows_absolute_path "$working_directory"; then
-    [ "$working_directory" = "$manifest_root" ] ||
-      fail "execution working_directory must equal repository root"
-  fi
+  normalized_working_directory="$(normalize_absolute_path_text "$working_directory")"
+  normalized_manifest_root="$(normalize_absolute_path_text "$manifest_root")"
+  [ "$normalized_working_directory" = "$normalized_manifest_root" ] ||
+    fail "execution working_directory must equal repository root"
   [ "$execution_directory" = "$manifest_root" ] ||
     fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||

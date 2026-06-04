@@ -85,7 +85,13 @@ async function bashPhysicalCwd(cwd: string) {
 }
 
 async function acceptedPhysicalRoots(cwd: string) {
-  return Array.from(new Set([cwd, await bashPhysicalCwd(cwd)]));
+  return Array.from(
+    new Set([cwd, await bashPhysicalCwd(cwd)].map(normalizePathText)),
+  );
+}
+
+function normalizePathText(value: string) {
+  return value.replace(/\\/gu, "/");
 }
 
 function scopePath(headSha: string) {
@@ -345,7 +351,10 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         },
       });
       await expect(acceptedPhysicalRoots(cwd)).resolves.toContain(
-        (await readJson(cwd, handoffPath(headSha))).execution.working_directory,
+        normalizePathText(
+          (await readJson(cwd, handoffPath(headSha))).execution
+            .working_directory,
+        ),
       );
 
       await expect(
