@@ -15,7 +15,7 @@ Use this skill to write a concise stakeholder-readable Linear project update fro
 
 Default to `DRY_RUN` unless the user explicitly asks to apply. Applying creates a new project update by default. Updating an existing project update is allowed only when the user explicitly asks to revise, edit, update, replace, or modify an existing update.
 
-Never change project lifecycle status, bulk-edit issues, or create issues unless the user explicitly asks.
+This skill must not create issues, bulk-edit issues, or change project lifecycle status.
 
 ## Workflow
 
