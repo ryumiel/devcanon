@@ -69,6 +69,43 @@ validate_pr_number() {
   validate_pr_number_value "$PR_NUMBER"
 }
 
+is_windows_absolute_path() {
+  case "$1" in
+    [A-Za-z]:/* | [A-Za-z]:\\*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+normalize_execution_working_directory_for_manifest() {
+  local working_directory="$1"
+  local normalized=""
+
+  case "$working_directory" in
+    /*)
+      printf '%s\n' "$working_directory"
+      return
+      ;;
+  esac
+
+  if is_windows_absolute_path "$working_directory"; then
+    if command -v cygpath >/dev/null 2>&1; then
+      normalized="$(cygpath -u "$working_directory")" ||
+        fail "failed to normalize execution working_directory"
+    fi
+    case "$normalized" in
+      /*) ;;
+      *)
+        normalized="$(cd "$working_directory" && pwd -P)" ||
+          fail "failed to normalize execution working_directory"
+        ;;
+    esac
+    printf '%s\n' "$normalized"
+    return
+  fi
+
+  fail "execution working_directory must be absolute"
+}
+
 expected_handoff_path_for() {
   printf '.ephemeral/pr-%s-%s-handoff.json\n' "$1" "$2"
 }
@@ -687,7 +724,7 @@ require_handoff_write_env() {
 }
 
 write_handoff() {
-  local file tmp_file prior_json last_reviewed_json
+  local file tmp_file prior_json last_reviewed_json execution_working_directory
   require_repo_root
   validate_pr_number
   validate_head_sha
@@ -707,6 +744,7 @@ write_handoff() {
     validate_sha_value LAST_REVIEWED_SHA "$LAST_REVIEWED_SHA"
     last_reviewed_json="$(jq -Rn --arg value "$LAST_REVIEWED_SHA" '$value')"
   fi
+  execution_working_directory="$(normalize_execution_working_directory_for_manifest "$EXECUTION_WORKING_DIRECTORY")"
 
   validate_scope_authority "$SCOPE_DECISION_FILE" "$REVIEW_SCOPE_BASE_REF" "$(jq -rn --argjson value "$prior_json" '$value // "null"')"
 
@@ -714,7 +752,7 @@ write_handoff() {
     --arg schema "pr-review/handoff/v1" \
     --argjson pr_number "$PR_NUMBER" \
     --arg repository "$REPOSITORY" \
-    --arg working_directory "$EXECUTION_WORKING_DIRECTORY" \
+    --arg working_directory "$execution_working_directory" \
     --arg base_ref "$BASE_REF" \
     --arg head_ref "$HEAD_REF" \
     --arg review_scope_base_ref "$REVIEW_SCOPE_BASE_REF" \

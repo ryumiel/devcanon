@@ -79,6 +79,11 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function bashPhysicalCwd(cwd: string) {
+  const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
+  return stdout.trim();
+}
+
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
 }
@@ -330,6 +335,11 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           HANDOFF_FILE: handoffPath(headSha),
         }),
       ).resolves.toMatchObject({ stdout: "" });
+      await expect(readJson(cwd, handoffPath(headSha))).resolves.toMatchObject({
+        execution: {
+          working_directory: await bashPhysicalCwd(cwd),
+        },
+      });
 
       await expect(
         runHelper(cwd, "write-result", resultEnv(headSha)),
@@ -572,6 +582,16 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested scope decision path rejected"),
+      });
+      await expect(
+        runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          EXECUTION_WORKING_DIRECTORY: ".",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "execution working_directory must be absolute",
+        ),
       });
 
       const handoff = await readJson(cwd, handoffPath(headSha));
