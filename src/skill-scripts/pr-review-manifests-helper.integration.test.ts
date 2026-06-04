@@ -241,7 +241,7 @@ async function runHelper(
 ) {
   return execFileAsync("bash", [script, command], {
     cwd,
-    env: { ...process.env, ...env },
+    env: { ...process.env, PR_NUMBER: prNumber, ...env },
     maxBuffer: 1024 * 1024,
   });
 }
@@ -361,6 +361,47 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           scope_decision_validated: true,
         },
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("accepts language hints containing plus from normalized extensions", async () => {
+    const { cwd, baseSha } = await makeGitWorkspace();
+    try {
+      await writeFile(path.join(cwd, "src/native.c++"), "int value = 1;\n");
+      await execFileAsync("git", ["add", "src/native.c++"], { cwd });
+      await execFileAsync("git", ["commit", "-m", "feat: add native"], {
+        cwd,
+      });
+      const headSha = await git(cwd, "rev-parse", "HEAD");
+      await writeJson(
+        cwd,
+        scopePath(headSha),
+        initialScope(baseSha, headSha, {
+          changed_files: ["src/app.ts", "src/native.c++"],
+          language_hints: ["c++", "ts"],
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      );
+
+      await expect(
+        runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          LANGUAGE_HINTS_JSON: '["c++","ts"]',
+        }),
+      ).resolves.toMatchObject({ stdout: `${handoffPath(headSha)}\n` });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -622,8 +663,18 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           HANDOFF_FILE: handoffPath(headSha),
         }),
       ).rejects.toMatchObject({
-        stderr: expect.stringContaining("handoff path mismatch"),
+        stderr: expect.stringContaining("handoff PR number mismatch"),
       });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          PR_NUMBER: "",
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("PR_NUMBER is required"),
+      });
+      await writeJson(cwd, handoffPath(headSha), handoff);
 
       const result = await readJson(cwd, resultPath(headSha));
       await writeJson(cwd, resultPath(headSha), {
@@ -636,8 +687,18 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           RESULT_FILE: resultPath(headSha),
         }),
       ).rejects.toMatchObject({
-        stderr: expect.stringContaining("result path mismatch"),
+        stderr: expect.stringContaining("result PR number mismatch"),
       });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          PR_NUMBER: "",
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("PR_NUMBER is required"),
+      });
+      await writeJson(cwd, resultPath(headSha), result);
 
       await writeJson(cwd, resultPath(headSha), {
         ...result,

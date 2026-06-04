@@ -384,7 +384,10 @@ describe("rendered phase artifact smoke coverage", () => {
         "read_pr_review_result_manifest_for_preview",
       );
       expect(renderedPrReview).toContain(
-        'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+        ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
+      );
+      expect(renderedPrReview).toContain(
+        'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE"',
       );
       expect(renderedPrReview).toContain(
         'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
@@ -823,7 +826,7 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors the pr-review approved-review helper script required by rendered Phase 6 contracts", async () => {
+  it("mirrors the pr-review helper scripts required by rendered contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -841,28 +844,27 @@ describe("rendered phase artifact smoke coverage", () => {
         },
         true,
       );
-      const sourceHelper = await readFile(
-        path.join(
-          repoRoot,
-          "skills",
-          "pr-review",
-          "scripts",
-          "approved-review-artifacts.sh",
-        ),
-        "utf-8",
-      );
-
-      for (const target of ["claude", "codex"] as const) {
-        const helperPath = path.join(
-          generatedDir,
-          target,
-          "skills",
-          "pr-review",
-          "scripts",
-          "approved-review-artifacts.sh",
+      for (const helperName of [
+        "approved-review-artifacts.sh",
+        "review-manifests.sh",
+      ]) {
+        const sourceHelper = await readFile(
+          path.join(repoRoot, "skills", "pr-review", "scripts", helperName),
+          "utf-8",
         );
 
-        expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        for (const target of ["claude", "codex"] as const) {
+          const helperPath = path.join(
+            generatedDir,
+            target,
+            "skills",
+            "pr-review",
+            "scripts",
+            helperName,
+          );
+
+          expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
+        }
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });

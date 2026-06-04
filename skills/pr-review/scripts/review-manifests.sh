@@ -361,7 +361,7 @@ validate_handoff_schema() {
     and (.full_pr_diff_range | nonempty_string)
     and (.review_head_sha | sha)
     and .mode == "github-post"
-    and (.language_hints | type == "array" and all(.[]; type == "string" and test("^[a-z][a-z0-9_-]*$")))
+    and (.language_hints | type == "array" and all(.[]; type == "string" and test("^[a-z0-9][a-z0-9_+-]*$")))
     and (.follow_up | type == "object")
     and ((.follow_up | keys_unsorted | sort) == (["state", "last_reviewed_sha", "is_followup_narrow"] | sort))
     and one_of(["initial", "follow-up-full", "follow-up-narrow"]; .follow_up.state)
@@ -462,12 +462,15 @@ validate_handoff_file() {
   local working_directory scope_head
 
   require_repo_root
+  validate_pr_number
   validate_head_sha
   validate_direct_child_path "handoff" "$file"
   assert_readable_file "handoff file" "$file"
   validate_handoff_schema "$file"
 
   pr_number="$(jq_value "$file" '.pr_number')"
+  [ "$pr_number" = "$PR_NUMBER" ] ||
+    fail "handoff PR number mismatch: manifest $pr_number, current $PR_NUMBER"
   review_head_sha="$(jq_value "$file" '.review_head_sha')"
   [ "$review_head_sha" = "$HEAD_SHA" ] ||
     fail "review head mismatch: manifest $review_head_sha, current $HEAD_SHA"
@@ -568,12 +571,15 @@ validate_result_file() {
   local handoff_digest findings_digest review_body_digest context_digest scope_digest prior_digest preview_digest
 
   require_repo_root
+  validate_pr_number
   validate_head_sha
   validate_direct_child_path "result" "$file"
   assert_readable_file "result file" "$file"
   validate_result_schema "$file"
 
   pr_number="$(jq_value "$file" '.pr_number')"
+  [ "$pr_number" = "$PR_NUMBER" ] ||
+    fail "result PR number mismatch: manifest $pr_number, current $PR_NUMBER"
   repository="$(jq_value "$file" '.repository')"
   review_head_sha="$(jq_value "$file" '.review_head_sha')"
   [ "$review_head_sha" = "$HEAD_SHA" ] ||

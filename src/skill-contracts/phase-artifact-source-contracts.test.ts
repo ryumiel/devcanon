@@ -621,7 +621,10 @@ describe("phase artifact source contracts", () => {
       "read_pr_review_result_manifest_for_preview",
     );
     expect(normalizedPrReview).toContain(
-      'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
+      ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
+    );
+    expect(normalizedPrReview).toContain(
+      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE"',
     );
     expect(normalizedPrReview).toContain(
       'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
