@@ -582,6 +582,8 @@ validate_result_file() {
   [ "$identity_file" = "$expected" ] || fail "result path mismatch: $identity_file"
 
   handoff_file="$(jq_value "$file" '.artifacts.handoff_file')"
+  [ "$handoff_file" = "$(expected_handoff_path_for "$pr_number" "$review_head_sha")" ] ||
+    fail "result handoff path mismatch"
   validate_handoff_file "$handoff_file"
   handoff_repository="$(jq_value "$handoff_file" '.repository')"
   [ "$repository" = "$handoff_repository" ] || fail "result repository mismatch"

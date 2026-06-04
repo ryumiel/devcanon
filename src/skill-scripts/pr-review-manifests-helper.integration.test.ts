@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -189,6 +190,12 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
 
 async function readJson(cwd: string, relPath: string) {
   return JSON.parse(await readFile(path.join(cwd, relPath), "utf8"));
+}
+
+async function sha256File(cwd: string, relPath: string) {
+  return createHash("sha256")
+    .update(await readFile(path.join(cwd, relPath)))
+    .digest("hex");
 }
 
 async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
@@ -927,6 +934,33 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff path mismatch"),
+      });
+
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const wrongPrHandoff = `.ephemeral/pr-999-${headSha}-handoff.json`;
+      await writeJson(cwd, wrongPrHandoff, {
+        ...(await readJson(cwd, handoffPath(headSha))),
+        pr_number: 999,
+      });
+      const currentResult = await readJson(cwd, resultPath(headSha));
+      await writeJson(cwd, resultPath(headSha), {
+        ...currentResult,
+        artifacts: {
+          ...currentResult.artifacts,
+          handoff_file: wrongPrHandoff,
+        },
+        digests: {
+          ...currentResult.digests,
+          handoff_sha256: await sha256File(cwd, wrongPrHandoff),
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result handoff path mismatch"),
       });
 
       await runHelper(cwd, "write-result", resultEnv(headSha));
