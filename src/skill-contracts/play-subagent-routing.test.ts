@@ -129,15 +129,10 @@ describe("play subagent routing source contracts", () => {
       "### Phase 7: Branch Review",
       "### Phase 8: Create PR",
     );
-    const overrides = getMarkdownSection(
-      issuePrimingWorkflow,
-      "Project-Specific Overrides",
-    );
     const normalizedPhase5 = normalizeWhitespace(phase5);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
-    const normalizedOverrides = normalizeWhitespace(overrides);
 
     expect(phase2).toContain("payload.research = gated");
     expect(phase2).toContain("payload.research = forced");
@@ -146,6 +141,8 @@ describe("play subagent routing source contracts", () => {
     expect(phase2).toContain("{{model:deep}}");
     expect(phase3).toContain("research-agent");
     expect(phase3).toContain("read-only");
+    expect(phase3).toContain("{{model:standard}}");
+    expect(phase3).toContain("{{model:deep}}");
     expect(phase3).toContain("Research brief written to");
     expect(normalizedPhase5).toContain(
       "Comment evidence: <repo-relative-path from payload.comment-evidence-path>",
@@ -270,12 +267,7 @@ describe("play subagent routing source contracts", () => {
       "Manual operators decide nit handling case by case",
     );
 
-    expect(normalizedOverrides).toContain(
-      "Use `{{model:standard}}` as the floor for agents that make judgment calls",
-    );
-    expect(normalizedOverrides).toContain(
-      "Reviewer roles run at `{{model:deep}}`",
-    );
+    expect(issuePrimingWorkflow).not.toContain("Project-Specific Overrides");
   });
 
   it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {
@@ -585,7 +577,7 @@ describe("play subagent routing source contracts", () => {
     const phase8 = sliceBetween(
       issuePrimingWorkflow,
       "### Phase 8: Create PR",
-      "## Quick Reference",
+      "## Phase Flow Reference",
     );
     const normalizedRouting = normalizeWhitespace(routingPolicy);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
