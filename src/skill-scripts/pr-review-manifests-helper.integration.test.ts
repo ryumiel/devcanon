@@ -91,7 +91,17 @@ async function acceptedPhysicalRoots(cwd: string) {
 }
 
 function normalizePathText(value: string) {
-  return value.replace(/\\/gu, "/");
+  let normalized = value.replace(/\\/gu, "/");
+  if (process.platform === "win32") {
+    normalized = normalized.replace(
+      /^\/([A-Za-z])\//u,
+      (_match, drive: string) => `${drive}:/`,
+    );
+    if (/^[A-Za-z]:\//u.test(normalized)) {
+      normalized = normalized.toLowerCase();
+    }
+  }
+  return normalized;
 }
 
 function scopePath(headSha: string) {
@@ -600,6 +610,16 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         stderr: expect.stringContaining("nested scope decision path rejected"),
       });
       await expect(
+        runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          SCOPE_DECISION_FILE: ".ephemeral\\nested\\scope-decision.json",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "scope decision path validation failed",
+        ),
+      });
+      await expect(
         runHelper(cwd, "write-handoff", {
           ...handoffEnv(cwd, baseSha, headSha),
           EXECUTION_WORKING_DIRECTORY: ".",
@@ -636,6 +656,22 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         stderr: expect.stringContaining("handoff schema mismatch"),
       });
 
+      await writeJson(cwd, handoffPath(headSha), handoff);
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        artifacts: {
+          ...handoff.artifacts,
+          scope_decision_file: `.ephemeral\\topic-${headSha}-scope-decision.json`,
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff schema mismatch"),
+      });
       await writeJson(cwd, handoffPath(headSha), handoff);
       await expect(
         runHelper(cwd, "validate-handoff", {

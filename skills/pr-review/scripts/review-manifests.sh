@@ -76,11 +76,40 @@ is_windows_absolute_path() {
   esac
 }
 
+is_windows_path_environment() {
+  case "${OSTYPE:-}" in
+    msys* | cygwin*) return 0 ;;
+  esac
+  case "${MSYSTEM:-}" in
+    MINGW* | MSYS* | CYGWIN*) return 0 ;;
+  esac
+  case "$(uname -s 2>/dev/null)" in
+    MINGW* | MSYS* | CYGWIN*) return 0 ;;
+  esac
+  return 1
+}
+
 normalize_absolute_path_text() {
   local path_value="$1"
-  if is_windows_absolute_path "$path_value"; then
+  if is_windows_absolute_path "$path_value" || is_windows_path_environment; then
     path_value="${path_value//\\//}"
   fi
+  case "$path_value" in
+    [A-Za-z]:/*) ;;
+    /[A-Za-z]/*)
+      if is_windows_path_environment; then
+        path_value="${path_value:1:1}:${path_value:2}"
+      else
+        printf '%s\n' "$path_value"
+        return
+      fi
+      ;;
+    *)
+      printf '%s\n' "$path_value"
+      return
+      ;;
+  esac
+  path_value="$(printf '%s\n' "$path_value" | tr '[:upper:]' '[:lower:]')"
   printf '%s\n' "$path_value"
 }
 
@@ -138,6 +167,7 @@ validate_direct_child_path() {
 
   [ -n "$file" ] || fail "$label is required"
   case "$file" in
+    *\\*) fail "$label path validation failed: $file" ;;
     *..*) fail "path traversal: $file" ;;
     .ephemeral/*/*) fail "nested $label path rejected: $file" ;;
     .ephemeral/*) ;;
@@ -355,7 +385,7 @@ validate_execution_root() {
   normalized_manifest_root="$(normalize_absolute_path_text "$manifest_root")"
   [ "$normalized_working_directory" = "$normalized_manifest_root" ] ||
     fail "execution working_directory must equal repository root"
-  [ "$execution_directory" = "$manifest_root" ] ||
+  [ "$(normalize_absolute_path_text "$execution_directory")" = "$normalized_manifest_root" ] ||
     fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||
     fail "execution working_directory is not a git repository"
@@ -387,6 +417,7 @@ validate_handoff_schema() {
       type == "string"
       and test("^\\.ephemeral/[^/]+$")
       and endswith($suffix)
+      and (contains("\\") | not)
       and (contains("..") | not);
     def no_forbidden:
       [.. | objects | keys_unsorted[]?]
@@ -450,6 +481,7 @@ validate_result_schema() {
       type == "string"
       and test("^\\.ephemeral/[^/]+$")
       and endswith($suffix)
+      and (contains("\\") | not)
       and (contains("..") | not);
     def no_forbidden:
       [.. | objects | keys_unsorted[]?]
