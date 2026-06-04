@@ -23,6 +23,18 @@ const PHASE_ARTIFACT_SKILLS = [
   "play-subagent-execution",
 ] as const;
 
+const MOVED_HELPER_DIAGNOSTICS = [
+  "nested issue body path rejected",
+  "issue body must not be a symlink",
+  "issue body missing or not a regular file",
+  "nested comment evidence path rejected",
+  "comment evidence must not be a symlink",
+  "comment evidence missing or not a regular file",
+  "assumptions_comment_file must be a direct child of .ephemeral",
+  "research brief path validation failed",
+  "Suffix vocabulary",
+] as const;
+
 type RenderedBodies = Record<string, string>;
 
 const normalizeRenderedWhitespace = (value: string): string =>
@@ -146,6 +158,34 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(body).toContain("worktree-path");
     }
 
+    for (const target of ["claude", "codex"] as const) {
+      const renderedIssuePrimingWorkflow =
+        bodies[`issue-priming-workflow:${target}`];
+
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"',
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'if [ -n "$COMMENT_EVIDENCE_PATH" ]; then',
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        'bash "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"',
+      );
+      expect(
+        normalizeRenderedWhitespace(renderedIssuePrimingWorkflow),
+      ).toContain("Treat a nonzero helper exit as a contract failure");
+      expect(
+        normalizeRenderedWhitespace(renderedIssuePrimingWorkflow),
+      ).toContain(
+        "Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell",
+      );
+      for (const eagerDiagnosticDetail of MOVED_HELPER_DIAGNOSTICS) {
+        expect(renderedIssuePrimingWorkflow).not.toContain(
+          eagerDiagnosticDetail,
+        );
+      }
+    }
+
     const issuePrimingWorkflow = bodyFor("issue-priming-workflow");
     expect(issuePrimingWorkflow).toContain("Issue body:");
     expect(issuePrimingWorkflow).toContain("Comment evidence:");
@@ -155,6 +195,9 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
+    );
+    expect(issuePrimingWorkflow).toContain(
+      "references/helper-invocation-contracts.md",
     );
     expect(issuePrimingWorkflow).toContain("Design written to");
     expect(issuePrimingWorkflow).toContain("Plan written to");
@@ -420,6 +463,14 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase8).toContain(
         "Pass reviewer-relevant resolved auto-mode assumptions only through `assumptions_comment_file`",
       );
+      expect(phase8).toContain("helper invocation reference");
+      expect(phase8).toContain("ASSUMPTIONS_COMMENT_FILE=$(");
+      expect(phase8).toContain(
+        'bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"',
+      );
+      expect(normalizedPhase8).toContain(
+        "treat nonzero exit as a contract failure before writing or passing the path",
+      );
       expect(normalizedPhase8).toContain(
         "Ambiguous decisions still stop `--auto` and ask the user",
       );
@@ -429,7 +480,6 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPhase8).toContain(
         "Phase 8 does not classify findings or prepare the nits envelope",
       );
-      expect(phase8).not.toContain("scripts/write-assumptions-comment.sh");
       expect(phase8).not.toContain(
         "assumptions_comment_file must be a direct child of .ephemeral",
       );
@@ -772,7 +822,7 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
-  it("mirrors issue-priming helper scripts required by rendered Phase 1, Phase 3, and Phase 8 contracts", async () => {
+  it("mirrors issue-priming helper scripts and invocation reference required by rendered contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
       path.join(repoRoot, "devcanon.config.yaml"),
@@ -783,6 +833,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "write-research-brief.sh",
       "write-assumptions-comment.sh",
     ] as const;
+    const referenceName = "helper-invocation-contracts.md";
 
     try {
       await renderAll(
@@ -818,6 +869,34 @@ describe("rendered phase artifact smoke coverage", () => {
 
           expect(await readFile(helperPath, "utf-8")).toBe(sourceHelper);
         }
+      }
+
+      const sourceReferencePath = path.join(
+        repoRoot,
+        "skills",
+        "issue-priming-workflow",
+        "references",
+        referenceName,
+      );
+      const sourceReference = await readFile(sourceReferencePath, "utf-8");
+
+      for (const target of ["claude", "codex"] as const) {
+        const referencePath = path.join(
+          generatedDir,
+          target,
+          "skills",
+          "issue-priming-workflow",
+          "references",
+          referenceName,
+        );
+        const renderedReference = await readFile(referencePath, "utf-8");
+
+        expect(renderedReference).toBe(sourceReference);
+        expect(renderedReference).toContain("nested <label> path rejected");
+        expect(renderedReference).toContain("<label> must not be a symlink");
+        expect(renderedReference).toContain(
+          "assumptions_comment_file must be a direct child of .ephemeral",
+        );
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
