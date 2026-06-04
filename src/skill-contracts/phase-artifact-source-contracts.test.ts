@@ -624,6 +624,9 @@ describe("phase artifact source contracts", () => {
       'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
+      'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
+    );
+    expect(normalizedPrReview).toContain(
       'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
@@ -639,7 +642,7 @@ describe("phase artifact source contracts", () => {
       "Result-manifest consumption is only for rendering or resume",
     );
     expect(normalizedPrReview).toContain(
-      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
     );
     expect(normalizedPrReview).toContain(
       "Approval intent is captured only when the user approves a specific preview",

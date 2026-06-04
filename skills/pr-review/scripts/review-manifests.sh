@@ -20,6 +20,17 @@ require_jq() {
     fail "jq is required to validate pr-review manifests"
 }
 
+sha256_file() {
+  local path="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  else
+    fail "shasum or sha256sum is required"
+  fi
+}
+
 require_repo_root() {
   local git_toplevel physical_toplevel physical_pwd
   git_toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" ||
@@ -370,6 +381,7 @@ validate_result_schema() {
   jq -e '
     def one_of($values; $value): ($values | index($value)) != null;
     def sha: type == "string" and test("^[0-9a-f]{40}$");
+    def hex_sha256: type == "string" and test("^[0-9a-f]{64}$");
     def repo: type == "string" and test("^[^/[:space:]]+/[^/[:space:]]+$");
     def direct_ephemeral_path($suffix):
       type == "string"
@@ -387,8 +399,8 @@ validate_result_schema() {
     type == "object"
     and ((keys_unsorted | sort) == ([
       "schema", "pr_number", "repository", "review_head_sha", "findings_file",
-      "review_body_file", "context_file", "artifacts", "scope_decision",
-      "presentation", "validation"
+      "review_body_file", "context_file", "artifacts", "digests",
+      "scope_decision", "presentation", "validation"
     ] | sort))
     and no_forbidden
     and .schema == "pr-review/result/v1"
@@ -399,10 +411,24 @@ validate_result_schema() {
     and (.review_body_file == null or (.review_body_file | direct_ephemeral_path("-review-body.md")))
     and (.context_file == null or (.context_file | direct_ephemeral_path("-context.md")))
     and (.artifacts | type == "object")
-    and ((.artifacts | keys_unsorted | sort) == (["scope_decision_file", "prior_threads_file", "rendered_preview_file"] | sort))
+    and ((.artifacts | keys_unsorted | sort) == (["handoff_file", "scope_decision_file", "prior_threads_file", "rendered_preview_file"] | sort))
+    and (.artifacts.handoff_file | direct_ephemeral_path("-handoff.json"))
     and (.artifacts.scope_decision_file | direct_ephemeral_path("-scope-decision.json"))
     and (.artifacts.prior_threads_file == null or (.artifacts.prior_threads_file | direct_ephemeral_path("-prior-threads.json")))
     and (.artifacts.rendered_preview_file == null or (.artifacts.rendered_preview_file | direct_ephemeral_path("-review-preview.md")))
+    and (.digests | type == "object")
+    and ((.digests | keys_unsorted | sort) == ([
+      "handoff_sha256", "findings_sha256", "review_body_sha256",
+      "context_sha256", "scope_decision_sha256", "prior_threads_sha256",
+      "rendered_preview_sha256"
+    ] | sort))
+    and (.digests.handoff_sha256 | hex_sha256)
+    and (.digests.findings_sha256 | hex_sha256)
+    and (.digests.scope_decision_sha256 | hex_sha256)
+    and (if .review_body_file == null then .digests.review_body_sha256 == null else (.digests.review_body_sha256 | hex_sha256) end)
+    and (if .context_file == null then .digests.context_sha256 == null else (.digests.context_sha256 | hex_sha256) end)
+    and (if .artifacts.prior_threads_file == null then .digests.prior_threads_sha256 == null else (.digests.prior_threads_sha256 | hex_sha256) end)
+    and (if .artifacts.rendered_preview_file == null then .digests.rendered_preview_sha256 == null else (.digests.rendered_preview_sha256 | hex_sha256) end)
     and (.scope_decision | type == "object")
     and ((.scope_decision | keys_unsorted | sort) == (["summary", "selected_range", "full_range", "is_followup_narrow"] | sort))
     and (.scope_decision.summary | type == "string" and length > 0)
@@ -497,11 +523,34 @@ validate_optional_readable_artifact() {
   assert_readable_file "$label" "$file"
 }
 
+validate_digest() {
+  local label="$1"
+  local file="$2"
+  local expected="$3"
+  local actual
+  actual="$(sha256_file "$file")"
+  [ "$actual" = "$expected" ] || fail "$label digest mismatch: $file"
+}
+
+validate_optional_digest() {
+  local label="$1"
+  local file="$2"
+  local expected="$3"
+  if [ "$file" = "null" ]; then
+    [ "$expected" = "null" ] || fail "$label digest mismatch: $file"
+    return
+  fi
+  [ "$expected" != "null" ] || fail "$label digest mismatch: $file"
+  validate_digest "$label" "$file" "$expected"
+}
+
 validate_result_file() {
   local file="$1"
   local identity_file="${2:-$1}"
-  local pr_number review_head_sha expected findings_file scope_decision_file prior_threads_file
+  local pr_number repository review_head_sha expected handoff_file findings_file scope_decision_file prior_threads_file
   local review_body_file context_file rendered_preview_file selected_range full_range scope_narrow scope_summary
+  local handoff_repository handoff_scope_decision_file handoff_prior_threads_file
+  local handoff_digest findings_digest review_body_digest context_digest scope_digest prior_digest preview_digest
 
   require_repo_root
   validate_head_sha
@@ -510,11 +559,17 @@ validate_result_file() {
   validate_result_schema "$file"
 
   pr_number="$(jq_value "$file" '.pr_number')"
+  repository="$(jq_value "$file" '.repository')"
   review_head_sha="$(jq_value "$file" '.review_head_sha')"
   [ "$review_head_sha" = "$HEAD_SHA" ] ||
     fail "review head mismatch: manifest $review_head_sha, current $HEAD_SHA"
   expected="$(expected_result_path_for "$pr_number" "$review_head_sha")"
   [ "$identity_file" = "$expected" ] || fail "result path mismatch: $identity_file"
+
+  handoff_file="$(jq_value "$file" '.artifacts.handoff_file')"
+  validate_handoff_file "$handoff_file"
+  handoff_repository="$(jq_value "$handoff_file" '.repository')"
+  [ "$repository" = "$handoff_repository" ] || fail "result repository mismatch"
 
   findings_file="$(jq_value "$file" '.findings_file')"
   validate_findings_authority "$findings_file"
@@ -528,6 +583,12 @@ validate_result_file() {
 
   scope_decision_file="$(jq_value "$file" '.artifacts.scope_decision_file')"
   prior_threads_file="$(jq_value "$file" 'if .artifacts.prior_threads_file == null then "null" else .artifacts.prior_threads_file end')"
+  handoff_scope_decision_file="$(jq_value "$handoff_file" '.artifacts.scope_decision_file')"
+  handoff_prior_threads_file="$(jq_value "$handoff_file" 'if .artifacts.prior_threads_file == null then "null" else .artifacts.prior_threads_file end')"
+  [ "$scope_decision_file" = "$handoff_scope_decision_file" ] ||
+    fail "result handoff scope decision mismatch"
+  [ "$prior_threads_file" = "$handoff_prior_threads_file" ] ||
+    fail "result handoff prior threads mismatch"
   validate_scope_authority "$scope_decision_file" "$(guarded_scope_base_ref "$scope_decision_file")" "$prior_threads_file"
 
   selected_range="$(jq_value "$scope_decision_file" '.selected_range')"
@@ -542,6 +603,21 @@ validate_result_file() {
     fail "result scope follow-up narrow mismatch"
   [ "$(jq_value "$file" '.scope_decision.summary')" = "$scope_summary" ] ||
     fail "result scope summary mismatch"
+
+  handoff_digest="$(jq_value "$file" '.digests.handoff_sha256')"
+  findings_digest="$(jq_value "$file" '.digests.findings_sha256')"
+  review_body_digest="$(jq_value "$file" 'if .digests.review_body_sha256 == null then "null" else .digests.review_body_sha256 end')"
+  context_digest="$(jq_value "$file" 'if .digests.context_sha256 == null then "null" else .digests.context_sha256 end')"
+  scope_digest="$(jq_value "$file" '.digests.scope_decision_sha256')"
+  prior_digest="$(jq_value "$file" 'if .digests.prior_threads_sha256 == null then "null" else .digests.prior_threads_sha256 end')"
+  preview_digest="$(jq_value "$file" 'if .digests.rendered_preview_sha256 == null then "null" else .digests.rendered_preview_sha256 end')"
+  validate_digest "handoff" "$handoff_file" "$handoff_digest"
+  validate_digest "findings" "$findings_file" "$findings_digest"
+  validate_optional_digest "review body" "$review_body_file" "$review_body_digest"
+  validate_optional_digest "context" "$context_file" "$context_digest"
+  validate_digest "scope decision" "$scope_decision_file" "$scope_digest"
+  validate_optional_digest "prior threads" "$prior_threads_file" "$prior_digest"
+  validate_optional_digest "rendered preview" "$rendered_preview_file" "$preview_digest"
 }
 
 prepare_handoff_write() {
@@ -669,8 +745,9 @@ require_result_write_env() {
 }
 
 write_result() {
-  local file tmp_file prior_json review_body_json context_json preview_json notes_json
+  local file tmp_file handoff_file prior_json review_body_json context_json preview_json notes_json
   local summary selected_range full_range is_followup_narrow
+  local handoff_sha findings_sha review_body_sha context_sha scope_sha prior_sha preview_sha
   require_repo_root
   validate_pr_number
   validate_head_sha
@@ -704,11 +781,32 @@ write_result() {
 
   validate_findings_authority "$FINDINGS_FILE"
   validate_scope_authority "$SCOPE_DECISION_FILE" "$(guarded_scope_base_ref "$SCOPE_DECISION_FILE")" "$(jq -rn --argjson value "$prior_json" '$value // "null"')"
+  handoff_file="$(expected_handoff_path_for "$PR_NUMBER" "$HEAD_SHA")"
+  validate_handoff_file "$handoff_file"
 
   summary="$(jq_value "$SCOPE_DECISION_FILE" '.selection_reason')"
   selected_range="$(jq_value "$SCOPE_DECISION_FILE" '.selected_range')"
   full_range="$(jq_value "$SCOPE_DECISION_FILE" '.full_range')"
   is_followup_narrow="$(jq_value "$SCOPE_DECISION_FILE" '.is_followup_narrow')"
+  handoff_sha="$(sha256_file "$handoff_file")"
+  findings_sha="$(sha256_file "$FINDINGS_FILE")"
+  scope_sha="$(sha256_file "$SCOPE_DECISION_FILE")"
+  review_body_sha="null"
+  if [ -n "${REVIEW_BODY_FILE:-}" ]; then
+    review_body_sha="$(sha256_file "$REVIEW_BODY_FILE")"
+  fi
+  context_sha="null"
+  if [ -n "${CONTEXT_FILE:-}" ]; then
+    context_sha="$(sha256_file "$CONTEXT_FILE")"
+  fi
+  prior_sha="null"
+  if [ -n "${PRIOR_THREADS_FILE:-}" ]; then
+    prior_sha="$(sha256_file "$PRIOR_THREADS_FILE")"
+  fi
+  preview_sha="null"
+  if [ -n "${RENDERED_PREVIEW_FILE:-}" ]; then
+    preview_sha="$(sha256_file "$RENDERED_PREVIEW_FILE")"
+  fi
 
   jq -n \
     --arg schema "pr-review/result/v1" \
@@ -718,9 +816,17 @@ write_result() {
     --arg findings_file "$FINDINGS_FILE" \
     --argjson review_body_file "$review_body_json" \
     --argjson context_file "$context_json" \
+    --arg handoff_file "$handoff_file" \
     --arg scope_decision_file "$SCOPE_DECISION_FILE" \
     --argjson prior_threads_file "$prior_json" \
     --argjson rendered_preview_file "$preview_json" \
+    --arg handoff_sha256 "$handoff_sha" \
+    --arg findings_sha256 "$findings_sha" \
+    --argjson review_body_sha256 "$(jq -Rn --arg value "$review_body_sha" 'if $value == "null" then null else $value end')" \
+    --argjson context_sha256 "$(jq -Rn --arg value "$context_sha" 'if $value == "null" then null else $value end')" \
+    --arg scope_decision_sha256 "$scope_sha" \
+    --argjson prior_threads_sha256 "$(jq -Rn --arg value "$prior_sha" 'if $value == "null" then null else $value end')" \
+    --argjson rendered_preview_sha256 "$(jq -Rn --arg value "$preview_sha" 'if $value == "null" then null else $value end')" \
     --arg summary "$summary" \
     --arg selected_range "$selected_range" \
     --arg full_range "$full_range" \
@@ -736,9 +842,19 @@ write_result() {
       review_body_file: $review_body_file,
       context_file: $context_file,
       artifacts: {
+        handoff_file: $handoff_file,
         scope_decision_file: $scope_decision_file,
         prior_threads_file: $prior_threads_file,
         rendered_preview_file: $rendered_preview_file
+      },
+      digests: {
+        handoff_sha256: $handoff_sha256,
+        findings_sha256: $findings_sha256,
+        review_body_sha256: $review_body_sha256,
+        context_sha256: $context_sha256,
+        scope_decision_sha256: $scope_decision_sha256,
+        prior_threads_sha256: $prior_threads_sha256,
+        rendered_preview_sha256: $rendered_preview_sha256
       },
       scope_decision: {
         summary: $summary,

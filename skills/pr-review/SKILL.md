@@ -159,8 +159,9 @@ Canonical manifest schemas:
 - `pr-review/handoff/v1` records Phase 3 review execution inputs, range choice,
   immutable review head, follow-up classification, language hints, and paths to
   the validated scope-decision and optional prior-threads artifacts.
-- `pr-review/result/v1` records validated review findings, optional review body
-  and preview paths, the scope-decision summary, and presentation status.
+- `pr-review/result/v1` records the deterministic handoff path, validated
+  review findings, optional review body and preview paths, content digests for
+  mutable result inputs, the scope-decision summary, and presentation status.
 
 Deterministic manifest paths:
 
@@ -310,11 +311,12 @@ current `pr-review/result/v1` manifest from the target worktree root. Phase 5
 renders and resumes from the validated result manifest, not from ambient
 conversation variables. Validate `REVIEW_RESULT_FILE` first, then extract and
 rebind the manifest-backed paths and review head needed for rendering:
-`REVIEW_HEAD_SHA`, `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE` when present,
-`REVIEW_SCOPE_DECISION_FILE`, `PRIOR_THREADS_FILE` when present, and
-`RENDERED_PREVIEW_FILE` when present. Then re-read the live PR head from GitHub
-and compare it to the rebound `REVIEW_HEAD_SHA`. If it changed, stop and return
-to Phase 1; do not present, edit, approve, or post a stale review result.
+`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`,
+`REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
+`PRIOR_THREADS_FILE` when present, and `RENDERED_PREVIEW_FILE` when present.
+Then re-read the live PR head from GitHub and compare it to the rebound
+`REVIEW_HEAD_SHA`. If it changed, stop and return to Phase 1; do not present,
+edit, approve, or post a stale review result.
 
 ```bash
 read_pr_review_result_manifest_for_preview() {
@@ -328,6 +330,7 @@ read_pr_review_result_manifest_for_preview() {
   RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
   REVIEW_HEAD_SHA="$(jq -r '.review_head_sha' "$RESULT_JSON")" || return 1
+  REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
   REVIEW_FINDINGS_FILE="$(jq -r '.findings_file' "$RESULT_JSON")" || return 1
   REVIEW_BODY_FILE="$(jq -r '.review_body_file // empty' "$RESULT_JSON")" || return 1
   REVIEW_SCOPE_DECISION_FILE="$(jq -r '.artifacts.scope_decision_file' "$RESULT_JSON")" || return 1
@@ -422,6 +425,7 @@ update_pr_review_result_manifest() {
     REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
     SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
+    RENDERED_PREVIEW_FILE="${RENDERED_PREVIEW_FILE:-}" \
     PRESENTATION_STATUS="preview-current" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
@@ -525,15 +529,15 @@ Only after user approval:
 1. **Resume from the current result separately from approval.** Re-run the
    Phase 5 result-manifest read before binding any approved review event. That
    read validates `REVIEW_RESULT_FILE`, rebinds `REVIEW_HEAD_SHA`,
-   `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE`,
+   `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE`,
    `REVIEW_SCOPE_DECISION_FILE`, and optional prior-thread or rendered-preview
    paths, then performs the live PR head guard before approval handling. The
-   result manifest is evidence that findings, body, preview, and scope-decision
-   inputs were validated for rendering or resume; it is not approval, a lease,
-   lifecycle state, an approved-review freeze, or a GitHub payload. If
-   validation fails, stop before payload construction or any GitHub mutation.
-   Fresh explicit user approval for the latest preview is still required after
-   this read.
+   result manifest is evidence that the handoff, findings, body, preview, and
+   scope-decision inputs were validated and digest-bound for rendering or resume;
+   it is not approval, a lease, lifecycle state, an approved-review freeze, or a
+   GitHub payload. If validation fails, stop before payload construction or any
+   GitHub mutation. Fresh explicit user approval for the latest preview is still
+   required after this read.
 
 2. **Bind the approved review event from the user-approved intent.** Do not
    reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then

@@ -297,7 +297,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Do not call `build-github-review-payload` again after user approval",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+      "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
     );
 
     const supportValidator = bodyFor("play-validate-review-artifacts");
@@ -387,6 +387,9 @@ describe("rendered phase artifact smoke coverage", () => {
         'RESULT_REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
       );
       expect(renderedPrReview).toContain(
+        'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
+      );
+      expect(renderedPrReview).toContain(
         'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
       );
       expect(renderedPrReview).toContain(
@@ -424,7 +427,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Do not call `build-github-review-payload` again after user approval",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The result manifest is evidence that findings, body, preview, and scope-decision inputs were validated for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
+        "The result manifest is evidence that the handoff, findings, body, preview, and scope-decision inputs were validated and digest-bound for rendering or resume; it is not approval, a lease, lifecycle state, an approved-review freeze, or a GitHub payload",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Re-run the Phase 5 result-manifest read before binding any approved review event",

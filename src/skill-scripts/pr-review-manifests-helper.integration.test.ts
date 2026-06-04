@@ -86,6 +86,14 @@ function findingsPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-findings.json`;
 }
 
+function reviewBodyPath(headSha: string) {
+  return `.ephemeral/topic-${headSha}-review-body.md`;
+}
+
+function previewPath(headSha: string) {
+  return `.ephemeral/topic-${headSha}-review-preview.md`;
+}
+
 function handoffPath(headSha: string) {
   return `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`;
 }
@@ -324,6 +332,18 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
 
       await expect(readJson(cwd, resultPath(headSha))).resolves.toMatchObject({
         schema: "pr-review/result/v1",
+        artifacts: {
+          handoff_file: handoffPath(headSha),
+        },
+        digests: {
+          handoff_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          findings_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          review_body_sha256: null,
+          context_sha256: null,
+          scope_decision_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          prior_threads_sha256: null,
+          rendered_preview_sha256: null,
+        },
         validation: {
           status: "valid",
           findings_validated: true,
@@ -775,6 +795,11 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           ...result.artifacts,
           prior_threads_file: priorThreadsPath(headSha),
         },
+        digests: {
+          ...result.digests,
+          prior_threads_sha256:
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        },
       });
       await expect(
         runHelper(cwd, "validate-result", {
@@ -782,7 +807,9 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
           RESULT_FILE: resultPath(headSha),
         }),
       ).rejects.toMatchObject({
-        stderr: expect.stringContaining("prior threads path mismatch"),
+        stderr: expect.stringContaining(
+          "result handoff prior threads mismatch",
+        ),
       });
 
       await writeJson(
@@ -842,6 +869,95 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     }
   });
 
+  it("binds result manifests to the deterministic handoff and rejects handoff drift", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      const alternateHandoff = `.ephemeral/pr-${prNumber}-${headSha}-alternate-handoff.json`;
+      await copyFile(
+        path.join(cwd, handoffPath(headSha)),
+        path.join(cwd, alternateHandoff),
+      );
+      await writeJson(cwd, resultPath(headSha), {
+        ...(await readJson(cwd, resultPath(headSha))),
+        artifacts: {
+          ...(await readJson(cwd, resultPath(headSha))).artifacts,
+          handoff_file: alternateHandoff,
+        },
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff path mismatch"),
+      });
+
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      await rm(path.join(cwd, handoffPath(headSha)));
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff file missing"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects result manifest content drift after write", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Ready.\n");
+      await writeFile(path.join(cwd, previewPath(headSha)), "Preview.\n");
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", {
+        ...resultEnv(headSha),
+        REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        RENDERED_PREVIEW_FILE: previewPath(headSha),
+      });
+
+      await writeFile(
+        path.join(cwd, findingsPath(headSha)),
+        `${JSON.stringify(findingsEnvelope(), null, 2)}\n`,
+      );
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("findings digest mismatch"),
+      });
+
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-result", {
+        ...resultEnv(headSha),
+        REVIEW_BODY_FILE: reviewBodyPath(headSha),
+        RENDERED_PREVIEW_FILE: previewPath(headSha),
+      });
+      await writeFile(path.join(cwd, reviewBodyPath(headSha)), "Edited.\n");
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("review body digest mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("delegates findings validation to explicit and sibling-discovered play-review helpers", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const installed = await mkdtemp(
@@ -867,6 +983,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       );
       await chmod(recordingPlayHelper, 0o755);
 
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
       await runHelper(cwd, "write-result", {
         ...resultEnv(headSha),
         PLAY_REVIEW_HELPER: recordingPlayHelper,
@@ -935,6 +1052,8 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
       await runHelper(cwd, "write-result", resultEnv(headSha));
       const installedScript = await copyInstalledPrManifestHelper(installed);
+      await copyInstalledPrPriorHelper(installed);
+      await copyInstalledSupportValidator(installed);
 
       await expect(
         runHelper(
@@ -991,6 +1110,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
       await runHelper(cwd, "write-result", resultEnv(headSha));
       const before = await readFile(
         path.join(cwd, resultPath(headSha)),
@@ -1057,6 +1177,11 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       );
       try {
         await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
         await runHelper(cwd, "write-result", resultEnv(headSha));
         const externalScope = path.join(external, "scope-decision.json");
         await writeFile(
