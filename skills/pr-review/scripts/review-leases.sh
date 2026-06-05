@@ -91,15 +91,11 @@ validate_timestamp_value() {
     *) fail "$label must be a UTC RFC3339 timestamp ending in Z" ;;
   esac
 
-  if normalized="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$value" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)"; then
-    [ "$normalized" = "$value" ] || fail "$label is not a valid UTC timestamp"
-    return
-  fi
-  if normalized="$(date -u -d "$value" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)"; then
-    [ "$normalized" = "$value" ] || fail "$label is not a valid UTC timestamp"
-    return
-  fi
-  fail "$label is not a valid UTC timestamp"
+  normalized="$(
+    printf '%s\n' "$value" |
+      jq -Rr 'fromdateiso8601 | strftime("%Y-%m-%dT%H:%M:%SZ")' 2>/dev/null
+  )" || fail "$label is not a valid UTC timestamp"
+  [ "$normalized" = "$value" ] || fail "$label is not a valid UTC timestamp"
 }
 
 is_windows_absolute_path() {
@@ -242,7 +238,7 @@ jq_value() {
 json_or_null() {
   local value="$1"
   if [ -n "$value" ]; then
-    jq -Rn --arg value "$value" '$value'
+    printf '%s' "$value" | jq -Rs '.'
   else
     printf 'null\n'
   fi
@@ -830,7 +826,7 @@ write_lease() {
     fail "failed to create lease temp file"
   trap 'rm -f "$tmp_file"' EXIT
 
-  jq -n \
+  MSYS2_ARG_CONV_EXCL="*" MSYS_NO_PATHCONV="1" jq -n \
     --arg schema "pr-review/lease/v1" \
     --arg repository "$REPOSITORY" \
     --argjson pr_number "$PR_NUMBER" \

@@ -157,13 +157,16 @@ function separateTimestampEnv(env: NodeJS.ProcessEnv) {
     const value = passthrough[name];
     delete passthrough[name];
     if (value !== undefined) {
-      lines.push(`${name}=${shellSingleQuote(value)}`, `export ${name}`);
+      lines.push(`${name}=${shellSingleQuote(value)}`);
     }
   }
 
   if (process.platform === "win32") {
-    passthrough.MSYS2_ARG_CONV_EXCL = "*";
-    passthrough.MSYS_NO_PATHCONV = "1";
+    const existingEnvExclusions = passthrough.MSYS2_ENV_CONV_EXCL;
+    const timestampExclusions = timestampEnvVars.join(";");
+    passthrough.MSYS2_ENV_CONV_EXCL = existingEnvExclusions
+      ? `${existingEnvExclusions};${timestampExclusions}`
+      : timestampExclusions;
   }
 
   return { passthrough, contents: `${lines.join("\n")}\n` };

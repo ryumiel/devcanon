@@ -40,6 +40,7 @@ const supportValidatorScript = path.join(
 const jqAvailable = await commandAvailable("jq");
 const symlinkAvailable = await canCreateSymlinks();
 const isWindows = process.platform === "win32";
+const symlinkTestTimeout = isWindows ? 120_000 : 20_000;
 const prNumber = "390";
 
 async function commandAvailable(command: string): Promise<boolean> {
@@ -1463,6 +1464,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    symlinkTestTimeout,
   );
 
   it.skipIf(!symlinkAvailable)(
@@ -1546,6 +1548,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         await cleanupTempDir(external);
       }
     },
+    symlinkTestTimeout,
   );
 
   it("keeps approval payload and GitHub mutation authority out of the manifest helper", async () => {
