@@ -1781,6 +1781,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         review.baseSha,
         review.headSha,
       );
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
       await writeJson(
         review.cwd,
@@ -1797,6 +1798,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
           STATE: "failed",
           RESULT_FILE: resultPath(review.headSha),
           APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha, branchName),
@@ -1862,6 +1864,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         runLeaseHelper(primary.cwd, "cleanup-worktree", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
           APPROVED_REVIEW_HELPER: approvedHelper,
           BASE_REF: "",
           HEAD_REF: "",
