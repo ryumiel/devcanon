@@ -160,6 +160,15 @@ function separateTimestampEnv(env: NodeJS.ProcessEnv) {
     }
   }
 
+  if (passthrough.MSYS2_ENV_CONV_EXCL !== "*") {
+    passthrough.MSYS2_ENV_CONV_EXCL = [
+      passthrough.MSYS2_ENV_CONV_EXCL,
+      timestampEnvVars.join(";"),
+    ]
+      .filter(Boolean)
+      .join(";");
+  }
+
   return { passthrough, contents: `${lines.join("\n")}\n` };
 }
 
