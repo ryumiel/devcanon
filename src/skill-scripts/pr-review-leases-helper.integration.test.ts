@@ -144,14 +144,23 @@ function leasePath(worktreePath: string) {
   return `.ephemeral/pr-${prNumber}-${leaseDigest(worktreePath)}-lease.json`;
 }
 
-function withTimestampEnvConversionExcluded(env: NodeJS.ProcessEnv) {
-  const existing = env.MSYS2_ENV_CONV_EXCL;
-  return {
-    ...env,
-    MSYS2_ENV_CONV_EXCL: existing
-      ? `${existing};${timestampEnvVars.join(";")}`
-      : timestampEnvVars.join(";"),
-  };
+function shellSingleQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function separateTimestampEnv(env: NodeJS.ProcessEnv) {
+  const passthrough = { ...env };
+  const assignments: string[] = [];
+
+  for (const name of timestampEnvVars) {
+    const value = passthrough[name];
+    delete passthrough[name];
+    if (value !== undefined) {
+      assignments.push(`${name}=${shellSingleQuote(value)}; export ${name}`);
+    }
+  }
+
+  return { passthrough, assignments };
 }
 
 function removeToken(worktreePath: string) {
@@ -353,20 +362,28 @@ async function runLeaseHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
-  return execFileAsync("bash", [helperScript, command], {
-    cwd,
-    env: withTimestampEnvConversionExcluded({
-      ...process.env,
-      REPOSITORY: repository,
-      PR_NUMBER: prNumber,
-      BASE_REF: "main",
-      HEAD_REF: "topic",
-      CREATED_AT: createdAt,
-      UPDATED_AT: updatedAt,
-      ...env,
-    }),
-    maxBuffer: 1024 * 1024,
+  const { passthrough, assignments } = separateTimestampEnv({
+    ...process.env,
+    REPOSITORY: repository,
+    PR_NUMBER: prNumber,
+    BASE_REF: "main",
+    HEAD_REF: "topic",
+    CREATED_AT: createdAt,
+    UPDATED_AT: updatedAt,
+    ...env,
   });
+  const timestampSetup =
+    assignments.length > 0 ? `${assignments.join("; ")}; ` : "";
+
+  return execFileAsync(
+    "bash",
+    ["-c", `${timestampSetup}exec "$0" "$@"`, helperScript, command],
+    {
+      cwd,
+      env: passthrough,
+      maxBuffer: 1024 * 1024,
+    },
+  );
 }
 
 async function writeCreatedLease(primary: string, worktree: string) {
