@@ -235,6 +235,10 @@ jq_value() {
   jq -r "$filter" "$file"
 }
 
+base64_value() {
+  printf '%s' "$1" | base64 | tr -d '\n'
+}
+
 bool_json_or_default() {
   local value="$1"
   local default="$2"
@@ -818,34 +822,57 @@ write_lease() {
   trap 'rm -f "$tmp_file"' EXIT
 
   {
-    printf '%s\0' \
-      "pr-review/lease/v1" \
-      "$REPOSITORY" \
-      "$PR_NUMBER" \
-      "$STATE" \
-      "$base_ref_value" \
-      "$head_ref_value" \
-      "$physical_path" \
-      "$digest" \
-      "$LEASE_FILE" \
-      "$created_at_value" \
-      "$updated_at_value" \
-      "$handoff_value" \
-      "$result_value" \
-      "$approved_value" \
-      "$presented_at_value" \
-      "$presentation_status_value" \
-      "$finished_at_value" \
-      "$terminal_reason_value" \
-      "$failure_phase_value" \
-      "$failure_reason_value" \
-      "$failure_recoverability_value" \
-      "$github_attempted_value" \
-      "$github_result_value" \
-      "$github_posted_at_value"
-  } | jq -Rs '
+    base64_value "pr-review/lease/v1"
+    printf '\n'
+    base64_value "$REPOSITORY"
+    printf '\n'
+    base64_value "$PR_NUMBER"
+    printf '\n'
+    base64_value "$STATE"
+    printf '\n'
+    base64_value "$base_ref_value"
+    printf '\n'
+    base64_value "$head_ref_value"
+    printf '\n'
+    base64_value "$physical_path"
+    printf '\n'
+    base64_value "$digest"
+    printf '\n'
+    base64_value "$LEASE_FILE"
+    printf '\n'
+    base64_value "$created_at_value"
+    printf '\n'
+    base64_value "$updated_at_value"
+    printf '\n'
+    base64_value "$handoff_value"
+    printf '\n'
+    base64_value "$result_value"
+    printf '\n'
+    base64_value "$approved_value"
+    printf '\n'
+    base64_value "$presented_at_value"
+    printf '\n'
+    base64_value "$presentation_status_value"
+    printf '\n'
+    base64_value "$finished_at_value"
+    printf '\n'
+    base64_value "$terminal_reason_value"
+    printf '\n'
+    base64_value "$failure_phase_value"
+    printf '\n'
+    base64_value "$failure_reason_value"
+    printf '\n'
+    base64_value "$failure_recoverability_value"
+    printf '\n'
+    base64_value "$github_attempted_value"
+    printf '\n'
+    base64_value "$github_result_value"
+    printf '\n'
+    base64_value "$github_posted_at_value"
+    printf '\n'
+  } | jq -Rn '
     def nullable($value): if $value == "" then null else $value end;
-    split("\u0000") as $values
+    [inputs | @base64d] as $values
     | {
       schema: $values[0],
       repository: $values[1],
