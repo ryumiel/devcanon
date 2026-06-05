@@ -628,7 +628,7 @@ transition_allowed() {
   local target="$2"
   case "$previous:$target" in
     created:created | gated:gated) return 0 ;;
-    created:reviewed | reviewed:gated | gated:posted | gated:aborted | gated:failed) return 0 ;;
+    created:reviewed | reviewed:gated | reviewed:aborted | gated:posted | gated:aborted | gated:failed) return 0 ;;
     reviewed:failed | created:failed | failed:gated | failed:aborted) return 0 ;;
     *) return 1 ;;
   esac
@@ -677,6 +677,7 @@ existing_field() {
 
 write_lease() {
   local physical_path digest tmp_file existing_file previous_state
+  local base_ref_value head_ref_value
   local created_at_value updated_at_value handoff_value result_value approved_value
   local presented_at_value presentation_status_value finished_at_value terminal_reason_value
   local failure_phase_value failure_reason_value failure_recoverability_value
@@ -717,12 +718,18 @@ write_lease() {
   fi
 
   if [ -n "$existing_file" ]; then
+    base_ref_value="$(jq_value "$existing_file" '.base_ref')"
+    head_ref_value="$(jq_value "$existing_file" '.head_ref')"
+    [ "$BASE_REF" = "$base_ref_value" ] || fail "base_ref is immutable"
+    [ "$HEAD_REF" = "$head_ref_value" ] || fail "head_ref is immutable"
     created_at_value="$(jq_value "$existing_file" '.created_at')"
     if [ -n "${CREATED_AT:-}" ] && [ "$CREATED_AT" != "$created_at_value" ]; then
       fail "created_at is immutable"
     fi
   else
     require_env CREATED_AT
+    base_ref_value="$BASE_REF"
+    head_ref_value="$HEAD_REF"
     created_at_value="$CREATED_AT"
   fi
   updated_at_value="$UPDATED_AT"
@@ -828,8 +835,8 @@ write_lease() {
     --arg repository "$REPOSITORY" \
     --argjson pr_number "$PR_NUMBER" \
     --arg state "$STATE" \
-    --arg base_ref "$BASE_REF" \
-    --arg head_ref "$HEAD_REF" \
+    --arg base_ref "$base_ref_value" \
+    --arg head_ref "$head_ref_value" \
     --arg worktree_path "$physical_path" \
     --arg worktree_digest "$digest" \
     --arg lease_file "$LEASE_FILE" \
@@ -976,6 +983,11 @@ worktree_dirty_status() {
 worktree_untracked_ephemeral_status() {
   local worktree="$1"
   local status_output line
+  if [ ! -e "$worktree/.ephemeral" ] && [ ! -L "$worktree/.ephemeral" ] &&
+    ! git -C "$worktree" ls-files --error-unmatch -- .ephemeral >/dev/null 2>&1; then
+    printf 'no\n'
+    return
+  fi
   status_output="$(git -C "$worktree" status --porcelain --untracked-files=all --ignored=matching -- .ephemeral 2>/dev/null)" ||
     fail "failed to inspect worktree .ephemeral status"
   while IFS= read -r line; do

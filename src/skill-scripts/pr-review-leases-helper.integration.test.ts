@@ -6,7 +6,9 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
+  rm,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -30,6 +32,13 @@ const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
+const timestampEnvVars = [
+  "CREATED_AT",
+  "UPDATED_AT",
+  "PRESENTED_AT",
+  "FINISHED_AT",
+  "GITHUB_POSTED_AT",
+];
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -135,6 +144,16 @@ function leasePath(worktreePath: string) {
   return `.ephemeral/pr-${prNumber}-${leaseDigest(worktreePath)}-lease.json`;
 }
 
+function withTimestampEnvConversionExcluded(env: NodeJS.ProcessEnv) {
+  const existing = env.MSYS2_ENV_CONV_EXCL;
+  return {
+    ...env,
+    MSYS2_ENV_CONV_EXCL: existing
+      ? `${existing};${timestampEnvVars.join(";")}`
+      : timestampEnvVars.join(";"),
+  };
+}
+
 function removeToken(worktreePath: string) {
   return `remove-pr-review-worktree-${prNumber}-${leaseDigest(worktreePath)}`;
 }
@@ -208,6 +227,13 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
 
 async function readJson(cwd: string, relPath: string) {
   return JSON.parse(await readFile(path.join(cwd, relPath), "utf8"));
+}
+
+async function leaseTempFiles(cwd: string, worktreePath: string) {
+  const ephemeralPath = path.join(cwd, ".ephemeral");
+  const prefix = `.lease-${prNumber}-${leaseDigest(worktreePath)}.`;
+  const entries = await readdir(ephemeralPath);
+  return entries.filter((entry) => entry.startsWith(prefix)).sort();
 }
 
 async function writePassingPlayHelper(cwd: string) {
@@ -329,7 +355,7 @@ async function runLeaseHelper(
 ) {
   return execFileAsync("bash", [helperScript, command], {
     cwd,
-    env: {
+    env: withTimestampEnvConversionExcluded({
       ...process.env,
       REPOSITORY: repository,
       PR_NUMBER: prNumber,
@@ -338,7 +364,7 @@ async function runLeaseHelper(
       CREATED_AT: createdAt,
       UPDATED_AT: updatedAt,
       ...env,
-    },
+    }),
     maxBuffer: 1024 * 1024,
   });
 }
@@ -699,6 +725,167 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
+  it("allows reviewed leases to abort through terminal result validation", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      await writeJson(review.cwd, handoffPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      await writeJson(review.cwd, resultPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "reviewed",
+        RESULT_FILE: resultPath(review.headSha),
+      });
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "aborted",
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          TERMINAL_REASON: "User aborted after review",
+        }),
+      ).resolves.toMatchObject({ stdout: `${file}\n` });
+      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+        state: "aborted",
+        artifacts: {
+          result_file: resultPath(review.headSha),
+        },
+        terminal: {
+          finished_at: "2026-06-05T00:04:00Z",
+          reason: "User aborted after review",
+        },
+      });
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
+  it("preserves immutable base and head refs after lease creation", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      await writeJson(review.cwd, resultPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "reviewed",
+        RESULT_FILE: resultPath(review.headSha),
+      });
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "gated",
+        BASE_REF: "main",
+        HEAD_REF: "topic",
+        PRESENTED_AT: "2026-06-05T00:03:00Z",
+        PRESENTATION_STATUS: "preview-current",
+      });
+      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+        base_ref: "main",
+        head_ref: "topic",
+      });
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
+  it("rejects base ref mismatches without rewriting the lease or leaving temp residue", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      await writeJson(review.cwd, resultPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+      const beforeContents = await readFile(
+        path.join(primary.cwd, file),
+        "utf8",
+      );
+      const beforeTemps = await leaseTempFiles(primary.cwd, review.cwd);
+
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          BASE_REF: "release",
+          RESULT_FILE: resultPath(review.headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("base_ref is immutable"),
+      });
+      await expect(
+        readFile(path.join(primary.cwd, file), "utf8"),
+      ).resolves.toBe(beforeContents);
+      await expect(leaseTempFiles(primary.cwd, review.cwd)).resolves.toEqual(
+        beforeTemps,
+      );
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
+  it("rejects head ref mismatches without rewriting the lease or leaving temp residue", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      await writeJson(review.cwd, resultPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+      const beforeContents = await readFile(
+        path.join(primary.cwd, file),
+        "utf8",
+      );
+      const beforeTemps = await leaseTempFiles(primary.cwd, review.cwd);
+
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          HEAD_REF: "feature/other",
+          RESULT_FILE: resultPath(review.headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("head_ref is immutable"),
+      });
+      await expect(
+        readFile(path.join(primary.cwd, file), "utf8"),
+      ).resolves.toBe(beforeContents);
+      await expect(leaseTempFiles(primary.cwd, review.cwd)).resolves.toEqual(
+        beforeTemps,
+      );
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
   it("delegates referenced result validation through manifest and play-review authority", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
@@ -1038,6 +1225,88 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
       });
       await expect(pathExists(review.cwd)).resolves.toBe(false);
+    } finally {
+      await cleanupLinkedReviewWorkspace(primary, review, parent);
+    }
+  });
+
+  it("treats an absent .ephemeral directory as no cleanup artifact residue", async () => {
+    const { primary, review, parent } = await makeLinkedReviewWorkspace(
+      "devcanon-pr-lease-cleanup-",
+    );
+    try {
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+      await rm(path.join(review.cwd, ".ephemeral"), {
+        recursive: true,
+        force: true,
+      });
+
+      await expect(
+        runLeaseHelper(primary.cwd, "inspect-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining(
+          "REFUSAL_REASON=confirmation-required\nDIRTY=no\n",
+        ),
+      });
+      await expect(
+        runLeaseHelper(primary.cwd, "cleanup-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          ALLOW_POLICY_OVERRIDE: "yes",
+          CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+        }),
+      ).resolves.toMatchObject({
+        stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+      });
+      await expect(pathExists(review.cwd)).resolves.toBe(false);
+    } finally {
+      await cleanupLinkedReviewWorkspace(primary, review, parent);
+    }
+  });
+
+  it("retains deleted tracked .ephemeral artifacts during cleanup inspection", async () => {
+    const { primary, review, parent } = await makeLinkedReviewWorkspace(
+      "devcanon-pr-lease-cleanup-",
+    );
+    try {
+      await writeFile(path.join(review.cwd, ".ephemeral/tracked.txt"), "x\n");
+      await execFileAsync("git", ["add", ".ephemeral/tracked.txt"], {
+        cwd: review.cwd,
+      });
+      await execFileAsync("git", ["commit", "-m", "test: track artifact"], {
+        cwd: review.cwd,
+      });
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+      await rm(path.join(review.cwd, ".ephemeral"), {
+        recursive: true,
+        force: true,
+      });
+
+      await expect(
+        runLeaseHelper(primary.cwd, "inspect-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining(
+          "REFUSAL_REASON=untracked-artifacts\nDIRTY=no\n",
+        ),
+      });
+      await expect(
+        runLeaseHelper(primary.cwd, "cleanup-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          ALLOW_POLICY_OVERRIDE: "yes",
+          CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+        }),
+      ).resolves.toMatchObject({
+        stdout:
+          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+      });
+      await expect(pathExists(review.cwd)).resolves.toBe(true);
     } finally {
       await cleanupLinkedReviewWorkspace(primary, review, parent);
     }
