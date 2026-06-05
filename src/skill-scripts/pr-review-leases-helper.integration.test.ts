@@ -644,153 +644,157 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
-  it("enforces allowed transitions and rejects terminal-state reopening", async () => {
-    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
-    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
-    try {
-      await writeJson(review.cwd, handoffPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
-      const manifestHelper = await writePassingManifestHelper(review.cwd);
-      const file = await writeCreatedLease(primary.cwd, review.cwd);
+  it(
+    "enforces allowed transitions and rejects terminal-state reopening",
+    async () => {
+      const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+      const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+      try {
+        await writeJson(review.cwd, handoffPath(review.headSha), {
+          review_head_sha: review.headSha,
+        });
+        await writeJson(review.cwd, resultPath(review.headSha), {
+          review_head_sha: review.headSha,
+        });
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
 
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "created",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          STATE: "posted",
-          RESULT_FILE: resultPath(review.headSha),
-          APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
-          FINISHED_AT: "2026-06-05T00:02:00Z",
-          GITHUB_POST_ATTEMPTED: "true",
-          GITHUB_POST_RESULT: "succeeded",
-          GITHUB_POSTED_AT: "2026-06-05T00:02:00Z",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "created",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            STATE: "posted",
+            RESULT_FILE: resultPath(review.headSha),
+            APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
+            FINISHED_AT: "2026-06-05T00:02:00Z",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "succeeded",
+            GITHUB_POSTED_AT: "2026-06-05T00:02:00Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
 
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "created",
-          HANDOFF_FILE: handoffPath(review.headSha),
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "created",
-          HANDOFF_FILE: handoffPath(review.headSha),
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "reviewed",
-          RESULT_FILE: resultPath(review.headSha),
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "gated",
-          PRESENTED_AT: "2026-06-05T00:03:00Z",
-          PRESENTATION_STATUS: "preview-current",
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
-      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
-        state: "gated",
-        artifacts: {
-          handoff_file: handoffPath(review.headSha),
-          result_file: resultPath(review.headSha),
-        },
-        presentation: {
-          presented_at: "2026-06-05T00:03:00Z",
-          status: "preview-current",
-        },
-      });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "created",
+            HANDOFF_FILE: handoffPath(review.headSha),
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "created",
+            HANDOFF_FILE: handoffPath(review.headSha),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "reviewed",
+            RESULT_FILE: resultPath(review.headSha),
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "gated",
+            PRESENTED_AT: "2026-06-05T00:03:00Z",
+            PRESENTATION_STATUS: "preview-current",
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          state: "gated",
+          artifacts: {
+            handoff_file: handoffPath(review.headSha),
+            result_file: resultPath(review.headSha),
+          },
+          presentation: {
+            presented_at: "2026-06-05T00:03:00Z",
+            status: "preview-current",
+          },
+        });
 
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "gated",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "gated",
-          PRESENTED_AT: "2026-06-05T00:03:30Z",
-          PRESENTATION_STATUS: "edited",
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "aborted",
-        FINISHED_AT: "2026-06-05T00:04:00Z",
-        TERMINAL_REASON: "User aborted review",
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "gated",
-          PRESENTED_AT: "2026-06-05T00:05:00Z",
-          PRESENTATION_STATUS: "edited",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "gated",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "gated",
+            PRESENTED_AT: "2026-06-05T00:03:30Z",
+            PRESENTATION_STATUS: "edited",
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
+        await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
           REVIEW_MANIFEST_HELPER: manifestHelper,
           STATE: "aborted",
-          FINISHED_AT: "2026-06-05T00:06:00Z",
-          TERMINAL_REASON: "Rewrite terminal metadata",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("invalid lease transition"),
-      });
-    } finally {
-      await cleanupTempDir(primary.cwd);
-      await cleanupTempDir(review.cwd);
-    }
-  });
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          TERMINAL_REASON: "User aborted review",
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "gated",
+            PRESENTED_AT: "2026-06-05T00:05:00Z",
+            PRESENTATION_STATUS: "edited",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "aborted",
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            TERMINAL_REASON: "Rewrite terminal metadata",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("invalid lease transition"),
+        });
+      } finally {
+        await cleanupTempDir(primary.cwd);
+        await cleanupTempDir(review.cwd);
+      }
+    },
+    longTestTimeout,
+  );
 
   it("allows reviewed leases to abort through terminal result validation", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
