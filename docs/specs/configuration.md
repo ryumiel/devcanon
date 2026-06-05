@@ -81,7 +81,7 @@ fileArtifacts:
 - relative paths are resolved relative to the config file directory
 - `~` must be expanded
 - target-specific settings override defaults
-- `targets.codex.displayNameSuffix`, when present, is a raw namespace value
+- `targets.codex.skillDisplayNameSuffix`, when present, is a raw namespace value
   appended to generated Codex skill UI display names in `(<value>)` form
 - unknown top-level config fields produce warnings in normal mode and errors in
   strict mode
@@ -90,7 +90,7 @@ fileArtifacts:
 
 ## Codex display name suffix
 
-Optional. `targets.codex.displayNameSuffix` configures a Codex UI-only suffix
+Optional. `targets.codex.skillDisplayNameSuffix` configures a Codex UI-only suffix
 for rendered skill sidecar display names.
 
 - The value is trimmed, must be non-empty, and must not contain control

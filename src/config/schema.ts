@@ -53,17 +53,17 @@ const TargetConfigShape = {
   installMode: InstallModeSchema.optional(),
 };
 
-const DisplayNameSuffixSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX)
+const SkillDisplayNameSuffixSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX)
   .transform((value) => value.trim())
   .refine((value) => value.length > 0, {
-    message: "displayNameSuffix must not be blank",
+    message: "skillDisplayNameSuffix must not be blank",
   });
 
 const TargetConfigSchema = z.object(TargetConfigShape);
 
 const CodexTargetConfigShape = {
   ...TargetConfigShape,
-  displayNameSuffix: DisplayNameSuffixSchema.optional(),
+  skillDisplayNameSuffix: SkillDisplayNameSuffixSchema.optional(),
 };
 
 const CodexTargetConfigSchema = z.object(CodexTargetConfigShape);
@@ -271,7 +271,7 @@ export interface ResolvedTargetConfig {
 }
 
 export interface ResolvedCodexTargetConfig extends ResolvedTargetConfig {
-  displayNameSuffix?: string;
+  skillDisplayNameSuffix?: string;
 }
 
 // --- Agent source ---

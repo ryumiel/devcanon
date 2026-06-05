@@ -223,12 +223,12 @@ describe("loadConfig", () => {
       "    enabled: true",
       "    skillsHome: ~/codex-skills",
       "    agentsHome: ~/codex-agents",
-      "    displayNameSuffix: devcanon",
+      "    skillDisplayNameSuffix: devcanon",
     ].join("\n");
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
-    expect(result.targets.codex.displayNameSuffix).toBe("devcanon");
+    expect(result.targets.codex.skillDisplayNameSuffix).toBe("devcanon");
   });
 
   it("warns about unknown target fields in non-strict mode", async () => {
@@ -243,7 +243,7 @@ describe("loadConfig", () => {
     const configPath = await createConfigFile(tempDir, yaml);
     const result = await loadConfig(configPath);
 
-    expect(result.targets.codex.displayNameSuffix).toBeUndefined();
+    expect(result.targets.codex.skillDisplayNameSuffix).toBeUndefined();
     expect(
       logCtx.testLogger.warnings.some((warning) =>
         warning.includes("targets.codex.displayNameSufix"),
@@ -258,7 +258,7 @@ describe("loadConfig", () => {
       "  claude:",
       "    skillsHome: ~/claude-skills",
       "    agentsHome: ~/claude-agents",
-      "    displayNameSuffix: devcanon",
+      "    skillDisplayNameSuffix: devcanon",
       "  codex:",
       "    skillsHome: ~/codex-skills",
       "    agentsHome: ~/codex-agents",
@@ -270,7 +270,7 @@ describe("loadConfig", () => {
       (err: unknown) => {
         expect(err).toBeInstanceOf(UserError);
         expect((err as UserError).message).toContain(
-          "targets.claude.displayNameSuffix",
+          "targets.claude.skillDisplayNameSuffix",
         );
         expect((err as UserError).message).toContain(
           "targets.codex.displayNameSufix",

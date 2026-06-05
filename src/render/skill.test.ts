@@ -95,7 +95,7 @@ describe("renderSkillForTarget contentHash", () => {
     const baseConfig = makeResolvedConfig("/tmp/test-hash");
     baseConfig.modelTiers = TIERS;
     const suffixConfig = makeResolvedConfig("/tmp/test-hash", {
-      codex: { displayNameSuffix: "devcanon" },
+      codex: { skillDisplayNameSuffix: "devcanon" },
     });
     suffixConfig.modelTiers = TIERS;
 

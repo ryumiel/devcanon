@@ -11,7 +11,7 @@ export interface RenderedCodexSkill {
 }
 
 export interface RenderCodexSkillOptions {
-  displayNameSuffix?: string;
+  skillDisplayNameSuffix?: string;
 }
 
 export function renderCodexSkill(
@@ -59,7 +59,7 @@ export function renderCodexSkill(
   const sidecarSource = buildCodexSidecar(
     source.name,
     source.codex_sidecar,
-    options.displayNameSuffix,
+    options.skillDisplayNameSuffix,
   );
   const sidecar = sidecarSource
     ? yamlStringify(sidecarSource, { lineWidth: 0 })
@@ -84,9 +84,9 @@ const DISPLAY_NAME_TOKEN_OVERRIDES: Record<string, string> = {
 function buildCodexSidecar(
   skillName: string,
   sourceSidecar: CodexSidecar | undefined,
-  displayNameSuffix: string | undefined,
+  skillDisplayNameSuffix: string | undefined,
 ): CodexSidecar | null {
-  const normalizedSuffix = displayNameSuffix?.trim();
+  const normalizedSuffix = skillDisplayNameSuffix?.trim();
   if (!normalizedSuffix) return sourceSidecar ?? null;
 
   const displayNameBase =

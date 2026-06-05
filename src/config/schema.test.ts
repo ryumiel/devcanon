@@ -40,7 +40,7 @@ describe("ConfigSchema", () => {
     expect(result.targets.codex.enabled).toBe(true);
     expect(result.targets.codex.skillsHome).toBe("~/.agents/skills");
     expect(result.targets.codex.agentsHome).toBe("~/.codex/agents");
-    expect(result.targets.codex.displayNameSuffix).toBeUndefined();
+    expect(result.targets.codex.skillDisplayNameSuffix).toBeUndefined();
 
     expect(result.defaults.installMode).toBe("symlink");
     expect(result.defaults.overwritePolicy).toBe("overwrite-managed");
@@ -58,12 +58,12 @@ describe("ConfigSchema", () => {
         codex: {
           skillsHome: "~/.agents/skills",
           agentsHome: "~/.codex/agents",
-          displayNameSuffix: "devcanon",
+          skillDisplayNameSuffix: "devcanon",
         },
       },
     });
 
-    expect(result.targets.codex.displayNameSuffix).toBe("devcanon");
+    expect(result.targets.codex.skillDisplayNameSuffix).toBe("devcanon");
   });
 
   it("rejects an empty Codex display name suffix", () => {
@@ -73,7 +73,7 @@ describe("ConfigSchema", () => {
         codex: {
           skillsHome: "~/.agents/skills",
           agentsHome: "~/.codex/agents",
-          displayNameSuffix: "",
+          skillDisplayNameSuffix: "",
         },
       },
     });
@@ -88,7 +88,7 @@ describe("ConfigSchema", () => {
         codex: {
           skillsHome: "~/.agents/skills",
           agentsHome: "~/.codex/agents",
-          displayNameSuffix: "devcanon\ninjected",
+          skillDisplayNameSuffix: "devcanon\ninjected",
         },
       },
     });

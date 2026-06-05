@@ -46,7 +46,7 @@ file at `generated/codex/skills/<name>/agents/openai.yaml`. It is
 not inlined into the Codex `SKILL.md`. Supports `interface.*`,
 `policy.*`, `dependencies.*`, each strict.
 
-When `targets.codex.displayNameSuffix` is configured, the Codex renderer
+When `targets.codex.skillDisplayNameSuffix` is configured, the Codex renderer
 ensures the generated sidecar has an `interface.display_name` with the suffix
 appended. If the source does not provide a display name, the renderer derives a
 readable label from the skill `name` before appending the suffix. This display

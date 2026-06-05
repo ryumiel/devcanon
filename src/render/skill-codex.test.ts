@@ -101,7 +101,7 @@ describe("renderCodexSkill", () => {
         "",
       ),
       GLOSSARY,
-      { displayNameSuffix: " devcanon " },
+      { skillDisplayNameSuffix: " devcanon " },
     );
 
     const parsed = parseRenderedYamlArtifact(out.sidecar as string);
@@ -115,7 +115,7 @@ describe("renderCodexSkill", () => {
     const out = renderCodexSkill(
       make({ name: "branch-review", description: "d" }, ""),
       GLOSSARY,
-      { displayNameSuffix: "devcanon" },
+      { skillDisplayNameSuffix: "devcanon" },
     );
 
     const parsed = parseRenderedYamlArtifact(out.sidecar as string);
@@ -137,7 +137,7 @@ describe("renderCodexSkill", () => {
         "",
       ),
       GLOSSARY,
-      { displayNameSuffix: "devcanon" },
+      { skillDisplayNameSuffix: "devcanon" },
     );
 
     const parsed = parseRenderedYamlArtifact(out.sidecar as string);
@@ -160,7 +160,7 @@ describe("renderCodexSkill", () => {
         "",
       ),
       GLOSSARY,
-      { displayNameSuffix: "devcanon" },
+      { skillDisplayNameSuffix: "devcanon" },
     );
 
     const parsed = parseRenderedYamlArtifact(out.sidecar as string);

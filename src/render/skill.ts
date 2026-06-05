@@ -35,11 +35,11 @@ export function renderSkillForTarget(
   if (target === "claude") {
     content = renderClaudeSkill(input, glossary);
   } else {
-    const displayNameSuffix = config.targets.codex.displayNameSuffix;
+    const skillDisplayNameSuffix = config.targets.codex.skillDisplayNameSuffix;
     const out = renderCodexSkill(
       input,
       glossary,
-      displayNameSuffix ? { displayNameSuffix } : {},
+      skillDisplayNameSuffix ? { skillDisplayNameSuffix } : {},
     );
     content = out.skillMd;
     if (out.sidecar !== null) {

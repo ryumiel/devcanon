@@ -135,7 +135,7 @@ only — it is not inlined into the Codex `SKILL.md`. Use it when the skill
 benefits from a Codex UI label, description, or brand color. Accepts
 `interface`, `policy`, and `dependencies`.
 
-If `targets.codex.displayNameSuffix` is configured, the renderer appends that
+If `targets.codex.skillDisplayNameSuffix` is configured, the renderer appends that
 suffix to `interface.display_name`. When no display name is declared, the
 renderer derives one from the skill name before appending the suffix. Keep
 source `display_name` values focused on the human-readable label; use config

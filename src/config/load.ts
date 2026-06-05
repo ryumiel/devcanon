@@ -248,8 +248,11 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
         skillsHome: expandHome(config.targets.codex.skillsHome),
         agentsHome: expandHome(config.targets.codex.agentsHome),
         installMode: resolveTargetInstallMode(config.targets.codex.installMode),
-        ...(config.targets.codex.displayNameSuffix
-          ? { displayNameSuffix: config.targets.codex.displayNameSuffix }
+        ...(config.targets.codex.skillDisplayNameSuffix
+          ? {
+              skillDisplayNameSuffix:
+                config.targets.codex.skillDisplayNameSuffix,
+            }
           : {}),
       },
     },
