@@ -235,15 +235,6 @@ jq_value() {
   jq -r "$filter" "$file"
 }
 
-json_or_null() {
-  local value="$1"
-  if [ -n "$value" ]; then
-    printf '%s' "$value" | jq -Rs '.'
-  else
-    printf 'null\n'
-  fi
-}
-
 bool_json_or_default() {
   local value="$1"
   local default="$2"
@@ -826,65 +817,69 @@ write_lease() {
     fail "failed to create lease temp file"
   trap 'rm -f "$tmp_file"' EXIT
 
-  MSYS2_ARG_CONV_EXCL="*" MSYS_NO_PATHCONV="1" jq -n \
-    --arg schema "pr-review/lease/v1" \
-    --arg repository "$REPOSITORY" \
-    --argjson pr_number "$PR_NUMBER" \
-    --arg state "$STATE" \
-    --arg base_ref "$base_ref_value" \
-    --arg head_ref "$head_ref_value" \
-    --arg worktree_path "$physical_path" \
-    --arg worktree_digest "$digest" \
-    --arg lease_file "$LEASE_FILE" \
-    --arg created_at "$created_at_value" \
-    --arg updated_at "$updated_at_value" \
-    --argjson handoff_file "$(json_or_null "$handoff_value")" \
-    --argjson result_file "$(json_or_null "$result_value")" \
-    --argjson approved_review_file "$(json_or_null "$approved_value")" \
-    --argjson presented_at "$(json_or_null "$presented_at_value")" \
-    --argjson presentation_status "$(json_or_null "$presentation_status_value")" \
-    --argjson finished_at "$(json_or_null "$finished_at_value")" \
-    --argjson terminal_reason "$(json_or_null "$terminal_reason_value")" \
-    --argjson failure_phase "$(json_or_null "$failure_phase_value")" \
-    --argjson failure_reason "$(json_or_null "$failure_reason_value")" \
-    --argjson failure_recoverability "$(json_or_null "$failure_recoverability_value")" \
-    --argjson github_post_attempted "$github_attempted_value" \
-    --arg github_post_result "$github_result_value" \
-    --argjson github_posted_at "$(json_or_null "$github_posted_at_value")" \
-    '{
-      schema: $schema,
-      repository: $repository,
-      pr_number: $pr_number,
-      state: $state,
-      base_ref: $base_ref,
-      head_ref: $head_ref,
-      worktree_path: $worktree_path,
-      worktree_digest: $worktree_digest,
-      lease_file: $lease_file,
-      created_at: $created_at,
-      updated_at: $updated_at,
+  {
+    printf '%s\0' \
+      "pr-review/lease/v1" \
+      "$REPOSITORY" \
+      "$PR_NUMBER" \
+      "$STATE" \
+      "$base_ref_value" \
+      "$head_ref_value" \
+      "$physical_path" \
+      "$digest" \
+      "$LEASE_FILE" \
+      "$created_at_value" \
+      "$updated_at_value" \
+      "$handoff_value" \
+      "$result_value" \
+      "$approved_value" \
+      "$presented_at_value" \
+      "$presentation_status_value" \
+      "$finished_at_value" \
+      "$terminal_reason_value" \
+      "$failure_phase_value" \
+      "$failure_reason_value" \
+      "$failure_recoverability_value" \
+      "$github_attempted_value" \
+      "$github_result_value" \
+      "$github_posted_at_value"
+  } | jq -Rs '
+    def nullable($value): if $value == "" then null else $value end;
+    split("\u0000") as $values
+    | {
+      schema: $values[0],
+      repository: $values[1],
+      pr_number: ($values[2] | tonumber),
+      state: $values[3],
+      base_ref: $values[4],
+      head_ref: $values[5],
+      worktree_path: $values[6],
+      worktree_digest: $values[7],
+      lease_file: $values[8],
+      created_at: $values[9],
+      updated_at: $values[10],
       artifacts: {
-        handoff_file: $handoff_file,
-        result_file: $result_file,
-        approved_review_file: $approved_review_file
+        handoff_file: nullable($values[11]),
+        result_file: nullable($values[12]),
+        approved_review_file: nullable($values[13])
       },
       presentation: {
-        presented_at: $presented_at,
-        status: $presentation_status
+        presented_at: nullable($values[14]),
+        status: nullable($values[15])
       },
       terminal: {
-        finished_at: $finished_at,
-        reason: $terminal_reason
+        finished_at: nullable($values[16]),
+        reason: nullable($values[17])
       },
       failure: {
-        phase: $failure_phase,
-        reason: $failure_reason,
-        recoverability: $failure_recoverability
+        phase: nullable($values[18]),
+        reason: nullable($values[19]),
+        recoverability: nullable($values[20])
       },
       github: {
-        github_post_attempted: $github_post_attempted,
-        github_post_result: $github_post_result,
-        github_posted_at: $github_posted_at
+        github_post_attempted: ($values[21] == "true"),
+        github_post_result: $values[22],
+        github_posted_at: nullable($values[23])
       }
     }' >"$tmp_file"
 
