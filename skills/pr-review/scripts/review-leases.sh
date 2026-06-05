@@ -236,7 +236,7 @@ jq_value() {
 }
 
 base64_value() {
-  printf '%s' "$1" | base64 | tr -d '\n'
+  printf '%s' "$1" | base64 | tr -d '\r\n'
 }
 
 bool_json_or_default() {
@@ -530,6 +530,8 @@ validate_lease_timestamps() {
   local file="$1"
   local label value
   while IFS=$'\t' read -r label value; do
+    label="${label%$'\r'}"
+    value="${value%$'\r'}"
     [ "$value" != "null" ] || continue
     validate_timestamp_value "$label" "$value"
   done < <(
