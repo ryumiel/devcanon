@@ -198,18 +198,32 @@ script and keep only the invocation contract in `SKILL.md`.
 
 ### Cleanup ownership
 
-Inherits ADR-0012 § Consequences's policy: cleanup is implicit via worktree
-lifecycle, but PR creation preserves the worktree. `play-branch-finish` Step 5
-removes worktrees only for local merge and explicit discard paths; Option 2 PR
-creation keeps `.ephemeral/` artifacts available for review follow-up, CI
-fixes, and nit handling. Post-merge cleanup is owned by `pr-merge`, and manual
-cleanup remains an operator action for long-lived worktrees. No per-skill
-stale-artifact sweep is introduced. The `design.md` / `plan.md` precedents have
-never had a sweep; ADR-0012's findings-file decision did not introduce one;
-this ADR keeps the convention uniform. Edge cases (PR-created preserved
-worktrees, keep-as-is flows, direct skill invocations outside a short-lived
-worktree) leave files in place. Operators may sweep manually — extending the
-ADR-0012 sweep snippet with the three new markdown suffixes:
+Inherits ADR-0012 § Consequences's policy for generic phase artifacts: cleanup
+is implicit via worktree lifecycle, but PR creation preserves the worktree.
+`play-branch-finish` Step 5 removes worktrees only for local merge and explicit
+discard paths; Option 2 PR creation keeps `.ephemeral/` artifacts available for
+review follow-up, CI fixes, and nit handling. Post-merge cleanup is owned by
+`pr-merge`, and manual cleanup remains an operator action for long-lived
+worktrees. No per-skill stale-artifact sweep is introduced.
+
+`pr-review/lease/v1` is a lifecycle artifact, not a generic phase artifact.
+`pr-review` leases live in the primary repository `.ephemeral/` directory and
+are owned by `skills/pr-review/scripts/review-leases.sh`. They record review
+session state for resume, terminal outcomes, failed-post recovery, and
+lease-gated worktree cleanup. Lease cleanup does not introduce a broad
+`.ephemeral` sweep: the helper may record cleanup metadata in the matching
+lease and may remove a clean matching review worktree through plain
+`git worktree remove` only after its safety and confirmation contract passes.
+Dirty worktrees, preserved review artifacts, identity mismatches, invalid lease
+mechanics, non-worktree paths, and missing physical paths remain outside the
+generic artifact sweep policy.
+
+The `design.md` / `plan.md` precedents have never had a sweep; ADR-0012's
+findings-file decision did not introduce one; this ADR keeps the generic
+phase-artifact convention uniform. Edge cases (PR-created preserved worktrees,
+keep-as-is flows, direct skill invocations outside a short-lived worktree) leave
+files in place. Operators may sweep generic phase artifacts manually —
+extending the ADR-0012 sweep snippet with the three new markdown suffixes:
 
 ```bash
 rm -f .ephemeral/*-research.md .ephemeral/*-design.md .ephemeral/*-plan.md \
