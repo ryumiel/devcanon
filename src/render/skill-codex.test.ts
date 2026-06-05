@@ -88,6 +88,87 @@ describe("renderCodexSkill", () => {
     expect(parsed.dependencies).toMatchObject({ tools: [] });
   });
 
+  it("appends a configured display suffix to an existing display name", () => {
+    const out = renderCodexSkill(
+      make(
+        {
+          name: "pr-review",
+          description: "d",
+          codex_sidecar: {
+            interface: { display_name: "PR Review", brand_color: "#0969da" },
+          },
+        },
+        "",
+      ),
+      GLOSSARY,
+      { skillDisplayNameSuffix: " devcanon " },
+    );
+
+    const parsed = parseRenderedYamlArtifact(out.sidecar as string);
+    expect(parsed.interface).toMatchObject({
+      display_name: "PR Review (devcanon)",
+      brand_color: "#0969da",
+    });
+  });
+
+  it("creates a sidecar with a display name when only a suffix is configured", () => {
+    const out = renderCodexSkill(
+      make({ name: "branch-review", description: "d" }, ""),
+      GLOSSARY,
+      { skillDisplayNameSuffix: "devcanon" },
+    );
+
+    const parsed = parseRenderedYamlArtifact(out.sidecar as string);
+    expect(parsed).toEqual({
+      interface: { display_name: "Branch Review (devcanon)" },
+    });
+  });
+
+  it("preserves policy-only sidecars when adding a generated display name", () => {
+    const out = renderCodexSkill(
+      make(
+        {
+          name: "play-tdd",
+          description: "d",
+          codex_sidecar: {
+            policy: { allow_implicit_invocation: false },
+          },
+        },
+        "",
+      ),
+      GLOSSARY,
+      { skillDisplayNameSuffix: "devcanon" },
+    );
+
+    const parsed = parseRenderedYamlArtifact(out.sidecar as string);
+    expect(parsed).toEqual({
+      interface: { display_name: "Play TDD (devcanon)" },
+      policy: { allow_implicit_invocation: false },
+    });
+  });
+
+  it("does not append the configured display suffix twice", () => {
+    const out = renderCodexSkill(
+      make(
+        {
+          name: "pr-review",
+          description: "d",
+          codex_sidecar: {
+            interface: { display_name: "PR Review (devcanon)" },
+          },
+        },
+        "",
+      ),
+      GLOSSARY,
+      { skillDisplayNameSuffix: "devcanon" },
+    );
+
+    const parsed = parseRenderedYamlArtifact(out.sidecar as string);
+    expect(parsed.interface).toMatchObject({
+      display_name: "PR Review (devcanon)",
+    });
+  });
+
   it("substitutes {{model:*}} in body using the codex resolution", () => {
     const out = renderCodexSkill(
       make(

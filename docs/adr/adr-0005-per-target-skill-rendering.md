@@ -29,7 +29,8 @@ Adopt the existing agent-renderer pattern for skills. A single
 `skills/<name>/SKILL.md` is authoritative. At render time it
 produces per-target output under
 `generated/<target>/skills/<name>/SKILL.md`, plus a Codex-only
-`agents/openai.yaml` sidecar when declared.
+`agents/openai.yaml` sidecar when declared by the skill source or
+synthesized from Codex target config.
 
 Authors express divergence in three places:
 
@@ -40,6 +41,14 @@ Authors express divergence in three places:
    placeholders in body prose and top-level string values inside
    override blocks, resolved at render time against a `modelTiers`
    glossary in config.
+
+Codex target config may also provide
+`targets.codex.skillDisplayNameSuffix`. This is not source-level
+skill divergence, but it participates in Codex rendering by ensuring
+the generated sidecar has `interface.display_name` with the suffix
+appended. If the skill source has no `codex_sidecar`, the renderer may
+synthesize `agents/openai.yaml` solely to carry that Codex UI display
+name.
 
 **Namespace scope-lock:** only namespaces declared in
 `PlaceholderGlossary` (`model`, `tool`, `file`) are permitted; any
@@ -65,6 +74,10 @@ requires a new ADR.
   generated directory on next `sync`; handled automatically.
 - A glossary in `devcanon.config.yaml` maps tier names to
   target-native model IDs. Changing a tier is one config edit.
+- A Codex display-name suffix can create or mutate only the Codex
+  sidecar. It affects Codex content hashing and install planning, but
+  does not change Claude output, skill IDs, names, descriptions, or
+  install paths.
 - The placeholder system is intentionally minimal. New namespaces
   are added only via the `PlaceholderGlossary` pattern under a new
   ADR; body-level conditionals remain out of scope.

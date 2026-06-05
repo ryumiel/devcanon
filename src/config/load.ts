@@ -7,7 +7,9 @@ import { expandHome, resolveFromBase } from "../utils/paths.js";
 import { CLI_COMMAND, CONFIG_ENV_VAR, CONFIG_FILE_NAME } from "./identity.js";
 import {
   CLAUDE_MODEL_TIER_PROFILE_KEYS,
+  CODEX_CONFIG_TARGET_FIELDS,
   CODEX_MODEL_TIER_PROFILE_KEYS,
+  CONFIG_TARGET_FIELDS,
   CONFIG_TOP_LEVEL_KEYS,
   type Config,
   ConfigSchema,
@@ -17,6 +19,8 @@ import {
 } from "./schema.js";
 
 const KNOWN_CONFIG_KEYS = new Set<string>(CONFIG_TOP_LEVEL_KEYS);
+const KNOWN_TARGET_KEYS = new Set<string>(CONFIG_TARGET_FIELDS);
+const KNOWN_CODEX_TARGET_KEYS = new Set<string>(CODEX_CONFIG_TARGET_FIELDS);
 const KNOWN_MODEL_TIER_TARGET_KEYS = new Set<string>(
   MODEL_TIER_PROFILE_TARGET_KEYS,
 );
@@ -127,6 +131,8 @@ function collectUnknownConfigFields(parsed: unknown): string[] {
     .filter((key) => !KNOWN_CONFIG_KEYS.has(key))
     .map((key) => key);
 
+  collectUnknownTargetFields(parsedRecord, unknownFields);
+
   const modelTiers = parsedRecord.modelTiers;
   if (
     !modelTiers ||
@@ -182,6 +188,35 @@ function collectUnknownConfigFields(parsed: unknown): string[] {
   return unknownFields;
 }
 
+function collectUnknownTargetFields(
+  parsedRecord: Record<string, unknown>,
+  unknownFields: string[],
+): void {
+  const targets = parsedRecord.targets;
+  if (!targets || typeof targets !== "object" || Array.isArray(targets)) {
+    return;
+  }
+
+  const targetRecord = targets as Record<string, unknown>;
+  for (const [targetName, targetValue] of Object.entries(targetRecord)) {
+    if (
+      !targetValue ||
+      typeof targetValue !== "object" ||
+      Array.isArray(targetValue)
+    ) {
+      continue;
+    }
+
+    const knownKeys =
+      targetName === "codex" ? KNOWN_CODEX_TARGET_KEYS : KNOWN_TARGET_KEYS;
+    for (const key of Object.keys(targetValue)) {
+      if (!knownKeys.has(key)) {
+        unknownFields.push(`targets.${targetName}.${key}`);
+      }
+    }
+  }
+}
+
 function resolveConfig(config: Config, configPath: string): ResolvedConfig {
   const configDir = path.dirname(path.resolve(configPath));
   const defaultMode = config.defaults.installMode;
@@ -213,6 +248,12 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
         skillsHome: expandHome(config.targets.codex.skillsHome),
         agentsHome: expandHome(config.targets.codex.agentsHome),
         installMode: resolveTargetInstallMode(config.targets.codex.installMode),
+        ...(config.targets.codex.skillDisplayNameSuffix
+          ? {
+              skillDisplayNameSuffix:
+                config.targets.codex.skillDisplayNameSuffix,
+            }
+          : {}),
       },
     },
     defaults: {

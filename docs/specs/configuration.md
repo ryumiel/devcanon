@@ -81,8 +81,29 @@ fileArtifacts:
 - relative paths are resolved relative to the config file directory
 - `~` must be expanded
 - target-specific settings override defaults
+- `targets.codex.skillDisplayNameSuffix`, when present, is a raw namespace value
+  appended to generated Codex skill UI display names in `(<value>)` form
 - unknown top-level config fields produce warnings in normal mode and errors in
   strict mode
+
+---
+
+## Codex display name suffix
+
+Optional. `targets.codex.skillDisplayNameSuffix` configures a Codex UI-only suffix
+for rendered skill sidecar display names.
+
+- The value is trimmed, must be non-empty, and must not contain control
+  characters or line breaks.
+- The renderer formats the value in `(<value>)` form; for example, `devcanon`
+  renders as `(devcanon)`.
+- The suffix affects only `generated/codex/skills/<name>/agents/openai.yaml`
+  `interface.display_name`.
+- If a skill has no source `codex_sidecar.interface.display_name`, the Codex
+  renderer derives a readable display name from the skill name, then appends
+  the suffix.
+- It does not change skill `name`, `description`, install paths, Claude output,
+  or CLI `list` output.
 
 ---
 

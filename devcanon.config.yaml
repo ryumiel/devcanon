@@ -17,6 +17,7 @@ targets:
     skillsHome: ~/.agents/skills
     agentsHome: ~/.codex/agents
     installMode: symlink
+    skillDisplayNameSuffix: devcanon
 
 defaults:
   installMode: symlink

@@ -35,7 +35,12 @@ export function renderSkillForTarget(
   if (target === "claude") {
     content = renderClaudeSkill(input, glossary);
   } else {
-    const out = renderCodexSkill(input, glossary);
+    const skillDisplayNameSuffix = config.targets.codex.skillDisplayNameSuffix;
+    const out = renderCodexSkill(
+      input,
+      glossary,
+      skillDisplayNameSuffix ? { skillDisplayNameSuffix } : {},
+    );
     content = out.skillMd;
     if (out.sidecar !== null) {
       extraFiles.set(

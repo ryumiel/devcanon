@@ -10,9 +10,14 @@ export interface RenderedCodexSkill {
   sidecar: string | null;
 }
 
+export interface RenderCodexSkillOptions {
+  skillDisplayNameSuffix?: string;
+}
+
 export function renderCodexSkill(
   input: SkillInput,
   glossary: PlaceholderGlossary,
+  options: RenderCodexSkillOptions = {},
 ): RenderedCodexSkill {
   const { source, body } = input;
   const renderContext = { skillName: source.name, target: "codex" as const };
@@ -51,9 +56,69 @@ export function renderCodexSkill(
 
   const skillMd = `---\n${yaml}---\n${renderedBody}`;
 
-  const sidecar = source.codex_sidecar
-    ? yamlStringify(source.codex_sidecar, { lineWidth: 0 })
+  const sidecarSource = buildCodexSidecar(
+    source.name,
+    source.codex_sidecar,
+    options.skillDisplayNameSuffix,
+  );
+  const sidecar = sidecarSource
+    ? yamlStringify(sidecarSource, { lineWidth: 0 })
     : null;
 
   return { skillMd, sidecar };
+}
+
+type CodexSidecar = NonNullable<SkillInput["source"]["codex_sidecar"]>;
+type CodexSidecarInterface = NonNullable<CodexSidecar["interface"]>;
+
+const DISPLAY_NAME_TOKEN_OVERRIDES: Record<string, string> = {
+  afds: "AFDS",
+  cli: "CLI",
+  git: "Git",
+  github: "GitHub",
+  pr: "PR",
+  tdd: "TDD",
+  ui: "UI",
+} as const;
+
+function buildCodexSidecar(
+  skillName: string,
+  sourceSidecar: CodexSidecar | undefined,
+  skillDisplayNameSuffix: string | undefined,
+): CodexSidecar | null {
+  const normalizedSuffix = skillDisplayNameSuffix?.trim();
+  if (!normalizedSuffix) return sourceSidecar ?? null;
+
+  const displayNameBase =
+    sourceSidecar?.interface?.display_name ?? skillNameToDisplayName(skillName);
+  const nextInterface: CodexSidecarInterface = {
+    ...sourceSidecar?.interface,
+    display_name: appendDisplaySuffix(displayNameBase, normalizedSuffix),
+  };
+  const nextSidecar: CodexSidecar = { interface: nextInterface };
+
+  if (sourceSidecar?.policy !== undefined) {
+    nextSidecar.policy = sourceSidecar.policy;
+  }
+  if (sourceSidecar?.dependencies !== undefined) {
+    nextSidecar.dependencies = sourceSidecar.dependencies;
+  }
+
+  return nextSidecar;
+}
+
+function appendDisplaySuffix(displayName: string, suffix: string): string {
+  const formattedSuffix = ` (${suffix})`;
+  if (displayName.endsWith(formattedSuffix)) return displayName;
+  return `${displayName}${formattedSuffix}`;
+}
+
+function skillNameToDisplayName(skillName: string): string {
+  return skillName.split("-").map(formatDisplayNameToken).join(" ");
+}
+
+function formatDisplayNameToken(token: string): string {
+  const override = DISPLAY_NAME_TOKEN_OVERRIDES[token];
+  if (override !== undefined) return override;
+  return `${token.charAt(0).toUpperCase()}${token.slice(1)}`;
 }
