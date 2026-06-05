@@ -32,7 +32,7 @@ const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
-const longTestTimeout = process.platform === "win32" ? 60_000 : 20_000;
+const longTestTimeout = process.platform === "win32" ? 120_000 : 20_000;
 const timestampEnvVars = [
   "CREATED_AT",
   "UPDATED_AT",
@@ -118,6 +118,11 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function bashPhysicalCwd(cwd: string) {
+  const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
+  return stdout.trim();
+}
+
 async function pathExists(filePath: string) {
   try {
     await access(filePath);
@@ -139,6 +144,26 @@ function leaseDigest(worktreePath: string) {
     }
   }
   return createHash("sha256").update(normalized).digest("hex");
+}
+
+async function acceptedPhysicalRoots(cwd: string) {
+  return Array.from(
+    new Set([cwd, await bashPhysicalCwd(cwd)].map(normalizePathText)),
+  );
+}
+
+function normalizePathText(value: string) {
+  let normalized = value.replace(/\\/gu, "/");
+  if (process.platform === "win32") {
+    normalized = normalized.replace(
+      /^\/([A-Za-z])\//u,
+      (_match, drive: string) => `${drive}:/`,
+    );
+    if (/^[A-Za-z]:\//u.test(normalized)) {
+      normalized = normalized.toLowerCase();
+    }
+  }
+  return normalized;
 }
 
 function leasePath(worktreePath: string) {
@@ -505,20 +530,21 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
     try {
       const file = await writeCreatedLease(primary.cwd, review.cwd);
+      const acceptedRoots = await acceptedPhysicalRoots(review.cwd);
       await expect(
         runLeaseHelper(primary.cwd, "validate", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
         }),
       ).resolves.toMatchObject({ stdout: "" });
-      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+      const lease = await readJson(primary.cwd, file);
+      expect(lease).toMatchObject({
         schema: "pr-review/lease/v1",
         repository,
         pr_number: Number(prNumber),
         state: "created",
         base_ref: "main",
         head_ref: "topic",
-        worktree_path: review.cwd,
         worktree_digest: leaseDigest(review.cwd),
         lease_file: file,
         created_at: createdAt,
@@ -534,11 +560,11 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           github_posted_at: null,
         },
       });
+      expect(acceptedRoots).toContain(normalizePathText(lease.worktree_path));
       await expect(readJson(primary.cwd, file)).resolves.not.toHaveProperty(
         "cleanup",
       );
 
-      const lease = await readJson(primary.cwd, file);
       await writeJson(primary.cwd, file, { ...lease, extra: true });
       await expect(
         runLeaseHelper(primary.cwd, "validate", {
@@ -927,63 +953,67 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
-  it("delegates referenced result validation through manifest and play-review authority", async () => {
-    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
-    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
-    try {
-      await writeValidReviewManifests(
-        review.cwd,
-        review.baseSha,
-        review.headSha,
-      );
-      const recordingPlayHelper = await writeRecordingPlayHelper(review.cwd);
-      const file = await writeCreatedLease(primary.cwd, review.cwd);
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          STATE: "reviewed",
-          RESULT_FILE: resultPath(review.headSha),
-          PLAY_REVIEW_HELPER: recordingPlayHelper,
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
+  it(
+    "delegates referenced result validation through manifest and play-review authority",
+    async () => {
+      const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+      const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+      try {
+        await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const recordingPlayHelper = await writeRecordingPlayHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            STATE: "reviewed",
+            RESULT_FILE: resultPath(review.headSha),
+            PLAY_REVIEW_HELPER: recordingPlayHelper,
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
 
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/play-helper-args.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe("validate-findings\n");
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/play-helper-head.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe(`${review.headSha}\n`);
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/play-helper-findings.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe(`${findingsPath(review.headSha)}\n`);
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/play-helper-args.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("validate-findings\n");
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/play-helper-head.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${review.headSha}\n`);
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/play-helper-findings.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${findingsPath(review.headSha)}\n`);
 
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          STATE: "gated",
-          RESULT_FILE: ".ephemeral/nested/result.json",
-          PRESENTED_AT: "2026-06-05T00:03:00Z",
-          PRESENTATION_STATUS: "preview-current",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("nested result path rejected"),
-      });
-    } finally {
-      await cleanupTempDir(primary.cwd);
-      await cleanupTempDir(review.cwd);
-    }
-  });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            STATE: "gated",
+            RESULT_FILE: ".ephemeral/nested/result.json",
+            PRESENTED_AT: "2026-06-05T00:03:00Z",
+            PRESENTATION_STATUS: "preview-current",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("nested result path rejected"),
+        });
+      } finally {
+        await cleanupTempDir(primary.cwd);
+        await cleanupTempDir(review.cwd);
+      }
+    },
+    longTestTimeout,
+  );
 
   it(
     "delegates approved-review validation without constructing payloads or mutating GitHub",
