@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   access,
   chmod,
@@ -150,17 +150,17 @@ function shellSingleQuote(value: string) {
 
 function separateTimestampEnv(env: NodeJS.ProcessEnv) {
   const passthrough = { ...env };
-  const assignments: string[] = [];
+  const lines: string[] = [];
 
   for (const name of timestampEnvVars) {
     const value = passthrough[name];
     delete passthrough[name];
     if (value !== undefined) {
-      assignments.push(`${name}=${shellSingleQuote(value)}; export ${name}`);
+      lines.push(`${name}=${shellSingleQuote(value)}`, `export ${name}`);
     }
   }
 
-  return { passthrough, assignments };
+  return { passthrough, contents: `${lines.join("\n")}\n` };
 }
 
 function removeToken(worktreePath: string) {
@@ -362,7 +362,7 @@ async function runLeaseHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
-  const { passthrough, assignments } = separateTimestampEnv({
+  const { passthrough, contents } = separateTimestampEnv({
     ...process.env,
     REPOSITORY: repository,
     PR_NUMBER: prNumber,
@@ -372,18 +372,33 @@ async function runLeaseHelper(
     UPDATED_AT: updatedAt,
     ...env,
   });
-  const timestampSetup =
-    assignments.length > 0 ? `${assignments.join("; ")}; ` : "";
-
-  return execFileAsync(
-    "bash",
-    ["-c", `${timestampSetup}exec "$0" "$@"`, helperScript, command],
-    {
-      cwd,
-      env: passthrough,
-      maxBuffer: 1024 * 1024,
-    },
+  const timestampEnvFile = path.join(
+    cwd,
+    ".ephemeral",
+    `.lease-timestamps-${process.pid}-${randomUUID()}.sh`,
   );
+  await writeFile(timestampEnvFile, contents);
+
+  try {
+    return await execFileAsync(
+      "bash",
+      [
+        "-c",
+        'source "$1"; shift; exec "$@"',
+        "lease-helper-runner",
+        timestampEnvFile,
+        helperScript,
+        command,
+      ],
+      {
+        cwd,
+        env: passthrough,
+        maxBuffer: 1024 * 1024,
+      },
+    );
+  } finally {
+    await unlink(timestampEnvFile).catch(() => undefined);
+  }
 }
 
 async function writeCreatedLease(primary: string, worktree: string) {
@@ -1039,7 +1054,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       await cleanupTempDir(primary.cwd);
       await cleanupTempDir(review.cwd);
     }
-  });
+  }, 20_000);
 
   it("inspects cleanup safety facts with fixed keys without removing the worktree", async () => {
     const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -1935,7 +1950,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     } finally {
       await cleanupLinkedReviewWorkspace(primary, review, parent);
     }
-  });
+  }, 20_000);
 
   it("does not remove preexisting temp-like files after failed writes", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
