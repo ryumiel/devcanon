@@ -875,6 +875,81 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
+  it("rejects repeated posted transitions from a terminal lease fixture", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      const physicalWorktree = await bashPhysicalCwd(review.cwd);
+      const digest = leaseDigest(physicalWorktree);
+      const file = leasePath(physicalWorktree);
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+      await writeJson(review.cwd, resultPath(review.headSha), {
+        review_head_sha: review.headSha,
+      });
+      await writeJson(review.cwd, approvedReviewPath(review.headSha), {
+        schema: "pr-review/approved-review/v1",
+        review_head_sha: review.headSha,
+      });
+      await writeJson(primary.cwd, file, {
+        schema: "pr-review/lease/v1",
+        repository,
+        pr_number: Number(prNumber),
+        state: "posted",
+        base_ref: "main",
+        head_ref: "topic",
+        worktree_path: physicalWorktree,
+        worktree_digest: digest,
+        lease_file: file,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        artifacts: {
+          handoff_file: null,
+          result_file: resultPath(review.headSha),
+          approved_review_file: approvedReviewPath(review.headSha),
+        },
+        presentation: {
+          presented_at: "2026-06-05T00:03:00Z",
+          status: "preview-current",
+        },
+        terminal: {
+          finished_at: "2026-06-05T00:04:00Z",
+          reason: null,
+        },
+        failure: {
+          phase: null,
+          reason: null,
+          recoverability: null,
+        },
+        github: {
+          github_post_attempted: true,
+          github_post_result: "succeeded",
+          github_posted_at: "2026-06-05T00:04:00Z",
+        },
+      });
+
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          APPROVED_REVIEW_HELPER: approvedHelper,
+          STATE: "posted",
+          APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
+          FINISHED_AT: "2026-06-05T00:05:00Z",
+          GITHUB_POST_ATTEMPTED: "true",
+          GITHUB_POST_RESULT: "succeeded",
+          GITHUB_POSTED_AT: "2026-06-05T00:05:00Z",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("invalid lease transition"),
+      });
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
   it("rejects base ref mismatches without rewriting the lease or leaving temp residue", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
@@ -1030,17 +1105,20 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           schema: "pr-review/approved-review/v1",
           review_head_sha: review.headSha,
         });
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
         const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
         const file = await writeCreatedLease(primary.cwd, review.cwd);
         await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
           STATE: "reviewed",
           RESULT_FILE: resultPath(review.headSha),
         });
         await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
           STATE: "gated",
           PRESENTED_AT: "2026-06-05T00:03:00Z",
           PRESENTATION_STATUS: "preview-current",
@@ -1049,6 +1127,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           runLeaseHelper(primary.cwd, "write", {
             WORKTREE_PATH: review.cwd,
             LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
             STATE: "posted",
             APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
             APPROVED_REVIEW_HELPER: approvedHelper,
@@ -1070,21 +1149,6 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
             "utf8",
           ),
         ).resolves.toBe(`${approvedReviewPath(review.headSha)}\n`);
-        await expect(
-          runLeaseHelper(primary.cwd, "write", {
-            WORKTREE_PATH: review.cwd,
-            LEASE_FILE: file,
-            STATE: "posted",
-            APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
-            APPROVED_REVIEW_HELPER: approvedHelper,
-            FINISHED_AT: "2026-06-05T00:05:00Z",
-            GITHUB_POST_ATTEMPTED: "true",
-            GITHUB_POST_RESULT: "succeeded",
-            GITHUB_POSTED_AT: "2026-06-05T00:05:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining("invalid lease transition"),
-        });
 
         const helperSource = await readFile(helperScript, "utf8");
         expect(helperSource).not.toContain("gh ");
