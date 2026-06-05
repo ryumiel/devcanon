@@ -215,6 +215,71 @@ describe("loadConfig", () => {
     expect(result.targets.codex.installMode).toBe("symlink");
   });
 
+  it("loads the Codex display name suffix into resolved config", async () => {
+    const yaml = [
+      "version: 1",
+      "targets:",
+      "  codex:",
+      "    enabled: true",
+      "    skillsHome: ~/codex-skills",
+      "    agentsHome: ~/codex-agents",
+      "    displayNameSuffix: devcanon",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+    const result = await loadConfig(configPath);
+
+    expect(result.targets.codex.displayNameSuffix).toBe("devcanon");
+  });
+
+  it("warns about unknown target fields in non-strict mode", async () => {
+    const yaml = [
+      "version: 1",
+      "targets:",
+      "  codex:",
+      "    skillsHome: ~/codex-skills",
+      "    agentsHome: ~/codex-agents",
+      "    displayNameSufix: typo",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+    const result = await loadConfig(configPath);
+
+    expect(result.targets.codex.displayNameSuffix).toBeUndefined();
+    expect(
+      logCtx.testLogger.warnings.some((warning) =>
+        warning.includes("targets.codex.displayNameSufix"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects unknown target fields in strict mode", async () => {
+    const yaml = [
+      "version: 1",
+      "targets:",
+      "  claude:",
+      "    skillsHome: ~/claude-skills",
+      "    agentsHome: ~/claude-agents",
+      "    displayNameSuffix: devcanon",
+      "  codex:",
+      "    skillsHome: ~/codex-skills",
+      "    agentsHome: ~/codex-agents",
+      "    displayNameSufix: typo",
+    ].join("\n");
+    const configPath = await createConfigFile(tempDir, yaml);
+
+    await expect(loadConfig(configPath, true)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "targets.claude.displayNameSuffix",
+        );
+        expect((err as UserError).message).toContain(
+          "targets.codex.displayNameSufix",
+        );
+        return true;
+      },
+    );
+  });
+
   it("loads nested model tier profiles into resolved config", async () => {
     const yaml = [
       "version: 1",

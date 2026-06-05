@@ -14,14 +14,6 @@ export const OverwritePolicySchema = z.enum([
 ]);
 export type OverwritePolicy = z.infer<typeof OverwritePolicySchema>;
 
-// --- Target config ---
-const TargetConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  skillsHome: z.string(),
-  agentsHome: z.string(),
-  installMode: InstallModeSchema.optional(),
-});
-
 // --- Target entries (shared shape for model/tool/file glossaries) ---
 // Values are bounded so that drift-detection regexes built from them stay
 // inside V8's RegExp-source size limit; a token over ~50 KB would otherwise
@@ -52,6 +44,36 @@ function renderSafeString(min: number, max: number) {
     .max(max)
     .refine(isRenderSafeLine, RENDER_SAFE_LINE_MESSAGE);
 }
+
+// --- Target config ---
+const TargetConfigShape = {
+  enabled: z.boolean().default(true),
+  skillsHome: z.string(),
+  agentsHome: z.string(),
+  installMode: InstallModeSchema.optional(),
+};
+
+const DisplayNameSuffixSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX)
+  .transform((value) => value.trim())
+  .refine((value) => value.length > 0, {
+    message: "displayNameSuffix must not be blank",
+  });
+
+const TargetConfigSchema = z.object(TargetConfigShape);
+
+const CodexTargetConfigShape = {
+  ...TargetConfigShape,
+  displayNameSuffix: DisplayNameSuffixSchema.optional(),
+};
+
+const CodexTargetConfigSchema = z.object(CodexTargetConfigShape);
+
+export const CONFIG_TARGET_FIELDS = Object.keys(TargetConfigShape) as Array<
+  keyof typeof TargetConfigShape
+>;
+export const CODEX_CONFIG_TARGET_FIELDS = Object.keys(
+  CodexTargetConfigShape,
+) as Array<keyof typeof CodexTargetConfigShape>;
 
 // Shared effort/reasoning enums, declared once so model-tier profiles,
 // agent target shapes, and skill overrides stay in lockstep.
@@ -169,7 +191,7 @@ export const ConfigSchema = z.object({
         skillsHome: "~/.claude/skills",
         agentsHome: "~/.claude/agents",
       }),
-      codex: TargetConfigSchema.default({
+      codex: CodexTargetConfigSchema.default({
         enabled: true,
         skillsHome: "~/.agents/skills",
         agentsHome: "~/.codex/agents",
@@ -223,7 +245,7 @@ export interface ResolvedConfig {
   };
   targets: {
     claude: ResolvedTargetConfig;
-    codex: ResolvedTargetConfig;
+    codex: ResolvedCodexTargetConfig;
   };
   defaults: {
     installMode: InstallMode;
@@ -246,6 +268,10 @@ export interface ResolvedTargetConfig {
   skillsHome: string;
   agentsHome: string;
   installMode: InstallMode;
+}
+
+export interface ResolvedCodexTargetConfig extends ResolvedTargetConfig {
+  displayNameSuffix?: string;
 }
 
 // --- Agent source ---

@@ -300,9 +300,11 @@ describe("existing skills render cleanly", () => {
       const parsed = parseYaml(sidecar) as Record<string, unknown>;
 
       expect(parsed).toMatchObject({
+        interface: {
+          display_name: expect.stringContaining(" (devcanon)"),
+        },
         policy: { allow_implicit_invocation: false },
       });
-      expect(parsed).not.toHaveProperty("interface");
       expect(parsed).toMatchSnapshot(`${skillName}-sidecar`);
     }
   });

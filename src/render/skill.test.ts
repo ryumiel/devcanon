@@ -91,6 +91,54 @@ describe("renderSkillForTarget contentHash", () => {
     );
   });
 
+  it("changes the codex hash but not the claude hash when only the display suffix is configured", () => {
+    const baseConfig = makeResolvedConfig("/tmp/test-hash");
+    baseConfig.modelTiers = TIERS;
+    const suffixConfig = makeResolvedConfig("/tmp/test-hash", {
+      codex: { displayNameSuffix: "devcanon" },
+    });
+    suffixConfig.modelTiers = TIERS;
+
+    const source: SkillSource = {
+      name: "branch-review",
+      description: "d",
+    };
+
+    const baseCodex = renderSkillForTarget(
+      makeLoaded(source),
+      "codex",
+      baseConfig,
+    );
+    const suffixCodex = renderSkillForTarget(
+      makeLoaded(source),
+      "codex",
+      suffixConfig,
+    );
+    const baseClaude = renderSkillForTarget(
+      makeLoaded(source),
+      "claude",
+      baseConfig,
+    );
+    const suffixClaude = renderSkillForTarget(
+      makeLoaded(source),
+      "claude",
+      suffixConfig,
+    );
+
+    expect(baseCodex.extraFiles.size).toBe(0);
+    expect(suffixCodex.extraFiles.size).toBe(1);
+    expect(Array.from(suffixCodex.extraFiles.values())[0]).toContain(
+      "display_name: Branch Review (devcanon)",
+    );
+    expect(baseCodex.rendered.contentHash).not.toBe(
+      suffixCodex.rendered.contentHash,
+    );
+    expect(baseClaude.rendered.content).toBe(suffixClaude.rendered.content);
+    expect(baseClaude.rendered.contentHash).toBe(
+      suffixClaude.rendered.contentHash,
+    );
+  });
+
   it("changes when only the claude override changes (claude target)", () => {
     const config = makeResolvedConfig("/tmp/test-hash");
     config.modelTiers = TIERS;

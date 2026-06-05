@@ -23,7 +23,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 {
   "interface": {
     "brand_color": "#24292f",
-    "display_name": "GitHub Issue Priming",
+    "display_name": "GitHub Issue Priming (devcanon)",
     "short_description": "Research and stage a GitHub issue for implementation",
   },
 }
@@ -40,6 +40,9 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-priming-workflow-sidecar 1`] = `
 {
+  "interface": {
+    "display_name": "Issue Priming Workflow (devcanon)",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -69,7 +72,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 {
   "interface": {
     "brand_color": "#5e6ad2",
-    "display_name": "Linear Issue Priming",
+    "display_name": "Linear Issue Priming (devcanon)",
     "short_description": "Research and stage a Linear issue for implementation",
   },
 }
@@ -77,6 +80,9 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > play-review-sidecar 1`] = `
 {
+  "interface": {
+    "display_name": "Play Review (devcanon)",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -85,6 +91,9 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > play-validate-review-artifacts-sidecar 1`] = `
 {
+  "interface": {
+    "display_name": "Play Validate Review Artifacts (devcanon)",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -95,7 +104,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 {
   "interface": {
     "brand_color": "#0969da",
-    "display_name": "PR Review",
+    "display_name": "PR Review (devcanon)",
     "short_description": "Run a multi-agent review of a GitHub pull request",
   },
 }
@@ -116,7 +125,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 {
   "interface": {
     "brand_color": "#0f766e",
-    "display_name": "Report Shared Issue",
+    "display_name": "Report Shared Issue (devcanon)",
     "icon_large": "./assets/codex-skill-icon-large.png",
     "icon_small": "./assets/codex-skill-icon-small.png",
     "short_description": "Draft and post reusable shared-work issues to DevCanon",
@@ -126,6 +135,9 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > subagent-lifecycle-sidecar 1`] = `
 {
+  "interface": {
+    "display_name": "Subagent Lifecycle (devcanon)",
+  },
   "policy": {
     "allow_implicit_invocation": false,
   },
@@ -137,7 +149,7 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
   "interface": {
     "brand_color": "#5e6ad2",
     "default_prompt": "Use $write-linear-project-update to draft a Linear project update from evidence in dry-run mode.",
-    "display_name": "Write Linear Project Update",
+    "display_name": "Write Linear Project Update (devcanon)",
     "short_description": "Write Linear project updates from evidence",
   },
 }

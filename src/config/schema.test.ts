@@ -40,6 +40,7 @@ describe("ConfigSchema", () => {
     expect(result.targets.codex.enabled).toBe(true);
     expect(result.targets.codex.skillsHome).toBe("~/.agents/skills");
     expect(result.targets.codex.agentsHome).toBe("~/.codex/agents");
+    expect(result.targets.codex.displayNameSuffix).toBeUndefined();
 
     expect(result.defaults.installMode).toBe("symlink");
     expect(result.defaults.overwritePolicy).toBe("overwrite-managed");
@@ -48,6 +49,51 @@ describe("ConfigSchema", () => {
     expect(result.platform.windowsSymlinkFallback).toBe("copy");
 
     expect(result.manifest.path).toBe("~/.devcanon/manifest.json");
+  });
+
+  it("accepts a Codex display name suffix", () => {
+    const result = ConfigSchema.parse({
+      version: 1,
+      targets: {
+        codex: {
+          skillsHome: "~/.agents/skills",
+          agentsHome: "~/.codex/agents",
+          displayNameSuffix: "devcanon",
+        },
+      },
+    });
+
+    expect(result.targets.codex.displayNameSuffix).toBe("devcanon");
+  });
+
+  it("rejects an empty Codex display name suffix", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      targets: {
+        codex: {
+          skillsHome: "~/.agents/skills",
+          agentsHome: "~/.codex/agents",
+          displayNameSuffix: "",
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects Codex display name suffix line breaks", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      targets: {
+        codex: {
+          skillsHome: "~/.agents/skills",
+          agentsHome: "~/.codex/agents",
+          displayNameSuffix: "devcanon\ninjected",
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 });
 
