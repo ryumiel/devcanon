@@ -161,6 +161,11 @@ function separateTimestampEnv(env: NodeJS.ProcessEnv) {
     }
   }
 
+  if (process.platform === "win32") {
+    passthrough.MSYS2_ARG_CONV_EXCL = "*";
+    passthrough.MSYS_NO_PATHCONV = "1";
+  }
+
   return { passthrough, contents: `${lines.join("\n")}\n` };
 }
 
