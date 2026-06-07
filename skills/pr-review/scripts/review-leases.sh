@@ -503,6 +503,25 @@ validate_result_artifact() {
   validate_result_identity "$worktree" "$file"
 }
 
+result_handoff_file_for() {
+  local worktree="$1"
+  local file="$2"
+  local review_head_sha handoff_file
+  handoff_file="$(jq -r 'if .artifacts.handoff_file != null then .artifacts.handoff_file elif .handoff_file != null then .handoff_file else "" end' "$worktree/$file")"
+  if [ -n "$handoff_file" ]; then
+    printf '%s\n' "$handoff_file"
+    return
+  fi
+  review_head_sha="$(artifact_head_sha "$worktree" "$file" '.review_head_sha')"
+  printf '.ephemeral/pr-%s-%s-handoff.json\n' "$PR_NUMBER" "$review_head_sha"
+}
+
+result_presentation_status_for() {
+  local worktree="$1"
+  local file="$2"
+  jq -r 'if .presentation.status == null then "" else .presentation.status end' "$worktree/$file"
+}
+
 validate_approved_review_artifact() {
   local worktree="$1"
   local file="$2"
@@ -797,6 +816,16 @@ validate_lease_file() {
   validate_referenced_artifacts "$file" "$physical_path"
 }
 
+validate_terminal_lease_for_archive() {
+  local file="$1"
+  local physical_path="$2"
+  validate_direct_child_path "lease" "$file" "-lease.json"
+  assert_readable_file "lease file" "$file"
+  validate_lease_schema "$file"
+  validate_lease_timestamps "$file"
+  validate_lease_identity "$file" "$physical_path"
+}
+
 transition_id() {
   local previous="$1"
   local target="$2"
@@ -937,7 +966,7 @@ rotate_terminal_lease_for_created() {
   local state stamp archive_path
   [ "$STATE" = "created" ] || return 0
   [ -e "$LEASE_FILE" ] || return 0
-  validate_lease_file "$LEASE_FILE" "$physical_path"
+  validate_terminal_lease_for_archive "$LEASE_FILE" "$physical_path"
   state="$(jq_value "$LEASE_FILE" '.state')"
   case "$state" in
     posted | aborted) ;;
@@ -969,6 +998,7 @@ write_lease() {
   local presented_at_value presentation_status_value finished_at_value terminal_reason_value
   local failure_phase_value failure_reason_value failure_recoverability_value
   local github_attempted_value github_result_value github_posted_at_value
+  local existing_result_value existing_approved_value result_handoff_value result_presentation_status
 
   require_repo_root
   require_jq
@@ -1040,6 +1070,15 @@ write_lease() {
   github_result_value="${GITHUB_POST_RESULT:-$(existing_field "$existing_file" '.github.github_post_result // "not-attempted"' "not-attempted")}"
   github_posted_at_value="${GITHUB_POSTED_AT:-$(existing_field "$existing_file" 'if .github.github_posted_at == null then "" else .github.github_posted_at end' "")}"
 
+  if [ "$previous_state" = "failed" ]; then
+    case "$STATE" in
+      posted | aborted | failed)
+        [ -n "${FINISHED_AT:-}" ] ||
+          fail "FINISHED_AT is required for fresh $STATE after failed lease"
+        ;;
+    esac
+  fi
+
   if [ "$STATE" = "created" ]; then
     result_value=""
     approved_value=""
@@ -1076,6 +1115,28 @@ write_lease() {
     github_result_value="not-attempted"
     github_posted_at_value=""
   elif [ "$STATE" = "posted" ]; then
+    if [ -n "$existing_file" ]; then
+      case "$previous_state" in
+        gated | failed)
+          existing_result_value="$(jq_value "$existing_file" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
+          [ -n "$existing_result_value" ] ||
+            fail "posted transition requires existing result pointer"
+          if [ -n "${RESULT_FILE:-}" ] && [ "$RESULT_FILE" != "$existing_result_value" ]; then
+            fail "RESULT_FILE must match existing $previous_state result"
+          fi
+          result_value="$existing_result_value"
+          ;;
+      esac
+      if [ "$previous_state" = "failed" ]; then
+        existing_approved_value="$(jq_value "$existing_file" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
+        [ -n "$existing_approved_value" ] ||
+          fail "posted retry requires existing approved-review pointer"
+        if [ -n "${APPROVED_REVIEW_FILE:-}" ] && [ "$APPROVED_REVIEW_FILE" != "$existing_approved_value" ]; then
+          fail "APPROVED_REVIEW_FILE must match existing failed approved-review"
+        fi
+        approved_value="$existing_approved_value"
+      fi
+    fi
     [ -n "$result_value" ] || fail "RESULT_FILE is required for posted"
     [ -n "$approved_value" ] || fail "APPROVED_REVIEW_FILE is required for posted"
     [ -n "$finished_at_value" ] || fail "FINISHED_AT is required for posted"
@@ -1103,6 +1164,7 @@ write_lease() {
     if [ "$failure_phase_value" = "github-post" ]; then
       [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
       [ "$github_result_value" = "failed" ] || fail "GITHUB_POST_RESULT must be failed for github-post failure"
+      [ -n "$approved_value" ] || fail "APPROVED_REVIEW_FILE is required for github-post failure"
     else
       github_attempted_value="false"
       github_result_value="not-attempted"
@@ -1118,6 +1180,21 @@ write_lease() {
   fi
   if [ -n "$approved_value" ]; then
     validate_direct_child_path "approved review" "$approved_value" "-approved-review.json"
+  fi
+
+  if [ -n "$result_value" ]; then
+    LEASE_EXPECTED_BASE_REF="$base_ref_value" LEASE_EXPECTED_HEAD_REF="$head_ref_value" \
+      validate_result_artifact "$physical_path" "$result_value"
+    result_handoff_value="$(result_handoff_file_for "$physical_path" "$result_value")"
+    if [ -n "$handoff_value" ] && [ "$handoff_value" != "$result_handoff_value" ]; then
+      fail "lease handoff/result binding mismatch"
+    fi
+    handoff_value="$result_handoff_value"
+    if [ "$STATE" = "gated" ]; then
+      result_presentation_status="$(result_presentation_status_for "$physical_path" "$result_value")"
+      [ "$result_presentation_status" = "preview-current" ] ||
+        fail "gated result must have preview-current presentation"
+    fi
   fi
 
   prepare_write_target "lease" "$LEASE_FILE"
