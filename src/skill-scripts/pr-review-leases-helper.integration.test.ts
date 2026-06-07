@@ -82,13 +82,19 @@ async function makeLinkedReviewWorkspace(prefix: string) {
   return { primary, ...linked };
 }
 
-async function addLinkedReviewWorktree(primary: GitWorkspace, prefix: string) {
+async function addLinkedReviewWorktree(
+  primary: GitWorkspace,
+  prefix: string,
+  branchName?: string,
+) {
   const logicalParent = await mkdtemp(path.join(os.tmpdir(), `${prefix}wt-`));
   const parent = await realpath(logicalParent);
   const reviewPath = path.join(parent, "review");
-  const branch = `review-${process.pid}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  const branch =
+    branchName ??
+    `review-${process.pid}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}`;
   await execFileAsync(
     "git",
     ["worktree", "add", "-b", branch, reviewPath, "HEAD"],
@@ -284,7 +290,13 @@ function removeToken(worktreePath: string) {
 }
 
 function slugBranch(branchName: string) {
-  return branchName.replaceAll(/[^A-Za-z0-9._-]/gu, "-");
+  const slug = branchName
+    .replaceAll("/", "-")
+    .replaceAll(/[^\d.A-Z_a-z-]/gu, "");
+  if (slug === "" || slug === "." || slug === ".." || /^[-.]/u.test(slug)) {
+    return "unnamed";
+  }
+  return slug;
 }
 
 function scopePath(branchName: string, headSha: string) {
@@ -458,8 +470,14 @@ async function writeValidReviewManifests(
   baseSha: string,
   headSha: string,
 ) {
-  const branchName = await git(worktree, "branch", "--show-current");
-  const scopeDecisionPath = scopePath(branchName || "detached", headSha);
+  const rawBranchName = await git(
+    worktree,
+    "rev-parse",
+    "--abbrev-ref",
+    "HEAD",
+  );
+  const branchName = rawBranchName === "HEAD" ? "detached" : rawBranchName;
+  const scopeDecisionPath = scopePath(branchName, headSha);
   await writeJson(worktree, scopeDecisionPath, initialScope(baseSha, headSha));
   await writeJson(
     worktree,
@@ -500,6 +518,102 @@ async function writeValidReviewManifests(
     PLAY_REVIEW_HELPER: bashPath(playHelper),
   });
   return { branchName, scopeDecisionPath };
+}
+
+async function writeBoundApprovedReviewArtifact(
+  worktree: string,
+  headSha: string,
+  branchName: string,
+) {
+  const result = await readJson(worktree, resultPath(headSha));
+  const reviewPayloadPath = `.ephemeral/${slugBranch(
+    branchName,
+  )}-${headSha}-review-payload.json`;
+  await writeJson(worktree, reviewPayloadPath, {
+    commit_id: headSha,
+    event: "COMMENT",
+    body: "Review body",
+    comments: [],
+  });
+  const reviewPayloadSha = createHash("sha256")
+    .update(await readFile(path.join(worktree, reviewPayloadPath)))
+    .digest("hex");
+  const approvedPath = approvedReviewPath(headSha, branchName);
+  await writeJson(worktree, approvedPath, {
+    schema: "pr-review/approved-review/v1",
+    review_head_sha: headSha,
+    findings_file: result.findings_file,
+    review_body_file: result.review_body_file,
+    review_payload_file: reviewPayloadPath,
+    scope_decision_file: result.artifacts.scope_decision_file,
+    findings_sha256: result.digests.findings_sha256,
+    review_body_sha256: result.digests.review_body_sha256,
+    review_payload_sha256: reviewPayloadSha,
+    scope_decision_sha256: result.digests.scope_decision_sha256,
+    payload: {
+      commit_id: headSha,
+      event: "COMMENT",
+      body: "Review body",
+      comments: [],
+    },
+  });
+  return approvedPath;
+}
+
+async function writeSyntheticReviewChainArtifacts(
+  review: GitWorkspace,
+  branchName: string,
+) {
+  const digest = "1".repeat(64);
+  await writeJson(
+    review.cwd,
+    handoffPath(review.headSha),
+    leaseHandoffArtifact(review.cwd, review.headSha),
+  );
+  await writeJson(review.cwd, resultPath(review.headSha), {
+    ...leaseResultArtifact(review.headSha),
+    findings_file: findingsPath(review.headSha, branchName),
+    review_body_file: reviewBodyPath(review.headSha, branchName),
+    artifacts: {
+      handoff_file: handoffPath(review.headSha),
+      scope_decision_file: scopePath(branchName, review.headSha),
+      prior_threads_file: null,
+      rendered_preview_file: null,
+    },
+    digests: {
+      handoff_sha256: digest,
+      findings_sha256: digest,
+      review_body_sha256: digest,
+      context_sha256: null,
+      scope_decision_sha256: digest,
+      prior_threads_sha256: null,
+      rendered_preview_sha256: null,
+    },
+  });
+  await writeJson(review.cwd, scopePath(branchName, review.headSha), {
+    full_range: `${review.baseSha}...HEAD`,
+  });
+  await writeJson(review.cwd, approvedReviewPath(review.headSha, branchName), {
+    schema: "pr-review/approved-review/v1",
+    review_head_sha: review.headSha,
+    findings_file: findingsPath(review.headSha, branchName),
+    review_body_file: reviewBodyPath(review.headSha, branchName),
+    review_payload_file: `.ephemeral/${slugBranch(
+      branchName,
+    )}-${review.headSha}-review-payload.json`,
+    scope_decision_file: scopePath(branchName, review.headSha),
+    findings_sha256: digest,
+    review_body_sha256: digest,
+    review_payload_sha256: digest,
+    scope_decision_sha256: digest,
+    payload: {
+      commit_id: review.headSha,
+      event: "COMMENT",
+      body: "Review body",
+      comments: [],
+    },
+  });
+  return approvedReviewPath(review.headSha, branchName);
 }
 
 async function runLeaseHelper(
@@ -912,6 +1026,45 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
+  it("allows failed pre-result leases to abort without inventing a result", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        STATE: "failed",
+        FINISHED_AT: "2026-06-05T00:02:00Z",
+        FAILURE_PHASE: "handoff-validation",
+        FAILURE_REASON: "Handoff validation failed",
+        FAILURE_RECOVERABILITY: "unrecoverable",
+      });
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "aborted",
+          FINISHED_AT: "2026-06-05T00:03:00Z",
+          TERMINAL_REASON: "Abandon failed review",
+        }),
+      ).resolves.toMatchObject({ stdout: `${file}\n` });
+      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+        state: "aborted",
+        artifacts: {
+          result_file: null,
+        },
+        terminal: {
+          reason: "Abandon failed review",
+        },
+      });
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
   it("preserves immutable base and head refs after lease creation", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
@@ -1162,15 +1315,16 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
       const review = await makeGitWorkspace("devcanon-pr-lease-review-");
       try {
-        await writeValidReviewManifests(
+        const { branchName } = await writeValidReviewManifests(
           review.cwd,
           review.baseSha,
           review.headSha,
         );
-        await writeJson(review.cwd, approvedReviewPath(review.headSha), {
-          schema: "pr-review/approved-review/v1",
-          review_head_sha: review.headSha,
-        });
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
+        );
         const manifestHelper = await writePassingManifestHelper(review.cwd);
         const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
         const file = await writeCreatedLease(primary.cwd, review.cwd);
@@ -1195,7 +1349,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
             LEASE_FILE: file,
             REVIEW_MANIFEST_HELPER: manifestHelper,
             STATE: "posted",
-            APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
+            APPROVED_REVIEW_FILE: approvedPath,
             APPROVED_REVIEW_HELPER: approvedHelper,
             FINISHED_AT: "2026-06-05T00:04:00Z",
             GITHUB_POST_ATTEMPTED: "true",
@@ -1214,7 +1368,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
             path.join(review.cwd, ".ephemeral/approved-helper-file.txt"),
             "utf8",
           ),
-        ).resolves.toBe(`${approvedReviewPath(review.headSha)}\n`);
+        ).resolves.toBe(`${approvedPath}\n`);
 
         const helperSource = await readFile(helperScript, "utf8");
         expect(helperSource).not.toContain("gh ");
@@ -1224,6 +1378,157 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       } finally {
         await cleanupTempDir(primary.cwd);
         await cleanupTempDir(review.cwd);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "uses approved-review branch slug semantics for unusual and detached review branches",
+    async () => {
+      const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+      const unusual = await addLinkedReviewWorktree(
+        primary,
+        "devcanon-pr-lease-approved-",
+        "review/topic@2026",
+      );
+      const detached = await addLinkedReviewWorktree(
+        primary,
+        "devcanon-pr-lease-approved-",
+      );
+      try {
+        for (const review of [unusual.review, detached.review]) {
+          if (review === detached.review) {
+            await execFileAsync("git", ["checkout", "--detach", "HEAD"], {
+              cwd: review.cwd,
+            });
+          }
+          const rawBranchName = await git(
+            review.cwd,
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+          );
+          const effectiveBranch =
+            rawBranchName === "HEAD" ? "detached" : rawBranchName;
+          const approvedPath = await writeSyntheticReviewChainArtifacts(
+            review,
+            effectiveBranch,
+          );
+          const manifestHelper = await writePassingManifestHelper(review.cwd);
+          const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+          const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+          await runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "reviewed",
+            RESULT_FILE: resultPath(review.headSha),
+          });
+          await runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "gated",
+            PRESENTED_AT: "2026-06-05T00:03:00Z",
+            PRESENTATION_STATUS: "preview-current",
+          });
+          await expect(
+            runLeaseHelper(primary.cwd, "write", {
+              WORKTREE_PATH: review.cwd,
+              LEASE_FILE: file,
+              REVIEW_MANIFEST_HELPER: manifestHelper,
+              STATE: "posted",
+              APPROVED_REVIEW_FILE: approvedPath,
+              APPROVED_REVIEW_HELPER: approvedHelper,
+              FINISHED_AT: "2026-06-05T00:04:00Z",
+              GITHUB_POST_ATTEMPTED: "true",
+              GITHUB_POST_RESULT: "succeeded",
+              GITHUB_POSTED_AT: "2026-06-05T00:04:00Z",
+            }),
+          ).resolves.toMatchObject({ stdout: `${file}\n` });
+        }
+      } finally {
+        await execFileAsync("git", ["worktree", "remove", unusual.review.cwd], {
+          cwd: primary.cwd,
+        }).catch(() => undefined);
+        await execFileAsync(
+          "git",
+          ["worktree", "remove", detached.review.cwd],
+          {
+            cwd: primary.cwd,
+          },
+        ).catch(() => undefined);
+        await cleanupTempDir(unusual.parent);
+        await cleanupTempDir(detached.parent);
+        await cleanupTempDir(primary.cwd);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "rejects approved-review artifacts that drift from the gated result",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-approved-",
+      );
+      try {
+        const branchName = await git(
+          review.cwd,
+          "rev-parse",
+          "--abbrev-ref",
+          "HEAD",
+        );
+        const approvedPath = await writeSyntheticReviewChainArtifacts(
+          review,
+          branchName,
+        );
+        const approved = await readJson(review.cwd, approvedPath);
+        await writeJson(review.cwd, approvedPath, {
+          ...approved,
+          findings_sha256: "0".repeat(64),
+        });
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "posted",
+            APPROVED_REVIEW_FILE: approvedPath,
+            APPROVED_REVIEW_HELPER: approvedHelper,
+            FINISHED_AT: "2026-06-05T00:04:00Z",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "succeeded",
+            GITHUB_POSTED_AT: "2026-06-05T00:04:00Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "approved review result binding mismatch: digests.findings_sha256",
+          ),
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
       }
     },
     longTestTimeout,
@@ -1346,6 +1651,75 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       await cleanupTempDir(primary.cwd);
     }
   });
+
+  it(
+    "does not whitelist unmanaged artifacts mentioned in review content",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
+      );
+      try {
+        const { branchName } = await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        await writeJson(review.cwd, findingsPath(review.headSha, branchName), {
+          schema: "play-review/findings/v1",
+          findings: [
+            {
+              path: "docs/guidelines/app.md",
+              line: 1,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "Mentions an unmanaged artifact path.",
+              recommendation: "Keep cleanup ownership schema-declared.",
+              body: "Do not treat .ephemeral/unmanaged-evidence.txt as managed.",
+            },
+          ],
+          carry_forward: [],
+        });
+        await writeFile(
+          path.join(review.cwd, ".ephemeral/unmanaged-evidence.txt"),
+          "unmanaged evidence\n",
+        );
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            ALLOW_POLICY_OVERRIDE: "yes",
+            CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        });
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/unmanaged-evidence.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("unmanaged evidence\n");
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
 
   it("retains ignored .ephemeral artifacts before plain worktree removal", async () => {
     const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -1842,21 +2216,17 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       "devcanon-pr-lease-failed-",
     );
     try {
-      const { branchName, scopeDecisionPath } = await writeValidReviewManifests(
+      const { branchName } = await writeValidReviewManifests(
         review.cwd,
         review.baseSha,
         review.headSha,
       );
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
-      await writeJson(
+      const approvedPath = await writeBoundApprovedReviewArtifact(
         review.cwd,
-        approvedReviewPath(review.headSha, branchName),
-        {
-          schema: "pr-review/approved-review/v1",
-          review_head_sha: review.headSha,
-          scope_decision_file: scopeDecisionPath,
-        },
+        review.headSha,
+        branchName,
       );
       const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
 
@@ -1867,7 +2237,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           REVIEW_MANIFEST_HELPER: manifestHelper,
           STATE: "failed",
           RESULT_FILE: resultPath(review.headSha),
-          APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha, branchName),
+          APPROVED_REVIEW_FILE: approvedPath,
           APPROVED_REVIEW_HELPER: approvedHelper,
           FINISHED_AT: "2026-06-05T00:04:00Z",
           FAILURE_PHASE: "github-post",
@@ -1888,12 +2258,12 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           path.join(review.cwd, ".ephemeral/approved-helper-file.txt"),
           "utf8",
         ),
-      ).resolves.toBe(`${approvedReviewPath(review.headSha, branchName)}\n`);
+      ).resolves.toBe(`${approvedPath}\n`);
       await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
         state: "failed",
         artifacts: {
           result_file: resultPath(review.headSha),
-          approved_review_file: approvedReviewPath(review.headSha, branchName),
+          approved_review_file: approvedPath,
         },
         failure: {
           phase: "github-post",
@@ -1920,10 +2290,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         ),
       ).resolves.toBe("Review body\n");
       await expect(
-        readFile(
-          path.join(review.cwd, approvedReviewPath(review.headSha, branchName)),
-          "utf8",
-        ),
+        readFile(path.join(review.cwd, approvedPath), "utf8"),
       ).resolves.toContain("pr-review/approved-review/v1");
 
       await expect(
@@ -1963,10 +2330,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         ),
       ).resolves.toBe("Review body\n");
       await expect(
-        readFile(
-          path.join(review.cwd, approvedReviewPath(review.headSha, branchName)),
-          "utf8",
-        ),
+        readFile(path.join(review.cwd, approvedPath), "utf8"),
       ).resolves.toContain("pr-review/approved-review/v1");
     } finally {
       await cleanupTempDir(parent);
@@ -2009,6 +2373,160 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     }
   });
 
+  it(
+    "restricts direct failed-to-posted retries to prior github-post failures",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-failed-",
+      );
+      try {
+        const branchName = await git(
+          review.cwd,
+          "rev-parse",
+          "--abbrev-ref",
+          "HEAD",
+        );
+        const approvedPath = await writeSyntheticReviewChainArtifacts(
+          review,
+          branchName,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "failed",
+          RESULT_FILE: resultPath(review.headSha),
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          FAILURE_PHASE: "stale-head",
+          FAILURE_REASON: "Head changed before posting",
+          FAILURE_RECOVERABILITY: "recoverable",
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "posted",
+            APPROVED_REVIEW_FILE: approvedPath,
+            APPROVED_REVIEW_HELPER: approvedHelper,
+            FINISHED_AT: "2026-06-05T00:05:00Z",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "succeeded",
+            GITHUB_POSTED_AT: "2026-06-05T00:05:00Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "invalid lease transition: failed -> posted requires github-post failure",
+          ),
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "clears GitHub post metadata when a failed lease is refreshed outside github-post",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-failed-",
+      );
+      try {
+        const branchName = await git(
+          review.cwd,
+          "rev-parse",
+          "--abbrev-ref",
+          "HEAD",
+        );
+        const approvedPath = await writeSyntheticReviewChainArtifacts(
+          review,
+          branchName,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "failed",
+          RESULT_FILE: resultPath(review.headSha),
+          APPROVED_REVIEW_FILE: approvedPath,
+          APPROVED_REVIEW_HELPER: approvedHelper,
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          FAILURE_PHASE: "github-post",
+          FAILURE_REASON: "GitHub post failed",
+          FAILURE_RECOVERABILITY: "recoverable",
+          GITHUB_POST_ATTEMPTED: "true",
+          GITHUB_POST_RESULT: "failed",
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          APPROVED_REVIEW_HELPER: approvedHelper,
+          STATE: "failed",
+          RESULT_FILE: resultPath(review.headSha),
+          FINISHED_AT: "2026-06-05T00:05:00Z",
+          FAILURE_PHASE: "stale-head",
+          FAILURE_REASON: "Head changed before retry",
+          FAILURE_RECOVERABILITY: "recoverable",
+        });
+
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          failure: {
+            phase: "stale-head",
+          },
+          github: {
+            github_post_attempted: false,
+            github_post_result: "not-attempted",
+            github_posted_at: null,
+          },
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
   it("requires failed leases to record a failure timestamp", async () => {
     const { primary, review, parent } = await makeLinkedReviewWorkspace(
       "devcanon-pr-lease-failed-",
@@ -2048,20 +2566,15 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         "devcanon-pr-lease-cleanup-",
       );
       try {
-        const { branchName, scopeDecisionPath } =
-          await writeValidReviewManifests(
-            review.cwd,
-            review.baseSha,
-            review.headSha,
-          );
-        await writeJson(
+        const { branchName } = await writeValidReviewManifests(
           review.cwd,
-          approvedReviewPath(review.headSha, branchName),
-          {
-            schema: "pr-review/approved-review/v1",
-            review_head_sha: review.headSha,
-            scope_decision_file: scopeDecisionPath,
-          },
+          review.baseSha,
+          review.headSha,
+        );
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
         );
         const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
 
@@ -2083,7 +2596,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
           STATE: "posted",
-          APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha, branchName),
+          APPROVED_REVIEW_FILE: approvedPath,
           APPROVED_REVIEW_HELPER: approvedHelper,
           FINISHED_AT: "2026-06-05T00:04:00Z",
           GITHUB_POST_ATTEMPTED: "true",

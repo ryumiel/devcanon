@@ -113,49 +113,16 @@ Fresh PR reviews with no existing worktree follow the same Phase 1 through
 Phase 6 flow as before, except the lease is created and updated at the lifecycle
 boundaries below.
 
-Lifecycle states:
+The authoritative lifecycle contract lives in
+[`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md).
+That reference owns the valid states, transition rows, field inheritance and
+clearing rules, approved-review identity binding, and cleanup artifact ownership
+rules. Keep `SKILL.md` operator-facing; update the reference and focused tests
+when lease lifecycle behavior changes.
 
-- `created`: review worktree exists; optional handoff pointer may be added after
-  the Phase 3 handoff validates.
-- `reviewed`: Phase 4 result manifest validates and points to review findings.
-- `gated`: Phase 5 rendered preview is current and waiting for user action.
-- `posted`: GitHub review post succeeded for the frozen approved-review
-  artifact.
-- `aborted`: user explicitly aborted after a validated review result existed.
-- `failed`: recoverable or unrecoverable failure occurred before a successful
-  terminal state; record `FINISHED_AT`, failure phase, reason, and
-  recoverability; preserve artifact pointers for recovery.
-
-Authoritative lifecycle rows:
-
-| Row   | Transition            | Contract                                                                                                        |
-| ----- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| LC-01 | `none -> created`     | Create the active lease after resolving the review worktree.                                                    |
-| LC-02 | `created -> created`  | Add the validated handoff pointer once; repeated no-op refreshes are forbidden.                                 |
-| LC-03 | `created -> reviewed` | Record the validated result pointer.                                                                            |
-| LC-04 | `reviewed -> gated`   | Record a fresh preview presentation.                                                                            |
-| LC-05 | `gated -> gated`      | Record a materially fresh presentation after result or preview changes.                                         |
-| LC-06 | `reviewed -> aborted` | Record terminal user abort after result validation.                                                             |
-| LC-07 | `gated -> aborted`    | Record terminal user abort after preview.                                                                       |
-| LC-08 | `gated -> posted`     | Record successful GitHub post for the frozen approved-review artifact.                                          |
-| LC-09 | `created -> failed`   | Record failure before result validation.                                                                        |
-| LC-10 | `reviewed -> failed`  | Record failure after result validation.                                                                         |
-| LC-11 | `gated -> failed`     | Record pre-approval failure after preview.                                                                      |
-| LC-12 | `gated -> failed`     | Record approval-freeze failure; an approved-review pointer may be preserved without approved-review validation. |
-| LC-13 | `gated -> failed`     | Record GitHub post failure with `GITHUB_POST_ATTEMPTED=true` and `GITHUB_POST_RESULT=failed`.                   |
-| LC-14 | `failed -> gated`     | Recover by validating artifacts and presenting a fresh preview.                                                 |
-| LC-15 | `failed -> aborted`   | Terminally abandon a failed lease.                                                                              |
-| LC-16 | `failed -> failed`    | Update materially new failure audit metadata.                                                                   |
-| LC-17 | `failed -> posted`    | Complete a retry-to-post after validating the approved-review artifact.                                         |
-| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease, then create a fresh active lease for the same PR/worktree.  |
-
-All other transitions are forbidden. `UPDATED_AT` is required on every write.
-Referenced artifact identity is lease-owned after the existing artifact helpers
-validate shape: handoff repository, PR number, base ref, head ref,
-`execution.working_directory`, and review head must match the lease; result
-repository, PR number, review head, and deterministic handoff chain must match;
-approved-review review head and deterministic approved-review path must match
-the validated result chain except for LC-12 approval-freeze failure writes.
+Operational summary: valid states are `created`, `reviewed`, `gated`, `posted`,
+`aborted`, and `failed`. All other states and all transitions not listed in the
+contract reference are forbidden. `UPDATED_AT` is required on every write.
 
 Required writes:
 

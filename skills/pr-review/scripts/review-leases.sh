@@ -414,11 +414,56 @@ expected_approved_path_for() {
   local worktree="$1"
   local review_head_sha="$2"
   local branch branch_slug
-  branch="$(git -C "$worktree" branch --show-current 2>/dev/null)" ||
+  branch="$(git -C "$worktree" rev-parse --abbrev-ref HEAD 2>/dev/null)" ||
     fail "failed to determine review worktree branch"
-  [ -n "$branch" ] || fail "review worktree branch is required for approved review identity"
-  branch_slug="$(printf '%s' "$branch" | sed 's/[^A-Za-z0-9._-]/-/g')"
+  if [ "$branch" = "HEAD" ]; then
+    branch_slug="detached"
+  else
+    branch_slug="$(slug_branch "$branch")"
+  fi
   printf '.ephemeral/%s-%s-approved-review.json\n' "$branch_slug" "$review_head_sha"
+}
+
+slug_branch() {
+  local branch_name="$1"
+  local slug
+  slug="$(printf '%s' "$branch_name" | tr '/' '-' | tr -cd '[:alnum:]._-')"
+  case "$slug" in
+    "" | "." | ".." | -* | .*) slug="unnamed" ;;
+  esac
+  printf '%s\n' "$slug"
+}
+
+validate_approved_review_result_binding() {
+  local worktree="$1"
+  local approved_file="$2"
+  local result_file="$3"
+  local approved_value result_value field
+
+  for field in \
+    findings_file \
+    review_body_file \
+    artifacts.scope_decision_file \
+    digests.findings_sha256 \
+    digests.review_body_sha256 \
+    digests.scope_decision_sha256; do
+    case "$field" in
+      artifacts.scope_decision_file)
+        approved_value="$(jq -r '.scope_decision_file // "null"' "$worktree/$approved_file")"
+        result_value="$(jq -r '.artifacts.scope_decision_file // "null"' "$worktree/$result_file")"
+        ;;
+      digests.*)
+        approved_value="$(jq -r ".${field#digests.} // \"null\"" "$worktree/$approved_file")"
+        result_value="$(jq -r ".$field // \"null\"" "$worktree/$result_file")"
+        ;;
+      *)
+        approved_value="$(jq -r ".$field // \"null\"" "$worktree/$approved_file")"
+        result_value="$(jq -r ".$field // \"null\"" "$worktree/$result_file")"
+        ;;
+    esac
+    [ "$approved_value" = "$result_value" ] ||
+      fail "approved review result binding mismatch: $field"
+  done
 }
 
 validate_handoff_artifact() {
@@ -491,6 +536,7 @@ validate_approved_review_artifact() {
   )
   if [ -n "$result_file" ]; then
     validate_approved_review_identity "$worktree" "$file" "$result_file"
+    validate_approved_review_result_binding "$worktree" "$file" "$result_file"
   fi
 }
 
@@ -621,8 +667,7 @@ validate_lease_schema() {
         and .github.github_post_result == "succeeded"
         and (.github.github_posted_at | timestamp)
       elif .state == "aborted" then
-        .artifacts.result_file != null
-        and (.terminal.finished_at | timestamp)
+        (.terminal.finished_at | timestamp)
         and (.terminal.reason | single_line)
         and .failure.phase == null
         and .github.github_post_attempted == false
@@ -714,9 +759,15 @@ validate_referenced_artifacts() {
       validate_handoff_artifact "$physical_path" "$handoff_file"
   fi
   case "$state" in
-    reviewed | gated | posted | aborted)
+    reviewed | gated | posted)
       LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
         validate_result_artifact "$physical_path" "$result_file"
+      ;;
+    aborted)
+      if [ -n "$result_file" ]; then
+        LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+          validate_result_artifact "$physical_path" "$result_file"
+      fi
       ;;
     failed)
       if [ -n "$result_file" ]; then
@@ -850,6 +901,20 @@ require_fresh_presentation() {
   esac
 }
 
+require_retry_to_post_source() {
+  local file="$1"
+  local phase attempted result
+  phase="$(jq_value "$file" 'if .failure.phase == null then "" else .failure.phase end')"
+  attempted="$(jq_value "$file" '.github.github_post_attempted // false')"
+  result="$(jq_value "$file" '.github.github_post_result // "not-attempted"')"
+  [ "$phase" = "github-post" ] ||
+    fail "invalid lease transition: failed -> posted requires github-post failure"
+  [ "$attempted" = "true" ] ||
+    fail "invalid lease transition: failed -> posted requires attempted github post"
+  [ "$result" = "failed" ] ||
+    fail "invalid lease transition: failed -> posted requires failed github post result"
+}
+
 terminal_archive_path_for() {
   local terminal_state="$1"
   local stamp="$2"
@@ -937,6 +1002,9 @@ write_lease() {
       validate_same_state_update "$LEASE_FILE" "$STATE"
     fi
     require_fresh_presentation "$previous_state" "$STATE"
+    if [ "$previous_state" = "failed" ] && [ "$STATE" = "posted" ]; then
+      require_retry_to_post_source "$LEASE_FILE"
+    fi
   else
     transition_allowed "none" "$STATE" "" || fail "invalid lease transition: none -> $STATE"
   fi
@@ -1018,7 +1086,6 @@ write_lease() {
     failure_reason_value=""
     failure_recoverability_value=""
   elif [ "$STATE" = "aborted" ]; then
-    [ -n "$result_value" ] || fail "RESULT_FILE is required for aborted"
     [ -n "$finished_at_value" ] || fail "FINISHED_AT is required for aborted"
     [ -n "$terminal_reason_value" ] || fail "TERMINAL_REASON is required for aborted"
     approved_value=""
@@ -1036,8 +1103,9 @@ write_lease() {
     if [ "$failure_phase_value" = "github-post" ]; then
       [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
       [ "$github_result_value" = "failed" ] || fail "GITHUB_POST_RESULT must be failed for github-post failure"
-    elif [ "$github_attempted_value" = "true" ] && [ "$github_result_value" != "failed" ]; then
-      fail "GITHUB_POST_RESULT must be failed for failed"
+    else
+      github_attempted_value="false"
+      github_result_value="not-attempted"
     fi
     github_posted_at_value=""
   fi
@@ -1254,13 +1322,48 @@ append_managed_ephemeral_paths_from_json() {
   local worktree="$1"
   local rel_path="$2"
   local allowed_file="$3"
+  local jq_filter=""
   [ -n "$rel_path" ] || return
   validate_direct_child_path "managed artifact" "$rel_path"
   [ -f "$worktree/$rel_path" ] || return
   printf '%s\n' "$rel_path" >>"$allowed_file"
-  jq -r '
-    .. | strings | select(test("^\\.ephemeral/[^/]+$"))
-  ' "$worktree/$rel_path" >>"$allowed_file" 2>/dev/null || true
+  case "$rel_path" in
+    *-handoff.json)
+      jq_filter='[
+        .artifacts.scope_decision_file?,
+        .artifacts.prior_threads_file?
+      ]'
+      ;;
+    *-result.json)
+      jq_filter='[
+        .findings_file?,
+        .review_body_file?,
+        .context_file?,
+        .artifacts.handoff_file?,
+        .artifacts.scope_decision_file?,
+        .artifacts.prior_threads_file?,
+        .artifacts.rendered_preview_file?
+      ]'
+      ;;
+    *-approved-review.json)
+      jq_filter='[
+        .findings_file?,
+        .review_body_file?,
+        .review_payload_file?,
+        .scope_decision_file?
+      ]'
+      ;;
+    *-scope-decision.json)
+      jq_filter='[
+        .prior_context.path?
+      ]'
+      ;;
+    *)
+      return
+      ;;
+  esac
+  jq -r "$jq_filter | .[] | select(type == \"string\" and test(\"^\\\\.ephemeral/[^/]+$\"))" \
+    "$worktree/$rel_path" >>"$allowed_file" 2>/dev/null || true
 }
 
 collect_managed_ephemeral_paths() {

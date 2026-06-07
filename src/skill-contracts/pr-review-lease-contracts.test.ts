@@ -57,6 +57,9 @@ describe("pr-review lease source contracts", () => {
 
   it("defines lifecycle writes, resume states, and fresh-PR compatibility", async () => {
     const prReview = await readSkillSource("pr-review");
+    const leaseContract = await readRepoFile(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    );
     const leaseSection = normalizeWhitespace(
       sliceBetween(
         prReview,
@@ -64,6 +67,7 @@ describe("pr-review lease source contracts", () => {
         "## Phase 3: Determine diff ranges",
       ),
     );
+    const normalizedLeaseContract = normalizeWhitespace(leaseContract);
 
     for (const state of [
       "created",
@@ -77,6 +81,29 @@ describe("pr-review lease source contracts", () => {
     }
     expect(leaseSection).toContain(
       "Fresh PR reviews with no existing worktree follow the same Phase 1 through Phase 6 flow as before, except the lease is created and updated at the lifecycle boundaries below",
+    );
+    expect(leaseSection).toContain(
+      "references/review-lease-lifecycle-contract.md",
+    );
+    expect(leaseSection).toContain(
+      "Keep `SKILL.md` operator-facing; update the reference and focused tests when lease lifecycle behavior changes",
+    );
+    expect(leaseSection).not.toContain("| LC-01 |");
+    expect(normalizedLeaseContract).toContain(
+      "Review Lease Lifecycle Contract",
+    );
+    expect(normalizedLeaseContract).toContain("| LC-01 | `none -> created`");
+    expect(normalizedLeaseContract).toContain(
+      "| LC-17 | `failed -> posted` | Complete retry-to-post only from a prior LC-13 GitHub-post failure",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "Non-`github-post` failures clear GitHub post metadata",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "Approved-review path identity must mirror `approved-review-artifacts.sh`",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "Cleanup may preserve only lease-referenced artifacts and schema-declared artifact fields",
     );
     expect(leaseSection).toContain(
       "Write `created` after `WORKING_DIRECTORY` is resolved",
