@@ -1977,112 +1977,120 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     }
   });
 
-  it("retains gated leases without a valid token and removes only with a valid token", async () => {
-    const { primary, review, parent } = await makeLinkedReviewWorkspace(
-      "devcanon-pr-lease-cleanup-",
-    );
-    try {
-      const file = await writeGatedLease(primary.cwd, review);
-
-      await expect(
-        runLeaseHelper(primary.cwd, "cleanup-worktree", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          ALLOW_POLICY_OVERRIDE: "no",
-          CONFIRM_REMOVE_TOKEN: "",
-        }),
-      ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=confirmation required for gated lease\n",
-      });
-      await expect(pathExists(review.cwd)).resolves.toBe(true);
-
-      await expect(
-        runLeaseHelper(primary.cwd, "cleanup-worktree", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          ALLOW_POLICY_OVERRIDE: "yes",
-          CONFIRM_REMOVE_TOKEN: "wrong-token",
-        }),
-      ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=confirmation token mismatch for gated lease\n",
-      });
-      await expect(pathExists(review.cwd)).resolves.toBe(true);
-
-      await expect(
-        runLeaseHelper(primary.cwd, "cleanup-worktree", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          ALLOW_POLICY_OVERRIDE: "yes",
-          CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
-        }),
-      ).resolves.toMatchObject({
-        stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
-      });
-      await expect(pathExists(review.cwd)).resolves.toBe(false);
-      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
-        cleanup: { last_outcome: "removed" },
-      });
-    } finally {
-      await cleanupLinkedReviewWorkspace(primary, review, parent);
-    }
-  });
-
-  it("retains worktrees with untracked .ephemeral artifacts before plain removal can fail", async () => {
-    const { primary, review, parent } = await makeLinkedReviewWorkspace(
-      "devcanon-pr-lease-cleanup-",
-    );
-    try {
-      const file = await writeGatedLease(primary.cwd, review);
-      const manifestHelper = await writePassingManifestHelper(review.cwd);
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "aborted",
-        FINISHED_AT: "2026-06-05T00:04:00Z",
-        TERMINAL_REASON: "User aborted review",
-      });
-      const recoveryArtifact = path.join(
-        review.cwd,
-        ".ephemeral/untracked-recovery-artifact.txt",
+  it(
+    "retains gated leases without a valid token and removes only with a valid token",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
       );
-      await writeFile(recoveryArtifact, "preserve me\n");
+      try {
+        const file = await writeGatedLease(primary.cwd, review);
 
-      await expect(
-        runLeaseHelper(primary.cwd, "inspect-worktree", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-        }),
-      ).resolves.toMatchObject({
-        stdout: expect.stringContaining(
-          "REFUSAL_REASON=untracked-artifacts\nDIRTY=no\n",
-        ),
-      });
-      await expect(
-        runLeaseHelper(primary.cwd, "cleanup-worktree", {
-          WORKTREE_PATH: review.cwd,
-          LEASE_FILE: file,
-          ALLOW_POLICY_OVERRIDE: "no",
-          CONFIRM_REMOVE_TOKEN: "",
-        }),
-      ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
-      });
-      await expect(pathExists(review.cwd)).resolves.toBe(true);
-      await expect(readFile(recoveryArtifact, "utf8")).resolves.toBe(
-        "preserve me\n",
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "no",
+            CONFIRM_REMOVE_TOKEN: "",
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            "OUTCOME=retained\nMESSAGE=confirmation required for gated lease\n",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "yes",
+            CONFIRM_REMOVE_TOKEN: "wrong-token",
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            "OUTCOME=retained\nMESSAGE=confirmation token mismatch for gated lease\n",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "yes",
+            CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+          }),
+        ).resolves.toMatchObject({
+          stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(false);
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          cleanup: { last_outcome: "removed" },
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "retains worktrees with untracked .ephemeral artifacts before plain removal can fail",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
       );
-      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
-        cleanup: { last_outcome: "retained" },
-      });
-    } finally {
-      await cleanupTempDir(parent);
-      await cleanupTempDir(primary.cwd);
-    }
-  });
+      try {
+        const file = await writeGatedLease(primary.cwd, review);
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "aborted",
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          TERMINAL_REASON: "User aborted review",
+        });
+        const recoveryArtifact = path.join(
+          review.cwd,
+          ".ephemeral/untracked-recovery-artifact.txt",
+        );
+        await writeFile(recoveryArtifact, "preserve me\n");
+
+        await expect(
+          runLeaseHelper(primary.cwd, "inspect-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            "REFUSAL_REASON=untracked-artifacts\nDIRTY=no\n",
+          ),
+        });
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "no",
+            CONFIRM_REMOVE_TOKEN: "",
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+        await expect(readFile(recoveryArtifact, "utf8")).resolves.toBe(
+          "preserve me\n",
+        );
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          cleanup: { last_outcome: "retained" },
+        });
+      } finally {
+        await cleanupTempDir(parent);
+        await cleanupTempDir(primary.cwd);
+      }
+    },
+    longTestTimeout,
+  );
 
   it("gates missing-lease cleanup and refuses identity mismatches", async () => {
     const { primary, review, parent } = await makeLinkedReviewWorkspace(
