@@ -442,7 +442,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await cleanupTempDir(tempDir);
       }
     },
-    30_000,
+    snapshotTestTimeout,
   );
 
   it.skipIf(!symlinkAvailable || !jqAvailable)(
@@ -1812,7 +1812,7 @@ exec "$real_base64" "$@"
         await cleanupTempDir(statusFixture.tempDir);
       }
     },
-    30_000,
+    snapshotTestTimeout,
   );
 
   it.skipIf(!jqAvailable)(
