@@ -678,7 +678,7 @@ async function writeGatedLease(primary: string, review: GitWorkspace) {
   return file;
 }
 
-describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
+describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
   it("derives a deterministic primary-repo lease path from PR and physical worktree identity", async () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
