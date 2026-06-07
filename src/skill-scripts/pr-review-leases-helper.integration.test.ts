@@ -34,7 +34,7 @@ const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
-const longTestTimeout = process.platform === "win32" ? 120_000 : 20_000;
+const longTestTimeout = process.platform === "win32" ? 240_000 : 20_000;
 async function commandAvailable(command: string): Promise<boolean> {
   try {
     await execFileAsync(bashExecutable, ["-c", `command -v ${command}`]);
@@ -472,32 +472,32 @@ async function writeValidReviewManifests(
   );
   const playHelper = await writePassingPlayHelper(worktree);
   await runBashScript(worktree, manifestHelperScript, ["write-handoff"], {
-      ...process.env,
-      PR_NUMBER: prNumber,
-      HEAD_SHA: headSha,
-      REPOSITORY: repository,
-      EXECUTION_WORKING_DIRECTORY: artifactAbsolutePath(worktree),
-      BASE_REF: "main",
-      HEAD_REF: "topic",
-      REVIEW_SCOPE_BASE_REF: baseSha,
-      ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
-      FULL_PR_DIFF_RANGE: `${baseSha}...HEAD`,
-      MODE: "github-post",
-      LANGUAGE_HINTS_JSON: '["md"]',
-      FOLLOW_UP_STATE: "initial",
-      IS_FOLLOWUP_NARROW: "false",
-      SCOPE_DECISION_FILE: scopeDecisionPath,
+    ...process.env,
+    PR_NUMBER: prNumber,
+    HEAD_SHA: headSha,
+    REPOSITORY: repository,
+    EXECUTION_WORKING_DIRECTORY: artifactAbsolutePath(worktree),
+    BASE_REF: "main",
+    HEAD_REF: "topic",
+    REVIEW_SCOPE_BASE_REF: baseSha,
+    ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
+    FULL_PR_DIFF_RANGE: `${baseSha}...HEAD`,
+    MODE: "github-post",
+    LANGUAGE_HINTS_JSON: '["md"]',
+    FOLLOW_UP_STATE: "initial",
+    IS_FOLLOWUP_NARROW: "false",
+    SCOPE_DECISION_FILE: scopeDecisionPath,
   });
   await runBashScript(worktree, manifestHelperScript, ["write-result"], {
-      ...process.env,
-      PR_NUMBER: prNumber,
-      HEAD_SHA: headSha,
-      REPOSITORY: repository,
-      FINDINGS_FILE: findingsPath(headSha, branchName),
-      SCOPE_DECISION_FILE: scopeDecisionPath,
-      REVIEW_BODY_FILE: reviewBodyPath(headSha, branchName),
-      PRESENTATION_STATUS: "preview-current",
-      PLAY_REVIEW_HELPER: bashPath(playHelper),
+    ...process.env,
+    PR_NUMBER: prNumber,
+    HEAD_SHA: headSha,
+    REPOSITORY: repository,
+    FINDINGS_FILE: findingsPath(headSha, branchName),
+    SCOPE_DECISION_FILE: scopeDecisionPath,
+    REVIEW_BODY_FILE: reviewBodyPath(headSha, branchName),
+    PRESENTATION_STATUS: "preview-current",
+    PLAY_REVIEW_HELPER: bashPath(playHelper),
   });
   return { branchName, scopeDecisionPath };
 }

@@ -123,16 +123,11 @@ normalize_execution_working_directory_for_manifest() {
   esac
 
   if is_windows_absolute_path "$working_directory"; then
-    if [ -d "$working_directory" ]; then
-      normalized="$(cd "$working_directory" && pwd -P)" ||
-        fail "failed to normalize execution working_directory"
-    elif command -v cygpath >/dev/null 2>&1; then
+    if command -v cygpath >/dev/null 2>&1; then
       normalized="$(cygpath -u "$working_directory")" ||
         fail "failed to normalize execution working_directory"
-      if [ -d "$normalized" ]; then
-        normalized="$(cd "$normalized" && pwd -P)" ||
-          fail "failed to normalize execution working_directory"
-      fi
+    else
+      normalized="${working_directory//\\//}"
     fi
     case "$normalized" in
       /*) ;;
@@ -367,8 +362,8 @@ guarded_scope_base_ref() {
 validate_execution_root() {
   local working_directory="$1"
   local review_head_sha="$2"
-  local manifest_root execution_directory execution_root execution_head
-  local normalized_manifest_root
+  local manifest_root manifest_root_text execution_directory execution_root execution_head
+  local normalized_working_directory normalized_manifest_root normalized_manifest_root_text
 
   case "$working_directory" in
     /*) ;;
@@ -376,13 +371,18 @@ validate_execution_root() {
     *) fail "execution working_directory must be absolute" ;;
   esac
   [ -d "$working_directory" ] || fail "execution working_directory missing: $working_directory"
-  manifest_root="$(git rev-parse --show-toplevel 2>/dev/null)" ||
+  manifest_root_text="$(git rev-parse --show-toplevel 2>/dev/null)" ||
     fail "failed to determine git repository root"
-  manifest_root="$(cd "$manifest_root" && pwd -P)" ||
+  manifest_root="$(cd "$manifest_root_text" && pwd -P)" ||
     fail "failed to resolve git repository root"
   execution_directory="$(cd "$working_directory" && pwd -P)" ||
     fail "failed to resolve execution working_directory"
+  normalized_working_directory="$(normalize_absolute_path_text "$working_directory")"
   normalized_manifest_root="$(normalize_absolute_path_text "$manifest_root")"
+  normalized_manifest_root_text="$(normalize_absolute_path_text "$manifest_root_text")"
+  [ "$normalized_working_directory" = "$normalized_manifest_root" ] ||
+    [ "$normalized_working_directory" = "$normalized_manifest_root_text" ] ||
+    fail "execution working_directory must equal repository root"
   [ "$(normalize_absolute_path_text "$execution_directory")" = "$normalized_manifest_root" ] ||
     fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||

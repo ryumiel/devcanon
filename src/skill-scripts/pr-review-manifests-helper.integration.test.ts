@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -37,19 +38,54 @@ const supportValidatorScript = path.join(
   process.cwd(),
   "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
 );
+const isWindows = process.platform === "win32";
+const bashExecutable = resolveBashExecutable();
 const jqAvailable = await commandAvailable("jq");
 const symlinkAvailable = await canCreateSymlinks();
-const isWindows = process.platform === "win32";
 const symlinkTestTimeout = isWindows ? 120_000 : 20_000;
 const prNumber = "390";
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
+    await execFileAsync(bashExecutable, ["-c", `command -v ${command}`]);
     return true;
   } catch {
     return false;
   }
+}
+
+function resolveBashExecutable() {
+  if (!isWindows) {
+    return "bash";
+  }
+  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+  return existsSync(gitBash) ? gitBash : "bash";
+}
+
+function usesGitBash() {
+  return bashExecutable.toLowerCase().includes("\\git\\bin\\bash.exe");
+}
+
+function bashPath(filePath: string) {
+  if (!isWindows) {
+    return filePath;
+  }
+  const normalized = filePath.replace(/\\/gu, "/");
+  const driveMatch = /^([A-Za-z]):\/(.*)$/u.exec(normalized);
+  if (!driveMatch) {
+    return normalized;
+  }
+  if (usesGitBash()) {
+    return `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+  }
+  return `/mnt/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+}
+
+function artifactAbsolutePath(filePath: string) {
+  if (!isWindows) {
+    return filePath;
+  }
+  return filePath.replace(/\\/gu, "/");
 }
 
 async function makeGitWorkspace() {
@@ -82,7 +118,9 @@ async function git(cwd: string, ...args: string[]) {
 }
 
 async function bashPhysicalCwd(cwd: string) {
-  const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
+  const { stdout } = await execFileAsync(bashExecutable, ["-lc", "pwd -P"], {
+    cwd,
+  });
   return stdout.trim();
 }
 
@@ -235,7 +273,7 @@ function handoffEnv(cwd: string, baseSha: string, headSha: string) {
     PR_NUMBER: prNumber,
     HEAD_SHA: headSha,
     REPOSITORY: "owner/repo",
-    EXECUTION_WORKING_DIRECTORY: cwd,
+    EXECUTION_WORKING_DIRECTORY: artifactAbsolutePath(cwd),
     BASE_REF: "main",
     HEAD_REF: "topic",
     REVIEW_SCOPE_BASE_REF: baseSha,
@@ -266,9 +304,14 @@ async function runHelper(
   env: NodeJS.ProcessEnv = {},
   script = helperScript,
 ) {
-  return execFileAsync("bash", [script, command], {
+  return execFileAsync(bashExecutable, [bashPath(script), command], {
     cwd,
-    env: { ...process.env, PR_NUMBER: prNumber, ...env },
+    env: {
+      ...process.env,
+      MSYS2_ENV_CONV_EXCL: "*",
+      PR_NUMBER: prNumber,
+      ...env,
+    },
     maxBuffer: 1024 * 1024,
   });
 }

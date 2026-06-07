@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import {
   chmod,
   mkdir,
@@ -14,6 +15,8 @@ import { describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
+const isWindows = process.platform === "win32";
+const bashExecutable = resolveBashExecutable();
 const jqAvailable = await commandAvailable("jq");
 const validatorScript = path.join(
   process.cwd(),
@@ -24,11 +27,38 @@ type JsonObject = Record<string, unknown>;
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
+    await execFileAsync(bashExecutable, ["-c", `command -v ${command}`]);
     return true;
   } catch {
     return false;
   }
+}
+
+function resolveBashExecutable() {
+  if (!isWindows) {
+    return "bash";
+  }
+  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+  return existsSync(gitBash) ? gitBash : "bash";
+}
+
+function usesGitBash() {
+  return bashExecutable.toLowerCase().includes("\\git\\bin\\bash.exe");
+}
+
+function bashPath(filePath: string) {
+  if (!isWindows) {
+    return filePath;
+  }
+  const normalized = filePath.replace(/\\/gu, "/");
+  const driveMatch = /^([A-Za-z]):\/(.*)$/u.exec(normalized);
+  if (!driveMatch) {
+    return normalized;
+  }
+  if (usesGitBash()) {
+    return `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+  }
+  return `/mnt/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
 }
 
 async function makeGitWorkspace(): Promise<{
@@ -95,11 +125,15 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
 }
 
 async function runValidator(cwd: string, command: string, args: string[] = []) {
-  return execFileAsync("bash", [validatorScript, command, ...args], {
-    cwd,
-    env: process.env,
-    maxBuffer: 1024 * 1024,
-  });
+  return execFileAsync(
+    bashExecutable,
+    [bashPath(validatorScript), command, ...args],
+    {
+      cwd,
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+    },
+  );
 }
 
 function scopeArgs(
@@ -2612,7 +2646,7 @@ describe("play-validate-review-artifacts validator packaging diagnostics", () =>
       await writeMarkerValidator(cwd, "source-layout");
 
       await expect(
-        execFileAsync("bash", [adapter], { cwd }),
+        execFileAsync(bashExecutable, [bashPath(adapter)], { cwd }),
       ).resolves.toMatchObject({ stdout: "source-layout\n" });
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -2636,7 +2670,7 @@ describe("play-validate-review-artifacts validator packaging diagnostics", () =>
       );
 
       await expect(
-        execFileAsync("bash", [adapter], { cwd }),
+        execFileAsync(bashExecutable, [bashPath(adapter)], { cwd }),
       ).resolves.toMatchObject({ stdout: "generated-layout\n" });
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -2660,7 +2694,7 @@ describe("play-validate-review-artifacts validator packaging diagnostics", () =>
       );
 
       await expect(
-        execFileAsync("bash", [adapter], { cwd }),
+        execFileAsync(bashExecutable, [bashPath(adapter)], { cwd }),
       ).resolves.toMatchObject({ stdout: "installed-layout\n" });
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -2681,11 +2715,11 @@ describe("play-validate-review-artifacts validator packaging diagnostics", () =>
       );
 
       await expect(
-        execFileAsync("bash", [adapter], {
+        execFileAsync(bashExecutable, [bashPath(adapter)], {
           cwd,
           env: {
             ...process.env,
-            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: override,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: bashPath(override),
           },
         }),
       ).resolves.toMatchObject({ stdout: "override-layout\n" });
@@ -2703,7 +2737,11 @@ describe("play-validate-review-artifacts validator packaging diagnostics", () =>
       await writeFixtureConsumerAdapter(adapter);
 
       await expectRejectsWith(
-        execFileAsync("bash", [adapter, "validate-scope-decision"], { cwd }),
+        execFileAsync(
+          bashExecutable,
+          [bashPath(adapter), "validate-scope-decision"],
+          { cwd },
+        ),
         "play-validate-review-artifacts validator missing",
       );
     } finally {

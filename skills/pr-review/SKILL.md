@@ -128,26 +128,26 @@ Lifecycle states:
 
 Authoritative lifecycle rows:
 
-| Row | Transition | Contract |
-| --- | --- | --- |
-| LC-01 | `none -> created` | Create the active lease after resolving the review worktree. |
-| LC-02 | `created -> created` | Add the validated handoff pointer once; repeated no-op refreshes are forbidden. |
-| LC-03 | `created -> reviewed` | Record the validated result pointer. |
-| LC-04 | `reviewed -> gated` | Record a fresh preview presentation. |
-| LC-05 | `gated -> gated` | Record a materially fresh presentation after result or preview changes. |
-| LC-06 | `reviewed -> aborted` | Record terminal user abort after result validation. |
-| LC-07 | `gated -> aborted` | Record terminal user abort after preview. |
-| LC-08 | `gated -> posted` | Record successful GitHub post for the frozen approved-review artifact. |
-| LC-09 | `created -> failed` | Record failure before result validation. |
-| LC-10 | `reviewed -> failed` | Record failure after result validation. |
-| LC-11 | `gated -> failed` | Record pre-approval failure after preview. |
-| LC-12 | `gated -> failed` | Record approval-freeze failure; an approved-review pointer may be preserved without approved-review validation. |
-| LC-13 | `gated -> failed` | Record GitHub post failure with `GITHUB_POST_ATTEMPTED=true` and `GITHUB_POST_RESULT=failed`. |
-| LC-14 | `failed -> gated` | Recover by validating artifacts and presenting a fresh preview. |
-| LC-15 | `failed -> aborted` | Terminally abandon a failed lease. |
-| LC-16 | `failed -> failed` | Update materially new failure audit metadata. |
-| LC-17 | `failed -> posted` | Complete a retry-to-post after validating the approved-review artifact. |
-| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease, then create a fresh active lease for the same PR/worktree. |
+| Row   | Transition            | Contract                                                                                                        |
+| ----- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| LC-01 | `none -> created`     | Create the active lease after resolving the review worktree.                                                    |
+| LC-02 | `created -> created`  | Add the validated handoff pointer once; repeated no-op refreshes are forbidden.                                 |
+| LC-03 | `created -> reviewed` | Record the validated result pointer.                                                                            |
+| LC-04 | `reviewed -> gated`   | Record a fresh preview presentation.                                                                            |
+| LC-05 | `gated -> gated`      | Record a materially fresh presentation after result or preview changes.                                         |
+| LC-06 | `reviewed -> aborted` | Record terminal user abort after result validation.                                                             |
+| LC-07 | `gated -> aborted`    | Record terminal user abort after preview.                                                                       |
+| LC-08 | `gated -> posted`     | Record successful GitHub post for the frozen approved-review artifact.                                          |
+| LC-09 | `created -> failed`   | Record failure before result validation.                                                                        |
+| LC-10 | `reviewed -> failed`  | Record failure after result validation.                                                                         |
+| LC-11 | `gated -> failed`     | Record pre-approval failure after preview.                                                                      |
+| LC-12 | `gated -> failed`     | Record approval-freeze failure; an approved-review pointer may be preserved without approved-review validation. |
+| LC-13 | `gated -> failed`     | Record GitHub post failure with `GITHUB_POST_ATTEMPTED=true` and `GITHUB_POST_RESULT=failed`.                   |
+| LC-14 | `failed -> gated`     | Recover by validating artifacts and presenting a fresh preview.                                                 |
+| LC-15 | `failed -> aborted`   | Terminally abandon a failed lease.                                                                              |
+| LC-16 | `failed -> failed`    | Update materially new failure audit metadata.                                                                   |
+| LC-17 | `failed -> posted`    | Complete a retry-to-post after validating the approved-review artifact.                                         |
+| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease, then create a fresh active lease for the same PR/worktree.  |
 
 All other transitions are forbidden. `UPDATED_AT` is required on every write.
 Referenced artifact identity is lease-owned after the existing artifact helpers
