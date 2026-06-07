@@ -522,6 +522,7 @@ async function writeValidReviewManifests(
     PRESENTATION_STATUS: "preview-current",
     PLAY_REVIEW_HELPER: bashPath(playHelper),
   });
+  await unlink(playHelper);
   return { branchName, scopeDecisionPath };
 }
 
@@ -700,7 +701,11 @@ async function writeCreatedLease(primary: string, worktree: string) {
 async function writeGatedLease(primary: string, review: GitWorkspace) {
   await writeLeaseIdentityArtifacts(review);
   const manifestHelper = await writePassingManifestHelper(review.cwd);
-  await execFileAsync("git", ["add", ".ephemeral"], { cwd: review.cwd });
+  await execFileAsync(
+    "git",
+    ["add", handoffPath(review.headSha), resultPath(review.headSha)],
+    { cwd: review.cwd },
+  );
   await execFileAsync("git", ["commit", "-m", "test: add review artifacts"], {
     cwd: review.cwd,
   });
@@ -728,6 +733,7 @@ async function writeGatedLease(primary: string, review: GitWorkspace) {
     PRESENTED_AT: "2026-06-05T00:03:00Z",
     PRESENTATION_STATUS: "preview-current",
   });
+  await unlink(manifestHelper);
   return file;
 }
 
@@ -2526,6 +2532,22 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
       );
       const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
 
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "reviewed",
+        RESULT_FILE: resultPath(review.headSha),
+      });
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "gated",
+        PRESENTED_AT: "2026-06-05T00:03:00Z",
+        PRESENTATION_STATUS: "preview-current",
+      });
+
       await expect(
         runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
@@ -2905,17 +2927,95 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     longTestTimeout,
   );
 
+  it(
+    "rejects GitHub-post failures before the gated lifecycle boundary",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-failed-approved-",
+      );
+      try {
+        const branchName = await git(
+          review.cwd,
+          "rev-parse",
+          "--abbrev-ref",
+          "HEAD",
+        );
+        const approvedPath = await writeSyntheticReviewChainArtifacts(
+          review,
+          branchName,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "failed",
+            RESULT_FILE: resultPath(review.headSha),
+            APPROVED_REVIEW_FILE: approvedPath,
+            APPROVED_REVIEW_HELPER: approvedHelper,
+            FINISHED_AT: "2026-06-05T00:04:00Z",
+            FAILURE_PHASE: "github-post",
+            FAILURE_REASON: "GitHub post failed before gate",
+            FAILURE_RECOVERABILITY: "recoverable",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "failed",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "github-post failure requires gated lease",
+          ),
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
   it("rejects failed leases that claim the GitHub post succeeded", async () => {
     const { primary, review, parent } = await makeLinkedReviewWorkspace(
       "devcanon-pr-lease-failed-",
     );
     try {
-      await writeValidReviewManifests(
+      const { branchName } = await writeValidReviewManifests(
         review.cwd,
         review.baseSha,
         review.headSha,
       );
+      const manifestHelper = await writePassingManifestHelper(review.cwd);
+      const approvedPath = await writeBoundApprovedReviewArtifact(
+        review.cwd,
+        review.headSha,
+        branchName,
+      );
       const file = await writeCreatedLease(primary.cwd, review.cwd);
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "reviewed",
+        RESULT_FILE: resultPath(review.headSha),
+      });
+      await runLeaseHelper(primary.cwd, "write", {
+        WORKTREE_PATH: review.cwd,
+        LEASE_FILE: file,
+        REVIEW_MANIFEST_HELPER: manifestHelper,
+        STATE: "gated",
+        PRESENTED_AT: "2026-06-05T00:03:00Z",
+        PRESENTATION_STATUS: "preview-current",
+      });
 
       await expect(
         runLeaseHelper(primary.cwd, "write", {
@@ -2923,6 +3023,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           LEASE_FILE: file,
           STATE: "failed",
           RESULT_FILE: resultPath(review.headSha),
+          APPROVED_REVIEW_FILE: approvedPath,
           FINISHED_AT: "2026-06-05T00:04:00Z",
           FAILURE_PHASE: "github-post",
           FAILURE_REASON: "Post succeeded cannot be failed",
@@ -3262,7 +3363,6 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           review.headSha,
           branchName,
         );
-        await unlink(path.join(review.cwd, ".ephemeral/play-review-helper.sh"));
 
         const file = await writeCreatedLease(primary.cwd, review.cwd);
         await runLeaseHelper(primary.cwd, "write", {
@@ -3308,6 +3408,82 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
         });
         await expect(pathExists(review.cwd)).resolves.toBe(false);
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "retains terminal worktrees with clean tracked unmanaged .ephemeral artifacts",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
+      );
+      try {
+        const { branchName } = await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
+        );
+
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "posted",
+          APPROVED_REVIEW_FILE: approvedPath,
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          GITHUB_POST_ATTEMPTED: "true",
+          GITHUB_POST_RESULT: "succeeded",
+          GITHUB_POSTED_AT: "2026-06-05T00:04:00Z",
+        });
+        await writeFile(
+          path.join(review.cwd, ".ephemeral/tracked-unmanaged.txt"),
+          "tracked but unmanaged\n",
+        );
+        await execFileAsync(
+          "git",
+          ["add", ".ephemeral/tracked-unmanaged.txt"],
+          {
+            cwd: review.cwd,
+          },
+        );
+        await execFileAsync("git", ["commit", "-m", "test: track artifact"], {
+          cwd: review.cwd,
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "no",
+            CONFIRM_REMOVE_TOKEN: "",
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
       } finally {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
       }

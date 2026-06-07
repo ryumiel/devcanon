@@ -1162,6 +1162,8 @@ write_lease() {
     [ -n "$failure_reason_value" ] || fail "FAILURE_REASON is required for failed"
     [ -n "$failure_recoverability_value" ] || fail "FAILURE_RECOVERABILITY is required for failed"
     if [ "$failure_phase_value" = "github-post" ]; then
+      [ "$previous_state" = "gated" ] ||
+        fail "github-post failure requires gated lease"
       [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
       [ "$github_result_value" = "failed" ] || fail "GITHUB_POST_RESULT must be failed for github-post failure"
       [ -n "$approved_value" ] || fail "APPROVED_REVIEW_FILE is required for github-post failure"
@@ -1479,6 +1481,16 @@ worktree_ephemeral_has_unmanaged_entries() {
   return 1
 }
 
+worktree_tracked_ephemeral_has_unmanaged_entries() {
+  local worktree="$1"
+  local allowed_file="$2"
+  local rel_path
+  while IFS= read -r -d '' rel_path; do
+    path_allowed_by_file "$allowed_file" "$rel_path" || return 0
+  done < <(git -C "$worktree" ls-files -z -- .ephemeral 2>/dev/null)
+  return 1
+}
+
 worktree_untracked_ephemeral_status() {
   local worktree="$1"
   local allowed_file status_output line rel_path
@@ -1492,6 +1504,11 @@ worktree_untracked_ephemeral_status() {
     fail "failed to create managed artifact temp file"
   trap 'rm -f "$allowed_file"' RETURN
   collect_managed_ephemeral_paths "$worktree" "$allowed_file"
+  if worktree_ephemeral_has_unmanaged_entries "$worktree" "$allowed_file" ||
+    worktree_tracked_ephemeral_has_unmanaged_entries "$worktree" "$allowed_file"; then
+    printf 'yes\n'
+    return
+  fi
   status_output="$(git -C "$worktree" status --porcelain --untracked-files=all --ignored=matching -- .ephemeral 2>/dev/null)" ||
     fail "failed to inspect worktree .ephemeral status"
   while IFS= read -r line; do
