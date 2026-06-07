@@ -96,3 +96,7 @@ not prove cleanup ownership for `.ephemeral` files.
 
 Dirty worktrees, unmanaged `.ephemeral` artifacts, identity mismatches, and
 invalid lease mechanics remain absolute cleanup refusals.
+
+After cleanup accepts that remaining `.ephemeral` entries are lease-managed and
+all refusal checks are clear, the helper may use forced worktree removal so
+accepted managed residue does not block terminal cleanup.

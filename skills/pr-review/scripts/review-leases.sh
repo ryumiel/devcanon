@@ -1364,17 +1364,12 @@ is_registered_worktree() {
         ;;
     esac
   done < <(git worktree list --porcelain)
-  if git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    physical_listed_path="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" ||
-      return 1
-    if [ -d "$physical_listed_path" ]; then
-      physical_listed_path="$(cd "$physical_listed_path" && pwd -P)" ||
-        physical_listed_path="$target"
-    fi
-    [ "$physical_listed_path" = "$target" ] && return 0
-  fi
-  [ -e "$target/.git" ] && return 0
   return 1
+}
+
+prepare_ephemeral_temp_dir() {
+  guard_ephemeral
+  mkdir -p .ephemeral
 }
 
 worktree_dirty_status() {
@@ -1457,6 +1452,7 @@ collect_managed_ephemeral_paths() {
   append_managed_ephemeral_paths_from_json "$worktree" "$handoff_file" "$allowed_file"
   append_managed_ephemeral_paths_from_json "$worktree" "$result_file" "$allowed_file"
   append_managed_ephemeral_paths_from_json "$worktree" "$approved_review_file" "$allowed_file"
+  prepare_ephemeral_temp_dir
   snapshot_file="$(mktemp ".ephemeral/.lease-managed-snapshot-${PR_NUMBER}.XXXXXX")" ||
     fail "failed to create managed artifact snapshot"
   sort -u "$allowed_file" >"$snapshot_file"
@@ -1491,6 +1487,7 @@ worktree_untracked_ephemeral_status() {
     printf 'no\n'
     return
   fi
+  prepare_ephemeral_temp_dir
   allowed_file="$(mktemp ".ephemeral/.lease-managed-${PR_NUMBER}.XXXXXX")" ||
     fail "failed to create managed artifact temp file"
   trap 'rm -f "$allowed_file"' RETURN
@@ -1523,6 +1520,11 @@ worktree_untracked_ephemeral_status() {
 $status_output
 EOF
   printf 'no\n'
+}
+
+worktree_has_ephemeral_residue() {
+  local worktree="$1"
+  [ -e "$worktree/.ephemeral" ] || [ -L "$worktree/.ephemeral" ]
 }
 
 cleanup_expected_token() {
@@ -1735,7 +1737,7 @@ cleanup_inspection() {
 
 cleanup_worktree() {
   local physical_path primary_path digest expected_path dirty requires_confirmation
-  local refusal_reason message expected_token untracked_ephemeral
+  local refusal_reason message expected_token untracked_ephemeral remove_status
 
   require_repo_root
   require_jq
@@ -1799,7 +1801,13 @@ cleanup_worktree() {
   fi
   case "$refusal_reason" in
     "")
-      if git worktree remove "$physical_path"; then
+      remove_status=0
+      if worktree_has_ephemeral_residue "$physical_path"; then
+        git worktree remove -f "$physical_path" || remove_status=$?
+      else
+        git worktree remove "$physical_path" || remove_status=$?
+      fi
+      if [ "$remove_status" -eq 0 ]; then
         if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
           record_cleanup_metadata "$LEASE_FILE" "removed"
         fi

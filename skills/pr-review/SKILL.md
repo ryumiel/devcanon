@@ -808,7 +808,11 @@ Only after user approval:
 Never remove a review worktree directly. Use `review-leases.sh
 inspect-worktree` before every cleanup decision and `review-leases.sh
 cleanup-worktree` for every removal attempt. The helper owns safety mechanics
-and uses plain `git worktree remove` only after all checks pass.
+and removes worktrees only after all checks pass. It may use forced worktree
+removal after accepting lease-managed `.ephemeral` residue; dirty worktrees,
+unmanaged `.ephemeral` artifacts, identity mismatches, invalid lease mechanics,
+non-worktree paths, and missing paths remain removal refusals or skipped
+outcomes.
 
 Inspection input:
 
