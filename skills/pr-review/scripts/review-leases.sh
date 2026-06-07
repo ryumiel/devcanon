@@ -30,14 +30,25 @@ sha256_text() {
 }
 
 require_repo_root() {
-  local git_toplevel physical_toplevel physical_pwd
+  local git_toplevel physical_toplevel physical_pwd physical_primary
+  require_env PRIMARY_REPOSITORY_ROOT
+  case "$PRIMARY_REPOSITORY_ROOT" in
+    /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;;
+    *) fail "PRIMARY_REPOSITORY_ROOT must be absolute" ;;
+  esac
+  [ -d "$PRIMARY_REPOSITORY_ROOT" ] ||
+    fail "PRIMARY_REPOSITORY_ROOT missing or not a directory: $PRIMARY_REPOSITORY_ROOT"
   git_toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" ||
     fail "failed to determine git repository root"
   physical_toplevel="$(cd "$git_toplevel" && pwd -P)" ||
     fail "failed to resolve git repository root"
   physical_pwd="$(pwd -P)"
+  physical_primary="$(cd "$PRIMARY_REPOSITORY_ROOT" && pwd -P)" ||
+    fail "failed to resolve PRIMARY_REPOSITORY_ROOT"
   [ "$physical_toplevel" = "$physical_pwd" ] ||
     fail "review-leases.sh must run from the primary repository root"
+  [ "$physical_primary" = "$physical_pwd" ] ||
+    fail "PRIMARY_REPOSITORY_ROOT must match the primary repository root"
 }
 
 validate_repository() {
@@ -63,6 +74,15 @@ validate_pr_number_value() {
 validate_pr_number() {
   require_env PR_NUMBER
   validate_pr_number_value "$PR_NUMBER"
+}
+
+validate_sha_value() {
+  local label="$1"
+  local value="$2"
+  case "$value" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+    *) fail "$label must be a 40-character lowercase hex SHA" ;;
+  esac
 }
 
 validate_ref_value() {
@@ -91,10 +111,16 @@ validate_timestamp_value() {
     *) fail "$label must be a UTC RFC3339 timestamp ending in Z" ;;
   esac
 
-  normalized="$(
-    printf '%s\n' "$value" |
-      jq -Rr 'fromdateiso8601 | strftime("%Y-%m-%dT%H:%M:%SZ")' 2>/dev/null
-  )" || fail "$label is not a valid UTC timestamp"
+  if normalized="$(date -u -d "$value" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"; then
+    :
+  elif normalized="$(date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$value" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"; then
+    :
+  else
+    normalized="$(
+      printf '%s\n' "$value" |
+        jq -Rr 'fromdateiso8601 | strftime("%Y-%m-%dT%H:%M:%SZ")' 2>/dev/null
+    )" || fail "$label is not a valid UTC timestamp"
+  fi
   [ "$normalized" = "$value" ] || fail "$label is not a valid UTC timestamp"
 }
 
@@ -149,8 +175,13 @@ physical_worktree_path() {
     *) fail "WORKTREE_PATH must be absolute" ;;
   esac
   [ -d "$WORKTREE_PATH" ] || fail "WORKTREE_PATH missing or not a directory: $WORKTREE_PATH"
-  (cd "$WORKTREE_PATH" && pwd -P) ||
+  local physical_path primary_path
+  physical_path="$(cd "$WORKTREE_PATH" && pwd -P)" ||
     fail "failed to resolve WORKTREE_PATH"
+  primary_path="$(pwd -P)"
+  [ "$physical_path" != "$primary_path" ] ||
+    fail "WORKTREE_PATH must be a review worktree, not the primary repository root"
+  printf '%s\n' "$physical_path"
 }
 
 worktree_digest_for() {
@@ -307,6 +338,89 @@ artifact_head_sha() {
     fail "failed to read review head from artifact: $file"
 }
 
+required_artifact_value() {
+  local worktree="$1"
+  local file="$2"
+  local filter="$3"
+  local label="$4"
+  jq -er "$filter" "$worktree/$file" ||
+    fail "missing artifact identity field: $label in $file"
+}
+
+normalize_artifact_working_directory() {
+  local path_value="$1"
+  case "$path_value" in
+    /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;;
+    *) fail "execution working_directory must be absolute" ;;
+  esac
+  [ -d "$path_value" ] || fail "execution working_directory missing: $path_value"
+  (cd "$path_value" && pwd -P) ||
+    fail "failed to resolve execution working_directory"
+}
+
+validate_handoff_identity() {
+  local worktree="$1"
+  local file="$2"
+  local repository pr_number base_ref head_ref working_directory review_head_sha
+  local physical_working_directory
+  repository="$(required_artifact_value "$worktree" "$file" '.repository' ".repository")"
+  pr_number="$(required_artifact_value "$worktree" "$file" '.pr_number' ".pr_number")"
+  base_ref="$(required_artifact_value "$worktree" "$file" '.base_ref' ".base_ref")"
+  head_ref="$(required_artifact_value "$worktree" "$file" '.head_ref' ".head_ref")"
+  working_directory="$(required_artifact_value "$worktree" "$file" '.execution.working_directory' ".execution.working_directory")"
+  review_head_sha="$(required_artifact_value "$worktree" "$file" '.review_head_sha' ".review_head_sha")"
+  physical_working_directory="$(normalize_artifact_working_directory "$working_directory")"
+  [ "$repository" = "$REPOSITORY" ] || fail "handoff repository mismatch"
+  [ "$pr_number" = "$PR_NUMBER" ] || fail "handoff PR number mismatch"
+  [ "$base_ref" = "${LEASE_EXPECTED_BASE_REF:-$BASE_REF}" ] || fail "handoff base_ref mismatch"
+  [ "$head_ref" = "${LEASE_EXPECTED_HEAD_REF:-$HEAD_REF}" ] || fail "handoff head_ref mismatch"
+  [ "$physical_working_directory" = "$worktree" ] || fail "handoff worktree mismatch"
+  validate_sha_value "handoff review_head_sha" "$review_head_sha"
+}
+
+validate_result_identity() {
+  local worktree="$1"
+  local file="$2"
+  local repository pr_number review_head_sha handoff_file handoff_head_sha
+  repository="$(required_artifact_value "$worktree" "$file" '.repository' ".repository")"
+  pr_number="$(required_artifact_value "$worktree" "$file" '.pr_number' ".pr_number")"
+  review_head_sha="$(required_artifact_value "$worktree" "$file" '.review_head_sha' ".review_head_sha")"
+  handoff_file="$(jq -r 'if .handoff_file == null then "" else .handoff_file end' "$worktree/$file")"
+  if [ -z "$handoff_file" ]; then
+    handoff_file="$(printf '.ephemeral/pr-%s-%s-handoff.json\n' "$PR_NUMBER" "$review_head_sha")"
+  fi
+  [ "$repository" = "$REPOSITORY" ] || fail "result repository mismatch"
+  [ "$pr_number" = "$PR_NUMBER" ] || fail "result PR number mismatch"
+  validate_sha_value "result review_head_sha" "$review_head_sha"
+  validate_handoff_artifact "$worktree" "$handoff_file"
+  handoff_head_sha="$(artifact_head_sha "$worktree" "$handoff_file" '.review_head_sha')"
+  [ "$review_head_sha" = "$handoff_head_sha" ] || fail "result review head mismatch"
+}
+
+validate_approved_review_identity() {
+  local worktree="$1"
+  local file="$2"
+  local result_file="$3"
+  local review_head_sha result_head_sha expected
+  review_head_sha="$(required_artifact_value "$worktree" "$file" '.review_head_sha' ".review_head_sha")"
+  result_head_sha="$(artifact_head_sha "$worktree" "$result_file" '.review_head_sha')"
+  validate_sha_value "approved review_head_sha" "$review_head_sha"
+  [ "$review_head_sha" = "$result_head_sha" ] || fail "approved review head mismatch"
+  expected="$(expected_approved_path_for "$worktree" "$review_head_sha")"
+  [ "$file" = "$expected" ] || fail "approved review path mismatch"
+}
+
+expected_approved_path_for() {
+  local worktree="$1"
+  local review_head_sha="$2"
+  local branch branch_slug
+  branch="$(git -C "$worktree" branch --show-current 2>/dev/null)" ||
+    fail "failed to determine review worktree branch"
+  [ -n "$branch" ] || fail "review worktree branch is required for approved review identity"
+  branch_slug="$(printf '%s' "$branch" | sed 's/[^A-Za-z0-9._-]/-/g')"
+  printf '.ephemeral/%s-%s-approved-review.json\n' "$branch_slug" "$review_head_sha"
+}
+
 validate_handoff_artifact() {
   local worktree="$1"
   local file="$2"
@@ -322,6 +436,7 @@ validate_handoff_artifact() {
     HANDOFF_FILE="$file" \
       bash "$manifest_helper" validate-handoff
   )
+  validate_handoff_identity "$worktree" "$file"
 }
 
 validate_result_artifact() {
@@ -340,12 +455,14 @@ validate_result_artifact() {
     PLAY_REVIEW_HELPER="${PLAY_REVIEW_HELPER:-}" \
       bash "$manifest_helper" validate-result
   )
+  validate_result_identity "$worktree" "$file"
 }
 
 validate_approved_review_artifact() {
   local worktree="$1"
   local file="$2"
   local fallback_base_ref="$3"
+  local result_file="${4:-}"
   local base_ref scope_decision_file full_range
   local head_sha approved_helper
   validate_direct_child_path "approved review" "$file" "-approved-review.json"
@@ -372,6 +489,9 @@ validate_approved_review_artifact() {
     APPROVED_REVIEW_FILE="$file" \
       bash "$approved_helper" validate-approved-review >/dev/null
   )
+  if [ -n "$result_file" ]; then
+    validate_approved_review_identity "$worktree" "$file" "$result_file"
+  fi
 }
 
 validate_lease_path_identity() {
@@ -447,7 +567,7 @@ validate_lease_schema() {
     and (.terminal.reason == null or (.terminal.reason | single_line))
     and (.failure | type == "object")
     and ((.failure | keys_unsorted | sort) == (["phase", "reason", "recoverability"] | sort))
-    and (.failure.phase == null or one_of(["handoff-validation", "review", "result-validation", "preview-render", "approval-freeze", "github-post"]; .failure.phase))
+    and (.failure.phase == null or one_of(["handoff-validation", "review", "result-validation", "preview-render", "approval-freeze", "stale-head", "github-post"]; .failure.phase))
     and (.failure.reason == null or (.failure.reason | single_line))
     and (.failure.recoverability == null or one_of(["recoverable", "unrecoverable", "unknown"]; .failure.recoverability))
     and (.github | type == "object")
@@ -570,9 +690,11 @@ validate_lease_identity() {
 validate_referenced_artifacts() {
   local file="$1"
   local physical_path="$2"
-  local state base_ref handoff_file result_file approved_review_file
+  local state base_ref head_ref failure_phase handoff_file result_file approved_review_file
   state="$(jq_value "$file" '.state')"
   base_ref="$(jq_value "$file" '.base_ref')"
+  head_ref="$(jq_value "$file" '.head_ref')"
+  failure_phase="$(jq_value "$file" 'if .failure.phase == null then "" else .failure.phase end')"
   handoff_file="$(jq_value "$file" 'if .artifacts.handoff_file == null then "" else .artifacts.handoff_file end')"
   result_file="$(jq_value "$file" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
   approved_review_file="$(jq_value "$file" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
@@ -588,20 +710,28 @@ validate_referenced_artifacts() {
   fi
 
   if [ -n "$handoff_file" ]; then
-    validate_handoff_artifact "$physical_path" "$handoff_file"
+    LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+      validate_handoff_artifact "$physical_path" "$handoff_file"
   fi
   case "$state" in
     reviewed | gated | posted | aborted)
-      validate_result_artifact "$physical_path" "$result_file"
+      LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+        validate_result_artifact "$physical_path" "$result_file"
       ;;
     failed)
       if [ -n "$result_file" ]; then
-        validate_result_artifact "$physical_path" "$result_file"
+        LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+          validate_result_artifact "$physical_path" "$result_file"
       fi
       ;;
   esac
   if [ "$state" = "posted" ] || { [ "$state" = "failed" ] && [ -n "$approved_review_file" ]; }; then
-    validate_approved_review_artifact "$physical_path" "$approved_review_file" "$base_ref"
+    if [ "$state" = "failed" ] && [ "$failure_phase" = "approval-freeze" ]; then
+      :
+    else
+      LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+        validate_approved_review_artifact "$physical_path" "$approved_review_file" "$base_ref" "$result_file"
+    fi
   fi
 }
 
@@ -616,21 +746,50 @@ validate_lease_file() {
   validate_referenced_artifacts "$file" "$physical_path"
 }
 
+transition_id() {
+  local previous="$1"
+  local target="$2"
+  local phase="${3:-}"
+  case "$previous:$target" in
+    none:created) printf 'LC-01\n' ;;
+    created:created) printf 'LC-02\n' ;;
+    created:reviewed) printf 'LC-03\n' ;;
+    reviewed:gated) printf 'LC-04\n' ;;
+    gated:gated) printf 'LC-05\n' ;;
+    reviewed:aborted) printf 'LC-06\n' ;;
+    gated:aborted) printf 'LC-07\n' ;;
+    gated:posted) printf 'LC-08\n' ;;
+    created:failed) printf 'LC-09\n' ;;
+    reviewed:failed) printf 'LC-10\n' ;;
+    gated:failed)
+      case "$phase" in
+        approval-freeze) printf 'LC-12\n' ;;
+        github-post) printf 'LC-13\n' ;;
+        *) printf 'LC-11\n' ;;
+      esac
+      ;;
+    failed:gated) printf 'LC-14\n' ;;
+    failed:aborted) printf 'LC-15\n' ;;
+    failed:failed) printf 'LC-16\n' ;;
+    failed:posted) printf 'LC-17\n' ;;
+    terminal:created) printf 'LC-18\n' ;;
+    *) printf '\n' ;;
+  esac
+}
+
 transition_allowed() {
   local previous="$1"
   local target="$2"
-  case "$previous:$target" in
-    created:created | gated:gated) return 0 ;;
-    created:reviewed | reviewed:gated | reviewed:aborted | gated:posted | gated:aborted | gated:failed) return 0 ;;
-    reviewed:failed | created:failed | failed:gated | failed:aborted) return 0 ;;
-    *) return 1 ;;
-  esac
+  local phase="${3:-}"
+  [ -n "$(transition_id "$previous" "$target" "$phase")" ]
 }
 
 validate_same_state_update() {
   local file="$1"
   local state="$2"
   local old_handoff old_result old_presented_at old_presentation_status
+  local old_finished_at old_failure_phase old_failure_reason old_failure_recoverability
+  local old_github_attempted old_github_result old_approved
 
   case "$state" in
     created)
@@ -651,10 +810,80 @@ validate_same_state_update() {
         fail "invalid lease transition: gated -> gated"
       fi
       ;;
+    failed)
+      old_result="$(jq_value "$file" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
+      old_approved="$(jq_value "$file" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
+      old_finished_at="$(jq_value "$file" 'if .terminal.finished_at == null then "" else .terminal.finished_at end')"
+      old_failure_phase="$(jq_value "$file" 'if .failure.phase == null then "" else .failure.phase end')"
+      old_failure_reason="$(jq_value "$file" 'if .failure.reason == null then "" else .failure.reason end')"
+      old_failure_recoverability="$(jq_value "$file" 'if .failure.recoverability == null then "" else .failure.recoverability end')"
+      old_github_attempted="$(jq_value "$file" '.github.github_post_attempted // false')"
+      old_github_result="$(jq_value "$file" '.github.github_post_result // "not-attempted"')"
+      if [ "${RESULT_FILE:-$old_result}" = "$old_result" ] &&
+        [ "${APPROVED_REVIEW_FILE:-$old_approved}" = "$old_approved" ] &&
+        [ "${FINISHED_AT:-$old_finished_at}" = "$old_finished_at" ] &&
+        [ "${FAILURE_PHASE:-$old_failure_phase}" = "$old_failure_phase" ] &&
+        [ "${FAILURE_REASON:-$old_failure_reason}" = "$old_failure_reason" ] &&
+        [ "${FAILURE_RECOVERABILITY:-$old_failure_recoverability}" = "$old_failure_recoverability" ] &&
+        [ "${GITHUB_POST_ATTEMPTED:-$old_github_attempted}" = "$old_github_attempted" ] &&
+        [ "${GITHUB_POST_RESULT:-$old_github_result}" = "$old_github_result" ]; then
+        fail "invalid lease transition: failed -> failed"
+      fi
+      ;;
     *)
       fail "invalid lease transition: $state -> $state"
       ;;
   esac
+}
+
+require_fresh_presentation() {
+  local previous="$1"
+  local target="$2"
+  if [ "$target" != "gated" ]; then
+    return
+  fi
+  case "$previous" in
+    reviewed | gated | failed)
+      [ -n "${PRESENTED_AT:-}" ] || fail "PRESENTED_AT is required for fresh gated presentation"
+      [ -n "${PRESENTATION_STATUS:-}" ] || fail "PRESENTATION_STATUS is required for fresh gated presentation"
+      ;;
+  esac
+}
+
+terminal_archive_path_for() {
+  local terminal_state="$1"
+  local stamp="$2"
+  local digest="$3"
+  local base candidate index
+  stamp="$(printf '%s' "$stamp" | sed 's/[-:Z]//g')"
+  base=".ephemeral/pr-${PR_NUMBER}-${digest}-${stamp}-${terminal_state}"
+  candidate="${base}-archived-lease.json"
+  index=2
+  while [ -e "$candidate" ]; do
+    candidate="${base}-${index}-archived-lease.json"
+    index=$((index + 1))
+  done
+  printf '%s\n' "$candidate"
+}
+
+rotate_terminal_lease_for_created() {
+  local physical_path="$1"
+  local digest="$2"
+  local state stamp archive_path
+  [ "$STATE" = "created" ] || return 0
+  [ -e "$LEASE_FILE" ] || return 0
+  validate_lease_file "$LEASE_FILE" "$physical_path"
+  state="$(jq_value "$LEASE_FILE" '.state')"
+  case "$state" in
+    posted | aborted) ;;
+    *) return ;;
+  esac
+  transition_allowed "terminal" "created" "" ||
+    fail "invalid lease transition: $state -> created"
+  stamp="$(jq_value "$LEASE_FILE" 'if .terminal.finished_at == null then .updated_at else .terminal.finished_at end')"
+  archive_path="$(terminal_archive_path_for "$state" "$stamp" "$digest")"
+  prepare_write_target "archived lease" "$archive_path"
+  mv "$LEASE_FILE" "$archive_path"
 }
 
 existing_field() {
@@ -686,6 +915,7 @@ write_lease() {
   physical_path="$(physical_worktree_path)"
   digest="$(worktree_digest_for "$physical_path")"
   validate_lease_path_identity "$physical_path"
+  rotate_terminal_lease_for_created "$physical_path" "$digest"
 
   case "$STATE" in
     created | reviewed | gated | posted | aborted | failed) ;;
@@ -701,13 +931,14 @@ write_lease() {
     if [ -n "${EXPECTED_STATE:-}" ] && [ "$EXPECTED_STATE" != "$previous_state" ]; then
       fail "EXPECTED_STATE mismatch: $previous_state"
     fi
-    transition_allowed "$previous_state" "$STATE" ||
+    transition_allowed "$previous_state" "$STATE" "${FAILURE_PHASE:-}" ||
       fail "invalid lease transition: $previous_state -> $STATE"
     if [ "$previous_state" = "$STATE" ]; then
       validate_same_state_update "$LEASE_FILE" "$STATE"
     fi
+    require_fresh_presentation "$previous_state" "$STATE"
   else
-    [ "$STATE" = "created" ] || fail "invalid lease transition: none -> $STATE"
+    transition_allowed "none" "$STATE" "" || fail "invalid lease transition: none -> $STATE"
   fi
 
   if [ -n "$existing_file" ]; then
@@ -802,7 +1033,10 @@ write_lease() {
     [ -n "$failure_phase_value" ] || fail "FAILURE_PHASE is required for failed"
     [ -n "$failure_reason_value" ] || fail "FAILURE_REASON is required for failed"
     [ -n "$failure_recoverability_value" ] || fail "FAILURE_RECOVERABILITY is required for failed"
-    if [ "$github_attempted_value" = "true" ] && [ "$github_result_value" != "failed" ]; then
+    if [ "$failure_phase_value" = "github-post" ]; then
+      [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
+      [ "$github_result_value" = "failed" ] || fail "GITHUB_POST_RESULT must be failed for github-post failure"
+    elif [ "$github_attempted_value" = "true" ] && [ "$github_result_value" != "failed" ]; then
       fail "GITHUB_POST_RESULT must be failed for failed"
     fi
     github_posted_at_value=""
@@ -821,7 +1055,7 @@ write_lease() {
   prepare_write_target "lease" "$LEASE_FILE"
   tmp_file="$(mktemp ".ephemeral/.lease-${PR_NUMBER}-${digest}.XXXXXX")" ||
     fail "failed to create lease temp file"
-  trap 'rm -f "$tmp_file"' EXIT
+  trap "rm -f -- '$tmp_file'" EXIT
 
   {
     base64_value "pr-review/lease/v1"
@@ -985,6 +1219,16 @@ is_registered_worktree() {
         ;;
     esac
   done < <(git worktree list --porcelain)
+  if git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    physical_listed_path="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" ||
+      return 1
+    if [ -d "$physical_listed_path" ]; then
+      physical_listed_path="$(cd "$physical_listed_path" && pwd -P)" ||
+        physical_listed_path="$target"
+    fi
+    [ "$physical_listed_path" = "$target" ] && return 0
+  fi
+  [ -e "$target/.git" ] && return 0
   return 1
 }
 
@@ -1000,24 +1244,95 @@ worktree_dirty_status() {
   fi
 }
 
+path_allowed_by_file() {
+  local file="$1"
+  local path_value="$2"
+  grep -Fx -- "$path_value" "$file" >/dev/null 2>&1
+}
+
+append_managed_ephemeral_paths_from_json() {
+  local worktree="$1"
+  local rel_path="$2"
+  local allowed_file="$3"
+  [ -n "$rel_path" ] || return
+  validate_direct_child_path "managed artifact" "$rel_path"
+  [ -f "$worktree/$rel_path" ] || return
+  printf '%s\n' "$rel_path" >>"$allowed_file"
+  jq -r '
+    .. | strings | select(test("^\\.ephemeral/[^/]+$"))
+  ' "$worktree/$rel_path" >>"$allowed_file" 2>/dev/null || true
+}
+
+collect_managed_ephemeral_paths() {
+  local worktree="$1"
+  local allowed_file="$2"
+  local handoff_file result_file approved_review_file referenced_file snapshot_file
+  : >"$allowed_file"
+  if [ "$cleanup_lease_exists" != "yes" ] || [ "$cleanup_identity_match" != "yes" ]; then
+    return
+  fi
+  handoff_file="$(jq_value "$LEASE_FILE" 'if .artifacts.handoff_file == null then "" else .artifacts.handoff_file end')"
+  result_file="$(jq_value "$LEASE_FILE" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
+  approved_review_file="$(jq_value "$LEASE_FILE" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
+  append_managed_ephemeral_paths_from_json "$worktree" "$handoff_file" "$allowed_file"
+  append_managed_ephemeral_paths_from_json "$worktree" "$result_file" "$allowed_file"
+  append_managed_ephemeral_paths_from_json "$worktree" "$approved_review_file" "$allowed_file"
+  snapshot_file="$(mktemp ".ephemeral/.lease-managed-snapshot-${PR_NUMBER}.XXXXXX")" ||
+    fail "failed to create managed artifact snapshot"
+  sort -u "$allowed_file" >"$snapshot_file"
+  while IFS= read -r referenced_file; do
+    [ -n "$referenced_file" ] || continue
+    append_managed_ephemeral_paths_from_json "$worktree" "$referenced_file" "$allowed_file"
+  done <"$snapshot_file"
+  rm -f "$snapshot_file"
+  sort -u "$allowed_file" -o "$allowed_file"
+}
+
+worktree_ephemeral_has_unmanaged_entries() {
+  local worktree="$1"
+  local allowed_file="$2"
+  local entry rel_path
+  [ -d "$worktree/.ephemeral" ] || return 1
+  while IFS= read -r entry; do
+    rel_path=".ephemeral/${entry##*/}"
+    if [ ! -f "$entry" ] || [ -L "$entry" ]; then
+      return 0
+    fi
+    path_allowed_by_file "$allowed_file" "$rel_path" || return 0
+  done < <(find "$worktree/.ephemeral" -mindepth 1 -maxdepth 1 -print 2>/dev/null)
+  return 1
+}
+
 worktree_untracked_ephemeral_status() {
   local worktree="$1"
-  local status_output line
+  local allowed_file status_output line rel_path
   if [ ! -e "$worktree/.ephemeral" ] && [ ! -L "$worktree/.ephemeral" ] &&
     ! git -C "$worktree" ls-files --error-unmatch -- .ephemeral >/dev/null 2>&1; then
     printf 'no\n'
     return
   fi
+  allowed_file="$(mktemp ".ephemeral/.lease-managed-${PR_NUMBER}.XXXXXX")" ||
+    fail "failed to create managed artifact temp file"
+  trap 'rm -f "$allowed_file"' RETURN
+  collect_managed_ephemeral_paths "$worktree" "$allowed_file"
   status_output="$(git -C "$worktree" status --porcelain --untracked-files=all --ignored=matching -- .ephemeral 2>/dev/null)" ||
     fail "failed to inspect worktree .ephemeral status"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     case "$line" in
       '?? .ephemeral/' | '!! .ephemeral/')
-        if [ -n "$(find "$worktree/.ephemeral" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+        if worktree_ephemeral_has_unmanaged_entries "$worktree" "$allowed_file"; then
           printf 'yes\n'
           return
         fi
+        ;;
+      '?? .ephemeral/'* | '!! .ephemeral/'*)
+        rel_path="${line#?? }"
+        rel_path="${rel_path#!! }"
+        path_allowed_by_file "$allowed_file" "$rel_path" || {
+          printf 'yes\n'
+          return
+        }
         ;;
       *)
         printf 'yes\n'
@@ -1142,7 +1457,7 @@ record_cleanup_metadata() {
   checked_at="$(current_utc_timestamp)"
   tmp_file="$(mktemp ".ephemeral/.lease-cleanup-${PR_NUMBER}.XXXXXX")" ||
     fail "failed to create cleanup temp file"
-  trap 'rm -f "$tmp_file"' EXIT
+  trap "rm -f -- '$tmp_file'" EXIT
   jq \
     --arg outcome "$outcome" \
     --arg checked_at "$checked_at" \

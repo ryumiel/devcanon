@@ -241,7 +241,7 @@ git_execution_range() {
 
 changed_files_json() {
   local range="$1"
-  git diff -z --name-only "$range" | jq -R -s -c 'split("\u0000")[:-1] | sort'
+  git diff --name-only "$range" | jq -R -s -c 'split("\n")[:-1] | sort'
 }
 
 language_hints_json_for_files() {

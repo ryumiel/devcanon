@@ -123,7 +123,10 @@ normalize_execution_working_directory_for_manifest() {
   esac
 
   if is_windows_absolute_path "$working_directory"; then
-    if command -v cygpath >/dev/null 2>&1; then
+    if [ -d "$working_directory" ]; then
+      normalized="$(cd "$working_directory" && pwd -P)" ||
+        fail "failed to normalize execution working_directory"
+    elif command -v cygpath >/dev/null 2>&1; then
       normalized="$(cygpath -u "$working_directory")" ||
         fail "failed to normalize execution working_directory"
       if [ -d "$normalized" ]; then
@@ -365,7 +368,7 @@ validate_execution_root() {
   local working_directory="$1"
   local review_head_sha="$2"
   local manifest_root execution_directory execution_root execution_head
-  local normalized_working_directory normalized_manifest_root
+  local normalized_manifest_root
 
   case "$working_directory" in
     /*) ;;
@@ -379,10 +382,7 @@ validate_execution_root() {
     fail "failed to resolve git repository root"
   execution_directory="$(cd "$working_directory" && pwd -P)" ||
     fail "failed to resolve execution working_directory"
-  normalized_working_directory="$(normalize_absolute_path_text "$working_directory")"
   normalized_manifest_root="$(normalize_absolute_path_text "$manifest_root")"
-  [ "$normalized_working_directory" = "$normalized_manifest_root" ] ||
-    fail "execution working_directory must equal repository root"
   [ "$(normalize_absolute_path_text "$execution_directory")" = "$normalized_manifest_root" ] ||
     fail "execution working_directory must equal repository root"
   execution_root="$(git -C "$working_directory" rev-parse --show-toplevel 2>/dev/null)" ||
@@ -782,7 +782,7 @@ write_handoff() {
 
   file="$(prepare_handoff_write)"
   tmp_file="$(tmp_path_for "$file")"
-  trap 'rm -f "$tmp_file"' EXIT
+  trap "rm -f -- '$tmp_file'" EXIT
 
   prior_json="null"
   if [ -n "${PRIOR_THREADS_FILE:-}" ]; then
@@ -866,7 +866,7 @@ write_result() {
 
   file="$(prepare_result_write)"
   tmp_file="$(tmp_path_for "$file")"
-  trap 'rm -f "$tmp_file"' EXIT
+  trap "rm -f -- '$tmp_file'" EXIT
 
   prior_json="null"
   if [ -n "${PRIOR_THREADS_FILE:-}" ]; then

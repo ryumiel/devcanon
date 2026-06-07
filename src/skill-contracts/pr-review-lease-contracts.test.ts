@@ -134,7 +134,10 @@ describe("pr-review lease source contracts", () => {
       "remove-pr-review-worktree-${PR_NUMBER}-${WORKTREE_DIGEST}",
     );
     expect(cleanup).toContain(
-      "Dirty worktrees, `.ephemeral` artifacts, identity mismatches, and invalid lease mechanics are absolute refusals",
+      "Dirty worktrees, unmanaged `.ephemeral` artifacts, identity mismatches, and invalid lease mechanics are absolute refusals",
+    );
+    expect(cleanup).toContain(
+      "Lease-referenced managed artifacts may remain in terminal cleanup decisions",
     );
     expect(cleanup).toContain(
       "Non-worktree paths and missing physical paths are skipped outcomes, not removal permission",

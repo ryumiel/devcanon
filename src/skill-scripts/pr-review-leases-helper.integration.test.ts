@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import {
   access,
   chmod,
@@ -27,27 +28,28 @@ const manifestHelperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/review-manifests.sh",
 );
+const bashExecutable = resolveBashExecutable();
 const jqAvailable = await commandAvailable("jq");
 const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
 const longTestTimeout = process.platform === "win32" ? 120_000 : 20_000;
-const timestampEnvVars = [
-  "CREATED_AT",
-  "UPDATED_AT",
-  "PRESENTED_AT",
-  "FINISHED_AT",
-  "GITHUB_POSTED_AT",
-];
-
 async function commandAvailable(command: string): Promise<boolean> {
   try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
+    await execFileAsync(bashExecutable, ["-c", `command -v ${command}`]);
     return true;
   } catch {
     return false;
   }
+}
+
+function resolveBashExecutable() {
+  if (process.platform !== "win32") {
+    return "bash";
+  }
+  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+  return existsSync(gitBash) ? gitBash : "bash";
 }
 
 async function makeGitWorkspace(prefix: string) {
@@ -63,8 +65,8 @@ async function makeGitWorkspace(prefix: string) {
   await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
   const baseSha = await git(cwd, "rev-parse", "HEAD");
   await execFileAsync("git", ["switch", "-C", "topic"], { cwd });
-  await mkdir(path.join(cwd, "src"), { recursive: true });
-  await writeFile(path.join(cwd, "src/app.ts"), "export const value = 1;\n");
+  await mkdir(path.join(cwd, "docs/guidelines"), { recursive: true });
+  await writeFile(path.join(cwd, "docs/guidelines/app.md"), "# App\n");
   await execFileAsync("git", ["add", "."], { cwd });
   await execFileAsync("git", ["commit", "-m", "feat: add app"], { cwd });
   const headSha = await git(cwd, "rev-parse", "HEAD");
@@ -119,7 +121,9 @@ async function git(cwd: string, ...args: string[]) {
 }
 
 async function bashPhysicalCwd(cwd: string) {
-  const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
+  const { stdout } = await execFileAsync(bashExecutable, ["-lc", "pwd -P"], {
+    cwd,
+  });
   return stdout.trim();
 }
 
@@ -133,7 +137,7 @@ async function pathExists(filePath: string) {
 }
 
 function leaseDigest(worktreePath: string) {
-  let normalized = worktreePath.replace(/\\/gu, "/");
+  let normalized = bashPhysicalPath(worktreePath).replace(/\\/gu, "/");
   if (process.platform === "win32") {
     normalized = normalized.replace(
       /^\/([A-Za-z])\//u,
@@ -144,6 +148,70 @@ function leaseDigest(worktreePath: string) {
     }
   }
   return createHash("sha256").update(normalized).digest("hex");
+}
+
+function usesGitBash() {
+  return bashExecutable.toLowerCase().includes("\\git\\bin\\bash.exe");
+}
+
+function bashPath(filePath: string) {
+  if (process.platform !== "win32") {
+    return filePath;
+  }
+  const normalized = filePath.replace(/\\/gu, "/");
+  const driveMatch = /^([A-Za-z]):\/(.*)$/u.exec(normalized);
+  if (!driveMatch) {
+    return normalized;
+  }
+  if (usesGitBash()) {
+    return `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+  }
+  return `/mnt/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+}
+
+function bashPhysicalPath(filePath: string) {
+  if (process.platform !== "win32" || !usesGitBash()) {
+    return bashPath(filePath);
+  }
+
+  const normalized = filePath.replace(/\\/gu, "/");
+  const tempRoot = os.tmpdir().replace(/\\/gu, "/").replace(/\/$/u, "");
+  const lowerNormalized = normalized.toLowerCase();
+  const lowerTempRoot = tempRoot.toLowerCase();
+  if (
+    lowerNormalized === lowerTempRoot ||
+    lowerNormalized.startsWith(`${lowerTempRoot}/`)
+  ) {
+    const relative = normalized.slice(tempRoot.length).replace(/^\/+/u, "");
+    return relative ? `/tmp/${relative}` : "/tmp";
+  }
+
+  return bashPath(filePath);
+}
+
+function artifactAbsolutePath(filePath: string) {
+  if (process.platform !== "win32") {
+    return filePath;
+  }
+  return filePath.replace(/\\/gu, "/");
+}
+
+function bashPathEnv(env: NodeJS.ProcessEnv) {
+  const pathKeys = [
+    "APPROVED_REVIEW_HELPER",
+    "EXECUTION_WORKING_DIRECTORY",
+    "PLAY_REVIEW_HELPER",
+    "PRIMARY_REPOSITORY_ROOT",
+    "REVIEW_MANIFEST_HELPER",
+    "WORKTREE_PATH",
+  ];
+  const normalized = { ...env };
+  for (const key of pathKeys) {
+    if (normalized[key]) {
+      normalized[key] = bashPath(normalized[key]);
+    }
+  }
+  return normalized;
 }
 
 async function acceptedPhysicalRoots(cwd: string) {
@@ -174,27 +242,41 @@ function shellSingleQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-function separateTimestampEnv(env: NodeJS.ProcessEnv) {
-  const passthrough = { ...env };
+async function runBashScript(
+  cwd: string,
+  script: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+) {
   const lines: string[] = [];
-
-  for (const name of timestampEnvVars) {
-    const value = passthrough[name];
-    delete passthrough[name];
-    if (value !== undefined) {
-      lines.push(`${name}=${shellSingleQuote(value)}`);
+  for (const [name, value] of Object.entries(env)) {
+    if (name === "PATH" || name === "Path") {
+      continue;
+    }
+    if (value !== undefined && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name)) {
+      lines.push(`export ${name}=${shellSingleQuote(value)}`);
     }
   }
-
-  if (process.platform === "win32") {
-    const existingEnvExclusions = passthrough.MSYS2_ENV_CONV_EXCL;
-    const timestampExclusions = timestampEnvVars.join(";");
-    passthrough.MSYS2_ENV_CONV_EXCL = existingEnvExclusions
-      ? `${existingEnvExclusions};${timestampExclusions}`
-      : timestampExclusions;
+  const envFile = path.join(
+    cwd,
+    ".ephemeral",
+    `.lease-env-${process.pid}-${randomUUID()}.sh`,
+  );
+  await writeFile(envFile, `${lines.join("\n")}\n`);
+  const command = [
+    `source ${shellSingleQuote(bashPath(envFile))}`,
+    `exec ${shellSingleQuote(bashPath(bashExecutable))} ${shellSingleQuote(bashPath(script))} ${args
+      .map((arg) => shellSingleQuote(arg))
+      .join(" ")}`,
+  ].join("; ");
+  try {
+    return await execFileAsync(bashExecutable, ["-lc", command], {
+      cwd,
+      maxBuffer: 1024 * 1024,
+    });
+  } finally {
+    await unlink(envFile).catch(() => undefined);
   }
-
-  return { passthrough, contents: `${lines.join("\n")}\n` };
 }
 
 function removeToken(worktreePath: string) {
@@ -229,6 +311,41 @@ function approvedReviewPath(headSha: string, branchName = "topic") {
   return `.ephemeral/${slugBranch(branchName)}-${headSha}-approved-review.json`;
 }
 
+function leaseHandoffArtifact(worktree: string, headSha: string) {
+  return {
+    repository,
+    pr_number: Number(prNumber),
+    base_ref: "main",
+    head_ref: "topic",
+    execution: {
+      working_directory: artifactAbsolutePath(worktree),
+    },
+    review_head_sha: headSha,
+  };
+}
+
+function leaseResultArtifact(headSha: string) {
+  return {
+    repository,
+    pr_number: Number(prNumber),
+    review_head_sha: headSha,
+    handoff_file: handoffPath(headSha),
+  };
+}
+
+async function writeLeaseIdentityArtifacts(review: GitWorkspace) {
+  await writeJson(
+    review.cwd,
+    handoffPath(review.headSha),
+    leaseHandoffArtifact(review.cwd, review.headSha),
+  );
+  await writeJson(
+    review.cwd,
+    resultPath(review.headSha),
+    leaseResultArtifact(review.headSha),
+  );
+}
+
 function initialScope(baseSha: string, headSha: string) {
   return {
     schema: "pr-review/scope-decision/v1",
@@ -241,8 +358,8 @@ function initialScope(baseSha: string, headSha: string) {
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
-    changed_files: ["src/app.ts"],
-    language_hints: ["ts"],
+    changed_files: ["docs/guidelines/app.md"],
+    language_hints: ["md"],
     escalation_reasons: ["not-followup"],
     prior_context: { kind: "none", path: null },
     mechanical_facts: {
@@ -354,29 +471,24 @@ async function writeValidReviewManifests(
     "Review body\n",
   );
   const playHelper = await writePassingPlayHelper(worktree);
-  await execFileAsync("bash", [manifestHelperScript, "write-handoff"], {
-    cwd: worktree,
-    env: {
+  await runBashScript(worktree, manifestHelperScript, ["write-handoff"], {
       ...process.env,
       PR_NUMBER: prNumber,
       HEAD_SHA: headSha,
       REPOSITORY: repository,
-      EXECUTION_WORKING_DIRECTORY: worktree,
+      EXECUTION_WORKING_DIRECTORY: artifactAbsolutePath(worktree),
       BASE_REF: "main",
       HEAD_REF: "topic",
       REVIEW_SCOPE_BASE_REF: baseSha,
       ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
       FULL_PR_DIFF_RANGE: `${baseSha}...HEAD`,
       MODE: "github-post",
-      LANGUAGE_HINTS_JSON: '["ts"]',
+      LANGUAGE_HINTS_JSON: '["md"]',
       FOLLOW_UP_STATE: "initial",
       IS_FOLLOWUP_NARROW: "false",
       SCOPE_DECISION_FILE: scopeDecisionPath,
-    },
   });
-  await execFileAsync("bash", [manifestHelperScript, "write-result"], {
-    cwd: worktree,
-    env: {
+  await runBashScript(worktree, manifestHelperScript, ["write-result"], {
       ...process.env,
       PR_NUMBER: prNumber,
       HEAD_SHA: headSha,
@@ -385,8 +497,7 @@ async function writeValidReviewManifests(
       SCOPE_DECISION_FILE: scopeDecisionPath,
       REVIEW_BODY_FILE: reviewBodyPath(headSha, branchName),
       PRESENTATION_STATUS: "preview-current",
-      PLAY_REVIEW_HELPER: playHelper,
-    },
+      PLAY_REVIEW_HELPER: bashPath(playHelper),
   });
   return { branchName, scopeDecisionPath };
 }
@@ -396,43 +507,17 @@ async function runLeaseHelper(
   command: string,
   env: NodeJS.ProcessEnv = {},
 ) {
-  const { passthrough, contents } = separateTimestampEnv({
+  return await runBashScript(cwd, helperScript, [command], {
     ...process.env,
     REPOSITORY: repository,
     PR_NUMBER: prNumber,
+    PRIMARY_REPOSITORY_ROOT: bashPath(cwd),
     BASE_REF: "main",
     HEAD_REF: "topic",
     CREATED_AT: createdAt,
     UPDATED_AT: updatedAt,
-    ...env,
+    ...bashPathEnv(env),
   });
-  const timestampEnvFile = path.join(
-    cwd,
-    ".ephemeral",
-    `.lease-timestamps-${process.pid}-${randomUUID()}.sh`,
-  );
-  await writeFile(timestampEnvFile, contents);
-
-  try {
-    return await execFileAsync(
-      "bash",
-      [
-        "-c",
-        'source "$1"; shift; source "$1" "$2"',
-        "lease-helper-runner",
-        timestampEnvFile,
-        helperScript,
-        command,
-      ],
-      {
-        cwd,
-        env: passthrough,
-        maxBuffer: 1024 * 1024,
-      },
-    );
-  } finally {
-    await unlink(timestampEnvFile).catch(() => undefined);
-  }
 }
 
 async function writeCreatedLease(primary: string, worktree: string) {
@@ -446,12 +531,7 @@ async function writeCreatedLease(primary: string, worktree: string) {
 }
 
 async function writeGatedLease(primary: string, review: GitWorkspace) {
-  await writeJson(review.cwd, handoffPath(review.headSha), {
-    review_head_sha: review.headSha,
-  });
-  await writeJson(review.cwd, resultPath(review.headSha), {
-    review_head_sha: review.headSha,
-  });
+  await writeLeaseIdentityArtifacts(review);
   const manifestHelper = await writePassingManifestHelper(review.cwd);
   await execFileAsync("git", ["add", ".ephemeral"], { cwd: review.cwd });
   await execFileAsync("git", ["commit", "-m", "test: add review artifacts"], {
@@ -650,12 +730,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
       const review = await makeGitWorkspace("devcanon-pr-lease-review-");
       try {
-        await writeJson(review.cwd, handoffPath(review.headSha), {
-          review_head_sha: review.headSha,
-        });
-        await writeJson(review.cwd, resultPath(review.headSha), {
-          review_head_sha: review.headSha,
-        });
+        await writeLeaseIdentityArtifacts(review);
         const manifestHelper = await writePassingManifestHelper(review.cwd);
         const file = await writeCreatedLease(primary.cwd, review.cwd);
 
@@ -800,12 +875,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
     try {
-      await writeJson(review.cwd, handoffPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
+      await writeLeaseIdentityArtifacts(review);
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
 
@@ -846,9 +916,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
     try {
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
+      await writeLeaseIdentityArtifacts(review);
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
 
@@ -888,9 +956,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
       const file = leasePath(physicalWorktree);
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
+      await writeLeaseIdentityArtifacts(review);
       await writeJson(review.cwd, approvedReviewPath(review.headSha), {
         schema: "pr-review/approved-review/v1",
         review_head_sha: review.headSha,
@@ -958,9 +1024,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
     try {
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
+      await writeLeaseIdentityArtifacts(review);
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
       const beforeContents = await readFile(
@@ -997,9 +1061,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
     const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
     const review = await makeGitWorkspace("devcanon-pr-lease-review-");
     try {
-      await writeJson(review.cwd, resultPath(review.headSha), {
-        review_head_sha: review.headSha,
-      });
+      await writeLeaseIdentityArtifacts(review);
       const manifestHelper = await writePassingManifestHelper(review.cwd);
       const file = await writeCreatedLease(primary.cwd, review.cwd);
       const beforeContents = await readFile(
@@ -1939,7 +2001,7 @@ describe.skipIf(!jqAvailable)("pr-review lease helper", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "GITHUB_POST_RESULT must be failed for failed",
+          "GITHUB_POST_RESULT must be failed for github-post failure",
         ),
       });
     } finally {

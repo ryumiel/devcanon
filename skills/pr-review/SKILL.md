@@ -86,6 +86,9 @@ review session. Its deterministic path is
 `WORKTREE_DIGEST` is derived by `scripts/review-leases.sh` from the physical
 review worktree path. Store leases in the primary repository `.ephemeral/`
 directory, outside the disposable review worktree.
+Every helper command runs from the primary repository root with
+`PRIMARY_REPOSITORY_ROOT` set to that same absolute physical path. `WORKTREE_PATH`
+must resolve to the disposable review worktree, not the primary repository.
 
 `review-leases.sh` owns lease path derivation, closed-schema validation,
 transition enforcement, referenced-artifact validation, cleanup inspection, and
@@ -123,6 +126,37 @@ Lifecycle states:
   terminal state; record `FINISHED_AT`, failure phase, reason, and
   recoverability; preserve artifact pointers for recovery.
 
+Authoritative lifecycle rows:
+
+| Row | Transition | Contract |
+| --- | --- | --- |
+| LC-01 | `none -> created` | Create the active lease after resolving the review worktree. |
+| LC-02 | `created -> created` | Add the validated handoff pointer once; repeated no-op refreshes are forbidden. |
+| LC-03 | `created -> reviewed` | Record the validated result pointer. |
+| LC-04 | `reviewed -> gated` | Record a fresh preview presentation. |
+| LC-05 | `gated -> gated` | Record a materially fresh presentation after result or preview changes. |
+| LC-06 | `reviewed -> aborted` | Record terminal user abort after result validation. |
+| LC-07 | `gated -> aborted` | Record terminal user abort after preview. |
+| LC-08 | `gated -> posted` | Record successful GitHub post for the frozen approved-review artifact. |
+| LC-09 | `created -> failed` | Record failure before result validation. |
+| LC-10 | `reviewed -> failed` | Record failure after result validation. |
+| LC-11 | `gated -> failed` | Record pre-approval failure after preview. |
+| LC-12 | `gated -> failed` | Record approval-freeze failure; an approved-review pointer may be preserved without approved-review validation. |
+| LC-13 | `gated -> failed` | Record GitHub post failure with `GITHUB_POST_ATTEMPTED=true` and `GITHUB_POST_RESULT=failed`. |
+| LC-14 | `failed -> gated` | Recover by validating artifacts and presenting a fresh preview. |
+| LC-15 | `failed -> aborted` | Terminally abandon a failed lease. |
+| LC-16 | `failed -> failed` | Update materially new failure audit metadata. |
+| LC-17 | `failed -> posted` | Complete a retry-to-post after validating the approved-review artifact. |
+| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease, then create a fresh active lease for the same PR/worktree. |
+
+All other transitions are forbidden. `UPDATED_AT` is required on every write.
+Referenced artifact identity is lease-owned after the existing artifact helpers
+validate shape: handoff repository, PR number, base ref, head ref,
+`execution.working_directory`, and review head must match the lease; result
+repository, PR number, review head, and deterministic handoff chain must match;
+approved-review review head and deterministic approved-review path must match
+the validated result chain except for LC-12 approval-freeze failure writes.
+
 Required writes:
 
 - Write `created` after `WORKING_DIRECTORY` is resolved:
@@ -131,11 +165,13 @@ Required writes:
   LEASE_FILE=$(
     REPOSITORY="<owner/repo>" \
     PR_NUMBER="$PR_NUMBER" \
+    PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
     WORKTREE_PATH="$WORKING_DIRECTORY" \
       bash "$PR_REVIEW_LEASE_HELPER" derive-path
   ) || exit 1
   REPOSITORY="<owner/repo>" \
   PR_NUMBER="$PR_NUMBER" \
+  PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
   BASE_REF="$PR_BASE_REF" \
   HEAD_REF="<head-ref>" \
   WORKTREE_PATH="$WORKING_DIRECTORY" \
@@ -812,6 +848,7 @@ Inspection input:
 ```bash
 REPOSITORY="<owner/repo>" \
 PR_NUMBER="$PR_NUMBER" \
+PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
 WORKTREE_PATH="$WORKING_DIRECTORY" \
 LEASE_FILE="$LEASE_FILE" \
   bash "$PR_REVIEW_LEASE_HELPER" inspect-worktree
@@ -820,11 +857,13 @@ LEASE_FILE="$LEASE_FILE" \
 Inspection prints fixed keys: `OUTCOME`, `CAN_REMOVE`, `REFUSAL_REASON`,
 `DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, and `REQUIRES_CONFIRMATION`.
 
-Dirty worktrees, `.ephemeral` artifacts, identity mismatches, and invalid lease
-mechanics are absolute refusals. Non-worktree paths and missing physical paths
-are skipped outcomes, not removal permission. User confirmation cannot override
-those outcomes. Preserve any existing worktree and report the helper's refusal
-message.
+Dirty worktrees, unmanaged `.ephemeral` artifacts, identity mismatches, and
+invalid lease mechanics are absolute refusals. Lease-referenced managed
+artifacts may remain in terminal cleanup decisions so recovery and audit
+pointers do not block their own cleanup path. Non-worktree paths and missing
+physical paths are skipped outcomes, not removal permission. User confirmation
+cannot override those outcomes. Preserve any existing worktree and report the
+helper's refusal message.
 
 `created`, `reviewed`, `gated`, missing-lease cleanup, and recoverable `failed`
 cleanup require explicit operator confirmation before passing
@@ -842,6 +881,7 @@ Cleanup input:
 ```bash
 REPOSITORY="<owner/repo>" \
 PR_NUMBER="$PR_NUMBER" \
+PRIMARY_REPOSITORY_ROOT="$PRIMARY_REPOSITORY_ROOT" \
 WORKTREE_PATH="$WORKING_DIRECTORY" \
 LEASE_FILE="$LEASE_FILE" \
 ALLOW_POLICY_OVERRIDE="<yes|no>" \
