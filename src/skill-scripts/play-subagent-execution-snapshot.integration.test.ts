@@ -23,6 +23,7 @@ import {
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
 const jqAvailable = await commandAvailable("jq");
+const snapshotTestTimeout = process.platform === "win32" ? 120_000 : 30_000;
 const snapshotHelperScript = path.join(
   process.cwd(),
   "skills/play-subagent-execution/scripts/write-snapshot-manifest.sh",
@@ -386,7 +387,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await cleanupTempDir(tempDir);
       }
     },
-    30_000,
+    snapshotTestTimeout,
   );
 
   it.skipIf(!jqAvailable)(
@@ -411,7 +412,7 @@ describe("play-subagent-execution snapshot helper", () => {
         await cleanupTempDir(systemTempDir);
       }
     },
-    30_000,
+    snapshotTestTimeout,
   );
 
   it.skipIf(!jqAvailable)(
@@ -1680,7 +1681,7 @@ exec "$real_base64" "$@"
         await cleanupTempDir(headFixture.tempDir);
       }
     },
-    30_000,
+    snapshotTestTimeout,
   );
 
   it.skipIf(!jqAvailable)(

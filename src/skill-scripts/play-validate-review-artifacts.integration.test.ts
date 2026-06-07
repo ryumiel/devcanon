@@ -16,6 +16,7 @@ import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 const isWindows = process.platform === "win32";
+const longTestTimeout = isWindows ? 120_000 : 10_000;
 const bashExecutable = resolveBashExecutable();
 const jqAvailable = await commandAvailable("jq");
 const validatorScript = path.join(
@@ -2089,146 +2090,92 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
-    it("compares approved payloads against findings and review body inputs", async () => {
-      const { cwd, baseSha, headSha } = await makeGitWorkspace();
-      try {
-        await writeJson(
-          cwd,
-          ".ephemeral/topic-scope-decision.json",
-          initialScope(baseSha, headSha, "pr-review"),
-        );
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          ...findingsEnvelope(),
-          carry_forward: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "missing-file",
-              why: "Carry forward still applies.",
-              recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
-            },
-          ],
-        });
-        await writeFile(path.join(cwd, ".ephemeral/review-body.md"), "Body\n");
-        await writeFile(path.join(cwd, "review-body.md"), "Body\n");
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Blocking: The new export needs review.",
-            },
-          ],
-        });
+    it(
+      "compares approved payloads against findings and review body inputs",
+      async () => {
+        const { cwd, baseSha, headSha } = await makeGitWorkspace();
+        try {
+          await writeJson(
+            cwd,
+            ".ephemeral/topic-scope-decision.json",
+            initialScope(baseSha, headSha, "pr-review"),
+          );
+          await writeJson(cwd, ".ephemeral/topic-findings.json", {
+            ...findingsEnvelope(),
+            carry_forward: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                start_line: null,
+                severity: "Blocking",
+                category: "Logic",
+                critic: "VALID",
+                anchor: "missing-file",
+                why: "Carry forward still applies.",
+                recommendation: "Keep the comment.",
+                body: "Carry-forward body.",
+              },
+            ],
+          });
+          await writeFile(
+            path.join(cwd, ".ephemeral/review-body.md"),
+            "Body\n",
+          );
+          await writeFile(path.join(cwd, "review-body.md"), "Body\n");
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "Blocking: The new export needs review.",
+              },
+            ],
+          });
 
-        await expect(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-        ).resolves.toMatchObject({
-          stdout: expect.stringContaining('"commit_id"'),
-        });
+          await expect(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+          ).resolves.toMatchObject({
+            stdout: expect.stringContaining('"commit_id"'),
+          });
 
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Blocking: The new export needs review.",
-            },
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
-            },
-          ],
-        });
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "approved review payload does not match generated payload",
-        );
-
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Blocking: The new export needs review.",
-            },
-          ],
-        });
-
-        await expect(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            "review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-        ).resolves.toMatchObject({
-          stdout: expect.stringContaining('"commit_id"'),
-        });
-
-        for (const unsafeReviewBody of [
-          "../review-body.md",
-          path.join(cwd, "review-body.md"),
-        ]) {
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "Blocking: The new export needs review.",
+              },
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "Missing-file finding (no natural anchor — see body):\n\nCarry-forward body.",
+              },
+            ],
+          });
           await expectRejectsWith(
             runValidator(cwd, "compare-approved-payload", [
               ...scopeArgs(
@@ -2240,323 +2187,245 @@ describe.skipIf(!jqAvailable)(
               "--findings-file",
               ".ephemeral/topic-findings.json",
               "--review-body-file",
-              unsafeReviewBody,
+              ".ephemeral/review-body.md",
               "--review-payload-file",
               ".ephemeral/topic-review-payload.json",
               "--review-event",
               "COMMENT",
             ]),
-            "review body path validation failed",
+            "approved review payload does not match generated payload",
           );
-        }
 
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          schema: "play-review/findings/v1",
-          findings: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              severity: "Blocking",
-              category: "Logic",
-              anchor: "natural",
-              why: "",
-              recommendation: "",
-              body: "",
-            },
-            {
-              path: "src/app.ts",
-              line: 2,
-              severity: "Nit",
-              category: "Documentation",
-              critic: null,
-              anchor: "natural",
-              why: "",
-              recommendation: "",
-              body: "",
-            },
-          ],
-          carry_forward: [],
-        });
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "",
-            },
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "",
-            },
-          ],
-        });
-        await expect(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-        ).resolves.toMatchObject({
-          stdout: expect.stringContaining('"comments"'),
-        });
-
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          ...findingsEnvelope(),
-          findings: [
-            {
-              path: "README.md",
-              line: 1,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "natural",
-              why: "README was not in the review diff.",
-              recommendation: "Do not anchor there.",
-              body: "Bad anchor.",
-            },
-          ],
-          carry_forward: [],
-        });
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "README.md",
-              line: 1,
-              side: "RIGHT",
-              body: "Bad anchor.",
-            },
-          ],
-        });
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "inline anchor is outside selected review diff",
-        );
-
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          ...findingsEnvelope(),
-          carry_forward: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "missing-file",
-              why: "Carry forward still applies.",
-              recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
-            },
-          ],
-        });
-
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Edited\n",
-          comments: [],
-        });
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "approved review payload does not match generated payload",
-        );
-
-        await writeFile(
-          path.join(cwd, ".ephemeral/topic-review-payload.json"),
-          `${JSON.stringify({
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
             commit_id: headSha,
             event: "COMMENT",
             body: "Body",
-            comments: [],
-          })}\n${JSON.stringify({ extra: true })}\n`,
-        );
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "review payload JSON validation failed",
-        );
+            comments: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "Blocking: The new export needs review.",
+              },
+            ],
+          });
 
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", [
-          {
+          await expect(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              "review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+          ).resolves.toMatchObject({
+            stdout: expect.stringContaining('"commit_id"'),
+          });
+
+          for (const unsafeReviewBody of [
+            "../review-body.md",
+            path.join(cwd, "review-body.md"),
+          ]) {
+            await expectRejectsWith(
+              runValidator(cwd, "compare-approved-payload", [
+                ...scopeArgs(
+                  headSha,
+                  baseSha,
+                  ".ephemeral/topic-scope-decision.json",
+                  "pr-review",
+                ),
+                "--findings-file",
+                ".ephemeral/topic-findings.json",
+                "--review-body-file",
+                unsafeReviewBody,
+                "--review-payload-file",
+                ".ephemeral/topic-review-payload.json",
+                "--review-event",
+                "COMMENT",
+              ]),
+              "review body path validation failed",
+            );
+          }
+
+          await writeJson(cwd, ".ephemeral/topic-findings.json", {
+            schema: "play-review/findings/v1",
+            findings: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                severity: "Blocking",
+                category: "Logic",
+                anchor: "natural",
+                why: "",
+                recommendation: "",
+                body: "",
+              },
+              {
+                path: "src/app.ts",
+                line: 2,
+                severity: "Nit",
+                category: "Documentation",
+                critic: null,
+                anchor: "natural",
+                why: "",
+                recommendation: "",
+                body: "",
+              },
+            ],
+            carry_forward: [],
+          });
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
             commit_id: headSha,
             event: "COMMENT",
             body: "Body",
-            comments: [],
-          },
-        ]);
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "review payload JSON validation failed",
-        );
+            comments: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "",
+              },
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "",
+              },
+            ],
+          });
+          await expect(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+          ).resolves.toMatchObject({
+            stdout: expect.stringContaining('"comments"'),
+          });
 
-        await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
-          commit_id: headSha,
-          event: "COMMENT",
-          body: "Body",
-          comments: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              side: "RIGHT",
-              body: "Blocking: The new export needs review.",
-            },
-          ],
-        });
-
-        await writeFile(
-          path.join(cwd, ".ephemeral/topic-findings.json"),
-          `${JSON.stringify(findingsEnvelope())}\n${JSON.stringify(
-            findingsEnvelope(),
-          )}\n`,
-        );
-        await expectRejectsWith(
-          runValidator(cwd, "compare-approved-payload", [
-            ...scopeArgs(
-              headSha,
-              baseSha,
-              ".ephemeral/topic-scope-decision.json",
-              "pr-review",
-            ),
-            "--findings-file",
-            ".ephemeral/topic-findings.json",
-            "--review-body-file",
-            ".ephemeral/review-body.md",
-            "--review-payload-file",
-            ".ephemeral/topic-review-payload.json",
-            "--review-event",
-            "COMMENT",
-          ]),
-          "findings envelope JSON validation failed",
-        );
-        await writeJson(cwd, ".ephemeral/topic-findings.json", {
-          ...findingsEnvelope(),
-          carry_forward: [
-            {
-              path: "src/app.ts",
-              line: 2,
-              start_line: null,
-              severity: "Blocking",
-              category: "Logic",
-              critic: "VALID",
-              anchor: "missing-file",
-              why: "Carry forward still applies.",
-              recommendation: "Keep the comment.",
-              body: "Carry-forward body.",
-            },
-          ],
-        });
-
-        for (const malformedFindings of [
-          {
-            ...findingsEnvelope(),
-            findings: [finding({ anchor: "bogus" })],
-          },
-          {
-            ...findingsEnvelope(),
-            findings: [finding({ category: "Bogus" })],
-          },
-          {
+          await writeJson(cwd, ".ephemeral/topic-findings.json", {
             ...findingsEnvelope(),
             findings: [
-              Object.fromEntries(
-                Object.entries(finding()).filter(([key]) => key !== "why"),
-              ),
+              {
+                path: "README.md",
+                line: 1,
+                start_line: null,
+                severity: "Blocking",
+                category: "Logic",
+                critic: "VALID",
+                anchor: "natural",
+                why: "README was not in the review diff.",
+                recommendation: "Do not anchor there.",
+                body: "Bad anchor.",
+              },
             ],
-          },
-          {
+            carry_forward: [],
+          });
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [
+              {
+                path: "README.md",
+                line: 1,
+                side: "RIGHT",
+                body: "Bad anchor.",
+              },
+            ],
+          });
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "inline anchor is outside selected review diff",
+          );
+
+          await writeJson(cwd, ".ephemeral/topic-findings.json", {
             ...findingsEnvelope(),
-            findings: [finding({ start_line: 3 })],
-          },
-          {
-            ...findingsEnvelope(),
-            findings: [],
-            carry_forward: [finding({ anchor: "bogus" })],
-          },
-        ]) {
-          await writeJson(
-            cwd,
-            ".ephemeral/topic-findings.json",
-            malformedFindings,
+            carry_forward: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                start_line: null,
+                severity: "Blocking",
+                category: "Logic",
+                critic: "VALID",
+                anchor: "missing-file",
+                why: "Carry forward still applies.",
+                recommendation: "Keep the comment.",
+                body: "Carry-forward body.",
+              },
+            ],
+          });
+
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Edited\n",
+            comments: [],
+          });
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "approved review payload does not match generated payload",
+          );
+
+          await writeFile(
+            path.join(cwd, ".ephemeral/topic-review-payload.json"),
+            `${JSON.stringify({
+              commit_id: headSha,
+              event: "COMMENT",
+              body: "Body",
+              comments: [],
+            })}\n${JSON.stringify({ extra: true })}\n`,
           );
           await expectRejectsWith(
             runValidator(cwd, "compare-approved-payload", [
@@ -2575,13 +2444,152 @@ describe.skipIf(!jqAvailable)(
               "--review-event",
               "COMMENT",
             ]),
-            "findings envelope validation failed",
+            "review payload JSON validation failed",
           );
+
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", [
+            {
+              commit_id: headSha,
+              event: "COMMENT",
+              body: "Body",
+              comments: [],
+            },
+          ]);
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "review payload JSON validation failed",
+          );
+
+          await writeJson(cwd, ".ephemeral/topic-review-payload.json", {
+            commit_id: headSha,
+            event: "COMMENT",
+            body: "Body",
+            comments: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                side: "RIGHT",
+                body: "Blocking: The new export needs review.",
+              },
+            ],
+          });
+
+          await writeFile(
+            path.join(cwd, ".ephemeral/topic-findings.json"),
+            `${JSON.stringify(findingsEnvelope())}\n${JSON.stringify(
+              findingsEnvelope(),
+            )}\n`,
+          );
+          await expectRejectsWith(
+            runValidator(cwd, "compare-approved-payload", [
+              ...scopeArgs(
+                headSha,
+                baseSha,
+                ".ephemeral/topic-scope-decision.json",
+                "pr-review",
+              ),
+              "--findings-file",
+              ".ephemeral/topic-findings.json",
+              "--review-body-file",
+              ".ephemeral/review-body.md",
+              "--review-payload-file",
+              ".ephemeral/topic-review-payload.json",
+              "--review-event",
+              "COMMENT",
+            ]),
+            "findings envelope JSON validation failed",
+          );
+          await writeJson(cwd, ".ephemeral/topic-findings.json", {
+            ...findingsEnvelope(),
+            carry_forward: [
+              {
+                path: "src/app.ts",
+                line: 2,
+                start_line: null,
+                severity: "Blocking",
+                category: "Logic",
+                critic: "VALID",
+                anchor: "missing-file",
+                why: "Carry forward still applies.",
+                recommendation: "Keep the comment.",
+                body: "Carry-forward body.",
+              },
+            ],
+          });
+
+          for (const malformedFindings of [
+            {
+              ...findingsEnvelope(),
+              findings: [finding({ anchor: "bogus" })],
+            },
+            {
+              ...findingsEnvelope(),
+              findings: [finding({ category: "Bogus" })],
+            },
+            {
+              ...findingsEnvelope(),
+              findings: [
+                Object.fromEntries(
+                  Object.entries(finding()).filter(([key]) => key !== "why"),
+                ),
+              ],
+            },
+            {
+              ...findingsEnvelope(),
+              findings: [finding({ start_line: 3 })],
+            },
+            {
+              ...findingsEnvelope(),
+              findings: [],
+              carry_forward: [finding({ anchor: "bogus" })],
+            },
+          ]) {
+            await writeJson(
+              cwd,
+              ".ephemeral/topic-findings.json",
+              malformedFindings,
+            );
+            await expectRejectsWith(
+              runValidator(cwd, "compare-approved-payload", [
+                ...scopeArgs(
+                  headSha,
+                  baseSha,
+                  ".ephemeral/topic-scope-decision.json",
+                  "pr-review",
+                ),
+                "--findings-file",
+                ".ephemeral/topic-findings.json",
+                "--review-body-file",
+                ".ephemeral/review-body.md",
+                "--review-payload-file",
+                ".ephemeral/topic-review-payload.json",
+                "--review-event",
+                "COMMENT",
+              ]),
+              "findings envelope validation failed",
+            );
+          }
+        } finally {
+          await cleanupTempDir(cwd);
         }
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    });
+      },
+      longTestTimeout,
+    );
 
     it("rejects unsafe paths and missing explicit flags", async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
