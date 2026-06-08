@@ -144,6 +144,17 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 }
 `;
 
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > write-linear-project-description-sidecar 1`] = `
+{
+  "interface": {
+    "brand_color": "#5e6ad2",
+    "default_prompt": "Use $write-linear-project-description to draft a Linear project description or content brief in draft mode.",
+    "display_name": "Write Linear Project Description (devcanon)",
+    "short_description": "Write Linear project descriptions and briefs",
+  },
+}
+`;
+
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > write-linear-project-update-sidecar 1`] = `
 {
   "interface": {

@@ -29,6 +29,7 @@ const SKILLS_WITH_METADATA = {
     "linear-issue-priming",
     "pr-review",
     "report-devcanon-issue",
+    "write-linear-project-description",
     "write-linear-project-update",
   ] as const,
   policySidecar: [
@@ -64,6 +65,8 @@ const TOUCHED_SKILL_COVERAGE = {
   "linear-issue-priming":
     "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
   "write-linear-project-update":
+    "explicit metadata expectations cover Codex sidecar packaging and Codex frontmatter smoke coverage",
+  "write-linear-project-description":
     "explicit metadata expectations cover Codex sidecar packaging and Codex frontmatter smoke coverage",
   "play-brainstorm":
     "Codex frontmatter smoke coverage protects recently touched workflow skill prose from invalid Codex keys",

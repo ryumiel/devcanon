@@ -202,6 +202,8 @@ Quick navigation index for the DevCanon repository.
   [`skills/spec-readiness-review/SKILL.md`](skills/spec-readiness-review/SKILL.md)
 - Where is the Linear project update writing skill? ->
   [`skills/write-linear-project-update/SKILL.md`](skills/write-linear-project-update/SKILL.md)
+- Where is the Linear project description and brief writing skill? ->
+  [`skills/write-linear-project-description/SKILL.md`](skills/write-linear-project-description/SKILL.md)
 - Where is the issue-slicing skill? ->
   [`skills/issue-slicing/SKILL.md`](skills/issue-slicing/SKILL.md)
 - Where is the shared issue reporting skill? -> [`skills/report-devcanon-issue/SKILL.md`](skills/report-devcanon-issue/SKILL.md)
