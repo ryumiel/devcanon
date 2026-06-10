@@ -145,6 +145,7 @@ PowerShell:
 
 ```powershell
 $ISSUE_BODY_PATH = "<payload.issue-body-path>"
+if ($ISSUE_BODY_PATH.Contains('\')) { throw "path separator rejected: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH -match '^\.ephemeral/.+/.+') { throw "issue body phase artifact validation failed: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/.*-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
@@ -154,6 +155,7 @@ if (-not (Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf)) { throw "issu
 
 $COMMENT_EVIDENCE_PATH = "<payload.comment-evidence-path if present, else empty>"
 if (-not [string]::IsNullOrWhiteSpace($COMMENT_EVIDENCE_PATH)) {
+  if ($COMMENT_EVIDENCE_PATH.Contains('\')) { throw "path separator rejected: $COMMENT_EVIDENCE_PATH" }
   if ($COMMENT_EVIDENCE_PATH -match '^\.ephemeral/.+/.+') { throw "comment evidence phase artifact validation failed: $COMMENT_EVIDENCE_PATH" }
   if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/.*-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
   if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }

@@ -166,6 +166,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(body).toContain(
         "$WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)'",
       );
+      expect(body).toContain("path separator rejected");
       expect(body).toContain("$ISSUE_BODY_FILE");
       expect(body).toContain("$COMMENT_EVIDENCE_FILE");
     }
@@ -180,6 +181,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedIssuePrimingWorkflow).toContain(
         "Validate issue-priming-owned phase artifact reads with host-native file APIs",
       );
+      expect(renderedIssuePrimingWorkflow).toContain("path separator rejected");
       expect(renderedIssuePrimingWorkflow).toContain(
         "Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf",
       );

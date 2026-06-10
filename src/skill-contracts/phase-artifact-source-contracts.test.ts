@@ -79,6 +79,7 @@ describe("phase artifact source contracts", () => {
     expect(phase1Section).toContain(
       "Validate issue-priming-owned phase artifact reads with host-native file APIs",
     );
+    expect(phase1Section).toContain("path separator rejected");
     expect(phase1Section).toContain(
       "Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf",
     );
@@ -421,6 +422,7 @@ describe("phase artifact source contracts", () => {
       expect(skillSource).toContain(
         "$WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)'",
       );
+      expect(skillSource).toContain("path separator rejected");
       expect(skillSource).toContain("nested issue body path rejected");
       expect(skillSource).toContain("comment-evidence-path");
       expect(skillSource).toContain("nested comment evidence path rejected");

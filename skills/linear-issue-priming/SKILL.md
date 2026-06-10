@@ -129,6 +129,7 @@ Validate the repo-relative path before writing:
 PowerShell:
 
 ```powershell
+if ($ISSUE_BODY_PATH.Contains('\')) { throw "path separator rejected: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH -match '^\.ephemeral/.+/.+') { throw "nested issue body path rejected: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/.*-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
 if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
@@ -201,6 +202,7 @@ Validate the repo-relative path before writing:
 PowerShell:
 
 ```powershell
+if ($COMMENT_EVIDENCE_PATH.Contains('\')) { throw "path separator rejected: $COMMENT_EVIDENCE_PATH" }
 if ($COMMENT_EVIDENCE_PATH -match '^\.ephemeral/.+/.+') { throw "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" }
 if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/.*-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
 if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
