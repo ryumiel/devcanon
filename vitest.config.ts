@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 const integrationTestTimeout = process.platform === "win32" ? 120_000 : 10_000;
-const maxConcurrency = process.platform === "win32" ? 2 : 5;
+const maxConcurrency = process.platform === "win32" ? 4 : 5;
 
 export default defineConfig({
   test: {

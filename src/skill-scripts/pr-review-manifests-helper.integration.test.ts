@@ -1569,7 +1569,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     symlinkTestTimeout,
   );
 
-  it.skipIf(!symlinkAvailable)(
+  it.skipIf(!symlinkAvailable || isWindows)(
     "rejects symlinked execution and result artifact paths before reading them",
     async () => {
       const { cwd, baseSha, headSha } = await makeGitWorkspace();
