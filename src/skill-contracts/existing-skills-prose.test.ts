@@ -549,6 +549,11 @@ describe("existing skills source prose contracts", () => {
         implementerExecutabilityReview,
       ].join("\n\n"),
     );
+    const vagueLanguageRule = markdownBlocksContaining(
+      planningSelfReview,
+      /where feasible|as appropriate|preserve existing behavior|safe selector|source inspection|migrate handlers/i,
+    );
+    const normalizedVagueLanguageRule = normalizeWhitespace(vagueLanguageRule);
 
     expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
       playPlanning.indexOf("## Implementer Executability Review"),
@@ -575,12 +580,14 @@ describe("existing skills source prose contracts", () => {
       "source inspection",
       "migrate handlers",
     ]) {
-      expect(normalizedPlanningSelfReview).toContain(vaguePhrase);
+      expect(normalizedVagueLanguageRule).toContain(vaguePhrase);
     }
 
-    expect(normalizedPlanningSelfReview).toContain("exact source target");
-    expect(normalizedPlanningSelfReview).toContain("pass/fail criteria");
-    expect(normalizedPlanningSelfReview).toContain("operation mapping");
+    expect(normalizedVagueLanguageRule).toContain("fail");
+    expect(normalizedVagueLanguageRule).toContain("without");
+    expect(normalizedVagueLanguageRule).toContain("exact source target");
+    expect(normalizedVagueLanguageRule).toContain("pass/fail criteria");
+    expect(normalizedVagueLanguageRule).toContain("operation mapping");
 
     for (const operationMapField of [
       "current source",
