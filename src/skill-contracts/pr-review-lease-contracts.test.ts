@@ -14,6 +14,11 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+const lifecycleRows = Array.from(
+  { length: 18 },
+  (_value, index) => `LC-${String(index + 1).padStart(2, "0")}`,
+);
+
 describe("pr-review lease source contracts", () => {
   it("documents lease helper ownership without taking over manifest or GitHub authority", async () => {
     const prReview = await readSkillSource("pr-review");
@@ -92,9 +97,15 @@ describe("pr-review lease source contracts", () => {
     expect(normalizedLeaseContract).toContain(
       "Review Lease Lifecycle Contract",
     );
+    for (const row of lifecycleRows) {
+      expect(normalizedLeaseContract).toContain(`| ${row} |`);
+    }
     expect(normalizedLeaseContract).toContain("| LC-01 | `none -> created`");
     expect(normalizedLeaseContract).toContain(
       "| LC-17 | `failed -> posted` | Complete retry-to-post only from a prior LC-13 GitHub-post failure",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease",
     );
     expect(normalizedLeaseContract).toContain(
       "Non-`github-post` failures clear GitHub post metadata",
@@ -125,6 +136,32 @@ describe("pr-review lease source contracts", () => {
     );
     expect(leaseSection).toContain(
       "Do not remove an existing review worktree during resume discovery",
+    );
+  });
+
+  it("keeps lifecycle table evidence connected to helper and fixture coverage", async () => {
+    const leaseContract = await readRepoFile(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    );
+    const leaseHelper = await readRepoFile(
+      "skills/pr-review/scripts/review-leases.sh",
+    );
+    const reducerFixtures = await readRepoFile(
+      "src/skill-scripts/pr-review-lease-reducer-contract.test.ts",
+    );
+
+    for (const row of lifecycleRows) {
+      expect(leaseContract).toContain(`| ${row} |`);
+      expect(leaseHelper).toContain(row);
+      expect(reducerFixtures).toContain(row);
+    }
+    expect(reducerFixtures).toContain("LC-18-posted");
+    expect(reducerFixtures).toContain("LC-18-aborted");
+    expect(reducerFixtures).toContain(
+      "rejects missing and stale artifact bindings separately from shell invocation",
+    );
+    expect(reducerFixtures).toContain(
+      "rejects invalid state/event cross-products with boundary-specific failures",
     );
   });
 

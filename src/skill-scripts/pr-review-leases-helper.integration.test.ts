@@ -817,6 +817,17 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
       await expect(readJson(primary.cwd, file)).resolves.not.toHaveProperty(
         "cleanup",
       );
+      await expect(
+        runLeaseHelper(primary.cwd, "inspect-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          EXPECTED_STATE: "created",
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining(
+          "OUTCOME=inspect\nCAN_REMOVE=no\nREFUSAL_REASON=non-worktree\n",
+        ),
+      });
 
       await writeJson(primary.cwd, file, { ...lease, extra: true });
       await expect(
