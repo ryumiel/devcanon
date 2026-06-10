@@ -232,6 +232,12 @@ describe("pr-review lease source contracts", () => {
       "After the GitHub review post succeeds, write `posted` with `APPROVED_REVIEW_FILE`",
     );
     expect(phase6).toContain(
+      "The helper records `github_post_attempted=true` and `github_post_result=succeeded` as derived lease metadata",
+    );
+    expect(phase6).not.toContain(
+      "`GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=succeeded`",
+    );
+    expect(phase6).toContain(
       "If approved-review validation, stale-head verification, or GitHub posting fails after the approval freeze, write `failed` with `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY` before any cleanup decision",
     );
     expect(phase6).toContain(

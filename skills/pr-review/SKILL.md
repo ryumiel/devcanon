@@ -811,8 +811,9 @@ Only after user approval:
    ```
 
    After the GitHub review post succeeds, write `posted` with
-   `APPROVED_REVIEW_FILE`, `FINISHED_AT`, `GITHUB_POST_ATTEMPTED=true`,
-   `GITHUB_POST_RESULT=succeeded`, and `GITHUB_POSTED_AT`.
+   `APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. The helper
+   records `github_post_attempted=true` and `github_post_result=succeeded` as
+   derived lease metadata.
 
 6. Resolve threads via GraphQL only after the approved review post succeeds and
    only for threads the user approved for resolution:
