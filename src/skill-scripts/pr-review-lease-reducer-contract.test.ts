@@ -975,5 +975,83 @@ describe.skipIf(!jqAvailable)(
       },
       reducerFixtureTimeout,
     );
+
+    it(
+      "clears phase-inapplicable artifacts when a GitHub-post failure is refreshed",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await failedGithubPostLease(ctx);
+          await writeState(ctx, "failed", {
+            RESULT_FILE: resultPath(ctx.review.headSha),
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            FAILURE_PHASE: "stale-head",
+            FAILURE_REASON: "Head changed before retry",
+            FAILURE_RECOVERABILITY: "recoverable",
+            UPDATED_AT: "2026-06-05T00:06:00Z",
+          });
+
+          expect(await readJson(ctx.primary.cwd, ctx.leaseFile)).toMatchObject({
+            state: "failed",
+            artifacts: {
+              result_file: resultPath(ctx.review.headSha),
+              approved_review_file: null,
+            },
+            failure: { phase: "stale-head" },
+            github: {
+              github_post_attempted: false,
+              github_post_result: "not-attempted",
+              github_posted_at: null,
+            },
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
+      "does not archive a terminal lease until the fresh created lease validates",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await gatedLease(ctx);
+          await writeState(ctx, "posted", {
+            APPROVED_REVIEW_FILE: approvedReviewPath(ctx.review.headSha),
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            GITHUB_POSTED_AT: "2026-06-05T00:06:00Z",
+            UPDATED_AT: "2026-06-05T00:06:00Z",
+          });
+
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "created",
+              CREATED_AT: "2026-99-05T00:00:00Z",
+              UPDATED_AT: "2026-06-05T00:08:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "created_at is not a valid UTC timestamp",
+            ),
+          });
+
+          expect(await readJson(ctx.primary.cwd, ctx.leaseFile)).toMatchObject({
+            state: "posted",
+          });
+          const archived = await readdir(
+            path.join(ctx.primary.cwd, ".ephemeral"),
+          );
+          expect(
+            archived.filter((entry) =>
+              entry.endsWith("-posted-archived-lease.json"),
+            ),
+          ).toHaveLength(0);
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
   },
 );

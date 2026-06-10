@@ -1055,6 +1055,35 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     longTestTimeout,
   );
 
+  it("leaves the active lease unchanged when a normalized write transition is invalid", async () => {
+    const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
+    const review = await makeGitWorkspace("devcanon-pr-lease-review-");
+    try {
+      await writeLeaseIdentityArtifacts(review);
+      const file = await writeCreatedLease(primary.cwd, review.cwd);
+      const before = await readJson(primary.cwd, file);
+
+      await expect(
+        runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "posted",
+          RESULT_FILE: resultPath(review.headSha),
+          APPROVED_REVIEW_FILE: approvedReviewPath(review.headSha),
+          FINISHED_AT: "2026-06-05T00:02:00Z",
+          GITHUB_POSTED_AT: "2026-06-05T00:02:00Z",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("invalid lease transition"),
+      });
+
+      await expect(readJson(primary.cwd, file)).resolves.toEqual(before);
+    } finally {
+      await cleanupTempDir(primary.cwd);
+      await cleanupTempDir(review.cwd);
+    }
+  });
+
   it(
     "archives terminal leases without requiring stale referenced artifacts",
     async () => {
