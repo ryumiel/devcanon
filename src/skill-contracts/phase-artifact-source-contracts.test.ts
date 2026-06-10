@@ -75,6 +75,16 @@ describe("phase artifact source contracts", () => {
      */
     expect(issuePrimingWorkflow).toContain("scripts/phase-artifacts.sh");
     expect(issuePrimingWorkflow).toContain("validate-read");
+    expect(issuePrimingWorkflow).not.toContain("IsPathFullyQualified");
+    expect(phase1Section).toContain(
+      "Validate issue-priming-owned phase artifact reads with host-native file APIs",
+    );
+    expect(phase1Section).toContain(
+      "Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf",
+    );
+    expect(phase1Section).toContain(
+      "Test-Path -LiteralPath $COMMENT_EVIDENCE_PATH -PathType Leaf",
+    );
     expect(phase1Section).toContain(
       'bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"',
     );
@@ -407,6 +417,10 @@ describe("phase artifact source contracts", () => {
       const normalizedSkillSource = normalizeWhitespace(skillSource);
 
       expect(skillSource).toContain("worktree path must be absolute");
+      expect(skillSource).not.toContain("IsPathFullyQualified");
+      expect(skillSource).toContain(
+        "$WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)'",
+      );
       expect(skillSource).toContain("nested issue body path rejected");
       expect(skillSource).toContain("comment-evidence-path");
       expect(skillSource).toContain("nested comment evidence path rejected");
@@ -430,6 +444,7 @@ describe("phase artifact source contracts", () => {
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"',
       );
+      expect(skillSource).toContain("$ISSUE_BODY_FILE");
       expect(normalizedSkillSource.toLowerCase()).toContain(
         "comment-evidence artifact path inside `worktree_path`",
       );
@@ -439,6 +454,7 @@ describe("phase artifact source contracts", () => {
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"',
       );
+      expect(skillSource).toContain("$COMMENT_EVIDENCE_FILE");
       expect(skillSource).toContain("issue body path is a directory");
       expect(skillSource).toContain(
         "issue body path exists but is not a regular file",

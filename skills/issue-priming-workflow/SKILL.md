@@ -127,16 +127,42 @@ esac
 cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
 ```
 
-In PowerShell / Windows-hosted Codex sessions, use the native path API instead
-of the POSIX absolute-path check:
+In PowerShell / Windows-hosted Codex sessions, use native filesystem checks
+instead of the POSIX absolute-path check:
 
 ```powershell
 $WORKTREE_PATH = "<payload.worktree-path>"
 if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
-if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
+if ($WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\/]|\\\\)') { throw "worktree path must be absolute: $WORKTREE_PATH" }
 if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
 Set-Location -LiteralPath $WORKTREE_PATH
 ```
+
+Validate issue-priming-owned phase artifact reads with host-native file APIs
+before dispatching subagents.
+
+PowerShell:
+
+```powershell
+$ISSUE_BODY_PATH = "<payload.issue-body-path>"
+if ($ISSUE_BODY_PATH -match '^\.ephemeral/.+/.+') { throw "issue body phase artifact validation failed: $ISSUE_BODY_PATH" }
+if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/.*-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
+if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
+if ((Test-Path -LiteralPath ".ephemeral") -and ((Get-Item -LiteralPath ".ephemeral" -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { throw ".ephemeral must be a directory, not a symlink" }
+if ((Test-Path -LiteralPath $ISSUE_BODY_PATH) -and ((Get-Item -LiteralPath $ISSUE_BODY_PATH -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { throw "issue body phase artifact validation failed: $ISSUE_BODY_PATH" }
+if (-not (Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf)) { throw "issue body phase artifact validation failed: $ISSUE_BODY_PATH" }
+
+$COMMENT_EVIDENCE_PATH = "<payload.comment-evidence-path if present, else empty>"
+if (-not [string]::IsNullOrWhiteSpace($COMMENT_EVIDENCE_PATH)) {
+  if ($COMMENT_EVIDENCE_PATH -match '^\.ephemeral/.+/.+') { throw "comment evidence phase artifact validation failed: $COMMENT_EVIDENCE_PATH" }
+  if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/.*-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
+  if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
+  if ((Test-Path -LiteralPath $COMMENT_EVIDENCE_PATH) -and ((Get-Item -LiteralPath $COMMENT_EVIDENCE_PATH -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { throw "comment evidence phase artifact validation failed: $COMMENT_EVIDENCE_PATH" }
+  if (-not (Test-Path -LiteralPath $COMMENT_EVIDENCE_PATH -PathType Leaf)) { throw "comment evidence phase artifact validation failed: $COMMENT_EVIDENCE_PATH" }
+}
+```
+
+Bash:
 
 ```bash
 ISSUE_BODY_PATH="<payload.issue-body-path>"

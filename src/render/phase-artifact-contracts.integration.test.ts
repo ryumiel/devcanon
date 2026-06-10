@@ -162,12 +162,30 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(body).toContain("issue-body-path");
       expect(body).toContain("comment-evidence-path");
       expect(body).toContain("worktree-path");
+      expect(body).not.toContain("IsPathFullyQualified");
+      expect(body).toContain(
+        "$WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\\\/]|\\\\\\\\)'",
+      );
+      expect(body).toContain("$ISSUE_BODY_FILE");
+      expect(body).toContain("$COMMENT_EVIDENCE_FILE");
     }
 
     for (const target of ["claude", "codex"] as const) {
       const renderedIssuePrimingWorkflow =
         bodies[`issue-priming-workflow:${target}`];
 
+      expect(renderedIssuePrimingWorkflow).not.toContain(
+        "IsPathFullyQualified",
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        "Validate issue-priming-owned phase artifact reads with host-native file APIs",
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        "Test-Path -LiteralPath $ISSUE_BODY_PATH -PathType Leaf",
+      );
+      expect(renderedIssuePrimingWorkflow).toContain(
+        "Test-Path -LiteralPath $COMMENT_EVIDENCE_PATH -PathType Leaf",
+      );
       expect(renderedIssuePrimingWorkflow).toContain(
         'bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"',
       );

@@ -15,7 +15,7 @@ This helper is the single source of truth for:
 - deciding whether branching in place is safe
 - refusing nested worktree creation from dirty or already-branched managed
   worktrees
-- creating a fresh `.worktrees/...` checkout from the repository's default branch (resolved via `origin/HEAD`, falling back to `origin/main`)
+- creating a fresh `.worktrees/...` checkout from the repository's default branch (resolved via `origin/HEAD`, falling back to `origin/main`, then `origin/master`)
 - returning the concrete worktree path for downstream phases
 
 ## Step 0: Prefer Native Worktree Tooling
@@ -39,7 +39,7 @@ Invoke the helper through environment variables:
 
 - `BRANCH_NAME` (required)
 - `WORKTREE_LEAF` (required)
-- `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`)
+- `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`, then `origin/master`)
 
 Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
 skill bundle, not to the repository being primed.

@@ -97,13 +97,14 @@ exactly per the helper skill's output contract.
   parse partial output.
 
 Once `WORKTREE_PATH` is available — either from native tooling or a packaged
-fallback helper — validate it with the host-native path API before any write.
+fallback helper — validate it with host-native filesystem checks before any
+write.
 
 PowerShell:
 
 ```powershell
 if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
-if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
+if ($WORKTREE_PATH -notmatch '^(?:[A-Za-z]:[\\/]|\\\\)') { throw "worktree path must be absolute: $WORKTREE_PATH" }
 if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
 ```
 
@@ -125,6 +126,16 @@ Linear identifier, e.g. `ENG-123` -> `eng-123`).
 
 Validate the repo-relative path before writing:
 
+PowerShell:
+
+```powershell
+if ($ISSUE_BODY_PATH -match '^\.ephemeral/.+/.+') { throw "nested issue body path rejected: $ISSUE_BODY_PATH" }
+if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/.*-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
+if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
+```
+
+Bash:
+
 ```bash
 case "$ISSUE_BODY_PATH" in
   .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
@@ -136,6 +147,20 @@ esac
 
 Apply the write-target guard before the write:
 
+PowerShell:
+
+```powershell
+$EPHEMERAL_PATH = Join-Path $WORKTREE_PATH ".ephemeral"
+if ((Test-Path -LiteralPath $EPHEMERAL_PATH) -and ((Get-Item -LiteralPath $EPHEMERAL_PATH -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { Remove-Item -LiteralPath $EPHEMERAL_PATH }
+New-Item -ItemType Directory -Force -Path $EPHEMERAL_PATH | Out-Null
+$ISSUE_BODY_FILE = Join-Path $WORKTREE_PATH ($ISSUE_BODY_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+if ((Test-Path -LiteralPath $ISSUE_BODY_FILE) -and ((Get-Item -LiteralPath $ISSUE_BODY_FILE -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { Remove-Item -LiteralPath $ISSUE_BODY_FILE }
+if (Test-Path -LiteralPath $ISSUE_BODY_FILE -PathType Container) { throw "issue body path is a directory: $ISSUE_BODY_FILE" }
+if ((Test-Path -LiteralPath $ISSUE_BODY_FILE) -and -not (Test-Path -LiteralPath $ISSUE_BODY_FILE -PathType Leaf)) { throw "issue body path exists but is not a regular file: $ISSUE_BODY_FILE" }
+```
+
+Bash:
+
 ```bash
 [ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
 mkdir -p "$WORKTREE_PATH/.ephemeral"
@@ -144,8 +169,8 @@ mkdir -p "$WORKTREE_PATH/.ephemeral"
 [ ! -e "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || [ -f "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
 ```
 
-Write the fetched Linear issue description verbatim to
-`$WORKTREE_PATH/$ISSUE_BODY_PATH`.
+Write the fetched Linear issue description verbatim to `$ISSUE_BODY_FILE` in
+PowerShell or `$WORKTREE_PATH/$ISSUE_BODY_PATH` in Bash.
 
 ### Persist substantive comment evidence
 
@@ -173,6 +198,16 @@ reason, and the substantive comment body or concise summary.
 
 Validate the repo-relative path before writing:
 
+PowerShell:
+
+```powershell
+if ($COMMENT_EVIDENCE_PATH -match '^\.ephemeral/.+/.+') { throw "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" }
+if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/.*-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
+if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
+```
+
+Bash:
+
 ```bash
 case "$COMMENT_EVIDENCE_PATH" in
   .ephemeral/*/*) echo "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
@@ -183,6 +218,20 @@ esac
 ```
 
 Apply the write-target guard before the write:
+
+PowerShell:
+
+```powershell
+$EPHEMERAL_PATH = Join-Path $WORKTREE_PATH ".ephemeral"
+if ((Test-Path -LiteralPath $EPHEMERAL_PATH) -and ((Get-Item -LiteralPath $EPHEMERAL_PATH -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { Remove-Item -LiteralPath $EPHEMERAL_PATH }
+New-Item -ItemType Directory -Force -Path $EPHEMERAL_PATH | Out-Null
+$COMMENT_EVIDENCE_FILE = Join-Path $WORKTREE_PATH ($COMMENT_EVIDENCE_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+if ((Test-Path -LiteralPath $COMMENT_EVIDENCE_FILE) -and ((Get-Item -LiteralPath $COMMENT_EVIDENCE_FILE -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { Remove-Item -LiteralPath $COMMENT_EVIDENCE_FILE }
+if (Test-Path -LiteralPath $COMMENT_EVIDENCE_FILE -PathType Container) { throw "comment evidence path is a directory: $COMMENT_EVIDENCE_FILE" }
+if ((Test-Path -LiteralPath $COMMENT_EVIDENCE_FILE) -and -not (Test-Path -LiteralPath $COMMENT_EVIDENCE_FILE -PathType Leaf)) { throw "comment evidence path exists but is not a regular file: $COMMENT_EVIDENCE_FILE" }
+```
+
+Bash:
 
 ```bash
 [ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"

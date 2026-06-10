@@ -107,16 +107,16 @@ function parseKeyValueOutput(stdout: string): Record<string, string> {
 }
 
 async function runSetup(
-  scriptPath: string,
+  bashScriptPath: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<Record<string, string>> {
-  const stdout = await runSetupCommand(scriptPath, cwd, env);
+  const stdout = await runSetupCommand(bashScriptPath, cwd, env);
   return parseKeyValueOutput(stdout);
 }
 
 async function runSetupCommand(
-  scriptPath: string,
+  bashScriptPath: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
@@ -135,7 +135,7 @@ async function runSetupCommand(
     );
   }
 
-  return runCommand("bash", [scriptPath], cwd, env);
+  return runCommand("bash", [bashScriptPath], cwd, env);
 }
 
 async function runPowerShellSetup(
