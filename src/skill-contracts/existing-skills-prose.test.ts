@@ -524,6 +524,130 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
+  it("keeps play-planning implementer-executability review contracts in source", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const overview = getMarkdownSection(playPlanning, "Overview");
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const implementerExecutabilityReview = getMarkdownSection(
+      playPlanning,
+      "Implementer Executability Review",
+    );
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+    const normalizedExecutabilityReview = normalizeWhitespace(
+      implementerExecutabilityReview,
+    );
+    const normalizedImplementerContractSurface = normalizeWhitespace(
+      [
+        overview,
+        taskStructure,
+        planningSelfReview,
+        implementerExecutabilityReview,
+      ].join("\n\n"),
+    );
+
+    expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
+      playPlanning.indexOf("## Implementer Executability Review"),
+    );
+    expect(
+      playPlanning.indexOf("## Implementer Executability Review"),
+    ).toBeLessThan(playPlanning.indexOf("## Execution Handoff"));
+
+    expect(normalizedImplementerContractSurface).toContain(
+      "competent non-senior",
+    );
+    expect(normalizedImplementerContractSurface).toContain(
+      "named source files",
+    );
+    expect(normalizedImplementerContractSurface).toContain(
+      "without reverse-engineering",
+    );
+
+    for (const vaguePhrase of [
+      "where feasible",
+      "as appropriate",
+      "preserve existing behavior",
+      "safe selector",
+      "source inspection",
+      "migrate handlers",
+    ]) {
+      expect(normalizedPlanningSelfReview).toContain(vaguePhrase);
+    }
+
+    expect(normalizedPlanningSelfReview).toContain("exact source target");
+    expect(normalizedPlanningSelfReview).toContain("pass/fail criteria");
+    expect(normalizedPlanningSelfReview).toContain("operation mapping");
+
+    for (const operationMapField of [
+      "current source",
+      "target surface",
+      "inputs",
+      "outputs",
+      "errors",
+      "side-effect owner",
+      "dirty/rollback behavior",
+      "required verification",
+    ]) {
+      expect(normalizedTaskStructure).toContain(operationMapField);
+      expect(normalizedPlanningSelfReview).toContain(operationMapField);
+      expect(normalizedExecutabilityReview).toContain(operationMapField);
+    }
+
+    expectSharedLifecycleReference(implementerExecutabilityReview);
+    expect(
+      implementerExecutabilityReview.indexOf("`subagent-lifecycle`"),
+    ).toBeLessThan(
+      implementerExecutabilityReview.indexOf(
+        "dispatching the implementer-executability reviewer",
+      ),
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "Before dispatching the implementer-executability reviewer",
+    );
+    expect(normalizedExecutabilityReview).toContain("workflow-local");
+    expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
+    expect(normalizedExecutabilityReview).toContain("concrete gaps");
+
+    for (const hiddenJudgmentSurface of [
+      "scope",
+      "source policy",
+      "call sites",
+      "side-effect ownership",
+      "error mapping",
+      "allowed guardrail outcomes",
+    ]) {
+      expect(normalizedExecutabilityReview).toContain(hiddenJudgmentSurface);
+    }
+
+    expect(normalizedExecutabilityReview).toContain(
+      "senior reverse-engineering",
+    );
+    expect(normalizedExecutabilityReview).toContain("structurally present");
+    expect(normalizedExecutabilityReview).toContain("FAIL");
+
+    for (const prohibitedDetail of [
+      "implementation code",
+      "test code",
+      "plan-authored test bodies",
+      "shell snippets",
+      "shell recipes",
+      "exact command sequences",
+      "helper-name prescriptions",
+      "line-number edits",
+      "commit recipes",
+    ]) {
+      expect(normalizedPlanningSelfReview).toContain(prohibitedDetail);
+      expect(normalizedPlanReview).toContain(prohibitedDetail);
+    }
+
+    expect(normalizedTaskStructure).toContain("boundary contract");
+    expect(normalizedTaskStructure).toContain("operation mappings");
+  });
+
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
     const playSkillAuthoring = await readSkillSource("play-skill-authoring");
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");
