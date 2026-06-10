@@ -3423,7 +3423,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
       }
     },
-    longTestTimeout,
+    extraLongTestTimeout,
   );
 
   it(

@@ -31,6 +31,7 @@ const jqAvailable = await commandAvailable("jq");
 const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
+const reducerFixtureTimeout = process.platform === "win32" ? 360_000 : 30_000;
 
 type Workspace = {
   cwd: string;
@@ -816,150 +817,163 @@ describe.skipIf(!jqAvailable)(
           await cleanupFixture(ctx);
         }
       },
-      30_000,
+      reducerFixtureTimeout,
     );
 
-    it("rejects invalid state/event cross-products with boundary-specific failures", async () => {
-      const ctx = await makeFixture();
-      try {
-        await createLease(ctx);
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "posted",
-            APPROVED_REVIEW_FILE: approvedReviewPath(ctx.review.headSha),
-            FINISHED_AT: "2026-06-05T00:03:00Z",
-            GITHUB_POSTED_AT: "2026-06-05T00:03:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "invalid lease transition: created -> posted",
-          ),
-        });
+    it(
+      "rejects invalid state/event cross-products with boundary-specific failures",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await createLease(ctx);
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "posted",
+              APPROVED_REVIEW_FILE: approvedReviewPath(ctx.review.headSha),
+              FINISHED_AT: "2026-06-05T00:03:00Z",
+              GITHUB_POSTED_AT: "2026-06-05T00:03:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "invalid lease transition: created -> posted",
+            ),
+          });
 
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "created",
-            UPDATED_AT: "2026-06-05T00:03:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "invalid lease transition: created -> created",
-          ),
-        });
-      } finally {
-        await cleanupFixture(ctx);
-      }
-    }, 30_000);
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "created",
+              UPDATED_AT: "2026-06-05T00:03:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "invalid lease transition: created -> created",
+            ),
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
 
-    it("rejects missing and stale artifact bindings separately from shell invocation", async () => {
-      const ctx = await makeFixture();
-      try {
-        await createLease(ctx);
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "reviewed",
-            RESULT_FILE: resultPath(ctx.review.headSha),
-          }),
-        ).resolves.toMatchObject({ stdout: `${ctx.leaseFile}\n` });
+    it(
+      "rejects missing and stale artifact bindings separately from shell invocation",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await createLease(ctx);
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "reviewed",
+              RESULT_FILE: resultPath(ctx.review.headSha),
+            }),
+          ).resolves.toMatchObject({ stdout: `${ctx.leaseFile}\n` });
 
-        await rm(path.join(ctx.review.cwd, resultPath(ctx.review.headSha)));
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "gated",
-            PRESENTED_AT: "2026-06-05T00:04:00Z",
-            PRESENTATION_STATUS: "preview-current",
-            UPDATED_AT: "2026-06-05T00:04:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "result file missing or not a regular file",
-          ),
-        });
+          await rm(path.join(ctx.review.cwd, resultPath(ctx.review.headSha)));
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "gated",
+              PRESENTED_AT: "2026-06-05T00:04:00Z",
+              PRESENTATION_STATUS: "preview-current",
+              UPDATED_AT: "2026-06-05T00:04:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "result file missing or not a regular file",
+            ),
+          });
 
-        await writeReviewArtifacts(ctx.review);
-        const staleHandoff =
-          ".ephemeral/pr-382-0000000000000000000000000000000000000000-handoff.json";
-        await writeJson(ctx.review.cwd, staleHandoff, {
-          repository,
-          pr_number: Number(prNumber),
-          base_ref: "main",
-          head_ref: "topic",
-          execution: { working_directory: ctx.review.cwd },
-          review_head_sha: "0".repeat(40),
-        });
-        await writeJson(ctx.review.cwd, resultPath(ctx.review.headSha), {
-          ...(await readJson(ctx.review.cwd, resultPath(ctx.review.headSha))),
-          handoff_file: staleHandoff,
-        });
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "gated",
-            RESULT_FILE: resultPath(ctx.review.headSha),
-            PRESENTED_AT: "2026-06-05T00:04:00Z",
-            PRESENTATION_STATUS: "preview-current",
-            UPDATED_AT: "2026-06-05T00:04:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining("result review head mismatch"),
-        });
-      } finally {
-        await cleanupFixture(ctx);
-      }
-    }, 30_000);
+          await writeReviewArtifacts(ctx.review);
+          const staleHandoff =
+            ".ephemeral/pr-382-0000000000000000000000000000000000000000-handoff.json";
+          await writeJson(ctx.review.cwd, staleHandoff, {
+            repository,
+            pr_number: Number(prNumber),
+            base_ref: "main",
+            head_ref: "topic",
+            execution: { working_directory: ctx.review.cwd },
+            review_head_sha: "0".repeat(40),
+          });
+          await writeJson(ctx.review.cwd, resultPath(ctx.review.headSha), {
+            ...(await readJson(ctx.review.cwd, resultPath(ctx.review.headSha))),
+            handoff_file: staleHandoff,
+          });
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "gated",
+              RESULT_FILE: resultPath(ctx.review.headSha),
+              PRESENTED_AT: "2026-06-05T00:04:00Z",
+              PRESENTATION_STATUS: "preview-current",
+              UPDATED_AT: "2026-06-05T00:04:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("result review head mismatch"),
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
 
-    it("rejects LC-17 retry-to-post from non-GitHub-post failures and replacement artifacts", async () => {
-      const ctx = await makeFixture();
-      try {
-        await gatedLease(ctx);
-        await writeState(ctx, "failed", {
-          FINISHED_AT: "2026-06-05T00:05:00Z",
-          FAILURE_PHASE: "stale-head",
-          FAILURE_REASON: "Head changed before approval",
-          FAILURE_RECOVERABILITY: "recoverable",
-          UPDATED_AT: "2026-06-05T00:05:00Z",
-        });
-        await expect(
-          runLeaseHelper(ctx, "write", {
-            STATE: "posted",
-            FINISHED_AT: "2026-06-05T00:06:00Z",
-            GITHUB_POSTED_AT: "2026-06-05T00:06:00Z",
-            UPDATED_AT: "2026-06-05T00:06:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "invalid lease transition: failed -> posted requires github-post failure",
-          ),
-        });
-      } finally {
-        await cleanupFixture(ctx);
-      }
+    it(
+      "rejects LC-17 retry-to-post from non-GitHub-post failures and replacement artifacts",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await gatedLease(ctx);
+          await writeState(ctx, "failed", {
+            FINISHED_AT: "2026-06-05T00:05:00Z",
+            FAILURE_PHASE: "stale-head",
+            FAILURE_REASON: "Head changed before approval",
+            FAILURE_RECOVERABILITY: "recoverable",
+            UPDATED_AT: "2026-06-05T00:05:00Z",
+          });
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "posted",
+              FINISHED_AT: "2026-06-05T00:06:00Z",
+              GITHUB_POSTED_AT: "2026-06-05T00:06:00Z",
+              UPDATED_AT: "2026-06-05T00:06:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "invalid lease transition: failed -> posted requires github-post failure",
+            ),
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
 
-      const replacementCtx = await makeFixture();
-      try {
-        await failedGithubPostLease(replacementCtx);
-        const replacement = ".ephemeral/topic-replacement-approved-review.json";
-        await writeJson(replacementCtx.review.cwd, replacement, {
-          ...(await readJson(
-            replacementCtx.review.cwd,
-            approvedReviewPath(replacementCtx.review.headSha),
-          )),
-        });
-        await expect(
-          runLeaseHelper(replacementCtx, "write", {
-            STATE: "posted",
-            APPROVED_REVIEW_FILE: replacement,
-            FINISHED_AT: "2026-06-05T00:07:00Z",
-            GITHUB_POSTED_AT: "2026-06-05T00:07:00Z",
-            UPDATED_AT: "2026-06-05T00:07:00Z",
-          }),
-        ).rejects.toMatchObject({
-          stderr: expect.stringContaining(
-            "APPROVED_REVIEW_FILE must match existing failed approved-review",
-          ),
-        });
-      } finally {
-        await cleanupFixture(replacementCtx);
-      }
-    }, 30_000);
+        const replacementCtx = await makeFixture();
+        try {
+          await failedGithubPostLease(replacementCtx);
+          const replacement =
+            ".ephemeral/topic-replacement-approved-review.json";
+          await writeJson(replacementCtx.review.cwd, replacement, {
+            ...(await readJson(
+              replacementCtx.review.cwd,
+              approvedReviewPath(replacementCtx.review.headSha),
+            )),
+          });
+          await expect(
+            runLeaseHelper(replacementCtx, "write", {
+              STATE: "posted",
+              APPROVED_REVIEW_FILE: replacement,
+              FINISHED_AT: "2026-06-05T00:07:00Z",
+              GITHUB_POSTED_AT: "2026-06-05T00:07:00Z",
+              UPDATED_AT: "2026-06-05T00:07:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "APPROVED_REVIEW_FILE must match existing failed approved-review",
+            ),
+          });
+        } finally {
+          await cleanupFixture(replacementCtx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
   },
 );
