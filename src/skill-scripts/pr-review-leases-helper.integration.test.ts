@@ -2692,149 +2692,153 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     }
   });
 
-  it("records failed state with safe recovery pointers and preserves artifacts after GitHub post failure", async () => {
-    const { primary, review, parent } = await makeLinkedReviewWorkspace(
-      "devcanon-pr-lease-failed-",
-    );
-    try {
-      const { branchName } = await writeValidReviewManifests(
-        review.cwd,
-        review.baseSha,
-        review.headSha,
+  it(
+    "records failed state with safe recovery pointers and preserves artifacts after GitHub post failure",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-failed-",
       );
-      const manifestHelper = await writePassingManifestHelper(review.cwd);
-      const file = await writeCreatedLease(primary.cwd, review.cwd);
-      const approvedPath = await writeBoundApprovedReviewArtifact(
-        review.cwd,
-        review.headSha,
-        branchName,
-      );
-      const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
+      try {
+        const { branchName } = await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
+        );
+        const approvedHelper = await writeRecordingApprovedHelper(review.cwd);
 
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "reviewed",
-        RESULT_FILE: resultPath(review.headSha),
-      });
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "gated",
-        PRESENTED_AT: "2026-06-05T00:03:00Z",
-        PRESENTATION_STATUS: "preview-current",
-      });
-
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
+        await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
           REVIEW_MANIFEST_HELPER: manifestHelper,
-          STATE: "failed",
+          STATE: "reviewed",
           RESULT_FILE: resultPath(review.headSha),
-          APPROVED_REVIEW_FILE: approvedPath,
-          APPROVED_REVIEW_HELPER: approvedHelper,
-          FINISHED_AT: "2026-06-05T00:04:00Z",
-          FAILURE_PHASE: "github-post",
-          FAILURE_REASON: "GitHub post failed after approval",
-          FAILURE_RECOVERABILITY: "recoverable",
-          GITHUB_POST_ATTEMPTED: "true",
-          GITHUB_POST_RESULT: "failed",
-        }),
-      ).resolves.toMatchObject({ stdout: `${file}\n` });
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/approved-helper-args.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe("validate-approved-review\n");
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/approved-helper-file.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe(`${approvedPath}\n`);
-      await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
-        state: "failed",
-        artifacts: {
-          result_file: resultPath(review.headSha),
-          approved_review_file: approvedPath,
-        },
-        failure: {
-          phase: "github-post",
-          reason: "GitHub post failed after approval",
-          recoverability: "recoverable",
-        },
-        terminal: {
-          finished_at: "2026-06-05T00:04:00Z",
-        },
-      });
-      await expect(
-        readFile(path.join(review.cwd, resultPath(review.headSha)), "utf8"),
-      ).resolves.toContain("pr-review/result/v1");
-      await expect(
-        readFile(
-          path.join(review.cwd, findingsPath(review.headSha, branchName)),
-          "utf8",
-        ),
-      ).resolves.toContain("play-review/findings/v1");
-      await expect(
-        readFile(
-          path.join(review.cwd, reviewBodyPath(review.headSha, branchName)),
-          "utf8",
-        ),
-      ).resolves.toBe("Review body\n");
-      await expect(
-        readFile(path.join(review.cwd, approvedPath), "utf8"),
-      ).resolves.toContain("pr-review/approved-review/v1");
-
-      await expect(
-        runLeaseHelper(primary.cwd, "cleanup-worktree", {
+        });
+        await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
           REVIEW_MANIFEST_HELPER: manifestHelper,
-          APPROVED_REVIEW_HELPER: approvedHelper,
-          BASE_REF: "",
-          HEAD_REF: "",
-          ALLOW_POLICY_OVERRIDE: "no",
-          CONFIRM_REMOVE_TOKEN: "",
-        }),
-      ).resolves.toMatchObject({
-        stdout: expect.stringContaining(
-          "MESSAGE=untracked .ephemeral artifacts retained\n",
-        ),
-      });
-      await expect(
-        readFile(path.join(review.cwd, resultPath(review.headSha)), "utf8"),
-      ).resolves.toContain("pr-review/result/v1");
-      await expect(
-        readFile(
-          path.join(review.cwd, ".ephemeral/approved-helper-base.txt"),
-          "utf8",
-        ),
-      ).resolves.toBe(`${review.baseSha}\n`);
-      await expect(
-        readFile(
-          path.join(review.cwd, findingsPath(review.headSha, branchName)),
-          "utf8",
-        ),
-      ).resolves.toContain("play-review/findings/v1");
-      await expect(
-        readFile(
-          path.join(review.cwd, reviewBodyPath(review.headSha, branchName)),
-          "utf8",
-        ),
-      ).resolves.toBe("Review body\n");
-      await expect(
-        readFile(path.join(review.cwd, approvedPath), "utf8"),
-      ).resolves.toContain("pr-review/approved-review/v1");
-    } finally {
-      await cleanupTempDir(parent);
-      await cleanupTempDir(primary.cwd);
-    }
-  });
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            STATE: "failed",
+            RESULT_FILE: resultPath(review.headSha),
+            APPROVED_REVIEW_FILE: approvedPath,
+            APPROVED_REVIEW_HELPER: approvedHelper,
+            FINISHED_AT: "2026-06-05T00:04:00Z",
+            FAILURE_PHASE: "github-post",
+            FAILURE_REASON: "GitHub post failed after approval",
+            FAILURE_RECOVERABILITY: "recoverable",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "failed",
+          }),
+        ).resolves.toMatchObject({ stdout: `${file}\n` });
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/approved-helper-args.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe("validate-approved-review\n");
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/approved-helper-file.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${approvedPath}\n`);
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          state: "failed",
+          artifacts: {
+            result_file: resultPath(review.headSha),
+            approved_review_file: approvedPath,
+          },
+          failure: {
+            phase: "github-post",
+            reason: "GitHub post failed after approval",
+            recoverability: "recoverable",
+          },
+          terminal: {
+            finished_at: "2026-06-05T00:04:00Z",
+          },
+        });
+        await expect(
+          readFile(path.join(review.cwd, resultPath(review.headSha)), "utf8"),
+        ).resolves.toContain("pr-review/result/v1");
+        await expect(
+          readFile(
+            path.join(review.cwd, findingsPath(review.headSha, branchName)),
+            "utf8",
+          ),
+        ).resolves.toContain("play-review/findings/v1");
+        await expect(
+          readFile(
+            path.join(review.cwd, reviewBodyPath(review.headSha, branchName)),
+            "utf8",
+          ),
+        ).resolves.toBe("Review body\n");
+        await expect(
+          readFile(path.join(review.cwd, approvedPath), "utf8"),
+        ).resolves.toContain("pr-review/approved-review/v1");
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            REVIEW_MANIFEST_HELPER: manifestHelper,
+            APPROVED_REVIEW_HELPER: approvedHelper,
+            BASE_REF: "",
+            HEAD_REF: "",
+            ALLOW_POLICY_OVERRIDE: "no",
+            CONFIRM_REMOVE_TOKEN: "",
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            "MESSAGE=untracked .ephemeral artifacts retained\n",
+          ),
+        });
+        await expect(
+          readFile(path.join(review.cwd, resultPath(review.headSha)), "utf8"),
+        ).resolves.toContain("pr-review/result/v1");
+        await expect(
+          readFile(
+            path.join(review.cwd, ".ephemeral/approved-helper-base.txt"),
+            "utf8",
+          ),
+        ).resolves.toBe(`${review.baseSha}\n`);
+        await expect(
+          readFile(
+            path.join(review.cwd, findingsPath(review.headSha, branchName)),
+            "utf8",
+          ),
+        ).resolves.toContain("play-review/findings/v1");
+        await expect(
+          readFile(
+            path.join(review.cwd, reviewBodyPath(review.headSha, branchName)),
+            "utf8",
+          ),
+        ).resolves.toBe("Review body\n");
+        await expect(
+          readFile(path.join(review.cwd, approvedPath), "utf8"),
+        ).resolves.toContain("pr-review/approved-review/v1");
+      } finally {
+        await cleanupTempDir(parent);
+        await cleanupTempDir(primary.cwd);
+      }
+    },
+    longTestTimeout,
+  );
 
   it(
     "preserves gated and failed GitHub-post result pointers when posting",
