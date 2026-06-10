@@ -25,6 +25,13 @@ files directly before choosing concrete code, tests, documentation edits, and
 verification commands. The plan constrains the work; it does not substitute for
 source inspection.
 
+Implementer executability means a competent non-senior developer can begin
+after reading the task and named source files, without reverse-engineering
+missing scope, source policy, call-site mappings, side-effect ownership, error
+mapping, or allowed guardrail outcomes. This is distinct from plan-vs-spec
+alignment: a plan can cover the requested requirements and still fail when the
+tasks leave hidden execution decisions for the implementer to discover.
+
 Do not include concrete implementation code, test code, plan-authored test
 bodies, shell snippets, shell recipes, exact command sequences, helper-name
 prescriptions, line-number edits, or commit recipes unless the content is an
@@ -533,6 +540,15 @@ validation-before-write ordering, failure behavior, and forbidden side effects.
 These fields make the task executable without prescribing concrete code, test
 bodies, shell recipes, helper names, line edits, or exact command sequences.
 
+For boundary-touching tasks that change or depend on source, adapter, handler,
+side-effect, validation, rollback, or guardrail behavior, include task-local
+operation mappings when applicable. The operation map must name current source,
+target surface, inputs, outputs, errors, side-effect owner, dirty/rollback
+behavior, and required verification. Do not require operation maps for trivial
+non-boundary tasks. Operation maps are boundary contract specificity; they are
+not permission to prescribe implementation code, test bodies, shell recipes,
+helper names, line edits, exact command sequences, or commit recipes.
+
 When optional comment evidence is present, do not convert it into requirements.
 Use it to clarify why a requirement matters, what supporting observations exist,
 or what ambiguity the implementer should resolve against authoritative sources.
@@ -700,7 +716,23 @@ fields, unreplaced placeholders, and unexplained `N/A` entries are failures.
 If owner, authority, source of truth, or evidence cannot be identified, the plan
 must name the blocker or assumption instead of inventing a contract.
 
-**7. Prohibited detail scan:** Confirm the plan does not include concrete
+**7. Implementer executability scan:** Confirm a competent non-senior
+developer can execute each task after reading the task and named source files,
+without reverse-engineering missing scope, source policy, call sites,
+side-effect ownership, error mapping, or allowed guardrail outcomes. Fail and
+fix vague phrases such as "where feasible", "as appropriate", "preserve
+existing behavior", "safe selector", "source inspection", and "migrate
+handlers" when they appear without an exact source target, pass/fail criteria,
+or operation mapping. For boundary-touching tasks that change or depend on
+source, adapter, handler, side-effect, validation, rollback, or guardrail
+behavior, confirm any applicable task-local operation map names current source,
+target surface, inputs, outputs, errors, side-effect owner, dirty/rollback
+behavior, and required verification. Do not require operation maps for trivial
+non-boundary tasks; when the needed map cannot be completed from source or
+durable requirements, record a blocker or assumption instead of inventing
+authority.
+
+**8. Prohibited detail scan:** Confirm the plan does not include concrete
 implementation code, test code, plan-authored test bodies, shell snippets,
 shell recipes, exact command sequences, helper-name prescriptions, line-number
 edits, or commit recipes unless the content is explicitly labeled as
@@ -713,21 +745,21 @@ ordering, rendered-output surfaces, absence checks, or another observable proof
 surface. The plan does not fail solely because exact command sequences are
 omitted; implementers choose concrete commands after reading source.
 
-**8. Citation verification:** For any task reference that purports to cite
+**9. Citation verification:** For any task reference that purports to cite
 existing code, files, behavior, docs, history, issue or PR numbers, ADRs,
 helpers, or generated paths, verify the cited artifact exists and supports the
 claim. Forward-looking files in `Files: Create:` blocks are not subject to this
 check. Concrete-looking specifics that turn out to be fabricated are the most
 common silent defect class in plans.
 
-**9. Requirement/evidence distinction:** If optional comment evidence was
+**10. Requirement/evidence distinction:** If optional comment evidence was
 provided, confirm every task keeps authoritative requirements separate from
 supporting evidence. Comment evidence may explain context, observations, or
 ambiguity, but it must not appear as an authority surface or acceptance
 requirement unless an authoritative design, spec, issue body, guideline, ADR, or
 source file independently supports it.
 
-**10. Documentation impact tasks:** Same-PR documentation impact is normal
+**11. Documentation impact tasks:** Same-PR documentation impact is normal
 implementation work when the design changes durable truth. AFDS repositories
 should provide the canonical trigger list at
 `docs/guidelines/documentation-standard.md` §5.2; common examples include
@@ -742,15 +774,15 @@ follow
 
 Do not turn issue comments, PR review history, validation logs, or agent-local plans into repository documentation. Those artifacts can be evidence for the owning durable update, but the plan must write durable truth in the owning source, spec, guideline, ADR, architecture doc, or agent entry point instead of copying live work history.
 
-**11. Requirements traceability check:** If the input design has a
+**12. Requirements traceability check:** If the input design has a
 `## Hard Requirements` ledger, confirm the plan has a
 `## Traceability Matrix` and that every ledger row has explicit task coverage,
 acceptance criteria, and proof coverage. Missing rows, missing coverage, or
 coverage that only points at general prose are plan-review failures.
 
-**12. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
+**13. Mechanical-task hint check:** For each task that fits the mechanical taxonomy (single-file create from verbatim content; unambiguous identifier replacement — see [`skills/play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical Task Taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)), confirm `**Mode:** mechanical` is set. For any task with judgment (TDD expectations, multi-file coordination, new modules/interfaces), confirm it is **not** set.
 
-**13. Review-routing hint check:** If tasks include review-routing hints,
+**14. Review-routing hint check:** If tasks include review-routing hints,
 confirm hard-risk triggers are not under-classified, hints are described as
 non-authoritative, unclear cases default to `spec-and-quality`, and
 foundation-producing tasks are not marked below `spec-only`. The field order
@@ -880,6 +912,86 @@ must not dump raw artifact bodies or broad commentary.
 **On FAIL:** Fix the identified gaps inline in the plan and re-run the review subagent. Maximum 2 review rounds. If the plan still fails after 2 rounds, present remaining concerns to the user and let them decide whether to proceed.
 
 **In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS hands off to the parent skill (which invokes `play-subagent-execution` per the Execution Handoff section below); `play-planning` itself does not start execution. A FAIL after 2 rounds stops and reports to the user.
+
+## Implementer Executability Review
+
+After plan review passes, dispatch a separate workflow-local
+implementer-executability reviewer before offering execution options. This
+review does not repeat plan-vs-spec alignment and does not own execution review
+routing. It validates whether every implementation task is executable by a
+competent non-senior developer from the task text and named source files,
+without reverse-engineering hidden scope, source policy, call sites,
+side-effect ownership, error mapping, or allowed guardrail outcomes.
+
+Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
+lifecycle capability classification, cleanup gate before spawns,
+target-honest cleanup outcomes, and slot-limit recovery. Before dispatching the implementer-executability reviewer, capture the reviewer session's
+role-specific state before closing or superseding it: plan path or inline plan
+scope, source spec/design scope, optional comment evidence path when one was
+received, concise PASS/FAIL result, and concrete gaps when present.
+
+**Subagent contract:**
+
+- **Model:** `{{model:deep}}`
+- **Input:** `Plan: <path>` and `Design: <path>` when artifact paths exist;
+  `Comment evidence: <path>` only when the planning invocation received one;
+  inline plan/design content only for direct invocations without paths
+- **Role:** Independent validation of implementer execution readiness, not
+  requirement coverage or executor review routing
+
+Implementer-executability review should prefer artifact path references over
+inlined full documents. When the plan, design, or optional comment evidence was
+saved under `.ephemeral/`, pass those paths to the reviewer and instruct it to
+read them from disk before evaluating. If artifact paths are unavailable in a
+direct human invocation, inline content remains valid. If required inputs are
+missing or unreadable, block execution handoff rather than relying on
+controller memory.
+
+**The subagent checks:**
+
+- The plan defines tasks that a competent non-senior developer can begin after
+  reading the task and named source files
+- Tasks do not require senior reverse-engineering to discover real scope,
+  source policy, call sites, side-effect ownership, error mapping, or allowed
+  guardrail outcomes
+- Vague phrases such as "where feasible", "as appropriate", "preserve existing
+  behavior", "safe selector", "source inspection", and "migrate handlers" fail
+  when they lack an exact source target, pass/fail criteria, or operation
+  mapping
+- Boundary-touching tasks that change or depend on source, adapter, handler,
+  side-effect, validation, rollback, or guardrail behavior include task-local
+  operation maps when applicable
+- Operation maps name current source, target surface, inputs, outputs, errors,
+  side-effect owner, dirty/rollback behavior, and required verification
+- Task-local contracts that are structurally present still fail when the
+  implementer must infer missing policy, ownership, mappings, error behavior,
+  guardrail outcomes, rollback or dirty-state behavior, or verification
+  criteria
+- Unknown source policy, ownership, side effects, evidence, or allowed outcomes
+  are named as blockers or assumptions instead of invented
+- The plan preserves the rule against plan-authored implementation code, test
+  code, plan-authored test bodies, shell snippets, shell recipes, exact command
+  sequences, helper-name prescriptions, line-number edits, or commit recipes,
+  while allowing boundary contract names, public API surfaces, selector fields,
+  summary fields, error families, and operation mappings as planned boundary
+  contracts
+
+**Output:** concise PASS or FAIL with concrete gaps. A PASS may include one
+short confidence note. FAIL gaps must identify the task and missing execution
+contract, but the reviewer must not dump raw artifact bodies or broad
+commentary.
+
+**On FAIL:** Block execution handoff. Fix the identified gaps inline in the
+plan and re-run the implementer-executability reviewer. Maximum 2 review
+rounds. If the plan still fails after 2 rounds, present remaining concrete gaps
+to the user and let them decide whether to revise scope, provide missing
+authority, or stop. Do not offer execution handoff options while this review is
+failing or required inputs remain missing or unreadable.
+
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS hands off
+to the parent skill, which invokes `play-subagent-execution` per the Execution
+Handoff section below. A FAIL after 2 rounds stops and reports to the user.
+`play-planning` itself does not start execution.
 
 ## Execution Handoff
 
