@@ -1000,11 +1000,14 @@ contract, but the reviewer must not dump raw artifact bodies or broad
 commentary.
 
 **On FAIL:** Block execution handoff. Fix the identified gaps inline in the
-plan and re-run the implementer-executability reviewer. Maximum 2 review
-rounds. If the plan still fails after 2 rounds, present remaining concrete gaps
-to the user and let them decide whether to revise scope, provide missing
-authority, or stop. Do not offer execution handoff options while this review is
-failing or required inputs remain missing or unreadable.
+plan, then restart Plan Review before re-running the implementer-executability
+reviewer so both review gates pass on the same final plan contents. Maximum 2
+executability review rounds. If the plan still fails after 2 rounds, present
+remaining concrete gaps to the user and let them decide whether to revise scope,
+provide missing authority, or stop. Do not offer execution handoff options while
+this review is failing, required inputs remain missing or unreadable, or the
+current plan contents do not have both Plan Review PASS and Implementer
+Executability Review PASS.
 
 **In `--auto` flows** (e.g., `github-issue-priming --auto`): Only a PASS from
 both Plan Review and Implementer Executability Review hands off to the parent

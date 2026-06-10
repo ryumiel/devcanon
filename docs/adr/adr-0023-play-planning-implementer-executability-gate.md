@@ -33,11 +33,13 @@ surface, required and optional inputs, missing or empty behavior, outputs,
 errors, write targets or side-effect owner, validation order, failure behavior,
 forbidden side effects, dirty or rollback behavior, and required verification.
 
-Both Plan Review and Implementer Executability Review must pass before
-`play-planning` may return a parent-owned handoff. Failed, missing, or
-unreadable executability review blocks issue-priming auto handoffs and
-review-response parent-owned handoffs before `play-subagent-execution` can be
-invoked. `play-planning` still does not start execution itself.
+Both Plan Review and Implementer Executability Review must pass on the same
+final plan contents before `play-planning` may return a parent-owned handoff.
+Failed, missing, or unreadable executability review blocks issue-priming auto
+handoffs and review-response parent-owned handoffs before
+`play-subagent-execution` can be invoked. If executability review causes a plan
+edit, the edited plan returns through Plan Review before a fresh executability
+pass. `play-planning` still does not start execution itself.
 
 The reviewer remains workflow-local to `play-planning`. It is not promoted to a
 source agent because the durable role currently has a single owning workflow

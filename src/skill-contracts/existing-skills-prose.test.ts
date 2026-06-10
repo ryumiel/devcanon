@@ -645,6 +645,15 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutabilityReview).toContain("workflow-local");
     expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
     expect(normalizedExecutabilityReview).toContain("concrete gaps");
+    expect(normalizedExecutabilityReview).toContain(
+      "restart Plan Review before re-running the implementer-executability reviewer",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "both review gates pass on the same final plan contents",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "current plan contents do not have both Plan Review PASS and Implementer Executability Review PASS",
+    );
 
     for (const hiddenJudgmentSurface of [
       "scope",
