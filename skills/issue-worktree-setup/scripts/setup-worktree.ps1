@@ -63,7 +63,8 @@ function Is-Link {
   param([string] $Path)
 
   try {
-    return [bool] (Get-Item -LiteralPath $Path -Force -ErrorAction Stop).LinkType
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    return [bool] ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
   } catch [System.Management.Automation.ItemNotFoundException] {
     return $false
   }

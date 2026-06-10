@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -199,6 +206,13 @@ describe(
     afterEach(async () => {
       await Promise.all(tempDirs.map((dir) => cleanupTempDir(dir)));
       tempDirs.length = 0;
+    });
+
+    it("uses PowerShell 5.1-compatible reparse point detection", async () => {
+      const source = await readFile(powershellHelperScript, "utf-8");
+
+      expect(source).toContain("[System.IO.FileAttributes]::ReparsePoint");
+      expect(source).not.toContain(".LinkType");
     });
 
     it("creates a new worktree from a repo subdirectory and honors BASE_REF", async () => {
