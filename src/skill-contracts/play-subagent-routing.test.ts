@@ -449,30 +449,56 @@ describe("play subagent routing source contracts", () => {
     const skipDispatchPolicy = await readRepoFile(
       "skills/play-subagent-execution/references/skip-dispatch-policy.md",
     );
+    const adr0007 = await readRepoFile(
+      "docs/adr/adr-0007-review-pipeline-delineation.md",
+    );
+    const adr0015 = await readRepoFile(
+      "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+    );
     const normalizedPlaySubagentExecution = normalizeWhitespace(
       playSubagentExecution,
     );
     const normalizedSkipDispatchPolicy =
       normalizeWhitespace(skipDispatchPolicy);
+    const normalizedAdr0007 = normalizeWhitespace(adr0007);
+    const normalizedAdr0015 = normalizeWhitespace(adr0015);
 
     for (const source of [
       normalizedPlaySubagentExecution,
       normalizedSkipDispatchPolicy,
+      normalizedAdr0007,
+      normalizedAdr0015,
     ]) {
       expect(source).toContain("two-gate `play-planning` return");
-      expect(source).toContain(
-        "Plan Review and Implementer Executability Review",
-      );
       expect(source).not.toContain("plan-review PASS");
       expect(source).not.toContain("plan-review returned PASS");
     }
 
-    expect(normalizedPlaySubagentExecution).toContain(
-      "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
-    );
-    expect(normalizedSkipDispatchPolicy).toContain(
-      "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
-    );
+    for (const liveContractSource of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+      normalizedAdr0015,
+    ]) {
+      expect(liveContractSource).toContain(
+        "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
+      );
+    }
+
+    for (const directInvocationFallbackSource of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+      normalizedAdr0015,
+    ]) {
+      expect(directInvocationFallbackSource).toContain(
+        "fall back to dispatched implementation",
+      );
+      expect(directInvocationFallbackSource).not.toContain(
+        "treat this guardrail as PASS",
+      );
+      expect(directInvocationFallbackSource).not.toContain(
+        "precondition is treated as satisfied",
+      );
+    }
   });
 
   it("keeps issue-priming references pointed at lazy play-subagent sources", async () => {

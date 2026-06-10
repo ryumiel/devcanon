@@ -413,9 +413,11 @@ This path sits on top of the single-task per-task-review skip.
 All five guardrails must hold: the plan is single-task, the task is explicitly
 mechanical, no clarifying questions could plausibly arise under the upstream
 two-gate `play-planning` return, the structural task-contract gate is
-satisfied, and no tests need to be authored. A task-contract failure stops before
-implementation; other guardrail misses fall back to dispatched implementation.
-There is no DONE report and no snapshot request on this path.
+satisfied, and no tests need to be authored. Direct, hand-written, copied, or
+older plans without the upstream two-gate return fail the clarifying-question
+guardrail and fall back to dispatched implementation. A task-contract failure
+stops before implementation; other guardrail misses fall back to dispatched
+implementation. There is no DONE report and no snapshot request on this path.
 
 Load [`references/skip-dispatch-policy.md`](references/skip-dispatch-policy.md)
 when evaluating guardrails, choosing fallback behavior, or checking examples.

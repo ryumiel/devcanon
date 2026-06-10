@@ -112,9 +112,9 @@ validation, completeness, or pass/fail owner for branch-level review.
 - ADR-0015 introduces a further optimization within the single-task path: when
   four runtime guardrails (single-task plan, `**Mode:** mechanical`, structural
   task-contract gate satisfied, no TDD expectations or legacy TDD step-pair
-  markers) plus one upstream precondition (`play-planning`'s plan-review PASS)
-  all hold, the implementer dispatch itself is also skipped — the controller
-  executes Write/Edit + verify + commit inline. ADR-0016
+  markers) plus one upstream precondition (the two-gate `play-planning` return
+  introduced by ADR-0023) all hold, the implementer dispatch itself is also
+  skipped — the controller executes Write/Edit + verify + commit inline. ADR-0016
   later narrows the `issue-priming-workflow --auto` single-task subset of
   that path further by skipping the final whole-implementation reviewer when
   downstream `branch-review --fix` is guaranteed.
