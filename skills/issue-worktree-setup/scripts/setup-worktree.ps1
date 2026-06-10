@@ -59,6 +59,20 @@ function Normalize-Path {
   return [System.IO.Path]::GetFullPath($Path).TrimEnd("\", "/")
 }
 
+function Test-SamePath {
+  param(
+    [string] $Left,
+    [string] $Right
+  )
+
+  $comparison = [System.StringComparison]::Ordinal
+  if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+    $comparison = [System.StringComparison]::OrdinalIgnoreCase
+  }
+
+  return [string]::Equals((Normalize-Path $Left), (Normalize-Path $Right), $comparison)
+}
+
 function Is-Link {
   param([string] $Path)
 
@@ -167,7 +181,7 @@ if (Test-Git @("show-ref", "--verify", "--quiet", "refs/heads/$branchName")) {
   exit 1
 }
 
-if ((Normalize-Path $currentWorktree) -ne (Normalize-Path $mainWorktree)) {
+if (-not (Test-SamePath $currentWorktree $mainWorktree)) {
   if ([string]::IsNullOrEmpty($currentStatus)) {
     & git merge-base --is-ancestor HEAD $resolvedBase *> $null
     $ancestorStatus = $LASTEXITCODE
@@ -211,7 +225,7 @@ New-Item -ItemType Directory -Force -Path $worktreesDir | Out-Null
 
 $worktreesDirReal = Normalize-Path $worktreesDir
 $expectedWorktreesDirReal = Normalize-Path (Join-Path $currentWorktreeReal ".worktrees")
-if ($worktreesDirReal -ne $expectedWorktreesDirReal) {
+if (-not (Test-SamePath $worktreesDirReal $expectedWorktreesDirReal)) {
   [Console]::Error.WriteLine(".worktrees resolved outside the primary checkout.")
   exit 1
 }

@@ -215,6 +215,17 @@ describe(
       expect(source).not.toContain(".LinkType");
     });
 
+    it("uses Windows-appropriate normalized path comparison", async () => {
+      const source = await readFile(powershellHelperScript, "utf-8");
+
+      expect(source).toContain("function Test-SamePath");
+      expect(source).toContain("[System.StringComparison]::OrdinalIgnoreCase");
+      expect(source).toContain("Test-SamePath $currentWorktree $mainWorktree");
+      expect(source).toContain(
+        "Test-SamePath $worktreesDirReal $expectedWorktreesDirReal",
+      );
+    });
+
     it("creates a new worktree from a repo subdirectory and honors BASE_REF", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
       const { primaryDir } = await createOriginRepo(rootDir);
