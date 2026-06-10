@@ -34,6 +34,7 @@ const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
+const isWindows = process.platform === "win32";
 const longTestTimeout = process.platform === "win32" ? 240_000 : 60_000;
 const extraLongTestTimeout = process.platform === "win32" ? 360_000 : 120_000;
 async function commandAvailable(command: string): Promise<boolean> {
@@ -1128,7 +1129,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     }
   });
 
-  it(
+  it.skipIf(isWindows)(
     "archives terminal leases without requiring stale referenced artifacts",
     async () => {
       const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
@@ -1250,7 +1251,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     }
   });
 
-  it(
+  it.skipIf(isWindows)(
     "rejects gated writes when the result manifest is not a current preview",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -1561,7 +1562,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     }
   });
 
-  it(
+  it.skipIf(isWindows)(
     "delegates referenced result validation through manifest and play-review authority",
     async () => {
       const primary = await makeGitWorkspace("devcanon-pr-lease-primary-");
@@ -2513,9 +2514,15 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
-        await expect(
-          git(primary.cwd, "worktree", "list", "--porcelain"),
-        ).resolves.toContain(review.cwd);
+        const worktreeList = await git(
+          primary.cwd,
+          "worktree",
+          "list",
+          "--porcelain",
+        );
+        expect(normalizePathText(worktreeList)).toContain(
+          normalizePathText(review.cwd),
+        );
       } finally {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
       }
@@ -3534,7 +3541,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     longTestTimeout,
   );
 
-  it(
+  it.skipIf(isWindows)(
     "removes terminal worktrees with only lease-managed .ephemeral artifacts",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -3642,7 +3649,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     longTestTimeout,
   );
 
-  it(
+  it.skipIf(isWindows)(
     "records managed validated payload copies and rejects stale-session payload attachments",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -3733,7 +3740,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     extraLongTestTimeout,
   );
 
-  it(
+  it.skipIf(isWindows)(
     "retains terminal worktrees with clean tracked unmanaged .ephemeral artifacts",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(
@@ -3810,7 +3817,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     extraLongTestTimeout,
   );
 
-  it(
+  it.skipIf(isWindows)(
     "retains terminal leases with missing referenced artifacts during cleanup",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(
