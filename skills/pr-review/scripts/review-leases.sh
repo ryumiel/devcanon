@@ -485,6 +485,35 @@ validate_validated_payload_artifact() {
     fail "validated payload approved-review mismatch"
 }
 
+validated_payload_input_value() {
+  printf '%s\n' "${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-}}"
+}
+
+validated_payload_value_for() {
+  local worktree="$1"
+  local approved_file="$2"
+  local existing_value="$3"
+  local explicit_value review_head_sha expected
+
+  explicit_value="$(validated_payload_input_value)"
+  if [ -n "$explicit_value" ]; then
+    printf '%s\n' "$explicit_value"
+    return
+  fi
+  if [ -n "$existing_value" ]; then
+    printf '%s\n' "$existing_value"
+    return
+  fi
+  [ -n "$approved_file" ] || return 0
+  validate_direct_child_path "approved review" "$approved_file" "-approved-review.json"
+  [ -f "$worktree/$approved_file" ] || return
+  review_head_sha="$(artifact_head_sha "$worktree" "$approved_file" '.review_head_sha')"
+  expected="$(expected_validated_payload_path_for "$review_head_sha")"
+  if [ -f "$worktree/$expected" ]; then
+    printf '%s\n' "$expected"
+  fi
+}
+
 validate_handoff_artifact() {
   local worktree="$1"
   local file="$2"
@@ -647,7 +676,11 @@ validate_lease_schema() {
       ] | sort))
     )
     and (.artifacts | type == "object")
-    and ((.artifacts | keys_unsorted | sort) == (["handoff_file", "result_file", "approved_review_file", "validated_payload_file"] | sort))
+    and (
+      ((.artifacts | keys_unsorted | sort) == (["handoff_file", "result_file", "approved_review_file"] | sort))
+      or
+      ((.artifacts | keys_unsorted | sort) == (["handoff_file", "result_file", "approved_review_file", "validated_payload_file"] | sort))
+    )
     and (.artifacts.handoff_file | optional_direct_ephemeral_path("-handoff.json"))
     and (.artifacts.result_file | optional_direct_ephemeral_path("-result.json"))
     and (.artifacts.approved_review_file | optional_direct_ephemeral_path("-approved-review.json"))
@@ -1236,7 +1269,7 @@ write_lease() {
       handoff_value="$existing_handoff_value"
       result_value="$existing_result_value"
       approved_value="$APPROVED_REVIEW_FILE"
-      validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-}}"
+      validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "")"
       presented_at_value="$existing_presented_at"
       presentation_status_value="$existing_presentation_status"
       finished_at_value="$FINISHED_AT"
@@ -1272,10 +1305,10 @@ write_lease() {
       esac
       if [ "$row_id" = "LC-12" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
-        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
+        validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
       elif [ "$row_id" = "LC-13" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
-        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
+        validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
         github_attempted_value="$(bool_json_or_default "${GITHUB_POST_ATTEMPTED:-}" "false")"
         github_result_value="${GITHUB_POST_RESULT:-not-attempted}"
         [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
@@ -1283,7 +1316,7 @@ write_lease() {
         [ -n "$approved_value" ] || fail "APPROVED_REVIEW_FILE is required for github-post failure"
       elif [ "$row_id" = "LC-16" ] && [ "$FAILURE_PHASE" = "approval-freeze" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
-        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
+        validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
       fi
       if [ "$row_id" = "LC-16" ] &&
         [ "$result_value" = "$existing_result_value" ] &&
@@ -1319,7 +1352,7 @@ write_lease() {
       handoff_value="$existing_handoff_value"
       result_value="$existing_result_value"
       approved_value="$existing_approved_value"
-      validated_payload_value="$existing_validated_payload_value"
+      validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
       presented_at_value="$existing_presented_at"
       presentation_status_value="$existing_presentation_status"
       finished_at_value="$FINISHED_AT"
@@ -1376,12 +1409,14 @@ write_lease() {
   validate_lease_identity "$tmp_file" "$physical_path"
   validate_referenced_artifacts "$tmp_file" "$physical_path"
   if [ -n "$archived_terminal_state" ]; then
-    if [ "${REVIEW_LEASE_TEST_FAIL_ARCHIVE_PREPARATION:-}" = "yes" ]; then
+    if [ "${REVIEW_LEASE_ENABLE_TEST_HOOKS:-}" = "yes" ] &&
+      [ "${REVIEW_LEASE_TEST_FAIL_ARCHIVE_PREPARATION:-}" = "yes" ]; then
       fail "test requested archive preparation failure"
     fi
     prepare_write_target "archived lease" "$archive_path"
     mv "$LEASE_FILE" "$archive_path"
-    if [ "${REVIEW_LEASE_TEST_FAIL_ACTIVE_WRITE_AFTER_ARCHIVE:-}" = "yes" ]; then
+    if [ "${REVIEW_LEASE_ENABLE_TEST_HOOKS:-}" = "yes" ] &&
+      [ "${REVIEW_LEASE_TEST_FAIL_ACTIVE_WRITE_AFTER_ARCHIVE:-}" = "yes" ]; then
       fail "test requested active lease write failure after archive"
     fi
   fi
@@ -1803,7 +1838,7 @@ classify_cleanup() {
   case "$cleanup_refusal_reason" in
     "")
       cleanup_can_remove="yes"
-      cleanup_metadata_outcome="removed"
+      cleanup_metadata_outcome=""
       if worktree_has_ephemeral_residue "$cleanup_physical_path"; then
         cleanup_force_remove_allowed="yes"
       fi
@@ -1820,9 +1855,7 @@ classify_cleanup() {
   esac
 }
 
-print_cleanup_decision() {
-  local outcome="$1"
-  printf 'OUTCOME=%s\n' "$outcome"
+print_cleanup_classifier_fields() {
   printf 'CAN_REMOVE=%s\n' "$cleanup_can_remove"
   printf 'REFUSAL_REASON=%s\n' "$cleanup_refusal_reason"
   printf 'DIRTY=%s\n' "$cleanup_dirty"
@@ -1868,7 +1901,8 @@ cleanup_inspection() {
   if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
     record_cleanup_metadata "$LEASE_FILE" ""
   fi
-  print_cleanup_decision "inspect"
+  printf 'OUTCOME=inspect\n'
+  print_cleanup_classifier_fields
 }
 
 cleanup_worktree() {
@@ -1882,7 +1916,6 @@ cleanup_worktree() {
   require_env ALLOW_POLICY_OVERRIDE
   validate_yes_no ALLOW_POLICY_OVERRIDE "$ALLOW_POLICY_OVERRIDE"
   classify_cleanup
-  print_cleanup_decision "cleanup"
   case "$cleanup_refusal_reason" in
     "")
       remove_status=0
@@ -1895,17 +1928,25 @@ cleanup_worktree() {
         if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
           record_cleanup_metadata "$LEASE_FILE" "removed"
         fi
-      printf 'MESSAGE=worktree removed\n'
-      return 0
+        cleanup_metadata_outcome="removed"
+        printf 'OUTCOME=removed\n'
+        print_cleanup_classifier_fields
+        printf 'MESSAGE=worktree removed\n'
+        return 0
       fi
       if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
         record_cleanup_metadata "$LEASE_FILE" "failed"
       fi
+      cleanup_metadata_outcome="failed"
+      printf 'OUTCOME=failed\n'
+      print_cleanup_classifier_fields
       printf 'MESSAGE=git worktree remove failed\n'
       return 1
       ;;
     invalid-lease)
       message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
+      printf 'OUTCOME=failed\n'
+      print_cleanup_classifier_fields
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;
@@ -1914,6 +1955,8 @@ cleanup_worktree() {
         record_cleanup_metadata "$LEASE_FILE" "skipped"
       fi
       message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
+      printf 'OUTCOME=skipped\n'
+      print_cleanup_classifier_fields
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;
@@ -1922,6 +1965,8 @@ cleanup_worktree() {
         record_cleanup_metadata "$LEASE_FILE" "retained"
       fi
       message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
+      printf 'OUTCOME=retained\n'
+      print_cleanup_classifier_fields
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;

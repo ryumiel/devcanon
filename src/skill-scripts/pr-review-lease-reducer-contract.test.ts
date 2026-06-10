@@ -132,6 +132,10 @@ function approvedReviewPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-approved-review.json`;
 }
 
+function validatedPayloadPath(headSha: string) {
+  return `.ephemeral/pr-${prNumber}-${headSha}-validated-review-payload.json`;
+}
+
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
 }
@@ -255,6 +259,12 @@ async function writeReviewArtifacts(review: Workspace) {
       body: "body",
       comments: [],
     },
+  });
+  await writeJson(review.cwd, validatedPayloadPath(review.headSha), {
+    commit_id: review.headSha,
+    event: "COMMENT",
+    body: "body",
+    comments: [],
   });
 }
 
@@ -529,6 +539,7 @@ const positiveRows = [
         artifacts: {
           result_file: resultPath(ctx.review.headSha),
           approved_review_file: approvedReviewPath(ctx.review.headSha),
+          validated_payload_file: validatedPayloadPath(ctx.review.headSha),
         },
         github: {
           github_post_attempted: true,
@@ -630,6 +641,7 @@ const positiveRows = [
         state: "failed",
         artifacts: {
           approved_review_file: approvedReviewPath(ctx.review.headSha),
+          validated_payload_file: validatedPayloadPath(ctx.review.headSha),
         },
         failure: { phase: "github-post" },
         github: {
@@ -733,6 +745,7 @@ const positiveRows = [
         artifacts: {
           result_file: resultPath(ctx.review.headSha),
           approved_review_file: approvedReviewPath(ctx.review.headSha),
+          validated_payload_file: validatedPayloadPath(ctx.review.headSha),
         },
         github: {
           github_post_attempted: true,
@@ -1239,6 +1252,7 @@ describe.skipIf(!jqAvailable)(
           await expect(
             runLeaseHelper(ctx, "write", {
               STATE: "created",
+              REVIEW_LEASE_ENABLE_TEST_HOOKS: "yes",
               REVIEW_LEASE_TEST_FAIL_ARCHIVE_PREPARATION: "yes",
               UPDATED_AT: "2026-06-05T00:08:00Z",
             }),
@@ -1273,6 +1287,7 @@ describe.skipIf(!jqAvailable)(
           await expect(
             runLeaseHelper(ctx, "write", {
               STATE: "created",
+              REVIEW_LEASE_ENABLE_TEST_HOOKS: "yes",
               REVIEW_LEASE_TEST_FAIL_ACTIVE_WRITE_AFTER_ARCHIVE: "yes",
               UPDATED_AT: "2026-06-05T00:08:00Z",
             }),
