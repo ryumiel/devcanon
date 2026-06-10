@@ -442,6 +442,39 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps skip-dispatch upstream planning preconditions aligned with the two-gate plan return", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    const normalizedPlaySubagentExecution = normalizeWhitespace(
+      playSubagentExecution,
+    );
+    const normalizedSkipDispatchPolicy =
+      normalizeWhitespace(skipDispatchPolicy);
+
+    for (const source of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+    ]) {
+      expect(source).toContain("two-gate `play-planning` return");
+      expect(source).toContain(
+        "Plan Review and Implementer Executability Review",
+      );
+      expect(source).not.toContain("plan-review PASS");
+      expect(source).not.toContain("plan-review returned PASS");
+    }
+
+    expect(normalizedPlaySubagentExecution).toContain(
+      "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
+    );
+    expect(normalizedSkipDispatchPolicy).toContain(
+      "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
+    );
+  });
+
   it("keeps issue-priming references pointed at lazy play-subagent sources", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
