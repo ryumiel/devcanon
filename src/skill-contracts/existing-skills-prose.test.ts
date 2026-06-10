@@ -606,14 +606,26 @@ describe("existing skills source prose contracts", () => {
 
     expectSharedLifecycleReference(implementerExecutabilityReview);
     expect(
-      implementerExecutabilityReview.indexOf("`subagent-lifecycle`"),
+      normalizedExecutabilityReview.indexOf("`subagent-lifecycle`"),
     ).toBeLessThan(
-      implementerExecutabilityReview.indexOf(
+      normalizedExecutabilityReview.indexOf(
         "dispatching the implementer-executability reviewer",
       ),
     );
     expect(normalizedExecutabilityReview).toContain(
-      "Before dispatching the implementer-executability reviewer",
+      "before dispatching the implementer-executability reviewer",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "After the reviewer returns PASS or FAIL",
+    );
+    expect(
+      normalizedExecutabilityReview.indexOf(
+        "before dispatching the implementer-executability reviewer",
+      ),
+    ).toBeLessThan(
+      normalizedExecutabilityReview.indexOf(
+        "After the reviewer returns PASS or FAIL",
+      ),
     );
     expect(normalizedExecutabilityReview).toContain("workflow-local");
     expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
@@ -784,6 +796,12 @@ describe("existing skills source prose contracts", () => {
       "Return after saving the plan so the parent skill can invoke `play-subagent-execution`",
     );
     expect(normalizedExecutionHandoff).toContain(
+      "only after both Plan Review and Implementer Executability Review have returned PASS",
+    );
+    expect(normalizedExecutionHandoff).toContain(
+      "Failed, missing, or unreadable executability review blocks this return",
+    );
+    expect(normalizedExecutionHandoff).toContain(
       "Otherwise, offer execution choice",
     );
     expect(executionHandoff).toContain("**1. Subagent-Driven (recommended)**");
@@ -829,10 +847,19 @@ describe("existing skills source prose contracts", () => {
       "Return after emitting `Plan written to <path>.`",
     );
     expect(normalizedReviewResponseRoute).toContain(
+      "only after both Plan Review and Implementer Executability Review have returned PASS",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "failed, missing, or unreadable executability review blocks the parent-owned return",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
       "`play-review-response` owns presenting the generated plan for approval",
     );
     expect(normalizedReviewResponseRoute).toContain(
       "invoke `play-subagent-execution` only after approval",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "after both planning review gates have passed",
     );
     expect(normalizedReviewResponseRoute).not.toContain("Subagent-Driven");
     expect(normalizedReviewResponseRoute).not.toContain("Inline Execution");

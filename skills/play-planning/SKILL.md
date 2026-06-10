@@ -935,10 +935,12 @@ side-effect ownership, error mapping, or allowed guardrail outcomes.
 
 Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
 lifecycle capability classification, cleanup gate before spawns,
-target-honest cleanup outcomes, and slot-limit recovery. Before dispatching the implementer-executability reviewer, capture the reviewer session's
-role-specific state before closing or superseding it: plan path or inline plan
-scope, source spec/design scope, optional comment evidence path when one was
-received, concise PASS/FAIL result, and concrete gaps when present.
+target-honest cleanup outcomes, and slot-limit recovery before dispatching the
+implementer-executability reviewer. After the reviewer returns PASS or FAIL,
+capture the reviewer session's role-specific state before closing or
+superseding it: plan path or inline plan scope, source spec/design scope,
+optional comment evidence path when one was received, concise PASS/FAIL result,
+and concrete gaps when present.
 
 **Subagent contract:**
 
