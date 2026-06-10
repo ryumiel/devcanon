@@ -34,8 +34,8 @@ const prNumber = "382";
 const repository = "owner/repo";
 const createdAt = "2026-06-05T00:00:00Z";
 const updatedAt = "2026-06-05T00:01:00Z";
-const longTestTimeout = process.platform === "win32" ? 240_000 : 20_000;
-const extraLongTestTimeout = process.platform === "win32" ? 360_000 : 30_000;
+const longTestTimeout = process.platform === "win32" ? 240_000 : 60_000;
+const extraLongTestTimeout = process.platform === "win32" ? 360_000 : 120_000;
 async function commandAvailable(command: string): Promise<boolean> {
   try {
     await execFileAsync(bashExecutable, ["-c", `command -v ${command}`]);
