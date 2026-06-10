@@ -150,12 +150,18 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase5).toContain(
       "Do NOT prompt for execution mode at the end",
     );
+    expect(normalizedPhase5).toContain(
+      "return after saving the plan and only after both Plan Review and Implementer Executability Review pass",
+    );
 
     expect(phase6).toContain("subagent-lifecycle");
     expect(normalizedPhase6).toContain(
       "cleanup gate for completed or superseded gate and research sessions",
     );
     expect(phase6).toContain("Plan written to <path>.");
+    expect(normalizedPhase6).toContain(
+      "That return means both planning review gates passed",
+    );
     expect(phase6).toContain("validate-read plan");
     expect(phase6).toContain("scripts/write-auto-handoff.sh");
     expect(normalizedPhase6).toContain(

@@ -592,10 +592,15 @@ describe("existing skills source prose contracts", () => {
     for (const operationMapField of [
       "current source",
       "target surface",
-      "inputs",
+      "required inputs",
+      "optional inputs where applicable",
+      "missing or empty behavior",
       "outputs",
       "errors",
-      "side-effect owner",
+      "explicit write targets or side-effect owner",
+      "validation-before-write or validation-order requirements",
+      "failure behavior",
+      "forbidden side effects",
       "dirty/rollback behavior",
       "required verification",
     ]) {
@@ -1949,6 +1954,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(
       /capture.*Plan written to <path>\./i,
     );
+    expect(normalizedExecutionMode).toContain(
+      "only after `play-planning` has completed both Plan Review and Implementer Executability Review",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "failed, missing, or unreadable executability review remains inside `play-planning` and stops before this approval gate",
+    );
     expect(normalizedExecutionMode).toMatch(
       /must not rely on.*issue-priming.*`--auto`.*reduced-route/i,
     );
@@ -1970,7 +1981,7 @@ describe("existing skills source prose contracts", () => {
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, wait for both planning review gates to pass, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
     );
 
     expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
@@ -2025,6 +2036,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecutionMode).toMatch(
       /approval.*after.*Plan written to <path>\..*before.*play-subagent-execution/i,
+    );
+    expect(normalizedPlanApprovalGate).toContain(
+      "`play-planning` returns `Plan written to <path>.` for this route only after both Plan Review and Implementer Executability Review pass",
     );
     expect(normalizedExecutionMode).toMatch(
       /If the user requests any generated-plan change.*route every generated-plan revision back through `play-planning`.*before renewed approval/i,

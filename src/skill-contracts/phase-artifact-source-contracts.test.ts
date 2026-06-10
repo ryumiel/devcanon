@@ -218,6 +218,9 @@ describe("phase artifact source contracts", () => {
       "Do NOT prompt for execution mode at the end",
     );
     expect(normalizedIssuePriming).toContain(
+      "return after saving the plan and only after both Plan Review and Implementer Executability Review pass",
+    );
+    expect(normalizedIssuePriming).toContain(
       "Successful `play-subagent-execution` completion returns control to this owning workflow",
     );
     expect(normalizedIssuePriming).toContain(
