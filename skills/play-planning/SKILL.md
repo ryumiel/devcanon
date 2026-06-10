@@ -543,11 +543,14 @@ bodies, shell recipes, helper names, line edits, or exact command sequences.
 For boundary-touching tasks that change or depend on source, adapter, handler,
 side-effect, validation, rollback, or guardrail behavior, include task-local
 operation mappings when applicable. The operation map must name current source,
-target surface, inputs, outputs, errors, side-effect owner, dirty/rollback
-behavior, and required verification. Do not require operation maps for trivial
-non-boundary tasks. Operation maps are boundary contract specificity; they are
-not permission to prescribe implementation code, test bodies, shell recipes,
-helper names, line edits, exact command sequences, or commit recipes.
+target surface, required inputs, optional inputs where applicable, missing or
+empty behavior, outputs, errors, explicit write targets or side-effect owner,
+validation-before-write or validation-order requirements, failure behavior,
+forbidden side effects, dirty/rollback behavior, and required verification. Do
+not require operation maps for trivial non-boundary tasks. Operation maps are
+boundary contract specificity; they are not permission to prescribe
+implementation code, test bodies, shell recipes, helper names, line edits,
+exact command sequences, or commit recipes.
 
 When optional comment evidence is present, do not convert it into requirements.
 Use it to clarify why a requirement matters, what supporting observations exist,
@@ -726,11 +729,13 @@ handlers" when they appear without an exact source target, pass/fail criteria,
 or operation mapping. For boundary-touching tasks that change or depend on
 source, adapter, handler, side-effect, validation, rollback, or guardrail
 behavior, confirm any applicable task-local operation map names current source,
-target surface, inputs, outputs, errors, side-effect owner, dirty/rollback
-behavior, and required verification. Do not require operation maps for trivial
-non-boundary tasks; when the needed map cannot be completed from source or
-durable requirements, record a blocker or assumption instead of inventing
-authority.
+target surface, required inputs, optional inputs where applicable, missing or
+empty behavior, outputs, errors, explicit write targets or side-effect owner,
+validation-before-write or validation-order requirements, failure behavior,
+forbidden side effects, dirty/rollback behavior, and required verification. Do
+not require operation maps for trivial non-boundary tasks; when the needed map
+cannot be completed from source or durable requirements, record a blocker or
+assumption instead of inventing authority.
 
 **8. Prohibited detail scan:** Confirm the plan does not include concrete
 implementation code, test code, plan-authored test bodies, shell snippets,
@@ -961,8 +966,11 @@ controller memory.
 - Boundary-touching tasks that change or depend on source, adapter, handler,
   side-effect, validation, rollback, or guardrail behavior include task-local
   operation maps when applicable
-- Operation maps name current source, target surface, inputs, outputs, errors,
-  side-effect owner, dirty/rollback behavior, and required verification
+- Operation maps name current source, target surface, required inputs, optional
+  inputs where applicable, missing or empty behavior, outputs, errors, explicit
+  write targets or side-effect owner, validation-before-write or
+  validation-order requirements, failure behavior, forbidden side effects,
+  dirty/rollback behavior, and required verification
 - Task-local contracts that are structurally present still fail when the
   implementer must infer missing policy, ownership, mappings, error behavior,
   guardrail outcomes, rollback or dirty-state behavior, or verification
@@ -988,14 +996,23 @@ to the user and let them decide whether to revise scope, provide missing
 authority, or stop. Do not offer execution handoff options while this review is
 failing or required inputs remain missing or unreadable.
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): A PASS hands off
-to the parent skill, which invokes `play-subagent-execution` per the Execution
-Handoff section below. A FAIL after 2 rounds stops and reports to the user.
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): Only a PASS from
+both Plan Review and Implementer Executability Review hands off to the parent
+skill, which invokes `play-subagent-execution` per the Execution Handoff
+section below. A FAIL after 2 rounds stops and reports to the user.
 `play-planning` itself does not start execution.
 
 ## Execution Handoff
 
-**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for an execution mode. Return after saving the plan so the parent skill can invoke `play-subagent-execution`. The parent skill receives the plan path from the `Plan written to <path>.` notice line emitted after the save and passes it to `play-subagent-execution` as `Plan: <path>`.
+**In `--auto` flows** (e.g., `github-issue-priming --auto`): do NOT prompt for
+an execution mode. Return after saving the plan so the parent skill can invoke
+`play-subagent-execution` only after both Plan Review and Implementer
+Executability Review have returned PASS. Failed, missing, or unreadable
+executability review blocks this return and must not be bypassed by
+parent-owned execution. The parent skill receives the plan path from the
+`Plan written to <path>.` notice line emitted after the save and passes it to
+`play-subagent-execution` as `Plan: <path>` only after both review gates have
+passed.
 
 **In review-response parent-owned handoffs**: This route is selected only when
 the invocation includes `Route: review-response-parent-owned`. When
@@ -1003,10 +1020,14 @@ the invocation includes `Route: review-response-parent-owned`. When
 `Route: review-response-parent-owned` and `Design: <path>` for structural
 planned review-response work, this route does not require `play-brainstorm` and
 is not an issue-priming `--auto` flow. Return after emitting
-`Plan written to <path>.` Do not prompt for an execution mode. In this route,
+`Plan written to <path>.` only after both Plan Review and Implementer
+Executability Review have returned PASS. Do not prompt for an execution mode.
+In this route, failed, missing, or unreadable executability review blocks the
+parent-owned return and cannot be bypassed by approval of the saved plan path.
 `play-review-response` owns presenting the generated plan for approval,
-capturing the approved plan path, and the implementation handoff; it must
-invoke `play-subagent-execution` only after approval with `Plan: <path>`.
+capturing the approved plan path, and the implementation handoff; it must invoke
+`play-subagent-execution` only after approval and after both planning review
+gates have passed with `Plan: <path>`.
 
 Otherwise, offer execution choice:
 
