@@ -54,9 +54,12 @@ mkdir -p .ephemeral
 [ ! -e "$PLAN_PATH" ] || [ -f "$PLAN_PATH" ] || { echo "plan path exists but is not a regular file: $PLAN_PATH" >&2; exit 1; }
 ```
 
-After writing, emit the literal line `Plan written to <repo-relative-path>.`
-to the conversation. This is the contract surface `play-subagent-execution`
-reads — do not reword it.
+After writing the plan artifact, keep the saved path in controller-local state
+while self-review, Plan Review, and Implementer Executability Review run. Emit
+the literal line `Plan written to <repo-relative-path>.` to the conversation
+only after the applicable review gates have passed and the plan is ready for
+the next handoff. This is the contract surface `play-subagent-execution` reads
+— do not reword it.
 
 After this notice, saved plan artifacts should not be re-inlined or restated in
 controller conversation by default. Carry the plan path, a short decision

@@ -183,6 +183,10 @@ describe("play subagent routing source contracts", () => {
       "single-task plans skip per-task review",
     );
     expect(normalizedPhase6).toContain(
+      "the two-gate `play-planning` return from Phase 5",
+    );
+    expect(normalizedPhase6).not.toContain("plan-review PASS from Phase 5");
+    expect(normalizedPhase6).toContain(
       'Phase 6 itself remains "invoke `play-subagent-execution`"',
     );
     expect(normalizedPhase6).toContain(

@@ -535,6 +535,7 @@ describe("existing skills source prose contracts", () => {
       "Implementer Executability Review",
     );
     const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedOverview = normalizeWhitespace(overview);
     const normalizedPlanningSelfReview =
       normalizeWhitespace(planningSelfReview);
     const normalizedPlanReview = normalizeWhitespace(planReview);
@@ -561,6 +562,15 @@ describe("existing skills source prose contracts", () => {
     expect(
       playPlanning.indexOf("## Implementer Executability Review"),
     ).toBeLessThan(playPlanning.indexOf("## Execution Handoff"));
+    expect(normalizedOverview).not.toContain(
+      "After writing, emit the literal line `Plan written to <repo-relative-path>.`",
+    );
+    expect(normalizedOverview).toContain(
+      "keep the saved path in controller-local state while self-review, Plan Review, and Implementer Executability Review run",
+    );
+    expect(normalizedOverview).toContain(
+      "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
+    );
 
     expect(normalizedImplementerContractSurface).toContain(
       "competent non-senior",
@@ -666,10 +676,24 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(normalizedPlanningSelfReview).toContain(prohibitedDetail);
       expect(normalizedPlanReview).toContain(prohibitedDetail);
+      expect(normalizedExecutabilityReview).toContain(prohibitedDetail);
     }
 
-    expect(normalizedTaskStructure).toContain("boundary contract");
-    expect(normalizedTaskStructure).toContain("operation mappings");
+    for (const allowedBoundaryContractDetail of [
+      "boundary contract names",
+      "public API surfaces",
+      "selector fields",
+      "summary fields",
+      "error families",
+      "operation mappings",
+    ]) {
+      expect(normalizedImplementerContractSurface).toContain(
+        allowedBoundaryContractDetail,
+      );
+      expect(normalizedExecutabilityReview).toContain(
+        allowedBoundaryContractDetail,
+      );
+    }
   });
 
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
