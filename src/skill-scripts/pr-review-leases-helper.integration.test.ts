@@ -2447,6 +2447,83 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
   );
 
   it(
+    "rejects row-inapplicable cleanup artifacts before trusting managed paths",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
+      );
+      try {
+        const file = await writeGatedLease(primary.cwd, review);
+        const approvedPath = approvedReviewPath(review.headSha);
+        const validatedPath = validatedPayloadPath(review.headSha);
+        const lease = await readJson(primary.cwd, file);
+        lease.artifacts.approved_review_file = approvedPath;
+        lease.artifacts.validated_payload_file = validatedPath;
+        await writeJson(primary.cwd, file, lease);
+        await writeFile(path.join(review.cwd, approvedPath), "{}\n");
+        await writeFile(path.join(review.cwd, validatedPath), "{}\n");
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "yes",
+            CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining(
+            "MESSAGE=invalid lease mechanics: lease schema mismatch:",
+          ),
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+        await expect(
+          readFile(path.join(review.cwd, approvedPath), "utf8"),
+        ).resolves.toBe("{}\n");
+        await expect(
+          readFile(path.join(review.cwd, validatedPath), "utf8"),
+        ).resolves.toBe("{}\n");
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "fails cleanup metadata writes before removing the worktree",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-",
+      );
+      try {
+        const file = await writeGatedLease(primary.cwd, review);
+
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "yes",
+            CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
+            REVIEW_LEASE_ENABLE_TEST_HOOKS: "yes",
+            REVIEW_LEASE_TEST_FAIL_CLEANUP_METADATA: "yes",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "test requested cleanup metadata failure",
+          ),
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+        await expect(
+          git(primary.cwd, "worktree", "list", "--porcelain"),
+        ).resolves.toContain(review.cwd);
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
     "classifies missing-lease residue when primary .ephemeral is absent",
     async () => {
       const { primary, review, parent } = await makeLinkedReviewWorkspace(

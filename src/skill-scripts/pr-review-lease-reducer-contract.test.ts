@@ -1195,6 +1195,78 @@ describe.skipIf(!jqAvailable)(
     );
 
     it(
+      "preserves frozen approval artifacts when a GitHub-post failure repeats",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await failedGithubPostLease(ctx);
+          await writeState(ctx, "failed", {
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            FAILURE_PHASE: "github-post",
+            FAILURE_REASON: "GitHub API rejected the retry",
+            FAILURE_RECOVERABILITY: "recoverable",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "failed",
+            UPDATED_AT: "2026-06-05T00:06:00Z",
+          });
+
+          expect(await readJson(ctx.primary.cwd, ctx.leaseFile)).toMatchObject({
+            state: "failed",
+            artifacts: {
+              result_file: resultPath(ctx.review.headSha),
+              approved_review_file: approvedReviewPath(ctx.review.headSha),
+              validated_payload_file: validatedPayloadPath(ctx.review.headSha),
+            },
+            failure: {
+              phase: "github-post",
+              reason: "GitHub API rejected the retry",
+            },
+            github: {
+              github_post_attempted: true,
+              github_post_result: "failed",
+              github_posted_at: null,
+            },
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
+      "rejects row-inapplicable approval artifacts on non-approval lease states",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await reviewedLease(ctx);
+          const lease = await readJson(ctx.primary.cwd, ctx.leaseFile);
+          lease.artifacts.approved_review_file = approvedReviewPath(
+            ctx.review.headSha,
+          );
+          lease.artifacts.validated_payload_file = validatedPayloadPath(
+            ctx.review.headSha,
+          );
+          await writeJson(ctx.primary.cwd, ctx.leaseFile, lease);
+
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "gated",
+              PRESENTED_AT: "2026-06-05T00:04:00Z",
+              PRESENTATION_STATUS: "preview-current",
+              UPDATED_AT: "2026-06-05T00:04:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("lease schema mismatch"),
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
       "does not archive a terminal lease until the fresh created lease validates",
       async () => {
         const ctx = await makeFixture();

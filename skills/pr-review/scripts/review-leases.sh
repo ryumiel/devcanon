@@ -716,6 +716,7 @@ validate_lease_schema() {
       if .state == "created" then
         .artifacts.result_file == null
         and .artifacts.approved_review_file == null
+        and .artifacts.validated_payload_file == null
         and .terminal.finished_at == null
         and .terminal.reason == null
         and .failure.phase == null
@@ -726,6 +727,8 @@ validate_lease_schema() {
         and .github.github_posted_at == null
       elif .state == "reviewed" then
         .artifacts.result_file != null
+        and .artifacts.approved_review_file == null
+        and .artifacts.validated_payload_file == null
         and .terminal.finished_at == null
         and .failure.phase == null
         and .github.github_post_attempted == false
@@ -733,6 +736,8 @@ validate_lease_schema() {
         and .github.github_posted_at == null
       elif .state == "gated" then
         .artifacts.result_file != null
+        and .artifacts.approved_review_file == null
+        and .artifacts.validated_payload_file == null
         and (.presentation.presented_at | timestamp)
         and one_of(["preview-current", "edited"]; .presentation.status)
         and .terminal.finished_at == null
@@ -749,6 +754,9 @@ validate_lease_schema() {
         and .github.github_post_result == "succeeded"
         and (.github.github_posted_at | timestamp)
       elif .state == "aborted" then
+        .artifacts.approved_review_file == null
+        and .artifacts.validated_payload_file == null
+        and
         (.terminal.finished_at | timestamp)
         and (.terminal.reason | single_line)
         and .failure.phase == null
@@ -760,6 +768,14 @@ validate_lease_schema() {
         and (.failure.phase != null)
         and (.failure.reason | single_line)
         and (.failure.recoverability != null)
+        and (
+          if .failure.phase == "approval-freeze" or .failure.phase == "github-post" then
+            true
+          else
+            .artifacts.approved_review_file == null
+            and .artifacts.validated_payload_file == null
+          end
+        )
         and (
           if .github.github_post_attempted == true then
             .github.github_post_result == "failed"
@@ -929,18 +945,23 @@ transition_id() {
   esac
 }
 
-require_retry_to_post_source() {
+require_github_post_failure_source() {
   local file="$1"
+  local transition="$2"
   local phase attempted result
   phase="$(jq_value "$file" 'if .failure.phase == null then "" else .failure.phase end')"
   attempted="$(jq_value "$file" '.github.github_post_attempted // false')"
   result="$(jq_value "$file" '.github.github_post_result // "not-attempted"')"
   [ "$phase" = "github-post" ] ||
-    fail "invalid lease transition: failed -> posted requires github-post failure"
+    fail "invalid lease transition: $transition requires github-post failure"
   [ "$attempted" = "true" ] ||
-    fail "invalid lease transition: failed -> posted requires attempted github post"
+    fail "invalid lease transition: $transition requires attempted github post"
   [ "$result" = "failed" ] ||
-    fail "invalid lease transition: failed -> posted requires failed github post result"
+    fail "invalid lease transition: $transition requires failed github post result"
+}
+
+require_retry_to_post_source() {
+  require_github_post_failure_source "$1" "failed -> posted"
 }
 
 terminal_archive_path_for() {
@@ -988,8 +1009,11 @@ require_reducer_input() {
 
 reject_github_post_failure_outside_gate() {
   local row="$1"
-  if [ "${FAILURE_PHASE:-}" = "github-post" ] && [ "$row" != "LC-13" ]; then
-    fail "github-post failure requires gated lease"
+  if [ "${FAILURE_PHASE:-}" = "github-post" ]; then
+    case "$row" in
+      LC-13 | LC-16) ;;
+      *) fail "github-post failure requires gated lease" ;;
+    esac
   fi
 }
 
@@ -1306,7 +1330,10 @@ write_lease() {
       if [ "$row_id" = "LC-12" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
         validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
-      elif [ "$row_id" = "LC-13" ]; then
+      elif [ "$row_id" = "LC-13" ] || { [ "$row_id" = "LC-16" ] && [ "$FAILURE_PHASE" = "github-post" ]; }; then
+        if [ "$row_id" = "LC-16" ]; then
+          require_github_post_failure_source "$existing_file" "failed -> failed"
+        fi
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
         validated_payload_value="$(validated_payload_value_for "$physical_path" "$approved_value" "$existing_validated_payload_value")"
         github_attempted_value="$(bool_json_or_default "${GITHUB_POST_ATTEMPTED:-}" "false")"
@@ -1872,6 +1899,10 @@ record_cleanup_metadata() {
   local checked_at tmp_file
 
   [ -f "$file" ] || return
+  if [ "${REVIEW_LEASE_ENABLE_TEST_HOOKS:-}" = "yes" ] &&
+    [ "${REVIEW_LEASE_TEST_FAIL_CLEANUP_METADATA:-}" = "yes" ]; then
+    fail "test requested cleanup metadata failure"
+  fi
   checked_at="$(current_utc_timestamp)"
   tmp_file="$(mktemp ".ephemeral/.lease-cleanup-${PR_NUMBER}.XXXXXX")" ||
     fail "failed to create cleanup temp file"
@@ -1919,15 +1950,15 @@ cleanup_worktree() {
   case "$cleanup_refusal_reason" in
     "")
       remove_status=0
+      if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
+        record_cleanup_metadata "$LEASE_FILE" "removed"
+      fi
       if [ "$cleanup_force_remove_allowed" = "yes" ]; then
         git worktree remove -f "$cleanup_physical_path" || remove_status=$?
       else
         git worktree remove "$cleanup_physical_path" || remove_status=$?
       fi
       if [ "$remove_status" -eq 0 ]; then
-        if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
-          record_cleanup_metadata "$LEASE_FILE" "removed"
-        fi
         cleanup_metadata_outcome="removed"
         printf 'OUTCOME=removed\n'
         print_cleanup_classifier_fields
