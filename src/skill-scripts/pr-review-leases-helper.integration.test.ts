@@ -290,6 +290,30 @@ function removeToken(worktreePath: string) {
   return `remove-pr-review-worktree-${prNumber}-${leaseDigest(worktreePath)}`;
 }
 
+function parseDecision(stdout: string) {
+  return Object.fromEntries(
+    stdout
+      .trimEnd()
+      .split("\n")
+      .filter((line) => line.includes("="))
+      .map((line) => {
+        const separator = line.indexOf("=");
+        return [line.slice(0, separator), line.slice(separator + 1)];
+      }),
+  );
+}
+
+function classifierFields(stdout: string) {
+  const decision = parseDecision(stdout);
+  return {
+    CAN_REMOVE: decision.CAN_REMOVE,
+    REFUSAL_REASON: decision.REFUSAL_REASON,
+    REQUIRES_CONFIRMATION: decision.REQUIRES_CONFIRMATION,
+    METADATA_OUTCOME: decision.METADATA_OUTCOME,
+    FORCE_REMOVE_ALLOWED: decision.FORCE_REMOVE_ALLOWED,
+  };
+}
+
 function slugBranch(branchName: string) {
   const slug = branchName
     .replaceAll("/", "-")
@@ -322,6 +346,10 @@ function resultPath(headSha: string) {
 
 function approvedReviewPath(headSha: string, branchName = "topic") {
   return `.ephemeral/${slugBranch(branchName)}-${headSha}-approved-review.json`;
+}
+
+function validatedPayloadPath(headSha: string) {
+  return `.ephemeral/pr-${prNumber}-${headSha}-validated-review-payload.json`;
 }
 
 function leaseHandoffArtifact(worktree: string, headSha: string) {
@@ -1399,6 +1427,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           handoff_file: null,
           result_file: resultPath(review.headSha),
           approved_review_file: approvedReviewPath(review.headSha),
+          validated_payload_file: null,
         },
         presentation: {
           presented_at: "2026-06-05T00:03:00Z",
@@ -1824,6 +1853,8 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           "LEASE_STATE=created",
           "IDENTITY_MATCH=yes",
           "REQUIRES_CONFIRMATION=yes",
+          "METADATA_OUTCOME=retained",
+          "FORCE_REMOVE_ALLOWED=no",
           "",
         ].join("\n"),
       });
@@ -1864,7 +1895,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout: "OUTCOME=retained\nMESSAGE=dirty worktree retained\n",
+        stdout: expect.stringContaining("MESSAGE=dirty worktree retained\n"),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
       await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
@@ -1896,7 +1927,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(standalone.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout: "OUTCOME=skipped\nMESSAGE=non-worktree path skipped\n",
+        stdout: expect.stringContaining("MESSAGE=non-worktree path skipped\n"),
       });
       await expect(pathExists(standalone.cwd)).resolves.toBe(true);
     } finally {
@@ -1934,8 +1965,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=untracked .ephemeral artifacts retained\n",
+        ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
       await expect(
@@ -2003,8 +2035,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=untracked .ephemeral artifacts retained\n",
+          ),
         });
         await expect(
           readFile(
@@ -2053,8 +2086,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=untracked .ephemeral artifacts retained\n",
+        ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
       await expect(
@@ -2099,7 +2133,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+        stdout: expect.stringContaining("MESSAGE=worktree removed\n"),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(false);
     } finally {
@@ -2136,7 +2170,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+        stdout: expect.stringContaining("MESSAGE=worktree removed\n"),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(false);
     } finally {
@@ -2180,8 +2214,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=untracked .ephemeral artifacts retained\n",
+        ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
     } finally {
@@ -2212,6 +2247,8 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           "LEASE_STATE=invalid",
           "IDENTITY_MATCH=no",
           "REQUIRES_CONFIRMATION=no",
+          "METADATA_OUTCOME=failed",
+          "FORCE_REMOVE_ALLOWED=no",
           "",
         ].join("\n"),
       });
@@ -2224,7 +2261,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         }),
       ).resolves.toMatchObject({
         stdout: expect.stringContaining(
-          "OUTCOME=failed\nMESSAGE=invalid lease mechanics: lease schema mismatch:",
+          "MESSAGE=invalid lease mechanics: lease schema mismatch:",
         ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
@@ -2242,7 +2279,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         }),
       ).resolves.toMatchObject({
         stdout: expect.stringContaining(
-          "OUTCOME=failed\nMESSAGE=invalid lease mechanics: updated_at is not a valid UTC timestamp",
+          "MESSAGE=invalid lease mechanics: updated_at is not a valid UTC timestamp",
         ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
@@ -2266,7 +2303,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         CONFIRM_REMOVE_TOKEN: "",
       });
       expect(result.stdout).toMatch(
-        /^OUTCOME=failed\nMESSAGE=invalid lease mechanics: [^\n]+\n$/u,
+        /^OUTCOME=cleanup\n(?:[A-Z_]+=.*\n)+MESSAGE=invalid lease mechanics: [^\n]+\n$/u,
       );
       expect(result.stdout).not.toContain("\njq:");
       await expect(pathExists(review.cwd)).resolves.toBe(true);
@@ -2292,8 +2329,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: "",
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=confirmation required for gated lease\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=confirmation required for gated lease\n",
+          ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
 
@@ -2305,8 +2343,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: "wrong-token",
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=confirmation token mismatch for gated lease\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=confirmation token mismatch for gated lease\n",
+          ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
 
@@ -2318,7 +2357,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
           }),
         ).resolves.toMatchObject({
-          stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+          stdout: expect.stringContaining("MESSAGE=worktree removed\n"),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(false);
         await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
@@ -2372,8 +2411,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: "",
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=untracked .ephemeral artifacts retained\n",
+          ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
         await expect(readFile(recoveryArtifact, "utf8")).resolves.toBe(
@@ -2414,8 +2454,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: removeToken(review.cwd),
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=untracked .ephemeral artifacts retained\n",
+          ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
       } finally {
@@ -2443,8 +2484,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: "",
         }),
       ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=confirmation required for missing lease\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=confirmation required for missing lease\n",
+        ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
 
@@ -2457,7 +2499,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: removeToken(second.review.cwd),
         }),
       ).resolves.toMatchObject({
-        stdout: "OUTCOME=retained\nMESSAGE=lease identity mismatch retained\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=lease identity mismatch retained\n",
+        ),
       });
       await expect(pathExists(second.review.cwd)).resolves.toBe(true);
     } finally {
@@ -2492,6 +2536,8 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           "LEASE_STATE=invalid",
           "IDENTITY_MATCH=no",
           "REQUIRES_CONFIRMATION=no",
+          "METADATA_OUTCOME=failed",
+          "FORCE_REMOVE_ALLOWED=no",
           "",
         ].join("\n"),
       });
@@ -2504,7 +2550,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         }),
       ).resolves.toMatchObject({
         stdout: expect.stringContaining(
-          "OUTCOME=failed\nMESSAGE=invalid lease mechanics: lease schema mismatch:",
+          "MESSAGE=invalid lease mechanics: lease schema mismatch:",
         ),
       });
       await expect(pathExists(review.cwd)).resolves.toBe(true);
@@ -2663,8 +2709,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           CONFIRM_REMOVE_TOKEN: "",
         }),
       ).resolves.toMatchObject({
-        stdout:
-          "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+        stdout: expect.stringContaining(
+          "MESSAGE=untracked .ephemeral artifacts retained\n",
+        ),
       });
       await expect(
         readFile(path.join(review.cwd, resultPath(review.headSha)), "utf8"),
@@ -3445,7 +3492,137 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: "",
           }),
         ).resolves.toMatchObject({
-          stdout: "OUTCOME=removed\nMESSAGE=worktree removed\n",
+          stdout: expect.stringContaining("MESSAGE=worktree removed\n"),
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(false);
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    extraLongTestTimeout,
+  );
+
+  it(
+    "exposes identical inspect and cleanup classifier fields before cleanup side effects",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-cleanup-parity-",
+      );
+      try {
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        const inspect = await runLeaseHelper(primary.cwd, "inspect-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          EXPECTED_STATE: "created",
+        });
+        const cleanup = await runLeaseHelper(primary.cwd, "cleanup-worktree", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          EXPECTED_STATE: "created",
+          ALLOW_POLICY_OVERRIDE: "no",
+          CONFIRM_REMOVE_TOKEN: "",
+        });
+
+        expect(classifierFields(cleanup.stdout)).toEqual(
+          classifierFields(inspect.stdout),
+        );
+        expect(parseDecision(cleanup.stdout)).toMatchObject({
+          CAN_REMOVE: "no",
+          REFUSAL_REASON: "confirmation-required",
+          METADATA_OUTCOME: "retained",
+          FORCE_REMOVE_ALLOWED: "no",
+        });
+        await expect(pathExists(review.cwd)).resolves.toBe(true);
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
+
+  it(
+    "records managed validated payload copies and rejects stale-session payload attachments",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-validated-payload-",
+      );
+      try {
+        const { branchName } = await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
+        );
+        const approved = await readJson(review.cwd, approvedPath);
+        const validatedPath = validatedPayloadPath(review.headSha);
+        await writeJson(review.cwd, validatedPath, approved.payload);
+
+        const staleValidatedPath = validatedPayloadPath("0".repeat(40));
+        await writeJson(review.cwd, staleValidatedPath, approved.payload);
+
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "reviewed",
+          RESULT_FILE: resultPath(review.headSha),
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            STATE: "posted",
+            APPROVED_REVIEW_FILE: approvedPath,
+            VALIDATED_REVIEW_PAYLOAD_FILE: staleValidatedPath,
+            FINISHED_AT: "2026-06-05T00:04:00Z",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "succeeded",
+            GITHUB_POSTED_AT: "2026-06-05T00:04:00Z",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("validated payload path mismatch"),
+        });
+
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          STATE: "posted",
+          APPROVED_REVIEW_FILE: approvedPath,
+          VALIDATED_REVIEW_PAYLOAD_FILE: validatedPath,
+          FINISHED_AT: "2026-06-05T00:04:00Z",
+          GITHUB_POST_ATTEMPTED: "true",
+          GITHUB_POST_RESULT: "succeeded",
+          GITHUB_POSTED_AT: "2026-06-05T00:04:00Z",
+        });
+
+        await expect(readJson(primary.cwd, file)).resolves.toMatchObject({
+          artifacts: {
+            approved_review_file: approvedPath,
+            validated_payload_file: validatedPath,
+          },
+        });
+        await rm(path.join(review.cwd, staleValidatedPath));
+        await expect(
+          runLeaseHelper(primary.cwd, "cleanup-worktree", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            ALLOW_POLICY_OVERRIDE: "no",
+            CONFIRM_REMOVE_TOKEN: "",
+          }),
+        ).resolves.toMatchObject({
+          stdout: expect.stringContaining("MESSAGE=worktree removed\n"),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(false);
       } finally {
@@ -3520,8 +3697,9 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
             CONFIRM_REMOVE_TOKEN: "",
           }),
         ).resolves.toMatchObject({
-          stdout:
-            "OUTCOME=retained\nMESSAGE=untracked .ephemeral artifacts retained\n",
+          stdout: expect.stringContaining(
+            "MESSAGE=untracked .ephemeral artifacts retained\n",
+          ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);
       } finally {
@@ -3607,7 +3785,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           }),
         ).resolves.toMatchObject({
           stdout: expect.stringContaining(
-            "OUTCOME=failed\nMESSAGE=invalid lease mechanics: result file missing or not a regular file",
+            "MESSAGE=invalid lease mechanics: result file missing or not a regular file",
           ),
         });
         await expect(pathExists(review.cwd)).resolves.toBe(true);

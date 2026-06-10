@@ -1223,5 +1223,83 @@ describe.skipIf(!jqAvailable)(
       },
       reducerFixtureTimeout,
     );
+
+    it(
+      "leaves the prior terminal lease active when LC-18 archive preparation fails",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await gatedLease(ctx);
+          await writeState(ctx, "posted", {
+            APPROVED_REVIEW_FILE: approvedReviewPath(ctx.review.headSha),
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            GITHUB_POSTED_AT: "2026-06-05T00:06:00Z",
+            UPDATED_AT: "2026-06-05T00:06:00Z",
+          });
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "created",
+              REVIEW_LEASE_TEST_FAIL_ARCHIVE_PREPARATION: "yes",
+              UPDATED_AT: "2026-06-05T00:08:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "test requested archive preparation failure",
+            ),
+          });
+
+          expect(await readJson(ctx.primary.cwd, ctx.leaseFile)).toMatchObject({
+            state: "posted",
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
+      "keeps the terminal archive discoverable when LC-18 active lease write fails after archive",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await gatedLease(ctx);
+          await writeState(ctx, "aborted", {
+            FINISHED_AT: "2026-06-05T00:06:00Z",
+            TERMINAL_REASON: "User aborted",
+            UPDATED_AT: "2026-06-05T00:06:00Z",
+          });
+
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "created",
+              REVIEW_LEASE_TEST_FAIL_ACTIVE_WRITE_AFTER_ARCHIVE: "yes",
+              UPDATED_AT: "2026-06-05T00:08:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "test requested active lease write failure after archive",
+            ),
+          });
+
+          await expect(
+            readFile(path.join(ctx.primary.cwd, ctx.leaseFile), "utf8"),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+          const archived = await readdir(
+            path.join(ctx.primary.cwd, ".ephemeral"),
+          );
+          const archivedLeases = archived.filter((entry) =>
+            entry.endsWith("-aborted-archived-lease.json"),
+          );
+          expect(archivedLeases).toHaveLength(1);
+          expect(
+            await readJson(ctx.primary.cwd, `.ephemeral/${archivedLeases[0]}`),
+          ).toMatchObject({ state: "aborted" });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
   },
 );

@@ -466,6 +466,25 @@ validate_approved_review_result_binding() {
   done
 }
 
+expected_validated_payload_path_for() {
+  local review_head_sha="$1"
+  printf '.ephemeral/pr-%s-%s-validated-review-payload.json\n' "$PR_NUMBER" "$review_head_sha"
+}
+
+validate_validated_payload_artifact() {
+  local worktree="$1"
+  local file="$2"
+  local approved_file="$3"
+  local review_head_sha expected
+  validate_direct_child_path "validated payload" "$file" "-validated-review-payload.json"
+  assert_worktree_readable_file "validated payload file" "$worktree" "$file"
+  review_head_sha="$(artifact_head_sha "$worktree" "$approved_file" '.review_head_sha')"
+  expected="$(expected_validated_payload_path_for "$review_head_sha")"
+  [ "$file" = "$expected" ] || fail "validated payload path mismatch"
+  jq -e --slurpfile payload "$worktree/$file" '.payload == $payload[0]' "$worktree/$approved_file" >/dev/null ||
+    fail "validated payload approved-review mismatch"
+}
+
 validate_handoff_artifact() {
   local worktree="$1"
   local file="$2"
@@ -628,10 +647,11 @@ validate_lease_schema() {
       ] | sort))
     )
     and (.artifacts | type == "object")
-    and ((.artifacts | keys_unsorted | sort) == (["handoff_file", "result_file", "approved_review_file"] | sort))
+    and ((.artifacts | keys_unsorted | sort) == (["handoff_file", "result_file", "approved_review_file", "validated_payload_file"] | sort))
     and (.artifacts.handoff_file | optional_direct_ephemeral_path("-handoff.json"))
     and (.artifacts.result_file | optional_direct_ephemeral_path("-result.json"))
     and (.artifacts.approved_review_file | optional_direct_ephemeral_path("-approved-review.json"))
+    and (.artifacts.validated_payload_file | optional_direct_ephemeral_path("-validated-review-payload.json"))
     and (.presentation | type == "object")
     and ((.presentation | keys_unsorted | sort) == (["presented_at", "status"] | sort))
     and (.presentation.presented_at | optional_timestamp)
@@ -764,7 +784,7 @@ validate_lease_identity() {
 validate_referenced_artifacts() {
   local file="$1"
   local physical_path="$2"
-  local state base_ref head_ref failure_phase handoff_file result_file approved_review_file
+  local state base_ref head_ref failure_phase handoff_file result_file approved_review_file validated_payload_file
   state="$(jq_value "$file" '.state')"
   base_ref="$(jq_value "$file" '.base_ref')"
   head_ref="$(jq_value "$file" '.head_ref')"
@@ -772,6 +792,7 @@ validate_referenced_artifacts() {
   handoff_file="$(jq_value "$file" 'if .artifacts.handoff_file == null then "" else .artifacts.handoff_file end')"
   result_file="$(jq_value "$file" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
   approved_review_file="$(jq_value "$file" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
+  validated_payload_file="$(jq_value "$file" 'if .artifacts.validated_payload_file == null then "" else .artifacts.validated_payload_file end')"
 
   if [ -n "$handoff_file" ]; then
     validate_direct_child_path "handoff" "$handoff_file" "-handoff.json"
@@ -781,6 +802,9 @@ validate_referenced_artifacts() {
   fi
   if [ -n "$approved_review_file" ]; then
     validate_direct_child_path "approved review" "$approved_review_file" "-approved-review.json"
+  fi
+  if [ -n "$validated_payload_file" ]; then
+    validate_direct_child_path "validated payload" "$validated_payload_file" "-validated-review-payload.json"
   fi
 
   if [ -n "$handoff_file" ]; then
@@ -813,6 +837,10 @@ validate_referenced_artifacts() {
       LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
         validate_approved_review_artifact "$physical_path" "$approved_review_file" "$base_ref" "$result_file"
     fi
+  fi
+  if [ -n "$validated_payload_file" ]; then
+    [ -n "$approved_review_file" ] || fail "validated payload requires approved-review artifact"
+    validate_validated_payload_artifact "$physical_path" "$validated_payload_file" "$approved_review_file"
   fi
 }
 
@@ -963,6 +991,8 @@ write_lease_json() {
     printf '\n'
     base64_value "$approved_value"
     printf '\n'
+    base64_value "$validated_payload_value"
+    printf '\n'
     base64_value "$presented_at_value"
     printf '\n'
     base64_value "$presentation_status_value"
@@ -1001,25 +1031,26 @@ write_lease_json() {
       artifacts: {
         handoff_file: nullable($values[11]),
         result_file: nullable($values[12]),
-        approved_review_file: nullable($values[13])
+        approved_review_file: nullable($values[13]),
+        validated_payload_file: nullable($values[14])
       },
       presentation: {
-        presented_at: nullable($values[14]),
-        status: nullable($values[15])
+        presented_at: nullable($values[15]),
+        status: nullable($values[16])
       },
       terminal: {
-        finished_at: nullable($values[16]),
-        reason: nullable($values[17])
+        finished_at: nullable($values[17]),
+        reason: nullable($values[18])
       },
       failure: {
-        phase: nullable($values[18]),
-        reason: nullable($values[19]),
-        recoverability: nullable($values[20])
+        phase: nullable($values[19]),
+        reason: nullable($values[20]),
+        recoverability: nullable($values[21])
       },
       github: {
-        github_post_attempted: ($values[21] == "true"),
-        github_post_result: $values[22],
-        github_posted_at: nullable($values[23])
+        github_post_attempted: ($values[22] == "true"),
+        github_post_result: $values[23],
+        github_posted_at: nullable($values[24])
       }
     }' >"$output_file"
 }
@@ -1028,11 +1059,11 @@ write_lease() {
   local physical_path digest tmp_file existing_file previous_state
   local row_id archived_terminal_state stamp archive_path
   local base_ref_value head_ref_value
-  local created_at_value updated_at_value handoff_value result_value approved_value
+  local created_at_value updated_at_value handoff_value result_value approved_value validated_payload_value
   local presented_at_value presentation_status_value finished_at_value terminal_reason_value
   local failure_phase_value failure_reason_value failure_recoverability_value
   local github_attempted_value github_result_value github_posted_at_value
-  local existing_handoff_value existing_result_value existing_approved_value
+  local existing_handoff_value existing_result_value existing_approved_value existing_validated_payload_value
   local existing_presented_at existing_presentation_status
   local existing_finished_at existing_failure_phase existing_failure_reason
   local existing_failure_recoverability existing_github_attempted existing_github_result
@@ -1115,6 +1146,7 @@ write_lease() {
   existing_handoff_value="$(existing_field "$existing_file" 'if .artifacts.handoff_file == null then "" else .artifacts.handoff_file end' "")"
   existing_result_value="$(existing_field "$existing_file" 'if .artifacts.result_file == null then "" else .artifacts.result_file end' "")"
   existing_approved_value="$(existing_field "$existing_file" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end' "")"
+  existing_validated_payload_value="$(existing_field "$existing_file" 'if .artifacts.validated_payload_file == null then "" else .artifacts.validated_payload_file end' "")"
   existing_presented_at="$(existing_field "$existing_file" 'if .presentation.presented_at == null then "" else .presentation.presented_at end' "")"
   existing_presentation_status="$(existing_field "$existing_file" 'if .presentation.status == null then "" else .presentation.status end' "")"
   existing_finished_at="$(existing_field "$existing_file" 'if .terminal.finished_at == null then "" else .terminal.finished_at end' "")"
@@ -1127,6 +1159,7 @@ write_lease() {
   handoff_value=""
   result_value=""
   approved_value=""
+  validated_payload_value=""
   presented_at_value=""
   presentation_status_value=""
   finished_at_value=""
@@ -1203,6 +1236,7 @@ write_lease() {
       handoff_value="$existing_handoff_value"
       result_value="$existing_result_value"
       approved_value="$APPROVED_REVIEW_FILE"
+      validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-}}"
       presented_at_value="$existing_presented_at"
       presentation_status_value="$existing_presentation_status"
       finished_at_value="$FINISHED_AT"
@@ -1238,8 +1272,10 @@ write_lease() {
       esac
       if [ "$row_id" = "LC-12" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
+        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
       elif [ "$row_id" = "LC-13" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
+        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
         github_attempted_value="$(bool_json_or_default "${GITHUB_POST_ATTEMPTED:-}" "false")"
         github_result_value="${GITHUB_POST_RESULT:-not-attempted}"
         [ "$github_attempted_value" = "true" ] || fail "GITHUB_POST_ATTEMPTED must be true for github-post failure"
@@ -1247,10 +1283,12 @@ write_lease() {
         [ -n "$approved_value" ] || fail "APPROVED_REVIEW_FILE is required for github-post failure"
       elif [ "$row_id" = "LC-16" ] && [ "$FAILURE_PHASE" = "approval-freeze" ]; then
         approved_value="${APPROVED_REVIEW_FILE:-$existing_approved_value}"
+        validated_payload_value="${VALIDATED_REVIEW_PAYLOAD_FILE:-${VALIDATED_PAYLOAD_FILE:-$existing_validated_payload_value}}"
       fi
       if [ "$row_id" = "LC-16" ] &&
         [ "$result_value" = "$existing_result_value" ] &&
         [ "$approved_value" = "$existing_approved_value" ] &&
+        [ "$validated_payload_value" = "$existing_validated_payload_value" ] &&
         [ "$FINISHED_AT" = "$existing_finished_at" ] &&
         [ "$FAILURE_PHASE" = "$existing_failure_phase" ] &&
         [ "$FAILURE_REASON" = "$existing_failure_reason" ] &&
@@ -1281,6 +1319,7 @@ write_lease() {
       handoff_value="$existing_handoff_value"
       result_value="$existing_result_value"
       approved_value="$existing_approved_value"
+      validated_payload_value="$existing_validated_payload_value"
       presented_at_value="$existing_presented_at"
       presentation_status_value="$existing_presentation_status"
       finished_at_value="$FINISHED_AT"
@@ -1304,6 +1343,9 @@ write_lease() {
   fi
   if [ -n "$approved_value" ]; then
     validate_direct_child_path "approved review" "$approved_value" "-approved-review.json"
+  fi
+  if [ -n "$validated_payload_value" ]; then
+    validate_direct_child_path "validated payload" "$validated_payload_value" "-validated-review-payload.json"
   fi
 
   if [ -n "$result_value" ]; then
@@ -1334,8 +1376,14 @@ write_lease() {
   validate_lease_identity "$tmp_file" "$physical_path"
   validate_referenced_artifacts "$tmp_file" "$physical_path"
   if [ -n "$archived_terminal_state" ]; then
+    if [ "${REVIEW_LEASE_TEST_FAIL_ARCHIVE_PREPARATION:-}" = "yes" ]; then
+      fail "test requested archive preparation failure"
+    fi
     prepare_write_target "archived lease" "$archive_path"
     mv "$LEASE_FILE" "$archive_path"
+    if [ "${REVIEW_LEASE_TEST_FAIL_ACTIVE_WRITE_AFTER_ARCHIVE:-}" = "yes" ]; then
+      fail "test requested active lease write failure after archive"
+    fi
   fi
   mv -f "$tmp_file" "$LEASE_FILE"
   trap - EXIT
@@ -1482,7 +1530,7 @@ append_managed_ephemeral_paths_from_json() {
 collect_managed_ephemeral_paths() {
   local worktree="$1"
   local allowed_file="$2"
-  local handoff_file result_file approved_review_file referenced_file snapshot_file
+  local handoff_file result_file approved_review_file validated_payload_file referenced_file snapshot_file
   : >"$allowed_file"
   if [ "$cleanup_lease_exists" != "yes" ] || [ "$cleanup_identity_match" != "yes" ]; then
     return
@@ -1490,9 +1538,11 @@ collect_managed_ephemeral_paths() {
   handoff_file="$(jq_value "$LEASE_FILE" 'if .artifacts.handoff_file == null then "" else .artifacts.handoff_file end')"
   result_file="$(jq_value "$LEASE_FILE" 'if .artifacts.result_file == null then "" else .artifacts.result_file end')"
   approved_review_file="$(jq_value "$LEASE_FILE" 'if .artifacts.approved_review_file == null then "" else .artifacts.approved_review_file end')"
+  validated_payload_file="$(jq_value "$LEASE_FILE" 'if .artifacts.validated_payload_file == null then "" else .artifacts.validated_payload_file end')"
   append_managed_ephemeral_paths_from_json "$worktree" "$handoff_file" "$allowed_file"
   append_managed_ephemeral_paths_from_json "$worktree" "$result_file" "$allowed_file"
   append_managed_ephemeral_paths_from_json "$worktree" "$approved_review_file" "$allowed_file"
+  append_managed_ephemeral_paths_from_json "$worktree" "$validated_payload_file" "$allowed_file"
   prepare_ephemeral_temp_dir
   snapshot_file="$(mktemp ".ephemeral/.lease-managed-snapshot-${PR_NUMBER}.XXXXXX")" ||
     fail "failed to create managed artifact snapshot"
@@ -1686,6 +1736,103 @@ cleanup_refusal_message() {
   esac
 }
 
+classify_cleanup() {
+  local physical_path primary_path digest expected_path registered
+
+  cleanup_physical_path="$(cleanup_target_physical_path)"
+  primary_path="$(primary_repo_physical_path)"
+
+  cleanup_refusal_reason=""
+  cleanup_can_remove="no"
+  cleanup_dirty="no"
+  cleanup_untracked_ephemeral="no"
+  cleanup_metadata_outcome=""
+  cleanup_force_remove_allowed="no"
+
+  if ! load_cleanup_lease_facts "$cleanup_physical_path"; then
+    cleanup_refusal_reason="invalid-lease"
+    cleanup_lease_state="invalid"
+    cleanup_identity_match="no"
+  fi
+
+  registered="no"
+  if [ -z "$cleanup_physical_path" ]; then
+    cleanup_refusal_reason="missing-worktree"
+  elif [ "$cleanup_physical_path" = "$primary_path" ]; then
+    cleanup_refusal_reason="primary-worktree"
+  elif [ -n "$cleanup_refusal_reason" ]; then
+    :
+  elif is_registered_worktree "$cleanup_physical_path"; then
+    registered="yes"
+    cleanup_dirty="$(worktree_dirty_status "$cleanup_physical_path")"
+    cleanup_untracked_ephemeral="$(worktree_untracked_ephemeral_status "$cleanup_physical_path")"
+  else
+    cleanup_refusal_reason="non-worktree"
+  fi
+
+  if [ -z "$cleanup_refusal_reason" ]; then
+    digest="$(worktree_digest_for "$cleanup_physical_path")"
+    expected_path="$(expected_lease_path_for "$PR_NUMBER" "$digest")"
+    if [ "$cleanup_lease_exists" = "no" ] && [ "$LEASE_FILE" != "$expected_path" ]; then
+      cleanup_refusal_reason="identity-mismatch"
+    elif [ "$cleanup_dirty" = "yes" ]; then
+      cleanup_refusal_reason="dirty"
+    elif [ "$cleanup_untracked_ephemeral" = "yes" ]; then
+      cleanup_refusal_reason="untracked-artifacts"
+    elif [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" != "yes" ]; then
+      cleanup_refusal_reason="identity-mismatch"
+    elif [ -n "${EXPECTED_STATE:-}" ] && [ "$cleanup_lease_state" != "$EXPECTED_STATE" ]; then
+      cleanup_refusal_reason="expected-state-mismatch"
+    fi
+  fi
+
+  cleanup_requires_confirmation_value="$(cleanup_requires_confirmation "$cleanup_lease_state" "$cleanup_recoverability")"
+  if [ -z "$cleanup_refusal_reason" ]; then
+    if [ "$cleanup_requires_confirmation_value" = "yes" ]; then
+      if [ "${ALLOW_POLICY_OVERRIDE:-no}" != "yes" ]; then
+        cleanup_refusal_reason="confirmation-required"
+      else
+        expected_token="$(cleanup_expected_token "$(worktree_digest_for "$cleanup_physical_path")")"
+        if [ "${CONFIRM_REMOVE_TOKEN:-}" != "$expected_token" ]; then
+          cleanup_refusal_reason="confirmation-token-mismatch"
+        fi
+      fi
+    fi
+  fi
+
+  case "$cleanup_refusal_reason" in
+    "")
+      cleanup_can_remove="yes"
+      cleanup_metadata_outcome="removed"
+      if worktree_has_ephemeral_residue "$cleanup_physical_path"; then
+        cleanup_force_remove_allowed="yes"
+      fi
+      ;;
+    dirty | identity-mismatch | confirmation-required | confirmation-token-mismatch | expected-state-mismatch | primary-worktree | untracked-artifacts)
+      cleanup_metadata_outcome="retained"
+      ;;
+    invalid-lease)
+      cleanup_metadata_outcome="failed"
+      ;;
+    non-worktree | missing-worktree)
+      cleanup_metadata_outcome="skipped"
+      ;;
+  esac
+}
+
+print_cleanup_decision() {
+  local outcome="$1"
+  printf 'OUTCOME=%s\n' "$outcome"
+  printf 'CAN_REMOVE=%s\n' "$cleanup_can_remove"
+  printf 'REFUSAL_REASON=%s\n' "$cleanup_refusal_reason"
+  printf 'DIRTY=%s\n' "$cleanup_dirty"
+  printf 'LEASE_STATE=%s\n' "$cleanup_lease_state"
+  printf 'IDENTITY_MATCH=%s\n' "$cleanup_identity_match"
+  printf 'REQUIRES_CONFIRMATION=%s\n' "$cleanup_requires_confirmation_value"
+  printf 'METADATA_OUTCOME=%s\n' "$cleanup_metadata_outcome"
+  printf 'FORCE_REMOVE_ALLOWED=%s\n' "$cleanup_force_remove_allowed"
+}
+
 record_cleanup_metadata() {
   local file="$1"
   local outcome="$2"
@@ -1710,90 +1857,22 @@ record_cleanup_metadata() {
 }
 
 cleanup_inspection() {
-  local physical_path primary_path digest expected_path registered dirty requires_confirmation
-  local refusal_reason can_remove metadata_outcome untracked_ephemeral
-
   require_repo_root
   require_jq
   validate_repository
   validate_pr_number
   require_env LEASE_FILE
-  physical_path="$(cleanup_target_physical_path)"
-  primary_path="$(primary_repo_physical_path)"
-
-  if ! load_cleanup_lease_facts "$physical_path"; then
-    refusal_reason="invalid-lease"
-    cleanup_lease_state="invalid"
-    cleanup_identity_match="no"
-  else
-    refusal_reason=""
-  fi
-
-  registered="no"
-  dirty="no"
-  untracked_ephemeral="no"
-  if [ -z "$physical_path" ]; then
-    refusal_reason="missing-worktree"
-  elif [ "$physical_path" = "$primary_path" ]; then
-    refusal_reason="primary-worktree"
-  elif [ -n "$refusal_reason" ]; then
-    :
-  elif is_registered_worktree "$physical_path"; then
-    registered="yes"
-    dirty="$(worktree_dirty_status "$physical_path")"
-    untracked_ephemeral="$(worktree_untracked_ephemeral_status "$physical_path")"
-  else
-    refusal_reason="non-worktree"
-  fi
-
-  if [ -z "$refusal_reason" ]; then
-    digest="$(worktree_digest_for "$physical_path")"
-    expected_path="$(expected_lease_path_for "$PR_NUMBER" "$digest")"
-    if [ "$cleanup_lease_exists" = "no" ] && [ "$LEASE_FILE" != "$expected_path" ]; then
-      refusal_reason="identity-mismatch"
-    elif [ "$dirty" = "yes" ]; then
-      refusal_reason="dirty"
-    elif [ "$untracked_ephemeral" = "yes" ]; then
-      refusal_reason="untracked-artifacts"
-    elif [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" != "yes" ]; then
-      refusal_reason="identity-mismatch"
-    elif [ -n "${EXPECTED_STATE:-}" ] && [ "$cleanup_lease_state" != "$EXPECTED_STATE" ]; then
-      refusal_reason="expected-state-mismatch"
-    fi
-  fi
-
-  requires_confirmation="$(cleanup_requires_confirmation "$cleanup_lease_state" "$cleanup_recoverability")"
-  can_remove="no"
-  if [ -z "$refusal_reason" ]; then
-    if [ "$requires_confirmation" = "yes" ]; then
-      refusal_reason="confirmation-required"
-    else
-      can_remove="yes"
-    fi
-  fi
-
-  metadata_outcome=""
-  case "$refusal_reason" in
-    dirty | identity-mismatch | confirmation-required | expected-state-mismatch | primary-worktree | untracked-artifacts) metadata_outcome="retained" ;;
-    invalid-lease) metadata_outcome="failed" ;;
-    non-worktree | missing-worktree) metadata_outcome="skipped" ;;
-  esac
+  ALLOW_POLICY_OVERRIDE="${ALLOW_POLICY_OVERRIDE:-no}"
+  validate_yes_no ALLOW_POLICY_OVERRIDE "$ALLOW_POLICY_OVERRIDE"
+  classify_cleanup
   if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
-    record_cleanup_metadata "$LEASE_FILE" "$metadata_outcome"
+    record_cleanup_metadata "$LEASE_FILE" ""
   fi
-
-  printf 'OUTCOME=inspect\n'
-  printf 'CAN_REMOVE=%s\n' "$can_remove"
-  printf 'REFUSAL_REASON=%s\n' "$refusal_reason"
-  printf 'DIRTY=%s\n' "$dirty"
-  printf 'LEASE_STATE=%s\n' "$cleanup_lease_state"
-  printf 'IDENTITY_MATCH=%s\n' "$cleanup_identity_match"
-  printf 'REQUIRES_CONFIRMATION=%s\n' "$requires_confirmation"
+  print_cleanup_decision "inspect"
 }
 
 cleanup_worktree() {
-  local physical_path primary_path digest expected_path dirty requires_confirmation
-  local refusal_reason message expected_token untracked_ephemeral remove_status
+  local message remove_status
 
   require_repo_root
   require_jq
@@ -1802,85 +1881,31 @@ cleanup_worktree() {
   require_env LEASE_FILE
   require_env ALLOW_POLICY_OVERRIDE
   validate_yes_no ALLOW_POLICY_OVERRIDE "$ALLOW_POLICY_OVERRIDE"
-  physical_path="$(cleanup_target_physical_path)"
-  primary_path="$(primary_repo_physical_path)"
-
-  if ! load_cleanup_lease_facts "$physical_path"; then
-    refusal_reason="invalid-lease"
-    cleanup_lease_state="invalid"
-    cleanup_identity_match="no"
-  else
-    refusal_reason=""
-  fi
-
-  dirty="no"
-  untracked_ephemeral="no"
-  if [ -z "$physical_path" ]; then
-    refusal_reason="missing-worktree"
-  elif [ "$physical_path" = "$primary_path" ]; then
-    refusal_reason="primary-worktree"
-  elif [ -n "$refusal_reason" ]; then
-    :
-  elif is_registered_worktree "$physical_path"; then
-    dirty="$(worktree_dirty_status "$physical_path")"
-    untracked_ephemeral="$(worktree_untracked_ephemeral_status "$physical_path")"
-  else
-    refusal_reason="non-worktree"
-  fi
-
-  if [ -z "$refusal_reason" ]; then
-    digest="$(worktree_digest_for "$physical_path")"
-    expected_path="$(expected_lease_path_for "$PR_NUMBER" "$digest")"
-    if [ "$cleanup_lease_exists" = "no" ] && [ "$LEASE_FILE" != "$expected_path" ]; then
-      refusal_reason="identity-mismatch"
-    elif [ "$dirty" = "yes" ]; then
-      refusal_reason="dirty"
-    elif [ "$untracked_ephemeral" = "yes" ]; then
-      refusal_reason="untracked-artifacts"
-    elif [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" != "yes" ]; then
-      refusal_reason="identity-mismatch"
-    elif [ -n "${EXPECTED_STATE:-}" ] && [ "$cleanup_lease_state" != "$EXPECTED_STATE" ]; then
-      refusal_reason="expected-state-mismatch"
-    fi
-  fi
-
-  requires_confirmation="$(cleanup_requires_confirmation "$cleanup_lease_state" "$cleanup_recoverability")"
-  if [ -z "$refusal_reason" ] && [ "$requires_confirmation" = "yes" ]; then
-    if [ "$ALLOW_POLICY_OVERRIDE" != "yes" ]; then
-      refusal_reason="confirmation-required"
-    else
-      expected_token="$(cleanup_expected_token "$(worktree_digest_for "$physical_path")")"
-      if [ "${CONFIRM_REMOVE_TOKEN:-}" != "$expected_token" ]; then
-        refusal_reason="confirmation-token-mismatch"
-      fi
-    fi
-  fi
-  case "$refusal_reason" in
+  classify_cleanup
+  print_cleanup_decision "cleanup"
+  case "$cleanup_refusal_reason" in
     "")
       remove_status=0
-      if worktree_has_ephemeral_residue "$physical_path"; then
-        git worktree remove -f "$physical_path" || remove_status=$?
+      if [ "$cleanup_force_remove_allowed" = "yes" ]; then
+        git worktree remove -f "$cleanup_physical_path" || remove_status=$?
       else
-        git worktree remove "$physical_path" || remove_status=$?
+        git worktree remove "$cleanup_physical_path" || remove_status=$?
       fi
       if [ "$remove_status" -eq 0 ]; then
         if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
           record_cleanup_metadata "$LEASE_FILE" "removed"
         fi
-        printf 'OUTCOME=removed\n'
-        printf 'MESSAGE=worktree removed\n'
-        return 0
+      printf 'MESSAGE=worktree removed\n'
+      return 0
       fi
       if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
         record_cleanup_metadata "$LEASE_FILE" "failed"
       fi
-      printf 'OUTCOME=failed\n'
       printf 'MESSAGE=git worktree remove failed\n'
       return 1
       ;;
     invalid-lease)
-      message="$(cleanup_refusal_message "$refusal_reason" "$cleanup_lease_state")"
-      printf 'OUTCOME=failed\n'
+      message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;
@@ -1888,8 +1913,7 @@ cleanup_worktree() {
       if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
         record_cleanup_metadata "$LEASE_FILE" "skipped"
       fi
-      message="$(cleanup_refusal_message "$refusal_reason" "$cleanup_lease_state")"
-      printf 'OUTCOME=skipped\n'
+      message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;
@@ -1897,8 +1921,7 @@ cleanup_worktree() {
       if [ "$cleanup_lease_exists" = "yes" ] && [ "$cleanup_identity_match" = "yes" ]; then
         record_cleanup_metadata "$LEASE_FILE" "retained"
       fi
-      message="$(cleanup_refusal_message "$refusal_reason" "$cleanup_lease_state")"
-      printf 'OUTCOME=retained\n'
+      message="$(cleanup_refusal_message "$cleanup_refusal_reason" "$cleanup_lease_state")"
       printf 'MESSAGE=%s\n' "$message"
       return 0
       ;;
