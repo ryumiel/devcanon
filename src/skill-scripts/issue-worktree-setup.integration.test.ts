@@ -114,16 +114,16 @@ function parseKeyValueOutput(stdout: string): Record<string, string> {
 }
 
 async function runSetup(
-  bashScriptPath: string,
+  nonWindowsScriptPath: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<Record<string, string>> {
-  const stdout = await runSetupCommand(bashScriptPath, cwd, env);
+  const stdout = await runSetupCommand(nonWindowsScriptPath, cwd, env);
   return parseKeyValueOutput(stdout);
 }
 
 async function runSetupCommand(
-  bashScriptPath: string,
+  nonWindowsScriptPath: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
@@ -142,7 +142,7 @@ async function runSetupCommand(
     );
   }
 
-  return runCommand("bash", [bashScriptPath], cwd, env);
+  return runCommand("bash", [nonWindowsScriptPath], cwd, env);
 }
 
 async function runPowerShellSetup(
@@ -223,6 +223,17 @@ describe(
       expect(source).toContain("Test-SamePath $currentWorktree $mainWorktree");
       expect(source).toContain(
         "Test-SamePath $worktreesDirReal $expectedWorktreesDirReal",
+      );
+    });
+
+    it("preserves filesystem roots while normalizing paths", async () => {
+      const source = await readFile(powershellHelperScript, "utf-8");
+
+      expect(source).toContain("[System.IO.Path]::GetPathRoot($fullPath)");
+      expect(source).toContain("if ($trimmedPath -eq $trimmedRoot)");
+      expect(source).toContain("return $root");
+      expect(source).not.toContain(
+        "return [System.IO.Path]::GetFullPath($Path).TrimEnd",
       );
     });
 

@@ -56,7 +56,15 @@ function Test-Git {
 function Normalize-Path {
   param([string] $Path)
 
-  return [System.IO.Path]::GetFullPath($Path).TrimEnd("\", "/")
+  $fullPath = [System.IO.Path]::GetFullPath($Path)
+  $root = [System.IO.Path]::GetPathRoot($fullPath)
+  $trimmedPath = $fullPath.TrimEnd("\", "/")
+  $trimmedRoot = $root.TrimEnd("\", "/")
+  if ($trimmedPath -eq $trimmedRoot) {
+    return $root
+  }
+
+  return $trimmedPath
 }
 
 function Test-SamePath {
