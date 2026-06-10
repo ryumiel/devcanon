@@ -67,10 +67,12 @@ task-contract gate against the task text. Do not infer trigger applicability
 inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy. The
 gate verifies either a structurally complete `**Contract checklist:**` field or
 an explicit task-specific reason no checklist trigger applies. A no-trigger
-omission reason is trusted only when this controller can identify an upstream
-`play-planning` plan-review PASS for the plan being executed. Direct,
-hand-written, copied, or older plans without that upstream PASS must include a
-structurally complete checklist instead of an omission reason. When a checklist
+omission reason is trusted only when this controller can identify the upstream
+two-gate `play-planning` return for the plan being executed, meaning both Plan
+Review and Implementer Executability Review passed before `Plan written to
+<path>.` was emitted. Direct, hand-written, copied, or older plans without that
+upstream two-gate return must include a structurally complete checklist instead
+of an omission reason. When a checklist
 is present, it must explicitly name trigger criteria, owner/authority, affected
 consumers/generated outputs, must-preserve, required behavior, spec/procedure
 work, risk surfaces, and proof obligations, with no blank field or unexplained
@@ -410,10 +412,12 @@ This path sits on top of the single-task per-task-review skip.
 
 All five guardrails must hold: the plan is single-task, the task is explicitly
 mechanical, no clarifying questions could plausibly arise under the upstream
-plan-review PASS contract, the structural task-contract gate is satisfied, and
-no tests need to be authored. A task-contract failure stops before
-implementation; other guardrail misses fall back to dispatched implementation.
-There is no DONE report and no snapshot request on this path.
+two-gate `play-planning` return, the structural task-contract gate is
+satisfied, and no tests need to be authored. Direct, hand-written, copied, or
+older plans without the upstream two-gate return fail the clarifying-question
+guardrail and fall back to dispatched implementation. A task-contract failure
+stops before implementation; other guardrail misses fall back to dispatched
+implementation. There is no DONE report and no snapshot request on this path.
 
 Load [`references/skip-dispatch-policy.md`](references/skip-dispatch-policy.md)
 when evaluating guardrails, choosing fallback behavior, or checking examples.

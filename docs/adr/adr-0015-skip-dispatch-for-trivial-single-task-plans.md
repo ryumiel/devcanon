@@ -7,10 +7,12 @@ Accepted
 ## Note
 
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task
-subset of the path described here. The skip-dispatch decision in this ADR
-remains authoritative, but statements below that the final
-whole-implementation reviewer runs on every plan should now be read together
-with ADR-0016.
+subset of the path described here. ADR-0023 later updates the upstream
+planning precondition to the two-gate `play-planning` return. The
+skip-dispatch decision in this ADR remains authoritative, but statements below
+that the final whole-implementation reviewer runs on every plan should now be
+read together with ADR-0016, and upstream planning-precondition statements
+should be read together with ADR-0023.
 
 ## Context
 
@@ -46,12 +48,13 @@ than a runtime check):
    Task Taxonomy; covers both positive shapes from that taxonomy — verbatim
    file create and unambiguous identifier replacement).
 3. **Upstream precondition.** No clarifying questions could plausibly
-   arise — implicit from `play-planning`'s plan-review subagent PASS
-   upstream. The controller does not re-verify this at execution time;
-   for direct invocations of `play-subagent-execution` against a
-   hand-written plan with no upstream PASS, this precondition is treated
-   as satisfied and the remaining four runtime guardrails carry the
-   load.
+   arise — implicit from the upstream two-gate `play-planning` return
+   introduced by ADR-0023, meaning both Plan Review and Implementer
+   Executability Review passed before `Plan written to <path>.` was emitted.
+   The controller does not re-verify this at execution time; direct invocations
+   of `play-subagent-execution` against a hand-written plan with no upstream
+   two-gate return fail this precondition and fall back to dispatched
+   implementation.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
    `play-planning` trigger applicability at execution time. The task must have
@@ -59,9 +62,9 @@ than a runtime check):
    criteria, owner/authority, affected consumers/generated outputs,
    must-preserve, required behavior, spec/procedure work, risk surfaces, and
    proof obligations with no blank fields or unexplained `N/A` fields, or a
-   task-specific no-trigger omission reason backed by an upstream
-   `play-planning` plan-review PASS for the plan being executed. Direct,
-   hand-written, copied, or older plans without that upstream PASS must include
+   task-specific no-trigger omission reason backed by an upstream two-gate
+   `play-planning` return for the plan being executed. Direct, hand-written,
+   copied, or older plans without that upstream two-gate return must include
    the checklist. If source inspection cannot confirm the checklist's owner,
    authority, source-of-truth, consumer, generated-output, or evidence surface,
    the task contract is invalid.
@@ -99,9 +102,9 @@ here.
   Token cost drops by the round-trip overhead of spawning and receiving a
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
-- No new coupling is added. Guardrail #3 leans on the existing upstream
-  `play-planning` plan-review PASS, and guardrail #4 reads the task contract
-  emitted by `play-planning`, but no new schema field is introduced.
+- No new coupling is added. Guardrail #3 leans on the upstream two-gate
+  `play-planning` return, and guardrail #4 reads the task contract emitted by
+  `play-planning`, but no new schema field is introduced.
   Guardrails #1, #2, #4, and #5 read structural signals already present in
   the plan format.
 - The "Make per-task implementer subagent read the plan file" Red Flag in
@@ -113,8 +116,9 @@ here.
   needs judgment) bypass dispatch. Mitigation: same as the existing
   `**Mode:** mechanical` hint policy — under-marking is harmless,
   over-marking is plan-author responsibility, caught by `play-planning`'s
-  plan-review subagent and by either the final whole-implementation
-  reviewer or downstream `branch-review --fix` on the ADR-0016 path.
+  Plan Review and Implementer Executability Review and by either the final
+  whole-implementation reviewer or downstream `branch-review --fix` on the
+  ADR-0016 path.
 - The implementer DONE-report snapshot contract (ADR-0014) does not
   apply on the skip-dispatch path: with no dispatched implementer, there
   is no DONE-report boundary and no implementer snapshot artifact. The

@@ -345,19 +345,22 @@ Include the literal `Comment evidence: <repo-relative-path>` line only when
 ```
 Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
 
-`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan so the parent skill can invoke `play-subagent-execution`.
+`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after both Plan Review and Implementer Executability Review pass so the parent skill can invoke `play-subagent-execution`. Failed, missing, or unreadable executability review stops before `play-subagent-execution`.
 
 Design: <repo-relative-path captured above>
 
 Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 ```
 
-Do not wait for user review of the plan — proceed directly to implementation. The plan path is captured from the producer notice line emitted by `play-planning`.
+Do not wait for user review of the plan — proceed directly to implementation after `play-planning` returns. The plan path is captured from the producer notice line emitted by `play-planning`.
 
 ### Phase 6: Implement
 
 After `play-planning` returns, capture the literal
-`Plan written to <path>.` notice line it emitted. Validate the captured path:
+`Plan written to <path>.` notice line it emitted. That return means both
+planning review gates passed; failed, missing, or unreadable executability
+review must stop inside `play-planning` and must not reach this phase. Validate
+the captured path:
 
 ```bash
 bash "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
@@ -425,7 +428,7 @@ auto-fixed and leaves no unresolved remaining `Blocking` findings except
 findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, followed by no
 mechanical nit commits, satisfies the final-review guarantee.
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (plan-review PASS from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
 Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; continue to Phase 7 and Phase 8

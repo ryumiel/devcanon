@@ -524,6 +524,187 @@ describe("existing skills source prose contracts", () => {
     expect(playPlanning).not.toContain("`Contract\nDecisions`");
   });
 
+  it("keeps play-planning implementer-executability review contracts in source", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const overview = getMarkdownSection(playPlanning, "Overview");
+    const taskStructure = getMarkdownSection(playPlanning, "Task Structure");
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planReview = getMarkdownSection(playPlanning, "Plan Review");
+    const implementerExecutabilityReview = getMarkdownSection(
+      playPlanning,
+      "Implementer Executability Review",
+    );
+    const normalizedTaskStructure = normalizeWhitespace(taskStructure);
+    const normalizedOverview = normalizeWhitespace(overview);
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanReview = normalizeWhitespace(planReview);
+    const normalizedExecutabilityReview = normalizeWhitespace(
+      implementerExecutabilityReview,
+    );
+    const normalizedImplementerContractSurface = normalizeWhitespace(
+      [
+        overview,
+        taskStructure,
+        planningSelfReview,
+        implementerExecutabilityReview,
+      ].join("\n\n"),
+    );
+    const vagueLanguageRule = markdownBlocksContaining(
+      planningSelfReview,
+      /where feasible|as appropriate|preserve existing behavior|safe selector|source inspection|migrate handlers/i,
+    );
+    const normalizedVagueLanguageRule = normalizeWhitespace(vagueLanguageRule);
+
+    expect(playPlanning.indexOf("## Plan Review")).toBeLessThan(
+      playPlanning.indexOf("## Implementer Executability Review"),
+    );
+    expect(
+      playPlanning.indexOf("## Implementer Executability Review"),
+    ).toBeLessThan(playPlanning.indexOf("## Execution Handoff"));
+    expect(normalizedOverview).not.toContain(
+      "After writing, emit the literal line `Plan written to <repo-relative-path>.`",
+    );
+    expect(normalizedOverview).toContain(
+      "keep the saved path in controller-local state while self-review, Plan Review, and Implementer Executability Review run",
+    );
+    expect(normalizedOverview).toContain(
+      "Emit the literal line `Plan written to <repo-relative-path>.` to the conversation only after the applicable review gates have passed",
+    );
+
+    expect(normalizedImplementerContractSurface).toContain(
+      "competent non-senior",
+    );
+    expect(normalizedImplementerContractSurface).toContain(
+      "named source files",
+    );
+    expect(normalizedImplementerContractSurface).toContain(
+      "without reverse-engineering",
+    );
+
+    for (const vaguePhrase of [
+      "where feasible",
+      "as appropriate",
+      "preserve existing behavior",
+      "safe selector",
+      "source inspection",
+      "migrate handlers",
+    ]) {
+      expect(normalizedVagueLanguageRule).toContain(vaguePhrase);
+    }
+
+    expect(normalizedVagueLanguageRule).toContain("fail");
+    expect(normalizedVagueLanguageRule).toContain("without");
+    expect(normalizedVagueLanguageRule).toContain("exact source target");
+    expect(normalizedVagueLanguageRule).toContain("pass/fail criteria");
+    expect(normalizedVagueLanguageRule).toContain("operation mapping");
+
+    for (const operationMapField of [
+      "current source",
+      "target surface",
+      "required inputs",
+      "optional inputs where applicable",
+      "missing or empty behavior",
+      "outputs",
+      "errors",
+      "explicit write targets or side-effect owner",
+      "validation-before-write or validation-order requirements",
+      "failure behavior",
+      "forbidden side effects",
+      "dirty/rollback behavior",
+      "required verification",
+    ]) {
+      expect(normalizedTaskStructure).toContain(operationMapField);
+      expect(normalizedPlanningSelfReview).toContain(operationMapField);
+      expect(normalizedExecutabilityReview).toContain(operationMapField);
+    }
+
+    expectSharedLifecycleReference(implementerExecutabilityReview);
+    expect(
+      normalizedExecutabilityReview.indexOf("`subagent-lifecycle`"),
+    ).toBeLessThan(
+      normalizedExecutabilityReview.indexOf(
+        "dispatching the implementer-executability reviewer",
+      ),
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "before dispatching the implementer-executability reviewer",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "After the reviewer returns PASS or FAIL",
+    );
+    expect(
+      normalizedExecutabilityReview.indexOf(
+        "before dispatching the implementer-executability reviewer",
+      ),
+    ).toBeLessThan(
+      normalizedExecutabilityReview.indexOf(
+        "After the reviewer returns PASS or FAIL",
+      ),
+    );
+    expect(normalizedExecutabilityReview).toContain("workflow-local");
+    expect(normalizedExecutabilityReview).toContain("PASS or FAIL");
+    expect(normalizedExecutabilityReview).toContain("concrete gaps");
+    expect(normalizedExecutabilityReview).toContain(
+      "restart Plan Review before re-running the implementer-executability reviewer",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "both review gates pass on the same final plan contents",
+    );
+    expect(normalizedExecutabilityReview).toContain(
+      "current plan contents do not have both Plan Review PASS and Implementer Executability Review PASS",
+    );
+
+    for (const hiddenJudgmentSurface of [
+      "scope",
+      "source policy",
+      "call sites",
+      "side-effect ownership",
+      "error mapping",
+      "allowed guardrail outcomes",
+    ]) {
+      expect(normalizedExecutabilityReview).toContain(hiddenJudgmentSurface);
+    }
+
+    expect(normalizedExecutabilityReview).toContain(
+      "senior reverse-engineering",
+    );
+    expect(normalizedExecutabilityReview).toContain("structurally present");
+    expect(normalizedExecutabilityReview).toContain("FAIL");
+
+    for (const prohibitedDetail of [
+      "implementation code",
+      "test code",
+      "plan-authored test bodies",
+      "shell snippets",
+      "shell recipes",
+      "exact command sequences",
+      "helper-name prescriptions",
+      "line-number edits",
+      "commit recipes",
+    ]) {
+      expect(normalizedPlanningSelfReview).toContain(prohibitedDetail);
+      expect(normalizedPlanReview).toContain(prohibitedDetail);
+      expect(normalizedExecutabilityReview).toContain(prohibitedDetail);
+    }
+
+    for (const allowedBoundaryContractDetail of [
+      "boundary contract names",
+      "public API surfaces",
+      "selector fields",
+      "summary fields",
+      "error families",
+      "operation mappings",
+    ]) {
+      expect(normalizedImplementerContractSurface).toContain(
+        allowedBoundaryContractDetail,
+      );
+      expect(normalizedExecutabilityReview).toContain(
+        allowedBoundaryContractDetail,
+      );
+    }
+  });
+
   it("keeps play-skill-authoring pressure verification required for skill edits", async () => {
     const playSkillAuthoring = await readSkillSource("play-skill-authoring");
     const overview = getMarkdownSection(playSkillAuthoring, "Overview");
@@ -653,6 +834,12 @@ describe("existing skills source prose contracts", () => {
       "Return after saving the plan so the parent skill can invoke `play-subagent-execution`",
     );
     expect(normalizedExecutionHandoff).toContain(
+      "only after both Plan Review and Implementer Executability Review have returned PASS",
+    );
+    expect(normalizedExecutionHandoff).toContain(
+      "Failed, missing, or unreadable executability review blocks this return",
+    );
+    expect(normalizedExecutionHandoff).toContain(
       "Otherwise, offer execution choice",
     );
     expect(executionHandoff).toContain("**1. Subagent-Driven (recommended)**");
@@ -698,10 +885,19 @@ describe("existing skills source prose contracts", () => {
       "Return after emitting `Plan written to <path>.`",
     );
     expect(normalizedReviewResponseRoute).toContain(
+      "only after both Plan Review and Implementer Executability Review have returned PASS",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "failed, missing, or unreadable executability review blocks the parent-owned return",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
       "`play-review-response` owns presenting the generated plan for approval",
     );
     expect(normalizedReviewResponseRoute).toContain(
       "invoke `play-subagent-execution` only after approval",
+    );
+    expect(normalizedReviewResponseRoute).toContain(
+      "after both planning review gates have passed",
     );
     expect(normalizedReviewResponseRoute).not.toContain("Subagent-Driven");
     expect(normalizedReviewResponseRoute).not.toContain("Inline Execution");
@@ -1791,6 +1987,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecutionMode).toMatch(
       /capture.*Plan written to <path>\./i,
     );
+    expect(normalizedExecutionMode).toContain(
+      "only after `play-planning` has completed both Plan Review and Implementer Executability Review",
+    );
+    expect(normalizedExecutionMode).toContain(
+      "failed, missing, or unreadable executability review remains inside `play-planning` and stops before this approval gate",
+    );
     expect(normalizedExecutionMode).toMatch(
       /must not rely on.*issue-priming.*`--auto`.*reduced-route/i,
     );
@@ -1812,7 +2014,7 @@ describe("existing skills source prose contracts", () => {
       /Run `branch-review`.*planned review-response work needs whole-diff coverage/i,
     );
     expect(normalizedExecutionMode).toMatch(
-      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
+      /Action: Apply the canonical `.ephemeral` write guard, write `.ephemeral\/<date>-review-response-design.md`, invoke `play-planning` with `Route: review-response-parent-owned` and `Design: <path>`, wait for both planning review gates to pass, capture `Plan written to <path>\.`, ask for approval using `{captured-plan-path}` replaced with the captured path, wait for approval, then invoke `play-subagent-execution` with `Plan: <path>`\./i,
     );
 
     expect(normalizedExecutionMode).toContain("### Plan Approval Gate");
@@ -1867,6 +2069,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedExecutionMode).toMatch(
       /approval.*after.*Plan written to <path>\..*before.*play-subagent-execution/i,
+    );
+    expect(normalizedPlanApprovalGate).toContain(
+      "`play-planning` returns `Plan written to <path>.` for this route only after both Plan Review and Implementer Executability Review pass",
     );
     expect(normalizedExecutionMode).toMatch(
       /If the user requests any generated-plan change.*route every generated-plan revision back through `play-planning`.*before renewed approval/i,

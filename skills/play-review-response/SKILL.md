@@ -260,6 +260,10 @@ handoff under the executor's current structural task-contract gate. It must not
 rely on issue-priming `--auto` reduced-route behavior, because direct/manual
 review-response plans do not carry parent-owned issue-priming state, validated
 auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
+For `Route: review-response-parent-owned`, `play-planning` emits the plan path
+only after both Plan Review and Implementer Executability Review pass. A failed,
+missing, or unreadable executability review remains inside `play-planning` and
+stops before this approval gate or any execution handoff.
 
 `play-subagent-execution` owns executor-owned mechanics after the handoff:
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
@@ -277,9 +281,10 @@ coverage.
 For planned review-response work, create and self-review the written
 `.ephemeral/*-design.md` planning input, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`, and capture the
-emitted `Plan written to <path>.` notice before implementation. This gate
-borrows the approval-gate shape from `play-brainstorm` without invoking
-`play-brainstorm` and without making it a dependency of
+emitted `Plan written to <path>.` notice before implementation, only after
+`play-planning` has completed both Plan Review and Implementer Executability
+Review. This gate borrows the approval-gate shape from `play-brainstorm`
+without invoking `play-brainstorm` and without making it a dependency of
 `play-review-response`.
 
 Before handing the generated plan to `play-subagent-execution`, present the
@@ -301,14 +306,18 @@ The plan approval gate is explicit:
   `.ephemeral/`; they are not durable product, architecture, or workflow
   documentation.
 - Run planning input self-review before invoking `play-planning`;
-  `play-planning` owns plan self-review and any applicable plan-review gate
-  before it emits `Plan written to <path>.`.
+  `play-planning` owns plan self-review, Plan Review, and Implementer
+  Executability Review before it emits `Plan written to <path>.`.
 - Wait for user approval before implementation begins.
 - Approval happens after `Plan written to <path>.` and before
   `play-subagent-execution`.
+- `play-planning` returns `Plan written to <path>.` for this route only after
+  both Plan Review and Implementer Executability Review pass; failed, missing,
+  or unreadable executability review remains inside `play-planning` and stops
+  before this approval gate.
 - If the user requests any generated-plan change, route every generated-plan
-  revision back through `play-planning`, including plan self-review and any
-  applicable plan-review gate, before renewed approval.
+  revision back through `play-planning`, including plan self-review, Plan
+  Review, and Implementer Executability Review, before renewed approval.
 - Repeat the user approval loop until the user approves or stops the work.
   There is no fixed maximum for this human approval loop.
 - Keep the separate `play-planning` agent-review cap out of the user approval
@@ -434,10 +443,10 @@ change with traceability needs.
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
-`Route: review-response-parent-owned` and `Design: <path>`, capture
-`Plan written to <path>.`, ask for approval using `{captured-plan-path}`
-replaced with the captured path, wait for approval, then invoke
-`play-subagent-execution` with `Plan: <path>`.
+`Route: review-response-parent-owned` and `Design: <path>`, wait for both
+planning review gates to pass, capture `Plan written to <path>.`, ask for
+approval using `{captured-plan-path}` replaced with the captured path, wait for
+approval, then invoke `play-subagent-execution` with `Plan: <path>`.
 ```
 
 No-code feedback example:

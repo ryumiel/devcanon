@@ -150,12 +150,18 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase5).toContain(
       "Do NOT prompt for execution mode at the end",
     );
+    expect(normalizedPhase5).toContain(
+      "return after saving the plan and only after both Plan Review and Implementer Executability Review pass",
+    );
 
     expect(phase6).toContain("subagent-lifecycle");
     expect(normalizedPhase6).toContain(
       "cleanup gate for completed or superseded gate and research sessions",
     );
     expect(phase6).toContain("Plan written to <path>.");
+    expect(normalizedPhase6).toContain(
+      "That return means both planning review gates passed",
+    );
     expect(phase6).toContain("validate-read plan");
     expect(phase6).toContain("scripts/write-auto-handoff.sh");
     expect(normalizedPhase6).toContain(
@@ -176,6 +182,10 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase6).toContain(
       "single-task plans skip per-task review",
     );
+    expect(normalizedPhase6).toContain(
+      "the two-gate `play-planning` return from Phase 5",
+    );
+    expect(normalizedPhase6).not.toContain("plan-review PASS from Phase 5");
     expect(normalizedPhase6).toContain(
       'Phase 6 itself remains "invoke `play-subagent-execution`"',
     );
@@ -430,6 +440,65 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPlanReview).toContain(
       "Hint field ordering is heading, optional `**Mode:** mechanical`, optional review-routing hint fields, then `**Files:**`",
     );
+  });
+
+  it("keeps skip-dispatch upstream planning preconditions aligned with the two-gate plan return", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    const adr0007 = await readRepoFile(
+      "docs/adr/adr-0007-review-pipeline-delineation.md",
+    );
+    const adr0015 = await readRepoFile(
+      "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+    );
+    const normalizedPlaySubagentExecution = normalizeWhitespace(
+      playSubagentExecution,
+    );
+    const normalizedSkipDispatchPolicy =
+      normalizeWhitespace(skipDispatchPolicy);
+    const normalizedAdr0007 = normalizeWhitespace(adr0007);
+    const normalizedAdr0015 = normalizeWhitespace(adr0015);
+
+    for (const source of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+      normalizedAdr0007,
+      normalizedAdr0015,
+    ]) {
+      expect(source).toContain("two-gate `play-planning` return");
+      expect(source).not.toContain("plan-review PASS");
+      expect(source).not.toContain("plan-review returned PASS");
+    }
+
+    for (const liveContractSource of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+      normalizedAdr0015,
+    ]) {
+      expect(liveContractSource).toContain(
+        "both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted",
+      );
+    }
+
+    for (const directInvocationFallbackSource of [
+      normalizedPlaySubagentExecution,
+      normalizedSkipDispatchPolicy,
+      normalizedAdr0015,
+    ]) {
+      expect(directInvocationFallbackSource).toContain(
+        "fall back to dispatched implementation",
+      );
+      expect(directInvocationFallbackSource).not.toContain(
+        "treat this guardrail as PASS",
+      );
+      expect(directInvocationFallbackSource).not.toContain(
+        "precondition is treated as satisfied",
+      );
+    }
   });
 
   it("keeps issue-priming references pointed at lazy play-subagent sources", async () => {
