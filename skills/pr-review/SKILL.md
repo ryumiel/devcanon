@@ -159,8 +159,9 @@ Required writes:
 - Write `aborted` immediately after the user chooses `abort`, with
   `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
 - Write `posted` only after the GitHub review post succeeds, with
-  `APPROVED_REVIEW_FILE`, `FINISHED_AT`, `GITHUB_POST_ATTEMPTED=true`,
-  `GITHUB_POST_RESULT=succeeded`, and `GITHUB_POSTED_AT`.
+  `APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. The lease
+  records `github_post_attempted=true` and `github_post_result=succeeded` as
+  derived metadata for the successful post.
 - Write `failed` before any cleanup decision when validation, preview,
   approval-freeze, stale-head, or GitHub posting fails. `failed` writes must
   include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and

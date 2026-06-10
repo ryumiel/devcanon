@@ -213,7 +213,9 @@ session state for resume, terminal outcomes, failed-post recovery, and
 lease-gated worktree cleanup. Lease cleanup does not introduce a broad
 `.ephemeral` sweep: the helper may record cleanup metadata in the matching
 lease and may remove a clean matching review worktree through plain
-`git worktree remove` only after its safety and confirmation contract passes.
+`git worktree remove`, or forced `git worktree remove -f` when the classifier
+has accepted lease-managed `.ephemeral` residue, only after its safety and
+confirmation contract passes.
 Dirty worktrees, preserved review artifacts, identity mismatches, invalid lease
 mechanics, non-worktree paths, and missing physical paths remain outside the
 generic artifact sweep policy.

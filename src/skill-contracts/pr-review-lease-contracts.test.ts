@@ -109,6 +109,14 @@ describe("pr-review lease source contracts", () => {
     expect(normalizedLeaseContract).toContain(
       "| LC-13 | `record-failure` | `gated` | `failed`",
     );
+    for (const row of ["LC-04", "LC-05", "LC-14"]) {
+      expect(normalizedLeaseContract).toContain(
+        `| ${row} | \`present-preview\``,
+      );
+    }
+    expect(normalizedLeaseContract).toContain(
+      "Existing bound result pointer, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; optional `RESULT_FILE` must validate and bind when supplied",
+    );
     expect(normalizedLeaseContract).toContain(
       "| LC-17 | `retry-post-success` | `failed` | `posted`",
     );
@@ -161,6 +169,12 @@ describe("pr-review lease source contracts", () => {
     );
     expect(leaseSection).toContain(
       "Write `posted` only after the GitHub review post succeeds, with `APPROVED_REVIEW_FILE`",
+    );
+    expect(leaseSection).toContain(
+      "The lease records `github_post_attempted=true` and `github_post_result=succeeded` as derived metadata for the successful post",
+    );
+    expect(leaseSection).not.toContain(
+      "`GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=succeeded`",
     );
     expect(leaseSection).toContain(
       "`failed` writes must include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`",
@@ -278,7 +292,7 @@ describe("pr-review lease source contracts", () => {
       "Lease cleanup does not introduce a broad `.ephemeral` sweep",
     );
     expect(normalizedAdr).toContain(
-      "plain `git worktree remove` only after its safety and confirmation contract passes",
+      "plain `git worktree remove`, or forced `git worktree remove -f` when the classifier has accepted lease-managed `.ephemeral` residue",
     );
     expect(normalizedAdr).toContain(
       "Lease-bound PR review artifacts are also part of the path-based handoff model",
