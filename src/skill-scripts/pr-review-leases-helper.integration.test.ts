@@ -242,6 +242,11 @@ function normalizePathText(value: string) {
   return normalized;
 }
 
+function normalizePathAssertionText(value: string) {
+  const normalized = normalizePathText(value);
+  return isWindows ? normalized.toLowerCase() : normalized;
+}
+
 function leasePath(worktreePath: string) {
   return `.ephemeral/pr-${prNumber}-${leaseDigest(worktreePath)}-lease.json`;
 }
@@ -2520,8 +2525,8 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
           "list",
           "--porcelain",
         );
-        expect(normalizePathText(worktreeList)).toContain(
-          normalizePathText(review.cwd),
+        expect(normalizePathAssertionText(worktreeList)).toContain(
+          normalizePathAssertionText(review.cwd),
         );
       } finally {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
