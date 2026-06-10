@@ -26,10 +26,10 @@ that path before invoking the shell helper below. Examples include Claude Code
 commands.
 
 If native tooling provisions or adopts the requested checkout, do not invoke
-the shell helper below. Continue the caller workflow from that native-managed
-worktree, validate or populate `WORKTREE_PATH` using the same contract the
-helper returns, and stop here. Do not also run
-`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh`; the helper below is the
+the packaged helpers below. Continue the caller workflow from that
+native-managed worktree, validate or populate `WORKTREE_PATH` using the same
+contract the helpers return, and stop here. Do not also run
+`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.*`; the helpers below are the
 fallback contract for environments that do not provide native worktree
 control.
 
@@ -41,7 +41,28 @@ Invoke the helper through environment variables:
 - `WORKTREE_LEAF` (required)
 - `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`)
 
-Run:
+Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
+skill bundle, not to the repository being primed.
+
+Run the helper that is native to the current shell:
+
+- In PowerShell / Windows-hosted Codex sessions, use `setup-worktree.ps1`.
+  This keeps Windows paths and Git metadata on native Windows Git instead of
+  passing `D:\...` paths through WSL Bash.
+- In POSIX shells or Git Bash sessions, use `setup-worktree.sh`.
+
+PowerShell:
+
+```powershell
+$env:BRANCH_NAME = "<branch-name>"
+$env:WORKTREE_LEAF = "<worktree-leaf>"
+$ISSUE_WORKTREE_SETUP_DIR = "<issue-worktree-setup-skill-dir>"
+$HELPER_SCRIPT = Join-Path $ISSUE_WORKTREE_SETUP_DIR "scripts/setup-worktree.ps1"
+
+$WORKTREE_SETUP_OUTPUT = & powershell -NoProfile -ExecutionPolicy Bypass -File $HELPER_SCRIPT
+```
+
+Bash:
 
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
@@ -54,16 +75,13 @@ WORKTREE_SETUP_OUTPUT=$(
 )
 ```
 
-Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
-skill bundle, not to the repository being primed.
-
 Callers should only pass single-line values. `BRANCH_NAME` must be a valid Git
 branch name, `WORKTREE_LEAF` must be a single path leaf, and `BASE_REF` must
 resolve to a commit after `git fetch origin`.
 
 ## Output Contract
 
-The script writes `KEY=VALUE` lines to stdout:
+Both packaged helpers write `KEY=VALUE` lines to stdout:
 
 - `MODE=reuse|new|stop`
 - `WORKTREE_PATH=<absolute path>`

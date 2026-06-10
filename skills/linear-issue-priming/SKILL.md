@@ -55,10 +55,26 @@ use that surface first to create or adopt the derived worktree, capture
 its absolute path in `WORKTREE_PATH`, and continue from the validation
 step below.
 
-Do not run both the native flow and the shell fallback. If native
-worktree control is unavailable, invoke the fallback helper so the
-fetched issue description is written inside the correct checkout before
-handoff.
+Do not run both the native flow and the packaged-helper fallback. If native
+worktree control is unavailable, invoke the fallback helper for the current
+host shell so the fetched issue description is written inside the correct
+checkout before handoff. In PowerShell / Windows-hosted Codex sessions, use the
+PowerShell helper; do not pass Windows-style helper paths or Windows-hosted Git
+metadata through WSL Bash. In POSIX shells or Git Bash sessions, use the Bash
+helper.
+
+PowerShell:
+
+```powershell
+$env:BRANCH_NAME = "<branch-name>"
+$env:WORKTREE_LEAF = "<worktree-leaf>"
+$ISSUE_WORKTREE_SETUP_DIR = "<issue-worktree-setup-skill-dir>"
+$HELPER_SCRIPT = Join-Path $ISSUE_WORKTREE_SETUP_DIR "scripts/setup-worktree.ps1"
+
+$WORKTREE_SETUP_OUTPUT = & powershell -NoProfile -ExecutionPolicy Bypass -File $HELPER_SCRIPT
+```
+
+Bash:
 
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
@@ -71,7 +87,7 @@ WORKTREE_SETUP_OUTPUT=$(
 )
 ```
 
-If you invoked the fallback helper, parse `WORKTREE_SETUP_OUTPUT`
+If you invoked a packaged fallback helper, parse `WORKTREE_SETUP_OUTPUT`
 exactly per the helper skill's output contract.
 
 - If `MODE=stop`, surface `MESSAGE` and stop before any `.ephemeral/`
@@ -80,8 +96,18 @@ exactly per the helper skill's output contract.
 - If the helper exits non-zero, stop immediately instead of attempting to
   parse partial output.
 
-Once `WORKTREE_PATH` is available — either from native tooling or the
-fallback helper — validate it before any write:
+Once `WORKTREE_PATH` is available — either from native tooling or a packaged
+fallback helper — validate it with the host-native path API before any write.
+
+PowerShell:
+
+```powershell
+if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
+if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
+if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
+```
+
+Bash:
 
 ```bash
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }

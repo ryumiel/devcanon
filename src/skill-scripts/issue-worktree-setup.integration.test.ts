@@ -13,6 +13,13 @@ const helperScript = path.join(
   "scripts",
   "setup-worktree.sh",
 );
+const powershellHelperScript = path.join(
+  process.cwd(),
+  "skills",
+  "issue-worktree-setup",
+  "scripts",
+  "setup-worktree.ps1",
+);
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -104,7 +111,44 @@ async function runSetup(
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): Promise<Record<string, string>> {
-  const stdout = await runCommand("bash", [scriptPath], cwd, env);
+  const stdout = await runSetupCommand(scriptPath, cwd, env);
+  return parseKeyValueOutput(stdout);
+}
+
+async function runSetupCommand(
+  scriptPath: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): Promise<string> {
+  if (process.platform === "win32") {
+    return runCommand(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        powershellHelperScript,
+      ],
+      cwd,
+      env,
+    );
+  }
+
+  return runCommand("bash", [scriptPath], cwd, env);
+}
+
+async function runPowerShellSetup(
+  scriptPath: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): Promise<Record<string, string>> {
+  const stdout = await runCommand(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
+    cwd,
+    env,
+  );
   return parseKeyValueOutput(stdout);
 }
 
@@ -190,6 +234,45 @@ describe(
       );
       expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(baseSha);
     });
+
+    it.skipIf(process.platform !== "win32")(
+      "creates a new worktree with the Windows-native PowerShell helper",
+      async () => {
+        const rootDir = await createTrackedTempDir(tempDirs);
+        const { primaryDir } = await createOriginRepo(rootDir);
+        const publisherDir = await createPublisherClone(rootDir);
+        const baseSha = await createRemoteBaseRef(
+          publisherDir,
+          "review-powershell-base",
+          "review-powershell-base.txt",
+          "powershell review base\n",
+        );
+
+        const result = await runPowerShellSetup(
+          powershellHelperScript,
+          primaryDir,
+          {
+            BRANCH_NAME: "feat/powershell-worktree-helper",
+            WORKTREE_LEAF: "64-powershell worktree helper",
+            BASE_REF: "origin/review-powershell-base",
+          },
+        );
+
+        const expectedPath = await realpath(
+          path.join(primaryDir, ".worktrees", "64-powershell worktree helper"),
+        );
+
+        expect(result.MODE).toBe("new");
+        expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+          normalizeFsPath(expectedPath),
+        );
+        expect(await pathExists(expectedPath)).toBe(true);
+        expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
+          "feat/powershell-worktree-helper",
+        );
+        expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(baseSha);
+      },
+    );
 
     it("reuses a clean managed main worktree and fast-forwards to BASE_REF", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
@@ -366,7 +449,7 @@ describe(
       );
 
       await expect(
-        runCommand("bash", [helperScript], managedPath, {
+        runSetupCommand(helperScript, managedPath, {
           BRANCH_NAME: "feat",
           WORKTREE_LEAF: "ignored-for-collide",
           BASE_REF: "origin/review-df-collide-base",
@@ -401,7 +484,7 @@ describe(
       );
 
       await expect(
-        runCommand("bash", [helperScript], managedPath, {
+        runSetupCommand(helperScript, managedPath, {
           BRANCH_NAME: "feat/already-exists",
           WORKTREE_LEAF: "ignored-for-collide",
           BASE_REF: "origin/review-collide-base",
@@ -605,13 +688,13 @@ describe(
       const { primaryDir } = await createOriginRepo(rootDir);
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/unsafe-leaf",
           WORKTREE_LEAF: "../escape",
         }),
       ).rejects.toThrow(/Unsafe WORKTREE_LEAF/u);
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/unsafe-leaf",
           WORKTREE_LEAF: "leaf\nMODE=stop",
         }),
@@ -624,7 +707,7 @@ describe(
       const { primaryDir } = await createOriginRepo(rootDir);
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/bad-base-ref",
           WORKTREE_LEAF: "bad-base-ref",
           BASE_REF: "--help",
@@ -637,13 +720,13 @@ describe(
       const { primaryDir } = await createOriginRepo(rootDir);
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "--not-a-branch",
           WORKTREE_LEAF: "bad-branch",
         }),
       ).rejects.toThrow(/Unsafe BRANCH_NAME/u);
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "bad branch name",
           WORKTREE_LEAF: "bad-branch",
         }),
@@ -659,7 +742,7 @@ describe(
       await symlink(escapedRoot, path.join(primaryDir, ".worktrees"));
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/symlink-escape",
           WORKTREE_LEAF: "symlink-escape",
         }),
@@ -691,8 +774,14 @@ describe(
       );
 
       const submodulePath = path.join(parentDir, "nested");
-      const expectedSubmodulePath = await runBashPwdP(submodulePath);
-      const expectedParentPath = await runBashPwdP(parentDir);
+      const expectedSubmodulePath =
+        process.platform === "win32"
+          ? normalizeFsPath(await realpath(submodulePath))
+          : await runBashPwdP(submodulePath);
+      const expectedParentPath =
+        process.platform === "win32"
+          ? normalizeFsPath(await realpath(parentDir))
+          : await runBashPwdP(parentDir);
       const result = await runSetup(helperScript, submodulePath, {
         BRANCH_NAME: "feat/from-submodule",
         WORKTREE_LEAF: "from-submodule",
@@ -703,8 +792,8 @@ describe(
         normalizeFsPath(await realpath(submodulePath)),
       );
       expect(result.MESSAGE).toMatch(/submodule/i);
-      expect(result.MESSAGE).toContain(expectedSubmodulePath);
-      expect(result.MESSAGE).toContain(expectedParentPath);
+      expect(normalizeFsPath(result.MESSAGE)).toContain(expectedSubmodulePath);
+      expect(normalizeFsPath(result.MESSAGE)).toContain(expectedParentPath);
     });
 
     it("fails when .worktrees is not ignored in the host repo", async () => {
@@ -716,7 +805,7 @@ describe(
       await runGit(["commit", "-m", "chore: drop worktree ignore"], primaryDir);
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/missing-ignore",
           WORKTREE_LEAF: "missing-ignore",
         }),
@@ -857,7 +946,7 @@ describe(
       await symlink(escapedLeaf, symlinkLeaf);
 
       await expect(
-        runCommand("bash", [helperScript], primaryDir, {
+        runSetupCommand(helperScript, primaryDir, {
           BRANCH_NAME: "feat/leaf-escape",
           WORKTREE_LEAF: "leaf-escape",
         }),

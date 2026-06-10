@@ -125,7 +125,20 @@ esac
 [ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
 [ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
 cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
+```
 
+In PowerShell / Windows-hosted Codex sessions, use the native path API instead
+of the POSIX absolute-path check:
+
+```powershell
+$WORKTREE_PATH = "<payload.worktree-path>"
+if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
+if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
+if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
+Set-Location -LiteralPath $WORKTREE_PATH
+```
+
+```bash
 ISSUE_BODY_PATH="<payload.issue-body-path>"
 PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh"
 bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"
