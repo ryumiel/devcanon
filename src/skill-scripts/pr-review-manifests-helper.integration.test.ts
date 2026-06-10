@@ -361,6 +361,27 @@ async function writePassingSupportValidator(cwd: string) {
   return validator;
 }
 
+async function writePassingPriorHelperDir(cwd: string) {
+  const prReviewDir = path.join(cwd, ".ephemeral/pr-review");
+  const helper = path.join(prReviewDir, "scripts/prior-thread-artifacts.sh");
+  await mkdir(path.dirname(helper), { recursive: true });
+  await writeFile(
+    helper,
+    ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+  );
+  await chmod(helper, 0o755);
+  return prReviewDir;
+}
+
+async function fastValidationAuthorityEnv(cwd: string) {
+  return {
+    PLAY_REVIEW_HELPER: artifactAbsolutePath(
+      await writePassingSupportValidator(cwd),
+    ),
+    PR_REVIEW_DIR: artifactAbsolutePath(await writePassingPriorHelperDir(cwd)),
+  };
+}
+
 describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
@@ -390,14 +411,19 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
+      const fastAuthority = await fastValidationAuthorityEnv(cwd);
 
       await expect(
-        runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha)),
+        runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          ...fastAuthority,
+        }),
       ).resolves.toMatchObject({ stdout: `${handoffPath(headSha)}\n` });
       await expect(
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).resolves.toMatchObject({ stdout: "" });
       await expect(readJson(cwd, handoffPath(headSha))).resolves.toMatchObject({
@@ -413,12 +439,16 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       );
 
       await expect(
-        runHelper(cwd, "write-result", resultEnv(headSha)),
+        runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          ...fastAuthority,
+        }),
       ).resolves.toMatchObject({ stdout: `${resultPath(headSha)}\n` });
       await expect(
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: resultPath(headSha),
+          ...fastAuthority,
         }),
       ).resolves.toMatchObject({ stdout: "" });
 
@@ -673,8 +703,15 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const fastAuthority = await fastValidationAuthorityEnv(cwd);
+      await runHelper(cwd, "write-handoff", {
+        ...handoffEnv(cwd, baseSha, headSha),
+        ...fastAuthority,
+      });
+      await runHelper(cwd, "write-result", {
+        ...resultEnv(headSha),
+        ...fastAuthority,
+      });
 
       await expect(
         runHelper(cwd, "prepare-handoff-write", {
@@ -731,6 +768,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff schema mismatch"),
@@ -744,6 +782,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff schema mismatch"),
@@ -761,6 +800,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff schema mismatch"),
@@ -770,6 +810,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: ".ephemeral/nested/bad-handoff.json",
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested handoff path rejected"),
@@ -783,6 +824,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: resultPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("result schema mismatch"),
@@ -793,6 +835,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: ".ephemeral/nested/bad-result.json",
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested result path rejected"),
@@ -810,8 +853,15 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
     );
     try {
       await writeValidInputs(cwd, baseSha, headSha);
-      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const fastAuthority = await fastValidationAuthorityEnv(cwd);
+      await runHelper(cwd, "write-handoff", {
+        ...handoffEnv(cwd, baseSha, headSha),
+        ...fastAuthority,
+      });
+      await runHelper(cwd, "write-result", {
+        ...resultEnv(headSha),
+        ...fastAuthority,
+      });
       await execFileAsync("git", ["clone", cwd, sameHeadOther]);
       await execFileAsync("git", ["checkout", "--detach", headSha], {
         cwd: sameHeadOther,
@@ -826,6 +876,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff PR number mismatch"),
@@ -850,6 +901,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: resultPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("result PR number mismatch"),
@@ -873,6 +925,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: resultPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("review head mismatch"),
@@ -886,6 +939,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
@@ -901,6 +955,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
@@ -919,6 +974,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
@@ -931,6 +987,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "write-result", {
           ...resultEnv(headSha),
           REVIEW_BODY_FILE: ".ephemeral/nested/body-review-body.md",
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested review body path rejected"),
@@ -949,6 +1006,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-handoff", {
           HEAD_SHA: headSha,
           HANDOFF_FILE: handoffPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("execution worktree HEAD mismatch"),
@@ -963,6 +1021,7 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
         runHelper(cwd, "validate-result", {
           HEAD_SHA: headSha,
           RESULT_FILE: resultPath(headSha),
+          ...fastAuthority,
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("result schema mismatch"),
