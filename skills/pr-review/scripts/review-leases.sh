@@ -559,6 +559,16 @@ validate_approved_review_artifact() {
   fi
 }
 
+validate_approval_freeze_approved_review_binding() {
+  local worktree="$1"
+  local file="$2"
+  local result_file="$3"
+  validate_direct_child_path "approved review" "$file" "-approved-review.json"
+  assert_worktree_readable_file "approved review file" "$worktree" "$file"
+  validate_approved_review_identity "$worktree" "$file" "$result_file"
+  validate_approved_review_result_binding "$worktree" "$file" "$result_file"
+}
+
 validate_lease_path_identity() {
   local physical_path="$1"
   local digest expected
@@ -797,7 +807,8 @@ validate_referenced_artifacts() {
   esac
   if [ "$state" = "posted" ] || { [ "$state" = "failed" ] && [ -n "$approved_review_file" ]; }; then
     if [ "$state" = "failed" ] && [ "$failure_phase" = "approval-freeze" ]; then
-      :
+      LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
+        validate_approval_freeze_approved_review_binding "$physical_path" "$approved_review_file" "$result_file"
     else
       LEASE_EXPECTED_BASE_REF="$base_ref" LEASE_EXPECTED_HEAD_REF="$head_ref" \
         validate_approved_review_artifact "$physical_path" "$approved_review_file" "$base_ref" "$result_file"
@@ -1210,7 +1221,14 @@ write_lease() {
       reject_github_post_failure_outside_gate "$row_id"
       handoff_value="$existing_handoff_value"
       case "$row_id" in
-        LC-10 | LC-11 | LC-12 | LC-13 | LC-16) result_value="${RESULT_FILE:-$existing_result_value}" ;;
+        LC-10 | LC-11 | LC-12 | LC-13)
+          [ -n "$existing_result_value" ] || fail "failed transition requires existing result pointer"
+          if [ -n "${RESULT_FILE:-}" ] && [ "$RESULT_FILE" != "$existing_result_value" ]; then
+            fail "RESULT_FILE must match existing $previous_state result"
+          fi
+          result_value="$existing_result_value"
+          ;;
+        LC-16) result_value="${RESULT_FILE:-$existing_result_value}" ;;
       esac
       case "$row_id" in
         LC-11 | LC-12 | LC-13)

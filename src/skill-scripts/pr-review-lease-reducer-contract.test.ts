@@ -977,6 +977,176 @@ describe.skipIf(!jqAvailable)(
     );
 
     it(
+      "rejects replacement result pointers for LC-10 through LC-13",
+      async () => {
+        const approvedReviewPlaceholder = "__approved_review__";
+        const replacement = ".ephemeral/replacement-result.json";
+        const rows = [
+          {
+            row: "LC-10",
+            setup: reviewedLease,
+            env: {
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "preview-render",
+              FAILURE_REASON: "Preview render failed",
+              FAILURE_RECOVERABILITY: "recoverable",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            },
+            priorState: "reviewed",
+          },
+          {
+            row: "LC-11",
+            setup: gatedLease,
+            env: {
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "stale-head",
+              FAILURE_REASON: "Head changed before approval",
+              FAILURE_RECOVERABILITY: "recoverable",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            },
+            priorState: "gated",
+          },
+          {
+            row: "LC-12",
+            setup: gatedLease,
+            env: {
+              APPROVED_REVIEW_FILE: approvedReviewPlaceholder,
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "approval-freeze",
+              FAILURE_REASON: "Approval freeze failed",
+              FAILURE_RECOVERABILITY: "recoverable",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            },
+            priorState: "gated",
+          },
+          {
+            row: "LC-13",
+            setup: gatedLease,
+            env: {
+              APPROVED_REVIEW_FILE: approvedReviewPlaceholder,
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "github-post",
+              FAILURE_REASON: "GitHub post failed",
+              FAILURE_RECOVERABILITY: "recoverable",
+              GITHUB_POST_ATTEMPTED: "true",
+              GITHUB_POST_RESULT: "failed",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            },
+            priorState: "gated",
+          },
+        ];
+
+        for (const { env, priorState, row, setup } of rows) {
+          const ctx = await makeFixture();
+          try {
+            await setup(ctx);
+            const before = await readJson(ctx.primary.cwd, ctx.leaseFile);
+            const resolvedEnv = Object.fromEntries(
+              Object.entries(env).map(([key, value]) => [
+                key,
+                value === approvedReviewPlaceholder
+                  ? approvedReviewPath(ctx.review.headSha)
+                  : value,
+              ]),
+            );
+
+            await expect(
+              runLeaseHelper(ctx, "write", {
+                ...resolvedEnv,
+                STATE: "failed",
+                RESULT_FILE: replacement,
+              }),
+              row,
+            ).rejects.toMatchObject({
+              stderr: expect.stringContaining(
+                `RESULT_FILE must match existing ${priorState} result`,
+              ),
+            });
+
+            expect(await readJson(ctx.primary.cwd, ctx.leaseFile), row).toEqual(
+              before,
+            );
+          } finally {
+            await cleanupFixture(ctx);
+          }
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
+      "validates LC-12 approved-review path identity without full payload validation",
+      async () => {
+        const ctx = await makeFixture();
+        try {
+          await gatedLease(ctx);
+          const replacement = ".ephemeral/replacement-approved-review.json";
+          await writeJson(ctx.review.cwd, replacement, {
+            ...(await readJson(
+              ctx.review.cwd,
+              approvedReviewPath(ctx.review.headSha),
+            )),
+          });
+
+          await expect(
+            runLeaseHelper(ctx, "write", {
+              STATE: "failed",
+              APPROVED_REVIEW_FILE: replacement,
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "approval-freeze",
+              FAILURE_REASON: "Approval freeze failed",
+              FAILURE_RECOVERABILITY: "recoverable",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining("approved review path mismatch"),
+          });
+        } finally {
+          await cleanupFixture(ctx);
+        }
+
+        const skipHelperCtx = await makeFixture();
+        try {
+          await gatedLease(skipHelperCtx);
+          const failingApprovedHelper = path.join(
+            skipHelperCtx.review.cwd,
+            ".ephemeral",
+            "failing-approved-helper.sh",
+          );
+          await writeFile(
+            failingApprovedHelper,
+            [
+              "#!/usr/bin/env bash",
+              "set -euo pipefail",
+              'echo "approved helper should not run for approval-freeze" >&2',
+              "exit 1",
+              "",
+            ].join("\n"),
+          );
+          await chmod(failingApprovedHelper, 0o755);
+
+          await expect(
+            runLeaseHelper(skipHelperCtx, "write", {
+              STATE: "failed",
+              APPROVED_REVIEW_FILE: approvedReviewPath(
+                skipHelperCtx.review.headSha,
+              ),
+              APPROVED_REVIEW_HELPER: bashPath(failingApprovedHelper),
+              FINISHED_AT: "2026-06-05T00:05:00Z",
+              FAILURE_PHASE: "approval-freeze",
+              FAILURE_REASON: "Approval freeze failed",
+              FAILURE_RECOVERABILITY: "recoverable",
+              UPDATED_AT: "2026-06-05T00:05:00Z",
+            }),
+          ).resolves.toMatchObject({ stdout: `${skipHelperCtx.leaseFile}\n` });
+        } finally {
+          await cleanupFixture(skipHelperCtx);
+        }
+      },
+      reducerFixtureTimeout,
+    );
+
+    it(
       "clears phase-inapplicable artifacts when a GitHub-post failure is refreshed",
       async () => {
         const ctx = await makeFixture();
