@@ -216,6 +216,10 @@ Quick navigation index for the DevCanon repository.
   [`skills/pr-review/SKILL.md`](skills/pr-review/SKILL.md)
 - Where is the PR review handoff/result manifest helper? ->
   [`skills/pr-review/scripts/review-manifests.sh`](skills/pr-review/scripts/review-manifests.sh)
+- Where is the PR review lease helper? ->
+  [`skills/pr-review/scripts/review-leases.sh`](skills/pr-review/scripts/review-leases.sh)
+- Where is the PR review lease lifecycle contract? ->
+  [`skills/pr-review/references/review-lease-lifecycle-contract.md`](skills/pr-review/references/review-lease-lifecycle-contract.md)
 - Where is the shared Play review-artifact validation support contract? ->
   [`skills/play-validate-review-artifacts/SKILL.md`](skills/play-validate-review-artifacts/SKILL.md)
 - Where is the shared subagent lifecycle procedure? -> [`skills/subagent-lifecycle/SKILL.md`](skills/subagent-lifecycle/SKILL.md)

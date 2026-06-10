@@ -116,9 +116,12 @@ boundaries below.
 The authoritative lifecycle contract lives in
 [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md).
 That reference owns the valid states, transition rows, field inheritance and
-clearing rules, approved-review identity binding, and cleanup artifact ownership
-rules. Keep `SKILL.md` operator-facing; update the reference and focused tests
-when lease lifecycle behavior changes.
+clearing rules, artifact binding, terminal archive behavior, cleanup classifier
+value domains, and cleanup artifact ownership rules. Keep `SKILL.md`
+operator-facing; update the reference and focused tests when lease lifecycle
+behavior changes. The reference names internal reducer events for auditability,
+but operators invoke only the helper command surface and public environment
+inputs shown here.
 
 Operational summary: valid states are `created`, `reviewed`, `gated`, `posted`,
 `aborted`, and `failed`. All other states and all transitions not listed in the
@@ -153,9 +156,19 @@ Required writes:
 - Write `reviewed` after the initial Phase 4 result manifest validates.
 - Write `gated` after each successful Phase 5 preview render, using
   `PRESENTED_AT` and `PRESENTATION_STATUS`.
-- Write `posted`, `aborted`, or `failed` before any cleanup decision. `failed`
-  writes must include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
+- Write `aborted` immediately after the user chooses `abort`, with
+  `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
+- Write `posted` only after the GitHub review post succeeds, with
+  `APPROVED_REVIEW_FILE`, `FINISHED_AT`, `GITHUB_POST_ATTEMPTED=true`,
+  `GITHUB_POST_RESULT=succeeded`, and `GITHUB_POSTED_AT`.
+- Write `failed` before any cleanup decision when validation, preview,
+  approval-freeze, stale-head, or GitHub posting fails. `failed` writes must
+  include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
   `FAILURE_RECOVERABILITY`.
+- Recreate a fresh active `created` lease for the same PR/worktree only through
+  the helper's `STATE=created` write from a valid terminal `posted` or
+  `aborted` lease. The helper archives the terminal lease before writing the
+  new active lease; do not move or rewrite archived leases manually.
 
 Resume `created`, `reviewed`, `gated`, and `failed` leases from validated lease
 and manifest artifacts. Do not remove an existing review worktree during resume
@@ -165,6 +178,12 @@ physical worktree path and run `review-leases.sh validate` or
 reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
 approval; resume must present or re-render the latest validated artifacts and
 wait for fresh user action.
+
+Use `review-leases.sh validate` whenever resuming from an existing lease before
+trusting artifact paths. It validates the lease schema, immutable identity,
+timestamps, and referenced artifacts. If validation fails, stop and either
+record a `failed` lease when the current lease state allows it or preserve the
+worktree for manual recovery; do not reconstruct state from conversation text.
 
 ## Phase 3: Determine diff ranges
 
@@ -826,15 +845,18 @@ LEASE_FILE="$LEASE_FILE" \
 ```
 
 Inspection prints fixed keys: `OUTCOME`, `CAN_REMOVE`, `REFUSAL_REASON`,
-`DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, and `REQUIRES_CONFIRMATION`.
+`DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
+`METADATA_OUTCOME`, and `FORCE_REMOVE_ALLOWED`.
 
 Dirty worktrees, unmanaged `.ephemeral` artifacts, identity mismatches, and
 invalid lease mechanics are absolute refusals. Lease-referenced managed
 artifacts may remain in terminal cleanup decisions so recovery and audit
 pointers do not block their own cleanup path. Non-worktree paths and missing
 physical paths are skipped outcomes, not removal permission. User confirmation
-cannot override those outcomes. Preserve any existing worktree and report the
-helper's refusal message.
+cannot override those outcomes. The helper's classifier is the single source of
+cleanup truth for both inspection and removal; cleanup execution must not
+reclassify or broaden the decision. Preserve any existing worktree and report
+the helper's refusal message.
 
 `created`, `reviewed`, `gated`, missing-lease cleanup, and recoverable `failed`
 cleanup require explicit operator confirmation before passing
@@ -861,9 +883,12 @@ CONFIRM_REMOVE_TOKEN="${CONFIRM_REMOVE_TOKEN:-}" \
 ```
 
 Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. Treat `removed`,
-`retained`, and `skipped` as completed cleanup outcomes. Treat `failed` or a
-nonzero exit as a cleanup failure and report the lease path, worktree path, and
-message for manual recovery. Do not run a broad `.ephemeral` sweep.
+`retained`, and `skipped` as completed cleanup outcomes. It also prints the
+same classifier keys as inspection: `CAN_REMOVE`, `REFUSAL_REASON`, `DIRTY`,
+`LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
+`METADATA_OUTCOME`, and `FORCE_REMOVE_ALLOWED`. Treat `failed` or a nonzero
+exit as a cleanup failure and report the lease path, worktree path, classifier
+fields, and message for manual recovery. Do not run a broad `.ephemeral` sweep.
 
 ## GitHub API Reference
 

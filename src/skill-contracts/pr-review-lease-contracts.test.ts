@@ -93,6 +93,9 @@ describe("pr-review lease source contracts", () => {
     expect(leaseSection).toContain(
       "Keep `SKILL.md` operator-facing; update the reference and focused tests when lease lifecycle behavior changes",
     );
+    expect(leaseSection).toContain(
+      "The reference names internal reducer events for auditability, but operators invoke only the helper command surface and public environment inputs shown here",
+    );
     expect(leaseSection).not.toContain("| LC-01 |");
     expect(normalizedLeaseContract).toContain(
       "Review Lease Lifecycle Contract",
@@ -100,12 +103,21 @@ describe("pr-review lease source contracts", () => {
     for (const row of lifecycleRows) {
       expect(normalizedLeaseContract).toContain(`| ${row} |`);
     }
-    expect(normalizedLeaseContract).toContain("| LC-01 | `none -> created`");
     expect(normalizedLeaseContract).toContain(
-      "| LC-17 | `failed -> posted` | Complete retry-to-post only from a prior LC-13 GitHub-post failure",
+      "| LC-01 | `create` | `none` | `created`",
     );
     expect(normalizedLeaseContract).toContain(
-      "| LC-18 | `terminal -> created` | Archive a valid active `posted` or `aborted` lease",
+      "| LC-13 | `record-failure` | `gated` | `failed`",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "| LC-17 | `retry-post-success` | `failed` | `posted`",
+    );
+    expect(normalizedLeaseContract).toContain(
+      "| LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`",
+    );
+    expect(normalizedLeaseContract).toContain("Terminal Archive Behavior");
+    expect(normalizedLeaseContract).toContain(
+      ".ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json",
     );
     expect(normalizedLeaseContract).toContain(
       "Non-`github-post` failures clear GitHub post metadata",
@@ -113,8 +125,24 @@ describe("pr-review lease source contracts", () => {
     expect(normalizedLeaseContract).toContain(
       "Approved-review path identity must mirror `approved-review-artifacts.sh`",
     );
+    expect(normalizedLeaseContract).toContain("Validated payload copy");
+    expect(normalizedLeaseContract).toContain(
+      "Treating arbitrary payload-like JSON or user-authored JSON strings as managed cleanup evidence",
+    );
     expect(normalizedLeaseContract).toContain(
       "Cleanup may preserve only lease-referenced artifacts and schema-declared artifact fields",
+    );
+    for (const field of [
+      "`can_remove`",
+      "`refusal_reason`",
+      "`requires_confirmation`",
+      "`metadata_outcome`",
+      "`force_remove_allowed`",
+    ]) {
+      expect(normalizedLeaseContract).toContain(field);
+    }
+    expect(normalizedLeaseContract).toContain(
+      "`dirty`, `invalid-lease`, `untracked-artifacts`, `identity-mismatch`, `confirmation-required`, `confirmation-token-mismatch`, `expected-state-mismatch`, `primary-worktree`, `non-worktree`, `missing-worktree`",
     );
     expect(leaseSection).toContain(
       "Write `created` after `WORKING_DIRECTORY` is resolved",
@@ -129,6 +157,12 @@ describe("pr-review lease source contracts", () => {
       "Write `gated` after each successful Phase 5 preview render",
     );
     expect(leaseSection).toContain(
+      "Write `aborted` immediately after the user chooses `abort`, with `FINISHED_AT` and `TERMINAL_REASON`",
+    );
+    expect(leaseSection).toContain(
+      "Write `posted` only after the GitHub review post succeeds, with `APPROVED_REVIEW_FILE`",
+    );
+    expect(leaseSection).toContain(
       "`failed` writes must include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`",
     );
     expect(leaseSection).toContain(
@@ -136,6 +170,9 @@ describe("pr-review lease source contracts", () => {
     );
     expect(leaseSection).toContain(
       "Do not remove an existing review worktree during resume discovery",
+    );
+    expect(leaseSection).toContain(
+      "Use `review-leases.sh validate` whenever resuming from an existing lease before trusting artifact paths",
     );
   });
 
@@ -192,6 +229,8 @@ describe("pr-review lease source contracts", () => {
 
     expect(cleanup).toContain("review-leases.sh inspect-worktree");
     expect(cleanup).toContain("review-leases.sh cleanup-worktree");
+    expect(cleanup).toContain("METADATA_OUTCOME");
+    expect(cleanup).toContain("FORCE_REMOVE_ALLOWED");
     expect(cleanup).toContain("ALLOW_POLICY_OVERRIDE");
     expect(cleanup).toContain("CONFIRM_REMOVE_TOKEN");
     expect(cleanup).toContain(
@@ -205,6 +244,9 @@ describe("pr-review lease source contracts", () => {
     );
     expect(cleanup).toContain(
       "Non-worktree paths and missing physical paths are skipped outcomes, not removal permission",
+    );
+    expect(cleanup).toContain(
+      "The helper's classifier is the single source of cleanup truth for both inspection and removal",
     );
     expect(cleanup).toContain(
       "`created`, `reviewed`, `gated`, missing-lease cleanup, and recoverable `failed` cleanup require explicit operator confirmation before passing `ALLOW_POLICY_OVERRIDE=yes`",
@@ -237,6 +279,34 @@ describe("pr-review lease source contracts", () => {
     );
     expect(normalizedAdr).toContain(
       "plain `git worktree remove` only after its safety and confirmation contract passes",
+    );
+    expect(normalizedAdr).toContain(
+      "Lease-bound PR review artifacts are also part of the path-based handoff model",
+    );
+    expect(normalizedAdr).toContain(
+      "The validated payload copy is managed cleanup evidence only after the approved-review validator emits it",
+    );
+    expect(normalizedAdr).toContain(
+      "ADR-0012 remains unchanged by the lease reducer work because findings and nits delivery, retention, and manual sweep semantics do not change",
+    );
+    expect(normalizedAdr).toContain(
+      "ADR-0019 also remains unchanged: the installed `pr-review` helper shipped by this decision is Bash/JQ",
+    );
+  });
+
+  it("keeps lease helper and lifecycle contract discoverable from MAP", async () => {
+    const map = await readRepoFile("MAP.md");
+    const normalizedMap = normalizeWhitespace(map);
+
+    expect(normalizedMap).toContain("Where is the PR review lease helper?");
+    expect(normalizedMap).toContain(
+      "skills/pr-review/scripts/review-leases.sh",
+    );
+    expect(normalizedMap).toContain(
+      "Where is the PR review lease lifecycle contract?",
+    );
+    expect(normalizedMap).toContain(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
     );
   });
 });

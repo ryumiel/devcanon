@@ -218,6 +218,28 @@ Dirty worktrees, preserved review artifacts, identity mismatches, invalid lease
 mechanics, non-worktree paths, and missing physical paths remain outside the
 generic artifact sweep policy.
 
+Lease-bound PR review artifacts are also part of the path-based handoff model.
+The Phase 3 handoff manifest, Phase 4 result manifest, Phase 5 preview result,
+approved-review freeze, and validated GitHub payload copy are passed by
+repo-relative direct-child `.ephemeral/` paths, then bound to one lease by
+repository, PR number, base/head refs, review head, physical review worktree,
+and result-to-handoff or approved-review-to-result identity. The lease helper
+records only those paths and lifecycle metadata; it never embeds findings text,
+approval intent, or GitHub payload JSON in the lease.
+
+The validated payload copy is managed cleanup evidence only after the
+approved-review validator emits it at the deterministic PR-number and review
+head path. Arbitrary payload-like JSON, prose, or user-authored strings inside
+review artifacts do not make a file managed. This keeps lease-gated cleanup
+consistent with ADR-0012's side-channel retention model while narrowing cleanup
+authority to artifacts proven by the lease and schema-declared artifact fields.
+
+ADR-0012 remains unchanged by the lease reducer work because findings and nits
+delivery, retention, and manual sweep semantics do not change. ADR-0019 also
+remains unchanged: the installed `pr-review` helper shipped by this decision is
+Bash/JQ, TypeScript skill-script authoring is deferred, and no TypeScript
+runtime is introduced for installed skill bundles.
+
 The `design.md` / `plan.md` precedents have never had a sweep; ADR-0012's
 findings-file decision did not introduce one; this ADR keeps the generic
 phase-artifact convention uniform. Edge cases (PR-created preserved worktrees,
