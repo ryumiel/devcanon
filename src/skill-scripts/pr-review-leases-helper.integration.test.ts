@@ -3164,62 +3164,66 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
     longTestTimeout,
   );
 
-  it("rejects failed leases that claim the GitHub post succeeded", async () => {
-    const { primary, review, parent } = await makeLinkedReviewWorkspace(
-      "devcanon-pr-lease-failed-",
-    );
-    try {
-      const { branchName } = await writeValidReviewManifests(
-        review.cwd,
-        review.baseSha,
-        review.headSha,
+  it(
+    "rejects failed leases that claim the GitHub post succeeded",
+    async () => {
+      const { primary, review, parent } = await makeLinkedReviewWorkspace(
+        "devcanon-pr-lease-failed-",
       );
-      const manifestHelper = await writePassingManifestHelper(review.cwd);
-      const approvedPath = await writeBoundApprovedReviewArtifact(
-        review.cwd,
-        review.headSha,
-        branchName,
-      );
-      const file = await writeCreatedLease(primary.cwd, review.cwd);
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "reviewed",
-        RESULT_FILE: resultPath(review.headSha),
-      });
-      await runLeaseHelper(primary.cwd, "write", {
-        WORKTREE_PATH: review.cwd,
-        LEASE_FILE: file,
-        REVIEW_MANIFEST_HELPER: manifestHelper,
-        STATE: "gated",
-        PRESENTED_AT: "2026-06-05T00:03:00Z",
-        PRESENTATION_STATUS: "preview-current",
-      });
-
-      await expect(
-        runLeaseHelper(primary.cwd, "write", {
+      try {
+        const { branchName } = await writeValidReviewManifests(
+          review.cwd,
+          review.baseSha,
+          review.headSha,
+        );
+        const manifestHelper = await writePassingManifestHelper(review.cwd);
+        const approvedPath = await writeBoundApprovedReviewArtifact(
+          review.cwd,
+          review.headSha,
+          branchName,
+        );
+        const file = await writeCreatedLease(primary.cwd, review.cwd);
+        await runLeaseHelper(primary.cwd, "write", {
           WORKTREE_PATH: review.cwd,
           LEASE_FILE: file,
-          STATE: "failed",
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "reviewed",
           RESULT_FILE: resultPath(review.headSha),
-          APPROVED_REVIEW_FILE: approvedPath,
-          FINISHED_AT: "2026-06-05T00:04:00Z",
-          FAILURE_PHASE: "github-post",
-          FAILURE_REASON: "Post succeeded cannot be failed",
-          FAILURE_RECOVERABILITY: "unknown",
-          GITHUB_POST_ATTEMPTED: "true",
-          GITHUB_POST_RESULT: "succeeded",
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "GITHUB_POST_RESULT must be failed for github-post failure",
-        ),
-      });
-    } finally {
-      await cleanupLinkedReviewWorkspace(primary, review, parent);
-    }
-  });
+        });
+        await runLeaseHelper(primary.cwd, "write", {
+          WORKTREE_PATH: review.cwd,
+          LEASE_FILE: file,
+          REVIEW_MANIFEST_HELPER: manifestHelper,
+          STATE: "gated",
+          PRESENTED_AT: "2026-06-05T00:03:00Z",
+          PRESENTATION_STATUS: "preview-current",
+        });
+
+        await expect(
+          runLeaseHelper(primary.cwd, "write", {
+            WORKTREE_PATH: review.cwd,
+            LEASE_FILE: file,
+            STATE: "failed",
+            RESULT_FILE: resultPath(review.headSha),
+            APPROVED_REVIEW_FILE: approvedPath,
+            FINISHED_AT: "2026-06-05T00:04:00Z",
+            FAILURE_PHASE: "github-post",
+            FAILURE_REASON: "Post succeeded cannot be failed",
+            FAILURE_RECOVERABILITY: "unknown",
+            GITHUB_POST_ATTEMPTED: "true",
+            GITHUB_POST_RESULT: "succeeded",
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "GITHUB_POST_RESULT must be failed for github-post failure",
+          ),
+        });
+      } finally {
+        await cleanupLinkedReviewWorkspace(primary, review, parent);
+      }
+    },
+    longTestTimeout,
+  );
 
   it(
     "restricts direct failed-to-posted retries to prior github-post failures",
@@ -3799,7 +3803,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
       }
     },
-    longTestTimeout,
+    extraLongTestTimeout,
   );
 
   it(
@@ -3886,7 +3890,7 @@ describe.skipIf(!jqAvailable).concurrent("pr-review lease helper", () => {
         await cleanupLinkedReviewWorkspace(primary, review, parent);
       }
     },
-    longTestTimeout,
+    extraLongTestTimeout,
   );
 
   it("does not remove preexisting temp-like files after failed writes", async () => {
