@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { cp } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
@@ -67,6 +68,41 @@ describe("devcanon-runtime typed entrypoint", () => {
       expect(JSON.parse(stdout)).toMatchObject({
         normalized: "/var/result.json",
         comparable: "/var/result.json",
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("packages every shared runtime helper module in the copied support skill bundle", async () => {
+    const tempDir = await createTempDir();
+    try {
+      await cp(
+        path.resolve("skills/devcanon-runtime"),
+        path.join(tempDir, "devcanon-runtime"),
+        { recursive: true },
+      );
+
+      const runtimeModule = await import(
+        pathToFileURL(
+          path.join(
+            tempDir,
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "index.js",
+          ),
+        ).href
+      );
+
+      expect(runtimeModule).toMatchObject({
+        assertNoSymlinkOrReparsePoint: expect.any(Function),
+        gitRevParse: expect.any(Function),
+        normalizeRuntimePath: expect.any(Function),
+        runGit: expect.any(Function),
+        runRuntimeCommand: expect.any(Function),
+        validateRuntimeSchema: expect.any(Function),
+        writeTextAtomically: expect.any(Function),
       });
     } finally {
       await cleanupTempDir(tempDir);

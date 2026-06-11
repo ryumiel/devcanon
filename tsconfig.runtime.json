@@ -6,10 +6,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": [
-    "src/runtime/cli.ts",
-    "src/runtime/command.ts",
-    "src/runtime/paths.ts"
-  ],
+  "include": ["src/runtime/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.integration.test.ts"]
 }
