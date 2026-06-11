@@ -11,20 +11,18 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import {
+  copyRuntimeFixture,
+  expectSameBashPath,
+  resolveRuntimeEntrypoint,
+  toBashPath,
+} from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { sync } from "../install/sync.js";
 import { renderAll } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
-
-async function copyRuntimeFixture(skillsDir: string): Promise<void> {
-  await cp(
-    path.resolve("skills/devcanon-runtime"),
-    path.join(skillsDir, "devcanon-runtime"),
-    { recursive: true },
-  );
-}
 
 async function prepareRuntimeResolutionFixture(
   config: ResolvedConfig,
@@ -37,67 +35,6 @@ async function prepareRuntimeResolutionFixture(
     "consumer-skill",
     "---\nname: consumer-skill\ndescription: A runtime-backed consumer fixture.\n---\n\n# Consumer\n",
     ["scripts"],
-  );
-}
-
-async function resolveRuntimeEntrypoint(
-  resolverPath: string,
-  consumerScriptPath: string,
-  env: NodeJS.ProcessEnv = {},
-): Promise<string> {
-  const bashResolverPath = await toBashPath(resolverPath);
-  const bashConsumerScriptPath = await toBashPath(consumerScriptPath);
-  const { stdout } = await execFileAsync(
-    "bash",
-    [
-      bashResolverPath,
-      "resolve-entrypoint",
-      "--from",
-      bashConsumerScriptPath,
-      "--entrypoint",
-      "scripts/devcanon-runtime.sh",
-    ],
-    {
-      env: { ...process.env, ...env },
-    },
-  );
-  return stdout.trim();
-}
-
-async function toBashPath(nativePath: string): Promise<string> {
-  const { stdout } = await execFileAsync("bash", [
-    "-lc",
-    'if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf "%s\\n" "$1"; fi',
-    "bash",
-    nativePath,
-  ]);
-  return stdout.trim();
-}
-
-function normalizePathText(value: string): string {
-  let normalized = value.replace(/\\/gu, "/");
-  if (process.platform === "win32") {
-    normalized = normalized.replace(
-      /^\/([A-Za-z])\//u,
-      (_match, drive: string) => `${drive}:/`,
-    );
-    normalized = normalized.replace(
-      /^\/cygdrive\/([A-Za-z])\//u,
-      (_match, drive: string) => `${drive}:/`,
-    );
-    if (/^[A-Za-z]:\//u.test(normalized)) {
-      normalized = normalized.toLowerCase();
-    }
-  }
-  return normalized;
-}
-
-async function expectSameBashPath(
-  actual: string,
-  expectedNativePath: string,
-): Promise<void> {
-  expect(normalizePathText(actual)).toBe(
-    normalizePathText(await toBashPath(expectedNativePath)),
   );
 }
 
