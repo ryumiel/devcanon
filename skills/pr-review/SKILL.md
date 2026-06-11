@@ -90,13 +90,17 @@ directory, outside the disposable review worktree.
 `review-leases.sh` preserves the public helper commands but delegates lease
 path derivation, typed reducer transitions, closed-schema validation,
 path-guarded writes, and atomic writes to `devcanon-runtime`'s
-`pr-review-leases` command. `review-manifests.sh` continues to own
-`pr-review/handoff/v1` and `pr-review/result/v1` validation.
+`pr-review-leases` command. `review-manifests.sh` likewise preserves the public
+handoff/result helper commands while delegating `pr-review/handoff/v1` and
+`pr-review/result/v1` schema validation, path guards, delegated authority
+checks, digest verification, and atomic writes to `devcanon-runtime`'s
+`pr-review-manifests` command.
 `approved-review-artifacts.sh` and `play-review` continue to own approved
-review payload and findings validation. The lease records lifecycle state only;
-it does not store approval intent, review payload JSON, inline comments,
-findings content, or thread-resolution decisions. The lease helper never posts
-to GitHub and never constructs GitHub review payloads.
+review payload and findings validation. The lease records lifecycle state plus
+the result-manifest validation outcome needed to resume a reviewed result; it
+does not store approval intent, review payload JSON, inline comments, findings
+content, or thread-resolution decisions. The lease helper never posts to GitHub
+and never constructs GitHub review payloads.
 
 Helper command surface:
 

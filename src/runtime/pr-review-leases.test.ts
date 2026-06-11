@@ -1,5 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { type PrReviewLease, reducePrReviewLease } from "./pr-review-leases.js";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  type PrReviewLease,
+  reducePrReviewLease,
+  runPrReviewLeasesCommand,
+} from "./pr-review-leases.js";
 
 const identity = {
   repository: "owner/repo",
@@ -10,6 +24,28 @@ const identity = {
   leaseFile:
     ".ephemeral/pr-432-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-lease.json",
 };
+
+const originalCwd = process.cwd();
+const managedEnvKeys = [
+  "REPOSITORY",
+  "PR_NUMBER",
+  "PRIMARY_REPOSITORY_ROOT",
+  "WORKTREE_PATH",
+  "LEASE_FILE",
+  "STATE",
+  "BASE_REF",
+  "HEAD_REF",
+  "CREATED_AT",
+  "UPDATED_AT",
+  "ALLOW_POLICY_OVERRIDE",
+] as const;
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  for (const key of managedEnvKeys) {
+    delete process.env[key];
+  }
+});
 
 function createLease(): PrReviewLease {
   return reducePrReviewLease(null, identity, {
@@ -59,6 +95,12 @@ describe("pr-review lease reducer", () => {
     expect(reviewedLease()).toMatchObject({
       state: "reviewed",
       artifacts: { result_file: ".ephemeral/pr-432-result.json" },
+      validation: {
+        result_manifest: {
+          status: "valid",
+          validated_at: "2026-06-11T00:01:00Z",
+        },
+      },
     });
 
     expect(gatedLease()).toMatchObject({
@@ -129,6 +171,189 @@ describe("pr-review lease reducer", () => {
     });
   });
 
+  it("covers documented lifecycle transition rows", () => {
+    const created = createLease();
+    const attached = reducePrReviewLease(created, identity, {
+      state: "created",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:00:30Z",
+      handoffFile: ".ephemeral/pr-432-handoff.json",
+    });
+    expect(attached.artifacts.handoff_file).toBe(
+      ".ephemeral/pr-432-handoff.json",
+    );
+
+    const reviewed = reviewedLease();
+    const abortedFromReviewed = reducePrReviewLease(reviewed, identity, {
+      state: "aborted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      finishedAt: "2026-06-11T00:02:30Z",
+      terminalReason: "user-aborted",
+    });
+    expect(abortedFromReviewed).toMatchObject({
+      state: "aborted",
+      artifacts: { result_file: ".ephemeral/pr-432-result.json" },
+    });
+
+    const gated = gatedLease();
+    const refreshedGate = reducePrReviewLease(gated, identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:02:30Z",
+      presentedAt: "2026-06-11T00:02:30Z",
+      presentationStatus: "edited",
+    });
+    expect(refreshedGate.presentation.status).toBe("edited");
+
+    const abortedFromGated = reducePrReviewLease(gated, identity, {
+      state: "aborted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:03:30Z",
+      finishedAt: "2026-06-11T00:03:30Z",
+      terminalReason: "user-aborted",
+    });
+    expect(abortedFromGated.presentation.status).toBe("preview-current");
+
+    const failedFromCreated = reducePrReviewLease(created, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:04:00Z",
+      finishedAt: "2026-06-11T00:04:00Z",
+      failurePhase: "handoff-validation",
+      failureReason: "handoff rejected",
+      failureRecoverability: "recoverable",
+    });
+    expect(failedFromCreated.artifacts.result_file).toBeNull();
+
+    const failedFromReviewed = reducePrReviewLease(reviewed, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:05:00Z",
+      finishedAt: "2026-06-11T00:05:00Z",
+      failurePhase: "preview-render",
+      failureReason: "preview failed",
+      failureRecoverability: "recoverable",
+    });
+    expect(failedFromReviewed.artifacts.result_file).toBe(
+      ".ephemeral/pr-432-result.json",
+    );
+
+    const failedPreApproval = reducePrReviewLease(gated, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:06:00Z",
+      finishedAt: "2026-06-11T00:06:00Z",
+      failurePhase: "stale-head",
+      failureReason: "head moved",
+      failureRecoverability: "recoverable",
+    });
+    expect(failedPreApproval.presentation.status).toBe("preview-current");
+
+    const failedApprovalFreeze = reducePrReviewLease(gated, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:07:00Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      finishedAt: "2026-06-11T00:07:00Z",
+      failurePhase: "approval-freeze",
+      failureReason: "approval artifact rejected",
+      failureRecoverability: "recoverable",
+    });
+    expect(failedApprovalFreeze.artifacts.approved_review_file).toBe(
+      ".ephemeral/topic-approved-review.json",
+    );
+
+    const recoveredGate = reducePrReviewLease(failedPreApproval, identity, {
+      state: "gated",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:08:00Z",
+      presentedAt: "2026-06-11T00:08:00Z",
+      presentationStatus: "preview-current",
+    });
+    expect(recoveredGate.state).toBe("gated");
+
+    const abortedFromFailed = reducePrReviewLease(failedPreApproval, identity, {
+      state: "aborted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:09:00Z",
+      finishedAt: "2026-06-11T00:09:00Z",
+      terminalReason: "not posting",
+    });
+    expect(abortedFromFailed.state).toBe("aborted");
+
+    const repeatedFailure = reducePrReviewLease(failedPreApproval, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:10:00Z",
+      finishedAt: "2026-06-11T00:10:00Z",
+      failurePhase: "preview-render",
+      failureReason: "preview still failed",
+      failureRecoverability: "recoverable",
+    });
+    expect(repeatedFailure.failure.reason).toBe("preview still failed");
+
+    const githubFailure = reducePrReviewLease(gated, identity, {
+      state: "failed",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:11:00Z",
+      approvedReviewFile: ".ephemeral/topic-approved-review.json",
+      finishedAt: "2026-06-11T00:11:00Z",
+      failurePhase: "github-post",
+      failureReason: "GitHub API rejected review",
+      failureRecoverability: "recoverable",
+      githubPostAttempted: true,
+      githubPostResult: "failed",
+    });
+    const retryPosted = reducePrReviewLease(githubFailure, identity, {
+      state: "posted",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:00:00Z",
+      updatedAt: "2026-06-11T00:12:00Z",
+      finishedAt: "2026-06-11T00:12:00Z",
+      githubPostedAt: "2026-06-11T00:12:00Z",
+    });
+    expect(retryPosted.github.github_post_result).toBe("succeeded");
+
+    const recreated = reducePrReviewLease(abortedFromFailed, identity, {
+      state: "created",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:13:00Z",
+      updatedAt: "2026-06-11T00:13:00Z",
+    });
+    expect(recreated).toMatchObject({
+      state: "created",
+      artifacts: { result_file: null },
+      validation: { result_manifest: { status: null, validated_at: null } },
+    });
+  });
+
   it("rejects invalid cross-state transitions", () => {
     expect(() =>
       reducePrReviewLease(createLease(), identity, {
@@ -143,4 +368,311 @@ describe("pr-review lease reducer", () => {
       }),
     ).toThrow("invalid lease transition: created -> posted");
   });
+
+  it("fails closed instead of overwriting malformed existing leases", async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
+    const primary = path.join(tempRoot, "primary");
+    const worktree = path.join(tempRoot, "worktree");
+    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+    await mkdir(worktree, { recursive: true });
+    const physicalPrimary = await realpath(primary);
+    const physicalWorktree = await realpath(worktree);
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      await writeFile(path.join(primary, leaseFile), "{not json\n");
+
+      process.env.LEASE_FILE = leaseFile;
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.CREATED_AT = "2026-06-11T00:00:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:00:00Z";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      await expect(
+        readFile(path.join(primary, leaseFile), "utf8"),
+      ).resolves.toBe("{not json\n");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("validates legacy lease/v1 files without explicit validation metadata", async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-legacy-"));
+    const primary = path.join(tempRoot, "primary");
+    const worktree = path.join(tempRoot, "worktree");
+    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+    const physicalPrimary = await realpath(primary);
+    const physicalWorktree = await realpath(worktree);
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      const resultFile = ".ephemeral/pr-432-result.json";
+      await writeFile(
+        path.join(worktree, resultFile),
+        `${JSON.stringify({
+          repository: "owner/repo",
+          pr_number: 432,
+          review_head_sha: "1111111111111111111111111111111111111111",
+        })}\n`,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify({
+          schema: "pr-review/lease/v1",
+          repository: "owner/repo",
+          pr_number: 432,
+          state: "reviewed",
+          base_ref: "main",
+          head_ref: "topic",
+          worktree_path: physicalWorktree,
+          worktree_digest: dynamicIdentity.worktreeDigest,
+          lease_file: leaseFile,
+          created_at: "2026-06-11T00:00:00Z",
+          updated_at: "2026-06-11T00:01:00Z",
+          artifacts: {
+            handoff_file: null,
+            result_file: resultFile,
+            approved_review_file: null,
+            validated_payload_file: null,
+          },
+          presentation: { presented_at: null, status: null },
+          terminal: { finished_at: null, reason: null },
+          failure: { phase: null, reason: null, recoverability: null },
+          github: {
+            github_post_attempted: false,
+            github_post_result: "not-attempted",
+            github_posted_at: null,
+          },
+        })}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result).toMatchObject({ exitCode: 0, stdout: "" });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-cleanup-"));
+    const primary = path.join(tempRoot, "primary");
+    const worktree = path.join(tempRoot, "worktree");
+    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+    await writeFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "keep\n");
+    const physicalPrimary = await realpath(primary);
+    const physicalWorktree = await realpath(worktree);
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      const lease: PrReviewLease = {
+        schema: "pr-review/lease/v1",
+        repository: "owner/repo",
+        pr_number: 432,
+        state: "aborted",
+        base_ref: "main",
+        head_ref: "topic",
+        worktree_path: physicalWorktree,
+        worktree_digest: dynamicIdentity.worktreeDigest,
+        lease_file: leaseFile,
+        created_at: "2026-06-11T00:00:00Z",
+        updated_at: "2026-06-11T00:01:00Z",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null },
+        },
+        presentation: { presented_at: null, status: null },
+        terminal: {
+          finished_at: "2026-06-11T00:01:00Z",
+          reason: "user-aborted",
+        },
+        failure: { phase: null, reason: null, recoverability: null },
+        github: {
+          github_post_attempted: false,
+          github_post_result: "not-attempted",
+          github_posted_at: null,
+        },
+      };
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      expect(result.stdout).toContain(
+        "MESSAGE=unmanaged .ephemeral artifacts: .ephemeral/unmanaged.txt",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat arbitrary artifact strings as cleanup ownership", async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-owned-"));
+    const primary = path.join(tempRoot, "primary");
+    const worktree = path.join(tempRoot, "worktree");
+    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+    const physicalPrimary = await realpath(primary);
+    const physicalWorktree = await realpath(worktree);
+    const resultFile = ".ephemeral/pr-432-result.json";
+    const findingsFile = ".ephemeral/topic-findings.json";
+    await writeFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "keep\n");
+    await writeFile(path.join(worktree, findingsFile), "{}\n");
+    await writeFile(
+      path.join(worktree, resultFile),
+      `${JSON.stringify({
+        repository: "owner/repo",
+        pr_number: 432,
+        review_head_sha: "1111111111111111111111111111111111111111",
+        findings_file: findingsFile,
+        review_body_file: null,
+        context_file: null,
+        artifacts: {
+          handoff_file: ".ephemeral/pr-432-handoff.json",
+          scope_decision_file: ".ephemeral/pr-432-scope-decision.json",
+          prior_threads_file: null,
+          rendered_preview_file: null,
+          extra: ".ephemeral/unmanaged.txt",
+        },
+      })}\n`,
+    );
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      const lease = reviewedCommandLease(
+        leaseFile,
+        physicalWorktree,
+        dynamicIdentity.worktreeDigest,
+        resultFile,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(lease, null, 2)}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      expect(result.stdout).toContain(".ephemeral/unmanaged.txt");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
 });
+
+function setLeaseCommandEnv(primary: string, worktree: string): void {
+  process.env.REPOSITORY = "owner/repo";
+  process.env.PR_NUMBER = "432";
+  process.env.PRIMARY_REPOSITORY_ROOT = primary;
+  process.env.WORKTREE_PATH = worktree;
+}
+
+function identityFromLeaseFile(
+  leaseFile: string,
+  worktreePath: string,
+): typeof identity {
+  const match = /^\.ephemeral\/pr-432-([0-9a-f]{64})-lease\.json$/u.exec(
+    leaseFile,
+  );
+  if (match === null) {
+    throw new Error(`unexpected lease path: ${leaseFile}`);
+  }
+  return {
+    ...identity,
+    worktreePath,
+    worktreeDigest: match[1],
+    leaseFile,
+  };
+}
+
+function reviewedCommandLease(
+  leaseFile: string,
+  worktreePath: string,
+  worktreeDigest: string,
+  resultFile: string,
+): PrReviewLease {
+  return {
+    schema: "pr-review/lease/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    state: "reviewed",
+    base_ref: "main",
+    head_ref: "topic",
+    worktree_path: worktreePath,
+    worktree_digest: worktreeDigest,
+    lease_file: leaseFile,
+    created_at: "2026-06-11T00:00:00Z",
+    updated_at: "2026-06-11T00:01:00Z",
+    artifacts: {
+      handoff_file: null,
+      result_file: resultFile,
+      approved_review_file: null,
+      validated_payload_file: null,
+    },
+    validation: {
+      result_manifest: {
+        status: "valid",
+        validated_at: "2026-06-11T00:01:00Z",
+      },
+    },
+    presentation: { presented_at: null, status: null },
+    terminal: { finished_at: null, reason: null },
+    failure: { phase: null, reason: null, recoverability: null },
+    github: {
+      github_post_attempted: false,
+      github_post_result: "not-attempted",
+      github_posted_at: null,
+    },
+  };
+}

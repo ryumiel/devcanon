@@ -5,6 +5,7 @@ import {
   requireDirectEphemeralChild,
 } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
+import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
 import { runReviewArtifactsCommand } from "./review-artifacts.js";
 
 export const RUNTIME_COMMAND_CONTRACT = {
@@ -34,6 +35,8 @@ export async function runRuntimeCommand(
         return ok(validateJson(rest));
       case "review-artifacts":
         return await runReviewArtifactsCommand(rest);
+      case "pr-review-manifests":
+        return await runPrReviewManifestsCommand(rest);
       case "pr-review-leases":
         return await runPrReviewLeasesCommand(rest);
       default:

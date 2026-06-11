@@ -572,8 +572,12 @@ describe("phase artifact source contracts", () => {
     const manifestHelper = await readRepoFile(
       "skills/pr-review/scripts/review-manifests.sh",
     );
+    const manifestRuntime = await readRepoFile(
+      "src/runtime/pr-review-manifests.ts",
+    );
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedManifestHelper = normalizeWhitespace(manifestHelper);
+    const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
 
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
@@ -597,6 +601,8 @@ describe("phase artifact source contracts", () => {
       expect(prReview).toContain(helperCommand);
       expect(manifestHelper).toContain(helperCommand);
     }
+    expect(manifestHelper).toContain("runtime pr-review-manifests");
+    expect(manifestRuntime).toContain("runPrReviewManifestsCommand");
 
     for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
       expect(prReview).toContain(noticeLine);
@@ -664,13 +670,18 @@ describe("phase artifact source contracts", () => {
       "Do not call `build-github-review-payload` again after user approval",
     );
 
-    expect(normalizedManifestHelper).toContain(
-      "schema: $schema, pr_number: $pr_number",
+    expect(normalizedManifestRuntime).toContain(
+      'schema: "pr-review/handoff/v1"',
     );
-    expect(manifestHelper).toContain('"approval_state"');
-    expect(manifestHelper).toContain('"lease_state"');
-    expect(manifestHelper).toContain('"review_payload_file"');
-    expect(manifestHelper).toContain('"payload_sha256"');
+    expect(normalizedManifestRuntime).toContain(
+      'schema: "pr-review/result/v1"',
+    );
+    expect(manifestRuntime).toContain('"approval_state"');
+    expect(manifestRuntime).toContain('"lease_state"');
+    expect(manifestRuntime).toContain('"review_payload_file"');
+    expect(manifestRuntime).toContain('"payload_sha256"');
+    expect(manifestHelper).not.toMatch(/\bgh\s+api\b/);
+    expect(manifestRuntime).not.toMatch(/\bgh\s+api\b/);
   });
 
   it("keeps branch-review follow-up input, range, escalation, and fix-preservation contracts", async () => {

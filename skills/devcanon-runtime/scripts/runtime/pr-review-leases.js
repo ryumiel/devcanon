@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdir, readFile, realpath, rename, } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, readdir, realpath, rename, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
@@ -74,6 +74,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
                     handoff_file: inputs.handoffFile ?? previous?.artifacts.handoff_file ?? null,
                     result_file: inputs.resultFile,
                 },
+                validation: validResultValidation(inputs.updatedAt),
             };
         case "LC-04":
         case "LC-14":
@@ -98,6 +99,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
                     handoff_file: previous?.artifacts.handoff_file ?? null,
                     result_file: previous?.artifacts.result_file ?? null,
                 },
+                validation: previous?.validation ?? emptyValidation(),
                 presentation: row === "LC-07"
                     ? (previous?.presentation ?? emptyPresentation())
                     : emptyPresentation(),
@@ -120,6 +122,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
                     approved_review_file: inputs.approvedReviewFile,
                     validated_payload_file: inputs.validatedPayloadFile ?? null,
                 },
+                validation: previous?.validation ?? emptyValidation(),
                 presentation: previous?.presentation ?? emptyPresentation(),
                 terminal: { finished_at: inputs.finishedAt, reason: null },
                 github: {
@@ -149,6 +152,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
                 ...base,
                 state: "posted",
                 artifacts: previous.artifacts,
+                validation: previous.validation,
                 presentation: previous.presentation,
                 terminal: { finished_at: inputs.finishedAt, reason: null },
                 github: {
@@ -180,23 +184,24 @@ async function writeLease() {
 async function validateLeaseCommand() {
     const identity = await readIdentity(true);
     const lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
-    validateLeaseShape(lease);
-    if (lease.repository !== identity.repository) {
+    const normalizedLease = normalizeLegacyLease(lease);
+    validateLeaseShape(normalizedLease);
+    if (normalizedLease.repository !== identity.repository) {
         throw new PrReviewLeaseError("lease repository mismatch");
     }
-    if (lease.pr_number !== identity.prNumber) {
+    if (normalizedLease.pr_number !== identity.prNumber) {
         throw new PrReviewLeaseError("lease PR number mismatch");
     }
-    if (lease.worktree_path !== identity.worktreePath) {
+    if (normalizedLease.worktree_path !== identity.worktreePath) {
         throw new PrReviewLeaseError("lease worktree path mismatch");
     }
-    if (lease.worktree_digest !== identity.worktreeDigest) {
+    if (normalizedLease.worktree_digest !== identity.worktreeDigest) {
         throw new PrReviewLeaseError("lease worktree digest mismatch");
     }
-    if (lease.lease_file !== identity.leaseFile) {
+    if (normalizedLease.lease_file !== identity.leaseFile) {
         throw new PrReviewLeaseError("lease file identity mismatch");
     }
-    await validateReferencedArtifacts(lease, identity.worktreePath);
+    await validateReferencedArtifacts(normalizedLease, identity.worktreePath);
 }
 async function inspectWorktree() {
     const identity = await readIdentity(true);
@@ -258,7 +263,7 @@ async function classifyCleanup(identity) {
     };
     let lease;
     try {
-        lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
+        lease = normalizeLegacyLease(await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file"));
         validateLeaseShape(lease);
         base.leaseState = lease.state;
         base.identityMatch =
@@ -275,6 +280,14 @@ async function classifyCleanup(identity) {
             };
         }
         await validateReferencedArtifacts(lease, identity.worktreePath);
+        const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(lease, identity.worktreePath);
+        if (unmanagedArtifacts.length > 0) {
+            return {
+                ...base,
+                refusalReason: "unmanaged-ephemeral-artifacts",
+                message: `unmanaged .ephemeral artifacts: ${unmanagedArtifacts.join(", ")}`,
+            };
+        }
     }
     catch {
         return {
@@ -426,6 +439,7 @@ function buildBaseLease(previous, identity, inputs, row) {
         created_at: createdAt,
         updated_at: inputs.updatedAt,
         artifacts: emptyArtifacts(),
+        validation: emptyValidation(),
         presentation: emptyPresentation(),
         terminal: { finished_at: null, reason: null },
         failure: { phase: null, reason: null, recoverability: null },
@@ -449,6 +463,9 @@ function applyGated(base, previous, inputs) {
             handoff_file: previous?.artifacts.handoff_file ?? null,
             result_file: resultFile,
         },
+        validation: resultFile === previous?.artifacts.result_file
+            ? (previous?.validation ?? emptyValidation())
+            : validResultValidation(inputs.updatedAt),
         presentation: {
             presented_at: inputs.presentedAt,
             status: inputs.presentationStatus,
@@ -494,6 +511,7 @@ function applyFailure(row, base, previous, inputs) {
                     previous?.artifacts.validated_payload_file ??
                     null),
         },
+        validation: previous?.validation ?? emptyValidation(),
         presentation: row === "LC-11" || row === "LC-12" || row === "LC-13"
             ? (previous?.presentation ?? emptyPresentation())
             : emptyPresentation(),
@@ -583,6 +601,21 @@ function archivePathIfNeeded(previous, identity, inputs) {
     const stamp = (previous.terminal.finished_at ?? previous.updated_at).replace(/[-:Z]/gu, "");
     return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
 }
+function normalizeLegacyLease(lease) {
+    if (lease.validation !== undefined) {
+        return lease;
+    }
+    const resultFile = isObject(lease.artifacts) &&
+        typeof lease.artifacts.result_file === "string"
+        ? lease.artifacts.result_file
+        : null;
+    return {
+        ...lease,
+        validation: resultFile === null
+            ? emptyValidation()
+            : validResultValidation(lease.updated_at),
+    };
+}
 function validateLeaseShape(lease) {
     if (lease.schema !== "pr-review/lease/v1") {
         throw new PrReviewLeaseError("lease schema mismatch");
@@ -597,6 +630,9 @@ function validateLeaseShape(lease) {
     }
     if (lease.github.github_posted_at !== null) {
         validateTimestamp("github.github_posted_at", lease.github.github_posted_at);
+    }
+    if (lease.validation.result_manifest.validated_at !== null) {
+        validateTimestamp("validation.result_manifest.validated_at", lease.validation.result_manifest.validated_at);
     }
     for (const [label, value, suffix] of [
         ["handoff", lease.artifacts.handoff_file, DIRECT_SUFFIXES.handoff],
@@ -626,6 +662,16 @@ function validateStateInvariants(lease) {
         lease.state === "gated" ||
         lease.state === "posted") &&
         lease.artifacts.result_file === null) {
+        throw new PrReviewLeaseError("lease schema mismatch");
+    }
+    if (lease.artifacts.result_file === null) {
+        if (lease.validation.result_manifest.status !== null ||
+            lease.validation.result_manifest.validated_at !== null) {
+            throw new PrReviewLeaseError("lease schema mismatch");
+        }
+    }
+    else if (lease.validation.result_manifest.status !== "valid" ||
+        lease.validation.result_manifest.validated_at === null) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if (lease.state === "gated" && lease.presentation.presented_at === null) {
@@ -664,6 +710,74 @@ async function validateReferencedArtifacts(lease, worktreePath) {
             }
         }
     }
+}
+async function findUnmanagedEphemeralArtifacts(lease, worktreePath) {
+    const ephemeralPath = path.join(worktreePath, ".ephemeral");
+    let entries;
+    try {
+        entries = await readdir(ephemeralPath, { withFileTypes: true });
+    }
+    catch (err) {
+        if (err.code === "ENOENT") {
+            return [];
+        }
+        throw err;
+    }
+    const owned = await collectOwnedEphemeralArtifacts(lease, worktreePath);
+    return entries
+        .map((entry) => `.ephemeral/${entry.name}`)
+        .filter((entryPath) => !owned.has(entryPath))
+        .sort();
+}
+async function collectOwnedEphemeralArtifacts(lease, worktreePath) {
+    const owned = new Set();
+    addOwnedPath(owned, lease.artifacts.handoff_file);
+    addOwnedPath(owned, lease.artifacts.result_file);
+    addOwnedPath(owned, lease.artifacts.approved_review_file);
+    addOwnedPath(owned, lease.artifacts.validated_payload_file);
+    if (lease.artifacts.handoff_file !== null) {
+        const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
+        collectHandoffArtifactPaths(owned, handoff);
+    }
+    if (lease.artifacts.result_file !== null) {
+        const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
+        addOwnedPath(owned, stringField(result, "findings_file"));
+        addOwnedPath(owned, nullableStringField(result, "review_body_file"));
+        addOwnedPath(owned, nullableStringField(result, "context_file"));
+        collectResultArtifactPaths(owned, result);
+    }
+    if (lease.artifacts.approved_review_file !== null) {
+        const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
+        addOwnedPath(owned, typeof approved.review_body_file === "string"
+            ? approved.review_body_file
+            : null);
+    }
+    return owned;
+}
+function collectHandoffArtifactPaths(owned, handoff) {
+    const artifacts = handoff.artifacts;
+    if (!isObject(artifacts)) {
+        return;
+    }
+    addOwnedPath(owned, stringField(artifacts, "scope_decision_file"));
+    addOwnedPath(owned, nullableStringField(artifacts, "prior_threads_file"));
+}
+function collectResultArtifactPaths(owned, result) {
+    const artifacts = result.artifacts;
+    if (!isObject(artifacts)) {
+        return;
+    }
+    addOwnedPath(owned, stringField(artifacts, "handoff_file"));
+    addOwnedPath(owned, stringField(artifacts, "scope_decision_file"));
+    addOwnedPath(owned, nullableStringField(artifacts, "prior_threads_file"));
+    addOwnedPath(owned, nullableStringField(artifacts, "rendered_preview_file"));
+}
+function addOwnedPath(owned, value) {
+    if (value === null) {
+        return;
+    }
+    requireDirectEphemeralChild(value);
+    owned.add(value);
 }
 function validateHandoffIdentity(handoff, lease, worktreePath) {
     if (handoff.repository !== lease.repository) {
@@ -733,12 +847,14 @@ function validateApprovedIdentity(approved, lease) {
 }
 async function readExistingLease(file) {
     try {
-        return await readRequiredJson(process.cwd(), file, "lease file");
+        const lease = normalizeLegacyLease(await readRequiredJson(process.cwd(), file, "lease file"));
+        validateLeaseShape(lease);
+        return lease;
     }
     catch (err) {
         if (err.code === "ENOENT")
             return null;
-        return null;
+        throw err;
     }
 }
 async function readRequiredJson(root, relPath, label) {
@@ -836,6 +952,22 @@ function emptyArtifacts() {
         result_file: null,
         approved_review_file: null,
         validated_payload_file: null,
+    };
+}
+function emptyValidation() {
+    return {
+        result_manifest: {
+            status: null,
+            validated_at: null,
+        },
+    };
+}
+function validResultValidation(validatedAt) {
+    return {
+        result_manifest: {
+            status: "valid",
+            validated_at: validatedAt,
+        },
     };
 }
 function emptyPresentation() {
@@ -941,6 +1073,16 @@ function parseOptionalBoolean(value) {
 }
 function stringField(object, key) {
     const value = object[key];
+    if (typeof value !== "string") {
+        throw new PrReviewLeaseError(`${key} is required`);
+    }
+    return value;
+}
+function nullableStringField(object, key) {
+    const value = object[key];
+    if (value === null) {
+        return null;
+    }
     if (typeof value !== "string") {
         throw new PrReviewLeaseError(`${key} is required`);
     }

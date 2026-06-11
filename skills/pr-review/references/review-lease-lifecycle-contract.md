@@ -8,9 +8,9 @@ owns operator flow.
 
 ## State Authority
 
-The lease records lifecycle state only. It does not store approval intent,
-review payload JSON, inline comments, findings content, or thread-resolution
-decisions.
+The lease records lifecycle state and the result-manifest validation outcome
+that justifies entering `reviewed`. It does not store approval intent, review
+payload JSON, inline comments, findings content, or thread-resolution decisions.
 
 Valid states are:
 
@@ -34,7 +34,7 @@ updates are valid only when the matching row says so.
 | ----- | ----------------------------- | --------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LC-01 | `create`                      | `none`                | `created`  | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
 | LC-02 | `attach-handoff`              | `created`             | `created`  | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                            |
-| LC-03 | `record-result`               | `created`             | `reviewed` | `RESULT_FILE`, `UPDATED_AT`                                                                                                                                                             |
+| LC-03 | `record-result`               | `created`             | `reviewed` | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` with the validation timestamp                                                                 |
 | LC-04 | `present-preview`             | `reviewed`            | `gated`    | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`                                                                                                 |
 | LC-05 | `present-preview`             | `gated`               | `gated`    | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`                                                                                           |
 | LC-06 | `abort`                       | `reviewed`            | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
@@ -64,6 +64,17 @@ creation.
 Terminal writes require `FINISHED_AT`. `aborted` writes also require
 `TERMINAL_REASON`. `failed` writes require `FAILURE_PHASE`, `FAILURE_REASON`,
 and `FAILURE_RECOVERABILITY`.
+
+`reviewed` and later states that preserve a result manifest must also preserve
+`validation.result_manifest.status=valid` and the timestamp at which the helper
+accepted that result manifest. Leases without a result manifest keep the result
+validation outcome null.
+
+For compatibility with early `pr-review/lease/v1` files written before the
+validation field existed, the runtime interprets missing
+`validation.result_manifest` as null when no result manifest is present, or as
+`valid` at the lease `updated_at` timestamp when a result manifest is present.
+The next successful lifecycle write rewrites the lease with the explicit field.
 
 GitHub post metadata is phase-scoped:
 
