@@ -21,12 +21,14 @@ remain `pr-review`, `branch-review`, and their `play-review` handoff.
 ## Authority
 
 The sibling script
-`skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns shared
-deterministic validation for review artifacts consumed by Play review surfaces.
-Its authority is limited to executable mechanics for review-artifact contracts,
-including schema checks, Git-derived artifact facts, scope range invariants,
-follow-up SHA usability, changed-file and language-hint derivation, escalation
-reasons, diff-anchor validation, and approved-review payload equivalence.
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh` exposes the
+shared deterministic validation command surface for review artifacts consumed
+by Play review surfaces. It forwards those commands to the packaged
+`devcanon-runtime` typed runtime, whose authority is limited to executable
+mechanics for review-artifact contracts, including schema checks, Git-derived
+artifact facts, scope range invariants, follow-up SHA usability, changed-file
+and language-hint derivation, escalation reasons, diff-anchor validation, and
+approved-review payload equivalence.
 
 The script does not own:
 
@@ -38,9 +40,7 @@ The script does not own:
 
 This support skill is a narrow exception because multiple review surfaces must
 share one deterministic artifact-validation authority. That exception does not
-make the skill a user-facing workflow or a general shared runtime model. The
-approved design for shared review-artifact validation owns required behavior
-until the script and adapters are implemented.
+make the skill a user-facing workflow or a general shared runtime model.
 
 ## Consumer Relationship
 
@@ -112,12 +112,9 @@ scope-decision path, expected schema, prior-context kind and path, governed path
 pattern, max narrow changed-file count, and optional configured path pattern.
 Scope-consuming commands must not rely on hidden prior validation state.
 
-The validator is currently shell/JQ self-contained in installed skill bundles.
-ADR-0024 permits a future `devcanon-runtime` backed implementation only if it
-preserves this support-skill command surface and packaging contract. A
-runtime-backed validator may require Node.js through the packaged support
-runtime, but must not require the installed `devcanon` CLI solely to validate
-review artifacts.
+The validator is runtime-backed through the packaged `devcanon-runtime` support
+skill. It may require Node.js through that packaged support runtime, but it must
+not require the installed `devcanon` CLI solely to validate review artifacts.
 
 ## Failure Contract
 

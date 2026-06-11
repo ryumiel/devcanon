@@ -782,7 +782,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("play-validate-review-artifacts");
     expect(branchReview).toContain("scope-decision-artifacts.sh");
     expect(normalizedBranchReview).toContain(
-      "Do not copy the support validator's shell/JQ policy into this skill prose",
+      "Do not copy the support validator's runtime-backed policy into this skill prose",
     );
     expect(branchReview).toContain("MECHANICAL_ACTIVE_DIFF_RANGE");
     expect(branchReview).toContain("MECHANICAL_ESCALATE_FULL");
@@ -994,7 +994,7 @@ describe("phase artifact source contracts", () => {
 
     expect(playReview).toContain("play-validate-review-artifacts");
     expect(normalizedPlayReview).toContain(
-      "does not restate the support validator's shell/JQ policy",
+      "does not restate the support validator's runtime-backed policy",
     );
 
     expect(prReview).toContain("references/follow-up-scope-policy.md");

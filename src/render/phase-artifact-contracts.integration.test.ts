@@ -1039,7 +1039,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(branchReview).toContain("play-validate-review-artifacts");
       expect(branchReview).toContain("scope-decision-artifacts.sh");
       expect(normalizedBranchReview).toContain(
-        "Do not copy the support validator's shell/JQ policy into this skill prose",
+        "Do not copy the support validator's runtime-backed policy into this skill prose",
       );
       expect(branchReview).toContain("full_pr_diff_range");
       expect(branchReview).toContain("Escalate back to full branch review");

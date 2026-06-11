@@ -14,7 +14,7 @@ adapter scripts to pass explicit surface, head SHA, prior-context, governed
 path, configured path, range, changed-file, and language-hint inputs to
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh`. This
 reference states the human workflow contract around final scope selection; it
-does not duplicate the support validator's shell/JQ policy.
+does not duplicate the support validator's runtime-backed policy.
 
 ## Baseline Selection
 

@@ -58,7 +58,7 @@ checks clearly pass, ambiguous cases escalate to full review with prior context
 preserved, and `language_hints` are recomputed from the final selected active
 diff. This skill does not compute the final `active_diff_range`, does not
 invoke the support validator directly, and does not restate the support
-validator's shell/JQ policy.
+validator's runtime-backed policy.
 
 ## Output
 

@@ -135,7 +135,7 @@ portable governed-path escalation, configured path escalation from
 `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, and range invariants. The
 branch-review adapter owns only branch-specific path derivation, environment
 translation, and compatibility with the `KEY=VALUE` stdout contract above. Do
-not copy the support validator's shell/JQ policy into this skill prose.
+not copy the support validator's runtime-backed policy into this skill prose.
 
 ## Upstream Review-Scope Handoff
 

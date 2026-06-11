@@ -1,0 +1,1683 @@
+import { execFile } from "node:child_process";
+import { constants } from "node:fs";
+import {
+  access,
+  lstat,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { runGit } from "./git.js";
+import { requireDirectEphemeralChild } from "./paths.js";
+
+type RuntimeCommandOutcome =
+  | { exitCode: 0; stdout: string; stderr: string }
+  | { exitCode: 1; stdout: string; stderr: string };
+
+type JsonObject = Record<string, unknown>;
+
+interface ReviewArtifactOptions {
+  surface: string;
+  headSha: string;
+  baseRef: string;
+  scopeDecision: string;
+  expectedSchema: string;
+  priorContextKind: string;
+  priorContextPath: string;
+  provider: string;
+  governedPathPattern: string;
+  configuredPathPattern: string;
+  maxNarrowChangedFiles: string;
+  allowAmbiguousFull: string;
+  priorThreads: string;
+  findingsFile: string;
+  reviewBodyFile: string;
+  reviewEvent: string;
+  reviewPayloadFile: string;
+}
+
+const EMPTY_OPTIONS: ReviewArtifactOptions = {
+  surface: "",
+  headSha: "",
+  baseRef: "",
+  scopeDecision: "",
+  expectedSchema: "",
+  priorContextKind: "",
+  priorContextPath: "",
+  provider: "",
+  governedPathPattern: "",
+  configuredPathPattern: "",
+  maxNarrowChangedFiles: "",
+  allowAmbiguousFull: "true",
+  priorThreads: "",
+  findingsFile: "",
+  reviewBodyFile: "",
+  reviewEvent: "",
+  reviewPayloadFile: "",
+};
+
+const KNOWN_ESCALATION_REASONS = new Set([
+  "not-followup",
+  "file-count",
+  "governance-path",
+  "configured-path",
+  "last-reviewed-unusable",
+  "public-api",
+  "logic-restructure",
+  "reviewer-routing-policy",
+  "output-schema",
+  "install-sync",
+  "path-validation-guard",
+  "external-invocation-guard",
+  "generated-output-renderer",
+  "generated-output-contract",
+  "source-owned-contract",
+  "safety-boundary",
+  "broad-scope",
+  "architecture-surface",
+  "shared-workflow-policy",
+  "ambiguous-classification",
+]);
+
+const SEMANTIC_ESCALATION_REASONS = new Set([
+  "public-api",
+  "logic-restructure",
+  "reviewer-routing-policy",
+  "output-schema",
+  "install-sync",
+  "path-validation-guard",
+  "external-invocation-guard",
+  "generated-output-renderer",
+  "generated-output-contract",
+  "source-owned-contract",
+  "safety-boundary",
+  "broad-scope",
+  "architecture-surface",
+  "shared-workflow-policy",
+]);
+
+export async function runReviewArtifactsCommand(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  try {
+    const [commandName, ...rest] = args;
+    const options = parseCommonArgs(rest);
+    switch (commandName) {
+      case "validate-scope-decision":
+        await validateScopeDecision(options);
+        return ok("");
+      case "validate-prior-threads":
+        await validatePriorThreads(options);
+        return ok("");
+      case "validate-diff-anchors":
+        await validateDiffAnchors(options);
+        return ok("");
+      case "compare-approved-payload":
+        return ok(await compareApprovedPayload(options));
+      default:
+        throw new ReviewArtifactsError(
+          "usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload",
+        );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { exitCode: 1, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
+  const options = { ...EMPTY_OPTIONS };
+  let index = 0;
+  while (index < args.length) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (value === undefined || value.length === 0) {
+      throw new ReviewArtifactsError(`${flag} requires a value`);
+    }
+    switch (flag) {
+      case "--surface":
+        options.surface = value;
+        break;
+      case "--head-sha":
+        options.headSha = value;
+        break;
+      case "--base-ref":
+        options.baseRef = value;
+        break;
+      case "--scope-decision-file":
+        options.scopeDecision = value;
+        break;
+      case "--expected-schema":
+        options.expectedSchema = value;
+        break;
+      case "--expected-prior-context-kind":
+        options.priorContextKind = value;
+        break;
+      case "--expected-prior-context-path":
+        options.priorContextPath = value;
+        break;
+      case "--governed-path-pattern":
+        options.governedPathPattern = value;
+        break;
+      case "--configured-path-pattern":
+        options.configuredPathPattern = value;
+        break;
+      case "--max-narrow-changed-files":
+        options.maxNarrowChangedFiles = value;
+        break;
+      case "--allow-ambiguous-full-escalation":
+        options.allowAmbiguousFull = value;
+        break;
+      case "--prior-threads-file":
+        options.priorThreads = value;
+        break;
+      case "--provider":
+        options.provider = value;
+        break;
+      case "--findings-file":
+        options.findingsFile = value;
+        break;
+      case "--review-body-file":
+        options.reviewBodyFile = value;
+        break;
+      case "--review-event":
+        options.reviewEvent = value;
+        break;
+      case "--review-payload-file":
+        options.reviewPayloadFile = value;
+        break;
+      default:
+        throw new ReviewArtifactsError(
+          `unknown review-artifacts argument: ${flag}`,
+        );
+    }
+    index += 2;
+  }
+  return options;
+}
+
+async function validateScopeDecision(
+  options: ReviewArtifactOptions,
+): Promise<JsonObject> {
+  await requireRepoRoot();
+  requireScopeFlags(options);
+  await validateHeadShaCommit(options.headSha);
+  validatePattern("--governed-path-pattern", options.governedPathPattern);
+  validatePattern("--configured-path-pattern", options.configuredPathPattern);
+  await assertReadableFile("--scope-decision-file", options.scopeDecision);
+  validateSuffix(
+    "--scope-decision-file",
+    options.scopeDecision,
+    "-scope-decision.json",
+  );
+
+  const scope = await readSingleJsonObject(
+    options.scopeDecision,
+    "scope decision JSON validation failed",
+  );
+  validateScopeShape(scope, options.expectedSchema);
+
+  const artifactSurface = stringField(scope, "surface");
+  if (artifactSurface !== options.surface) {
+    fail("scope decision surface mismatch");
+  }
+  const artifactHead = stringField(scope, "head_sha");
+  if (artifactHead !== options.headSha) {
+    fail("scope decision head mismatch");
+  }
+
+  const mode = stringField(scope, "mode");
+  const fullRange = stringField(scope, "full_range");
+  const selectedRange = stringField(scope, "selected_range");
+  const candidateRange = stringField(scope, "candidate_narrow_range");
+  const lastReviewed = nullableStringField(scope, "last_reviewed_sha") ?? "";
+  const isNarrow = booleanField(scope, "is_followup_narrow");
+  const escalationReasons = stringArrayField(scope, "escalation_reasons");
+  const mechanicalFacts = objectField(scope, "mechanical_facts");
+  const semanticDecision = objectField(scope, "semantic_decision");
+  const mechanicalEscalate = booleanField(
+    mechanicalFacts,
+    "mechanical_escalate_full",
+  );
+  const artifactFollowupUsable = booleanField(
+    mechanicalFacts,
+    "followup_sha_usable",
+  );
+  const artifactMechanicalReason = stringField(
+    mechanicalFacts,
+    "mechanical_escalation_reason",
+  );
+  const changedCount = numberField(mechanicalFacts, "changed_file_count");
+  const semanticChecked = booleanField(semanticDecision, "checked");
+  const semanticAmbiguous = booleanField(semanticDecision, "ambiguous");
+
+  rejectUnknownEscalationReasons(escalationReasons);
+  if (!semanticChecked) {
+    fail("semantic decision must be checked");
+  }
+
+  const fullRangeBase = fullRange.endsWith("...HEAD")
+    ? fullRange.slice(0, -"...HEAD".length)
+    : "";
+  if (fullRangeBase.length === 0) {
+    fail("full range must end at HEAD");
+  }
+  if (
+    fullRangeBase.startsWith("-") ||
+    fullRangeBase.includes("..") ||
+    /\s/u.test(fullRangeBase)
+  ) {
+    fail("full range base ref is invalid");
+  }
+  if (!(await gitRefExists(`${fullRangeBase}^{commit}`))) {
+    fail("base ref does not resolve");
+  }
+  if (options.baseRef.length > 0) {
+    if (!(await gitRefExists(`${options.baseRef}^{commit}`))) {
+      fail("base ref does not resolve");
+    }
+    if (fullRange !== `${options.baseRef}...HEAD`) {
+      fail("full range does not match caller base ref");
+    }
+  }
+
+  const fullExecRange = gitExecutionRange(fullRange, options.headSha);
+  await requireRangeExists(fullExecRange);
+
+  let followupUsable = false;
+  if (
+    lastReviewed.length > 0 &&
+    (await gitRefExists(`${lastReviewed}^{commit}`)) &&
+    (await gitMergeBaseIsAncestor(lastReviewed, options.headSha))
+  ) {
+    followupUsable = true;
+  }
+  if (artifactFollowupUsable !== followupUsable) {
+    fail("follow-up usability does not match git");
+  }
+
+  if (isNarrow) {
+    if (mode !== "follow-up") {
+      fail("narrow scope requires follow-up mode");
+    }
+    if (lastReviewed.length === 0) {
+      fail("narrow scope requires last_reviewed_sha");
+    }
+    if (!followupUsable) {
+      fail("narrow scope requires usable follow-up sha");
+    }
+    const expectedRange = `${lastReviewed}..HEAD`;
+    if (selectedRange !== expectedRange || candidateRange !== expectedRange) {
+      fail("narrow scope must use last-reviewed-sha..HEAD");
+    }
+    if (mechanicalEscalate) {
+      fail("narrow scope cannot claim full escalation");
+    }
+    if (escalationReasons.length !== 0) {
+      fail("narrow scope cannot contain escalation reasons");
+    }
+  } else {
+    if (selectedRange !== fullRange) {
+      fail("full escalation selected_range must equal full_range");
+    }
+    if (lastReviewed.length === 0) {
+      if (mode !== "initial") {
+        fail("full baseline requires initial mode");
+      }
+      if (candidateRange !== fullRange) {
+        fail("initial candidate_narrow_range must equal full_range");
+      }
+      await requireRangeExists(
+        gitExecutionRange(candidateRange, options.headSha),
+      );
+      if (!reasonPresent(escalationReasons, "not-followup")) {
+        fail("not-followup escalation reason missing");
+      }
+      if (escalationReasons.length !== 1) {
+        fail("not-followup escalation reason missing");
+      }
+    } else {
+      if (mode !== "follow-up") {
+        fail("full follow-up requires follow-up mode");
+      }
+      if (escalationReasons.length === 0) {
+        fail("full follow-up requires escalation reason");
+      }
+    }
+  }
+
+  const selectedExecRange = gitExecutionRange(selectedRange, options.headSha);
+  await requireRangeExists(selectedExecRange);
+
+  if (semanticAmbiguous && isNarrow) {
+    fail("ambiguous semantic scope requires full review");
+  }
+  if (semanticAmbiguous) {
+    if (options.allowAmbiguousFull !== "true") {
+      fail("ambiguous semantic scope requires explicit allowance");
+    }
+    if (!reasonPresent(escalationReasons, "ambiguous-classification")) {
+      fail("ambiguous-classification escalation reason missing");
+    }
+  }
+
+  const expectedFiles = await changedFiles(selectedExecRange);
+  const actualFiles = stringArrayField(scope, "changed_files").sort();
+  if (!jsonEqual(expectedFiles, actualFiles)) {
+    fail("changed files do not match selected range");
+  }
+
+  let expectedCount = expectedFiles.length;
+  let countRangeLabel = "selected range";
+  if (lastReviewed.length > 0 && followupUsable) {
+    expectedCount = (
+      await changedFiles(
+        gitExecutionRange(`${lastReviewed}..HEAD`, options.headSha),
+      )
+    ).length;
+    countRangeLabel = "candidate range";
+  }
+  if (changedCount !== expectedCount) {
+    fail(`changed file count does not match ${countRangeLabel}`);
+  }
+
+  const expectedHints = languageHints(expectedFiles);
+  const actualHints = uniqueSorted(stringArrayField(scope, "language_hints"));
+  if (!jsonEqual(expectedHints, actualHints)) {
+    fail("language hints do not match selected range");
+  }
+
+  if (lastReviewed.length > 0) {
+    let hasRealFollowupTrigger = false;
+    let derivedMechanicalEscalate = false;
+    const derivedMechanicalReasons: string[] = [];
+
+    if (!followupUsable) {
+      if (isNarrow) {
+        fail("narrow scope requires usable follow-up sha");
+      }
+      if (candidateRange !== fullRange) {
+        fail("unusable follow-up scope must use full range");
+      }
+      if (!reasonPresent(escalationReasons, "last-reviewed-unusable")) {
+        fail("last-reviewed-unusable escalation reason missing");
+      }
+      for (const stale of [
+        "file-count",
+        "governance-path",
+        "configured-path",
+      ]) {
+        if (reasonPresent(escalationReasons, stale)) {
+          fail(`${stale} escalation reason missing`);
+        }
+      }
+      hasRealFollowupTrigger = true;
+      derivedMechanicalEscalate = true;
+      derivedMechanicalReasons.push("last-reviewed-unusable");
+    }
+
+    if (followupUsable) {
+      const expectedCandidateRange = `${lastReviewed}..HEAD`;
+      if (
+        candidateRange.length > 0 &&
+        candidateRange !== expectedCandidateRange
+      ) {
+        fail("narrow scope must use last-reviewed-sha..HEAD");
+      }
+      const candidateFiles = await changedFiles(
+        gitExecutionRange(expectedCandidateRange, options.headSha),
+      );
+      if (candidateFiles.length > Number(options.maxNarrowChangedFiles)) {
+        if (isNarrow) {
+          fail("file count requires full review");
+        }
+        if (!reasonPresent(escalationReasons, "file-count")) {
+          fail("file-count escalation reason missing");
+        }
+        hasRealFollowupTrigger = true;
+        derivedMechanicalEscalate = true;
+        derivedMechanicalReasons.push("file-count");
+      } else if (reasonPresent(escalationReasons, "file-count")) {
+        fail("file-count escalation reason missing");
+      }
+
+      if (anyPathMatches(candidateFiles, options.governedPathPattern)) {
+        if (isNarrow) {
+          fail("governed path requires full review");
+        }
+        if (!reasonPresent(escalationReasons, "governance-path")) {
+          fail("governance-path escalation reason missing");
+        }
+        hasRealFollowupTrigger = true;
+        derivedMechanicalEscalate = true;
+        derivedMechanicalReasons.push("governance-path");
+      } else if (reasonPresent(escalationReasons, "governance-path")) {
+        fail("governance-path escalation reason missing");
+      }
+
+      if (anyPathMatches(candidateFiles, options.configuredPathPattern)) {
+        if (isNarrow) {
+          fail("configured path requires full review");
+        }
+        if (!reasonPresent(escalationReasons, "configured-path")) {
+          fail("configured-path escalation reason missing");
+        }
+        hasRealFollowupTrigger = true;
+        derivedMechanicalEscalate = true;
+        derivedMechanicalReasons.push("configured-path");
+      } else if (reasonPresent(escalationReasons, "configured-path")) {
+        fail("configured-path escalation reason missing");
+      }
+
+      if (reasonPresent(escalationReasons, "last-reviewed-unusable")) {
+        fail("last-reviewed-unusable escalation reason missing");
+      }
+    }
+
+    if (mechanicalEscalate !== derivedMechanicalEscalate) {
+      fail("mechanical escalation does not match git");
+    }
+    const derivedMechanicalReason = derivedMechanicalReasons.join(",");
+    if (derivedMechanicalEscalate) {
+      if (artifactMechanicalReason !== derivedMechanicalReason) {
+        fail("mechanical escalation reason does not match git");
+      }
+    } else if (artifactMechanicalReason.length > 0) {
+      fail("mechanical escalation reason does not match git");
+    }
+
+    if (semanticAmbiguous) {
+      hasRealFollowupTrigger = true;
+    } else if (
+      escalationReasons.some((reason) =>
+        SEMANTIC_ESCALATION_REASONS.has(reason),
+      )
+    ) {
+      hasRealFollowupTrigger = true;
+    } else if (reasonPresent(escalationReasons, "ambiguous-classification")) {
+      fail("ambiguous-classification escalation reason missing");
+    }
+
+    if (reasonPresent(escalationReasons, "not-followup")) {
+      fail("not-followup escalation reason missing");
+    }
+    if (!isNarrow && !hasRealFollowupTrigger) {
+      fail("full follow-up requires justified escalation");
+    }
+  } else if (
+    !mechanicalEscalate ||
+    artifactMechanicalReason !== "not-followup"
+  ) {
+    fail("mechanical escalation does not match git");
+  }
+
+  const priorContext = objectField(scope, "prior_context");
+  const artifactPriorKind = stringField(priorContext, "kind");
+  const artifactPriorPath = nullableStringField(priorContext, "path") ?? "null";
+  if (
+    mode === "initial" &&
+    (artifactPriorKind !== "none" || artifactPriorPath !== "null")
+  ) {
+    fail("initial scope requires no prior context");
+  }
+  validatePriorContextSurface(artifactPriorKind, options.surface);
+  if (artifactPriorKind === "none" && artifactPriorPath !== "null") {
+    fail("none prior context requires null path");
+  }
+  if (artifactPriorKind !== options.priorContextKind) {
+    fail("prior context kind mismatch");
+  }
+  if (artifactPriorPath !== options.priorContextPath) {
+    fail("prior context path mismatch");
+  }
+
+  return scope;
+}
+
+async function validatePriorThreads(
+  options: ReviewArtifactOptions,
+): Promise<void> {
+  await requireRepoRoot();
+  requireFlag("--surface", options.surface);
+  requireFlag("--prior-threads-file", options.priorThreads);
+  requireFlag("--expected-schema", options.expectedSchema);
+  requireFlag("--provider", options.provider);
+  if (options.surface !== "pr-review") {
+    fail("validate-prior-threads requires --surface pr-review");
+  }
+  if (options.expectedSchema !== "pr-review/prior-threads/v1") {
+    fail("--expected-schema must be pr-review/prior-threads/v1");
+  }
+  if (options.provider !== "github") {
+    fail("--provider must be github");
+  }
+  await validateHeadShaCommit(options.headSha);
+  await assertReadableFile("--prior-threads-file", options.priorThreads);
+  validateSuffix(
+    "--prior-threads-file",
+    options.priorThreads,
+    "-prior-threads.json",
+  );
+
+  const envelope = await readSingleJsonObject(
+    options.priorThreads,
+    "prior-thread shape validation failed",
+  );
+  try {
+    validatePriorThreadsSchema(envelope, options);
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("prior-thread shape validation failed");
+    }
+    throw err;
+  }
+}
+
+function validatePriorThreadsSchema(
+  envelope: JsonObject,
+  options: ReviewArtifactOptions,
+): void {
+  if (
+    !hasExactKeys(envelope, [
+      "schema",
+      "provider",
+      "pr_number",
+      "head_sha",
+      "threads",
+      "dropped",
+    ]) ||
+    stringField(envelope, "schema") !== options.expectedSchema ||
+    stringField(envelope, "provider") !== options.provider ||
+    !isPositiveInteger(envelope.pr_number) ||
+    stringField(envelope, "head_sha") !== options.headSha ||
+    !Array.isArray(envelope.threads) ||
+    !Array.isArray(envelope.dropped)
+  ) {
+    fail("prior-thread shape validation failed");
+  }
+
+  for (const thread of envelope.threads) {
+    if (!isPriorThread(thread)) {
+      fail("prior-thread shape validation failed");
+    }
+    const threadObject = thread as JsonObject;
+    for (const comment of arrayField(threadObject, "comments")) {
+      const commentObject = comment as JsonObject;
+      if (
+        !isValidTimestamp(stringField(commentObject, "created_at")) ||
+        !isValidTimestamp(stringField(commentObject, "updated_at"))
+      ) {
+        fail("prior-thread timestamp validation failed");
+      }
+    }
+    const modelContext = stringField(threadObject, "model_context");
+    const classification = stringField(threadObject, "classification");
+    const isResolved = booleanField(threadObject, "is_resolved");
+    const isOutdated = booleanField(threadObject, "is_outdated");
+    const comments = arrayField(threadObject, "comments");
+    const summary = stringField(threadObject, "summary");
+    if (
+      (modelContext === "include" &&
+        !(
+          classification === "actionable" &&
+          !isResolved &&
+          !isOutdated &&
+          comments.length > 0
+        )) ||
+      (modelContext === "summarize" &&
+        !(summary.trim().length > 0 && comments.length === 0)) ||
+      (modelContext === "drop" && comments.length !== 0) ||
+      (classification === "actionable" &&
+        !isResolved &&
+        !isOutdated &&
+        modelContext !== "include")
+    ) {
+      fail("prior-thread model-context eligibility validation failed");
+    }
+    const line = nullableNumberField(threadObject, "line");
+    const startLine = nullableNumberField(threadObject, "start_line");
+    const originalLine = nullableNumberField(threadObject, "original_line");
+    const originalStartLine = nullableNumberField(
+      threadObject,
+      "original_start_line",
+    );
+    if (
+      (startLine !== null && line !== null && startLine > line) ||
+      (originalStartLine !== null &&
+        originalLine !== null &&
+        originalStartLine > originalLine)
+    ) {
+      fail("prior-thread line range is inverted");
+    }
+  }
+
+  for (const dropped of envelope.dropped) {
+    if (!isDroppedThread(dropped)) {
+      fail("dropped-thread shape validation failed");
+    }
+  }
+}
+
+async function validateDiffAnchors(
+  options: ReviewArtifactOptions,
+): Promise<void> {
+  const scope = await validateScopeDecision(options);
+  requireFlag("--findings-file", options.findingsFile);
+  if (options.surface !== "pr-review") {
+    fail("validate-diff-anchors requires --surface pr-review");
+  }
+  await assertReadableFile("--findings-file", options.findingsFile);
+  validateSuffix("--findings-file", options.findingsFile, "-findings.json");
+  const findings = await assertFindingsEnvelope(options.findingsFile);
+  await validateSelectedDiffAnchors(scope, findings, options.headSha);
+}
+
+async function compareApprovedPayload(
+  options: ReviewArtifactOptions,
+): Promise<string> {
+  const scope = await validateScopeDecision(options);
+  if (options.surface !== "pr-review") {
+    fail("compare-approved-payload requires --surface pr-review");
+  }
+  requireFlag("--findings-file", options.findingsFile);
+  requireFlag("--review-body-file", options.reviewBodyFile);
+  requireFlag("--review-payload-file", options.reviewPayloadFile);
+  requireFlag("--review-event", options.reviewEvent);
+  if (
+    !["APPROVE", "REQUEST_CHANGES", "COMMENT"].includes(options.reviewEvent)
+  ) {
+    fail("--review-event must be APPROVE, REQUEST_CHANGES, or COMMENT");
+  }
+  await assertReadableFile("--findings-file", options.findingsFile);
+  await assertReadableReviewBodyFile(options.reviewBodyFile);
+  await assertReadableFile("--review-payload-file", options.reviewPayloadFile);
+  validateSuffix("--findings-file", options.findingsFile, "-findings.json");
+  validateSuffix(
+    "--review-payload-file",
+    options.reviewPayloadFile,
+    "-review-payload.json",
+  );
+
+  const findings = await assertFindingsEnvelope(options.findingsFile);
+  await validateSelectedDiffAnchors(scope, findings, options.headSha);
+  const actualPayload = await readSingleJsonObject(
+    options.reviewPayloadFile,
+    "review payload JSON validation failed",
+  );
+
+  const expectedPayload = buildApprovedReviewPayload({
+    headSha: options.headSha,
+    reviewEvent: options.reviewEvent,
+    reviewBody: await readFile(options.reviewBodyFile, "utf-8"),
+    findings,
+  });
+
+  if (!jsonEqual(expectedPayload, actualPayload)) {
+    fail("approved review payload does not match generated payload");
+  }
+
+  const tempDir = await mkdtemp(
+    path.join(process.cwd(), ".ephemeral", ".expected-approved-payload."),
+  );
+  await rm(tempDir, { recursive: true, force: true });
+  const expectedPath = tempDir;
+  await writeFile(
+    expectedPath,
+    `${JSON.stringify(expectedPayload, null, 2)}\n`,
+  );
+  const output = await readFile(expectedPath, "utf-8");
+  await rm(expectedPath, { force: true });
+  return output;
+}
+
+async function validateSelectedDiffAnchors(
+  scope: JsonObject,
+  findings: JsonObject,
+  headSha: string,
+): Promise<void> {
+  const selectedRange = stringField(scope, "selected_range");
+  const selectedExecRange = gitExecutionRange(selectedRange, headSha);
+  for (const finding of arrayField(findings, "findings").map(
+    (item) => item as JsonObject,
+  )) {
+    if (!["natural", "missing-file"].includes(stringField(finding, "anchor"))) {
+      continue;
+    }
+    const line = numberField(finding, "line");
+    const lineHunk = await diffHunkForFileLine(
+      selectedExecRange,
+      stringField(finding, "path"),
+      line,
+    );
+    if (lineHunk === null) {
+      fail("inline anchor is outside selected review diff");
+    }
+    const startLine = nullableNumberField(finding, "start_line");
+    if (startLine !== null) {
+      if (startLine > line) {
+        fail("diff anchor line range is inverted");
+      }
+      const startHunk = await diffHunkForFileLine(
+        selectedExecRange,
+        stringField(finding, "path"),
+        startLine,
+      );
+      if (startHunk === null) {
+        fail("inline anchor is outside selected review diff");
+      }
+      if (startHunk !== lineHunk) {
+        fail("inline anchor range crosses selected review diff hunks");
+      }
+    }
+  }
+}
+
+async function assertFindingsEnvelope(file: string): Promise<JsonObject> {
+  const envelope = await readSingleJsonObject(
+    file,
+    "findings envelope JSON validation failed",
+  );
+  try {
+    validateFindingsEnvelopeSchema(envelope);
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("findings envelope validation failed");
+    }
+    throw err;
+  }
+  return envelope;
+}
+
+function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
+  if (
+    stringField(envelope, "schema") !== "play-review/findings/v1" ||
+    !Array.isArray(envelope.findings) ||
+    !Array.isArray(envelope.carry_forward)
+  ) {
+    fail("findings envelope validation failed");
+  }
+  for (const finding of allFindings(envelope)) {
+    if (!isFinding(finding)) {
+      fail("findings envelope validation failed");
+    }
+  }
+}
+
+function allFindings(envelope: JsonObject): JsonObject[] {
+  return [
+    ...arrayField(envelope, "findings"),
+    ...arrayField(envelope, "carry_forward"),
+  ].map((item) => item as JsonObject);
+}
+
+function validateScopeShape(scope: JsonObject, expectedSchema: string): void {
+  try {
+    validateScopeShapeSchema(scope, expectedSchema);
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("scope decision schema mismatch");
+    }
+    throw err;
+  }
+}
+
+function validateScopeShapeSchema(
+  scope: JsonObject,
+  expectedSchema: string,
+): void {
+  if (
+    !hasExactKeys(scope, [
+      "schema",
+      "surface",
+      "mode",
+      "selected_range",
+      "full_range",
+      "candidate_narrow_range",
+      "is_followup_narrow",
+      "selection_reason",
+      "escalation_reasons",
+      "last_reviewed_sha",
+      "head_sha",
+      "changed_files",
+      "language_hints",
+      "prior_context",
+      "mechanical_facts",
+      "semantic_decision",
+    ]) ||
+    stringField(scope, "schema") !== expectedSchema ||
+    !["pr-review", "branch-review"].includes(stringField(scope, "surface")) ||
+    !["initial", "follow-up"].includes(stringField(scope, "mode")) ||
+    !isSha(stringField(scope, "head_sha")) ||
+    stringField(scope, "full_range").length === 0 ||
+    stringField(scope, "selected_range").length === 0 ||
+    stringField(scope, "candidate_narrow_range").length === 0 ||
+    !isNullableSha(scope.last_reviewed_sha) ||
+    typeof scope.is_followup_narrow !== "boolean" ||
+    stringField(scope, "selection_reason").length === 0 ||
+    !stringArrayField(scope, "changed_files").every(isRepoPath) ||
+    !stringArrayField(scope, "language_hints").every(
+      (hint) => hint.length >= 0,
+    ) ||
+    !stringArrayField(scope, "escalation_reasons").every(
+      (reason) => reason.length > 0,
+    )
+  ) {
+    fail("scope decision schema mismatch");
+  }
+
+  const priorContext = objectField(scope, "prior_context");
+  if (
+    !["github-prior-threads", "branch-findings", "none"].includes(
+      stringField(priorContext, "kind"),
+    ) ||
+    !(priorContext.path === null || typeof priorContext.path === "string") ||
+    (stringField(priorContext, "kind") !== "none" &&
+      !isDirectEphemeralPath(String(priorContext.path)))
+  ) {
+    fail("scope decision schema mismatch");
+  }
+
+  const mechanicalFacts = objectField(scope, "mechanical_facts");
+  if (
+    !hasExactKeys(mechanicalFacts, [
+      "changed_file_count",
+      "followup_sha_usable",
+      "mechanical_escalate_full",
+      "mechanical_escalation_reason",
+    ]) ||
+    !isNonNegativeInteger(mechanicalFacts.changed_file_count) ||
+    typeof mechanicalFacts.followup_sha_usable !== "boolean" ||
+    typeof mechanicalFacts.mechanical_escalate_full !== "boolean" ||
+    typeof mechanicalFacts.mechanical_escalation_reason !== "string"
+  ) {
+    fail("scope decision schema mismatch");
+  }
+
+  const semanticDecision = objectField(scope, "semantic_decision");
+  if (
+    !hasExactKeys(semanticDecision, ["checked", "ambiguous", "notes"]) ||
+    typeof semanticDecision.checked !== "boolean" ||
+    typeof semanticDecision.ambiguous !== "boolean" ||
+    typeof semanticDecision.notes !== "string"
+  ) {
+    fail("scope decision schema mismatch");
+  }
+}
+
+function requireScopeFlags(options: ReviewArtifactOptions): void {
+  requireFlag("--scope-decision-file", options.scopeDecision);
+  requireFlag("--surface", options.surface);
+  requireFlag("--expected-schema", options.expectedSchema);
+  requireFlag("--expected-prior-context-kind", options.priorContextKind);
+  requireFlag("--expected-prior-context-path", options.priorContextPath);
+  requireFlag("--governed-path-pattern", options.governedPathPattern);
+  requireFlag("--max-narrow-changed-files", options.maxNarrowChangedFiles);
+  if (!["pr-review", "branch-review"].includes(options.surface)) {
+    fail("--surface must be pr-review or branch-review");
+  }
+  if (
+    ![
+      "pr-review/scope-decision/v1",
+      "branch-review/scope-decision/v1",
+    ].includes(options.expectedSchema)
+  ) {
+    fail("--expected-schema is invalid");
+  }
+  if (options.expectedSchema !== `${options.surface}/scope-decision/v1`) {
+    fail("--expected-schema does not match --surface");
+  }
+  if (
+    !["github-prior-threads", "branch-findings", "none"].includes(
+      options.priorContextKind,
+    )
+  ) {
+    fail("--expected-prior-context-kind is invalid");
+  }
+  validatePriorContextSurface(options.priorContextKind, options.surface);
+  if (
+    options.priorContextKind === "none" &&
+    options.priorContextPath !== "null"
+  ) {
+    fail("none prior context requires null path");
+  }
+  if (
+    options.priorContextPath !== "null" &&
+    (options.priorContextPath.length === 0 ||
+      options.priorContextPath.startsWith("/") ||
+      options.priorContextPath.includes("..") ||
+      options.priorContextPath.includes("//") ||
+      options.priorContextPath.includes("/./") ||
+      options.priorContextPath.startsWith("./"))
+  ) {
+    fail("--expected-prior-context-path must be repo-relative or null");
+  }
+  if (!/^[0-9]+$/u.test(options.maxNarrowChangedFiles)) {
+    fail("--max-narrow-changed-files must be an integer");
+  }
+  if (!["true", "false"].includes(options.allowAmbiguousFull)) {
+    fail("--allow-ambiguous-full-escalation must be true or false");
+  }
+}
+
+function validatePriorContextSurface(kind: string, surface: string): void {
+  if (kind === "github-prior-threads" && surface !== "pr-review") {
+    fail("github-prior-threads prior context is pr-review only");
+  }
+  if (kind === "branch-findings" && surface !== "branch-review") {
+    fail("branch-findings prior context is branch-review only");
+  }
+}
+
+async function requireRepoRoot(): Promise<void> {
+  const gitTopLevel = (await git(["rev-parse", "--show-toplevel"])).trim();
+  const physicalTopLevel = await realpath(gitTopLevel);
+  const physicalCwd = await realpath(process.cwd());
+  if (physicalTopLevel !== physicalCwd) {
+    fail("review-artifacts.sh must run from the repository root");
+  }
+}
+
+async function validateHeadShaCommit(headSha: string): Promise<void> {
+  requireFlag("--head-sha", headSha);
+  if (!isSha(headSha)) {
+    fail("--head-sha must be a 40-character lowercase hex SHA");
+  }
+  if (!(await gitRefExists(`${headSha}^{commit}`))) {
+    fail("--head-sha does not resolve to a commit");
+  }
+}
+
+async function assertReadableFile(label: string, file: string): Promise<void> {
+  validateDirectChildPath(label, file);
+  await assertEphemeralDirectory();
+  const stat = await lstat(file).catch(() => null);
+  if (stat === null) {
+    fail(`${label} missing or not a regular file: ${file}`);
+  }
+  if (stat.isSymbolicLink()) {
+    fail(`${label} must not be a symlink: ${file}`);
+  }
+  if (!stat.isFile()) {
+    fail(`${label} missing or not a regular file: ${file}`);
+  }
+  try {
+    await access(file, constants.R_OK);
+  } catch {
+    fail(`${label} missing or unreadable: ${file}`);
+  }
+}
+
+async function assertReadableReviewBodyFile(file: string): Promise<void> {
+  validateReviewBodyPath(file);
+  await assertEphemeralDirectory();
+  const stat = await lstat(file).catch(() => null);
+  if (stat === null) {
+    fail(`review body missing or not a regular file: ${file}`);
+  }
+  if (stat.isSymbolicLink()) {
+    fail(`review body must not be a symlink: ${file}`);
+  }
+  if (!stat.isFile()) {
+    fail(`review body missing or not a regular file: ${file}`);
+  }
+  try {
+    await access(file, constants.R_OK);
+  } catch {
+    fail(`review body missing or unreadable: ${file}`);
+  }
+}
+
+function validateDirectChildPath(label: string, file: string): void {
+  if (file.length === 0) {
+    fail(`${label} is required`);
+  }
+  if (file.includes("..")) {
+    fail(`path traversal: ${file}`);
+  }
+  if (
+    file.startsWith(".ephemeral/") &&
+    file.slice(".ephemeral/".length).includes("/")
+  ) {
+    fail(`nested ${label} path rejected: ${file}`);
+  }
+  if (!file.startsWith(".ephemeral/")) {
+    fail(`${label} path validation failed: ${file}`);
+  }
+  try {
+    requireDirectEphemeralChild(file);
+  } catch {
+    fail(`${label} path validation failed: ${file}`);
+  }
+}
+
+function validateReviewBodyPath(file: string): void {
+  if (file.length === 0) {
+    fail("--review-body-file is required");
+  }
+  if (
+    file.startsWith("/") ||
+    file.includes("..") ||
+    file.startsWith("./") ||
+    file.includes("//") ||
+    /^[A-Za-z]:/u.test(file) ||
+    file.includes("\\")
+  ) {
+    fail(`review body path validation failed: ${file}`);
+  }
+  if (
+    file.startsWith(".ephemeral/") &&
+    file.slice(".ephemeral/".length).includes("/")
+  ) {
+    fail(`nested review body path rejected: ${file}`);
+  }
+  if (
+    !file.startsWith(".ephemeral/") &&
+    !file.endsWith(".md") &&
+    !file.endsWith(".markdown")
+  ) {
+    fail(`review body path validation failed: ${file}`);
+  }
+}
+
+async function assertEphemeralDirectory(): Promise<void> {
+  const stat = await lstat(".ephemeral").catch(() => undefined);
+  if (stat?.isSymbolicLink()) {
+    fail(".ephemeral must be a directory, not a symlink");
+  }
+}
+
+function validateSuffix(label: string, file: string, suffix: string): void {
+  if (!file.endsWith(suffix)) {
+    fail(`${label} path validation failed: ${file}`);
+  }
+}
+
+async function readSingleJsonObject(
+  file: string,
+  failureMessage: string,
+): Promise<JsonObject> {
+  try {
+    const parsed = JSON.parse(await readFile(file, "utf-8")) as unknown;
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      fail(failureMessage);
+    }
+    return parsed as JsonObject;
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    fail(failureMessage);
+  }
+}
+
+async function changedFiles(range: string): Promise<string[]> {
+  const stdout = await git(["diff", "-z", "--name-only", range]);
+  return stdout.split("\0").filter(Boolean).sort();
+}
+
+function languageHints(files: readonly string[]): string[] {
+  return uniqueSorted(
+    files
+      .map((file) => /\.([A-Za-z0-9_+-]+)$/u.exec(file)?.[1])
+      .filter((ext): ext is string => ext !== undefined)
+      .map((ext) => ext.toLowerCase()),
+  );
+}
+
+export function buildApprovedReviewPayload(input: {
+  headSha: string;
+  reviewEvent: string;
+  reviewBody: string;
+  findings: JsonObject;
+}): JsonObject {
+  let reviewBody = stripTrailingNewlines(input.reviewBody);
+  const outOfDiffBodies = allFindings(input.findings)
+    .filter((finding) => stringField(finding, "anchor") === "out-of-diff")
+    .map((finding) => stringField(finding, "body"));
+  if (outOfDiffBodies.length > 0) {
+    const outOfDiff = `## Out-of-diff Findings\n\n${outOfDiffBodies.join(
+      "\n\n",
+    )}`;
+    reviewBody =
+      reviewBody.length > 0 ? `${reviewBody}\n\n${outOfDiff}` : outOfDiff;
+  }
+
+  return {
+    commit_id: input.headSha,
+    event: input.reviewEvent,
+    body: reviewBody,
+    comments: arrayField(input.findings, "findings")
+      .map((item) => item as JsonObject)
+      .filter((finding) =>
+        ["natural", "missing-file"].includes(stringField(finding, "anchor")),
+      )
+      .map((finding) => {
+        const anchor = stringField(finding, "anchor");
+        const comment: JsonObject = {
+          path: stringField(finding, "path"),
+          line: numberField(finding, "line"),
+          side: "RIGHT",
+          body:
+            anchor === "missing-file"
+              ? `Missing-file finding (no natural anchor — see body):\n\n${stringField(
+                  finding,
+                  "body",
+                )}`
+              : stringField(finding, "body"),
+        };
+        const startLine = nullableNumberField(finding, "start_line");
+        if (startLine !== null) {
+          comment.start_line = startLine;
+          comment.start_side = "RIGHT";
+        }
+        return comment;
+      }),
+  };
+}
+
+function gitExecutionRange(publicRange: string, headSha: string): string {
+  if (publicRange.endsWith("...HEAD")) {
+    return `${publicRange.slice(0, -4)}${headSha}`;
+  }
+  if (publicRange.endsWith("..HEAD")) {
+    return `${publicRange.slice(0, -4)}${headSha}`;
+  }
+  return publicRange;
+}
+
+async function requireRangeExists(range: string): Promise<void> {
+  if (!(await gitDiffRangeExists(range))) {
+    fail("review range does not resolve");
+  }
+}
+
+async function diffHunkForFileLine(
+  range: string,
+  file: string,
+  line: number,
+): Promise<number | null> {
+  const diff = await git(["diff", range, "--", file]);
+  return diffHunkForLine(diff, line);
+}
+
+export function diffHunkForLine(diff: string, line: number): number | null {
+  let hunk = 0;
+  for (const diffLine of diff.split("\n")) {
+    if (!diffLine.startsWith("@@ ")) {
+      continue;
+    }
+    hunk += 1;
+    const match = /\+([0-9]+)(?:,([0-9]+))?/u.exec(diffLine);
+    if (!match) {
+      continue;
+    }
+    const start = Number(match[1]);
+    const count = match[2] === undefined ? 1 : Number(match[2]);
+    if (count === 0) {
+      continue;
+    }
+    const end = start + count - 1;
+    if (line >= start && line <= end) {
+      return hunk;
+    }
+  }
+  return null;
+}
+
+function stripTrailingNewlines(value: string): string {
+  return value.replace(/\n+$/u, "");
+}
+
+async function git(args: readonly string[]): Promise<string> {
+  try {
+    const { stdout } = await runGit(args, { cwd: process.cwd() });
+    return stdout;
+  } catch {
+    fail(
+      args[0] === "rev-parse"
+        ? "failed to determine git repository root"
+        : "git command failed",
+    );
+  }
+}
+
+async function gitRefExists(ref: string): Promise<boolean> {
+  return (await gitStatus(["cat-file", "-e", ref])) === 0;
+}
+
+async function gitMergeBaseIsAncestor(
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  return (
+    (await gitStatus(["merge-base", "--is-ancestor", ancestor, descendant])) ===
+    0
+  );
+}
+
+async function gitDiffRangeExists(range: string): Promise<boolean> {
+  const status = await gitStatus(["diff", "--quiet", range]);
+  return status <= 1;
+}
+
+async function gitStatus(args: readonly string[]): Promise<number> {
+  return new Promise((resolve) => {
+    const child = execFile(
+      "git",
+      [...args],
+      { cwd: process.cwd(), shell: false, windowsHide: true },
+      (error) => {
+        if (error && typeof error === "object" && "code" in error) {
+          resolve(Number(error.code));
+        } else {
+          resolve(0);
+        }
+      },
+    );
+    child.on("error", () => resolve(128));
+  });
+}
+
+function validatePattern(label: string, pattern: string): void {
+  if (pattern.length === 0) {
+    return;
+  }
+  try {
+    new RegExp(toJavaScriptRegex(pattern));
+  } catch {
+    fail(`${label} must be a valid extended regular expression`);
+  }
+}
+
+function anyPathMatches(files: readonly string[], pattern: string): boolean {
+  if (pattern.length === 0) {
+    return false;
+  }
+  const regex = new RegExp(toJavaScriptRegex(pattern));
+  return files.some((file) => regex.test(file));
+}
+
+function toJavaScriptRegex(pattern: string): string {
+  return pattern
+    .replace(/\\</gu, "\\b")
+    .replace(/\\>/gu, "\\b")
+    .replace(/\[:alnum:\]/gu, "A-Za-z0-9")
+    .replace(/\[:alpha:\]/gu, "A-Za-z")
+    .replace(/\[:blank:\]/gu, " \\t")
+    .replace(/\[:cntrl:\]/gu, "\\x00-\\x1F\\x7F")
+    .replace(/\[:digit:\]/gu, "0-9")
+    .replace(/\[:graph:\]/gu, "\\x21-\\x7E")
+    .replace(/\[:lower:\]/gu, "a-z")
+    .replace(/\[:print:\]/gu, "\\x20-\\x7E")
+    .replace(/\[:punct:\]/gu, "!\"#$%&'()*+,\\-./:;<=>?@[\\\\\\]^_`{|}~")
+    .replace(/\[:space:\]/gu, "\\s")
+    .replace(/\[:upper:\]/gu, "A-Z")
+    .replace(/\[:xdigit:\]/gu, "A-Fa-f0-9");
+}
+
+function rejectUnknownEscalationReasons(reasons: readonly string[]): void {
+  if (!reasons.every((reason) => KNOWN_ESCALATION_REASONS.has(reason))) {
+    fail("unknown escalation reason");
+  }
+}
+
+function reasonPresent(reasons: readonly string[], reason: string): boolean {
+  return reasons.includes(reason);
+}
+
+function isPriorThread(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const thread = value as JsonObject;
+  return (
+    hasExactKeys(thread, [
+      "thread_id",
+      "is_resolved",
+      "is_outdated",
+      "path",
+      "line",
+      "original_line",
+      "start_line",
+      "original_start_line",
+      "classification",
+      "model_context",
+      "staleness_reason",
+      "comments",
+      "summary",
+    ]) &&
+    isGithubNodeId(thread.thread_id) &&
+    typeof thread.is_resolved === "boolean" &&
+    typeof thread.is_outdated === "boolean" &&
+    isRepoPath(thread.path) &&
+    isNullablePositiveInteger(thread.line) &&
+    isNullablePositiveInteger(thread.original_line) &&
+    isNullablePositiveInteger(thread.start_line) &&
+    isNullablePositiveInteger(thread.original_start_line) &&
+    [
+      "actionable",
+      "resolved",
+      "outdated",
+      "bot-boilerplate",
+      "review-request",
+      "reaction-only",
+      "conversation",
+      "unknown",
+    ].includes(String(thread.classification)) &&
+    ["include", "summarize", "drop"].includes(String(thread.model_context)) &&
+    typeof thread.staleness_reason === "string" &&
+    Array.isArray(thread.comments) &&
+    thread.comments.every(isPriorComment) &&
+    typeof thread.summary === "string"
+  );
+}
+
+function isPriorComment(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const comment = value as JsonObject;
+  const allowed = [
+    "author",
+    "author_association",
+    "created_at",
+    "updated_at",
+    "body",
+    "is_bot",
+    "minimized_reason",
+  ];
+  return (
+    Object.keys(comment).every((key) => allowed.includes(key)) &&
+    typeof comment.author === "string" &&
+    comment.author.length > 0 &&
+    (comment.author_association === undefined ||
+      comment.author_association === null ||
+      (typeof comment.author_association === "string" &&
+        comment.author_association.length > 0)) &&
+    typeof comment.created_at === "string" &&
+    typeof comment.updated_at === "string" &&
+    typeof comment.body === "string" &&
+    typeof comment.is_bot === "boolean" &&
+    (comment.minimized_reason === undefined ||
+      comment.minimized_reason === null ||
+      typeof comment.minimized_reason === "string")
+  );
+}
+
+function isDroppedThread(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const dropped = value as JsonObject;
+  return (
+    hasExactKeys(dropped, ["thread_id", "classification", "reason"]) &&
+    isGithubNodeId(dropped.thread_id) &&
+    [
+      "resolved",
+      "outdated",
+      "bot-boilerplate",
+      "review-request",
+      "reaction-only",
+      "conversation",
+      "unknown",
+    ].includes(String(dropped.classification)) &&
+    typeof dropped.reason === "string" &&
+    dropped.reason.length > 0
+  );
+}
+
+function isFinding(value: unknown): value is JsonObject {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const finding = value as JsonObject;
+  const startLine = nullableNumberField(finding, "start_line");
+  const line = typeof finding.line === "number" ? finding.line : null;
+  return (
+    isRepoPath(finding.path) &&
+    isPositiveInteger(finding.line) &&
+    (finding.start_line === undefined ||
+      finding.start_line === null ||
+      isPositiveInteger(finding.start_line)) &&
+    ["Blocking", "Nit"].includes(String(finding.severity)) &&
+    [
+      "Logic",
+      "Safety",
+      "Architecture",
+      "Tests",
+      "Maintainability",
+      "Documentation",
+      "Contracts",
+    ].includes(String(finding.category)) &&
+    (finding.severity === "Nit"
+      ? finding.critic === null
+      : finding.critic === undefined ||
+        finding.critic === null ||
+        ["VALID", "INVALID", "DOWNGRADE"].includes(String(finding.critic))) &&
+    ["natural", "missing-file", "out-of-diff"].includes(
+      String(finding.anchor),
+    ) &&
+    typeof finding.why === "string" &&
+    typeof finding.recommendation === "string" &&
+    typeof finding.body === "string" &&
+    (startLine === null || (line !== null && startLine <= line))
+  );
+}
+
+function isValidTimestamp(value: string): boolean {
+  const match =
+    /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?Z$/u.exec(
+      value,
+    );
+  if (!match) {
+    return false;
+  }
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
+    match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth &&
+    hour >= 0 &&
+    hour <= 23 &&
+    minute >= 0 &&
+    minute <= 59 &&
+    second >= 0 &&
+    second <= 59
+  );
+}
+
+function isRepoPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !value.startsWith("/") &&
+    value
+      .split("/")
+      .every((part) => part !== "" && part !== "." && part !== "..")
+  );
+}
+
+function isDirectEphemeralPath(value: string): boolean {
+  return /^\.ephemeral\/[^/]+$/u.test(value) && !value.includes("..");
+}
+
+function isGithubNodeId(value: unknown): boolean {
+  return typeof value === "string" && /^[A-Za-z0-9_+=/-]+$/u.test(value);
+}
+
+function isSha(value: string): boolean {
+  return /^[0-9a-f]{40}$/u.test(value);
+}
+
+function isNullableSha(value: unknown): boolean {
+  return value === null || (typeof value === "string" && isSha(value));
+}
+
+function isNonNegativeInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+function isNullablePositiveInteger(value: unknown): boolean {
+  return value === null || isPositiveInteger(value);
+}
+
+function requireFlag(label: string, value: string): void {
+  if (value.length === 0) {
+    fail(`${label} is required`);
+  }
+}
+
+function stringField(object: JsonObject, key: string): string {
+  const value = object[key];
+  if (typeof value !== "string") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function nullableStringField(object: JsonObject, key: string): string | null {
+  const value = object[key];
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function numberField(object: JsonObject, key: string): number {
+  const value = object[key];
+  if (typeof value !== "number") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function nullableNumberField(object: JsonObject, key: string): number | null {
+  const value = object[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "number") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function booleanField(object: JsonObject, key: string): boolean {
+  const value = object[key];
+  if (typeof value !== "boolean") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function objectField(object: JsonObject, key: string): JsonObject {
+  const value = object[key];
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail("runtime validation failed");
+  }
+  return value as JsonObject;
+}
+
+function arrayField(object: JsonObject, key: string): unknown[] {
+  const value = object[key];
+  if (!Array.isArray(value)) {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function stringArrayField(object: JsonObject, key: string): string[] {
+  const value = arrayField(object, key);
+  if (!value.every((item) => typeof item === "string")) {
+    fail("runtime validation failed");
+  }
+  return [...(value as string[])];
+}
+
+function hasExactKeys(object: JsonObject, keys: readonly string[]): boolean {
+  const actual = Object.keys(object).sort();
+  const expected = [...keys].sort();
+  return jsonEqual(actual, expected);
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+function jsonEqual(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => jsonEqual(value, right[index]))
+    );
+  }
+  if (
+    left !== null &&
+    right !== null &&
+    typeof left === "object" &&
+    typeof right === "object"
+  ) {
+    const leftObject = left as Record<string, unknown>;
+    const rightObject = right as Record<string, unknown>;
+    const leftKeys = Object.keys(leftObject).sort();
+    const rightKeys = Object.keys(rightObject).sort();
+    return (
+      jsonEqual(leftKeys, rightKeys) &&
+      leftKeys.every((key) => jsonEqual(leftObject[key], rightObject[key]))
+    );
+  }
+  return false;
+}
+
+function ok(stdout: string): RuntimeCommandOutcome {
+  return { exitCode: 0, stdout, stderr: "" };
+}
+
+function fail(message: string): never {
+  throw new ReviewArtifactsError(message);
+}
+
+class ReviewArtifactsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReviewArtifactsError";
+  }
+}
