@@ -614,7 +614,8 @@ async function resolvePlayReviewHelper() {
 async function isExecutableFile(file) {
     try {
         const stat = await lstat(file);
-        return stat.isFile() && (stat.mode & 0o111) !== 0;
+        return (stat.isFile() &&
+            (process.platform === "win32" || (stat.mode & 0o111) !== 0));
     }
     catch {
         return false;

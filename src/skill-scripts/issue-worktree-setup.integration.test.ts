@@ -756,8 +756,12 @@ describe(
         normalizeFsPath(await realpath(submodulePath)),
       );
       expect(result.MESSAGE).toMatch(/submodule/i);
-      expect(result.MESSAGE).toContain(expectedSubmodulePath);
-      expect(result.MESSAGE).toContain(expectedParentPath);
+      expect(normalizeFsPath(result.MESSAGE)).toContain(
+        normalizeFsPath(expectedSubmodulePath),
+      );
+      expect(normalizeFsPath(result.MESSAGE)).toContain(
+        normalizeFsPath(expectedParentPath),
+      );
     });
 
     it("fails when .worktrees is not ignored in the host repo", async () => {
