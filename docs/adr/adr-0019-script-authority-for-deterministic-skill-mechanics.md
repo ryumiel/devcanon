@@ -65,12 +65,12 @@ the validator as a sibling skill script, with an explicit override for tests and
 packaging diagnostics, and must fail before validation when the executable
 support validator is missing.
 
-This exception does not create a general cross-skill runtime utility layer. The
-support validator remains shell/JQ self-contained for installed skill bundles
-and must not require the installed `devcanon` CLI or a Node.js runtime solely to
-validate review artifacts. A later TypeScript implementation may replace the
-mechanics only behind the same support-skill command surface, or after a
-separate accepted decision expands shared runtime authority.
+This exception did not create a general cross-skill runtime utility layer when
+this decision was accepted. ADR-0024 later accepts a support-only shared skill
+runtime for helpers whose complexity or reuse exceeds the owning skill
+`scripts/` boundary. The support validator may become runtime-backed under that
+decision only if it preserves the same support-skill command surface and does
+not require the installed `devcanon` CLI.
 
 ## Consequences
 
@@ -80,8 +80,8 @@ separate accepted decision expands shared runtime authority.
   implementation per ownership boundary.
 - Failure behavior becomes directly testable with isolated fixtures.
 - Skill bundles remain self-contained under the existing render and sync model.
-- Shared utility extraction remains possible later, but requires a separate
-  packaging and path-resolution decision.
+- Shared utility extraction is governed by ADR-0024 for helpers that opt into
+  the shared support skill runtime.
 - Play review artifact validation has one named support-skill owner rather than
   duplicated PR-review and branch-review script policy.
 - The architecture overview remains unchanged for this decision because the
