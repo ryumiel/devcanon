@@ -3,7 +3,11 @@ import { access, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import {
+  canCreateSymlinks,
+  cleanupTempDir,
+  createTempDir,
+} from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -161,6 +165,7 @@ async function createTrackedTempDir(tempDirs: string[]): Promise<string> {
 
 const issueWorktreeSetupTimeoutMs =
   process.platform === "win32" ? 30_000 : 5_000;
+const symlinkAvailable = await canCreateSymlinks();
 
 describe(
   "issue-worktree-setup helper",
@@ -703,24 +708,27 @@ describe(
       ).rejects.toThrow(/Invalid BRANCH_NAME/u);
     });
 
-    it("rejects a symlinked managed worktree root outside the primary checkout", async () => {
-      const rootDir = await createTrackedTempDir(tempDirs);
-      const { primaryDir } = await createOriginRepo(rootDir);
-      const escapedRoot = path.join(rootDir, "escaped-worktrees");
+    it.skipIf(!symlinkAvailable)(
+      "rejects a symlinked managed worktree root outside the primary checkout",
+      async () => {
+        const rootDir = await createTrackedTempDir(tempDirs);
+        const { primaryDir } = await createOriginRepo(rootDir);
+        const escapedRoot = path.join(rootDir, "escaped-worktrees");
 
-      await mkdir(escapedRoot, { recursive: true });
-      await symlink(escapedRoot, path.join(primaryDir, ".worktrees"));
+        await mkdir(escapedRoot, { recursive: true });
+        await symlink(escapedRoot, path.join(primaryDir, ".worktrees"));
 
-      await expect(
-        runCommand("bash", [helperScript], primaryDir, {
-          BRANCH_NAME: "feat/symlink-escape",
-          WORKTREE_LEAF: "symlink-escape",
-        }),
-      ).rejects.toThrow(/\.worktrees/u);
-      expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
-        false,
-      );
-    });
+        await expect(
+          runCommand("bash", [helperScript], primaryDir, {
+            BRANCH_NAME: "feat/symlink-escape",
+            WORKTREE_LEAF: "symlink-escape",
+          }),
+        ).rejects.toThrow(/\.worktrees/u);
+        expect(await pathExists(path.join(escapedRoot, "symlink-escape"))).toBe(
+          false,
+        );
+      },
+    );
 
     it("stops when run from inside a submodule checkout", async () => {
       const rootDir = await createTrackedTempDir(tempDirs);
@@ -902,24 +910,27 @@ describe(
       expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(masterSha);
     });
 
-    it("rejects a symlinked managed worktree leaf outside the primary checkout", async () => {
-      const rootDir = await createTrackedTempDir(tempDirs);
-      const { primaryDir } = await createOriginRepo(rootDir);
-      const escapedLeaf = path.join(rootDir, "escaped-leaf");
-      const worktreesDir = path.join(primaryDir, ".worktrees");
-      const symlinkLeaf = path.join(worktreesDir, "leaf-escape");
+    it.skipIf(!symlinkAvailable)(
+      "rejects a symlinked managed worktree leaf outside the primary checkout",
+      async () => {
+        const rootDir = await createTrackedTempDir(tempDirs);
+        const { primaryDir } = await createOriginRepo(rootDir);
+        const escapedLeaf = path.join(rootDir, "escaped-leaf");
+        const worktreesDir = path.join(primaryDir, ".worktrees");
+        const symlinkLeaf = path.join(worktreesDir, "leaf-escape");
 
-      await mkdir(escapedLeaf, { recursive: true });
-      await mkdir(worktreesDir, { recursive: true });
-      await symlink(escapedLeaf, symlinkLeaf);
+        await mkdir(escapedLeaf, { recursive: true });
+        await mkdir(worktreesDir, { recursive: true });
+        await symlink(escapedLeaf, symlinkLeaf);
 
-      await expect(
-        runCommand("bash", [helperScript], primaryDir, {
-          BRANCH_NAME: "feat/leaf-escape",
-          WORKTREE_LEAF: "leaf-escape",
-        }),
-      ).rejects.toThrow(/Target worktree path already exists/u);
-      expect(await pathExists(path.join(escapedLeaf, ".git"))).toBe(false);
-    });
+        await expect(
+          runCommand("bash", [helperScript], primaryDir, {
+            BRANCH_NAME: "feat/leaf-escape",
+            WORKTREE_LEAF: "leaf-escape",
+          }),
+        ).rejects.toThrow(/Target worktree path already exists/u);
+        expect(await pathExists(path.join(escapedLeaf, ".git"))).toBe(false);
+      },
+    );
   },
 );
