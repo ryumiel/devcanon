@@ -253,6 +253,85 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "preflights the bundled runtime shell entrypoint before writing init files",
+    async () => {
+      const brokenRuntimeDir = path.join(
+        tempDir,
+        ".fake-package",
+        "skills",
+        "devcanon-runtime",
+      );
+      await copyBundledRuntimeTo(
+        path.join(originalCwd, "skills", "devcanon-runtime"),
+        brokenRuntimeDir,
+      );
+      await writeFile(
+        path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          "printf '%s\\n' not-json",
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      await expect(
+        initAction({ runtimeSourceDir: brokenRuntimeDir }),
+      ).rejects.toMatchObject({
+        message:
+          "Bundled devcanon-runtime support skill contract check failed.",
+        filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
+      } satisfies Partial<UserError>);
+      expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
+        false,
+      );
+      expect(
+        await pathExists(path.join(tempDir, "skills", "example-skill")),
+      ).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "preflights the executable runtime shell entrypoint before writing init files",
+    async () => {
+      const brokenRuntimeDir = path.join(
+        tempDir,
+        ".fake-package",
+        "skills",
+        "devcanon-runtime",
+      );
+      await copyBundledRuntimeTo(
+        path.join(originalCwd, "skills", "devcanon-runtime"),
+        brokenRuntimeDir,
+      );
+      await writeFile(
+        path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
+        [
+          "#!/devcanon/missing/bash",
+          'printf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'',
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      await expect(
+        initAction({ runtimeSourceDir: brokenRuntimeDir }),
+      ).rejects.toMatchObject({
+        message:
+          "Bundled devcanon-runtime support skill contract check failed.",
+        filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
+      } satisfies Partial<UserError>);
+      expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
+        false,
+      );
+      expect(
+        await pathExists(path.join(tempDir, "skills", "example-skill")),
+      ).toBe(false);
+    },
+  );
+
   it("preflights broken bundled runtime module surface before writing init files", async () => {
     const brokenRuntimeDir = path.join(
       tempDir,
