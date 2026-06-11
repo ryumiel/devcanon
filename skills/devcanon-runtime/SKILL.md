@@ -22,6 +22,16 @@ invoke explicit files under `scripts/`. Missing runtime files are packaging,
 render, sync, or install errors; adapters must fail before validation or state
 mutation when the runtime cannot be resolved.
 
-The runtime may require Node.js for future typed helper commands. This initial
-bundle only establishes the packaged support skill and resolution contract used
-by follow-up runtime implementation work.
+Typed helper commands run through the packaged compiled JavaScript entrypoint
+at `scripts/runtime/cli.js`. Thin shell adapters may invoke it with:
+
+```sh
+devcanon-runtime.sh runtime <typed-command> [args...]
+```
+
+The TypeScript source for shared helper modules lives under `src/runtime/`.
+That source owns deterministic path guards, direct Git execution helpers,
+atomic artifact writes, typed schema validation, and stable stdout/stderr
+command fragments. The packaged JavaScript entrypoint preserves those stable
+command contracts for installed skill bundles without requiring a separate
+`devcanon` binary on `PATH`.

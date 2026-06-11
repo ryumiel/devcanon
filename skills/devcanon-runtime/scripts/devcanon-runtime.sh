@@ -10,6 +10,7 @@ usage() {
   cat <<'EOF'
 Usage:
   devcanon-runtime.sh contract
+  devcanon-runtime.sh runtime <typed-command> [args...]
   devcanon-runtime.sh resolve-entrypoint --from <adapter-path> [--entrypoint <relative-path>]
 EOF
 }
@@ -117,6 +118,15 @@ resolve_entrypoint() {
   runtime_error "devcanon-runtime entrypoint missing: $logical_skills_root/devcanon-runtime/$entrypoint. Ensure generated previews or installed skill homes include the sibling devcanon-runtime support skill, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests."
 }
 
+run_typed_runtime() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  local js_entrypoint="$script_dir/runtime/cli.js"
+  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"
+  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"
+  node "$js_entrypoint" "$@"
+}
+
 main() {
   local command=${1:-}
   case "$command" in
@@ -128,6 +138,10 @@ main() {
     resolve-entrypoint)
       shift
       resolve_entrypoint "$@"
+      ;;
+    runtime)
+      shift
+      run_typed_runtime "$@"
       ;;
     -h | --help | help)
       usage

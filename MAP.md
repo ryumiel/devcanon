@@ -61,6 +61,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the Vitest config? -> [`vitest.config.ts`](vitest.config.ts)
 - Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
 - Where are direct skill helper script runtime tests? -> [`src/skill-scripts/`](src/skill-scripts/)
+- Where are shared typed runtime helper modules? -> [`src/runtime/`](src/runtime/)
 
 ---
 
@@ -181,6 +182,18 @@ Quick navigation index for the DevCanon repository.
 ## Diff
 
 - Where is the diff logic? -> [`src/diff/diff.ts`](src/diff/diff.ts)
+
+---
+
+## Runtime
+
+- Where are shared runtime path utilities? -> [`src/runtime/paths.ts`](src/runtime/paths.ts)
+- Where are shared runtime Git utilities? -> [`src/runtime/git.ts`](src/runtime/git.ts)
+- Where are shared runtime artifact write utilities? -> [`src/runtime/artifacts.ts`](src/runtime/artifacts.ts)
+- Where are shared runtime schema utilities? -> [`src/runtime/schema.ts`](src/runtime/schema.ts)
+- Where are shared runtime command helpers? -> [`src/runtime/command.ts`](src/runtime/command.ts)
+- Where is the packaged runtime JavaScript entrypoint? ->
+  [`skills/devcanon-runtime/scripts/runtime/cli.js`](skills/devcanon-runtime/scripts/runtime/cli.js)
 
 ---
 

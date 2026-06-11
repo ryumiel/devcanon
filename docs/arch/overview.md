@@ -24,6 +24,7 @@ src/
 ├─ render/     Deterministic rendering to Claude (.md) and Codex (.toml)
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
+├─ runtime/    Shared typed helper foundation for packaged skill runtime code
 └─ utils/      Filesystem helpers, path resolution, hashing, CLI output,
                naming validation
 ```
@@ -37,12 +38,15 @@ install -> config, models, render, utils
 validate -> config, models, utils
 diff -> config, install, models, render, utils
 config -> utils
+runtime -> (node built-ins, zod)
 models -> (none)
 utils -> (none)
 ```
 
 `cli/` has the broadest dependency fan-out. `models/` and `utils/` are leaf
 modules with no internal dependencies.
+`runtime/` is also isolated from CLI/render/install workflow authority; it owns
+only deterministic helper mechanics used by packaged support skill entrypoints.
 
 ### Render Pipeline Boundary
 
