@@ -176,16 +176,41 @@ function runtimeSourceIncompleteError(
 }
 
 async function requireRuntimeCommandContract(sourceDir: string): Promise<void> {
+  const entrypoint = path.join(sourceDir, RUNTIME_ENTRYPOINT);
+  await requireRuntimeShellContract(entrypoint);
+
   const jsEntrypoint = path.join(sourceDir, RUNTIME_JS_ENTRYPOINT);
+  await requireRuntimeNodeContract(jsEntrypoint);
+}
+
+async function requireRuntimeShellContract(filePath: string): Promise<void> {
+  if (process.platform === "win32") {
+    return;
+  }
+
+  await requireRuntimeContract(filePath, async () => ({
+    command: filePath,
+    args: ["contract"],
+  }));
+}
+
+async function requireRuntimeNodeContract(filePath: string): Promise<void> {
+  await requireRuntimeContract(filePath, async () => ({
+    command: process.execPath,
+    args: [filePath, "contract"],
+  }));
+}
+
+async function requireRuntimeContract(
+  filePath: string,
+  invocation: () => Promise<{ command: string; args: readonly string[] }>,
+): Promise<void> {
   try {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      [jsEntrypoint, "contract"],
-      {
-        timeout: 10_000,
-        maxBuffer: 1024 * 1024,
-      },
-    );
+    const { command, args } = await invocation();
+    const { stdout } = await execFileAsync(command, [...args], {
+      timeout: 10_000,
+      maxBuffer: 1024 * 1024,
+    });
     const contract = JSON.parse(stdout) as unknown;
     if (!isRuntimeContract(contract)) {
       throw new Error("contract output did not match devcanon-runtime/v1");
@@ -193,7 +218,7 @@ async function requireRuntimeCommandContract(sourceDir: string): Promise<void> {
   } catch (err) {
     throw new UserError(
       `Bundled ${RUNTIME_SKILL_NAME} support skill contract check failed.`,
-      jsEntrypoint,
+      filePath,
       `Reinstall DevCanon or restore the bundled ${RUNTIME_SKILL_NAME} runtime payload. ${(err as Error).message}`,
     );
   }
