@@ -4,6 +4,7 @@ import type { OverwritePolicy } from "../config/schema.js";
 import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
 import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
+import { KNOWN_SUBDIRS } from "../validate/skills.js";
 
 export async function computePlan(
   outputs: RenderedOutput[],
@@ -165,15 +166,25 @@ async function hasCopyModeExecutableDrift(
     return false;
   }
 
-  const executableFiles = await collectExecutableFiles(output.generatedPath);
-  for (const relPath of executableFiles) {
+  if (!(await pathExists(output.sourcePath))) {
+    return false;
+  }
+
+  const executableModes = await collectMirroredFileExecutableModes(
+    output.sourcePath,
+  );
+  for (const [relPath, desiredExecutable] of executableModes) {
     const installedPath = path.join(
       output.installedPath,
       ...relPath.split("/"),
     );
     try {
       const installedStat = await lstat(installedPath);
-      if (!installedStat.isFile() || (installedStat.mode & 0o111) === 0) {
+      if (!installedStat.isFile()) {
+        return true;
+      }
+      const installedExecutable = (installedStat.mode & 0o111) !== 0;
+      if (installedExecutable !== desiredExecutable) {
         return true;
       }
     } catch {
@@ -184,14 +195,32 @@ async function hasCopyModeExecutableDrift(
   return false;
 }
 
-async function collectExecutableFiles(
+async function collectMirroredFileExecutableModes(
   root: string,
-  base = "",
-): Promise<string[]> {
+): Promise<Map<string, boolean>> {
+  const executableModes = new Map<string, boolean>();
+  for (const subdir of KNOWN_SUBDIRS) {
+    const subdirPath = path.join(root, subdir);
+    if (!(await pathExists(subdirPath))) continue;
+
+    for (const [relPath, executable] of await collectFileExecutableModes(
+      root,
+      subdir,
+    )) {
+      executableModes.set(relPath, executable);
+    }
+  }
+  return executableModes;
+}
+
+async function collectFileExecutableModes(
+  root: string,
+  base: string,
+): Promise<Map<string, boolean>> {
   const currentDir = base
     ? path.join(root, ...base.split("/").filter(Boolean))
     : root;
-  const executableFiles: string[] = [];
+  const executableModes = new Map<string, boolean>();
   const entries = await readdir(currentDir, { withFileTypes: true });
 
   for (const entry of entries) {
@@ -199,17 +228,20 @@ async function collectExecutableFiles(
     const absolutePath = path.join(root, ...relPath.split("/"));
 
     if (entry.isDirectory()) {
-      executableFiles.push(...(await collectExecutableFiles(root, relPath)));
+      for (const [childPath, executable] of await collectFileExecutableModes(
+        root,
+        relPath,
+      )) {
+        executableModes.set(childPath, executable);
+      }
       continue;
     }
 
     if (!entry.isFile()) continue;
 
     const stat = await lstat(absolutePath);
-    if ((stat.mode & 0o111) !== 0) {
-      executableFiles.push(relPath);
-    }
+    executableModes.set(relPath, (stat.mode & 0o111) !== 0);
   }
 
-  return executableFiles;
+  return executableModes;
 }
