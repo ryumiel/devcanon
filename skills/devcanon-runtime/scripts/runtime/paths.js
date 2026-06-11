@@ -42,6 +42,9 @@ export function requireAbsoluteRuntimePath(input, platform) {
     return normalized;
 }
 export function requireDirectEphemeralChild(input) {
+    if (input.includes("\\")) {
+        throw new RuntimePathError("invalid-separator", "path must use POSIX separators");
+    }
     const normalized = input.replace(/\\/gu, "/");
     if (!normalized.startsWith(".ephemeral/")) {
         throw new RuntimePathError("outside-ephemeral", "path must be a direct child under .ephemeral");

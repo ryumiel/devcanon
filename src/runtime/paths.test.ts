@@ -59,6 +59,9 @@ describe("runtime path utilities", () => {
     expect(() =>
       requireDirectEphemeralChild(".ephemeral/nested/result.json"),
     ).toThrow(RuntimePathError);
+    expect(() =>
+      requireDirectEphemeralChild(".ephemeral\\result.json"),
+    ).toThrow(RuntimePathError);
     expect(() => requireDirectEphemeralChild("result.json")).toThrow(
       RuntimePathError,
     );

@@ -12,6 +12,16 @@ const runtimeScript = path.resolve(
 );
 
 describe("devcanon-runtime typed entrypoint", () => {
+  it("tracks the compiled JavaScript entrypoint as executable", async () => {
+    const { stdout } = await execFileAsync("git", [
+      "ls-files",
+      "-s",
+      "skills/devcanon-runtime/scripts/runtime/cli.js",
+    ]);
+
+    expect(stdout).toMatch(/^100755 /u);
+  });
+
   it("runs the packaged compiled JavaScript contract command through the shell adapter", async () => {
     const { stdout, stderr } = await execFileAsync("bash", [
       runtimeScript,

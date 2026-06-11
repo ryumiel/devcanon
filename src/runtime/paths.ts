@@ -21,6 +21,7 @@ export interface DirectEphemeralChild {
 
 export type RuntimePathProblem =
   | "empty-path"
+  | "invalid-separator"
   | "relative-path"
   | "path-traversal"
   | "nested-path"
@@ -84,6 +85,13 @@ export function requireAbsoluteRuntimePath(
 export function requireDirectEphemeralChild(
   input: string,
 ): DirectEphemeralChild {
+  if (input.includes("\\")) {
+    throw new RuntimePathError(
+      "invalid-separator",
+      "path must use POSIX separators",
+    );
+  }
+
   const normalized = input.replace(/\\/gu, "/");
   if (!normalized.startsWith(".ephemeral/")) {
     throw new RuntimePathError(

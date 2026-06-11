@@ -16,7 +16,7 @@
     "setup": "git config core.hooksPath scripts/hooks && git config commit.template .gitmessage.txt",
     "build": "tsc -p tsconfig.build.json",
     "build:runtime": "tsc -p tsconfig.runtime.json",
-    "check:runtime": "pnpm run build:runtime && git diff --exit-code -- skills/devcanon-runtime/scripts/runtime",
+    "check:runtime": "pnpm run build:runtime && node scripts/check-runtime-build.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",
