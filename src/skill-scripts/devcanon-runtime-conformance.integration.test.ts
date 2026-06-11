@@ -107,7 +107,7 @@ describe("devcanon-runtime conformance harness", () => {
           "--platform",
           "win32",
         ],
-        { MSYS2_ARG_CONV_EXCL: "*" },
+        { MSYS2_ARG_CONV_EXCL: "C:\\Temp" },
       );
 
       expect(result).toMatchObject({ code: 0, stderr: "" });
