@@ -50,20 +50,26 @@ describe("devcanon-runtime typed entrypoint", () => {
         path.join(tempDir, "devcanon-runtime"),
         { recursive: true },
       );
-      const { stdout } = await execFileAsync("bash", [
-        path.join(
-          tempDir,
-          "devcanon-runtime",
-          "scripts",
-          "devcanon-runtime.sh",
-        ),
-        "runtime",
-        "path-info",
-        "--path",
-        "/tmp/../var/result.json",
-        "--platform",
-        "posix",
-      ]);
+      const { stdout } = await execFileAsync(
+        "bash",
+        [
+          path.join(
+            tempDir,
+            "devcanon-runtime",
+            "scripts",
+            "devcanon-runtime.sh",
+          ),
+          "runtime",
+          "path-info",
+          "--path",
+          "/tmp/../var/result.json",
+          "--platform",
+          "posix",
+        ],
+        {
+          env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*" },
+        },
+      );
 
       expect(JSON.parse(stdout)).toMatchObject({
         normalized: "/var/result.json",
