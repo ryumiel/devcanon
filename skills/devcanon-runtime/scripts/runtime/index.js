@@ -1,6 +1,7 @@
 export * from "./artifacts.js";
 export * from "./command.js";
 export * from "./git.js";
+export * from "./issue-worktree-setup.js";
 export * from "./paths.js";
 export * from "./pr-review-leases.js";
 export * from "./pr-review-manifests.js";

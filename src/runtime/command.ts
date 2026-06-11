@@ -1,3 +1,4 @@
+import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import {
   RuntimePathError,
   type RuntimePathPlatform,
@@ -35,6 +36,8 @@ export async function runRuntimeCommand(
         return validateJson(rest);
       case "review-artifacts":
         return await runReviewArtifactsCommand(rest);
+      case "issue-worktree-setup":
+        return await runIssueWorktreeSetupCommand(rest);
       case "pr-review-manifests":
         return await runPrReviewManifestsCommand(rest);
       case "pr-review-leases":

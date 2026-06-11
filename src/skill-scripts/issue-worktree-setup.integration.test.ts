@@ -13,6 +13,13 @@ const helperScript = path.join(
   "scripts",
   "setup-worktree.sh",
 );
+const nodeHelperScript = path.join(
+  process.cwd(),
+  "skills",
+  "issue-worktree-setup",
+  "scripts",
+  "setup-worktree.mjs",
+);
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
@@ -108,6 +115,15 @@ async function runSetup(
   return parseKeyValueOutput(stdout);
 }
 
+async function runNodeSetup(
+  scriptPath: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): Promise<Record<string, string>> {
+  const stdout = await runCommand(process.execPath, [scriptPath], cwd, env);
+  return parseKeyValueOutput(stdout);
+}
+
 async function createPublisherClone(rootDir: string): Promise<string> {
   const publisherDir = path.join(rootDir, "publisher");
   await runGit(
@@ -189,6 +205,43 @@ describe(
         "feat/test-worktree-helper",
       );
       expect(await runGit(["rev-parse", "HEAD"], expectedPath)).toBe(baseSha);
+    });
+
+    it("creates a new worktree through the native Node helper", async () => {
+      const rootDir = await createTrackedTempDir(tempDirs);
+      const { primaryDir } = await createOriginRepo(rootDir);
+
+      const result = await runNodeSetup(nodeHelperScript, primaryDir, {
+        BRANCH_NAME: "feat/node-worktree-helper",
+        WORKTREE_LEAF: "node-worktree-helper",
+      });
+
+      const expectedPath = await realpath(
+        path.join(primaryDir, ".worktrees", "node-worktree-helper"),
+      );
+
+      expect(result.MODE).toBe("new");
+      expect(normalizeFsPath(result.WORKTREE_PATH)).toBe(
+        normalizeFsPath(expectedPath),
+      );
+      expect(await runGit(["branch", "--show-current"], expectedPath)).toBe(
+        "feat/node-worktree-helper",
+      );
+    });
+
+    it("forwards Bash adapter arguments to the typed runtime", async () => {
+      const rootDir = await createTrackedTempDir(tempDirs);
+      const { primaryDir } = await createOriginRepo(rootDir);
+
+      await expect(
+        runCommand("bash", [helperScript, "--help"], primaryDir, {
+          BRANCH_NAME: "feat/adapter-args",
+          WORKTREE_LEAF: "adapter-args",
+        }),
+      ).rejects.toThrow(/does not accept arguments/u);
+      await expect(
+        runGit(["rev-parse", "--verify", "feat/adapter-args"], primaryDir),
+      ).rejects.toThrow();
     });
 
     it("reuses a clean managed main worktree and fast-forwards to BASE_REF", async () => {

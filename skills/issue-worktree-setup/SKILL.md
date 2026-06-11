@@ -21,15 +21,15 @@ This helper is the single source of truth for:
 ## Step 0: Prefer Native Worktree Tooling
 
 If the host environment already exposes native worktree lifecycle control, use
-that path before invoking the shell helper below. Examples include Claude Code
+that path before invoking the fallback helper below. Examples include Claude Code
 `EnterWorktree`, Codex worktree control, or equivalent host-managed worktree
 commands.
 
 If native tooling provisions or adopts the requested checkout, do not invoke
-the shell helper below. Continue the caller workflow from that native-managed
+the fallback helper below. Continue the caller workflow from that native-managed
 worktree, validate or populate `WORKTREE_PATH` using the same contract the
 helper returns, and stop here. Do not also run
-`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh`; the helper below is the
+`$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs`; the helper below is the
 fallback contract for environments that do not provide native worktree
 control.
 
@@ -41,17 +41,36 @@ Invoke the helper through environment variables:
 - `WORKTREE_LEAF` (required)
 - `BASE_REF` (optional, defaults to the repository's default branch resolved via `origin/HEAD`, falling back to `origin/main`)
 
-Run:
+Run the Node helper with platform-native environment variable and stdout
+capture. The fallback command itself is:
+
+```text
+node "<issue-worktree-setup-skill-dir>/scripts/setup-worktree.mjs"
+```
+
+POSIX shell example:
 
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
-HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
+HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"
 
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<worktree-leaf>" \
-  bash "$HELPER_SCRIPT"
+  node "$HELPER_SCRIPT"
 )
+```
+
+PowerShell example:
+
+```powershell
+$IssueWorktreeSetupDir = "<issue-worktree-setup-skill-dir>"
+$HelperScript = Join-Path $IssueWorktreeSetupDir "scripts/setup-worktree.mjs"
+
+$env:BRANCH_NAME = "<branch-name>"
+$env:WORKTREE_LEAF = "<worktree-leaf>"
+$WORKTREE_SETUP_OUTPUT = node $HelperScript
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
 Resolve `ISSUE_WORKTREE_SETUP_DIR` to the installed `issue-worktree-setup`
