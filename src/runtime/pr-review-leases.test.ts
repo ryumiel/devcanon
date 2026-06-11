@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   mkdir,
   mkdtemp,
@@ -8,12 +9,15 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type PrReviewLease,
   reducePrReviewLease,
   runPrReviewLeasesCommand,
 } from "./pr-review-leases.js";
+
+const execFileAsync = promisify(execFile);
 
 const identity = {
   repository: "owner/repo",
@@ -472,15 +476,254 @@ describe("pr-review lease reducer", () => {
     }
   });
 
+  it("rejects unknown JSON lease states before state-invariant checks", async () => {
+    const { tempRoot, primary, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-unknown-state-");
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify({
+          schema: "pr-review/lease/v1",
+          repository: "owner/repo",
+          pr_number: 432,
+          state: "postd",
+          base_ref: "main",
+          head_ref: "topic",
+          worktree_path: physicalWorktree,
+          worktree_digest: dynamicIdentity.worktreeDigest,
+          lease_file: leaseFile,
+          created_at: "2026-06-11T00:00:00Z",
+          updated_at: "2026-06-11T00:01:00Z",
+          artifacts: {
+            handoff_file: null,
+            result_file: null,
+            approved_review_file: null,
+            validated_payload_file: null,
+          },
+          validation: {
+            result_manifest: { status: null, validated_at: null },
+          },
+          presentation: { presented_at: null, status: null },
+          terminal: { finished_at: null, reason: null },
+          failure: { phase: null, reason: null, recoverability: null },
+          github: {
+            github_post_attempted: false,
+            github_post_result: "not-attempted",
+            github_posted_at: null,
+          },
+        })}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("unknown lease state: postd");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reports missing worktrees as skipped cleanup when lease identity matches", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-missing-worktree-");
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          abortedCommandLease(
+            leaseFile,
+            physicalWorktree,
+            dynamicIdentity.worktreeDigest,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      await rm(worktree, { recursive: true, force: true });
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=skipped");
+      expect(result.stdout).toContain("REFUSAL_REASON=missing-worktree");
+      expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("skips cleanup targets that are clean separate clones, not registered worktrees", async () => {
+    const { tempRoot, primary, physicalPrimary } =
+      await makeRegisteredWorkspace("pr-review-separate-clone-");
+    const separateClone = path.join(tempRoot, "separate-clone");
+
+    try {
+      await execFileAsync("git", ["clone", primary, separateClone]);
+      const physicalSeparateClone = await realpath(separateClone);
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalSeparateClone);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalSeparateClone,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          abortedCommandLease(
+            leaseFile,
+            physicalSeparateClone,
+            dynamicIdentity.worktreeDigest,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=skipped");
+      expect(result.stdout).toContain("REFUSAL_REASON=not-registered-worktree");
+      expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects approved reviews from a different result manifest head", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-approved-head-");
+    const resultHead = "1111111111111111111111111111111111111111";
+    const approvedHead = "2222222222222222222222222222222222222222";
+    const resultFile = `.ephemeral/pr-432-${resultHead}-result.json`;
+    const approvedReviewFile = `.ephemeral/topic-${approvedHead}-approved-review.json`;
+
+    try {
+      await writeResultArtifact(worktree, resultFile, resultHead);
+      await writeApprovedReviewArtifact(
+        worktree,
+        approvedReviewFile,
+        approvedHead,
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          postedCommandLease({
+            leaseFile,
+            worktreePath: physicalWorktree,
+            worktreeDigest: dynamicIdentity.worktreeDigest,
+            resultFile,
+            approvedReviewFile,
+          }),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("approved review result head mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects non-deterministic validated payload paths", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-payload-path-");
+    const reviewHead = "1111111111111111111111111111111111111111";
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+    const approvedReviewFile = `.ephemeral/topic-${reviewHead}-approved-review.json`;
+    const validatedPayloadFile =
+      ".ephemeral/copied-validated-review-payload.json";
+
+    try {
+      await writeResultArtifact(worktree, resultFile, reviewHead);
+      await writeApprovedReviewArtifact(
+        worktree,
+        approvedReviewFile,
+        reviewHead,
+      );
+      await writeFile(
+        path.join(worktree, validatedPayloadFile),
+        `${JSON.stringify(reviewPayload(reviewHead))}\n`,
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          postedCommandLease({
+            leaseFile,
+            worktreePath: physicalWorktree,
+            worktreeDigest: dynamicIdentity.worktreeDigest,
+            resultFile,
+            approvedReviewFile,
+            validatedPayloadFile,
+          }),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("validated payload path mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-cleanup-"));
-    const primary = path.join(tempRoot, "primary");
-    const worktree = path.join(tempRoot, "worktree");
-    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-cleanup-");
     await writeFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "keep\n");
-    const physicalPrimary = await realpath(primary);
-    const physicalWorktree = await realpath(worktree);
 
     try {
       process.chdir(physicalPrimary);
@@ -546,13 +789,8 @@ describe("pr-review lease reducer", () => {
   });
 
   it("does not treat arbitrary artifact strings as cleanup ownership", async () => {
-    const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-owned-"));
-    const primary = path.join(tempRoot, "primary");
-    const worktree = path.join(tempRoot, "worktree");
-    await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
-    await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
-    const physicalPrimary = await realpath(primary);
-    const physicalWorktree = await realpath(worktree);
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-owned-");
     const resultFile = ".ephemeral/pr-432-result.json";
     const findingsFile = ".ephemeral/topic-findings.json";
     await writeFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "keep\n");
@@ -618,6 +856,47 @@ function setLeaseCommandEnv(primary: string, worktree: string): void {
   process.env.WORKTREE_PATH = worktree;
 }
 
+async function makeRegisteredWorkspace(prefix: string): Promise<{
+  tempRoot: string;
+  primary: string;
+  worktree: string;
+  physicalPrimary: string;
+  physicalWorktree: string;
+}> {
+  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
+  const primary = path.join(tempRoot, "primary");
+  const worktree = path.join(tempRoot, "worktree");
+  await mkdir(primary, { recursive: true });
+  await execFileAsync("git", ["init", "--initial-branch=main"], {
+    cwd: primary,
+  });
+  await execFileAsync("git", ["config", "user.name", "Test User"], {
+    cwd: primary,
+  });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd: primary,
+  });
+  await writeFile(path.join(primary, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+    cwd: primary,
+  });
+  await execFileAsync(
+    "git",
+    ["worktree", "add", "-b", "review-topic", worktree],
+    { cwd: primary },
+  );
+  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+  return {
+    tempRoot,
+    primary,
+    worktree,
+    physicalPrimary: await realpath(primary),
+    physicalWorktree: await realpath(worktree),
+  };
+}
+
 function identityFromLeaseFile(
   leaseFile: string,
   worktreePath: string,
@@ -633,6 +912,149 @@ function identityFromLeaseFile(
     worktreePath,
     worktreeDigest: match[1],
     leaseFile,
+  };
+}
+
+function abortedCommandLease(
+  leaseFile: string,
+  worktreePath: string,
+  worktreeDigest: string,
+): PrReviewLease {
+  return {
+    schema: "pr-review/lease/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    state: "aborted",
+    base_ref: "main",
+    head_ref: "topic",
+    worktree_path: worktreePath,
+    worktree_digest: worktreeDigest,
+    lease_file: leaseFile,
+    created_at: "2026-06-11T00:00:00Z",
+    updated_at: "2026-06-11T00:01:00Z",
+    artifacts: {
+      handoff_file: null,
+      result_file: null,
+      approved_review_file: null,
+      validated_payload_file: null,
+    },
+    validation: {
+      result_manifest: { status: null, validated_at: null },
+    },
+    presentation: { presented_at: null, status: null },
+    terminal: {
+      finished_at: "2026-06-11T00:01:00Z",
+      reason: "user-aborted",
+    },
+    failure: { phase: null, reason: null, recoverability: null },
+    github: {
+      github_post_attempted: false,
+      github_post_result: "not-attempted",
+      github_posted_at: null,
+    },
+  };
+}
+
+function postedCommandLease({
+  leaseFile,
+  worktreePath,
+  worktreeDigest,
+  resultFile,
+  approvedReviewFile,
+  validatedPayloadFile = null,
+}: {
+  leaseFile: string;
+  worktreePath: string;
+  worktreeDigest: string;
+  resultFile: string;
+  approvedReviewFile: string;
+  validatedPayloadFile?: string | null;
+}): PrReviewLease {
+  return {
+    schema: "pr-review/lease/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    state: "posted",
+    base_ref: "main",
+    head_ref: "topic",
+    worktree_path: worktreePath,
+    worktree_digest: worktreeDigest,
+    lease_file: leaseFile,
+    created_at: "2026-06-11T00:00:00Z",
+    updated_at: "2026-06-11T00:03:00Z",
+    artifacts: {
+      handoff_file: null,
+      result_file: resultFile,
+      approved_review_file: approvedReviewFile,
+      validated_payload_file: validatedPayloadFile,
+    },
+    validation: {
+      result_manifest: {
+        status: "valid",
+        validated_at: "2026-06-11T00:02:00Z",
+      },
+    },
+    presentation: {
+      presented_at: "2026-06-11T00:02:00Z",
+      status: "preview-current",
+    },
+    terminal: { finished_at: "2026-06-11T00:03:00Z", reason: null },
+    failure: { phase: null, reason: null, recoverability: null },
+    github: {
+      github_post_attempted: true,
+      github_post_result: "succeeded",
+      github_posted_at: "2026-06-11T00:03:00Z",
+    },
+  };
+}
+
+async function writeResultArtifact(
+  worktree: string,
+  resultFile: string,
+  reviewHead: string,
+): Promise<void> {
+  await writeFile(
+    path.join(worktree, resultFile),
+    `${JSON.stringify({
+      repository: "owner/repo",
+      pr_number: 432,
+      review_head_sha: reviewHead,
+      findings_file: ".ephemeral/topic-findings.json",
+      review_body_file: ".ephemeral/topic-review-body.md",
+      context_file: null,
+      artifacts: {
+        handoff_file: ".ephemeral/pr-432-handoff.json",
+        scope_decision_file: ".ephemeral/topic-scope-decision.json",
+        prior_threads_file: null,
+        rendered_preview_file: null,
+      },
+      presentation: { status: "preview-current" },
+    })}\n`,
+  );
+}
+
+async function writeApprovedReviewArtifact(
+  worktree: string,
+  approvedReviewFile: string,
+  reviewHead: string,
+): Promise<void> {
+  await writeFile(
+    path.join(worktree, approvedReviewFile),
+    `${JSON.stringify({
+      schema: "pr-review/approved-review/v1",
+      review_head_sha: reviewHead,
+      review_body_file: ".ephemeral/topic-review-body.md",
+      payload: reviewPayload(reviewHead),
+    })}\n`,
+  );
+}
+
+function reviewPayload(reviewHead: string): Record<string, unknown> {
+  return {
+    commit_id: reviewHead,
+    event: "COMMENT",
+    body: "Review body\n",
+    comments: [],
   };
 }
 

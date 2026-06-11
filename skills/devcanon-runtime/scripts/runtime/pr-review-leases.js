@@ -204,7 +204,7 @@ async function validateLeaseCommand() {
     await validateReferencedArtifacts(normalizedLease, identity.worktreePath);
 }
 async function inspectWorktree() {
-    const identity = await readIdentity(true);
+    const identity = await readCleanupIdentity();
     const decision = await classifyCleanup(identity);
     if (decision.identityMatch && decision.leaseState !== "") {
         await recordCleanupMetadata(identity, decision.leaseState, "");
@@ -212,14 +212,15 @@ async function inspectWorktree() {
     return cleanupOutput("inspect", decision);
 }
 async function cleanupWorktree() {
-    const identity = await readIdentity(true);
+    const identity = await readCleanupIdentity();
     const decision = await classifyCleanup(identity);
     if (!decision.canRemove) {
+        const outcome = decision.metadataOutcome === "skipped" ? "skipped" : "retained";
         if (decision.identityMatch && decision.leaseState !== "") {
-            await recordCleanupMetadata(identity, decision.leaseState, "retained");
-            decision.metadataOutcome = "retained";
+            await recordCleanupMetadata(identity, decision.leaseState, outcome);
+            decision.metadataOutcome = outcome;
         }
-        return cleanupOutput("retained", decision);
+        return cleanupOutput(outcome, decision);
     }
     try {
         if (decision.identityMatch && decision.leaseState !== "") {
@@ -277,6 +278,22 @@ async function classifyCleanup(identity) {
                 ...base,
                 refusalReason: "identity-mismatch",
                 message: "lease identity mismatch",
+            };
+        }
+        if (!identity.worktreeExists) {
+            return {
+                ...base,
+                refusalReason: "missing-worktree",
+                metadataOutcome: "skipped",
+                message: "worktree path is missing",
+            };
+        }
+        if (!(await isRegisteredWorktree(identity.primaryRoot, identity.worktreePath))) {
+            return {
+                ...base,
+                refusalReason: "not-registered-worktree",
+                metadataOutcome: "skipped",
+                message: "worktree path is not registered for the primary repository",
             };
         }
         await validateReferencedArtifacts(lease, identity.worktreePath);
@@ -392,6 +409,63 @@ async function readIdentity(requireLeaseFile) {
         worktreeDigest,
         leaseFile,
     };
+}
+async function readCleanupIdentity() {
+    const repository = requiredEnv("REPOSITORY");
+    if (!/^[^/\s]+\/[^/\s]+$/u.test(repository)) {
+        throw new PrReviewLeaseError("REPOSITORY must be owner/name");
+    }
+    const prNumber = parsePositiveInteger("PR_NUMBER", requiredEnv("PR_NUMBER"));
+    const primaryRoot = await realpath(requiredEnv("PRIMARY_REPOSITORY_ROOT"));
+    const cwd = await realpath(process.cwd());
+    if (primaryRoot !== cwd) {
+        throw new PrReviewLeaseError("PRIMARY_REPOSITORY_ROOT must match the primary repository root");
+    }
+    const resolvedWorktree = await resolveWorktreePathForCleanup(requiredEnv("WORKTREE_PATH"));
+    if (resolvedWorktree.path === primaryRoot) {
+        throw new PrReviewLeaseError("WORKTREE_PATH must be a review worktree, not the primary repository root");
+    }
+    const worktreeDigest = digestPath(resolvedWorktree.path);
+    const expected = `.ephemeral/pr-${prNumber}-${worktreeDigest}-lease.json`;
+    const leaseFile = requiredEnv("LEASE_FILE");
+    validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
+    if (leaseFile !== expected) {
+        throw new PrReviewLeaseError(`lease path mismatch: ${leaseFile}`);
+    }
+    return {
+        repository,
+        prNumber,
+        primaryRoot,
+        worktreePath: resolvedWorktree.path,
+        worktreeDigest,
+        leaseFile,
+        worktreeExists: resolvedWorktree.exists,
+    };
+}
+async function resolveWorktreePathForCleanup(worktreePath) {
+    try {
+        return { path: await realpath(worktreePath), exists: true };
+    }
+    catch (err) {
+        const code = err.code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+            throw err;
+        }
+        return { path: path.resolve(worktreePath), exists: false };
+    }
+}
+async function isRegisteredWorktree(primaryRoot, worktreePath) {
+    try {
+        const { stdout } = await execFileAsync("git", ["-C", primaryRoot, "worktree", "list", "--porcelain", "-z"], { maxBuffer: 1024 * 1024 });
+        const expected = normalizeComparablePath(worktreePath);
+        return stdout
+            .split("\0")
+            .filter((entry) => entry.startsWith("worktree "))
+            .some((entry) => normalizeComparablePath(entry.slice(9)) === expected);
+    }
+    catch {
+        return false;
+    }
 }
 function readInputs() {
     return {
@@ -620,6 +694,7 @@ function validateLeaseShape(lease) {
     if (lease.schema !== "pr-review/lease/v1") {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
+    validateKnownLeaseState(lease.state);
     validateTimestamp("created_at", lease.created_at);
     validateTimestamp("updated_at", lease.updated_at);
     if (lease.presentation.presented_at !== null) {
@@ -692,6 +767,7 @@ function validateStateInvariants(lease) {
     }
 }
 async function validateReferencedArtifacts(lease, worktreePath) {
+    let resultReviewHead = null;
     if (lease.artifacts.handoff_file !== null) {
         const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
         validateHandoffIdentity(handoff, lease, worktreePath);
@@ -699,11 +775,16 @@ async function validateReferencedArtifacts(lease, worktreePath) {
     if (lease.artifacts.result_file !== null) {
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
+        resultReviewHead = stringField(result, "review_head_sha");
     }
     if (lease.artifacts.approved_review_file !== null) {
         const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
-        validateApprovedIdentity(approved, lease);
+        const approvedReviewHead = validateApprovedIdentity(approved, lease, resultReviewHead);
         if (lease.artifacts.validated_payload_file !== null) {
+            const expectedPayloadFile = expectedValidatedPayloadPath(lease.pr_number, approvedReviewHead);
+            if (lease.artifacts.validated_payload_file !== expectedPayloadFile) {
+                throw new PrReviewLeaseError("validated payload path mismatch");
+            }
             const payload = await readRequiredJson(worktreePath, lease.artifacts.validated_payload_file, "validated payload file");
             if (JSON.stringify(payload) !== JSON.stringify(approved.payload)) {
                 throw new PrReviewLeaseError("validated payload approved-review mismatch");
@@ -830,10 +911,13 @@ function validateResultIdentity(result, lease) {
         }
     }
 }
-function validateApprovedIdentity(approved, lease) {
+function validateApprovedIdentity(approved, lease, resultReviewHead) {
     const reviewHead = stringField(approved, "review_head_sha");
     if (!SHA_RE.test(reviewHead)) {
         throw new PrReviewLeaseError("approved review head mismatch");
+    }
+    if (resultReviewHead !== null && reviewHead !== resultReviewHead) {
+        throw new PrReviewLeaseError("approved review result head mismatch");
     }
     if (isObject(approved.payload) &&
         typeof approved.payload.commit_id === "string" &&
@@ -844,6 +928,7 @@ function validateApprovedIdentity(approved, lease) {
         typeof approved.review_body_file !== "string") {
         throw new PrReviewLeaseError("approved review result binding mismatch");
     }
+    return reviewHead;
 }
 async function readExistingLease(file) {
     try {
@@ -940,6 +1025,9 @@ function digestPath(value) {
         .update(normalizeComparablePath(value))
         .digest("hex");
 }
+function expectedValidatedPayloadPath(prNumber, reviewHead) {
+    return `.ephemeral/pr-${prNumber}-${reviewHead}-validated-review-payload.json`;
+}
 function normalizeComparablePath(value) {
     const normalized = value.replace(/\\/gu, "/");
     return /^[A-Za-z]:\//u.test(normalized)
@@ -999,6 +1087,12 @@ function validateTimestamp(label, value) {
     if (!TIMESTAMP_RE.test(value) || Number.isNaN(Date.parse(value))) {
         throw new PrReviewLeaseError(`${label} must be a UTC RFC3339 timestamp ending in Z`);
     }
+}
+function validateKnownLeaseState(value) {
+    if (typeof value !== "string") {
+        throw new PrReviewLeaseError("lease state must be a string");
+    }
+    parseState(value);
 }
 function nowTimestamp() {
     return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
