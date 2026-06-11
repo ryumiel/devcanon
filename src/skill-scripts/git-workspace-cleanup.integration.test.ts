@@ -147,6 +147,17 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     tempDirs.length = 0;
   });
 
+  it("prints help successfully", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+
+    const result = await runScript(["--help"], rootDir);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("usage: git-workspace-cleanup.sh");
+  });
+
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
@@ -346,6 +357,27 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     expect(result.code).toBe(0);
     expect(output.STATUS).toBe("ok");
     expect(await pathExists(linkedMainDir)).toBe(false);
+    expect(await runGit(["branch", "--show-current"], primaryDir)).toBe("main");
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
+  it("recreates a missing local default branch from origin during execute", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+
+    await runGit(["checkout", "-b", "feature/already-merged"], primaryDir);
+    await runGit(["branch", "-D", "main"], primaryDir);
+
+    const result = await runScript(
+      ["--repo", primaryDir, "--execute"],
+      rootDir,
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(result.code).toBe(0);
+    expect(output.STATUS).toBe("ok");
+    expect(output.DEFAULT_BRANCH_AHEAD_COMMITS).toBe("0");
     expect(await runGit(["branch", "--show-current"], primaryDir)).toBe("main");
     expect(await listBranches(primaryDir)).toEqual(["main"]);
   });
@@ -553,7 +585,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
 
     await runGit(["branch", "feature/already-merged", "main"], primaryDir);
     await mkdir(envDir, { recursive: true });
-    const wrapperPath = path.join(envDir, "git-wrapper-env.sh");
+    const wrapperPath = path.join(envDir, "git");
     const canonicalPrimaryDir = normalizeGitPath(await realpath(primaryDir));
     await writeFile(
       wrapperPath,
@@ -647,7 +679,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     );
     const canonicalLinkedDir = normalizeGitPath(await realpath(linkedDir));
     await mkdir(envDir, { recursive: true });
-    const wrapperPath = path.join(envDir, "git-wrapper-env.sh");
+    const wrapperPath = path.join(envDir, "git");
     await writeFile(
       wrapperPath,
       [
@@ -657,7 +689,6 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
         `MARKER=${JSON.stringify(
           normalizeGitPath(path.join(rootDir, "status-count")),
         )}`,
-        "git() {",
         'if [ "$#" -ge 4 ] && [ "$1" = "-C" ] && [ "$2" = "$LINKED_DIR" ] && [ "$3" = "status" ]; then',
         "  count=0",
         '  [ -f "$MARKER" ] && count=$(cat "$MARKER")',
@@ -667,18 +698,18 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
         '    printf "dirty\\n" > "$LINKED_DIR/drift.txt"',
         "  fi",
         "fi",
-        '  "$REAL_GIT" "$@"',
-        "}",
+        'exec "$REAL_GIT" "$@"',
         "",
       ].join("\n"),
       "utf-8",
     );
+    await runCommand("chmod", ["+x", wrapperPath], rootDir);
 
     const result = await runScript(
       ["--repo", primaryDir, "--execute"],
       rootDir,
       {
-        BASH_ENV: wrapperPath,
+        PATH: `${envDir}${path.delimiter}${process.env.PATH ?? ""}`,
       },
     );
     const output = parseKeyValueOutput(result.stdout);

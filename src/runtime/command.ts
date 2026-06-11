@@ -1,3 +1,4 @@
+import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import {
   RuntimePathError,
@@ -5,6 +6,7 @@ import {
   normalizeRuntimePath,
   requireDirectEphemeralChild,
 } from "./paths.js";
+import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
 import { runReviewArtifactsCommand } from "./review-artifacts.js";
@@ -17,7 +19,8 @@ export const RUNTIME_COMMAND_CONTRACT = {
 
 export type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
-  | { exitCode: 1; stdout: string; stderr: string };
+  | { exitCode: 1; stdout: string; stderr: string }
+  | { exitCode: 2; stdout: string; stderr: string };
 
 export async function runRuntimeCommand(
   args: readonly string[],
@@ -38,6 +41,10 @@ export async function runRuntimeCommand(
         return await runReviewArtifactsCommand(rest);
       case "issue-worktree-setup":
         return await runIssueWorktreeSetupCommand(rest);
+      case "git-workspace-cleanup":
+        return await runGitWorkspaceCleanupCommand(rest);
+      case "pr-merge-worktree":
+        return await runPrMergeWorktreeCommand(rest);
       case "pr-review-manifests":
         return await runPrReviewManifestsCommand(rest);
       case "pr-review-leases":

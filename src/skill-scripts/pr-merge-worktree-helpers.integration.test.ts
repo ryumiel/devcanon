@@ -317,27 +317,28 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       ["-c", "command -v git"],
       rootDir,
     );
-    const emptyWorktreeWrapper = path.join(rootDir, "empty-worktree-git.sh");
+    const envDir = path.join(rootDir, "env");
+    await mkdir(envDir, { recursive: true });
+    const emptyWorktreeWrapper = path.join(envDir, "git");
     await writeFile(
       emptyWorktreeWrapper,
       [
         "#!/usr/bin/env bash",
         `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
-        "git() {",
-        '  if [ "$#" -eq 3 ] && [ "$1" = "worktree" ] && [ "$2" = "list" ] && [ "$3" = "--porcelain" ]; then',
-        "    return 0",
-        "  fi",
-        '  "$REAL_GIT" "$@"',
-        "}",
+        '  case " $* " in',
+        '    *" worktree list --porcelain "*) exit 0 ;;',
+        "  esac",
+        '  exec "$REAL_GIT" "$@"',
         "",
       ].join("\n"),
       "utf-8",
     );
+    await runCommand("chmod", ["+x", emptyWorktreeWrapper], rootDir);
 
     const missingPrimary = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",
       PR_BASE_BRANCH: "main",
-      BASH_ENV: emptyWorktreeWrapper,
+      PATH: `${envDir}${path.delimiter}${process.env.PATH ?? ""}`,
     });
     expect(parseKeyValueOutput(missingPrimary.stdout).MODE).toBe("stop");
     expect(parseKeyValueOutput(missingPrimary.stdout).REASON_CODE).toBe(
@@ -346,32 +347,30 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
 
     const otherDir = path.join(rootDir, "other worktree metadata");
     await mkdir(otherDir, { recursive: true });
-    const unrelatedMetadataWrapper = path.join(
-      rootDir,
-      "unrelated-worktree-git.sh",
-    );
+    const unrelatedMetadataWrapper = path.join(envDir, "git");
     await writeFile(
       unrelatedMetadataWrapper,
       [
         "#!/usr/bin/env bash",
         `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
         `OTHER_DIR=${JSON.stringify(otherDir)}`,
-        "git() {",
-        '  if [ "$#" -eq 3 ] && [ "$1" = "worktree" ] && [ "$2" = "list" ] && [ "$3" = "--porcelain" ]; then',
-        '    printf "worktree %s\\nbranch refs/heads/main\\n\\n" "$OTHER_DIR"',
-        "    return 0",
-        "  fi",
-        '  "$REAL_GIT" "$@"',
-        "}",
+        '  case " $* " in',
+        '    *" worktree list --porcelain "*)',
+        '    printf "worktree %s\\0branch refs/heads/main\\0" "$OTHER_DIR"',
+        "    exit 0",
+        "      ;;",
+        "  esac",
+        '  exec "$REAL_GIT" "$@"',
         "",
       ].join("\n"),
       "utf-8",
     );
+    await runCommand("chmod", ["+x", unrelatedMetadataWrapper], rootDir);
 
     const unclassifiable = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",
       PR_BASE_BRANCH: "main",
-      BASH_ENV: unrelatedMetadataWrapper,
+      PATH: `${envDir}${path.delimiter}${process.env.PATH ?? ""}`,
     });
     expect(parseKeyValueOutput(unclassifiable.stdout).MODE).toBe("stop");
     expect(parseKeyValueOutput(unclassifiable.stdout).REASON_CODE).toBe(
@@ -513,6 +512,42 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     expect(lockedOutput.WORKTREE_CLEANUP).toBe("retained");
     expect(lockedOutput.WORKTREE_CLEANUP_REASON).toMatch(/^locked-worktree/);
     expect(await pathExists(lockedDir)).toBe(true);
+  });
+
+  it("retains local branches for dirty recorded head worktrees even when detached", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { originDir, primaryDir } = await createOriginRepo(rootDir);
+    const headSha = await createFeatureBranch(primaryDir);
+    const featureDir = await createFeatureWorktree(primaryDir, rootDir);
+    await runGit(["checkout", "--detach"], featureDir);
+    await writeFile(path.join(featureDir, "dirty.txt"), "dirty\n", "utf-8");
+
+    const result = await runScript(
+      cleanupScript,
+      primaryDir,
+      cleanupEnv({
+        primaryDir,
+        featureDir,
+        headSha,
+        baseRemoteUrl: originDir,
+      }),
+    );
+    const output = parseKeyValueOutput(result.stdout);
+
+    expect(output.WORKTREE_CLEANUP).toBe("retained");
+    expect(output.WORKTREE_CLEANUP_REASON).toBe("dirty-or-untracked-worktree");
+    expect(output.LOCAL_BRANCH_CLEANUP).toBe("retained");
+    expect(output.LOCAL_BRANCH_CLEANUP_REASON).toBe(
+      "dirty-or-untracked-head-worktree",
+    );
+    expect(await pathExists(featureDir)).toBe(true);
+    expect(
+      await runGit(
+        ["show-ref", "--verify", "refs/heads/feature/pr-merge-helper"],
+        primaryDir,
+      ),
+    ).toContain("refs/heads/feature/pr-merge-helper");
   });
 
   it("retains a dirty primary head worktree and local branch", async () => {
