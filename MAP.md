@@ -79,6 +79,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
 - Where is the play-planning implementer executability gate decision recorded? ->
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
+- Where is the shared support skill runtime decision recorded? ->
+  [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
 - Where is durable forward-looking product direction? -> [`docs/roadmap/`](docs/roadmap/)
 
 ---

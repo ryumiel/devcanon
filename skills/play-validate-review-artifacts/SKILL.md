@@ -112,11 +112,12 @@ scope-decision path, expected schema, prior-context kind and path, governed path
 pattern, max narrow changed-file count, and optional configured path pattern.
 Scope-consuming commands must not rely on hidden prior validation state.
 
-The validator is currently expected to be shell/JQ self-contained in installed
-skill bundles. It must not require the installed `devcanon` CLI or a Node.js
-runtime solely to validate review artifacts. A future TypeScript-backed
-implementation may replace the internal mechanics only if it preserves this
-support-skill command surface and packaging contract.
+The validator is currently shell/JQ self-contained in installed skill bundles.
+ADR-0024 permits a future `devcanon-runtime` backed implementation only if it
+preserves this support-skill command surface and packaging contract. A
+runtime-backed validator may require Node.js through the packaged support
+runtime, but must not require the installed `devcanon` CLI solely to validate
+review artifacts.
 
 ## Failure Contract
 
