@@ -39,19 +39,9 @@ const supportValidatorScript = path.join(
   "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
 );
 const runtimeSkillDir = path.join(process.cwd(), "skills/devcanon-runtime");
-const jqAvailable = await commandAvailable("jq");
 const symlinkAvailable = await canCreateSymlinks();
 const isWindows = process.platform === "win32";
 const prNumber = "390";
-
-async function commandAvailable(command: string): Promise<boolean> {
-  try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function makeGitWorkspace() {
   const logicalCwd = await mkdtemp(
@@ -275,6 +265,9 @@ async function runHelper(
 }
 
 async function copyInstalledPrManifestHelper(root: string) {
+  await cp(runtimeSkillDir, path.join(root, "devcanon-runtime"), {
+    recursive: true,
+  });
   const script = path.join(root, "pr-review/scripts/review-manifests.sh");
   await mkdir(path.dirname(script), { recursive: true });
   await copyFile(helperScript, script);
@@ -322,7 +315,7 @@ async function writePassingSupportValidator(cwd: string) {
   return validator;
 }
 
-describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
+describe("pr-review manifest helper", () => {
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
@@ -1323,6 +1316,41 @@ describe.skipIf(!jqAvailable)("pr-review manifest helper", () => {
       } finally {
         await cleanupTempDir(cwd);
         await cleanupTempDir(installed);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "accepts play-review findings paths derived from the current branch slug",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      try {
+        await execFileAsync("git", ["switch", "-c", "feature/pr-432"], {
+          cwd,
+        });
+        const branchScopePath = `.ephemeral/feature-pr-432-${headSha}-scope-decision.json`;
+        const branchFindingsPath = `.ephemeral/feature-pr-432-${headSha}-findings.json`;
+        await writeJson(cwd, branchScopePath, initialScope(baseSha, headSha));
+        await writeJson(cwd, branchFindingsPath, findingsEnvelope());
+
+        await runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          SCOPE_DECISION_FILE: branchScopePath,
+        });
+        await runHelper(cwd, "write-result", {
+          ...resultEnv(headSha),
+          FINDINGS_FILE: branchFindingsPath,
+          SCOPE_DECISION_FILE: branchScopePath,
+        });
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+      } finally {
+        await cleanupTempDir(cwd);
       }
     },
   );

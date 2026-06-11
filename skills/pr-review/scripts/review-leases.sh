@@ -19,16 +19,15 @@ resolve_runtime() {
     command -v devcanon-runtime.sh
     return
   fi
-  fail "devcanon-runtime entrypoint missing for pr-review manifests"
+  fail "devcanon-runtime entrypoint missing for pr-review leases"
 }
 
 case "$command_name" in
-  prepare-handoff-write | write-handoff | validate-handoff | prepare-result-write | write-result | validate-result)
+  derive-path | write | validate | inspect-worktree | cleanup-worktree)
     runtime="$(resolve_runtime)"
-    PR_REVIEW_MANIFEST_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
-      exec "$runtime" runtime pr-review-manifests "$command_name"
+    exec "$runtime" runtime pr-review-leases "$command_name"
     ;;
   *)
-    fail "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result"
+    fail "usage: review-leases.sh derive-path|write|validate|inspect-worktree|cleanup-worktree"
     ;;
 esac
