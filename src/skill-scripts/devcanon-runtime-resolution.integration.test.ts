@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir } from "node:fs/promises";
+import { chmod, cp, mkdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -45,13 +45,15 @@ async function resolveRuntimeEntrypoint(
   consumerScriptPath: string,
   env: NodeJS.ProcessEnv = {},
 ): Promise<string> {
+  const bashResolverPath = await toBashPath(resolverPath);
+  const bashConsumerScriptPath = await toBashPath(consumerScriptPath);
   const { stdout } = await execFileAsync(
     "bash",
     [
-      resolverPath,
+      bashResolverPath,
       "resolve-entrypoint",
       "--from",
-      consumerScriptPath,
+      bashConsumerScriptPath,
       "--entrypoint",
       "scripts/devcanon-runtime.sh",
     ],
@@ -60,6 +62,43 @@ async function resolveRuntimeEntrypoint(
     },
   );
   return stdout.trim();
+}
+
+async function toBashPath(nativePath: string): Promise<string> {
+  const { stdout } = await execFileAsync("bash", [
+    "-lc",
+    'if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf "%s\\n" "$1"; fi',
+    "bash",
+    nativePath,
+  ]);
+  return stdout.trim();
+}
+
+function normalizePathText(value: string): string {
+  let normalized = value.replace(/\\/gu, "/");
+  if (process.platform === "win32") {
+    normalized = normalized.replace(
+      /^\/([A-Za-z])\//u,
+      (_match, drive: string) => `${drive}:/`,
+    );
+    normalized = normalized.replace(
+      /^\/cygdrive\/([A-Za-z])\//u,
+      (_match, drive: string) => `${drive}:/`,
+    );
+    if (/^[A-Za-z]:\//u.test(normalized)) {
+      normalized = normalized.toLowerCase();
+    }
+  }
+  return normalized;
+}
+
+async function expectSameBashPath(
+  actual: string,
+  expectedNativePath: string,
+): Promise<void> {
+  expect(normalizePathText(actual)).toBe(
+    normalizePathText(await toBashPath(expectedNativePath)),
+  );
 }
 
 describe("devcanon-runtime resolver", () => {
@@ -81,7 +120,9 @@ describe("devcanon-runtime resolver", () => {
 
   it("reports the runtime command contract", async () => {
     const { stdout } = await execFileAsync("bash", [
-      path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+      await toBashPath(
+        path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+      ),
       "contract",
     ]);
 
@@ -107,7 +148,8 @@ describe("devcanon-runtime resolver", () => {
         "adapter.sh",
       ),
     );
-    expect(sourceResolved).toBe(
+    await expectSameBashPath(
+      sourceResolved,
       path.join(
         config.library.skillsDir,
         "devcanon-runtime",
@@ -135,7 +177,8 @@ describe("devcanon-runtime resolver", () => {
         "adapter.sh",
       ),
     );
-    expect(generatedResolved).toBe(
+    await expectSameBashPath(
+      generatedResolved,
       path.join(
         config.library.generatedDir,
         "codex",
@@ -168,7 +211,8 @@ describe("devcanon-runtime resolver", () => {
         "adapter.sh",
       ),
     );
-    expect(installedResolved).toBe(
+    await expectSameBashPath(
+      installedResolved,
       path.join(
         config.targets.codex.skillsHome,
         "devcanon-runtime",
@@ -210,7 +254,8 @@ describe("devcanon-runtime resolver", () => {
           "adapter.sh",
         ),
       );
-      expect(installedResolved).toBe(
+      await expectSameBashPath(
+        installedResolved,
         path.join(
           config.targets.codex.skillsHome,
           "devcanon-runtime",
@@ -218,6 +263,56 @@ describe("devcanon-runtime resolver", () => {
           "devcanon-runtime.sh",
         ),
       );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects symlinked runtime entrypoints",
+    async () => {
+      await prepareRuntimeResolutionFixture(config);
+
+      const externalScript = path.join(tempDir, "external-runtime.sh");
+      await cp(
+        path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+        externalScript,
+      );
+      await chmod(externalScript, 0o755);
+      await symlink(
+        externalScript,
+        path.join(
+          config.library.skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "linked-runtime.sh",
+        ),
+      );
+
+      await expect(
+        execFileAsync("bash", [
+          await toBashPath(
+            path.join(
+              config.library.skillsDir,
+              "devcanon-runtime",
+              "scripts",
+              "devcanon-runtime.sh",
+            ),
+          ),
+          "resolve-entrypoint",
+          "--from",
+          await toBashPath(
+            path.join(
+              config.library.skillsDir,
+              "consumer-skill",
+              "scripts",
+              "adapter.sh",
+            ),
+          ),
+          "--entrypoint",
+          "scripts/linked-runtime.sh",
+        ]),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("devcanon-runtime entrypoint missing"),
+      });
     },
   );
 
@@ -235,14 +330,16 @@ describe("devcanon-runtime resolver", () => {
     );
     await expect(
       execFileAsync("bash", [
-        resolverPath,
+        await toBashPath(resolverPath),
         "resolve-entrypoint",
         "--from",
-        path.join(
-          config.library.skillsDir,
-          "consumer-skill",
-          "scripts",
-          "adapter.sh",
+        await toBashPath(
+          path.join(
+            config.library.skillsDir,
+            "consumer-skill",
+            "scripts",
+            "adapter.sh",
+          ),
         ),
         "--entrypoint",
         "scripts/devcanon-runtime.sh",

@@ -19,7 +19,7 @@ contract() {
 }
 
 is_executable_file() {
-  [ -f "$1" ] && [ -x "$1" ]
+  [ -f "$1" ] && [ -x "$1" ] && [ ! -L "$1" ]
 }
 
 runtime_entrypoint() {

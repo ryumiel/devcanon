@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, readFile } from "node:fs/promises";
+import { chmod, cp, lstat, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -84,6 +84,41 @@ describe("devcanon-runtime sync", () => {
     );
     expect(runtimeRecord?.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(runtimeRecord?.installMode).toBe("copy");
+  });
+
+  it("repairs copy-installed runtime files when executable metadata drifts", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await prepareRuntimeSyncFixture(config);
+
+    const firstResult = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    expect(firstResult.errors).toEqual([]);
+
+    const installedScript = path.join(
+      config.targets.codex.skillsHome,
+      "devcanon-runtime",
+      "scripts",
+      "devcanon-runtime.sh",
+    );
+    await chmod(installedScript, 0o644);
+    if (((await stat(installedScript)).mode & 0o111) !== 0) {
+      return;
+    }
+
+    const secondResult = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+
+    expect(secondResult.errors).toEqual([]);
+    expect(secondResult.updated).toBeGreaterThan(0);
+    expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
   });
 
   it.skipIf(!symlinkAvailable)(
