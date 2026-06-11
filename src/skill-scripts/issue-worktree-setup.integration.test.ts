@@ -60,7 +60,13 @@ async function runBashPwdP(cwd: string): Promise<string> {
 }
 
 function normalizeFsPath(value: string): string {
-  return path.normalize(value).replaceAll("\\", "/");
+  const normalized = path.normalize(value).replaceAll("\\", "/");
+  if (process.platform !== "win32") return normalized;
+
+  return normalized.replace(
+    /(^|[^A-Za-z0-9_])\/([A-Za-z])(?=\/)/gu,
+    (_, prefix: string, drive: string) => `${prefix}${drive.toUpperCase()}:`,
+  );
 }
 
 async function createOriginRepo(
