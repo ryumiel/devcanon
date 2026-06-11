@@ -104,6 +104,18 @@ describe("devcanon-runtime sync", () => {
       "scripts",
       "devcanon-runtime.sh",
     );
+    const generatedScript = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "devcanon-runtime",
+      "scripts",
+      "devcanon-runtime.sh",
+    );
+    if (((await stat(generatedScript)).mode & 0o111) === 0) {
+      return;
+    }
+
     await chmod(installedScript, 0o644);
     if (((await stat(installedScript)).mode & 0o111) !== 0) {
       return;
