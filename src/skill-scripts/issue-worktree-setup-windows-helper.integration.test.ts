@@ -158,15 +158,10 @@ describe("issue-worktree-setup native helper", () => {
   });
 
   it("keeps the Bash adapter checked in with LF line endings", async () => {
-    const bashAdapter = await readFile(
-      path.join(
-        process.cwd(),
-        "skills",
-        "issue-worktree-setup",
-        "scripts",
-        "setup-worktree.sh",
-      ),
-      "utf-8",
+    const bashAdapter = await runCommand(
+      "git",
+      ["show", "HEAD:skills/issue-worktree-setup/scripts/setup-worktree.sh"],
+      process.cwd(),
     );
 
     expect(bashAdapter).not.toContain("\r\n");
