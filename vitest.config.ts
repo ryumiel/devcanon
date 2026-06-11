@@ -10,9 +10,16 @@ const renderInstallIntegrationIncludes = [
   "src/validate/*.integration.test.ts",
 ];
 const windowsHelperIntegrationIncludes = [
+  // Runtime helpers normalize Windows paths and exercise shell-backed adapters.
   "src/skill-scripts/devcanon-runtime-*.integration.test.ts",
+  // Issue worktree setup validates Windows worktree path and shell behavior.
+  "src/skill-scripts/issue-worktree-setup.integration.test.ts",
+  // Native helper coverage keeps the Node worktree adapter in the Windows lane.
   "src/skill-scripts/issue-worktree-setup-windows-helper.integration.test.ts",
+  // PR merge cleanup/preflight helpers exercise Windows worktree and PATH handling.
   "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
+  // Review manifest helpers validate Windows-aware path normalization and repo roots.
+  "src/skill-scripts/pr-review-manifests-helper.integration.test.ts",
 ];
 const windowsIntegrationIncludes = [
   ...renderInstallIntegrationIncludes,
