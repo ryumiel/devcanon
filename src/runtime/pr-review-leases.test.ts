@@ -372,7 +372,9 @@ describe("pr-review lease reducer", () => {
       }),
     ).toThrow("invalid lease transition: created -> posted");
   });
+});
 
+describe("pr-review lease command validation", () => {
   it("fails closed instead of overwriting malformed existing leases", async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
     const primary = path.join(tempRoot, "primary");
@@ -478,7 +480,7 @@ describe("pr-review lease reducer", () => {
 
   it("rejects unknown JSON lease states before state-invariant checks", async () => {
     const { tempRoot, primary, physicalPrimary, physicalWorktree } =
-      await makeRegisteredWorkspace("pr-review-unknown-state-");
+      await makeLeaseWorkspace("pr-review-unknown-state-");
 
     try {
       process.chdir(physicalPrimary);
@@ -534,6 +536,112 @@ describe("pr-review lease reducer", () => {
     }
   });
 
+  it("rejects approved reviews from a different result manifest head", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeLeaseWorkspace("pr-review-approved-head-");
+    const resultHead = "1111111111111111111111111111111111111111";
+    const approvedHead = "2222222222222222222222222222222222222222";
+    const resultFile = `.ephemeral/pr-432-${resultHead}-result.json`;
+    const approvedReviewFile = `.ephemeral/topic-${approvedHead}-approved-review.json`;
+
+    try {
+      await writeResultArtifact(worktree, resultFile, resultHead);
+      await writeApprovedReviewArtifact(
+        worktree,
+        approvedReviewFile,
+        approvedHead,
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          postedCommandLease({
+            leaseFile,
+            worktreePath: physicalWorktree,
+            worktreeDigest: dynamicIdentity.worktreeDigest,
+            resultFile,
+            approvedReviewFile,
+          }),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("approved review result head mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects non-deterministic validated payload paths", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeLeaseWorkspace("pr-review-payload-path-");
+    const reviewHead = "1111111111111111111111111111111111111111";
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+    const approvedReviewFile = `.ephemeral/topic-${reviewHead}-approved-review.json`;
+    const validatedPayloadFile =
+      ".ephemeral/copied-validated-review-payload.json";
+
+    try {
+      await writeResultArtifact(worktree, resultFile, reviewHead);
+      await writeApprovedReviewArtifact(
+        worktree,
+        approvedReviewFile,
+        reviewHead,
+      );
+      await writeFile(
+        path.join(worktree, validatedPayloadFile),
+        `${JSON.stringify(reviewPayload(reviewHead))}\n`,
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          postedCommandLease({
+            leaseFile,
+            worktreePath: physicalWorktree,
+            worktreeDigest: dynamicIdentity.worktreeDigest,
+            resultFile,
+            approvedReviewFile,
+            validatedPayloadFile,
+          }),
+          null,
+          2,
+        )}\n`,
+      );
+
+      process.env.LEASE_FILE = leaseFile;
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("validated payload path mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pr-review lease Git cleanup safety", () => {
   it("reports missing worktrees as skipped cleanup when lease identity matches", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-missing-worktree-");
@@ -610,110 +718,6 @@ describe("pr-review lease reducer", () => {
       expect(result.stdout).toContain("OUTCOME=skipped");
       expect(result.stdout).toContain("REFUSAL_REASON=not-registered-worktree");
       expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
-    } finally {
-      process.chdir(originalCwd);
-      await rm(tempRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects approved reviews from a different result manifest head", async () => {
-    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeRegisteredWorkspace("pr-review-approved-head-");
-    const resultHead = "1111111111111111111111111111111111111111";
-    const approvedHead = "2222222222222222222222222222222222222222";
-    const resultFile = `.ephemeral/pr-432-${resultHead}-result.json`;
-    const approvedReviewFile = `.ephemeral/topic-${approvedHead}-approved-review.json`;
-
-    try {
-      await writeResultArtifact(worktree, resultFile, resultHead);
-      await writeApprovedReviewArtifact(
-        worktree,
-        approvedReviewFile,
-        approvedHead,
-      );
-      process.chdir(physicalPrimary);
-      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
-      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
-      expect(pathResult.exitCode).toBe(0);
-      const leaseFile = pathResult.stdout.trim();
-      const dynamicIdentity = identityFromLeaseFile(
-        leaseFile,
-        physicalWorktree,
-      );
-      await writeFile(
-        path.join(primary, leaseFile),
-        `${JSON.stringify(
-          postedCommandLease({
-            leaseFile,
-            worktreePath: physicalWorktree,
-            worktreeDigest: dynamicIdentity.worktreeDigest,
-            resultFile,
-            approvedReviewFile,
-          }),
-          null,
-          2,
-        )}\n`,
-      );
-
-      process.env.LEASE_FILE = leaseFile;
-      const result = await runPrReviewLeasesCommand(["validate"]);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("approved review result head mismatch");
-    } finally {
-      process.chdir(originalCwd);
-      await rm(tempRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects non-deterministic validated payload paths", async () => {
-    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeRegisteredWorkspace("pr-review-payload-path-");
-    const reviewHead = "1111111111111111111111111111111111111111";
-    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
-    const approvedReviewFile = `.ephemeral/topic-${reviewHead}-approved-review.json`;
-    const validatedPayloadFile =
-      ".ephemeral/copied-validated-review-payload.json";
-
-    try {
-      await writeResultArtifact(worktree, resultFile, reviewHead);
-      await writeApprovedReviewArtifact(
-        worktree,
-        approvedReviewFile,
-        reviewHead,
-      );
-      await writeFile(
-        path.join(worktree, validatedPayloadFile),
-        `${JSON.stringify(reviewPayload(reviewHead))}\n`,
-      );
-      process.chdir(physicalPrimary);
-      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
-      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
-      expect(pathResult.exitCode).toBe(0);
-      const leaseFile = pathResult.stdout.trim();
-      const dynamicIdentity = identityFromLeaseFile(
-        leaseFile,
-        physicalWorktree,
-      );
-      await writeFile(
-        path.join(primary, leaseFile),
-        `${JSON.stringify(
-          postedCommandLease({
-            leaseFile,
-            worktreePath: physicalWorktree,
-            worktreeDigest: dynamicIdentity.worktreeDigest,
-            resultFile,
-            approvedReviewFile,
-            validatedPayloadFile,
-          }),
-          null,
-          2,
-        )}\n`,
-      );
-
-      process.env.LEASE_FILE = leaseFile;
-      const result = await runPrReviewLeasesCommand(["validate"]);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("validated payload path mismatch");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -854,6 +858,27 @@ function setLeaseCommandEnv(primary: string, worktree: string): void {
   process.env.PR_NUMBER = "432";
   process.env.PRIMARY_REPOSITORY_ROOT = primary;
   process.env.WORKTREE_PATH = worktree;
+}
+
+async function makeLeaseWorkspace(prefix: string): Promise<{
+  tempRoot: string;
+  primary: string;
+  worktree: string;
+  physicalPrimary: string;
+  physicalWorktree: string;
+}> {
+  const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
+  const primary = path.join(tempRoot, "primary");
+  const worktree = path.join(tempRoot, "worktree");
+  await mkdir(path.join(primary, ".ephemeral"), { recursive: true });
+  await mkdir(path.join(worktree, ".ephemeral"), { recursive: true });
+  return {
+    tempRoot,
+    primary,
+    worktree,
+    physicalPrimary: await realpath(primary),
+    physicalWorktree: await realpath(worktree),
+  };
 }
 
 async function makeRegisteredWorkspace(prefix: string): Promise<{
