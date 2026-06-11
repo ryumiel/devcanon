@@ -27,7 +27,7 @@ digraph pr_review {
   delegate [label="4. Run play-review\n(shared review pipeline)"];
   present [label="5. Present\n(USER GATE)", shape=doublecircle];
   post [label="6. Post\nAfter user approval only"];
-  cleanup [label="7. Cleanup\nworktree remove"];
+  cleanup [label="7. Cleanup\nlease-gated"];
 
   gather -> worktree -> ranges -> delegate -> present;
   present -> post [label="user approves"];
@@ -71,6 +71,77 @@ calls.
 `.worktrees/pr-<N>-review`, for example
 `WORKING_DIRECTORY="$(cd ".worktrees/pr-<N>-review" && pwd -P)"`. Manifest
 validation rejects subdirectories, `.` aliases, and symlinked aliases.
+
+Bind the lease helper after `PR_REVIEW_DIR` is known:
+
+```bash
+PR_REVIEW_LEASE_HELPER="$PR_REVIEW_DIR/scripts/review-leases.sh"
+```
+
+## Lease Lifecycle
+
+`pr-review/lease/v1` records the local lifecycle of one `pr-review` review
+session. Its deterministic path is
+`.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-lease.json`, where
+`WORKTREE_DIGEST` is derived by `scripts/review-leases.sh` from the physical
+review worktree path. Store leases in the primary repository `.ephemeral/`
+directory, outside the disposable review worktree.
+
+`review-leases.sh` preserves the public helper commands but delegates lease
+path derivation, typed reducer transitions, closed-schema validation,
+path-guarded writes, and atomic writes to `devcanon-runtime`'s
+`pr-review-leases` command. `review-manifests.sh` continues to own
+`pr-review/handoff/v1` and `pr-review/result/v1` validation.
+`approved-review-artifacts.sh` and `play-review` continue to own approved
+review payload and findings validation. The lease records lifecycle state only;
+it does not store approval intent, review payload JSON, inline comments,
+findings content, or thread-resolution decisions. The lease helper never posts
+to GitHub and never constructs GitHub review payloads.
+
+Helper command surface:
+
+- `derive-path`
+- `write`
+- `validate`
+- `inspect-worktree`
+- `cleanup-worktree`
+
+The authoritative lifecycle contract lives in
+[`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md).
+That reference owns valid states, transition rows, field inheritance and
+clearing rules, artifact binding, terminal archive behavior, cleanup classifier
+value domains, and cleanup artifact ownership rules. Keep `SKILL.md`
+operator-facing; update the reference and focused tests when lease lifecycle
+behavior changes.
+
+Fresh PR reviews with no existing worktree follow the same Phase 1 through
+Phase 6 flow as before, except the lease is created and updated at lifecycle
+boundaries:
+
+- Write `created` after `WORKING_DIRECTORY` is resolved.
+- Refresh `created` with `HANDOFF_FILE` after the Phase 3 handoff validates.
+- Write `reviewed` after the initial Phase 4 result manifest validates.
+- Write `gated` after each successful Phase 5 preview render, using
+  `PRESENTED_AT` and `PRESENTATION_STATUS`.
+- Write `aborted` immediately after the user chooses `abort`, with
+  `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
+- Write `posted` only after the GitHub review post succeeds, with
+  `APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. The runtime
+  reducer records `github_post_attempted=true` and
+  `github_post_result=succeeded` as derived metadata.
+- Write `failed` before any cleanup decision when validation, preview,
+  approval-freeze, stale-head, or GitHub posting fails. `failed` writes must
+  include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
+  `FAILURE_RECOVERABILITY`.
+
+Resume `created`, `reviewed`, `gated`, and `failed` leases from validated lease
+and manifest artifacts. Do not remove an existing review worktree during resume
+discovery. If a review worktree exists, first derive the lease path from the
+physical worktree path and run `review-leases.sh validate` or
+`review-leases.sh inspect-worktree`; only treat it as stale after the helper
+reports a cleanup outcome that permits removal. A prior Phase 5 preview is not
+approval; resume must present or re-render the latest validated artifacts and
+wait for fresh user action.
 
 ## Phase 3: Determine diff ranges
 
@@ -232,6 +303,11 @@ line is emitted by this wrapper after validation succeeds. Run this as a
 caller-shell function, not a subshell, so `REVIEW_HEAD_SHA` and
 `REVIEW_HANDOFF_FILE` remain bound for Phase 4 and later guards.
 
+After the handoff validates, refresh `created` with `HANDOFF_FILE` using the
+same `LEASE_FILE`, `WORKTREE_PATH`, `BASE_REF`, and `HEAD_REF`. If the lease
+write fails, stop before Phase 4; do not run `play-review` from an unleased
+handoff.
+
 ## Phase 4: Run play-review
 
 Start by validating and consuming the Phase 3 handoff manifest from the target
@@ -305,6 +381,10 @@ write_initial_pr_review_result_manifest || RESULT_MANIFEST_STATUS=$?
 cd "$REVIEW_CALLER_DIR" || exit 1
 [ "$RESULT_MANIFEST_STATUS" -eq 0 ] || exit "$RESULT_MANIFEST_STATUS"
 ```
+
+After the initial result manifest validates, write `reviewed` with
+`RESULT_FILE="$REVIEW_RESULT_FILE"`. If this write fails, stop before Phase 5;
+do not present a review result whose lease cannot be resumed.
 
 ## Phase 5: Present (USER GATE)
 
@@ -445,6 +525,12 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 [ "$RESULT_MANIFEST_STATUS" -eq 0 ] || exit "$RESULT_MANIFEST_STATUS"
 ```
 
+After the preview render and result-manifest update validate, write `gated`
+with `RESULT_FILE="$REVIEW_RESULT_FILE"`, `PRESENTED_AT`, and
+`PRESENTATION_STATUS`. If the user edits the body or findings and the preview
+is re-rendered, update the same `gated` lease after the manifest update
+succeeds. The lease gate is still not approval.
+
 Present exactly that stdout to the user as the preview, plus the thread
 resolution list for follow-up reviews when applicable:
 
@@ -516,16 +602,16 @@ from conversation text or current checkout state. After findings edits, rewrite
 
 **User actions:**
 
-| Action                               | Effect                                 |
-| ------------------------------------ | -------------------------------------- |
-| `post`                               | Post review + resolve approved threads |
-| `post as comment`                    | Comment only, no verdict               |
-| `drop #N`                            | Remove finding                         |
-| `change #N severity to Blocking/Nit` | Reclassify severity                    |
-| `change #N category to Logic/...`    | Reclassify category                    |
-| `edit`                               | Revise draft text                      |
-| `skip threads`                       | Post but don't resolve                 |
-| `abort`                              | Discard all, clean up                  |
+| Action                               | Effect                                     |
+| ------------------------------------ | ------------------------------------------ |
+| `post`                               | Post review + resolve approved threads     |
+| `post as comment`                    | Comment only, no verdict                   |
+| `drop #N`                            | Remove finding                             |
+| `change #N severity to Blocking/Nit` | Reclassify severity                        |
+| `change #N category to Logic/...`    | Reclassify category                        |
+| `edit`                               | Revise draft text                          |
+| `skip threads`                       | Post but don't resolve                     |
+| `abort`                              | Record `aborted`, then lease-gated cleanup |
 
 ## Phase 6: Post
 
@@ -681,9 +767,31 @@ Only after user approval:
 
 7. Verify each API response succeeded. Report failures, stop on error.
 
+After the GitHub review post succeeds, write `posted` with
+`APPROVED_REVIEW_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If
+approved-review validation, stale-head verification, or GitHub posting fails
+after the approval freeze, write `failed` with `FINISHED_AT`, `FAILURE_PHASE`,
+`FAILURE_REASON`, and `FAILURE_RECOVERABILITY` before any cleanup decision.
+Preserve the result manifest, findings file, review body, rendered preview,
+approved-review artifact, and validated payload file when available. Do not
+retry or reconstruct a GitHub mutation from conversation text.
+
 ## Phase 7: Cleanup
 
-**Always** (success or abort): `git worktree remove .worktrees/pr-<N>-review`
+Never remove a review worktree directly. Use `review-leases.sh
+inspect-worktree` before every cleanup decision and `review-leases.sh
+cleanup-worktree` for every removal attempt. The helper owns safety mechanics
+and removes worktrees only after all checks pass. Dirty worktrees, unmanaged
+`.ephemeral` artifacts, identity mismatches, invalid lease mechanics,
+non-worktree paths, and missing paths remain removal refusals or skipped
+outcomes.
+
+Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
+keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,
+`DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
+`METADATA_OUTCOME`, and `FORCE_REMOVE_ALLOWED`. Treat `failed` or a nonzero
+exit as a cleanup failure and report the lease path, worktree path, classifier
+fields, and message for manual recovery. Do not run a broad `.ephemeral` sweep.
 
 ## GitHub API Reference
 
@@ -724,7 +832,7 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 1. **NEVER post, approve, or resolve without user approval at the Phase 5 gate.**
 2. **NEVER auto-approve.** Present the verdict recommendation; user decides.
-3. **Always clean up the worktree** (Phase 7) after post or abort.
+3. **Never remove a review worktree directly; use the lease helper cleanup contract.**
 4. **Verify every GitHub API response.** Report non-2xx failures.
 5. **Never approve your own code.** If PR author = git user, warn and refuse approval.
 6. **Always preserve `play-review`'s evidence code** (3-7 lines) when reformatting findings for the user gate.
@@ -744,16 +852,16 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario                              | Action                                               |
-| ------------------------------------- | ---------------------------------------------------- |
-| `gh` not authenticated                | Fail, suggest `gh auth login`                        |
-| PR not found                          | Fail, verify number/URL                              |
-| PR already merged/closed              | Warn user of state, ask whether to proceed           |
-| Fork PR (head ref not on origin)      | Use `gh pr checkout <N> --detach` or add fork remote |
-| Worktree exists                       | Remove stale, recreate                               |
-| `play-review` reports a missing input | Stop; this means the wrapper has a bug               |
-| API returns non-2xx                   | Report failure, stop                                 |
-| Worktree cleanup fails                | Warn user, suggest manual `git worktree remove`      |
+| Scenario                              | Action                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| `gh` not authenticated                | Fail, suggest `gh auth login`                                                   |
+| PR not found                          | Fail, verify number/URL                                                         |
+| PR already merged/closed              | Warn user of state, ask whether to proceed                                      |
+| Fork PR (head ref not on origin)      | Use `gh pr checkout <N> --detach` or add fork remote                            |
+| Worktree exists                       | Inspect lease; resume valid leases or use lease-gated cleanup before recreating |
+| `play-review` reports a missing input | Stop; this means the wrapper has a bug                                          |
+| API returns non-2xx                   | Report failure, stop                                                            |
+| Worktree cleanup fails                | Report lease path, worktree path, and helper message                            |
 
 ## Integration
 

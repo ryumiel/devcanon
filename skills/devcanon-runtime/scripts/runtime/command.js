@@ -1,4 +1,5 @@
 import { RuntimePathError, normalizeRuntimePath, requireDirectEphemeralChild, } from "./paths.js";
+import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runReviewArtifactsCommand } from "./review-artifacts.js";
 export const RUNTIME_COMMAND_CONTRACT = {
     command_group: "devcanon-runtime",
@@ -20,6 +21,8 @@ export async function runRuntimeCommand(args) {
                 return ok(validateJson(rest));
             case "review-artifacts":
                 return await runReviewArtifactsCommand(rest);
+            case "pr-review-leases":
+                return await runPrReviewLeasesCommand(rest);
             default:
                 return fail("unknown-command", `unknown devcanon-runtime command: ${command ?? "<missing>"}`);
         }
