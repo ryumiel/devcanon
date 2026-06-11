@@ -29,7 +29,9 @@ mechanics whose complexity or reuse exceeds an owning skill's local
 `devcanon-runtime`. It is not a human workflow entry point, must not be
 implicitly invocable as a normal skill, and must not own review judgment,
 planning judgment, GitHub posting approval, issue routing, or user-facing
-workflow policy.
+workflow policy. Its source metadata must use target-supported controls to mark
+it support-only, including non-user-invocable Claude metadata and Codex sidecar
+policy that disallows implicit invocation.
 
 Skill prose remains authoritative for workflow policy, escalation rules,
 operator approval, and the command surface presented to the agent. Runtime code
@@ -72,12 +74,12 @@ resolves the default runtime under:
 <skills-root>/devcanon-runtime/
 ```
 
-Consumers may support an explicit runtime-directory override for tests,
-diagnostics, and packaging validation. Without an override, they first derive
-the logical sibling path from the adapter script location, then may try the
-physical resolved sibling path for symlink install modes. If no compatible
-runtime exists, the adapter fails before performing validation or state
-mutation.
+Runtime-backed adapters must support an explicit `DEVCANON_RUNTIME_DIR`
+override for tests, diagnostics, and packaging validation. Without an override,
+they first derive the logical sibling path from the adapter script location,
+then may try the physical resolved sibling path for symlink install modes. If
+no compatible runtime exists, the adapter fails before performing validation or
+state mutation.
 
 The runtime is distributed with rendered and installed skill bundles. Runtime
 files participate in render hashing, generated previews, sync planning, and
@@ -89,7 +91,10 @@ version aligned with the rendered bundle that invoked them.
 Runtime commands declare a compatibility contract. Consumers that depend on a
 runtime command must either validate the command's reported contract version or
 call a stable entry point whose version compatibility is enforced by the
-runtime. Content hashes remain install-plan evidence that managed runtime files
+runtime. At minimum, each command group exposes a machine-readable contract
+descriptor containing the command group name and an integer major version, and
+mutating consumers reject unknown major versions before changing files or
+state. Content hashes remain install-plan evidence that managed runtime files
 match the rendered source; they are not a substitute for command-level
 compatibility checks.
 
