@@ -67,7 +67,7 @@ describe("devcanon-runtime typed entrypoint", () => {
           "posix",
         ],
         {
-          env: { ...process.env, MSYS2_ARG_CONV_EXCL: "*" },
+          env: { ...process.env, MSYS2_ARG_CONV_EXCL: "/tmp" },
         },
       );
 
