@@ -1,4 +1,13 @@
-import { chmod, cp, lstat, mkdir, readFile, stat } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -10,6 +19,7 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -36,17 +46,27 @@ async function prepareRuntimeSyncFixture(
 
 describe("devcanon-runtime sync", () => {
   let tempDir: string;
+  let testLogger: TestLoggerResult;
   let restoreLogger: () => void;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     const installed = installTestLogger();
+    testLogger = installed.testLogger;
     restoreLogger = installed.restore;
   });
 
   afterEach(async () => {
     restoreLogger();
     await cleanupTempDir(tempDir);
+  });
+
+  it("publishes the support runtime skill with packaged installs", async () => {
+    const packageJson = JSON.parse(
+      await readFile(path.resolve("package.json"), "utf-8"),
+    ) as { files?: string[] };
+
+    expect(packageJson.files).toContain("skills/devcanon-runtime");
   });
 
   it("installs runtime files in copy mode and records the runtime manifest hash", async () => {
@@ -131,6 +151,171 @@ describe("devcanon-runtime sync", () => {
       expect(secondResult.errors).toEqual([]);
       expect(secondResult.updated).toBeGreaterThan(0);
       expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
+    },
+  );
+
+  it.skipIf(!executableModeMutable)(
+    "repairs copy-installed runtime files when executable metadata is removed",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await prepareRuntimeSyncFixture(config);
+
+      const firstResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+      expect(firstResult.errors).toEqual([]);
+
+      const sourceScript = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      const installedScript = path.join(
+        config.targets.codex.skillsHome,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
+
+      await chmod(sourceScript, 0o644);
+      expect((await stat(sourceScript)).mode & 0o111).toBe(0);
+
+      const secondResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+
+      expect(secondResult.errors).toEqual([]);
+      expect(secondResult.updated).toBeGreaterThan(0);
+      expect((await stat(installedScript)).mode & 0o111).toBe(0);
+    },
+  );
+
+  it("dry-run planning does not require generated preview directories", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await prepareRuntimeSyncFixture(config);
+
+    const firstResult = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    expect(firstResult.errors).toEqual([]);
+
+    await rm(config.library.generatedDir, { recursive: true, force: true });
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+
+    const dryRunResult = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+
+    expect(dryRunResult.errors).toEqual([]);
+  });
+
+  it.skipIf(!executableModeMutable)(
+    "dry-run planning uses source executable metadata instead of stale generated previews",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await prepareRuntimeSyncFixture(config);
+
+      const firstResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+      expect(firstResult.errors).toEqual([]);
+
+      const sourceScript = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      const generatedScript = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      const installedScript = path.join(
+        config.targets.codex.skillsHome,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      expect((await stat(generatedScript)).mode & 0o111).not.toBe(0);
+      expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
+
+      await chmod(sourceScript, 0o644);
+      expect((await stat(sourceScript)).mode & 0o111).toBe(0);
+      expect((await stat(generatedScript)).mode & 0o111).not.toBe(0);
+
+      testLogger.infos.length = 0;
+      const dryRunResult = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+
+      expect(dryRunResult.errors).toEqual([]);
+      expect(testLogger.infos).toContain(
+        "  ~ [update] codex/skill/devcanon-runtime",
+      );
+    },
+  );
+
+  it.skipIf(!executableModeMutable)(
+    "ignores executable source files outside mirrored skill subdirectories",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await prepareRuntimeSyncFixture(config);
+
+      const firstResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+      expect(firstResult.errors).toEqual([]);
+
+      const strayExecutable = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+        "local-helper.sh",
+      );
+      await writeFile(strayExecutable, "#!/bin/sh\n", "utf-8");
+      await chmod(strayExecutable, 0o755);
+
+      testLogger.infos.length = 0;
+      const dryRunResult = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+
+      expect(dryRunResult.errors).toEqual([]);
+      expect(testLogger.infos).toContain(
+        "  = [skip-up-to-date] codex/skill/devcanon-runtime",
+      );
+      expect(testLogger.infos).not.toContain(
+        "  ~ [update] codex/skill/devcanon-runtime",
+      );
     },
   );
 
