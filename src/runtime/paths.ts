@@ -99,7 +99,7 @@ export function requireDirectEphemeralChild(
       "path must be a direct child under .ephemeral",
     );
   }
-  if (rest === "." || rest === ".." || rest.includes("..")) {
+  if (rest === "." || rest === "..") {
     throw new RuntimePathError(
       "path-traversal",
       "path traversal is not allowed",

@@ -51,6 +51,11 @@ describe("runtime path utilities", () => {
       path: ".ephemeral/result.json",
       filename: "result.json",
     });
+    expect(requireDirectEphemeralChild(".ephemeral/..hidden")).toEqual({
+      ok: true,
+      path: ".ephemeral/..hidden",
+      filename: "..hidden",
+    });
     expect(() =>
       requireDirectEphemeralChild(".ephemeral/nested/result.json"),
     ).toThrow(RuntimePathError);

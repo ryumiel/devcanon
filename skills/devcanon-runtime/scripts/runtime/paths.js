@@ -50,7 +50,7 @@ export function requireDirectEphemeralChild(input) {
     if (rest.length === 0 || rest.includes("/")) {
         throw new RuntimePathError("nested-path", "path must be a direct child under .ephemeral");
     }
-    if (rest === "." || rest === ".." || rest.includes("..")) {
+    if (rest === "." || rest === "..") {
         throw new RuntimePathError("path-traversal", "path traversal is not allowed");
     }
     return { ok: true, path: `.ephemeral/${rest}`, filename: rest };
