@@ -19,7 +19,7 @@ export async function runRuntimeCommand(args) {
             case "ephemeral-child":
                 return ok(ephemeralChild(rest));
             case "validate-json":
-                return ok(validateJson(rest));
+                return validateJson(rest);
             case "review-artifacts":
                 return await runReviewArtifactsCommand(rest);
             case "pr-review-manifests":
@@ -51,18 +51,21 @@ function validateJson(args) {
     if (schemaName !== "command-envelope") {
         throw new Error(`unknown schema: ${schemaName}`);
     }
-    const parsed = JSON.parse(payload);
+    let parsed;
+    try {
+        parsed = JSON.parse(payload);
+    }
+    catch {
+        return fail("invalid-json", "payload must be valid JSON");
+    }
     if (parsed === null ||
         typeof parsed !== "object" ||
         !("command" in parsed) ||
         typeof parsed.command !== "string" ||
         parsed.command.length === 0) {
-        return {
-            ok: false,
-            issues: [{ path: "command", message: "command is required" }],
-        };
+        return fail("invalid-command-envelope", "command is required");
     }
-    return { ok: true, value: parsed };
+    return ok({ ok: true, value: parsed });
 }
 function requiredOption(args, flag) {
     const index = args.indexOf(flag);

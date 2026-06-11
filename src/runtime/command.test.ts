@@ -38,6 +38,55 @@ describe("runtime command helpers", () => {
     });
   });
 
+  it("rejects POSIX backslashes before accepting ephemeral children", async () => {
+    await expect(
+      runRuntimeCommand([
+        "ephemeral-child",
+        "--path",
+        ".ephemeral\\result.json",
+      ]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        '{"ok":false,"code":"invalid-separator","message":"path must use POSIX separators"}\n',
+    });
+  });
+
+  it("fails malformed command envelopes", async () => {
+    await expect(
+      runRuntimeCommand([
+        "validate-json",
+        "--schema",
+        "command-envelope",
+        "--payload",
+        '{"notCommand":true}',
+      ]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        '{"ok":false,"code":"invalid-command-envelope","message":"command is required"}\n',
+    });
+  });
+
+  it("fails invalid JSON command envelopes", async () => {
+    await expect(
+      runRuntimeCommand([
+        "validate-json",
+        "--schema",
+        "command-envelope",
+        "--payload",
+        "{",
+      ]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        '{"ok":false,"code":"invalid-json","message":"payload must be valid JSON"}\n',
+    });
+  });
+
   it("rejects unknown path platforms with stable stderr JSON", async () => {
     await expect(
       runRuntimeCommand([
