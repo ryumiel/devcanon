@@ -15,6 +15,7 @@
   "scripts": {
     "setup": "git config core.hooksPath scripts/hooks && git config commit.template .gitmessage.txt",
     "build": "tsc -p tsconfig.build.json",
+    "build:runtime": "tsc -p tsconfig.runtime.json",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",

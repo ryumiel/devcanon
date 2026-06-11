@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src/runtime",
+    "outDir": "skills/devcanon-runtime/scripts/runtime",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "src/runtime/cli.ts",
+    "src/runtime/command.ts",
+    "src/runtime/paths.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.integration.test.ts"]
+}
