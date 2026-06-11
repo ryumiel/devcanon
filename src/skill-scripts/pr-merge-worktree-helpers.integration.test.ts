@@ -70,6 +70,15 @@ async function addWindowsGitShim(envDir: string): Promise<void> {
   );
 }
 
+function prependPathEnv(envDir: string): NodeJS.ProcessEnv {
+  const currentPath = process.env.Path ?? process.env.PATH ?? "";
+  const nextPath = `${envDir}${path.delimiter}${currentPath}`;
+  return {
+    PATH: nextPath,
+    Path: nextPath,
+  };
+}
+
 async function runScript(
   scriptPath: string,
   cwd: string,
@@ -350,7 +359,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     const missingPrimary = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",
       PR_BASE_BRANCH: "main",
-      PATH: `${envDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      ...prependPathEnv(envDir),
     });
     expect(parseKeyValueOutput(missingPrimary.stdout).MODE).toBe("stop");
     expect(parseKeyValueOutput(missingPrimary.stdout).REASON_CODE).toBe(
@@ -383,7 +392,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     const unclassifiable = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",
       PR_BASE_BRANCH: "main",
-      PATH: `${envDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      ...prependPathEnv(envDir),
     });
     expect(parseKeyValueOutput(unclassifiable.stdout).MODE).toBe("stop");
     expect(parseKeyValueOutput(unclassifiable.stdout).REASON_CODE).toBe(
