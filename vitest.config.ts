@@ -1,15 +1,21 @@
 import { defineConfig } from "vitest/config";
 
 const integrationTestTimeout = process.platform === "win32" ? 60000 : 10000;
-const windowsIntegrationIncludes = [
+const renderInstallIntegrationIncludes = [
   "src/config/*.integration.test.ts",
   "src/diff/*.integration.test.ts",
   "src/install/*.integration.test.ts",
   "src/render/*.integration.test.ts",
-  "src/skill-scripts/devcanon-runtime-*.integration.test.ts",
-  "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
   "src/utils/*.integration.test.ts",
   "src/validate/*.integration.test.ts",
+];
+const windowsHelperIntegrationIncludes = [
+  "src/skill-scripts/devcanon-runtime-*.integration.test.ts",
+  "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
+];
+const windowsIntegrationIncludes = [
+  ...renderInstallIntegrationIncludes,
+  ...windowsHelperIntegrationIncludes,
 ];
 
 export default defineConfig({
@@ -35,8 +41,16 @@ export default defineConfig({
       },
       {
         test: {
-          name: "integration-windows",
-          include: windowsIntegrationIncludes,
+          name: "integration-render-install",
+          include: renderInstallIntegrationIncludes,
+          testTimeout: integrationTestTimeout,
+          hookTimeout: integrationTestTimeout,
+        },
+      },
+      {
+        test: {
+          name: "integration-windows-helper",
+          include: windowsHelperIntegrationIncludes,
           testTimeout: integrationTestTimeout,
           hookTimeout: integrationTestTimeout,
         },

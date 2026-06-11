@@ -15,6 +15,7 @@ import { pathExists, readTextFile } from "../utils/fs.js";
 import { sync } from "./sync.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+const isWindows = process.platform === "win32";
 
 describe("sync", () => {
   let tempDir: string;
@@ -362,7 +363,7 @@ describe("sync", () => {
     },
   );
 
-  it.skipIf(symlinkAvailable)(
+  it.skipIf(!isWindows && symlinkAvailable)(
     "windows symlink fallback copies when symlinks fail",
     async () => {
       const config = makeResolvedConfig(tempDir, {
