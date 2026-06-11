@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  readFile,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,6 +39,29 @@ async function runCommand(
   return stdout.trim();
 }
 
+async function runFailingCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+): Promise<{ code: unknown; stderr: string; stdout: string }> {
+  try {
+    const stdout = await runCommand(command, args, cwd, env);
+    throw new Error(`Expected command to fail, but it succeeded: ${stdout}`);
+  } catch (error) {
+    const result = error as {
+      code?: unknown;
+      stderr?: unknown;
+      stdout?: unknown;
+    };
+    return {
+      code: result.code,
+      stderr: String(result.stderr ?? ""),
+      stdout: String(result.stdout ?? ""),
+    };
+  }
+}
+
 async function runGit(args: string[], cwd: string): Promise<string> {
   return runCommand("git", args, cwd);
 }
@@ -47,6 +77,11 @@ async function pathExists(targetPath: string): Promise<boolean> {
 
 function normalizeFsPath(value: string): string {
   return path.normalize(value).replaceAll("\\", "/");
+}
+
+function prependPath(dir: string, env: NodeJS.ProcessEnv = {}): string {
+  const currentPath = env.PATH ?? process.env.PATH ?? "";
+  return `${dir}${path.delimiter}${currentPath}`;
 }
 
 function parseKeyValueOutput(stdout: string): Record<string, string> {
@@ -121,4 +156,76 @@ describe("issue-worktree-setup native helper", () => {
       "feat/native-node-worktree",
     );
   });
+
+  it("keeps the Bash adapter checked in with LF line endings", async () => {
+    const bashAdapter = await runCommand(
+      "git",
+      ["show", "HEAD:skills/issue-worktree-setup/scripts/setup-worktree.sh"],
+      process.cwd(),
+    );
+
+    expect(bashAdapter).not.toContain("\r\n");
+  });
+
+  const itPosixOnly = process.platform === "win32" ? it.skip : it;
+
+  itPosixOnly(
+    "fails before mutation when POSIX Git reports Windows drive metadata",
+    async () => {
+      const rootDir = await createTempDir();
+      tempDirs.push(rootDir);
+      const primaryDir = path.join(rootDir, "repo");
+      const binDir = path.join(rootDir, "bin");
+      const logPath = path.join(rootDir, "git.log");
+      const fakeGit = path.join(binDir, "git");
+
+      await mkdir(primaryDir, { recursive: true });
+      await mkdir(binDir, { recursive: true });
+      await writeFile(
+        fakeGit,
+        [
+          "#!/bin/sh",
+          'printf "%s\\n" "$*" >> "$GIT_CALL_LOG"',
+          'if [ "$1" = "check-ref-format" ]; then exit 0; fi',
+          'if [ "$1" = "rev-parse" ] && [ "$2" = "--show-toplevel" ]; then',
+          '  printf "%s\\n" "$FAKE_REPO"',
+          "  exit 0",
+          "fi",
+          'if [ "$1" = "rev-parse" ] && [ "$2" = "--git-common-dir" ]; then',
+          '  printf "%s\\n" "C:/Users/runneradmin/repo/.git/worktrees/example"',
+          "  exit 0",
+          "fi",
+          'printf "unexpected git invocation: %s\\n" "$*" >&2',
+          "exit 99",
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+      await chmod(fakeGit, 0o755);
+
+      const result = await runFailingCommand(
+        process.execPath,
+        [nodeHelperScript],
+        primaryDir,
+        {
+          BRANCH_NAME: "feat/windows-metadata",
+          FAKE_REPO: primaryDir,
+          GIT_CALL_LOG: logPath,
+          PATH: prependPath(binDir),
+          WORKTREE_LEAF: "windows-metadata",
+        },
+      );
+      const gitLog = await readFile(logPath, "utf-8");
+
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(
+        "cannot run POSIX/WSL Git against Windows Git metadata",
+      );
+      expect(result.stderr).toContain("node setup-worktree.mjs");
+      expect(gitLog).toContain("rev-parse --git-common-dir");
+      expect(gitLog).not.toContain("status --short");
+      expect(gitLog).not.toContain("worktree add");
+    },
+  );
 });

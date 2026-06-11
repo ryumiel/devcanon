@@ -22,6 +22,10 @@ async function runIssueWorktreeSetup(args, env) {
     const cwd = process.cwd();
     const currentWorktree = stripGitLineEnding((await git(["rev-parse", "--show-toplevel"], cwd)).stdout);
     const currentWorktreeReal = await realpath(currentWorktree);
+    const gitCommonDir = stripGitLineEnding((await git(["rev-parse", "--git-common-dir"], currentWorktree)).stdout);
+    if (isUnsupportedWindowsGitMetadata(gitCommonDir)) {
+        return plainFail(`issue-worktree-setup cannot run POSIX/WSL Git against Windows Git metadata (${gitCommonDir}). Re-run from native Windows Codex/worktree tooling or from a native Windows shell with node setup-worktree.mjs.`);
+    }
     const currentStatus = (await git(["status", "--short"], currentWorktree)).stdout.trim();
     const baseRef = env.BASE_REF ?? `origin/${await defaultBranch(currentWorktree)}`;
     validateBaseRef(baseRef);
@@ -193,6 +197,11 @@ function execFileSyncStatus(command, args) {
 }
 function stripGitLineEnding(value) {
     return value.replace(/\r?\n$/u, "");
+}
+export function isUnsupportedWindowsGitMetadata(gitCommonDir, platform = process.platform) {
+    if (platform === "win32")
+        return false;
+    return /^[A-Za-z]:[\\/]/u.test(gitCommonDir);
 }
 async function isSymlink(targetPath) {
     try {

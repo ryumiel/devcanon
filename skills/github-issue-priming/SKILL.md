@@ -62,6 +62,14 @@ worktree control is unavailable, invoke the fallback helper so the
 fetched issue body is written inside the correct checkout before
 handoff.
 
+On Windows-hosted Codex or PowerShell sessions, do not use Bash or WSL as the
+fallback path for worktree provisioning and do not translate `D:\...` or
+`D:/...` Git metadata into POSIX paths. Prefer native Codex worktree control; if
+native control is unavailable, run the Node helper from native Windows shell
+tooling. `scripts/setup-worktree.sh` is a POSIX adapter only. If POSIX or WSL
+Git sees Windows-drive `.git` metadata, the helper stops before mutation and the
+operator must re-run from native Windows tooling.
+
 Use platform-native environment variable and stdout capture around the native
 Node helper. POSIX shell example:
 

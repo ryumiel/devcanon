@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
+import {
+  isUnsupportedWindowsGitMetadata,
+  runIssueWorktreeSetupCommand,
+} from "./issue-worktree-setup.js";
 
 describe("issue worktree setup runtime command", () => {
   it("fails before Git mutation when required environment is missing", async () => {
@@ -33,5 +36,30 @@ describe("issue worktree setup runtime command", () => {
     expect(result.stderr).toContain(
       "issue-worktree-setup does not accept arguments",
     );
+  });
+});
+
+describe("Windows Git metadata detection", () => {
+  it("rejects Windows drive metadata from POSIX hosts", () => {
+    expect(isUnsupportedWindowsGitMetadata("C:/repo/.git", "linux")).toBe(true);
+    expect(isUnsupportedWindowsGitMetadata("D:\\repo\\.git", "darwin")).toBe(
+      true,
+    );
+  });
+
+  it("allows Windows drive metadata from native Windows hosts", () => {
+    expect(isUnsupportedWindowsGitMetadata("C:/repo/.git", "win32")).toBe(
+      false,
+    );
+    expect(isUnsupportedWindowsGitMetadata("D:\\repo\\.git", "win32")).toBe(
+      false,
+    );
+  });
+
+  it("allows POSIX and WSL-mounted metadata paths from POSIX hosts", () => {
+    expect(isUnsupportedWindowsGitMetadata("/repo/.git", "linux")).toBe(false);
+    expect(
+      isUnsupportedWindowsGitMetadata("/mnt/c/Users/me/repo/.git", "linux"),
+    ).toBe(false);
   });
 });

@@ -33,6 +33,15 @@ helper returns, and stop here. Do not also run
 fallback contract for environments that do not provide native worktree
 control.
 
+On Windows-hosted sessions, do not invoke `scripts/setup-worktree.sh` through
+Bash or WSL and do not translate `D:\...` or `D:/...` Git metadata paths into a
+parallel POSIX state machine. Use native Codex/host worktree control first; if a
+fallback is required, run `node "<issue-worktree-setup-skill-dir>/scripts/setup-worktree.mjs"`
+from native Windows shell tooling such as PowerShell. The `.sh` file is a
+POSIX adapter only. If POSIX or WSL Git reports Windows-drive `.git` metadata,
+the typed helper stops before mutation and tells the operator to re-run from
+native Windows tooling.
+
 ## Inputs
 
 Invoke the helper through environment variables:
