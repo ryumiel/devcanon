@@ -3,6 +3,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
+  canMutateExecutableMode,
   cleanupTempDir,
   createSkillFixture,
   createTempDir,
@@ -14,6 +15,7 @@ import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+const executableModeMutable = await canMutateExecutableMode();
 
 async function copyRuntimeFixture(skillsDir: string): Promise<void> {
   await cp(
@@ -86,52 +88,51 @@ describe("devcanon-runtime sync", () => {
     expect(runtimeRecord?.installMode).toBe("copy");
   });
 
-  it("repairs copy-installed runtime files when executable metadata drifts", async () => {
-    const config = makeResolvedConfig(tempDir);
-    await prepareRuntimeSyncFixture(config);
+  it.skipIf(!executableModeMutable)(
+    "repairs copy-installed runtime files when executable metadata drifts",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await prepareRuntimeSyncFixture(config);
 
-    const firstResult = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    expect(firstResult.errors).toEqual([]);
+      const firstResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+      expect(firstResult.errors).toEqual([]);
 
-    const installedScript = path.join(
-      config.targets.codex.skillsHome,
-      "devcanon-runtime",
-      "scripts",
-      "devcanon-runtime.sh",
-    );
-    const generatedScript = path.join(
-      config.library.generatedDir,
-      "codex",
-      "skills",
-      "devcanon-runtime",
-      "scripts",
-      "devcanon-runtime.sh",
-    );
-    if (((await stat(generatedScript)).mode & 0o111) === 0) {
-      return;
-    }
+      const installedScript = path.join(
+        config.targets.codex.skillsHome,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      const generatedScript = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      expect((await stat(generatedScript)).mode & 0o111).not.toBe(0);
 
-    await chmod(installedScript, 0o644);
-    if (((await stat(installedScript)).mode & 0o111) !== 0) {
-      return;
-    }
+      await chmod(installedScript, 0o644);
+      expect((await stat(installedScript)).mode & 0o111).toBe(0);
 
-    const secondResult = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
+      const secondResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
 
-    expect(secondResult.errors).toEqual([]);
-    expect(secondResult.updated).toBeGreaterThan(0);
-    expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
-  });
+      expect(secondResult.errors).toEqual([]);
+      expect(secondResult.updated).toBeGreaterThan(0);
+      expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
+    },
+  );
 
   it.skipIf(!symlinkAvailable)(
     "installs the runtime as a sibling skill symlink in symlink mode",

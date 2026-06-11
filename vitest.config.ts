@@ -7,6 +7,7 @@ const windowsIntegrationIncludes = [
   "src/install/*.integration.test.ts",
   "src/render/*.integration.test.ts",
   "src/skill-scripts/devcanon-runtime-*.integration.test.ts",
+  "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
   "src/utils/*.integration.test.ts",
   "src/validate/*.integration.test.ts",
 ];

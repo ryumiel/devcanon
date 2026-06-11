@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { stringify as yamlStringify } from "yaml";
@@ -165,6 +173,7 @@ export function makeManifestJson(
 }
 
 let _symlinkSupport: boolean | null = null;
+let _executableModeMutationSupport: boolean | null = null;
 
 export async function canCreateSymlinks(): Promise<boolean> {
   if (_symlinkSupport !== null) return _symlinkSupport;
@@ -181,4 +190,27 @@ export async function canCreateSymlinks(): Promise<boolean> {
     await cleanupTempDir(tmpDir);
   }
   return _symlinkSupport;
+}
+
+export async function canMutateExecutableMode(): Promise<boolean> {
+  if (_executableModeMutationSupport !== null) {
+    return _executableModeMutationSupport;
+  }
+
+  const tmpDir = await createTempDir();
+  try {
+    const target = path.join(tmpDir, "script.sh");
+    await writeFile(target, "#!/bin/sh\n", "utf-8");
+    await chmod(target, 0o755);
+    const executableModeSet = ((await stat(target)).mode & 0o111) !== 0;
+    await chmod(target, 0o644);
+    const executableModeCleared = ((await stat(target)).mode & 0o111) === 0;
+    _executableModeMutationSupport = executableModeSet && executableModeCleared;
+  } catch {
+    _executableModeMutationSupport = false;
+  } finally {
+    await cleanupTempDir(tmpDir);
+  }
+
+  return _executableModeMutationSupport;
 }
