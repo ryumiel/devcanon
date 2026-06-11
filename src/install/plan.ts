@@ -201,7 +201,7 @@ async function collectMirroredFileExecutableModes(
   const executableModes = new Map<string, boolean>();
   for (const subdir of KNOWN_SUBDIRS) {
     const subdirPath = path.join(root, subdir);
-    if (!(await pathExists(subdirPath))) continue;
+    if (!(await isRealDirectory(subdirPath))) continue;
 
     for (const [relPath, executable] of await collectFileExecutableModes(
       root,
@@ -211,6 +211,14 @@ async function collectMirroredFileExecutableModes(
     }
   }
   return executableModes;
+}
+
+async function isRealDirectory(targetPath: string): Promise<boolean> {
+  try {
+    return (await lstat(targetPath)).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 async function collectFileExecutableModes(

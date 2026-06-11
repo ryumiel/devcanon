@@ -6,6 +6,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -315,6 +316,87 @@ describe("devcanon-runtime sync", () => {
       );
       expect(testLogger.infos).not.toContain(
         "  ~ [update] codex/skill/devcanon-runtime",
+      );
+    },
+  );
+
+  it("ignores regular files using mirrored skill subdirectory names", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "file-named-scripts");
+    await writeFile(
+      path.join(config.library.skillsDir, "file-named-scripts", "scripts"),
+      "not a directory\n",
+      "utf-8",
+    );
+
+    const firstResult = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    expect(firstResult.errors).toEqual([]);
+
+    testLogger.infos.length = 0;
+    const dryRunResult = await sync(config, {
+      dryRun: true,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+
+    expect(dryRunResult.errors).toEqual([]);
+    expect(testLogger.infos).toContain(
+      "  = [skip-up-to-date] codex/skill/file-named-scripts",
+    );
+    expect(testLogger.infos).not.toContain(
+      "  ~ [update] codex/skill/file-named-scripts",
+    );
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "ignores symlinked directories using mirrored skill subdirectory names",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "symlinked-scripts",
+      );
+      const externalScripts = path.join(tempDir, "external-scripts");
+      await mkdir(externalScripts, { recursive: true });
+      await writeFile(
+        path.join(externalScripts, "helper.sh"),
+        "#!/bin/sh\n",
+        "utf-8",
+      );
+      await symlink(externalScripts, path.join(skillDir, "scripts"));
+
+      const firstResult = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+      expect(firstResult.errors).toEqual([]);
+
+      testLogger.infos.length = 0;
+      const dryRunResult = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+        mode: "copy",
+      });
+
+      expect(dryRunResult.errors).toEqual([]);
+      expect(testLogger.infos).toContain(
+        "  = [skip-up-to-date] codex/skill/symlinked-scripts",
+      );
+      expect(testLogger.infos).not.toContain(
+        "  ~ [update] codex/skill/symlinked-scripts",
       );
     },
   );
