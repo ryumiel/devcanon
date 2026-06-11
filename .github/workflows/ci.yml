@@ -143,7 +143,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            test-command: pnpm run test:ci:ubuntu
+          - os: windows-latest
+            test-command: pnpm run test:ci:windows
     steps:
       - uses: actions/checkout@v6
 
@@ -159,7 +163,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: pnpm run test
+        run: ${{ matrix.test-command }}
 
   ci-gate:
     name: CI Gate
