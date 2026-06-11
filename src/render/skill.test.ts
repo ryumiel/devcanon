@@ -25,6 +25,7 @@ const TIERS: ModelTiers = {
     codex: { model: "gpt-5.4", reasoning_effort: "high" },
   },
 };
+const symlinkAvailable = await canCreateSymlinks();
 
 function makeLoaded(source: SkillSource, body = "# body\n"): LoadedSkill {
   return {
@@ -340,60 +341,63 @@ describe("renderSkillForTarget contentHash", () => {
     }
   });
 
-  it("hashes mirrored symlinks by link target without traversing them", async () => {
-    if (!(await canCreateSymlinks())) return;
+  it.skipIf(!symlinkAvailable)(
+    "hashes mirrored symlinks by link target without traversing them",
+    async () => {
+      const tempDir = mkdtempSync(path.join(os.tmpdir(), "am-skill-symlink-"));
+      try {
+        const skillDir = path.join(tempDir, "skills", "issue-worktree-setup");
+        const scriptsDir = path.join(skillDir, "scripts");
+        const targetDirA = path.join(skillDir, "target-a");
+        const targetDirB = path.join(skillDir, "target-b");
+        const linkPath = path.join(scriptsDir, "tool-link");
+        mkdirSync(scriptsDir, { recursive: true });
+        mkdirSync(targetDirA, { recursive: true });
+        mkdirSync(targetDirB, { recursive: true });
 
-    const tempDir = mkdtempSync(path.join(os.tmpdir(), "am-skill-symlink-"));
-    try {
-      const skillDir = path.join(tempDir, "skills", "issue-worktree-setup");
-      const scriptsDir = path.join(skillDir, "scripts");
-      const targetDirA = path.join(skillDir, "target-a");
-      const targetDirB = path.join(skillDir, "target-b");
-      const linkPath = path.join(scriptsDir, "tool-link");
-      mkdirSync(scriptsDir, { recursive: true });
-      mkdirSync(targetDirA, { recursive: true });
-      mkdirSync(targetDirB, { recursive: true });
+        const source: SkillSource = {
+          name: "issue-worktree-setup",
+          description: "d",
+        };
+        const config = makeResolvedConfig(tempDir);
+        config.modelTiers = TIERS;
 
-      const source: SkillSource = {
-        name: "issue-worktree-setup",
-        description: "d",
-      };
-      const config = makeResolvedConfig(tempDir);
-      config.modelTiers = TIERS;
+        writeFileSync(path.join(targetDirA, "payload.txt"), "alpha\n");
+        writeFileSync(path.join(targetDirB, "payload.txt"), "beta\n");
+        symlinkSync("../target-a", linkPath);
 
-      writeFileSync(path.join(targetDirA, "payload.txt"), "alpha\n");
-      writeFileSync(path.join(targetDirB, "payload.txt"), "beta\n");
-      symlinkSync("../target-a", linkPath);
+        const baseRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
 
-      const baseRendered = renderSkillForTarget(
-        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
-        "claude",
-        config,
-      ).rendered;
+        writeFileSync(path.join(targetDirA, "payload.txt"), "changed\n");
+        const unchangedTargetRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
 
-      writeFileSync(path.join(targetDirA, "payload.txt"), "changed\n");
-      const unchangedTargetRendered = renderSkillForTarget(
-        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
-        "claude",
-        config,
-      ).rendered;
+        rmSync(linkPath);
+        symlinkSync("../target-b", linkPath);
+        const retargetedRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
 
-      rmSync(linkPath);
-      symlinkSync("../target-b", linkPath);
-      const retargetedRendered = renderSkillForTarget(
-        makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
-        "claude",
-        config,
-      ).rendered;
-
-      expect(baseRendered.contentHash).toBe(
-        unchangedTargetRendered.contentHash,
-      );
-      expect(baseRendered.contentHash).not.toBe(retargetedRendered.contentHash);
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
+        expect(baseRendered.contentHash).toBe(
+          unchangedTargetRendered.contentHash,
+        );
+        expect(baseRendered.contentHash).not.toBe(
+          retargetedRendered.contentHash,
+        );
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("buildSkillContentHash", () => {

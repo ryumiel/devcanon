@@ -1,6 +1,6 @@
 import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
@@ -13,6 +13,25 @@ import {
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { sync } from "./sync.js";
+
+const symlinkFailure = vi.hoisted(() => ({ enabled: false }));
+vi.mock("./symlink.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./symlink.js")>();
+  return {
+    ...actual,
+    createSymlink: async (...args: Parameters<typeof actual.createSymlink>) => {
+      if (symlinkFailure.enabled) {
+        const error = new Error(
+          "forced symlink failure",
+        ) as NodeJS.ErrnoException;
+        error.code = "EPERM";
+        throw error;
+      }
+
+      return actual.createSymlink(...args);
+    },
+  };
+});
 
 const symlinkAvailable = await canCreateSymlinks();
 
@@ -27,6 +46,7 @@ describe("sync", () => {
   });
 
   afterEach(async () => {
+    symlinkFailure.enabled = false;
     restoreLogger();
     await cleanupTempDir(tempDir);
   });
@@ -362,42 +382,41 @@ describe("sync", () => {
     },
   );
 
-  it.skipIf(symlinkAvailable)(
-    "windows symlink fallback copies when symlinks fail",
-    async () => {
-      const config = makeResolvedConfig(tempDir, {
-        claude: { installMode: "symlink" },
-        codex: { installMode: "symlink" },
-        platform: { windowsSymlinkFallback: "copy" },
-      });
-      await mkdir(config.library.skillsDir, { recursive: true });
-      await mkdir(config.library.agentsDir, { recursive: true });
-      await createSkillFixture(config.library.skillsDir, "s1");
-      await createAgentFixture(
-        config.library.agentsDir,
-        "a1",
-        makeAgentYaml("a1"),
-      );
+  it("windows symlink fallback copies when symlinks fail", async () => {
+    symlinkFailure.enabled = true;
 
-      const result = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-      });
+    const config = makeResolvedConfig(tempDir, {
+      claude: { installMode: "symlink" },
+      codex: { installMode: "symlink" },
+      platform: { windowsSymlinkFallback: "copy" },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "s1");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "a1",
+      makeAgentYaml("a1"),
+    );
 
-      expect(result.installed).toBeGreaterThan(0);
-      expect(result.errors).toEqual([]);
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
 
-      // Files should exist (installed via copy fallback) but not be symlinks
-      const claudeAgentPath = path.join(
-        config.targets.claude.agentsHome,
-        "a1.md",
-      );
-      expect(await pathExists(claudeAgentPath)).toBe(true);
-      const stat = await lstat(claudeAgentPath);
-      expect(stat.isSymbolicLink()).toBe(false);
-    },
-  );
+    expect(result.installed).toBeGreaterThan(0);
+    expect(result.errors).toEqual([]);
+
+    // Files should exist (installed via copy fallback) but not be symlinks
+    const claudeAgentPath = path.join(
+      config.targets.claude.agentsHome,
+      "a1.md",
+    );
+    expect(await pathExists(claudeAgentPath)).toBe(true);
+    const stat = await lstat(claudeAgentPath);
+    expect(stat.isSymbolicLink()).toBe(false);
+  });
 
   it("collects errors without throwing when an action fails", async () => {
     const config = makeResolvedConfig(tempDir);

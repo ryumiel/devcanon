@@ -13,7 +13,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
-const TEST_TIMEOUT = process.platform === "win32" ? 30_000 : 10_000;
+const isWindows = process.platform === "win32";
+const TEST_TIMEOUT = isWindows ? 30_000 : 10_000;
 const preflightScript = path.join(
   process.cwd(),
   "skills",
@@ -378,29 +379,30 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     );
   });
 
-  it("canonicalizes symlinked worktree paths before classification", async () => {
-    if (process.platform === "win32") return;
+  it.skipIf(isWindows)(
+    "canonicalizes symlinked worktree paths before classification",
+    async () => {
+      const rootDir = await createTempDir();
+      tempDirs.push(rootDir);
+      const { primaryDir } = await createOriginRepo(rootDir);
+      await createFeatureBranch(primaryDir);
+      const featureDir = await createFeatureWorktree(primaryDir, rootDir);
+      const symlinkDir = path.join(rootDir, "feature symlink");
+      await symlink(featureDir, symlinkDir, "dir");
 
-    const rootDir = await createTempDir();
-    tempDirs.push(rootDir);
-    const { primaryDir } = await createOriginRepo(rootDir);
-    await createFeatureBranch(primaryDir);
-    const featureDir = await createFeatureWorktree(primaryDir, rootDir);
-    const symlinkDir = path.join(rootDir, "feature symlink");
-    await symlink(featureDir, symlinkDir, "dir");
+      const result = await runScript(preflightScript, symlinkDir, {
+        PR_HEAD_BRANCH: "feature/pr-merge-helper",
+        PR_BASE_BRANCH: "main",
+      });
+      const output = parseKeyValueOutput(result.stdout);
 
-    const result = await runScript(preflightScript, symlinkDir, {
-      PR_HEAD_BRANCH: "feature/pr-merge-helper",
-      PR_BASE_BRANCH: "main",
-    });
-    const output = parseKeyValueOutput(result.stdout);
-
-    expect(result.code).toBe(0);
-    expect(output.MODE).toBe("remote-only");
-    expect(normalizePath(output.CURRENT_WORKTREE)).toBe(
-      normalizePath(await realpath(featureDir)),
-    );
-  });
+      expect(result.code).toBe(0);
+      expect(output.MODE).toBe("remote-only");
+      expect(normalizePath(output.CURRENT_WORKTREE)).toBe(
+        normalizePath(await realpath(featureDir)),
+      );
+    },
+  );
 
   it("removes a clean feature worktree from inside that worktree and deletes matching local and remote branches", async () => {
     const rootDir = await createTempDir();
@@ -417,7 +419,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(0);
-    if (process.platform === "win32") {
+    if (isWindows) {
       expect(output.WORKTREE_CLEANUP).toBe("failed");
       expect(output.WORKTREE_CLEANUP_REASON).toBe("git-worktree-remove-failed");
       expect(output.LOCAL_BRANCH_CLEANUP).toBe("retained");
@@ -426,33 +428,32 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       );
       expect(output.MANUAL_ACTION).toMatch(/remove worktree manually/i);
       expect(await pathExists(featureDir)).toBe(true);
-      return;
+    } else {
+      expect(output.WORKTREE_CLEANUP).toBe("removed");
+      expect(output.BASE_UPDATE).toBe("updated");
+      expect(output.LOCAL_BRANCH_CLEANUP).toBe("deleted");
+      expect(output.REMOTE_BRANCH_CLEANUP).toBe("deleted");
+      expect(output.MANUAL_ACTION).toBe("none");
+      expect(await pathExists(featureDir)).toBe(false);
+      await expect(
+        runGit(
+          ["show-ref", "--verify", "refs/heads/feature/pr-merge-helper"],
+          primaryDir,
+        ),
+      ).rejects.toThrow();
+      await expect(
+        runGit(
+          [
+            "ls-remote",
+            "--exit-code",
+            "--heads",
+            "origin",
+            "feature/pr-merge-helper",
+          ],
+          primaryDir,
+        ),
+      ).rejects.toThrow();
     }
-
-    expect(output.WORKTREE_CLEANUP).toBe("removed");
-    expect(output.BASE_UPDATE).toBe("updated");
-    expect(output.LOCAL_BRANCH_CLEANUP).toBe("deleted");
-    expect(output.REMOTE_BRANCH_CLEANUP).toBe("deleted");
-    expect(output.MANUAL_ACTION).toBe("none");
-    expect(await pathExists(featureDir)).toBe(false);
-    await expect(
-      runGit(
-        ["show-ref", "--verify", "refs/heads/feature/pr-merge-helper"],
-        primaryDir,
-      ),
-    ).rejects.toThrow();
-    await expect(
-      runGit(
-        [
-          "ls-remote",
-          "--exit-code",
-          "--heads",
-          "origin",
-          "feature/pr-merge-helper",
-        ],
-        primaryDir,
-      ),
-    ).rejects.toThrow();
   });
 
   it("retains dirty and locked feature worktrees for manual cleanup", async () => {
