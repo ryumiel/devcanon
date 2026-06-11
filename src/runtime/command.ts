@@ -4,6 +4,7 @@ import {
   normalizeRuntimePath,
   requireDirectEphemeralChild,
 } from "./paths.js";
+import { runReviewArtifactsCommand } from "./review-artifacts.js";
 
 export const RUNTIME_COMMAND_CONTRACT = {
   command_group: "devcanon-runtime",
@@ -15,9 +16,9 @@ export type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
   | { exitCode: 1; stdout: string; stderr: string };
 
-export function runRuntimeCommand(
+export async function runRuntimeCommand(
   args: readonly string[],
-): RuntimeCommandOutcome {
+): Promise<RuntimeCommandOutcome> {
   try {
     const [command, ...rest] = args;
     switch (command) {
@@ -30,6 +31,8 @@ export function runRuntimeCommand(
         return ok(ephemeralChild(rest));
       case "validate-json":
         return ok(validateJson(rest));
+      case "review-artifacts":
+        return await runReviewArtifactsCommand(rest);
       default:
         return fail(
           "unknown-command",

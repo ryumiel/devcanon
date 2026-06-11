@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { runRuntimeCommand } from "./command.js";
 
 describe("runtime command helpers", () => {
-  it("reports a stable command contract", () => {
-    expect(runRuntimeCommand(["contract"])).toEqual({
+  it("reports a stable command contract", async () => {
+    await expect(runRuntimeCommand(["contract"])).resolves.toEqual({
       exitCode: 0,
       stdout:
         '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
@@ -11,8 +11,8 @@ describe("runtime command helpers", () => {
     });
   });
 
-  it("returns parseable path facts", () => {
-    const result = runRuntimeCommand([
+  it("returns parseable path facts", async () => {
+    const result = await runRuntimeCommand([
       "path-info",
       "--path",
       "C:\\Temp\\..\\Agent\\File.txt",
@@ -27,10 +27,10 @@ describe("runtime command helpers", () => {
     });
   });
 
-  it("returns stable stderr fragments for invalid paths", () => {
-    expect(
+  it("returns stable stderr fragments for invalid paths", async () => {
+    await expect(
       runRuntimeCommand(["ephemeral-child", "--path", "outside.json"]),
-    ).toEqual({
+    ).resolves.toEqual({
       exitCode: 1,
       stdout: "",
       stderr:
@@ -38,8 +38,8 @@ describe("runtime command helpers", () => {
     });
   });
 
-  it("rejects unknown path platforms with stable stderr JSON", () => {
-    expect(
+  it("rejects unknown path platforms with stable stderr JSON", async () => {
+    await expect(
       runRuntimeCommand([
         "path-info",
         "--path",
@@ -47,7 +47,7 @@ describe("runtime command helpers", () => {
         "--platform",
         "plan9",
       ]),
-    ).toEqual({
+    ).resolves.toEqual({
       exitCode: 1,
       stdout: "",
       stderr:

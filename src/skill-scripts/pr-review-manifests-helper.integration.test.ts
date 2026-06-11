@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -37,6 +38,7 @@ const supportValidatorScript = path.join(
   process.cwd(),
   "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
 );
+const runtimeSkillDir = path.join(process.cwd(), "skills/devcanon-runtime");
 const jqAvailable = await commandAvailable("jq");
 const symlinkAvailable = await canCreateSymlinks();
 const isWindows = process.platform === "win32";
@@ -297,6 +299,9 @@ async function copyInstalledPlayHelper(root: string) {
 }
 
 async function copyInstalledSupportValidator(root: string) {
+  await cp(runtimeSkillDir, path.join(root, "devcanon-runtime"), {
+    recursive: true,
+  });
   const script = path.join(
     root,
     "play-validate-review-artifacts/scripts/review-artifacts.sh",
