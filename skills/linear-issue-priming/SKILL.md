@@ -49,26 +49,41 @@ Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alph
 
 ### Provision the worktree and persist the issue body
 
-Before invoking the shell helper, apply `issue-worktree-setup`'s
+Before invoking the fallback helper, apply `issue-worktree-setup`'s
 Step 0 native-first policy. If the host exposes native worktree control,
 use that surface first to create or adopt the derived worktree, capture
 its absolute path in `WORKTREE_PATH`, and continue from the validation
 step below.
 
-Do not run both the native flow and the shell fallback. If native
+Do not run both the native flow and the fallback helper. If native
 worktree control is unavailable, invoke the fallback helper so the
 fetched issue description is written inside the correct checkout before
 handoff.
 
+Use platform-native environment variable and stdout capture around the native
+Node helper. POSIX shell example:
+
 ```bash
 ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
-HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.sh"
+HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"
 
 WORKTREE_SETUP_OUTPUT=$(
   BRANCH_NAME="<branch-name>" \
   WORKTREE_LEAF="<worktree-leaf>" \
-  bash "$HELPER_SCRIPT"
+  node "$HELPER_SCRIPT"
 )
+```
+
+PowerShell example:
+
+```powershell
+$IssueWorktreeSetupDir = "<issue-worktree-setup-skill-dir>"
+$HelperScript = Join-Path $IssueWorktreeSetupDir "scripts/setup-worktree.mjs"
+
+$env:BRANCH_NAME = "<branch-name>"
+$env:WORKTREE_LEAF = "<worktree-leaf>"
+$WORKTREE_SETUP_OUTPUT = node $HelperScript
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
 If you invoked the fallback helper, parse `WORKTREE_SETUP_OUTPUT`
@@ -81,7 +96,9 @@ exactly per the helper skill's output contract.
   parse partial output.
 
 Once `WORKTREE_PATH` is available — either from native tooling or the
-fallback helper — validate it before any write:
+fallback helper — validate it before any write. It must be nonempty,
+absolute according to the host platform, and name an existing searchable
+directory. POSIX shell example:
 
 ```bash
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
@@ -93,11 +110,20 @@ esac
 [ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
 ```
 
+PowerShell example:
+
+```powershell
+if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
+if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
+if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
+try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
+```
+
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; slugged
 Linear identifier, e.g. `ENG-123` -> `eng-123`).
 
-Validate the repo-relative path before writing:
+Validate the repo-relative path before writing. POSIX shell example:
 
 ```bash
 case "$ISSUE_BODY_PATH" in
@@ -108,7 +134,14 @@ esac
 [ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
 ```
 
-Apply the write-target guard before the write:
+PowerShell example:
+
+```powershell
+if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/[^/\\]+-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
+if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
+```
+
+Apply the write-target guard before the write. POSIX shell example:
 
 ```bash
 [ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
@@ -116,6 +149,20 @@ mkdir -p "$WORKTREE_PATH/.ephemeral"
 [ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"
 [ ! -d "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path is a directory: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
 [ ! -e "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || [ -f "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
+```
+
+PowerShell example:
+
+```powershell
+$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
+$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
+if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
+New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
+$IssueBodyFullPath = Join-Path $WORKTREE_PATH ($ISSUE_BODY_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+$IssueBodyItem = Get-Item -LiteralPath $IssueBodyFullPath -Force -ErrorAction SilentlyContinue
+if ($IssueBodyItem -and (($IssueBodyItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $IssueBodyFullPath; $IssueBodyItem = $null }
+if ($IssueBodyItem -and $IssueBodyItem.PSIsContainer) { throw "issue body path is a directory: $IssueBodyFullPath" }
+if ($IssueBodyItem -and -not ($IssueBodyItem -is [System.IO.FileInfo])) { throw "issue body path exists but is not a regular file: $IssueBodyFullPath" }
 ```
 
 Write the fetched Linear issue description verbatim to
@@ -145,7 +192,7 @@ Write source-specific evidence in a concise normalized form. Each included
 comment entry must include author, timestamp, source URL or permalink, evidence
 reason, and the substantive comment body or concise summary.
 
-Validate the repo-relative path before writing:
+Validate the repo-relative path before writing. POSIX shell example:
 
 ```bash
 case "$COMMENT_EVIDENCE_PATH" in
@@ -156,7 +203,14 @@ esac
 [ "${COMMENT_EVIDENCE_PATH#*..}" = "$COMMENT_EVIDENCE_PATH" ] || { echo "path traversal: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
 ```
 
-Apply the write-target guard before the write:
+PowerShell example:
+
+```powershell
+if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/[^/\\]+-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
+if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
+```
+
+Apply the write-target guard before the write. POSIX shell example:
 
 ```bash
 [ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
@@ -164,6 +218,20 @@ mkdir -p "$WORKTREE_PATH/.ephemeral"
 [ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"
 [ ! -d "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path is a directory: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
 [ ! -e "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || [ -f "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path exists but is not a regular file: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
+```
+
+PowerShell example:
+
+```powershell
+$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
+$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
+if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
+New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
+$CommentEvidenceFullPath = Join-Path $WORKTREE_PATH ($COMMENT_EVIDENCE_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+$CommentEvidenceItem = Get-Item -LiteralPath $CommentEvidenceFullPath -Force -ErrorAction SilentlyContinue
+if ($CommentEvidenceItem -and (($CommentEvidenceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $CommentEvidenceFullPath; $CommentEvidenceItem = $null }
+if ($CommentEvidenceItem -and $CommentEvidenceItem.PSIsContainer) { throw "comment evidence path is a directory: $CommentEvidenceFullPath" }
+if ($CommentEvidenceItem -and -not ($CommentEvidenceItem -is [System.IO.FileInfo])) { throw "comment evidence path exists but is not a regular file: $CommentEvidenceFullPath" }
 ```
 
 Unsafe comment evidence paths fail before write. A missing

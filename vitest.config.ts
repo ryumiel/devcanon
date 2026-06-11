@@ -11,6 +11,7 @@ const renderInstallIntegrationIncludes = [
 ];
 const windowsHelperIntegrationIncludes = [
   "src/skill-scripts/devcanon-runtime-*.integration.test.ts",
+  "src/skill-scripts/issue-worktree-setup-windows-helper.integration.test.ts",
   "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
 ];
 const windowsIntegrationIncludes = [

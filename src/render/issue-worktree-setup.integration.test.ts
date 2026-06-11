@@ -10,7 +10,7 @@ import { pathExists } from "../utils/fs.js";
 import { renderAll } from "./pipeline.js";
 
 describe("issue-worktree-setup render packaging", () => {
-  it("mirrors the setup-worktree helper script byte-for-byte", async () => {
+  it("mirrors the setup-worktree helper scripts byte-for-byte", async () => {
     const rootDir = await createTempDir();
     try {
       const repoRoot = process.cwd();
@@ -19,12 +19,20 @@ describe("issue-worktree-setup render packaging", () => {
         "skills",
         "issue-worktree-setup",
       );
-      const sourceScriptPath = path.join(
-        sourceSkillDir,
-        "scripts",
-        "setup-worktree.sh",
+      const scriptNames = ["setup-worktree.sh", "setup-worktree.mjs"];
+      const sourceScripts = new Map<string, string>(
+        await Promise.all(
+          scriptNames.map(
+            async (scriptName): Promise<[string, string]> => [
+              scriptName,
+              await readFile(
+                path.join(sourceSkillDir, "scripts", scriptName),
+                "utf-8",
+              ),
+            ],
+          ),
+        ),
       );
-      const sourceScript = await readFile(sourceScriptPath, "utf-8");
       const fixtureSkillDir = path.join(
         rootDir,
         "skills",
@@ -38,11 +46,13 @@ describe("issue-worktree-setup render packaging", () => {
         await readFile(path.join(sourceSkillDir, "SKILL.md"), "utf-8"),
         "utf-8",
       );
-      await writeFile(
-        path.join(fixtureScriptsDir, "setup-worktree.sh"),
-        sourceScript,
-        "utf-8",
-      );
+      for (const [scriptName, sourceScript] of sourceScripts) {
+        await writeFile(
+          path.join(fixtureScriptsDir, scriptName),
+          sourceScript,
+          "utf-8",
+        );
+      }
 
       const config = makeResolvedConfig(rootDir, {
         library: {
@@ -56,17 +66,21 @@ describe("issue-worktree-setup render packaging", () => {
       await renderAll(config, true, false);
 
       for (const target of ["claude", "codex"] as const) {
-        const generatedScriptPath = path.join(
-          config.library.generatedDir,
-          target,
-          "skills",
-          "issue-worktree-setup",
-          "scripts",
-          "setup-worktree.sh",
-        );
+        for (const [scriptName, sourceScript] of sourceScripts) {
+          const generatedScriptPath = path.join(
+            config.library.generatedDir,
+            target,
+            "skills",
+            "issue-worktree-setup",
+            "scripts",
+            scriptName,
+          );
 
-        expect(await pathExists(generatedScriptPath)).toBe(true);
-        expect(await readFile(generatedScriptPath, "utf-8")).toBe(sourceScript);
+          expect(await pathExists(generatedScriptPath)).toBe(true);
+          expect(await readFile(generatedScriptPath, "utf-8")).toBe(
+            sourceScript,
+          );
+        }
       }
     } finally {
       await cleanupTempDir(rootDir);

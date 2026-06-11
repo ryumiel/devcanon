@@ -279,6 +279,45 @@ describe("initAction", () => {
       await pathExists(path.join(tempDir, "skills", "example-skill")),
     ).toBe(false);
   });
+
+  it("preflights missing issue-worktree runtime payload before writing init files", async () => {
+    const incompleteRuntimeDir = path.join(
+      tempDir,
+      ".fake-package",
+      "skills",
+      "devcanon-runtime",
+    );
+    await copyBundledRuntimeTo(
+      path.join(originalCwd, "skills", "devcanon-runtime"),
+      incompleteRuntimeDir,
+    );
+    await rm(
+      path.join(
+        incompleteRuntimeDir,
+        "scripts",
+        "runtime",
+        "issue-worktree-setup.js",
+      ),
+    );
+
+    await expect(
+      initAction({ runtimeSourceDir: incompleteRuntimeDir }),
+    ).rejects.toMatchObject({
+      message: "Bundled devcanon-runtime support skill is incomplete.",
+      filePath: path.join(
+        incompleteRuntimeDir,
+        "scripts",
+        "runtime",
+        "issue-worktree-setup.js",
+      ),
+    } satisfies Partial<UserError>);
+    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
+      false,
+    );
+    expect(
+      await pathExists(path.join(tempDir, "skills", "example-skill")),
+    ).toBe(false);
+  });
 });
 
 async function copyBundledRuntimeTo(

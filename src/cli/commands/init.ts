@@ -35,6 +35,7 @@ const REQUIRED_RUNTIME_JS_FILES = [
   "command.js",
   "git.js",
   "index.js",
+  "issue-worktree-setup.js",
   "paths.js",
   "pr-review-leases.js",
   "pr-review-manifests.js",
@@ -206,6 +207,7 @@ async function requireRuntimeModuleSurface(sourceDir: string): Promise<void> {
     )) as Record<string, unknown>;
     for (const exportName of [
       "normalizeRuntimePath",
+      "runIssueWorktreeSetupCommand",
       "runRuntimeCommand",
       "validateRuntimeSchema",
     ]) {

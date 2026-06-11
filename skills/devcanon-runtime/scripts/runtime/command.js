@@ -1,3 +1,4 @@
+import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import { RuntimePathError, normalizeRuntimePath, requireDirectEphemeralChild, } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
@@ -22,6 +23,8 @@ export async function runRuntimeCommand(args) {
                 return validateJson(rest);
             case "review-artifacts":
                 return await runReviewArtifactsCommand(rest);
+            case "issue-worktree-setup":
+                return await runIssueWorktreeSetupCommand(rest);
             case "pr-review-manifests":
                 return await runPrReviewManifestsCommand(rest);
             case "pr-review-leases":
