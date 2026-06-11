@@ -51,6 +51,10 @@ describe("PR merge worktree preflight reducer", () => {
       mode: "stop",
       reasonCode: "unclassifiable",
     });
+    expect(reducePreflight({ ...base, primaryWorktree: "" })).toMatchObject({
+      mode: "stop",
+      reasonCode: "missing-primary",
+    });
   });
 });
 

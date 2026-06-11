@@ -318,7 +318,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     );
   });
 
-  it("stops for missing metadata, missing-primary, and unclassifiable worktree metadata", async () => {
+  it("stops for missing metadata", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
@@ -331,74 +331,83 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     expect(parseKeyValueOutput(missingMetadata.stdout).REASON_CODE).toBe(
       "missing-pr-metadata",
     );
-
-    const { stdout: gitPathOutput } = await runCommand(
-      "sh",
-      ["-c", "command -v git"],
-      rootDir,
-    );
-    const envDir = path.join(rootDir, "env");
-    await mkdir(envDir, { recursive: true });
-    const emptyWorktreeWrapper = path.join(envDir, "git");
-    await writeFile(
-      emptyWorktreeWrapper,
-      [
-        "#!/usr/bin/env bash",
-        `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
-        '  case " $* " in',
-        '    *" worktree list --porcelain "*) exit 0 ;;',
-        "  esac",
-        '  exec "$REAL_GIT" "$@"',
-        "",
-      ].join("\n"),
-      "utf-8",
-    );
-    await runCommand("chmod", ["+x", emptyWorktreeWrapper], rootDir);
-    await addWindowsGitShim(envDir);
-
-    const missingPrimary = await runScript(preflightScript, primaryDir, {
-      PR_HEAD_BRANCH: "feature/pr-merge-helper",
-      PR_BASE_BRANCH: "main",
-      ...prependPathEnv(envDir),
-    });
-    expect(parseKeyValueOutput(missingPrimary.stdout).MODE).toBe("stop");
-    expect(parseKeyValueOutput(missingPrimary.stdout).REASON_CODE).toBe(
-      "missing-primary",
-    );
-
-    const otherDir = path.join(rootDir, "other worktree metadata");
-    await mkdir(otherDir, { recursive: true });
-    const unrelatedMetadataWrapper = path.join(envDir, "git");
-    await writeFile(
-      unrelatedMetadataWrapper,
-      [
-        "#!/usr/bin/env bash",
-        `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
-        `OTHER_DIR=${JSON.stringify(otherDir)}`,
-        '  case " $* " in',
-        '    *" worktree list --porcelain "*)',
-        '    printf "worktree %s\\0branch refs/heads/main\\0" "$OTHER_DIR"',
-        "    exit 0",
-        "      ;;",
-        "  esac",
-        '  exec "$REAL_GIT" "$@"',
-        "",
-      ].join("\n"),
-      "utf-8",
-    );
-    await runCommand("chmod", ["+x", unrelatedMetadataWrapper], rootDir);
-    await addWindowsGitShim(envDir);
-
-    const unclassifiable = await runScript(preflightScript, primaryDir, {
-      PR_HEAD_BRANCH: "feature/pr-merge-helper",
-      PR_BASE_BRANCH: "main",
-      ...prependPathEnv(envDir),
-    });
-    expect(parseKeyValueOutput(unclassifiable.stdout).MODE).toBe("stop");
-    expect(parseKeyValueOutput(unclassifiable.stdout).REASON_CODE).toBe(
-      "unclassifiable",
-    );
   });
+
+  it.skipIf(isWindows)(
+    "stops for missing-primary and unclassifiable worktree metadata",
+    async () => {
+      const rootDir = await createTempDir();
+      tempDirs.push(rootDir);
+      const { primaryDir } = await createOriginRepo(rootDir);
+
+      const { stdout: gitPathOutput } = await runCommand(
+        "sh",
+        ["-c", "command -v git"],
+        rootDir,
+      );
+      const envDir = path.join(rootDir, "env");
+      await mkdir(envDir, { recursive: true });
+      const emptyWorktreeWrapper = path.join(envDir, "git");
+      await writeFile(
+        emptyWorktreeWrapper,
+        [
+          "#!/usr/bin/env bash",
+          `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
+          '  case " $* " in',
+          '    *" worktree list --porcelain "*) exit 0 ;;',
+          "  esac",
+          '  exec "$REAL_GIT" "$@"',
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+      await runCommand("chmod", ["+x", emptyWorktreeWrapper], rootDir);
+      await addWindowsGitShim(envDir);
+
+      const missingPrimary = await runScript(preflightScript, primaryDir, {
+        PR_HEAD_BRANCH: "feature/pr-merge-helper",
+        PR_BASE_BRANCH: "main",
+        ...prependPathEnv(envDir),
+      });
+      expect(parseKeyValueOutput(missingPrimary.stdout).MODE).toBe("stop");
+      expect(parseKeyValueOutput(missingPrimary.stdout).REASON_CODE).toBe(
+        "missing-primary",
+      );
+
+      const otherDir = path.join(rootDir, "other worktree metadata");
+      await mkdir(otherDir, { recursive: true });
+      const unrelatedMetadataWrapper = path.join(envDir, "git");
+      await writeFile(
+        unrelatedMetadataWrapper,
+        [
+          "#!/usr/bin/env bash",
+          `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
+          `OTHER_DIR=${JSON.stringify(otherDir)}`,
+          '  case " $* " in',
+          '    *" worktree list --porcelain "*)',
+          '    printf "worktree %s\\0branch refs/heads/main\\0" "$OTHER_DIR"',
+          "    exit 0",
+          "      ;;",
+          "  esac",
+          '  exec "$REAL_GIT" "$@"',
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+      await runCommand("chmod", ["+x", unrelatedMetadataWrapper], rootDir);
+      await addWindowsGitShim(envDir);
+
+      const unclassifiable = await runScript(preflightScript, primaryDir, {
+        PR_HEAD_BRANCH: "feature/pr-merge-helper",
+        PR_BASE_BRANCH: "main",
+        ...prependPathEnv(envDir),
+      });
+      expect(parseKeyValueOutput(unclassifiable.stdout).MODE).toBe("stop");
+      expect(parseKeyValueOutput(unclassifiable.stdout).REASON_CODE).toBe(
+        "unclassifiable",
+      );
+    },
+  );
 
   it.skipIf(isWindows)(
     "canonicalizes symlinked worktree paths before classification",
