@@ -15,7 +15,19 @@ Creates:
 - config file
 - source directories
 - sample skill
+- packaged `skills/devcanon-runtime/` support skill
 - sample agent
+
+Runtime support skill behavior:
+
+- fresh libraries receive the packaged runtime support skill at
+  `skills/devcanon-runtime/`
+- an existing matching `skills/devcanon-runtime/` path is preserved
+- an existing non-matching `skills/devcanon-runtime/` path causes `init` to
+  fail with repair guidance; DevCanon does not overwrite the existing support
+  runtime path
+- generated outputs remain disposable render results, not authoritative source
+  files
 
 ---
 
