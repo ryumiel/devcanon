@@ -19,7 +19,21 @@ contract() {
 }
 
 is_executable_file() {
-  [ -f "$1" ] && [ -x "$1" ] && [ ! -L "$1" ]
+  local runtime_dir=$1
+  local candidate_entrypoint=$2
+
+  [ -f "$candidate_entrypoint" ] && [ -x "$candidate_entrypoint" ] && [ ! -L "$candidate_entrypoint" ] || return 1
+
+  local physical_runtime_dir
+  physical_runtime_dir="$(cd "$runtime_dir" && pwd -P)" || return 1
+  local physical_entrypoint_dir
+  physical_entrypoint_dir="$(cd "$(dirname "$candidate_entrypoint")" && pwd -P)" || return 1
+  local physical_entrypoint="$physical_entrypoint_dir/$(basename "$candidate_entrypoint")"
+
+  case "$physical_entrypoint" in
+    "$physical_runtime_dir"/*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 runtime_entrypoint() {
@@ -35,7 +49,7 @@ resolve_from_root() {
   local candidate_entrypoint
   candidate_entrypoint="$(runtime_entrypoint "$candidate_runtime" "$entrypoint")"
 
-  if is_executable_file "$candidate_entrypoint"; then
+  if is_executable_file "$candidate_runtime" "$candidate_entrypoint"; then
     printf '%s\n' "$candidate_entrypoint"
     return 0
   fi
@@ -75,7 +89,7 @@ resolve_entrypoint() {
   if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
     local override_entrypoint
     override_entrypoint="$(runtime_entrypoint "$DEVCANON_RUNTIME_DIR" "$entrypoint")"
-    if is_executable_file "$override_entrypoint"; then
+    if is_executable_file "$DEVCANON_RUNTIME_DIR" "$override_entrypoint"; then
       printf '%s\n' "$override_entrypoint"
       return 0
     fi

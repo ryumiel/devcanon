@@ -313,6 +313,50 @@ describe("devcanon-runtime resolver", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("devcanon-runtime entrypoint missing"),
       });
+
+      const externalScriptsDir = path.join(tempDir, "external-scripts");
+      await mkdir(externalScriptsDir);
+      await cp(
+        path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+        path.join(externalScriptsDir, "devcanon-runtime.sh"),
+      );
+      await chmod(path.join(externalScriptsDir, "devcanon-runtime.sh"), 0o755);
+      await symlink(
+        externalScriptsDir,
+        path.join(
+          config.library.skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "linked-dir",
+        ),
+      );
+
+      await expect(
+        execFileAsync("bash", [
+          await toBashPath(
+            path.join(
+              config.library.skillsDir,
+              "devcanon-runtime",
+              "scripts",
+              "devcanon-runtime.sh",
+            ),
+          ),
+          "resolve-entrypoint",
+          "--from",
+          await toBashPath(
+            path.join(
+              config.library.skillsDir,
+              "consumer-skill",
+              "scripts",
+              "adapter.sh",
+            ),
+          ),
+          "--entrypoint",
+          "scripts/linked-dir/devcanon-runtime.sh",
+        ]),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("devcanon-runtime entrypoint missing"),
+      });
     },
   );
 
