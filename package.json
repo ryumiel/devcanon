@@ -16,6 +16,7 @@
     "setup": "git config core.hooksPath scripts/hooks && git config commit.template .gitmessage.txt",
     "build": "tsc -p tsconfig.build.json",
     "build:runtime": "tsc -p tsconfig.runtime.json",
+    "check:runtime": "pnpm run build:runtime && git diff --exit-code -- skills/devcanon-runtime/scripts/runtime",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",
@@ -28,7 +29,7 @@
     "lint": "biome lint .",
     "lint:markdown": "node scripts/lint-tracked-markdown.mjs",
     "validate:commit-msg": "node scripts/validate-commit-message.mjs",
-    "check": "pnpm run format:check && pnpm run format:markdown:check && pnpm run lint && pnpm run lint:markdown && pnpm run typecheck && pnpm run test",
+    "check": "pnpm run format:check && pnpm run format:markdown:check && pnpm run lint && pnpm run lint:markdown && pnpm run typecheck && pnpm run check:runtime && pnpm run test",
     "check:staged": "node scripts/run-pre-commit-checks.mjs",
     "clean": "rm -rf dist"
   },
