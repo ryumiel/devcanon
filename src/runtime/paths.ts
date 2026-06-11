@@ -114,10 +114,18 @@ export async function assertNoSymlinkOrReparsePoint(
   candidate: string,
 ): Promise<void> {
   const lexicalRel = path.relative(root, candidate);
-  if (lexicalRel.startsWith("..") || path.isAbsolute(lexicalRel)) {
+  if (isOutsideRelativePath(lexicalRel)) {
     throw new RuntimePathError(
       "symlink-or-reparse-point",
       "path is outside the trusted root",
+    );
+  }
+
+  const rootStat = await lstat(root);
+  if (rootStat.isSymbolicLink()) {
+    throw new RuntimePathError(
+      "symlink-or-reparse-point",
+      "trusted root is a symlink or reparse point",
     );
   }
 
@@ -136,7 +144,7 @@ export async function assertNoSymlinkOrReparsePoint(
   const rootReal = await realpath(root);
   const candidateReal = await realpath(candidate);
   const rel = path.relative(rootReal, candidateReal);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+  if (isOutsideRelativePath(rel)) {
     throw new RuntimePathError(
       "symlink-or-reparse-point",
       "path resolves outside the trusted root",
@@ -154,4 +162,12 @@ export async function assertNoSymlinkOrReparsePoint(
       );
     }
   }
+}
+
+function isOutsideRelativePath(relativePath: string): boolean {
+  return (
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  );
 }

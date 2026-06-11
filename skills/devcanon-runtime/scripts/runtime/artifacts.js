@@ -1,11 +1,12 @@
-import { open, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 export async function writeTextAtomically(targetPath, content) {
-    const tempPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`);
-    await writeFile(tempPath, content, "utf-8");
+    const tempPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${process.pid}.${randomUUID()}.tmp`);
+    const handle = await open(tempPath, "wx");
     try {
-        const handle = await open(tempPath, "r");
         try {
+            await handle.writeFile(content, "utf-8");
             await handle.sync();
         }
         finally {

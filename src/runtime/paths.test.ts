@@ -85,4 +85,41 @@ describe("runtime path utilities", () => {
       }
     },
   );
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a symlinked trusted root before accepting children",
+    async () => {
+      const tempDir = await createTempDir();
+      try {
+        const realRoot = path.join(tempDir, "real-root");
+        const root = path.join(tempDir, "root");
+        await mkdir(realRoot);
+        await writeFile(path.join(realRoot, "payload.txt"), "payload");
+        await symlink(realRoot, root);
+
+        await expect(
+          assertNoSymlinkOrReparsePoint(root, path.join(root, "payload.txt")),
+        ).rejects.toThrow(RuntimePathError);
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it("accepts child names that begin with two dots", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const root = path.join(tempDir, "root");
+      const childDir = path.join(root, "..hidden");
+      const target = path.join(childDir, "payload.txt");
+      await mkdir(childDir, { recursive: true });
+      await writeFile(target, "payload");
+
+      await expect(
+        assertNoSymlinkOrReparsePoint(root, target),
+      ).resolves.toBeUndefined();
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
 });

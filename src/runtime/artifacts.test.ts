@@ -25,4 +25,19 @@ describe("runtime artifact utilities", () => {
     expect(path.dirname(result.tempPath)).toBe(path.dirname(target));
     expect(await readFile(target, "utf-8")).toBe('{"ok":true}\n');
   });
+
+  it("uses unique temporary files for concurrent writes to the same target", async () => {
+    const target = path.join(tempDir, ".ephemeral", "result.json");
+    await mkdir(path.dirname(target));
+
+    const results = await Promise.all([
+      writeTextAtomically(target, '{"winner":1}\n'),
+      writeTextAtomically(target, '{"winner":2}\n'),
+    ]);
+
+    expect(new Set(results.map((result) => result.tempPath)).size).toBe(2);
+    expect(['{"winner":1}\n', '{"winner":2}\n']).toContain(
+      await readFile(target, "utf-8"),
+    );
+  });
 });
