@@ -1,3 +1,7 @@
+import { execFile } from "node:child_process";
+import { lstat } from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { canCreateSymlinks } from "../__test-helpers__/fixtures.js";
 import {
@@ -6,8 +10,10 @@ import {
   renderRuntimeConformanceFixture,
   runRuntimeBackedAdapter,
   syncRuntimeConformanceFixture,
+  toBashPath,
 } from "../__test-helpers__/runtime-conformance.js";
 
+const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
 
 function expectContractOutput(stdout: string): void {
@@ -71,6 +77,11 @@ describe("devcanon-runtime conformance harness", () => {
         );
         expect(syncResult.errors).toEqual([]);
 
+        const installedConsumerDir = path.dirname(
+          path.dirname(fixture.installedAdapterPath("codex")),
+        );
+        expect((await lstat(installedConsumerDir)).isSymbolicLink()).toBe(true);
+
         const installedAdapterPath = fixture.installedAdapterPath("codex");
         const installedResult = await runRuntimeBackedAdapter(
           installedAdapterPath,
@@ -115,13 +126,22 @@ describe("devcanon-runtime conformance harness", () => {
       includeRuntime: false,
     });
     try {
-      const result = await runRuntimeBackedAdapter(fixture.sourceAdapterPath, [
-        "contract",
-      ]);
-
-      expect(result.code).not.toBe(0);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("devcanon-runtime");
+      await expect(
+        execFileAsync("bash", [
+          await toBashPath(
+            path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+          ),
+          "resolve-entrypoint",
+          "--from",
+          await toBashPath(fixture.sourceAdapterPath),
+          "--entrypoint",
+          "scripts/devcanon-runtime.sh",
+        ]),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "Ensure generated previews or installed skill homes include the sibling devcanon-runtime support skill",
+        ),
+      });
     } finally {
       await fixture.cleanup();
     }
