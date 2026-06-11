@@ -332,7 +332,7 @@ async function cleanup(env) {
         headWorktreeReal !== primaryWorktreeReal &&
         headWorktreeLockedReason === null &&
         !headWorktreeDirty) {
-        const removeResult = await git(["worktree", "remove", headWorktreeReal], primaryWorktreeReal, [0, 1]);
+        const removeResult = await git(["worktree", "remove", headWorktreeReal], primaryWorktreeReal, [0, 1, 128]);
         worktreeRemoveFailed = removeResult.exitCode !== 0;
         if (worktreeRemoveFailed) {
             headBranchProtected = true;

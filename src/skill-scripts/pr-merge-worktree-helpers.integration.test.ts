@@ -59,6 +59,17 @@ async function runGit(args: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+async function addWindowsGitShim(envDir: string): Promise<void> {
+  if (!isWindows) {
+    return;
+  }
+  await writeFile(
+    path.join(envDir, "git.cmd"),
+    '@echo off\r\nbash "%~dp0git" %*\r\n',
+    "utf-8",
+  );
+}
+
 async function runScript(
   scriptPath: string,
   cwd: string,
@@ -334,6 +345,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       "utf-8",
     );
     await runCommand("chmod", ["+x", emptyWorktreeWrapper], rootDir);
+    await addWindowsGitShim(envDir);
 
     const missingPrimary = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",
@@ -366,6 +378,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       "utf-8",
     );
     await runCommand("chmod", ["+x", unrelatedMetadataWrapper], rootDir);
+    await addWindowsGitShim(envDir);
 
     const unclassifiable = await runScript(preflightScript, primaryDir, {
       PR_HEAD_BRANCH: "feature/pr-merge-helper",

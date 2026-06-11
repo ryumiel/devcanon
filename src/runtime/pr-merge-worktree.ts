@@ -522,7 +522,7 @@ async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
     const removeResult = await git(
       ["worktree", "remove", headWorktreeReal],
       primaryWorktreeReal,
-      [0, 1],
+      [0, 1, 128],
     );
     worktreeRemoveFailed = removeResult.exitCode !== 0;
     if (worktreeRemoveFailed) {
