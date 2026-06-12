@@ -253,7 +253,7 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(branchReview).toContain("Findings written to <path>.");
     expect(branchReview).toContain("branch-review/approval-summary/v1");
     expect(branchReview).toContain(
-      "Approval summary written to <repo-relative-path>.",
+      "Approval summary written to <path>.",
     );
     expect(branchReview).toContain("write-approval-summary");
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
@@ -459,7 +459,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "branch-review/approval-summary/v1",
       );
       expect(renderedBranchReview).toContain(
-        "Approval summary written to <repo-relative-path>.",
+        "Approval summary written to <path>.",
       );
       expect(renderedBranchReview).toContain("write-approval-summary");
       expect(renderedBranchReview).toContain("no GitHub posting");

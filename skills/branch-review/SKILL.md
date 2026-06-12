@@ -276,7 +276,7 @@ deterministic validation and pass/block interpretation for the summary. Branch
 review owns only the lifecycle point and exact notice line:
 
 ```text
-Approval summary written to <repo-relative-path>.
+Approval summary written to <path>.
 ```
 
 ## Phase 2: Invoke the play-review skill workflow

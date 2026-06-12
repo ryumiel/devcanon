@@ -939,7 +939,7 @@ describe("phase artifact source contracts", () => {
 
     expect(branchReview).toContain("branch-review/approval-summary/v1");
     expect(branchReview).toContain(
-      "Approval summary written to <repo-relative-path>.",
+      "Approval summary written to <path>.",
     );
     expect(branchReview).toContain("write-approval-summary");
     expect(branchReview).toContain(
