@@ -1495,9 +1495,7 @@ async function expectedFindingsPath(headSha: string): Promise<string> {
 }
 
 function slugBranchForFindings(branchName: string): string {
-  const slug = branchName
-    .replaceAll("/", "-")
-    .replace(/[^\p{L}\p{N}._-]/gu, "");
+  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
   if (
     slug.length === 0 ||
     slug === "." ||

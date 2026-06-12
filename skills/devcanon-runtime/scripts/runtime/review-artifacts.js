@@ -1134,9 +1134,7 @@ async function expectedFindingsPath(headSha) {
     return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
 }
 function slugBranchForFindings(branchName) {
-    const slug = branchName
-        .replaceAll("/", "-")
-        .replace(/[^\p{L}\p{N}._-]/gu, "");
+    const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
     if (slug.length === 0 ||
         slug === "." ||
         slug === ".." ||

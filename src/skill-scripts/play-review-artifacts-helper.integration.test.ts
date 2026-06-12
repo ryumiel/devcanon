@@ -1105,7 +1105,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const branchSlugCases = [
         ["topic", "topic"],
         ["Feature/ABC.1_2", "Feature-ABC.1_2"],
-        ["feat/café-1", "feat-café-1"],
+        ["feat/café-1", "feat-caf-1"],
       ] as const;
       for (const [branchName, slug] of branchSlugCases) {
         await execFileAsync("git", ["switch", "-C", branchName], { cwd });
