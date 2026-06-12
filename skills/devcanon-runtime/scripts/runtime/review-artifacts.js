@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, mkdtemp, readFile, realpath, rm, writeFile, } from "node:fs/promises";
 import path from "node:path";
@@ -22,6 +23,10 @@ const EMPTY_OPTIONS = {
     reviewBodyFile: "",
     reviewEvent: "",
     reviewPayloadFile: "",
+    approvalSummaryFile: "",
+    expectedFindingsFile: "",
+    expectedScopeDecisionFile: "",
+    emitGateResult: false,
 };
 const KNOWN_ESCALATION_REASONS = new Set([
     "not-followup",
@@ -77,8 +82,10 @@ export async function runReviewArtifactsCommand(args) {
                 return ok("");
             case "compare-approved-payload":
                 return ok(await compareApprovedPayload(options));
+            case "validate-approval-summary":
+                return ok(await validateApprovalSummary(options));
             default:
-                throw new ReviewArtifactsError("usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload");
+                throw new ReviewArtifactsError("usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload|validate-approval-summary");
         }
     }
     catch (err) {
@@ -91,6 +98,11 @@ function parseCommonArgs(args) {
     let index = 0;
     while (index < args.length) {
         const flag = args[index];
+        if (flag === "--emit-gate-result") {
+            options.emitGateResult = true;
+            index += 1;
+            continue;
+        }
         const value = args[index + 1];
         if (value === undefined || value.length === 0) {
             throw new ReviewArtifactsError(`${flag} requires a value`);
@@ -146,6 +158,15 @@ function parseCommonArgs(args) {
                 break;
             case "--review-payload-file":
                 options.reviewPayloadFile = value;
+                break;
+            case "--approval-summary-file":
+                options.approvalSummaryFile = value;
+                break;
+            case "--expected-findings-file":
+                options.expectedFindingsFile = value;
+                break;
+            case "--expected-scope-decision-file":
+                options.expectedScopeDecisionFile = value;
                 break;
             default:
                 throw new ReviewArtifactsError(`unknown review-artifacts argument: ${flag}`);
@@ -579,6 +600,196 @@ async function compareApprovedPayload(options) {
     const output = await readFile(expectedPath, "utf-8");
     await rm(expectedPath, { force: true });
     return output;
+}
+async function validateApprovalSummary(options) {
+    await requireRepoRoot();
+    requireApprovalSummaryFlags(options);
+    await validateHeadShaCommit(options.headSha);
+    await assertReadableFile("--approval-summary-file", options.approvalSummaryFile);
+    validateSuffix("--approval-summary-file", options.approvalSummaryFile, "-approval-summary.json");
+    const summary = await readSingleJsonObject(options.approvalSummaryFile, "approval summary JSON validation failed");
+    validateApprovalSummarySchema(summary);
+    const terminalState = stringField(summary, "terminal_state");
+    const findingsFile = stringField(summary, "findings_file");
+    const scopeDecisionFile = stringField(summary, "scope_decision_file");
+    const fullRange = stringField(summary, "full_range");
+    const selectedRange = stringField(summary, "selected_range");
+    const baseRef = stringField(summary, "base_ref");
+    if (stringField(summary, "surface") !== options.surface) {
+        fail("approval summary surface mismatch");
+    }
+    if (stringField(summary, "review_head_sha") !== options.headSha) {
+        fail("approval summary head mismatch");
+    }
+    if (fullRange !== `${baseRef}...HEAD`) {
+        fail("approval summary full range does not match base_ref");
+    }
+    validateSummaryBaseRef(baseRef);
+    if (!(await gitRefExists(`${baseRef}^{commit}`))) {
+        fail("approval summary base_ref does not resolve");
+    }
+    await requireRangeExists(gitExecutionRange(fullRange, options.headSha));
+    await requireRangeExists(gitExecutionRange(selectedRange, options.headSha));
+    if (options.expectedFindingsFile.length > 0) {
+        validateDirectChildPath("--expected-findings-file", options.expectedFindingsFile);
+        validateSuffix("--expected-findings-file", options.expectedFindingsFile, "-findings.json");
+        if (options.expectedFindingsFile !== findingsFile) {
+            fail("approval summary linked findings path mismatch");
+        }
+    }
+    if (options.expectedScopeDecisionFile.length > 0) {
+        validateDirectChildPath("--expected-scope-decision-file", options.expectedScopeDecisionFile);
+        validateSuffix("--expected-scope-decision-file", options.expectedScopeDecisionFile, "-scope-decision.json");
+        if (options.expectedScopeDecisionFile !== scopeDecisionFile) {
+            fail("approval summary linked scope-decision path mismatch");
+        }
+    }
+    await assertReadableFile("--findings-file", findingsFile);
+    validateSuffix("--findings-file", findingsFile, "-findings.json");
+    await assertReadableFile("--scope-decision-file", scopeDecisionFile);
+    validateSuffix("--scope-decision-file", scopeDecisionFile, "-scope-decision.json");
+    const scope = await readSingleJsonObject(scopeDecisionFile, "scope decision JSON validation failed");
+    validateScopeShape(scope, "branch-review/scope-decision/v1");
+    validateApprovalScopeLink(summary, scope);
+    const findings = await assertFindingsEnvelope(findingsFile);
+    await validateApprovalDigest("approval summary findings digest mismatch", findingsFile, stringField(summary, "findings_sha256"));
+    await validateApprovalDigest("approval summary scope-decision digest mismatch", scopeDecisionFile, stringField(summary, "scope_decision_sha256"));
+    const counts = findingsCounts(findings);
+    if (numberField(summary, "blocker_count") !== counts.blockerCount) {
+        fail("approval summary blocker count mismatch");
+    }
+    if (numberField(summary, "nit_count") !== counts.nitCount) {
+        fail("approval summary nit count mismatch");
+    }
+    if (numberField(summary, "carry_forward_count") !== counts.carryForwardCount) {
+        fail("approval summary carry-forward count mismatch");
+    }
+    validateTerminalStateMatchesCounts(terminalState, counts);
+    if (!options.emitGateResult) {
+        return "";
+    }
+    return `${JSON.stringify({
+        terminal_state: terminalState,
+        gate_result: gateResultForApprovalTerminalState(terminalState),
+    })}\n`;
+}
+function requireApprovalSummaryFlags(options) {
+    requireFlag("--approval-summary-file", options.approvalSummaryFile);
+    requireFlag("--head-sha", options.headSha);
+    requireFlag("--surface", options.surface);
+    if (options.surface !== "branch-review") {
+        fail("validate-approval-summary requires --surface branch-review");
+    }
+}
+function validateApprovalSummarySchema(summary) {
+    if ("gate_passed" in summary) {
+        fail("approval summary contains forbidden field: gate_passed");
+    }
+    try {
+        if (!hasExactKeys(summary, [
+            "schema",
+            "surface",
+            "review_head_sha",
+            "base_ref",
+            "full_range",
+            "selected_range",
+            "scope_decision_file",
+            "scope_decision_sha256",
+            "findings_file",
+            "findings_sha256",
+            "terminal_state",
+            "blocker_count",
+            "nit_count",
+            "carry_forward_count",
+        ]) ||
+            stringField(summary, "schema") !== "branch-review/approval-summary/v1" ||
+            stringField(summary, "surface") !== "branch-review" ||
+            !isSha(stringField(summary, "review_head_sha")) ||
+            stringField(summary, "base_ref").length === 0 ||
+            stringField(summary, "full_range").length === 0 ||
+            stringField(summary, "selected_range").length === 0 ||
+            !isDirectEphemeralPath(stringField(summary, "scope_decision_file")) ||
+            !isDirectEphemeralPath(stringField(summary, "findings_file")) ||
+            !isSha256(stringField(summary, "scope_decision_sha256")) ||
+            !isSha256(stringField(summary, "findings_sha256")) ||
+            !isNonNegativeInteger(summary.blocker_count) ||
+            !isNonNegativeInteger(summary.nit_count) ||
+            !isNonNegativeInteger(summary.carry_forward_count)) {
+            fail("approval summary schema mismatch");
+        }
+    }
+    catch (err) {
+        if (err instanceof ReviewArtifactsError &&
+            err.message === "runtime validation failed") {
+            fail("approval summary schema mismatch");
+        }
+        throw err;
+    }
+    if (!isApprovalTerminalState(stringField(summary, "terminal_state"))) {
+        fail("approval summary terminal_state is invalid");
+    }
+}
+function validateSummaryBaseRef(baseRef) {
+    if (baseRef.length === 0 ||
+        baseRef.startsWith("-") ||
+        baseRef.includes("..") ||
+        /\s/u.test(baseRef)) {
+        fail("approval summary base_ref is invalid");
+    }
+}
+function validateApprovalScopeLink(summary, scope) {
+    if (stringField(scope, "surface") !== "branch-review") {
+        fail("linked scope decision surface mismatch");
+    }
+    if (stringField(scope, "head_sha") !== stringField(summary, "review_head_sha")) {
+        fail("linked scope decision head mismatch");
+    }
+    if (stringField(scope, "full_range") !== stringField(summary, "full_range")) {
+        fail("linked scope decision full range mismatch");
+    }
+    if (stringField(scope, "selected_range") !==
+        stringField(summary, "selected_range")) {
+        fail("linked scope decision selected range mismatch");
+    }
+}
+async function validateApprovalDigest(message, file, expectedDigest) {
+    const digest = createHash("sha256")
+        .update(await readFile(file, "utf-8"))
+        .digest("hex");
+    if (digest !== expectedDigest) {
+        fail(message);
+    }
+}
+function findingsCounts(findings) {
+    const inlineFindings = arrayField(findings, "findings").map((item) => item);
+    return {
+        blockerCount: inlineFindings.filter((finding) => stringField(finding, "severity") === "Blocking").length,
+        nitCount: inlineFindings.filter((finding) => stringField(finding, "severity") === "Nit").length,
+        carryForwardCount: arrayField(findings, "carry_forward").length,
+    };
+}
+function validateTerminalStateMatchesCounts(terminalState, counts) {
+    if (terminalState === "invalid") {
+        return;
+    }
+    const expectedState = counts.blockerCount > 0
+        ? "blocked"
+        : counts.nitCount > 0 || counts.carryForwardCount > 0
+            ? "approved_with_nits"
+            : "approved";
+    if (terminalState !== expectedState) {
+        fail("approval summary terminal_state contradicts counts");
+    }
+}
+export function gateResultForApprovalTerminalState(terminalState) {
+    switch (terminalState) {
+        case "approved":
+        case "approved_with_nits":
+            return "passing";
+        case "blocked":
+        case "invalid":
+            return "blocking";
+    }
 }
 async function validateSelectedDiffAnchors(scope, findings, headSha) {
     const selectedRange = stringField(scope, "selected_range");
@@ -1226,6 +1437,12 @@ function isGithubNodeId(value) {
 }
 function isSha(value) {
     return /^[0-9a-f]{40}$/u.test(value);
+}
+function isSha256(value) {
+    return /^[0-9a-f]{64}$/u.test(value);
+}
+function isApprovalTerminalState(value) {
+    return ["approved", "approved_with_nits", "blocked", "invalid"].includes(value);
 }
 function isNullableSha(value) {
     return value === null || (typeof value === "string" && isSha(value));
