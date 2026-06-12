@@ -768,6 +768,7 @@ function scopeOptionsForApprovalSummary(options, summary, scope) {
         priorContextKind: stringField(priorContext, "kind"),
         priorContextPath: priorPath,
         governedPathPattern: BRANCH_REVIEW_GOVERNED_PATH_PATTERN,
+        configuredPathPattern: options.configuredPathPattern,
         maxNarrowChangedFiles: BRANCH_REVIEW_MAX_NARROW_CHANGED_FILES,
     };
 }
@@ -782,12 +783,24 @@ async function validateApprovalDigest(message, file, expectedDigest) {
 function findingsCounts(findings) {
     const currentFindings = arrayField(findings, "findings").map((item) => item);
     const carryForwardFindings = arrayField(findings, "carry_forward").map((item) => item);
-    const remainingFindings = [...currentFindings, ...carryForwardFindings];
+    const remainingFindings = uniqueFindingsByContent([
+        ...currentFindings,
+        ...carryForwardFindings,
+    ]);
     return {
         blockerCount: remainingFindings.filter((finding) => stringField(finding, "severity") === "Blocking").length,
         nitCount: remainingFindings.filter((finding) => stringField(finding, "severity") === "Nit").length,
         carryForwardCount: carryForwardFindings.length,
     };
+}
+function uniqueFindingsByContent(findings) {
+    const unique = [];
+    for (const finding of findings) {
+        if (!unique.some((existing) => jsonEqual(existing, finding))) {
+            unique.push(finding);
+        }
+    }
+    return unique;
 }
 function validateTerminalStateMatchesCounts(terminalState, counts) {
     if (terminalState === "invalid") {

@@ -665,6 +665,54 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("dedupes mirrored carry-forward findings from logical approval counts", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const scope = initialScope(baseSha, headSha);
+      const mirroredBlocker = finding({ anchor: "out-of-diff" });
+      const findings = {
+        schema: "play-review/findings/v1",
+        findings: [mirroredBlocker],
+        carry_forward: [mirroredBlocker],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          terminal_state: "blocked",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          terminal_state: "blocked",
+          blocker_count: 2,
+          carry_forward_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary blocker count mismatch",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("fully validates linked scope-decision invariants before trusting approval summaries", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
@@ -692,6 +740,64 @@ describe("play-validate-review-artifacts validator", () => {
         ]),
         "changed files do not match selected range",
       );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("forwards configured path policy when validating linked approval-summary scope evidence", async () => {
+    const { cwd, baseSha, firstSha } = await makeGitWorkspace();
+    try {
+      await writeFile(path.join(cwd, "src/generated.ts"), "gen\n");
+      await execFileAsync("git", ["add", "."], { cwd });
+      await execFileAsync("git", ["commit", "-m", "chore: generated"], {
+        cwd,
+      });
+      const headSha = await git(cwd, "rev-parse", "HEAD");
+      const scope = {
+        ...initialScope(baseSha, headSha),
+        changed_files: ["src/app.ts", "src/generated.ts"],
+        language_hints: ["ts"],
+        mode: "follow-up",
+        selection_reason:
+          "Configured path escalates the follow-up to full review.",
+        escalation_reasons: ["configured-path"],
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 2,
+          followup_sha_usable: true,
+          mechanical_escalate_full: true,
+          mechanical_escalation_reason: "configured-path",
+        },
+      };
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings),
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "configured-path escalation reason missing",
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--configured-path-pattern",
+          "generated",
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
     } finally {
       await cleanupTempDir(cwd);
     }

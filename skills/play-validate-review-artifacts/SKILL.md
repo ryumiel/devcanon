@@ -119,14 +119,16 @@ Scope-consuming commands must not rely on hidden prior validation state.
 and `--surface branch-review`. Callers that already captured linked evidence
 may also pass `--expected-findings-file` and
 `--expected-scope-decision-file`; supplied paths must exactly match the paths
-embedded in the summary before the linked evidence is trusted. With
-`--emit-gate-result`, successful validation prints one JSON object containing
-`terminal_state` and `gate_result`, where `gate_result` is exactly `passing`
-for `approved` and `approved_with_nits`, and `blocking` for `blocked` and
-`invalid`. Without `--emit-gate-result`, callers rely on the zero exit status.
-The command rejects non-`branch-review` surfaces, stale heads, unsafe or missing
-paths, malformed linked evidence, digest drift, count drift, unknown terminal
-states, and any `gate_passed` field.
+embedded in the summary before the linked evidence is trusted. Callers must
+also pass the same `--configured-path-pattern` value used for the linked
+branch-review scope decision when configured path escalation is part of that
+evidence. With `--emit-gate-result`, successful validation prints one JSON
+object containing `terminal_state` and `gate_result`, where `gate_result` is
+exactly `passing` for `approved` and `approved_with_nits`, and `blocking` for
+`blocked` and `invalid`. Without `--emit-gate-result`, callers rely on the zero
+exit status. The command rejects non-`branch-review` surfaces, stale heads,
+unsafe or missing paths, malformed linked evidence, digest drift, count drift,
+unknown terminal states, and any `gate_passed` field.
 
 The validator is runtime-backed through the packaged `devcanon-runtime` support
 skill. It may require Node.js through that packaged support runtime, but it must

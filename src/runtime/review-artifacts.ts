@@ -1017,6 +1017,7 @@ function scopeOptionsForApprovalSummary(
     priorContextKind: stringField(priorContext, "kind"),
     priorContextPath: priorPath,
     governedPathPattern: BRANCH_REVIEW_GOVERNED_PATH_PATTERN,
+    configuredPathPattern: options.configuredPathPattern,
     maxNarrowChangedFiles: BRANCH_REVIEW_MAX_NARROW_CHANGED_FILES,
   };
 }
@@ -1045,7 +1046,10 @@ function findingsCounts(findings: JsonObject): {
   const carryForwardFindings = arrayField(findings, "carry_forward").map(
     (item) => item as JsonObject,
   );
-  const remainingFindings = [...currentFindings, ...carryForwardFindings];
+  const remainingFindings = uniqueFindingsByContent([
+    ...currentFindings,
+    ...carryForwardFindings,
+  ]);
   return {
     blockerCount: remainingFindings.filter(
       (finding) => stringField(finding, "severity") === "Blocking",
@@ -1055,6 +1059,18 @@ function findingsCounts(findings: JsonObject): {
     ).length,
     carryForwardCount: carryForwardFindings.length,
   };
+}
+
+function uniqueFindingsByContent(
+  findings: readonly JsonObject[],
+): JsonObject[] {
+  const unique: JsonObject[] = [];
+  for (const finding of findings) {
+    if (!unique.some((existing) => jsonEqual(existing, finding))) {
+      unique.push(finding);
+    }
+  }
+  return unique;
 }
 
 function validateTerminalStateMatchesCounts(
