@@ -96,6 +96,22 @@ function jsonDigest(value: unknown): string {
     .digest("hex");
 }
 
+function approvalFindingsPath(headSha: string, branchName = "main"): string {
+  const slug = branchName
+    .replaceAll("/", "-")
+    .replace(/[^\p{L}\p{N}._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return `.ephemeral/unnamed-${headSha}-findings.json`;
+  }
+  return `.ephemeral/${slug}-${headSha}-findings.json`;
+}
+
 async function runValidator(cwd: string, command: string, args: string[] = []) {
   return execFileAsync("bash", [validatorScript, command, ...args], {
     cwd,
@@ -272,7 +288,7 @@ function approvalSummary(
     selected_range: `${baseSha}...HEAD`,
     scope_decision_file: ".ephemeral/topic-scope-decision.json",
     scope_decision_sha256: jsonDigest(scope),
-    findings_file: ".ephemeral/topic-findings.json",
+    findings_file: approvalFindingsPath(headSha),
     findings_sha256: jsonDigest(findings),
     terminal_state: "blocked",
     blocker_count: 1,
@@ -396,10 +412,11 @@ describe("play-validate-review-artifacts validator", () => {
   it("validates approval summaries and emits derived gate results", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const findings = findingsEnvelope();
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, findingsFile, findings);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -410,7 +427,7 @@ describe("play-validate-review-artifacts validator", () => {
         runValidator(cwd, "validate-approval-summary", [
           ...approvalSummaryArgs(headSha),
           "--expected-findings-file",
-          ".ephemeral/topic-findings.json",
+          findingsFile,
           "--expected-scope-decision-file",
           ".ephemeral/topic-scope-decision.json",
         ]),
@@ -425,7 +442,7 @@ describe("play-validate-review-artifacts validator", () => {
         stdout: '{"terminal_state":"blocked","gate_result":"blocking"}\n',
       });
 
-      await writeJson(cwd, ".ephemeral/topic-findings.json", {
+      await writeJson(cwd, findingsFile, {
         schema: "play-review/findings/v1",
         findings: [],
         carry_forward: [],
@@ -459,10 +476,11 @@ describe("play-validate-review-artifacts validator", () => {
   it("rejects stale, forbidden, mismatched, and contradictory approval summaries", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const findings = findingsEnvelope();
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, findingsFile, findings);
       const summary = approvalSummary(baseSha, headSha, scope, findings);
       await writeJson(cwd, ".ephemeral/topic-approval-summary.json", summary);
 
@@ -553,6 +571,22 @@ describe("play-validate-review-artifacts validator", () => {
         ]),
         "approval summary linked findings path mismatch",
       );
+
+      const staleFindingsFile = ".ephemeral/wrong-branch-findings.json";
+      await writeJson(cwd, staleFindingsFile, findings);
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        findings_file: staleFindingsFile,
+        findings_sha256: jsonDigest(findings),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          staleFindingsFile,
+        ]),
+        "findings path mismatch",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -561,6 +595,7 @@ describe("play-validate-review-artifacts validator", () => {
   it("maps approved_with_nits and invalid approval summaries through the support validator", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const nits = {
         schema: "play-review/findings/v1",
@@ -568,7 +603,7 @@ describe("play-validate-review-artifacts validator", () => {
         carry_forward: [],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", nits);
+      await writeJson(cwd, findingsFile, nits);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -611,9 +646,40 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("matches play-review findings path slugging for non-ASCII branch names", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const branchName = "feat/café-1";
+    try {
+      await execFileAsync("git", ["switch", "-C", branchName], { cwd });
+      const findingsFile = approvalFindingsPath(headSha, branchName);
+      const scope = initialScope(baseSha, headSha);
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          findings_file: findingsFile,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          findingsFile,
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("treats blocking carry-forward findings as blockers in approval summaries", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const carryForwardBlocker = {
         schema: "play-review/findings/v1",
@@ -621,11 +687,7 @@ describe("play-validate-review-artifacts validator", () => {
         carry_forward: [finding({ anchor: "out-of-diff" })],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-findings.json",
-        carryForwardBlocker,
-      );
+      await writeJson(cwd, findingsFile, carryForwardBlocker);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -668,6 +730,7 @@ describe("play-validate-review-artifacts validator", () => {
   it("dedupes mirrored carry-forward findings from logical approval counts", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const mirroredBlocker = finding({ anchor: "out-of-diff" });
       const findings = {
@@ -676,7 +739,7 @@ describe("play-validate-review-artifacts validator", () => {
         carry_forward: [mirroredBlocker],
       };
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, findingsFile, findings);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -716,6 +779,7 @@ describe("play-validate-review-artifacts validator", () => {
   it("fully validates linked scope-decision invariants before trusting approval summaries", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const shapeValidScope = {
         ...initialScope(baseSha, headSha),
         changed_files: ["README.md"],
@@ -727,7 +791,7 @@ describe("play-validate-review-artifacts validator", () => {
         ".ephemeral/topic-scope-decision.json",
         shapeValidScope,
       );
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, findingsFile, findings);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -777,7 +841,7 @@ describe("play-validate-review-artifacts validator", () => {
       };
       const findings = findingsEnvelope();
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, approvalFindingsPath(headSha), findings);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",
@@ -806,10 +870,11 @@ describe("play-validate-review-artifacts validator", () => {
   it("fails closed for unsafe approval-summary and linked evidence paths", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
+      const findingsFile = approvalFindingsPath(headSha);
       const scope = initialScope(baseSha, headSha);
       const findings = findingsEnvelope();
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(cwd, findingsFile, findings);
       await writeJson(
         cwd,
         ".ephemeral/topic-approval-summary.json",

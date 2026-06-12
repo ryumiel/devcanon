@@ -853,6 +853,7 @@ async function validateApprovalSummary(
 
   await assertReadableFile("--findings-file", findingsFile);
   validateSuffix("--findings-file", findingsFile, "-findings.json");
+  await validateFindingsPathMatchesHead(findingsFile, options.headSha);
   await assertReadableFile("--scope-decision-file", scopeDecisionFile);
   validateSuffix(
     "--scope-decision-file",
@@ -1474,6 +1475,39 @@ function validateSuffix(label: string, file: string, suffix: string): void {
   if (!file.endsWith(suffix)) {
     fail(`${label} path validation failed: ${file}`);
   }
+}
+
+async function validateFindingsPathMatchesHead(
+  findingsFile: string,
+  headSha: string,
+): Promise<void> {
+  const expectedFindingsFile = await expectedFindingsPath(headSha);
+  if (findingsFile !== expectedFindingsFile) {
+    fail("findings path mismatch");
+  }
+}
+
+async function expectedFindingsPath(headSha: string): Promise<string> {
+  const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+  const branchSlug =
+    rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
+  return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+}
+
+function slugBranchForFindings(branchName: string): string {
+  const slug = branchName
+    .replaceAll("/", "-")
+    .replace(/[^\p{L}\p{N}._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return "unnamed";
+  }
+  return slug;
 }
 
 async function readSingleJsonObject(
