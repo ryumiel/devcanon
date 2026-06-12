@@ -251,6 +251,14 @@ describe("rendered phase artifact smoke coverage", () => {
     const branchReview = bodyFor("branch-review");
     expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
     expect(branchReview).toContain("Findings written to <path>.");
+    expect(branchReview).toContain("branch-review/approval-summary/v1");
+    expect(branchReview).toContain(
+      "Approval summary written to <repo-relative-path>.",
+    );
+    expect(branchReview).toContain("write-approval-summary");
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "in `--fix` mode it is the post-fix remaining-set envelope overwritten in place",
+    );
     expect(branchReview).toContain("no GitHub posting");
     expect(branchReview).toContain("no `gh` commands");
     expect(branchReview).toContain("no GitHub schema");
@@ -447,6 +455,13 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(renderedBranchReview).toContain('REVIEW_SURFACE="branch-review"');
       expect(renderedBranchReview).toContain("Findings written to <path>.");
+      expect(renderedBranchReview).toContain(
+        "branch-review/approval-summary/v1",
+      );
+      expect(renderedBranchReview).toContain(
+        "Approval summary written to <repo-relative-path>.",
+      );
+      expect(renderedBranchReview).toContain("write-approval-summary");
       expect(renderedBranchReview).toContain("no GitHub posting");
       expect(renderedBranchReview).toContain("no `gh` commands");
       expect(renderedBranchReview).toContain("no GitHub schema");
