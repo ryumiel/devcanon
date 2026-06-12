@@ -938,10 +938,9 @@ describe("phase artifact source contracts", () => {
     const normalizedScopeHelper = normalizeWhitespace(scopeHelper);
 
     expect(branchReview).toContain("branch-review/approval-summary/v1");
-    expect(branchReview).toContain(
-      "Approval summary written to <path>.",
-    );
+    expect(branchReview).toContain("Approval summary written to <path>.");
     expect(branchReview).toContain("write-approval-summary");
+    expect(branchReview).toContain("validate-approval-summary");
     expect(branchReview).toContain(
       ': "${REVIEW_HEAD_SHA:?trusted review head missing}"',
     );
@@ -965,6 +964,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "validates it through the shared support validator",
+    );
+    expect(normalizedBranchReview).toContain(
+      "pass/block interpretation for the summary",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
     );
     expect(normalizedBranchReview).toContain(
       "does not duplicate finding bodies and must not contain `gate_passed`",

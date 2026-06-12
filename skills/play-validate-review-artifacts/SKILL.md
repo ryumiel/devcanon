@@ -129,6 +129,8 @@ exactly `passing` for `approved` and `approved_with_nits`, and `blocking` for
 exit status. The command rejects non-`branch-review` surfaces, stale heads,
 unsafe or missing paths, malformed linked evidence, digest drift, count drift,
 unknown terminal states, and any `gate_passed` field.
+Consumers must use this validator output for pass/block interpretation rather
+than deriving pass/fail from summary fields themselves.
 
 The validator is runtime-backed through the packaged `devcanon-runtime` support
 skill. It may require Node.js through that packaged support runtime, but it must

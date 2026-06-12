@@ -272,12 +272,16 @@ wrapper-level terminal evidence for the reviewed head and links to the detailed
 findings and scope-decision artifacts by path and digest; it does not duplicate
 finding bodies and must not contain `gate_passed`.
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns
-deterministic validation and pass/block interpretation for the summary. Branch
-review owns only the lifecycle point and exact notice line:
+deterministic validation and pass/block interpretation for the summary through
+`validate-approval-summary`. Branch review owns only the lifecycle point and
+exact notice line:
 
 ```text
 Approval summary written to <path>.
 ```
+
+Consumer gating from this summary into `play-branch-finish` remains deferred to
+GitHub issue #465; this skill only emits and validates the artifact.
 
 ## Phase 2: Invoke the play-review skill workflow
 
