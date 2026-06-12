@@ -611,6 +611,92 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("treats blocking carry-forward findings as blockers in approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const scope = initialScope(baseSha, headSha);
+      const carryForwardBlocker = {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [finding({ anchor: "out-of-diff" })],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-findings.json",
+        carryForwardBlocker,
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, carryForwardBlocker, {
+          terminal_state: "blocked",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"blocked","gate_result":"blocking"}\n',
+      });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, carryForwardBlocker, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary terminal_state contradicts counts",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("fully validates linked scope-decision invariants before trusting approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const shapeValidScope = {
+        ...initialScope(baseSha, headSha),
+        changed_files: ["README.md"],
+        language_hints: ["md"],
+      };
+      const findings = findingsEnvelope();
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        shapeValidScope,
+      );
+      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, shapeValidScope, findings),
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "changed files do not match selected range",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("fails closed for unsafe approval-summary and linked evidence paths", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

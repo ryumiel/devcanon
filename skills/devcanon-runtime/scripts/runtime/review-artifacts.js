@@ -28,6 +28,8 @@ const EMPTY_OPTIONS = {
     expectedScopeDecisionFile: "",
     emitGateResult: false,
 };
+const BRANCH_REVIEW_GOVERNED_PATH_PATTERN = "^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\\.md$|AGENTS\\.md$|CONTRIBUTING\\.md$)";
+const BRANCH_REVIEW_MAX_NARROW_CHANGED_FILES = "5";
 const KNOWN_ESCALATION_REASONS = new Set([
     "not-followup",
     "file-count",
@@ -650,6 +652,7 @@ async function validateApprovalSummary(options) {
     validateSuffix("--scope-decision-file", scopeDecisionFile, "-scope-decision.json");
     const scope = await readSingleJsonObject(scopeDecisionFile, "scope decision JSON validation failed");
     validateScopeShape(scope, "branch-review/scope-decision/v1");
+    await validateScopeDecision(scopeOptionsForApprovalSummary(options, summary, scope));
     validateApprovalScopeLink(summary, scope);
     const findings = await assertFindingsEnvelope(findingsFile);
     await validateApprovalDigest("approval summary findings digest mismatch", findingsFile, stringField(summary, "findings_sha256"));
@@ -752,6 +755,22 @@ function validateApprovalScopeLink(summary, scope) {
         fail("linked scope decision selected range mismatch");
     }
 }
+function scopeOptionsForApprovalSummary(options, summary, scope) {
+    const priorContext = objectField(scope, "prior_context");
+    const priorPath = nullableStringField(priorContext, "path") ?? "null";
+    return {
+        ...EMPTY_OPTIONS,
+        surface: "branch-review",
+        headSha: options.headSha,
+        baseRef: stringField(summary, "base_ref"),
+        scopeDecision: stringField(summary, "scope_decision_file"),
+        expectedSchema: "branch-review/scope-decision/v1",
+        priorContextKind: stringField(priorContext, "kind"),
+        priorContextPath: priorPath,
+        governedPathPattern: BRANCH_REVIEW_GOVERNED_PATH_PATTERN,
+        maxNarrowChangedFiles: BRANCH_REVIEW_MAX_NARROW_CHANGED_FILES,
+    };
+}
 async function validateApprovalDigest(message, file, expectedDigest) {
     const digest = createHash("sha256")
         .update(await readFile(file, "utf-8"))
@@ -761,11 +780,13 @@ async function validateApprovalDigest(message, file, expectedDigest) {
     }
 }
 function findingsCounts(findings) {
-    const inlineFindings = arrayField(findings, "findings").map((item) => item);
+    const currentFindings = arrayField(findings, "findings").map((item) => item);
+    const carryForwardFindings = arrayField(findings, "carry_forward").map((item) => item);
+    const remainingFindings = [...currentFindings, ...carryForwardFindings];
     return {
-        blockerCount: inlineFindings.filter((finding) => stringField(finding, "severity") === "Blocking").length,
-        nitCount: inlineFindings.filter((finding) => stringField(finding, "severity") === "Nit").length,
-        carryForwardCount: arrayField(findings, "carry_forward").length,
+        blockerCount: remainingFindings.filter((finding) => stringField(finding, "severity") === "Blocking").length,
+        nitCount: remainingFindings.filter((finding) => stringField(finding, "severity") === "Nit").length,
+        carryForwardCount: carryForwardFindings.length,
     };
 }
 function validateTerminalStateMatchesCounts(terminalState, counts) {
