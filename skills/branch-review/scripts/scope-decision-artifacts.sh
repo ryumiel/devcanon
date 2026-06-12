@@ -263,6 +263,29 @@ validate_approval_summary() {
   fi
 }
 
+run_approval_summary_validator() {
+  local summary_file="$1"
+  local validator
+
+  validator="$(resolve_validator)"
+  if [ -n "$configured_path_pattern" ]; then
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$summary_file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE" \
+      --configured-path-pattern "$configured_path_pattern"
+  else
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$summary_file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE"
+  fi
+}
+
 validate_readable_json_file() {
   local label="$1"
   local file="$2"
@@ -333,6 +356,8 @@ write_approval_summary() {
   file="$APPROVAL_SUMMARY_FILE"
   validate_direct_child_path "approval summary" "$file" "-approval-summary.json"
   [ "$file" = "$expected" ] || fail "approval summary path mismatch: $file"
+  prepare_write_target "approval summary" "$file"
+  rm -f "$file"
 
   validate_readable_json_file "findings" "$FINDINGS_FILE" "-findings.json"
   validate_readable_json_file "scope decision" "$SCOPE_DECISION_FILE" "-scope-decision.json"
@@ -353,8 +378,10 @@ write_approval_summary() {
   counts_json="$(findings_count_json "$FINDINGS_FILE")"
   terminal_state="$(terminal_state_for_counts "$counts_json")"
 
-  prepare_write_target "approval summary" "$file"
+  resolve_validator >/dev/null
   tmp_file="$(mktemp ".ephemeral/branch-review-approval-summary.XXXXXX")"
+  rm -f "$tmp_file"
+  tmp_file="${tmp_file}-approval-summary.json"
   jq -n \
     --arg schema "branch-review/approval-summary/v1" \
     --arg surface "branch-review" \
@@ -384,9 +411,11 @@ write_approval_summary() {
       nit_count: $counts.nit_count,
       carry_forward_count: $counts.carry_forward_count
     }' >"$tmp_file"
+  if ! run_approval_summary_validator "$tmp_file"; then
+    rm -f "$tmp_file"
+    fail "approval summary validation failed"
+  fi
   mv "$tmp_file" "$file"
-
-  validate_approval_summary
   printf 'Approval summary written to %s.\n' "$file"
 }
 

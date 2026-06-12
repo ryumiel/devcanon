@@ -175,6 +175,26 @@ async function writeMarkerValidator(root: string, marker: string) {
   return script;
 }
 
+async function writeFailingValidator(root: string, message: string) {
+  const script = path.join(
+    root,
+    "play-validate-review-artifacts/scripts/review-artifacts.sh",
+  );
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(
+    script,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      `printf '%s\\n' ${JSON.stringify(message)} >&2`,
+      "exit 1",
+      "",
+    ].join("\n"),
+  );
+  await chmod(script, 0o755);
+  return script;
+}
+
 async function copyInstalledBranchAdapter(root: string) {
   const script = path.join(
     root,
@@ -365,6 +385,104 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       ).rejects.toThrow();
     } finally {
       await cleanupTempDir(cwd);
+    }
+  });
+
+  it("stops before writing the final approval summary when full findings validation fails", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+      const summaryPath = approvalSummaryPath(headSha);
+      const findingsFile = findingsPath(headSha);
+      await writeJson(
+        cwd,
+        decisionPath,
+        initialScope("main", headSha, {
+          full_range: "main...HEAD",
+          selected_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
+          selection_reason: "not-followup",
+        }),
+      );
+      await writeJson(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [
+          {
+            severity: "Blocking",
+          },
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runHelper(cwd, helperScript, "write-approval-summary", {
+          HEAD_SHA: headSha,
+          BASE: "main",
+          FULL_DIFF_RANGE: "main...HEAD",
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          SCOPE_DECISION_FILE: decisionPath,
+          FINDINGS_FILE: findingsFile,
+          APPROVAL_SUMMARY_FILE: summaryPath,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("approval summary validation failed"),
+      });
+      await expect(
+        readFile(path.join(cwd, summaryPath), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("removes stale final approval summaries when support validation fails before publish", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const temp = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-branch-approval-failing-"),
+    );
+    try {
+      const decisionPath = scopePath(headSha);
+      const summaryPath = approvalSummaryPath(headSha);
+      const findingsFile = await writeEmptyFindings(cwd, headSha);
+      const validator = await writeFailingValidator(
+        temp,
+        "support validator rejected approval summary",
+      );
+      await writeJson(
+        cwd,
+        decisionPath,
+        initialScope("main", headSha, {
+          full_range: "main...HEAD",
+          selected_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
+          selection_reason: "not-followup",
+        }),
+      );
+      await writeFile(
+        path.join(cwd, summaryPath),
+        JSON.stringify({ stale: true }),
+      );
+
+      await expect(
+        runHelper(cwd, helperScript, "write-approval-summary", {
+          HEAD_SHA: headSha,
+          BASE: "main",
+          FULL_DIFF_RANGE: "main...HEAD",
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          SCOPE_DECISION_FILE: decisionPath,
+          FINDINGS_FILE: findingsFile,
+          APPROVAL_SUMMARY_FILE: summaryPath,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("approval summary validation failed"),
+      });
+      await expect(
+        readFile(path.join(cwd, summaryPath), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(temp);
     }
   });
 
