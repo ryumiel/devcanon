@@ -997,6 +997,122 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it.each([
+    {
+      name: "missing scope_reason_codes",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) =>
+        initialScope(baseSha, headSha),
+      args: "initial",
+      stderr: "scope_reason_codes is required",
+    },
+    {
+      name: "missing scope_explanation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["range_validation"],
+      }),
+      args: "initial",
+      stderr: "scope_explanation is required",
+    },
+    {
+      name: "empty scope_explanation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "",
+      }),
+      args: "initial",
+      stderr: "scope_explanation must not be empty",
+    },
+    {
+      name: "unknown scope reason code",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["range_validation", "unknown_code"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "unknown scope reason code",
+    },
+    {
+      name: "reserved prior_findings_validation code",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["prior_findings_validation"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "reserved scope reason code: prior_findings_validation",
+    },
+    {
+      name: "narrow_allowed on full escalation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["narrow_allowed"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "narrow_allowed requires narrow follow-up scope",
+    },
+    {
+      name: "missing narrow_allowed on narrow approval",
+      buildScope: (baseSha: string, firstSha: string, headSha: string) => ({
+        ...narrowScope(baseSha, firstSha, headSha),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Follow-up review uses the last-reviewed SHA range.",
+      }),
+      args: "follow-up",
+      stderr: "narrow follow-up requires scope_reason_codes narrow_allowed",
+    },
+    {
+      name: "range-validation escalation code mismatch",
+      buildScope: (baseSha: string, firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        mode: "follow-up",
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        selection_reason: "Public API changes require full follow-up review.",
+        escalation_reasons: ["public-api"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Public API changes require full follow-up review.",
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: true,
+          mechanical_escalate_full: false,
+          mechanical_escalation_reason: "",
+        },
+      }),
+      args: "follow-up",
+      stderr: "scope reason codes do not match escalation reasons",
+    },
+  ])("rejects invalid scope reason fields: $name", async (testCase) => {
+    const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        testCase.buildScope(baseSha, firstSha, headSha),
+      );
+
+      await expectRejectsWith(
+        runValidator(
+          cwd,
+          "validate-scope-decision",
+          testCase.args === "follow-up"
+            ? branchFollowupScopeArgs(headSha, baseSha)
+            : scopeArgs(headSha, baseSha),
+        ),
+        testCase.stderr,
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects self-consistent ranges that do not match the caller-derived full review range", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

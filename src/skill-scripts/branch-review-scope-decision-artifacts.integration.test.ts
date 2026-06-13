@@ -642,6 +642,99 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("finalizes an initial full review with range-validation reason fields", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: `${baseSha}...HEAD`,
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
+          ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
+          IS_FOLLOWUP_NARROW: "false",
+          CHANGED_FILE_COUNT: "1",
+          FOLLOWUP_SHA_USABLE: "false",
+          MECHANICAL_ESCALATE_FULL: "true",
+          MECHANICAL_ESCALATION_REASON: "not-followup",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify(["src/app.ts"]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["ts"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: `${baseSha}...HEAD`,
+        selection_reason: "not-followup",
+        escalation_reasons: ["not-followup"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: expect.stringContaining("Initial review"),
+        mechanical_facts: {
+          mechanical_escalation_reason: "not-followup",
+        },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("finalizes mechanical full escalation with file-count and governed-path reason fields", async () => {
+    const { cwd, lastReviewedSha } = await makeFollowupWorkspace();
+    try {
+      await mkdir(path.join(cwd, "docs/adr"), { recursive: true });
+      await writeFile(path.join(cwd, "docs/adr/adr-9999.md"), "ADR\n");
+      for (let index = 0; index < 6; index += 1) {
+        await writeFile(path.join(cwd, `src/multi-${index}.ts`), "x\n");
+      }
+      await execFileAsync("git", ["add", "."], { cwd });
+      await execFileAsync("git", ["commit", "-m", "test: multi trigger"], {
+        cwd,
+      });
+      const newHead = await git(cwd, "rev-parse", "HEAD");
+      const decisionPath = scopePath(newHead);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: newHead,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: "main...HEAD",
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          IS_FOLLOWUP_NARROW: "false",
+          LAST_REVIEWED_SHA: lastReviewedSha,
+          PRIOR_BRANCH_FINDINGS: ".ephemeral/topic-findings.json",
+          CHANGED_FILE_COUNT: "8",
+          FOLLOWUP_SHA_USABLE: "true",
+          MECHANICAL_ESCALATE_FULL: "true",
+          MECHANICAL_ESCALATION_REASON: "file-count,governance-path",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify([
+            "docs/adr/adr-9999.md",
+            "notes/followup.md",
+            ...Array.from({ length: 6 }, (_, index) => `src/multi-${index}.ts`),
+            "src/full-only.ts",
+          ]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md", "ts"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        schema: "branch-review/scope-decision/v1",
+        selected_range: "main...HEAD",
+        is_followup_narrow: false,
+        escalation_reasons: ["file-count", "governance-path"],
+        scope_reason_codes: ["file_count", "governed_path"],
+        scope_explanation: expect.stringContaining("full review"),
+        mechanical_facts: {
+          mechanical_escalation_reason: "file-count,governance-path",
+        },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("finalizes a mechanically narrow follow-up as full when semantic classification escalates", async () => {
     const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
     try {
@@ -677,6 +770,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         selected_range: "main...HEAD",
         is_followup_narrow: false,
         escalation_reasons: ["source-owned-contract"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: expect.stringContaining(
+          "source-owned contract impact",
+        ),
         semantic_decision: {
           checked: true,
           ambiguous: false,
@@ -724,6 +821,8 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         selected_range: "main...HEAD",
         is_followup_narrow: false,
         escalation_reasons: ["ambiguous-classification"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: expect.stringContaining("could not prove narrow"),
         semantic_decision: {
           checked: true,
           ambiguous: true,
@@ -767,6 +866,8 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         selected_range: `${lastReviewedSha}..HEAD`,
         is_followup_narrow: true,
         escalation_reasons: [],
+        scope_reason_codes: ["narrow_allowed"],
+        scope_explanation: expect.stringContaining("permits narrow follow-up"),
         semantic_decision: {
           checked: true,
           ambiguous: false,
