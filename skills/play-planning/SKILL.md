@@ -407,6 +407,33 @@ the checklist precisely restates boundary details. If a checklist restates
 vague contract concepts without tying back to the boundary rows that own
 participant coverage, the plan must fail review.
 
+## Contract Example Discipline
+
+Plans that change schemas, APIs, function shapes, artifacts, CLI output,
+helper I/O contracts, or cross-skill contracts must include a
+`Contract Example Discipline` section or an equivalent clearly labeled section
+before task planning. Trivial non-contract plans do not need the section.
+Non-triggered plans state why no trigger applies.
+
+The section must name:
+
+- canonical valid post-change example;
+- source authority for that valid example;
+- invalid example families derived from that canonical valid example;
+- required proof that valid examples pass and derived invalid families fail;
+- out-of-scope invalid families that the plan intentionally does not require.
+
+The canonical valid post-change example is the anchor. Invalid examples without
+that canonical valid anchor are insufficient. The canonical valid example must
+be minimal, verifiable, and contract-focused: it shows only the durable
+post-change contract shape needed to prove validity, names the observable proof
+surface, and avoids overfitting to incidental phrasing, task history, comment
+wording, or reviewer preference. Invalid families must be derived from the
+canonical valid shape rather than invented from comment evidence, task history,
+or reviewer preference. The section identifies example and proof obligations
+only; it must not include plan-authored implementation code, test bodies,
+fixture contents, shell recipes, helper-name prescriptions, or command recipes.
+
 ## Requirements Traceability
 
 For plans based on designs with hard requirements, the plan must include a
@@ -715,6 +742,13 @@ For helper, script, API, adapter, validator, producer, or consumer tasks that
 touch boundaries, confirm the task-local I/O contract names required inputs,
 optional inputs, missing or empty behavior, outputs, write targets,
 validation-before-write ordering, failure behavior, and forbidden side effects.
+For plans that change schemas, APIs, function shapes, artifacts, CLI output,
+helper I/O contracts, or cross-skill contracts, fail and fix the plan unless
+it includes Contract Example Discipline or an equivalent clearly labeled
+section naming a canonical valid post-change example, source authority, invalid
+example families derived from that canonical valid example, required proof, and
+out-of-scope invalid families. For non-triggered plans, confirm the plan states
+why no trigger applies.
 
 **6. Contract checklist completeness:** For every required checklist, confirm
 each field is populated or marked `N/A` with a task-specific reason. Blank
@@ -879,6 +913,13 @@ inline content remains valid.
   optional inputs, missing or empty behavior, outputs, write targets,
   validation-before-write ordering, failure behavior, and forbidden side
   effects
+- Contract-changing plans for schemas, APIs, function shapes, artifacts, CLI
+  output, helper I/O contracts, or cross-skill contracts include Contract
+  Example Discipline or an equivalent clearly labeled section naming a
+  canonical valid post-change example, source authority, invalid example
+  families derived from that canonical valid example, required proof, and
+  out-of-scope invalid families; non-triggered plans state why no trigger
+  applies
 - Every checklist field is populated or marked `N/A` with a task-specific
   reason; blank fields, unreplaced placeholders, and unexplained `N/A` entries
   are failures
@@ -985,6 +1026,13 @@ controller memory.
   implementer must infer missing policy, ownership, mappings, error behavior,
   guardrail outcomes, rollback or dirty-state behavior, or verification
   criteria
+- Contract-changing tasks for schemas, APIs, function shapes, artifacts, CLI
+  output, helper I/O contracts, or cross-skill contracts fail when Contract
+  Example Discipline or an equivalent clearly labeled section is missing,
+  omits a canonical valid post-change example, lacks source authority, lists
+  invalid example families derived from that canonical valid example
+  incorrectly or not at all, omits required proof, or omits out-of-scope
+  invalid families
 - Unknown source policy, ownership, side effects, evidence, or allowed outcomes
   are named as blockers or assumptions instead of invented
 - The plan preserves the rule against plan-authored implementation code, test
