@@ -456,14 +456,15 @@ async function validateScopeDecision(options) {
         else if (artifactMechanicalReason.length > 0) {
             fail("mechanical escalation reason does not match git");
         }
+        if (reasonPresent(escalationReasons, "ambiguous-classification") &&
+            !semanticAmbiguous) {
+            fail("ambiguous-classification escalation reason missing");
+        }
         if (semanticAmbiguous) {
             hasRealFollowupTrigger = true;
         }
         else if (escalationReasons.some((reason) => SEMANTIC_ESCALATION_REASONS.has(reason))) {
             hasRealFollowupTrigger = true;
-        }
-        else if (reasonPresent(escalationReasons, "ambiguous-classification")) {
-            fail("ambiguous-classification escalation reason missing");
         }
         if (reasonPresent(escalationReasons, "not-followup")) {
             fail("not-followup escalation reason missing");

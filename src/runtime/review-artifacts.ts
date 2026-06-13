@@ -569,6 +569,12 @@ async function validateScopeDecision(
       fail("mechanical escalation reason does not match git");
     }
 
+    if (
+      reasonPresent(escalationReasons, "ambiguous-classification") &&
+      !semanticAmbiguous
+    ) {
+      fail("ambiguous-classification escalation reason missing");
+    }
     if (semanticAmbiguous) {
       hasRealFollowupTrigger = true;
     } else if (
@@ -577,8 +583,6 @@ async function validateScopeDecision(
       )
     ) {
       hasRealFollowupTrigger = true;
-    } else if (reasonPresent(escalationReasons, "ambiguous-classification")) {
-      fail("ambiguous-classification escalation reason missing");
     }
 
     if (reasonPresent(escalationReasons, "not-followup")) {

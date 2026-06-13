@@ -2065,6 +2065,45 @@ describe("play-validate-review-artifacts validator", () => {
         "ambiguous semantic scope requires explicit allowance",
       );
 
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...initialScope(baseSha, headSha),
+        mode: "follow-up",
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        selection_reason:
+          "Public API and ambiguous semantic scope escalate to full review.",
+        escalation_reasons: ["public-api", "ambiguous-classification"],
+        scope_reason_codes: [
+          "language_or_surface_change",
+          "semantic_contract_risk",
+        ],
+        scope_explanation:
+          "Public API and ambiguous semantic scope escalate to full review.",
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: true,
+          mechanical_escalate_full: false,
+          mechanical_escalation_reason: "",
+        },
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes: "Public API surface changed.",
+        },
+      });
+      await expectRejectsWith(
+        runValidator(
+          cwd,
+          "validate-scope-decision",
+          branchFollowupScopeArgs(headSha, baseSha),
+        ),
+        "ambiguous-classification escalation reason missing",
+      );
+
       await expectRejectsWith(
         runValidator(cwd, "validate-scope-decision", [
           ...branchFollowupScopeArgs(headSha, baseSha),
