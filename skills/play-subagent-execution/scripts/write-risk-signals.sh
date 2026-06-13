@@ -29,6 +29,18 @@ require_sha_env() {
   esac
 }
 
+require_full_branch_range_env() {
+  local name="$1"
+  require_env "$name"
+  case "${!name}" in
+    *...HEAD)
+      [ "${!name}" != "...HEAD" ] ||
+        fail "$name must be a full branch range ending in ...HEAD"
+      ;;
+    *) fail "$name must be a full branch range ending in ...HEAD" ;;
+  esac
+}
+
 require_repo_root() {
   local git_toplevel
   local physical_toplevel
@@ -230,7 +242,7 @@ main() {
   require_env RISK_SIGNALS_REVIEWED_BASE_REF
   require_sha_env RISK_SIGNALS_REVIEWED_BASE_SHA
   require_sha_env RISK_SIGNALS_REVIEWED_HEAD_SHA
-  require_env RISK_SIGNALS_REVIEWED_RANGE
+  require_full_branch_range_env RISK_SIGNALS_REVIEWED_RANGE
   require_env RISK_SIGNALS_CHANGED_FILES_JSON
   require_env RISK_SIGNALS_VALUES_JSON
   require_bool_env RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED

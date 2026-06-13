@@ -1707,6 +1707,10 @@ describe("play subagent routing source contracts", () => {
     );
     expect(helper).toContain("LC_ALL=C tr -c 'A-Za-z0-9._-' '-'");
     expect(helper).toContain("*..*");
+    expect(helper).toContain(
+      "require_full_branch_range_env RISK_SIGNALS_REVIEWED_RANGE",
+    );
+    expect(helper).toContain("must be a full branch range ending in ...HEAD");
     expect(helper).toMatch(
       /temp_file="\.ephemeral\/\.\$\{slug\}-\$\{RISK_SIGNALS_REVIEWED_HEAD_SHA\}-risk-signals\.[^"]+-risk-signals\.json"/u,
     );

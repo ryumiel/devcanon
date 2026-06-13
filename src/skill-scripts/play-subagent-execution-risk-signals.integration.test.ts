@@ -257,6 +257,29 @@ describe("play-subagent-execution risk-signals producer", () => {
     }
   });
 
+  it("rejects non-full reviewed ranges before emitting a handoff notice", async () => {
+    const workspace = await makeGitWorkspace();
+    try {
+      const relPath = riskSignalsPath(workspace);
+      await expect(
+        runHelper(workspace, {
+          ...envFor(workspace),
+          RISK_SIGNALS_REVIEWED_RANGE: `${workspace.baseSha}..HEAD`,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "RISK_SIGNALS_REVIEWED_RANGE must be a full branch range ending in ...HEAD",
+        ),
+      });
+      await expect(
+        stat(path.join(workspace.cwd, relPath)),
+      ).rejects.toBeTruthy();
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
   it("atomically overwrites an existing regular target only after validation succeeds", async () => {
     const workspace = await makeGitWorkspace();
     try {
