@@ -727,7 +727,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         is_followup_narrow: false,
         escalation_reasons: ["file-count", "governance-path"],
         scope_reason_codes: ["file_count", "governed_path"],
-        scope_explanation: expect.stringContaining("full review"),
+        scope_explanation: expect.stringMatching(/file count|govern/i),
         mechanical_facts: {
           mechanical_escalation_reason: "file-count,governance-path",
         },

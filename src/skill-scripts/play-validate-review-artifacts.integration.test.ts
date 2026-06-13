@@ -828,6 +828,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Configured path escalates the follow-up to full review.",
         escalation_reasons: ["configured-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Configured path escalates the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -1212,6 +1215,8 @@ describe("play-validate-review-artifacts validator", () => {
         mode: "follow-up",
         selection_reason: "File count escalates the follow-up to full review.",
         escalation_reasons: ["file-count"],
+        scope_reason_codes: ["file_count"],
+        scope_explanation: "File count escalates the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -1265,6 +1270,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "File count and governance paths escalate the follow-up to full review.",
         escalation_reasons: ["file-count", "governance-path"],
+        scope_reason_codes: ["file_count", "governed_path"],
+        scope_explanation:
+          "File count and governance paths escalate the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -1325,6 +1333,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Public API changes require the full follow-up review range.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation:
+          "Public API changes require the full follow-up review range.",
         last_reviewed_sha: lastReviewedSha,
         candidate_narrow_range: `${lastReviewedSha}..HEAD`,
         prior_context: {
@@ -1389,6 +1400,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Governance path escalates the follow-up to full review.",
         escalation_reasons: ["governance-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Governance path escalates the follow-up to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1429,6 +1443,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Configured path escalates the follow-up to full review.",
         escalation_reasons: ["configured-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Configured path escalates the follow-up to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1599,6 +1616,9 @@ describe("play-validate-review-artifacts validator", () => {
           selection_reason:
             "Governance path escalates the follow-up to full review.",
           escalation_reasons: ["governance-path"],
+          scope_reason_codes: ["governed_path"],
+          scope_explanation:
+            "Governance path escalates the follow-up to full review.",
           last_reviewed_sha: firstSha,
           candidate_narrow_range: `${firstSha}..HEAD`,
           prior_context: {
@@ -1636,6 +1656,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Public API changes require full follow-up review.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1662,6 +1684,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Follow-up full review lacks explicit escalation.",
         escalation_reasons: [],
+        scope_reason_codes: [],
+        scope_explanation: "Follow-up full review lacks explicit escalation.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1689,6 +1713,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Follow-up full review lacks explicit escalation.",
         escalation_reasons: [],
+        scope_reason_codes: [],
+        scope_explanation: "Follow-up full review lacks explicit escalation.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1716,6 +1742,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Unknown reason is invalid.",
         escalation_reasons: ["surprising-reason"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: "Unknown reason is invalid.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1744,6 +1772,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "File-count reason lacks a matching file-count trigger.",
         escalation_reasons: ["file-count"],
+        scope_reason_codes: ["file_count"],
+        scope_explanation:
+          "File-count reason lacks a matching file-count trigger.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1953,6 +1984,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Ambiguous semantic scope escalates to full review.",
         escalation_reasons: ["ambiguous-classification"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: "Ambiguous semantic scope escalates to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -2071,6 +2104,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Public API changes require full follow-up review.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -2094,6 +2129,8 @@ describe("play-validate-review-artifacts validator", () => {
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
         ...narrowScope(baseSha, firstSha, headSha),
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
       });
       await expectRejectsWith(
         runValidator(
@@ -2148,6 +2185,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Unusable last-reviewed SHA escalates to the full review range.",
         escalation_reasons: ["last-reviewed-unusable"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation:
+          "Unusable last-reviewed SHA escalates to the full review range.",
         last_reviewed_sha: badSha,
         candidate_narrow_range: `${baseSha}...HEAD`,
         prior_context: {
@@ -2175,6 +2215,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Unusable last-reviewed SHA escalates to the full review range.",
         escalation_reasons: ["last-reviewed-unusable"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation:
+          "Unusable last-reviewed SHA escalates to the full review range.",
         last_reviewed_sha: badSha,
         candidate_narrow_range: `${badSha}..HEAD`,
         prior_context: {
