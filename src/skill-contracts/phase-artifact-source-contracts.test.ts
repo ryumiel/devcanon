@@ -839,8 +839,16 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("classify-risk-signals");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain(
-      'SEMANTIC_ESCALATION_REASON="${RISK_SIGNALS_SEMANTIC_ESCALATION_REASON:-}"',
+      'FINAL_SEMANTIC_ESCALATION_REASON="$(append_csv "$WRAPPER_SEMANTIC_ESCALATION_REASON" "$RISK_SIGNALS_SEMANTIC_ESCALATION_REASON")"',
+    );
+    expect(branchReview).toContain(
+      'SEMANTIC_ESCALATION_REASON="$FINAL_SEMANTIC_ESCALATION_REASON"',
+    );
+    expect(normalizedBranchReview).toContain(
+      "Risk-signal semantic values compose with existing wrapper semantic classification; they do not replace it",
     );
     expect(normalizedBranchReview).not.toContain(
       "more than 5 files changed since `--last-reviewed`, unusable follow-up shas",

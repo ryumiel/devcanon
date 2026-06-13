@@ -397,14 +397,18 @@ validate_readable_json_file() {
     fail "$label JSON validation failed: $file"
 }
 
+sanitize_output_value() {
+  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '?'
+}
+
 emit_risk_signals_classification() {
   local classification="$1"
   local reason="$2"
   local notes="$3"
 
-  printf 'RISK_SIGNALS_CLASSIFICATION=%s\n' "$classification"
-  printf 'RISK_SIGNALS_SEMANTIC_ESCALATION_REASON=%s\n' "$reason"
-  printf 'RISK_SIGNALS_SEMANTIC_DECISION_NOTES=%s\n' "$notes"
+  printf 'RISK_SIGNALS_CLASSIFICATION=%s\n' "$(sanitize_output_value "$classification")"
+  printf 'RISK_SIGNALS_SEMANTIC_ESCALATION_REASON=%s\n' "$(sanitize_output_value "$reason")"
+  printf 'RISK_SIGNALS_SEMANTIC_DECISION_NOTES=%s\n' "$(sanitize_output_value "$notes")"
 }
 
 collapse_diagnostic() {

@@ -212,6 +212,11 @@ describe("existing skills source prose contracts", () => {
     expect(branchReview).toContain("RISK_SIGNALS_CLASSIFICATION");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(normalized).toContain(
+      "Risk-signal semantic values compose with existing wrapper semantic classification; they do not replace it",
+    );
+    expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).not.toContain("prior_findings_validation");
   });
 

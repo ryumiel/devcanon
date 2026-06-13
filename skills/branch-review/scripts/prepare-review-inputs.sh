@@ -88,6 +88,16 @@ classify_risk_signals_path() {
   local file="$1"
 
   case "$file" in
+    *$'\n'* | *$'\r'* | *$'\t'*)
+      echo "--risk-signals path contains control characters" >&2
+      exit 1
+      ;;
+  esac
+  if printf '%s' "$file" | LC_ALL=C tr -d '\n\r\t' | LC_ALL=C grep -q '[[:cntrl:]]'; then
+    echo "--risk-signals path contains control characters" >&2
+    exit 1
+  fi
+  case "$file" in
     /*) return 1 ;;
     .ephemeral/*/*) return 1 ;;
     .ephemeral/*-risk-signals.json) ;;
@@ -159,10 +169,10 @@ parse_args() {
         shift 2
         ;;
       --risk-signals)
-        [ -n "${2:-}" ] || {
+        if [ -z "${2:-}" ] || [[ "${2:-}" == --* ]]; then
           echo "--risk-signals requires a path" >&2
           exit 1
-        }
+        fi
         RISK_SIGNALS_FILE="$2"
         if classify_risk_signals_path "$RISK_SIGNALS_FILE"; then
           RISK_SIGNALS_STATUS="supplied"

@@ -191,6 +191,42 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     },
   );
 
+  it("rejects option-like and control-character risk-signals values as missing or unsafe", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+      await expect(
+        execFileAsync("bash", [helperScript, "--risk-signals", "--fix"], {
+          cwd,
+          env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("--risk-signals requires a path"),
+      });
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            helperScript,
+            "--risk-signals",
+            ".ephemeral/bad\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+          ],
+          {
+            cwd,
+            env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+          },
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "--risk-signals path contains control characters",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("accepts flags around the base and selects a narrow follow-up range", async () => {
     const cwd = await makeGitWorkspace();
     try {

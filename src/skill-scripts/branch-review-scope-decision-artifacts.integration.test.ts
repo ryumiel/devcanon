@@ -327,6 +327,42 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("keeps invalid risk-signal path text from injecting KEY=VALUE output", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE:
+            ".ephemeral/bad\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+          RISK_SIGNALS_STATUS: "invalid-path",
+        },
+      );
+      const values = parseKeyValues(result.stdout);
+      const outputLines = result.stdout.trim().split("\n");
+
+      expect(outputLines).toHaveLength(3);
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("invalid-fail-closed");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe(
+        "ambiguous-classification",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "full branch review",
+      );
+      expect(result.stdout).not.toContain(
+        "\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+      );
+      expect(result.stdout).not.toContain("prior_findings_validation");
+      expect(result.stdout).not.toContain("narrow_allowed");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("classifies supplied valid no-risk signals without escalation", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
