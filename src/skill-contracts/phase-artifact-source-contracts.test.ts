@@ -25,6 +25,20 @@ const PR_REVIEW_MANIFEST_NOTICE_LINES = [
   "PR review result manifest updated at <repo-relative-path>.",
 ] as const;
 
+function shellFunctionBody(
+  content: string,
+  functionName: string,
+  nextFunctionName: string,
+): string {
+  const start = content.indexOf(`${functionName}() {`);
+  const end = content.indexOf(`${nextFunctionName}() {`, start);
+
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+
+  return content.slice(start, end);
+}
+
 describe("phase artifact source contracts", () => {
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -689,9 +703,19 @@ describe("phase artifact source contracts", () => {
     const branchReviewHelper = await readRepoFile(
       "skills/branch-review/scripts/prepare-review-inputs.sh",
     );
+    const scopeDecisionHelper = await readRepoFile(
+      "skills/branch-review/scripts/scope-decision-artifacts.sh",
+    );
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedBranchReviewHelper =
       normalizeWhitespace(branchReviewHelper);
+    const normalizedScopeDecisionHelper =
+      normalizeWhitespace(scopeDecisionHelper);
+    const riskSignalsClassifier = shellFunctionBody(
+      scopeDecisionHelper,
+      "classify_risk_signals",
+      "sha256_file",
+    );
 
     expect(branchReview).toContain("| `--last-reviewed <sha>`");
     expect(branchReview).toContain("| `--prior-findings <path>`");
@@ -750,6 +774,10 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
     expect(branchReviewHelper).toContain('emit_line "RISK_SIGNALS_FILE"');
     expect(branchReviewHelper).toContain('emit_line "RISK_SIGNALS_STATUS"');
+    expect(branchReviewHelper).toContain("classify_risk_signals_path");
+    expect(branchReviewHelper).toContain(".ephemeral/*-risk-signals.json");
+    expect(branchReviewHelper).toContain('RISK_SIGNALS_STATUS="invalid-path"');
+    expect(branchReviewHelper).not.toContain("validate-risk-signals");
     expect(branchReviewHelper).toContain(
       'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
     );
@@ -839,6 +867,29 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("classify-risk-signals");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(scopeDecisionHelper).toContain("validate-risk-signals");
+    expect(scopeDecisionHelper).toContain("--surface branch-review");
+    expect(scopeDecisionHelper).toContain(
+      "--expected-schema branch-review/risk-signals/v1",
+    );
+    expect(scopeDecisionHelper).toContain(
+      '--expected-reviewed-range "$FULL_DIFF_RANGE"',
+    );
+    expect(scopeDecisionHelper).toContain("invalid-fail-closed");
+    expect(scopeDecisionHelper).toContain('"ambiguous-classification"');
+    expect(scopeDecisionHelper).toContain("valid-no-escalation");
+    expect(scopeDecisionHelper).toContain("valid-escalate");
+    expect(scopeDecisionHelper).toContain("generated-output-contract");
+    expect(scopeDecisionHelper).toContain("shared-workflow-policy");
+    expect(scopeDecisionHelper).toContain("source-owned-contract");
+    expect(normalizedScopeDecisionHelper).toContain(
+      "Supplied risk signals failed validation",
+    );
+    expect(normalizedScopeDecisionHelper).toContain(
+      "use full branch review / higher scrutiny",
+    );
+    expect(riskSignalsClassifier).not.toContain("prior_findings_validation");
+    expect(riskSignalsClassifier).not.toContain("narrow_allowed");
     expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain(
@@ -961,6 +1012,73 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain(
       "detect remaining blockers, classify nits, and produce",
+    );
+  });
+
+  it("keeps risk-signals runtime validation as the branch-review consumer authority", async () => {
+    const runtime = await readRepoFile("src/runtime/review-artifacts.ts");
+    const validatorSkill = await readRepoFile(
+      "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+    );
+    const branchReviewScopeHelper = await readRepoFile(
+      "skills/branch-review/scripts/scope-decision-artifacts.sh",
+    );
+    const normalizedRuntime = normalizeWhitespace(runtime);
+    const normalizedScopeHelper = normalizeWhitespace(branchReviewScopeHelper);
+
+    expect(runtime).toContain('case "validate-risk-signals"');
+    expect(runtime).toContain("requireRiskSignalsFlags");
+    expect(runtime).toContain("rejectRiskSignalsExtraFlags");
+    for (const requiredFlag of [
+      "--surface",
+      "--head-sha",
+      "--risk-signals-file",
+      "--expected-schema",
+      "--expected-reviewed-range",
+    ]) {
+      expect(runtime).toContain(`requireFlag("${requiredFlag}"`);
+    }
+    expect(normalizedRuntime).toContain(
+      "validate-risk-signals requires --surface branch-review",
+    );
+    expect(normalizedRuntime).toContain(
+      "--expected-schema must be branch-review/risk-signals/v1",
+    );
+    expect(runtime).toContain("validateSuffix(");
+    expect(runtime).toContain('"--risk-signals-file"');
+    expect(runtime).toContain('"-risk-signals.json"');
+    expect(runtime).toContain(
+      'stringField(riskSignals, "producer") !== "play-subagent-execution"',
+    );
+    expect(runtime).toContain('"executor-terminal-handoff"');
+    for (const signalCategory of [
+      "user_facing_behavior",
+      "documentation_examples",
+      "diagnostics",
+      "contract",
+      "generated_output",
+      "governance_path",
+    ]) {
+      expect(runtime).toContain(`"${signalCategory}"`);
+    }
+    for (const signalValue of ["none", "present", "unknown"]) {
+      expect(runtime).toContain(`"${signalValue}"`);
+    }
+    expect(normalizedRuntime).toContain("risk-signals head mismatch");
+    expect(normalizedRuntime).toContain("risk-signals reviewed range mismatch");
+    expect(normalizedRuntime).toContain(
+      "risk-signals changed files do not match expected range",
+    );
+    expect(runtime).not.toMatch(/\bgh\s+(api|pr|issue)\b/);
+
+    expect(validatorSkill).toContain('runtime review-artifacts "$@"');
+    expect(normalizedScopeHelper).toContain(
+      'bash "$validator" validate-risk-signals',
+    );
+    expect(normalizedScopeHelper).toContain("--surface branch-review");
+    expect(normalizedScopeHelper).toContain("classify_valid_risk_signals");
+    expect(normalizedScopeHelper).toContain(
+      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny",
     );
   });
 

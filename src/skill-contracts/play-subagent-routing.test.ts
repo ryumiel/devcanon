@@ -1625,15 +1625,24 @@ describe("play subagent routing source contracts", () => {
     const routingReference = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
+    const helper = await readRepoFile(
+      "skills/play-subagent-execution/scripts/write-risk-signals.sh",
+    );
     const normalizedExecutor = normalizeWhitespace(executor);
     const normalizedRoutingReference = normalizeWhitespace(routingReference);
+    const normalizedHelper = normalizeWhitespace(helper);
 
+    expect(executor).toContain("scripts/write-risk-signals.sh");
+    expect(executor).toContain("branch-review/risk-signals/v1");
     expect(executor).toContain("Risk signals written to <path>.");
     expect(normalizedExecutor).toContain(
       "risk signals are non-authoritative branch-review input",
     );
     expect(normalizedExecutor).toContain(
       "Notice is emitted only after the helper write and runtime validation succeed",
+    );
+    expect(normalizedExecutor).toContain(
+      "after implementation and the applicable per-task/final review path",
     );
     for (const requiredEnvName of [
       "RISK_SIGNALS_REVIEWED_BASE_REF",
@@ -1666,6 +1675,27 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExecutor).toContain(
       "This skill did not run branch-level review; run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review",
     );
+    expect(helper).toContain(
+      'target=".ephemeral/${slug}-${RISK_SIGNALS_REVIEWED_HEAD_SHA}-risk-signals.json"',
+    );
+    expect(helper).toContain(
+      'temp_file=".ephemeral/.${slug}-${RISK_SIGNALS_REVIEWED_HEAD_SHA}-risk-signals.$$-${RANDOM:-0}-risk-signals.json"',
+    );
+    expect(helper).toContain('prepare_write_target "$target"');
+    expect(helper).toContain('write_payload "$temp_file"');
+    expect(helper).toContain("validate-risk-signals");
+    expect(helper).toContain("--surface branch-review");
+    expect(helper).toContain("--expected-schema branch-review/risk-signals/v1");
+    expect(helper).toContain("--expected-reviewed-range");
+    expect(helper).toContain('mv -f "$temp_file" "$target"');
+    expect(helper).toContain(
+      "printf 'Risk signals written to %s.\\n' \"$target\"",
+    );
+    expect(normalizedHelper).toContain(
+      "RISK_SIGNALS_VALUES_JSON must contain exactly the six required signal keys with none, present, or unknown values",
+    );
+    expect(helper).not.toMatch(/\b(branch-review|play-review)\b.*--fix/);
+    expect(helper).not.toMatch(/\bgh\s+(api|pr|issue)\b/);
     expect(normalizedExecutor).not.toMatch(
       /risk signals (approve|certify|determine|establish) PR-readiness/i,
     );
