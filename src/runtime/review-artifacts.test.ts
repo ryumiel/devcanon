@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import {
   buildApprovedReviewPayload,
   diffHunkForLine,
@@ -221,7 +222,7 @@ describe("review artifact runtime reducers", () => {
         stderr: "",
       });
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      await cleanupTempDir(cwd);
     }
   });
 
@@ -409,7 +410,7 @@ describe("review artifact runtime reducers", () => {
         stderr: expect.stringContaining(testCase.stderr),
       });
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      await cleanupTempDir(cwd);
     }
   });
 
@@ -429,7 +430,7 @@ describe("review artifact runtime reducers", () => {
         stderr: expect.stringContaining("risk-signals JSON validation failed"),
       });
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      await cleanupTempDir(cwd);
     }
   });
 });
