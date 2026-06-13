@@ -431,7 +431,13 @@ async function validateScopeDecision(
       if (!reasonPresent(escalationReasons, "not-followup")) {
         fail("not-followup escalation reason missing");
       }
-      if (escalationReasons.length !== 1) {
+      if (
+        escalationReasons.some(
+          (reason) =>
+            reason !== "not-followup" &&
+            !SEMANTIC_ESCALATION_REASONS.has(reason),
+        )
+      ) {
         fail("not-followup escalation reason missing");
       }
     } else {

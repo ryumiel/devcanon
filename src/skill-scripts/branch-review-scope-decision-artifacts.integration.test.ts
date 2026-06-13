@@ -944,6 +944,56 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("finalizes initial full review with risk-signal semantic escalation", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const decisionPath = scopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "finalize-scope-decision", {
+          HEAD_SHA: headSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          FULL_DIFF_RANGE: `${baseSha}...HEAD`,
+          CANDIDATE_ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
+          ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
+          IS_FOLLOWUP_NARROW: "false",
+          CHANGED_FILE_COUNT: "1",
+          FOLLOWUP_SHA_USABLE: "false",
+          MECHANICAL_ESCALATE_FULL: "true",
+          MECHANICAL_ESCALATION_REASON: "not-followup",
+          SEMANTIC_ESCALATION_REASON:
+            "generated-output-contract,shared-workflow-policy,source-owned-contract",
+          SEMANTIC_DECISION_NOTES:
+            "Valid risk signals require higher scrutiny.",
+          FINAL_CHANGED_FILES_JSON: JSON.stringify(["src/app.ts"]),
+          FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["ts"]),
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
+        selected_range: `${baseSha}...HEAD`,
+        escalation_reasons: [
+          "generated-output-contract",
+          "not-followup",
+          "shared-workflow-policy",
+          "source-owned-contract",
+        ],
+        scope_reason_codes: [
+          "language_or_surface_change",
+          "range_validation",
+          "semantic_contract_risk",
+        ],
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes: "Valid risk signals require higher scrutiny.",
+        },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("finalizes mechanical full escalation with file-count and governed-path reason fields", async () => {
     const { cwd, baseSha } = await makeGitWorkspace();
     try {
