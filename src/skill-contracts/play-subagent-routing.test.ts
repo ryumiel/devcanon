@@ -244,6 +244,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
     );
+    expect(normalizedPhase7).toContain(
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
+    );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
@@ -717,7 +723,10 @@ describe("play subagent routing source contracts", () => {
 
     expect(phase7).toContain("Invoke `branch-review --fix`");
     expect(normalizedPhase7).toContain(
-      "If the run commits any auto-fixes, rerun `branch-review --fix` on the new `HEAD`",
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "If the run commits any auto-fixes, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
     );
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
@@ -736,6 +745,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase7).toContain(
       "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+    );
+    expect(normalizedPhase7).toContain(
+      "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
     );
     expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
     expect(phase7Reference).toContain("Findings written to <path>.");
@@ -1670,7 +1682,22 @@ describe("play subagent routing source contracts", () => {
       "Each value is `none`, `present`, or `unknown`; ambiguous/unclear classifications must be encoded as `unknown`, not omitted",
     );
     expect(normalizedExecutor).toContain(
+      "`RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must describe the same full branch range that the next branch-review invocation will validate",
+    );
+    expect(normalizedExecutor).toContain(
+      "`RISK_SIGNALS_REVIEWED_BASE_REF` must match that range's base side",
+    );
+    expect(normalizedExecutor).toContain(
       "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
+    );
+    expect(normalizedExecutor).toContain(
+      "When the helper emits `Risk signals written to <path>.`, pass that emitted path to the next branch review invocation as `branch-review --risk-signals <path>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "in an auto-fix loop, `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "regenerate risk signals for the new `HEAD` before rerunning branch review, or omit the stale risk-signals path intentionally",
     );
     expect(normalizedExecutor).toContain(
       "This skill did not run branch-level review; run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review",

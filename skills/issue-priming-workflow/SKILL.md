@@ -437,12 +437,17 @@ unless a concrete blocker stops `--auto`.
 ### Phase 7: Branch Review
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
-If the run commits any auto-fixes, rerun `branch-review --fix` on the new
-`HEAD`. Continue until a run reports zero blocking findings auto-fixed and the
-remaining findings file contains no unresolved `severity: "Blocking"` entries
-except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
-If later mechanical nit handling creates any commit, rerun this same Branch Review step
-on the new `HEAD` before proceeding to Phase 8.
+If Phase 6 emitted `Risk signals written to <path>.`, invoke
+`branch-review --fix --risk-signals <path>` for the next branch-review run.
+If the run commits any auto-fixes, regenerate risk signals for the new `HEAD`
+before rerunning `branch-review --fix --risk-signals <new-path>`, or rerun
+`branch-review --fix` while intentionally omitting stale risk signals. Continue
+until a run reports zero blocking findings auto-fixed and the remaining
+findings file contains no unresolved `severity: "Blocking"` entries except
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
+If later mechanical nit handling creates any commit, rerun this same Branch
+Review step on the new `HEAD` before proceeding to Phase 8, with fresh risk
+signals when available.
 
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is the repository's default branch. With `--fix`, `branch-review`
@@ -465,8 +470,9 @@ helper-produced `-nits-pending.json` path. If the judgment-required set is
 empty, omit `nits_file`.
 
 After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`
-on the new `HEAD` and restart Phase 7. Phase 8 may start only after the final
-Phase 7 run reports zero blocking findings auto-fixed, no unresolved true
+on the new `HEAD` and restart Phase 7, passing only risk signals regenerated
+for that `HEAD` when using `--risk-signals`. Phase 8 may start only after the
+final Phase 7 run reports zero blocking findings auto-fixed, no unresolved true
 Blocking findings, and no additional mechanical-nit commits after that review.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.

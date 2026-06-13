@@ -71,6 +71,10 @@ const SEMANTIC_ESCALATION_REASONS = new Set([
     "architecture-surface",
     "shared-workflow-policy",
 ]);
+const INITIAL_FULL_ALLOWED_EXTRA_REASONS = new Set([
+    ...SEMANTIC_ESCALATION_REASONS,
+    "ambiguous-classification",
+]);
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
     "governed_path",
     "file_count",
@@ -332,7 +336,7 @@ async function validateScopeDecision(options) {
                 fail("not-followup escalation reason missing");
             }
             if (escalationReasons.some((reason) => reason !== "not-followup" &&
-                !SEMANTIC_ESCALATION_REASONS.has(reason))) {
+                !INITIAL_FULL_ALLOWED_EXTRA_REASONS.has(reason))) {
                 fail("not-followup escalation reason missing");
             }
         }

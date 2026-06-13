@@ -350,8 +350,12 @@ Set these required inputs before invoking the helper:
 `RISK_SIGNALS_REVIEWED_HEAD_SHA`, `RISK_SIGNALS_REVIEWED_RANGE`,
 `RISK_SIGNALS_CHANGED_FILES_JSON`, `RISK_SIGNALS_VALUES_JSON`,
 `RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED`, and
-`RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED`. The values JSON must
-contain exactly these six signal categories: `user_facing_behavior`,
+`RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED`.
+`RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must
+describe the same full branch range that the next branch-review invocation will
+validate, such as `$BASE...HEAD`; `RISK_SIGNALS_REVIEWED_BASE_REF` must match
+that range's base side. The values JSON must contain exactly these six signal
+categories: `user_facing_behavior`,
 `documentation_examples`, `diagnostics`, `contract`, `generated_output`, and
 `governance_path`. Each value is `none`, `present`, or `unknown`;
 ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
@@ -360,9 +364,16 @@ Notice is emitted only after the helper write and runtime validation succeed.
 If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
 
-Direct/manual terminal handoff remains unchanged. This skill did not run
-branch-level review; run `branch-review` before `play-branch-finish` when the
-active workflow requires branch-level review.
+When the helper emits `Risk signals written to <path>.`, pass that emitted path
+to the next branch review invocation as `branch-review --risk-signals <path>`
+or, in an auto-fix loop, `branch-review --fix --risk-signals <path>`. If a
+branch-review run or later mechanical-nit handling adds commits, regenerate
+risk signals for the new `HEAD` before rerunning branch review, or omit the
+stale risk-signals path intentionally.
+
+Direct/manual terminal handoff otherwise remains unchanged. This skill did not
+run branch-level review; run `branch-review` before `play-branch-finish` when
+the active workflow requires branch-level review.
 
 ### Direct/manual terminal handoff
 
