@@ -35,20 +35,21 @@ All five guardrails must hold for inline execution. If condition #4 fails, stop
 before implementation and report BLOCKED/NEEDS_CONTEXT for the task contract.
 Other misses fall back to the dispatched-implementer flow.
 
-| # | Guardrail | Detection signal |
-| --- | --- | --- |
-| 1 | Plan is single-task | Task count from plan extraction = 1. |
-| 2 | Task is fully mechanical | Task header carries `**Mode:** mechanical`. |
-| 3 | No clarifying questions could plausibly arise | Implicit: the upstream two-gate `play-planning` return completed, meaning both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted. Direct invocations without that upstream return fail this guardrail and fall back to dispatched implementation. |
-| 4 | Task contract gate is satisfied | The task has either a structurally complete `**Contract checklist:**` naming every required checklist surface, or a task-specific no-trigger omission reason backed by the upstream two-gate `play-planning` return. Present Contract Example Discipline obligations also satisfy the gate rule below. |
-| 5 | No tests need to be authored | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers. |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                       |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                   |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                            |
+| 3   | No clarifying questions could plausibly arise | Implicit: the upstream two-gate `play-planning` return completed, meaning both Plan Review and Implementer Executability Review passed before `Plan written to <path>.` was emitted. Direct invocations without that upstream return fail this guardrail and fall back to dispatched implementation.   |
+| 4   | Task contract gate is satisfied               | The task has either a structurally complete `**Contract checklist:**` naming every required checklist surface, or a task-specific no-trigger omission reason backed by the upstream two-gate `play-planning` return. Present Contract Example Discipline obligations also satisfy the gate rule below. |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                |
 
-In the case when task text includes Contract Example Discipline or an
-equivalent clearly labeled section/obligation, present obligations are part of
-guardrail #4: positive examples match the target post-change contract, not the
-pre-change contract; invalid examples mutate exactly one named contract
-dimension unless multi-fault behavior is intentional and named; and derived
-fields stay consistent with source facts or are explicitly justified.
+In the case when extracted plan/task execution context includes Contract
+Example Discipline or an equivalent clearly labeled section/obligation, present
+obligations are part of guardrail #4: positive examples match the target
+post-change contract, not the pre-change contract; invalid examples mutate
+exactly one named contract dimension unless multi-fault behavior is intentional
+and named; and derived fields stay consistent with source facts or are
+explicitly justified.
 
 ## Inline Execution Sequence
 

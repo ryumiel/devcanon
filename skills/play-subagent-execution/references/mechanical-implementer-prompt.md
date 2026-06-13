@@ -35,6 +35,20 @@ Task tool (general-purpose):
     generated-output, or evidence surface is not a mechanical replacement
     target; report BLOCKED or NEEDS_CONTEXT instead of guessing.
 
+    Mechanical mode does not bypass present Contract Example Discipline
+    obligations. In the case when extracted plan/task execution context
+    includes Contract Example Discipline or an equivalent clearly labeled
+    section/obligation, verify the source-backed example consistency
+    obligations after reading the relevant contracts. Confirm positive examples
+    match the target post-change contract, not the pre-change contract; invalid
+    examples mutate exactly one named contract dimension unless multi-fault
+    behavior is intentional and named; and derived fields stay consistent with
+    source facts or are explicitly justified. Do not infer whether Contract
+    Example Discipline should have been required; `play-planning` owns that
+    trigger taxonomy. If source inspection finds unsupported, internally
+    inconsistent, or unverifiable examples or source facts, report the exact
+    gap as BLOCKED or NEEDS_CONTEXT instead of broadening mechanical mode.
+
     ## Context
 
     [Scene-setting: where this fits, dependencies]

@@ -63,20 +63,21 @@ BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
-task-contract gate against the task text. Do not infer trigger applicability
-inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy. The
-gate verifies either a structurally complete `**Contract checklist:**` field or
-an explicit task-specific reason no checklist trigger applies. Present
-Contract Example Discipline obligations are part of the task contract; the
-executor only verifies obligations already included in task text; do not infer
-trigger applicability and do not decide whether Contract Example Discipline
-should have been required. In the case when task text includes Contract Example
-Discipline or an equivalent clearly labeled section/obligation, the gate
-requires post-change example proof that positive examples match the target
-post-change contract, not the pre-change contract; invalid examples mutate
-exactly one named contract dimension unless multi-fault behavior is intentional
-and named; and derived fields stay consistent with source facts or are
-explicitly justified. A no-trigger omission reason is trusted only when this
+task-contract gate against the extracted plan/task execution context. Do not
+infer trigger applicability inside `play-subagent-execution`; `play-planning`
+owns the trigger taxonomy. The gate verifies either a structurally complete
+`**Contract checklist:**` field or an explicit task-specific reason no
+checklist trigger applies. Present Contract Example Discipline obligations are
+part of the task contract; the executor only verifies obligations already
+included in extracted plan/task execution context; do not infer trigger
+applicability and do not decide whether Contract Example Discipline should have
+been required. In the case when extracted plan/task execution context includes
+Contract Example Discipline or an equivalent clearly labeled section/obligation,
+the gate requires post-change example proof that positive examples match the
+target post-change contract, not the pre-change contract; invalid examples
+mutate exactly one named contract dimension unless multi-fault behavior is
+intentional and named; and derived fields stay consistent with source facts or
+are explicitly justified. A no-trigger omission reason is trusted only when this
 controller can identify
 the upstream two-gate `play-planning` return for the plan being executed,
 meaning both Plan Review and Implementer Executability Review passed before

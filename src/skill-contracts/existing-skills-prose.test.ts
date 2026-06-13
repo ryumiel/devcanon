@@ -541,6 +541,9 @@ describe("existing skills source prose contracts", () => {
     const implementerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/implementer-prompt.md",
     );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
     );
@@ -549,6 +552,9 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedExecution = normalizeWhitespace(playSubagentExecution);
     const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
+    const normalizedMechanicalImplementerPrompt = normalizeWhitespace(
+      mechanicalImplementerPrompt,
+    );
     const normalizedSpecReviewerPrompt =
       normalizeWhitespace(specReviewerPrompt);
     const normalizedSkipDispatchPolicy =
@@ -564,11 +570,12 @@ describe("existing skills source prose contracts", () => {
     for (const executorMirrorSurface of [
       normalizedExecution,
       normalizedImplementerPrompt,
+      normalizedMechanicalImplementerPrompt,
       normalizedSpecReviewerPrompt,
       normalizedSkipDispatchPolicy,
     ]) {
       expect(executorMirrorSurface).toContain(
-        "when task text includes Contract Example Discipline or an equivalent clearly labeled section/obligation",
+        "when extracted plan/task execution context includes Contract Example Discipline or an equivalent clearly labeled section/obligation",
       );
       expect(executorMirrorSurface).toContain(
         "positive examples match the target post-change contract",
@@ -586,6 +593,17 @@ describe("existing skills source prose contracts", () => {
       expect(executorMirrorSurface).toContain("explicitly justified");
     }
 
+    expect(normalizedImplementerPrompt).toContain(
+      "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
+    );
+    expect(normalizedImplementerPrompt).toContain(
+      "unsupported, internally inconsistent, or unverifiable",
+    );
+
+    expect(normalizedMechanicalImplementerPrompt).toContain(
+      "Mechanical mode does not bypass present Contract Example Discipline obligations",
+    );
+
     const normalizedExecutorMirrorBlocks = normalizeWhitespace(
       [
         markdownBlocksContaining(
@@ -594,6 +612,10 @@ describe("existing skills source prose contracts", () => {
         ),
         markdownBlocksContaining(
           implementerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          mechanicalImplementerPrompt,
           /Contract Example Discipline/,
         ),
         markdownBlocksContaining(
