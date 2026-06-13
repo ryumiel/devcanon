@@ -37,16 +37,17 @@ Task tool (general-purpose):
     inspection cannot confirm, report NEEDS_CONTEXT or BLOCKED with the exact
     contract gap.
 
-    In the case when task text includes Contract Example Discipline, verify the
-    source-backed example consistency obligations after reading the relevant
-    contracts. Confirm positive examples match the target post-change contract,
-    not the pre-change contract; invalid examples mutate exactly one named
-    contract dimension unless multi-fault behavior is intentional and named; and
-    derived fields stay consistent with source facts or are explicitly
-    justified. Do not infer whether Contract Example Discipline should have been
-    required; `play-planning` owns that trigger taxonomy. If source inspection
-    contradicts the task's examples or source facts, report the exact gap as
-    NEEDS_CONTEXT or BLOCKED instead of guessing.
+    In the case when task text includes Contract Example Discipline or an
+    equivalent clearly labeled section/obligation, verify the source-backed
+    example consistency obligations after reading the relevant contracts.
+    Confirm positive examples match the target post-change contract, not the
+    pre-change contract; invalid examples mutate exactly one named contract
+    dimension unless multi-fault behavior is intentional and named; and derived
+    fields stay consistent with source facts or are explicitly justified. Do
+    not infer whether Contract Example Discipline should have been required;
+    `play-planning` owns that trigger taxonomy. If source inspection contradicts
+    the task's examples or source facts, report the exact gap as NEEDS_CONTEXT
+    or BLOCKED instead of guessing.
 
     ## Context
 

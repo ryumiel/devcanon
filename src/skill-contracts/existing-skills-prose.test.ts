@@ -562,7 +562,7 @@ describe("existing skills source prose contracts", () => {
       normalizedSpecReviewerPrompt,
     ]) {
       expect(executorMirrorSurface).toContain(
-        "when task text includes Contract Example Discipline",
+        "when task text includes Contract Example Discipline or an equivalent clearly labeled section/obligation",
       );
       expect(executorMirrorSurface).toContain(
         "positive examples match the target post-change contract",

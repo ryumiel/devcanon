@@ -71,12 +71,13 @@ Contract Example Discipline obligations are part of the task contract; the
 executor only verifies obligations already included in task text; do not infer
 trigger applicability and do not decide whether Contract Example Discipline
 should have been required. In the case when task text includes Contract Example
-Discipline, the gate requires post-change example proof that positive examples
-match the target post-change contract, not the pre-change contract; invalid
-examples mutate exactly one named contract dimension unless multi-fault behavior
-is intentional and named; and derived fields stay consistent with source facts
-or are explicitly justified. A
-no-trigger omission reason is trusted only when this controller can identify
+Discipline or an equivalent clearly labeled section/obligation, the gate
+requires post-change example proof that positive examples match the target
+post-change contract, not the pre-change contract; invalid examples mutate
+exactly one named contract dimension unless multi-fault behavior is intentional
+and named; and derived fields stay consistent with source facts or are
+explicitly justified. A no-trigger omission reason is trusted only when this
+controller can identify
 the upstream two-gate `play-planning` return for the plan being executed,
 meaning both Plan Review and Implementer Executability Review passed before
 `Plan written to <path>.` was emitted. Direct, hand-written, copied, or older
