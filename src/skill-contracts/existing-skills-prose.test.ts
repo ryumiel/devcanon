@@ -544,10 +544,15 @@ describe("existing skills source prose contracts", () => {
     const specReviewerPrompt = await readRepoFile(
       "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
     );
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
     const normalizedExecution = normalizeWhitespace(playSubagentExecution);
     const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
     const normalizedSpecReviewerPrompt =
       normalizeWhitespace(specReviewerPrompt);
+    const normalizedSkipDispatchPolicy =
+      normalizeWhitespace(skipDispatchPolicy);
 
     expect(normalizedExecution).toContain(
       "Do not infer trigger applicability inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy",
@@ -560,6 +565,7 @@ describe("existing skills source prose contracts", () => {
       normalizedExecution,
       normalizedImplementerPrompt,
       normalizedSpecReviewerPrompt,
+      normalizedSkipDispatchPolicy,
     ]) {
       expect(executorMirrorSurface).toContain(
         "when task text includes Contract Example Discipline or an equivalent clearly labeled section/obligation",
@@ -592,6 +598,10 @@ describe("existing skills source prose contracts", () => {
         ),
         markdownBlocksContaining(
           specReviewerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          skipDispatchPolicy,
           /Contract Example Discipline/,
         ),
       ].join("\n\n"),
