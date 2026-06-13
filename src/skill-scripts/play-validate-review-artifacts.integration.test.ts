@@ -80,6 +80,17 @@ async function makeLaterCheckoutWorkspace(): Promise<{
   return { cwd, baseSha, reviewHeadSha, laterHeadSha };
 }
 
+async function makeRiskSignalsWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const { cwd, baseSha, headSha } = await makeGitWorkspace();
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await execFileAsync("git", ["branch", "-f", "main", baseSha], { cwd });
+  return { cwd, baseSha, headSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
@@ -484,7 +495,7 @@ async function writeMarkerValidator(
 
 describe("play-validate-review-artifacts validator", () => {
   it("validates risk-signals artifacts without stdout", async () => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
     try {
       await writeJson(
         cwd,
@@ -609,7 +620,7 @@ describe("play-validate-review-artifacts validator", () => {
       stderr: "risk-signals changed files do not match expected range",
     },
   ])("rejects invalid risk-signals artifacts: $name", async (testCase) => {
-    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
     try {
       const artifact = testCase.artifact(baseSha, headSha);
       if (artifact !== undefined) {
@@ -639,7 +650,7 @@ describe("play-validate-review-artifacts validator", () => {
   });
 
   it("rejects malformed risk-signals JSON", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
     try {
       await writeFile(
         path.join(cwd, ".ephemeral/topic-risk-signals.json"),

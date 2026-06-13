@@ -37,6 +37,7 @@ async function makeRiskSignalsWorkspace(): Promise<{
   await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
   const baseSha = await git(cwd, "rev-parse", "HEAD");
 
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
   await writeFile(path.join(cwd, "src/app.ts"), "export const value = 1;\n");
   await execFileAsync("git", ["add", "."], { cwd });
   await execFileAsync("git", ["commit", "-m", "feat: add app"], { cwd });
@@ -311,6 +312,22 @@ describe("review artifact runtime reducers", () => {
       stderr: "risk-signals reviewed range mismatch",
     },
     {
+      name: "unsafe path",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha),
+      args: (headSha: string) =>
+        riskSignalsArgs(headSha, ".ephemeral/nested/topic-risk-signals.json"),
+      stderr: "nested --risk-signals-file path rejected",
+    },
+    {
+      name: "wrong suffix",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha),
+      args: (headSha: string) =>
+        riskSignalsArgs(headSha, ".ephemeral/topic-risk.json"),
+      stderr: "--risk-signals-file path validation failed",
+    },
+    {
       name: "changed-file contradiction",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {
@@ -325,6 +342,12 @@ describe("review artifact runtime reducers", () => {
       const artifact = testCase.artifact(baseSha, headSha);
       if (artifact !== undefined) {
         await writeJson(cwd, ".ephemeral/topic-risk-signals.json", artifact);
+        await writeJson(cwd, ".ephemeral/topic-risk.json", artifact);
+        await writeJson(
+          cwd,
+          ".ephemeral/nested/topic-risk-signals.json",
+          artifact,
+        );
       }
 
       await expect(
@@ -336,6 +359,26 @@ describe("review artifact runtime reducers", () => {
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(testCase.stderr),
+      });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects malformed risk-signals JSON", async () => {
+    const { cwd, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      process.chdir(cwd);
+      await writeFile(
+        path.join(cwd, ".ephemeral/topic-risk-signals.json"),
+        "{not-json",
+      );
+
+      await expect(
+        runReviewArtifactsCommand(riskSignalsArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("risk-signals JSON validation failed"),
       });
     } finally {
       await rm(cwd, { recursive: true, force: true });

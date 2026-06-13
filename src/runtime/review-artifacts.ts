@@ -40,8 +40,10 @@ interface ReviewArtifactOptions {
   reviewEvent: string;
   reviewPayloadFile: string;
   approvalSummaryFile: string;
+  riskSignalsFile: string;
   expectedFindingsFile: string;
   expectedScopeDecisionFile: string;
+  expectedReviewedRange: string;
   emitGateResult: boolean;
 }
 
@@ -64,8 +66,10 @@ const EMPTY_OPTIONS: ReviewArtifactOptions = {
   reviewEvent: "",
   reviewPayloadFile: "",
   approvalSummaryFile: "",
+  riskSignalsFile: "",
   expectedFindingsFile: "",
   expectedScopeDecisionFile: "",
+  expectedReviewedRange: "",
   emitGateResult: false,
 };
 
@@ -175,9 +179,12 @@ export async function runReviewArtifactsCommand(
         return ok(await compareApprovedPayload(options));
       case "validate-approval-summary":
         return ok(await validateApprovalSummary(options));
+      case "validate-risk-signals":
+        await validateRiskSignals(options);
+        return ok("");
       default:
         throw new ReviewArtifactsError(
-          "usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload|validate-approval-summary",
+          "usage: review-artifacts.sh validate-scope-decision|validate-prior-threads|validate-diff-anchors|compare-approved-payload|validate-approval-summary|validate-risk-signals",
         );
     }
   } catch (err) {
@@ -198,7 +205,7 @@ function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
     }
     const value = args[index + 1];
     if (value === undefined || value.length === 0) {
-      throw new ReviewArtifactsError(`${flag} requires a value`);
+      throw new ReviewArtifactsError(`${flag} is required`);
     }
     switch (flag) {
       case "--surface":
@@ -255,11 +262,17 @@ function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
       case "--approval-summary-file":
         options.approvalSummaryFile = value;
         break;
+      case "--risk-signals-file":
+        options.riskSignalsFile = value;
+        break;
       case "--expected-findings-file":
         options.expectedFindingsFile = value;
         break;
       case "--expected-scope-decision-file":
         options.expectedScopeDecisionFile = value;
+        break;
+      case "--expected-reviewed-range":
+        options.expectedReviewedRange = value;
         break;
       default:
         throw new ReviewArtifactsError(
@@ -969,6 +982,160 @@ async function validateApprovalSummary(
   })}\n`;
 }
 
+async function validateRiskSignals(
+  options: ReviewArtifactOptions,
+): Promise<void> {
+  await requireRepoRoot();
+  requireRiskSignalsFlags(options);
+  await validateHeadShaCommit(options.headSha);
+  await validateCurrentHead(options.headSha);
+  await assertReadableFile("--risk-signals-file", options.riskSignalsFile);
+  validateSuffix(
+    "--risk-signals-file",
+    options.riskSignalsFile,
+    "-risk-signals.json",
+  );
+
+  const riskSignals = await readSingleJsonObject(
+    options.riskSignalsFile,
+    "risk-signals JSON validation failed",
+  );
+  validateRiskSignalsSchema(riskSignals, options.expectedSchema);
+
+  const reviewedHeadSha = stringField(riskSignals, "reviewed_head_sha");
+  if (!isSha(reviewedHeadSha)) {
+    fail("risk-signals head is malformed");
+  }
+  if (reviewedHeadSha !== options.headSha) {
+    fail("risk-signals head mismatch");
+  }
+
+  const reviewedRange = stringField(riskSignals, "reviewed_range");
+  if (reviewedRange !== options.expectedReviewedRange) {
+    fail("risk-signals reviewed range mismatch");
+  }
+  await requireRangeExists(gitExecutionRange(reviewedRange, options.headSha));
+
+  const reviewedBaseSha = stringField(riskSignals, "reviewed_base_sha");
+  if (!(await gitRefExists(`${reviewedBaseSha}^{commit}`))) {
+    fail("risk-signals base sha does not resolve");
+  }
+
+  const expectedFiles = await changedFiles(
+    gitExecutionRange(reviewedRange, options.headSha),
+  );
+  const actualFiles = uniqueSorted(
+    stringArrayField(riskSignals, "changed_files"),
+  );
+  if (!jsonEqual(expectedFiles, actualFiles)) {
+    fail("risk-signals changed files do not match expected range");
+  }
+}
+
+function requireRiskSignalsFlags(options: ReviewArtifactOptions): void {
+  requireFlag("--surface", options.surface);
+  requireFlag("--head-sha", options.headSha);
+  requireFlag("--risk-signals-file", options.riskSignalsFile);
+  requireFlag("--expected-schema", options.expectedSchema);
+  requireFlag("--expected-reviewed-range", options.expectedReviewedRange);
+  if (options.surface !== "branch-review") {
+    fail("validate-risk-signals requires --surface branch-review");
+  }
+  if (options.expectedSchema !== "branch-review/risk-signals/v1") {
+    fail("--expected-schema must be branch-review/risk-signals/v1");
+  }
+}
+
+function validateRiskSignalsSchema(
+  riskSignals: JsonObject,
+  expectedSchema: string,
+): void {
+  try {
+    const topLevelKeys = [
+      "schema",
+      "producer",
+      "evidence_source",
+      "reviewed_base_ref",
+      "reviewed_base_sha",
+      "reviewed_head_sha",
+      "reviewed_range",
+      "changed_files",
+      "signals",
+      "canonical_docs_may_be_affected",
+      "end_user_diagnostics_may_be_affected",
+    ];
+    if (
+      !hasExactKeys(
+        riskSignals,
+        Object.hasOwn(riskSignals, "notes")
+          ? [...topLevelKeys, "notes"]
+          : topLevelKeys,
+      ) ||
+      stringField(riskSignals, "schema") !== expectedSchema ||
+      stringField(riskSignals, "producer") !== "play-subagent-execution" ||
+      stringField(riskSignals, "reviewed_base_ref").length === 0 ||
+      !isSha(stringField(riskSignals, "reviewed_base_sha")) ||
+      stringField(riskSignals, "reviewed_head_sha").length === 0 ||
+      stringField(riskSignals, "reviewed_range").length === 0 ||
+      !stringArrayField(riskSignals, "changed_files").every(
+        isSafeRiskSignalRepoPath,
+      ) ||
+      typeof riskSignals.canonical_docs_may_be_affected !== "boolean" ||
+      typeof riskSignals.end_user_diagnostics_may_be_affected !== "boolean" ||
+      (Object.hasOwn(riskSignals, "notes") &&
+        typeof riskSignals.notes !== "string")
+    ) {
+      fail("risk-signals schema mismatch");
+    }
+    validateRiskSignalsEvidenceSource(
+      objectField(riskSignals, "evidence_source"),
+    );
+    validateRiskSignalsSignals(objectField(riskSignals, "signals"));
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("risk-signals schema mismatch");
+    }
+    throw err;
+  }
+}
+
+function validateRiskSignalsEvidenceSource(evidenceSource: JsonObject): void {
+  const keys = Object.keys(evidenceSource);
+  if (
+    !keys.includes("kind") ||
+    !keys.every((key) => ["kind", "path", "summary"].includes(key)) ||
+    stringField(evidenceSource, "kind") !== "executor-terminal-handoff" ||
+    (Object.hasOwn(evidenceSource, "path") &&
+      !isSafeRiskSignalRepoPath(stringField(evidenceSource, "path"))) ||
+    (Object.hasOwn(evidenceSource, "summary") &&
+      typeof evidenceSource.summary !== "string")
+  ) {
+    fail("risk-signals schema mismatch");
+  }
+}
+
+function validateRiskSignalsSignals(signals: JsonObject): void {
+  const signalKeys = [
+    "user_facing_behavior",
+    "documentation_examples",
+    "diagnostics",
+    "contract",
+    "generated_output",
+    "governance_path",
+  ];
+  if (
+    !hasExactKeys(signals, signalKeys) ||
+    !signalKeys.every((key) =>
+      ["none", "present", "unknown"].includes(stringField(signals, key)),
+    )
+  ) {
+    fail("risk-signals schema mismatch");
+  }
+}
+
 function requireApprovalSummaryFlags(options: ReviewArtifactOptions): void {
   requireFlag("--approval-summary-file", options.approvalSummaryFile);
   requireFlag("--head-sha", options.headSha);
@@ -1541,6 +1708,13 @@ async function validateHeadShaCommit(headSha: string): Promise<void> {
   }
 }
 
+async function validateCurrentHead(headSha: string): Promise<void> {
+  const currentHead = (await git(["rev-parse", "HEAD"])).trim();
+  if (currentHead !== headSha) {
+    fail("--head-sha must match current repository HEAD");
+  }
+}
+
 async function assertReadableFile(label: string, file: string): Promise<void> {
   validateDirectChildPath(label, file);
   await assertEphemeralDirectory();
@@ -2092,6 +2266,15 @@ function isRepoPath(value: unknown): value is string {
     value
       .split("/")
       .every((part) => part !== "" && part !== "." && part !== "..")
+  );
+}
+
+function isSafeRiskSignalRepoPath(value: string): boolean {
+  return (
+    isRepoPath(value) &&
+    !value.startsWith("./") &&
+    !value.includes("\\") &&
+    !/^[A-Za-z]:/u.test(value)
   );
 }
 
