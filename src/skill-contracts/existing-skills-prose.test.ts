@@ -446,6 +446,21 @@ describe("existing skills source prose contracts", () => {
       );
     }
 
+    for (const tightenedExampleObligation of [
+      "positive examples",
+      "match the target post-change contract",
+      "not the pre-change contract",
+      "mutate exactly one named contract dimension",
+      "unless multi-fault behavior is intentional and named",
+      "source facts change",
+      "derived fields",
+      "explicitly justify",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(
+        tightenedExampleObligation,
+      );
+    }
+
     expect(normalizedContractExampleDiscipline).toContain(
       "Non-triggered plans state why no trigger applies",
     );
@@ -493,6 +508,15 @@ describe("existing skills source prose contracts", () => {
         "invalid example families derived from that canonical valid example",
       );
       expect(reviewSurface).toContain("out-of-scope invalid families");
+      expect(reviewSurface).toContain(
+        "positive examples match the target post-change contract",
+      );
+      expect(reviewSurface).toContain(
+        "invalid examples mutate exactly one named contract dimension",
+      );
+      expect(reviewSurface).toContain(
+        "derived fields stay consistent with source facts",
+      );
       expect(reviewSurface).toContain("fail");
     }
 
@@ -507,6 +531,77 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedDocumentationChecklists).toContain(
       "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
+  });
+
+  it("keeps executor mirrors narrow for plan-declared Contract Example Discipline", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const normalizedExecution = normalizeWhitespace(playSubagentExecution);
+    const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
+    const normalizedSpecReviewerPrompt =
+      normalizeWhitespace(specReviewerPrompt);
+
+    expect(normalizedExecution).toContain(
+      "Do not infer trigger applicability inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy",
+    );
+    expect(normalizedExecution).toContain(
+      "do not decide whether Contract Example Discipline should have been required",
+    );
+
+    for (const executorMirrorSurface of [
+      normalizedExecution,
+      normalizedImplementerPrompt,
+      normalizedSpecReviewerPrompt,
+    ]) {
+      expect(executorMirrorSurface).toContain(
+        "when task text includes Contract Example Discipline",
+      );
+      expect(executorMirrorSurface).toContain(
+        "positive examples match the target post-change contract",
+      );
+      expect(executorMirrorSurface).toContain("not the pre-change contract");
+      expect(executorMirrorSurface).toContain(
+        "invalid examples mutate exactly one named contract dimension",
+      );
+      expect(executorMirrorSurface).toContain(
+        "unless multi-fault behavior is intentional and named",
+      );
+      expect(executorMirrorSurface).toContain(
+        "derived fields stay consistent with source facts",
+      );
+      expect(executorMirrorSurface).toContain("explicitly justified");
+    }
+
+    const normalizedExecutorMirrorBlocks = normalizeWhitespace(
+      [
+        markdownBlocksContaining(
+          playSubagentExecution,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          implementerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          specReviewerPrompt,
+          /Contract Example Discipline/,
+        ),
+      ].join("\n\n"),
+    );
+
+    expect(normalizedExecutorMirrorBlocks).not.toMatch(
+      /plans? that changes? schemas, APIs, function shapes, artifacts, CLI output, helper I\/O contracts, or cross-skill contracts must include/i,
+    );
+    expect(normalizedExecutorMirrorBlocks).not.toMatch(
+      /requires? Contract Example Discipline for contract-changing plans/i,
     );
   });
 
