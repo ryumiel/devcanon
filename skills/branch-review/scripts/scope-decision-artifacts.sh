@@ -139,6 +139,10 @@ append_unique_reason() {
   fi
 }
 
+append_trigger() {
+  append_unique_reason "$1" "$2"
+}
+
 reason_list_json() {
   local reasons="$1"
 
@@ -426,6 +430,7 @@ risk_signals_validation_failed() {
 
 classify_valid_risk_signals() {
   local reasons=""
+  local triggers=""
   local values_json unknown_count no_escalation
 
   if ! values_json="$(jq -c '
@@ -449,12 +454,30 @@ classify_valid_risk_signals() {
   if [ "$unknown_count" -gt 0 ]; then
     reasons="$(append_unique_reason "$reasons" "ambiguous-classification")"
   fi
+  for signal_name in user_facing_behavior documentation_examples diagnostics contract generated_output governance_path; do
+    if [ "$(printf '%s\n' "$values_json" | jq -r --arg signal "$signal_name" '.[$signal]')" = "unknown" ]; then
+      triggers="$(append_trigger "$triggers" "$signal_name")"
+    fi
+  done
 
   if [ "$(printf '%s\n' "$values_json" | jq -r '.generated_output')" = "present" ]; then
     reasons="$(append_unique_reason "$reasons" "generated-output-contract")"
+    triggers="$(append_trigger "$triggers" "generated_output")"
   fi
   if [ "$(printf '%s\n' "$values_json" | jq -r '.governance_path')" = "present" ]; then
     reasons="$(append_unique_reason "$reasons" "shared-workflow-policy")"
+    triggers="$(append_trigger "$triggers" "governance_path")"
+  fi
+  for signal_name in contract documentation_examples diagnostics user_facing_behavior; do
+    if [ "$(printf '%s\n' "$values_json" | jq -r --arg signal "$signal_name" '.[$signal]')" = "present" ]; then
+      triggers="$(append_trigger "$triggers" "$signal_name")"
+    fi
+  done
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.canonical_docs_may_be_affected')" = "true" ]; then
+    triggers="$(append_trigger "$triggers" "canonical_docs_may_be_affected")"
+  fi
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.end_user_diagnostics_may_be_affected')" = "true" ]; then
+    triggers="$(append_trigger "$triggers" "end_user_diagnostics_may_be_affected")"
   fi
   if printf '%s\n' "$values_json" | jq -e '
     .contract == "present" or
@@ -478,7 +501,7 @@ classify_valid_risk_signals() {
     emit_risk_signals_classification \
       "valid-escalate" \
       "$reasons" \
-      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons."
+      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
   else
     emit_risk_signals_classification \
       "valid-no-escalation" \

@@ -431,6 +431,21 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
         riskSignalsFile,
       );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "documentation_examples",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "generated_output",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "governance_path",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "canonical_docs_may_be_affected",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "end_user_diagnostics_may_be_affected",
+      );
       expect(result.stdout).not.toContain("prior_findings_validation");
       expect(result.stdout).not.toContain("narrow_allowed");
     } finally {
