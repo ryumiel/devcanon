@@ -25,10 +25,7 @@ const PR_REVIEW_MANIFEST_NOTICE_LINES = [
   "PR review result manifest updated at <repo-relative-path>.",
 ] as const;
 
-function shellFunctionBody(
-  content: string,
-  functionName: string,
-): string {
+function shellFunctionBody(content: string, functionName: string): string {
   const start = content.indexOf(`${functionName}() {`);
 
   expect(start).toBeGreaterThanOrEqual(0);
