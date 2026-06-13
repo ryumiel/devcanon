@@ -359,6 +359,94 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedBoundaryTraceability).toContain("command recipes");
   });
 
+  it("keeps play-planning contract example discipline required for contract-changing plans", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const contractExampleDiscipline = getMarkdownSection(
+      playPlanning,
+      "Contract Example Discipline",
+    );
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const implementerExecutabilityReview = getMarkdownSection(
+      playPlanning,
+      "Implementer Executability Review",
+    );
+    const normalizedContractExampleDiscipline = normalizeWhitespace(
+      contractExampleDiscipline,
+    );
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+    const normalizedExecutabilityReview = normalizeWhitespace(
+      implementerExecutabilityReview,
+    );
+
+    for (const trigger of [
+      "schemas",
+      "APIs",
+      "function shapes",
+      "artifacts",
+      "CLI output",
+      "helper I/O contracts",
+      "cross-skill contracts",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(trigger);
+    }
+
+    for (const requiredSectionContent of [
+      "canonical valid post-change example",
+      "source authority",
+      "invalid example families derived from that canonical valid example",
+      "required proof",
+      "out-of-scope invalid families",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(
+        requiredSectionContent,
+      );
+    }
+
+    expect(normalizedContractExampleDiscipline).toContain(
+      "Non-triggered plans state why no trigger applies",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "Invalid examples without that canonical valid anchor are insufficient",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "minimal, verifiable, and contract-focused",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "incidental phrasing",
+    );
+    expect(normalizedContractExampleDiscipline).toContain("task history");
+    expect(normalizedContractExampleDiscipline).toContain("comment wording");
+    expect(normalizedContractExampleDiscipline).toContain(
+      "reviewer preference",
+    );
+    expect(
+      normalizedContractExampleDiscipline.indexOf(
+        "canonical valid post-change example",
+      ),
+    ).toBeLessThan(
+      normalizedContractExampleDiscipline.indexOf(
+        "invalid example families derived from that canonical valid example",
+      ),
+    );
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+      normalizedExecutabilityReview,
+    ]) {
+      expect(reviewSurface).toContain("Contract Example Discipline");
+      expect(reviewSurface).toContain("canonical valid post-change example");
+      expect(reviewSurface).toContain(
+        "invalid example families derived from that canonical valid example",
+      );
+      expect(reviewSurface).toContain("out-of-scope invalid families");
+      expect(reviewSurface).toContain("fail");
+    }
+  });
+
   it("keeps boundary-changing brainstorm designs contract-decision complete", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const contractDecisions = getMarkdownSection(
