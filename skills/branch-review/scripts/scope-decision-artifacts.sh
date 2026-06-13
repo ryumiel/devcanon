@@ -124,6 +124,78 @@ reason_list_json() {
   fi
 }
 
+scope_reason_codes_json() {
+  local reasons="$1"
+  local is_followup_narrow="$2"
+  local semantic_ambiguous="$3"
+
+  if [ "$is_followup_narrow" = "true" ]; then
+    printf '["narrow_allowed"]\n'
+    return
+  fi
+
+  printf '%s\n' "$reasons" |
+    jq -R -c --argjson semantic_ambiguous "$semantic_ambiguous" '
+      def code_for_reason:
+        if . == "not-followup" or . == "last-reviewed-unusable" then
+          "range_validation"
+        elif . == "file-count" then
+          "file_count"
+        elif . == "governance-path" or . == "configured-path" then
+          "governed_path"
+        elif
+          . == "public-api" or
+          . == "reviewer-routing-policy" or
+          . == "output-schema" or
+          . == "install-sync" or
+          . == "generated-output-renderer" or
+          . == "generated-output-contract" or
+          . == "architecture-surface"
+        then
+          "language_or_surface_change"
+        elif
+          . == "logic-restructure" or
+          . == "path-validation-guard" or
+          . == "external-invocation-guard" or
+          . == "source-owned-contract" or
+          . == "safety-boundary" or
+          . == "broad-scope" or
+          . == "shared-workflow-policy" or
+          . == "ambiguous-classification"
+        then
+          "semantic_contract_risk"
+        else
+          error("unmapped scope escalation reason: " + .)
+        end;
+
+      split(",")
+      | map(select(length > 0) | code_for_reason)
+      | if $semantic_ambiguous then . + ["semantic_contract_risk"] else . end
+      | unique
+      | if length == 0 then error("full scope decision requires mapped reason code") else . end
+    ' || fail "scope reason code derivation failed"
+}
+
+scope_explanation() {
+  local is_followup_narrow="$1"
+  local selection_reason="$2"
+  local semantic_notes="$3"
+
+  if [ "$is_followup_narrow" = "true" ]; then
+    if [ -n "$semantic_notes" ]; then
+      printf '%s\n' "$semantic_notes"
+    else
+      printf 'Follow-up review remains narrow because mechanical and semantic scope checks passed.\n'
+    fi
+  elif [ "$selection_reason" = "not-followup" ]; then
+    printf 'Initial review uses the full review range.\n'
+  elif [ -n "$semantic_notes" ]; then
+    printf '%s\n' "$semantic_notes"
+  else
+    printf 'Full review is required because scope escalation checks matched: %s.\n' "$selection_reason"
+  fi
+}
+
 json_array_from_env() {
   local name="$1"
   require_env "$name"
@@ -423,6 +495,7 @@ finalize_scope_decision() {
   local file expected tmp_file
   local mode last_reviewed_json prior_kind prior_path_json
   local reasons escalation_reasons_json selection_reason
+  local scope_reason_codes scope_explanation_text
   local semantic_notes semantic_ambiguous
   local changed_files_json language_hints_json
 
@@ -486,6 +559,8 @@ finalize_scope_decision() {
     [ -z "$semantic_notes" ]; then
     fail "semantic escalation reason or notes are required for semantic full escalation"
   fi
+  scope_reason_codes="$(scope_reason_codes_json "$reasons" "$IS_FOLLOWUP_NARROW" "$semantic_ambiguous")"
+  scope_explanation_text="$(scope_explanation "$IS_FOLLOWUP_NARROW" "$selection_reason" "$semantic_notes")"
 
   changed_files_json="$(json_array_from_env FINAL_CHANGED_FILES_JSON)"
   language_hints_json="$(json_array_from_env FINAL_LANGUAGE_HINTS_JSON)"
@@ -499,12 +574,14 @@ finalize_scope_decision() {
     --arg full_range "$FULL_DIFF_RANGE" \
     --arg candidate_range "$CANDIDATE_ACTIVE_DIFF_RANGE" \
     --arg selection_reason "$selection_reason" \
+    --arg scope_explanation "$scope_explanation_text" \
     --arg head_sha "$HEAD_SHA" \
     --arg prior_kind "$prior_kind" \
     --arg mechanical_reason "${MECHANICAL_ESCALATION_REASON:-}" \
     --arg notes "$semantic_notes" \
     --argjson is_narrow "$IS_FOLLOWUP_NARROW" \
     --argjson escalation_reasons "$escalation_reasons_json" \
+    --argjson scope_reason_codes "$scope_reason_codes" \
     --argjson last_reviewed "$last_reviewed_json" \
     --argjson changed_files "$changed_files_json" \
     --argjson language_hints "$language_hints_json" \
@@ -523,6 +600,8 @@ finalize_scope_decision() {
       is_followup_narrow: $is_narrow,
       selection_reason: $selection_reason,
       escalation_reasons: $escalation_reasons,
+      scope_reason_codes: $scope_reason_codes,
+      scope_explanation: $scope_explanation,
       last_reviewed_sha: $last_reviewed,
       head_sha: $head_sha,
       changed_files: $changed_files,
