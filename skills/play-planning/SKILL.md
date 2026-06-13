@@ -430,9 +430,22 @@ post-change contract shape needed to prove validity, names the observable proof
 surface, and avoids overfitting to incidental phrasing, task history, comment
 wording, or reviewer preference. Invalid families must be derived from the
 canonical valid shape rather than invented from comment evidence, task history,
-or reviewer preference. The section identifies example and proof obligations
-only; it must not include plan-authored implementation code, test bodies,
-fixture contents, shell recipes, helper-name prescriptions, or command recipes.
+or reviewer preference.
+
+The discipline is broad example policy, not fixture-only policy. The positive
+examples, fixtures, API samples, helper I/O samples, CLI output samples, and
+cross-skill artifact examples must match the target post-change contract, not
+the pre-change contract. The invalid examples should mutate exactly one named
+contract dimension from the canonical valid example unless multi-fault behavior
+is intentional and named. When source facts change, derived fields in examples
+or fixtures stay consistent with source facts, or the plan must explicitly
+justify why a derived field remains unchanged. These rules do not require
+exhaustive invalid examples for every field; the plan names representative
+invalid families and any intentionally out-of-scope invalid families.
+
+The section identifies example and proof obligations only; it must not include
+plan-authored implementation code, test bodies, fixture contents, shell recipes,
+helper-name prescriptions, or command recipes.
 
 ## Requirements Traceability
 
@@ -747,8 +760,12 @@ helper I/O contracts, or cross-skill contracts, fail and fix the plan unless
 it includes Contract Example Discipline or an equivalent clearly labeled
 section naming a canonical valid post-change example, source authority, invalid
 example families derived from that canonical valid example, required proof, and
-out-of-scope invalid families. For non-triggered plans, confirm the plan states
-why no trigger applies.
+out-of-scope invalid families. Fail and fix triggered plans unless positive
+examples match the target post-change contract, not the pre-change contract;
+invalid examples mutate exactly one named contract dimension unless multi-fault
+behavior is intentional and named; and derived fields stay consistent with
+source facts or are explicitly justified. For non-triggered plans, confirm the
+plan states why no trigger applies.
 
 **6. Contract checklist completeness:** For every required checklist, confirm
 each field is populated or marked `N/A` with a task-specific reason. Blank
@@ -918,8 +935,11 @@ inline content remains valid.
   Example Discipline or an equivalent clearly labeled section naming a
   canonical valid post-change example, source authority, invalid example
   families derived from that canonical valid example, required proof, and
-  out-of-scope invalid families; non-triggered plans state why no trigger
-  applies
+  out-of-scope invalid families; positive examples match the target
+  post-change contract, not the pre-change contract; invalid examples mutate
+  exactly one named contract dimension unless multi-fault behavior is
+  intentional and named; derived fields stay consistent with source facts or
+  are explicitly justified; non-triggered plans state why no trigger applies
 - Every checklist field is populated or marked `N/A` with a task-specific
   reason; blank fields, unreplaced placeholders, and unexplained `N/A` entries
   are failures
@@ -1032,7 +1052,10 @@ controller memory.
   omits a canonical valid post-change example, lacks source authority, lists
   invalid example families derived from that canonical valid example
   incorrectly or not at all, omits required proof, or omits out-of-scope
-  invalid families
+  invalid families. They also fail unless positive examples match the target
+  post-change contract, invalid examples mutate exactly one named contract
+  dimension unless multi-fault behavior is intentional and named, and derived
+  fields stay consistent with source facts or are explicitly justified
 - Unknown source policy, ownership, side effects, evidence, or allowed outcomes
   are named as blockers or assumptions instead of invented
 - The plan preserves the rule against plan-authored implementation code, test
