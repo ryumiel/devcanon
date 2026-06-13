@@ -121,6 +121,40 @@ const SEMANTIC_ESCALATION_REASONS = new Set([
   "shared-workflow-policy",
 ]);
 
+const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
+  "governed_path",
+  "file_count",
+  "range_validation",
+  "language_or_surface_change",
+  "semantic_contract_risk",
+  "narrow_allowed",
+]);
+
+const RESERVED_BRANCH_SCOPE_REASON_CODES = new Set([
+  "prior_findings_validation",
+]);
+
+const SURFACE_CHANGE_ESCALATION_REASONS = new Set([
+  "public-api",
+  "reviewer-routing-policy",
+  "output-schema",
+  "install-sync",
+  "generated-output-renderer",
+  "generated-output-contract",
+  "architecture-surface",
+]);
+
+const CONTRACT_RISK_ESCALATION_REASONS = new Set([
+  "logic-restructure",
+  "path-validation-guard",
+  "external-invocation-guard",
+  "source-owned-contract",
+  "safety-boundary",
+  "broad-scope",
+  "shared-workflow-policy",
+  "ambiguous-classification",
+]);
+
 export async function runReviewArtifactsCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
@@ -292,6 +326,9 @@ async function validateScopeDecision(
   const semanticChecked = booleanField(semanticDecision, "checked");
   const semanticAmbiguous = booleanField(semanticDecision, "ambiguous");
 
+  const scopeReasonCodes =
+    options.surface === "branch-review" ? branchScopeReasonCodes(scope) : [];
+
   rejectUnknownEscalationReasons(escalationReasons);
   if (!semanticChecked) {
     fail("semantic decision must be checked");
@@ -432,6 +469,7 @@ async function validateScopeDecision(
     let hasRealFollowupTrigger = false;
     let derivedMechanicalEscalate = false;
     const derivedMechanicalReasons: string[] = [];
+    const derivedMechanicalScopeCodes = new Set<string>();
 
     if (!followupUsable) {
       if (isNarrow) {
@@ -455,6 +493,7 @@ async function validateScopeDecision(
       hasRealFollowupTrigger = true;
       derivedMechanicalEscalate = true;
       derivedMechanicalReasons.push("last-reviewed-unusable");
+      derivedMechanicalScopeCodes.add("range_validation");
     }
 
     if (followupUsable) {
@@ -478,6 +517,7 @@ async function validateScopeDecision(
         hasRealFollowupTrigger = true;
         derivedMechanicalEscalate = true;
         derivedMechanicalReasons.push("file-count");
+        derivedMechanicalScopeCodes.add("file_count");
       } else if (reasonPresent(escalationReasons, "file-count")) {
         fail("file-count escalation reason missing");
       }
@@ -492,6 +532,7 @@ async function validateScopeDecision(
         hasRealFollowupTrigger = true;
         derivedMechanicalEscalate = true;
         derivedMechanicalReasons.push("governance-path");
+        derivedMechanicalScopeCodes.add("governed_path");
       } else if (reasonPresent(escalationReasons, "governance-path")) {
         fail("governance-path escalation reason missing");
       }
@@ -506,6 +547,7 @@ async function validateScopeDecision(
         hasRealFollowupTrigger = true;
         derivedMechanicalEscalate = true;
         derivedMechanicalReasons.push("configured-path");
+        derivedMechanicalScopeCodes.add("governed_path");
       } else if (reasonPresent(escalationReasons, "configured-path")) {
         fail("configured-path escalation reason missing");
       }
@@ -527,6 +569,12 @@ async function validateScopeDecision(
       fail("mechanical escalation reason does not match git");
     }
 
+    if (
+      reasonPresent(escalationReasons, "ambiguous-classification") &&
+      !semanticAmbiguous
+    ) {
+      fail("ambiguous-classification escalation reason missing");
+    }
     if (semanticAmbiguous) {
       hasRealFollowupTrigger = true;
     } else if (
@@ -535,8 +583,6 @@ async function validateScopeDecision(
       )
     ) {
       hasRealFollowupTrigger = true;
-    } else if (reasonPresent(escalationReasons, "ambiguous-classification")) {
-      fail("ambiguous-classification escalation reason missing");
     }
 
     if (reasonPresent(escalationReasons, "not-followup")) {
@@ -545,11 +591,28 @@ async function validateScopeDecision(
     if (!isNarrow && !hasRealFollowupTrigger) {
       fail("full follow-up requires justified escalation");
     }
+    if (options.surface === "branch-review") {
+      validateBranchScopeReasonConsistency(scopeReasonCodes, {
+        isNarrow,
+        isInitial: false,
+        escalationReasons,
+        semanticAmbiguous,
+        expectedMechanicalCodes: derivedMechanicalScopeCodes,
+      });
+    }
   } else if (
     !mechanicalEscalate ||
     artifactMechanicalReason !== "not-followup"
   ) {
     fail("mechanical escalation does not match git");
+  } else if (options.surface === "branch-review") {
+    validateBranchScopeReasonConsistency(scopeReasonCodes, {
+      isNarrow,
+      isInitial: true,
+      escalationReasons,
+      semanticAmbiguous,
+      expectedMechanicalCodes: new Set(["range_validation"]),
+    });
   }
 
   const priorContext = objectField(scope, "prior_context");
@@ -1210,25 +1273,44 @@ function validateScopeShapeSchema(
   scope: JsonObject,
   expectedSchema: string,
 ): void {
+  const baseScopeKeys = [
+    "schema",
+    "surface",
+    "mode",
+    "selected_range",
+    "full_range",
+    "candidate_narrow_range",
+    "is_followup_narrow",
+    "selection_reason",
+    "escalation_reasons",
+    "last_reviewed_sha",
+    "head_sha",
+    "changed_files",
+    "language_hints",
+    "prior_context",
+    "mechanical_facts",
+    "semantic_decision",
+  ];
+  const expectedScopeKeys =
+    expectedSchema === "branch-review/scope-decision/v1"
+      ? [...baseScopeKeys, "scope_reason_codes", "scope_explanation"]
+      : baseScopeKeys;
+
   if (
-    !hasExactKeys(scope, [
-      "schema",
-      "surface",
-      "mode",
-      "selected_range",
-      "full_range",
-      "candidate_narrow_range",
-      "is_followup_narrow",
-      "selection_reason",
-      "escalation_reasons",
-      "last_reviewed_sha",
-      "head_sha",
-      "changed_files",
-      "language_hints",
-      "prior_context",
-      "mechanical_facts",
-      "semantic_decision",
-    ]) ||
+    expectedSchema === "branch-review/scope-decision/v1" &&
+    !Object.hasOwn(scope, "scope_reason_codes")
+  ) {
+    fail("scope_reason_codes is required");
+  }
+  if (
+    expectedSchema === "branch-review/scope-decision/v1" &&
+    !Object.hasOwn(scope, "scope_explanation")
+  ) {
+    fail("scope_explanation is required");
+  }
+
+  if (
+    !hasExactKeys(scope, expectedScopeKeys) ||
     stringField(scope, "schema") !== expectedSchema ||
     !["pr-review", "branch-review"].includes(stringField(scope, "surface")) ||
     !["initial", "follow-up"].includes(stringField(scope, "mode")) ||
@@ -1248,6 +1330,10 @@ function validateScopeShapeSchema(
     )
   ) {
     fail("scope decision schema mismatch");
+  }
+
+  if (expectedSchema === "branch-review/scope-decision/v1") {
+    validateBranchScopeReasonShape(scope);
   }
 
   const priorContext = objectField(scope, "prior_context");
@@ -1286,6 +1372,89 @@ function validateScopeShapeSchema(
     typeof semanticDecision.notes !== "string"
   ) {
     fail("scope decision schema mismatch");
+  }
+}
+
+function validateBranchScopeReasonShape(scope: JsonObject): void {
+  const codes = branchScopeReasonCodes(scope);
+  const explanation = stringField(scope, "scope_explanation");
+  if (explanation.trim().length === 0) {
+    fail("scope_explanation must not be empty");
+  }
+
+  const seen = new Set<string>();
+  for (const code of codes) {
+    if (RESERVED_BRANCH_SCOPE_REASON_CODES.has(code)) {
+      fail(`reserved scope reason code: ${code}`);
+    }
+    if (!ACCEPTED_BRANCH_SCOPE_REASON_CODES.has(code)) {
+      fail(`unknown scope reason code: ${code}`);
+    }
+    if (seen.has(code)) {
+      fail(`duplicate scope reason code: ${code}`);
+    }
+    seen.add(code);
+  }
+}
+
+function branchScopeReasonCodes(scope: JsonObject): string[] {
+  if (!Array.isArray(scope.scope_reason_codes)) {
+    fail("scope_reason_codes must be an array");
+  }
+  if (
+    !scope.scope_reason_codes.every((code) => typeof code === "string") ||
+    !stringArrayField(scope, "scope_reason_codes").every(
+      (code) => code.length > 0,
+    )
+  ) {
+    fail("scope_reason_codes must contain non-empty strings");
+  }
+  return stringArrayField(scope, "scope_reason_codes");
+}
+
+function validateBranchScopeReasonConsistency(
+  scopeReasonCodes: string[],
+  facts: {
+    isNarrow: boolean;
+    isInitial: boolean;
+    escalationReasons: readonly string[];
+    semanticAmbiguous: boolean;
+    expectedMechanicalCodes: ReadonlySet<string>;
+  },
+): void {
+  const actualCodes = new Set(scopeReasonCodes);
+  if (facts.isNarrow) {
+    if (
+      scopeReasonCodes.length !== 1 ||
+      scopeReasonCodes[0] !== "narrow_allowed"
+    ) {
+      fail("narrow follow-up requires scope_reason_codes narrow_allowed");
+    }
+    return;
+  }
+
+  if (actualCodes.has("narrow_allowed")) {
+    fail("narrow_allowed requires narrow follow-up scope");
+  }
+  if (facts.isInitial && !actualCodes.has("range_validation")) {
+    fail("initial full review requires scope_reason_codes range_validation");
+  }
+
+  const expectedCodes = new Set(facts.expectedMechanicalCodes);
+  for (const reason of facts.escalationReasons) {
+    if (SURFACE_CHANGE_ESCALATION_REASONS.has(reason)) {
+      expectedCodes.add("language_or_surface_change");
+    }
+    if (CONTRACT_RISK_ESCALATION_REASONS.has(reason)) {
+      expectedCodes.add("semantic_contract_risk");
+    }
+  }
+  if (facts.semanticAmbiguous) {
+    expectedCodes.add("semantic_contract_risk");
+  }
+
+  if (!setEquals(actualCodes, expectedCodes)) {
+    fail("scope reason codes do not match escalation reasons");
   }
 }
 
@@ -2080,6 +2249,10 @@ function jsonEqual(left: unknown, right: unknown): boolean {
     );
   }
   return false;
+}
+
+function setEquals<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
+  return left.size === right.size && [...left].every((item) => right.has(item));
 }
 
 function ok(stdout: string): RuntimeCommandOutcome {

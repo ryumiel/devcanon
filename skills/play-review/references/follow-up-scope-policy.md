@@ -77,4 +77,7 @@ If every mechanical and semantic check clearly passes, set
 `is_followup_narrow = true`.
 
 After that final selection, recompute `language_hints` from the final
-`active_diff_range` and only then invoke `play-review`.
+`active_diff_range` and only then invoke `play-review`. Wrappers that emit a
+validated scope-decision artifact may surface its reason fields for operator or
+downstream-tool explanation, but this reference remains the full-vs-narrow
+selection-policy authority.

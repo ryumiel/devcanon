@@ -203,6 +203,12 @@ function initialScope(
     changed_files: ["src/app.ts"],
     language_hints: ["ts"],
     escalation_reasons: ["not-followup"],
+    ...(surface === "branch-review"
+      ? {
+          scope_reason_codes: ["range_validation"],
+          scope_explanation: "Initial review uses the full review range.",
+        }
+      : {}),
     prior_context: priorContext,
     mechanical_facts: {
       changed_file_count: 1,
@@ -233,6 +239,8 @@ function narrowScope(
     is_followup_narrow: true,
     selection_reason: "Follow-up review uses the last-reviewed SHA range.",
     escalation_reasons: [],
+    scope_reason_codes: ["narrow_allowed"],
+    scope_explanation: "Follow-up review uses the last-reviewed SHA range.",
     prior_context: {
       kind: "branch-findings",
       path: ".ephemeral/topic-findings.json",
@@ -243,6 +251,23 @@ function narrowScope(
       mechanical_escalate_full: false,
       mechanical_escalation_reason: "",
     },
+  };
+}
+
+function prReviewNarrowScope(
+  baseSha: string,
+  firstSha: string,
+  headSha: string,
+): JsonObject {
+  const {
+    scope_reason_codes: _codes,
+    scope_explanation: _explanation,
+    ...scope
+  } = narrowScope(baseSha, firstSha, headSha);
+  return {
+    ...scope,
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
   };
 }
 
@@ -824,6 +849,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Configured path escalates the follow-up to full review.",
         escalation_reasons: ["configured-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Configured path escalates the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -932,6 +960,31 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("rejects branch-review reason fields on pr-review scope decisions", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...initialScope(baseSha, headSha, "pr-review"),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Initial review uses the full review range.",
+      });
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-scope-decision", [
+          ...scopeArgs(
+            headSha,
+            baseSha,
+            ".ephemeral/topic-scope-decision.json",
+            "pr-review",
+          ),
+        ]),
+        "scope decision schema mismatch",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("derives initial scope facts from the review head sha when checkout has advanced", async () => {
     const { cwd, baseSha, reviewHeadSha, laterHeadSha } =
       await makeLaterCheckoutWorkspace();
@@ -992,6 +1045,130 @@ describe("play-validate-review-artifacts validator", () => {
           branchFollowupScopeArgs(headSha, baseSha),
         ),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "missing scope_reason_codes",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => {
+        const { scope_reason_codes: _omitted, ...scope } = initialScope(
+          baseSha,
+          headSha,
+        );
+        return scope;
+      },
+      args: "initial",
+      stderr: "scope_reason_codes is required",
+    },
+    {
+      name: "missing scope_explanation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => {
+        const { scope_explanation: _omitted, ...scope } = initialScope(
+          baseSha,
+          headSha,
+        );
+        return scope;
+      },
+      args: "initial",
+      stderr: "scope_explanation is required",
+    },
+    {
+      name: "empty scope_explanation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "",
+      }),
+      args: "initial",
+      stderr: "scope_explanation must not be empty",
+    },
+    {
+      name: "unknown scope reason code",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["range_validation", "unknown_code"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "unknown scope reason code",
+    },
+    {
+      name: "reserved prior_findings_validation code",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["prior_findings_validation"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "reserved scope reason code: prior_findings_validation",
+    },
+    {
+      name: "narrow_allowed on full escalation",
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        scope_reason_codes: ["narrow_allowed"],
+        scope_explanation: "Initial review uses the full review range.",
+      }),
+      args: "initial",
+      stderr: "narrow_allowed requires narrow follow-up scope",
+    },
+    {
+      name: "missing narrow_allowed on narrow approval",
+      buildScope: (baseSha: string, firstSha: string, headSha: string) => ({
+        ...narrowScope(baseSha, firstSha, headSha),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Follow-up review uses the last-reviewed SHA range.",
+      }),
+      args: "follow-up",
+      stderr: "narrow follow-up requires scope_reason_codes narrow_allowed",
+    },
+    {
+      name: "range-validation escalation code mismatch",
+      buildScope: (baseSha: string, firstSha: string, headSha: string) => ({
+        ...initialScope(baseSha, headSha),
+        mode: "follow-up",
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        selection_reason: "Public API changes require full follow-up review.",
+        escalation_reasons: ["public-api"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Public API changes require full follow-up review.",
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: true,
+          mechanical_escalate_full: false,
+          mechanical_escalation_reason: "",
+        },
+      }),
+      args: "follow-up",
+      stderr: "scope reason codes do not match escalation reasons",
+    },
+  ])("rejects invalid scope reason fields: $name", async (testCase) => {
+    const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        testCase.buildScope(baseSha, firstSha, headSha),
+      );
+
+      await expectRejectsWith(
+        runValidator(
+          cwd,
+          "validate-scope-decision",
+          testCase.args === "follow-up"
+            ? branchFollowupScopeArgs(headSha, baseSha)
+            : scopeArgs(headSha, baseSha),
+        ),
+        testCase.stderr,
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -1084,6 +1261,8 @@ describe("play-validate-review-artifacts validator", () => {
         mode: "follow-up",
         selection_reason: "File count escalates the follow-up to full review.",
         escalation_reasons: ["file-count"],
+        scope_reason_codes: ["file_count"],
+        scope_explanation: "File count escalates the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -1137,6 +1316,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "File count and governance paths escalate the follow-up to full review.",
         escalation_reasons: ["file-count", "governance-path"],
+        scope_reason_codes: ["file_count", "governed_path"],
+        scope_explanation:
+          "File count and governance paths escalate the follow-up to full review.",
         last_reviewed_sha: firstSha,
         candidate_narrow_range: `${firstSha}..HEAD`,
         prior_context: {
@@ -1197,6 +1379,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Public API changes require the full follow-up review range.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation:
+          "Public API changes require the full follow-up review range.",
         last_reviewed_sha: lastReviewedSha,
         candidate_narrow_range: `${lastReviewedSha}..HEAD`,
         prior_context: {
@@ -1261,6 +1446,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Governance path escalates the follow-up to full review.",
         escalation_reasons: ["governance-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Governance path escalates the follow-up to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1301,6 +1489,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Configured path escalates the follow-up to full review.",
         escalation_reasons: ["configured-path"],
+        scope_reason_codes: ["governed_path"],
+        scope_explanation:
+          "Configured path escalates the follow-up to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1471,6 +1662,9 @@ describe("play-validate-review-artifacts validator", () => {
           selection_reason:
             "Governance path escalates the follow-up to full review.",
           escalation_reasons: ["governance-path"],
+          scope_reason_codes: ["governed_path"],
+          scope_explanation:
+            "Governance path escalates the follow-up to full review.",
           last_reviewed_sha: firstSha,
           candidate_narrow_range: `${firstSha}..HEAD`,
           prior_context: {
@@ -1508,6 +1702,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Public API changes require full follow-up review.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1534,6 +1730,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Follow-up full review lacks explicit escalation.",
         escalation_reasons: [],
+        scope_reason_codes: [],
+        scope_explanation: "Follow-up full review lacks explicit escalation.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1561,6 +1759,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Follow-up full review lacks explicit escalation.",
         escalation_reasons: [],
+        scope_reason_codes: [],
+        scope_explanation: "Follow-up full review lacks explicit escalation.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1588,6 +1788,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Unknown reason is invalid.",
         escalation_reasons: ["surprising-reason"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: "Unknown reason is invalid.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1616,6 +1818,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "File-count reason lacks a matching file-count trigger.",
         escalation_reasons: ["file-count"],
+        scope_reason_codes: ["file_count"],
+        scope_explanation:
+          "File-count reason lacks a matching file-count trigger.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1825,6 +2030,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Ambiguous semantic scope escalates to full review.",
         escalation_reasons: ["ambiguous-classification"],
+        scope_reason_codes: ["semantic_contract_risk"],
+        scope_explanation: "Ambiguous semantic scope escalates to full review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1856,6 +2063,45 @@ describe("play-validate-review-artifacts validator", () => {
           "false",
         ]),
         "ambiguous semantic scope requires explicit allowance",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...initialScope(baseSha, headSha),
+        mode: "follow-up",
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        selection_reason:
+          "Public API and ambiguous semantic scope escalate to full review.",
+        escalation_reasons: ["public-api", "ambiguous-classification"],
+        scope_reason_codes: [
+          "language_or_surface_change",
+          "semantic_contract_risk",
+        ],
+        scope_explanation:
+          "Public API and ambiguous semantic scope escalate to full review.",
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: true,
+          mechanical_escalate_full: false,
+          mechanical_escalation_reason: "",
+        },
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes: "Public API surface changed.",
+        },
+      });
+      await expectRejectsWith(
+        runValidator(
+          cwd,
+          "validate-scope-decision",
+          branchFollowupScopeArgs(headSha, baseSha),
+        ),
+        "ambiguous-classification escalation reason missing",
       );
 
       await expectRejectsWith(
@@ -1943,6 +2189,8 @@ describe("play-validate-review-artifacts validator", () => {
         candidate_narrow_range: `${firstSha}..HEAD`,
         selection_reason: "Public API changes require full follow-up review.",
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
         prior_context: {
           kind: "branch-findings",
           path: ".ephemeral/topic-findings.json",
@@ -1966,6 +2214,8 @@ describe("play-validate-review-artifacts validator", () => {
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
         ...narrowScope(baseSha, firstSha, headSha),
         escalation_reasons: ["public-api"],
+        scope_reason_codes: ["language_or_surface_change"],
+        scope_explanation: "Public API changes require full follow-up review.",
       });
       await expectRejectsWith(
         runValidator(
@@ -2020,6 +2270,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Unusable last-reviewed SHA escalates to the full review range.",
         escalation_reasons: ["last-reviewed-unusable"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation:
+          "Unusable last-reviewed SHA escalates to the full review range.",
         last_reviewed_sha: badSha,
         candidate_narrow_range: `${baseSha}...HEAD`,
         prior_context: {
@@ -2047,6 +2300,9 @@ describe("play-validate-review-artifacts validator", () => {
         selection_reason:
           "Unusable last-reviewed SHA escalates to the full review range.",
         escalation_reasons: ["last-reviewed-unusable"],
+        scope_reason_codes: ["range_validation"],
+        scope_explanation:
+          "Unusable last-reviewed SHA escalates to the full review range.",
         last_reviewed_sha: badSha,
         candidate_narrow_range: `${badSha}..HEAD`,
         prior_context: {
@@ -2327,9 +2583,7 @@ describe("play-validate-review-artifacts validator", () => {
     const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
     try {
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
-        ...narrowScope(baseSha, firstSha, headSha),
-        schema: "pr-review/scope-decision/v1",
-        surface: "pr-review",
+        ...prReviewNarrowScope(baseSha, firstSha, headSha),
         prior_context: {
           kind: "github-prior-threads",
           path: ".ephemeral/topic-prior-threads.json",
@@ -2523,9 +2777,7 @@ describe("play-validate-review-artifacts validator", () => {
       });
       const newHead = await git(cwd, "rev-parse", "HEAD");
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
-        ...narrowScope(baseSha, beforeMultihunkChange, newHead),
-        schema: "pr-review/scope-decision/v1",
-        surface: "pr-review",
+        ...prReviewNarrowScope(baseSha, beforeMultihunkChange, newHead),
         changed_files: ["src/multihunk.ts"],
         selected_range: `${beforeMultihunkChange}..HEAD`,
         candidate_narrow_range: `${beforeMultihunkChange}..HEAD`,
