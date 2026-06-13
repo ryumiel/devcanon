@@ -66,19 +66,28 @@ Before any implementer dispatch or inline execution, run a structural
 task-contract gate against the task text. Do not infer trigger applicability
 inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy. The
 gate verifies either a structurally complete `**Contract checklist:**` field or
-an explicit task-specific reason no checklist trigger applies. A no-trigger
-omission reason is trusted only when this controller can identify the upstream
-two-gate `play-planning` return for the plan being executed, meaning both Plan
-Review and Implementer Executability Review passed before `Plan written to
-<path>.` was emitted. Direct, hand-written, copied, or older plans without that
-upstream two-gate return must include a structurally complete checklist instead
-of an omission reason. When a checklist
-is present, it must explicitly name trigger criteria, owner/authority, affected
-consumers/generated outputs, must-preserve, required behavior, spec/procedure
-work, risk surfaces, and proof obligations, with no blank field or unexplained
-`N/A`. If this structural gate fails, stop before implementation and report
-BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch an implementer or execute
-inline against the invalid task contract.
+an explicit task-specific reason no checklist trigger applies. Present
+Contract Example Discipline obligations are part of the task contract; the
+executor only verifies obligations already included in task text; do not infer
+trigger applicability and do not decide whether Contract Example Discipline
+should have been required. In the case when task text includes Contract Example
+Discipline, the gate requires post-change example proof that positive examples
+match the target post-change contract, not the pre-change contract; invalid
+examples mutate exactly one named contract dimension unless multi-fault behavior
+is intentional and named; and derived fields stay consistent with source facts
+or are explicitly justified. A
+no-trigger omission reason is trusted only when this controller can identify
+the upstream two-gate `play-planning` return for the plan being executed,
+meaning both Plan Review and Implementer Executability Review passed before
+`Plan written to <path>.` was emitted. Direct, hand-written, copied, or older
+plans without that upstream two-gate return must include a structurally complete
+checklist instead of an omission reason. When a checklist is present, it must
+explicitly name trigger criteria, owner/authority, affected consumers/generated
+outputs, must-preserve, required behavior, spec/procedure work, risk surfaces,
+and proof obligations, with no blank field or unexplained `N/A`. If this
+structural gate fails, stop before implementation and report
+BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch an implementer or
+execute inline against the invalid task contract.
 
 This structural task-contract gate is separate from DONE-report snapshot
 classification. Snapshot request/skip classification is owned by

@@ -78,6 +78,16 @@ Task tool (general-purpose):
       changes, tests, generated-output evidence, documentation updates, or
       stated blockers as required by the task. A blank field, unexplained
       `N/A`, or unproven proof obligation is a missing requirement.
+    - In the case when task text includes Contract Example Discipline,
+      independently verify the source-backed example consistency obligations as
+      spec-compliance checks. Confirm positive examples match the target
+      post-change contract, not the pre-change contract; invalid examples mutate
+      exactly one named contract dimension unless multi-fault behavior is
+      intentional and named; and derived fields stay consistent with source
+      facts or are explicitly justified. Do not decide whether Contract Example
+      Discipline should have been required; `play-planning` owns that trigger
+      taxonomy. Report exact source-backed gaps instead of accepting or guessing
+      through inconsistent examples.
 
     **Within-document identifier drift (when changes include `*.md` files):**
 
