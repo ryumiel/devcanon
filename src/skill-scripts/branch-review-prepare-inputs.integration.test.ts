@@ -191,7 +191,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     },
   );
 
-  it("rejects option-like and control-character risk-signals values as missing or unsafe", async () => {
+  it("rejects option-like risk-signals values as missing", async () => {
     const cwd = await makeGitWorkspace();
     try {
       await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
@@ -204,24 +204,38 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("--risk-signals requires a path"),
       });
-      await expect(
-        execFileAsync(
-          "bash",
-          [
-            helperScript,
-            "--risk-signals",
-            ".ephemeral/bad\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
-          ],
-          {
-            cwd,
-            env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
-          },
-        ),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining(
-          "--risk-signals path contains control characters",
-        ),
-      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("emits parseable invalid-path state for control-character risk-signals values", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+      const result = await execFileAsync(
+        "bash",
+        [
+          helperScript,
+          "--risk-signals",
+          ".ephemeral/bad\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+        ],
+        {
+          cwd,
+          env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+        },
+      );
+      const values = parseHelperOutput(result.stdout);
+
+      expect(values.RISK_SIGNALS_STATUS).toBe("invalid-path");
+      expect(values.RISK_SIGNALS_FILE).toBe(
+        ".ephemeral/bad?RISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBeUndefined();
+      expect(result.stdout).not.toContain(
+        "\nRISK_SIGNALS_SEMANTIC_ESCALATION_REASON=-risk-signals.json",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }

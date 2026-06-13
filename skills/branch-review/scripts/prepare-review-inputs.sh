@@ -88,14 +88,10 @@ classify_risk_signals_path() {
   local file="$1"
 
   case "$file" in
-    *$'\n'* | *$'\r'* | *$'\t'*)
-      echo "--risk-signals path contains control characters" >&2
-      exit 1
-      ;;
+    *$'\n'* | *$'\r'* | *$'\t'*) return 1 ;;
   esac
   if printf '%s' "$file" | LC_ALL=C tr -d '\n\r\t' | LC_ALL=C grep -q '[[:cntrl:]]'; then
-    echo "--risk-signals path contains control characters" >&2
-    exit 1
+    return 1
   fi
   case "$file" in
     /*) return 1 ;;
@@ -104,6 +100,10 @@ classify_risk_signals_path() {
     *) return 1 ;;
   esac
   [ "${file#*..}" = "$file" ] || return 1
+}
+
+sanitize_key_value() {
+  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '?'
 }
 
 branch_scope_helper() {
@@ -173,8 +173,8 @@ parse_args() {
           echo "--risk-signals requires a path" >&2
           exit 1
         fi
-        RISK_SIGNALS_FILE="$2"
-        if classify_risk_signals_path "$RISK_SIGNALS_FILE"; then
+        RISK_SIGNALS_FILE="$(sanitize_key_value "$2")"
+        if classify_risk_signals_path "$2"; then
           RISK_SIGNALS_STATUS="supplied"
         else
           RISK_SIGNALS_STATUS="invalid-path"
