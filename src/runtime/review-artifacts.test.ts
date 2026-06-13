@@ -304,6 +304,13 @@ describe("review artifact runtime reducers", () => {
       stderr: "risk-signals head mismatch",
     },
     {
+      name: "command head is not current repository head",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha),
+      args: (headSha: string, baseSha: string) => riskSignalsArgs(baseSha),
+      stderr: "--head-sha must match current repository HEAD",
+    },
+    {
       name: "stale base sha",
       artifact: (_baseSha: string, headSha: string) =>
         riskSignalsArtifact(headSha, headSha),
@@ -387,7 +394,7 @@ describe("review artifact runtime reducers", () => {
         runReviewArtifactsCommand(
           testCase.args === undefined
             ? riskSignalsArgs(headSha)
-            : testCase.args(headSha),
+            : testCase.args(headSha, baseSha),
         ),
       ).resolves.toMatchObject({
         exitCode: 1,

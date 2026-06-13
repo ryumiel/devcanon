@@ -586,6 +586,13 @@ describe("play-validate-review-artifacts validator", () => {
       stderr: "risk-signals head mismatch",
     },
     {
+      name: "command head is not current repository head",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignals(baseSha, headSha),
+      args: (headSha: string, baseSha: string) => riskSignalsArgs(baseSha),
+      stderr: "--head-sha must match current repository HEAD",
+    },
+    {
       name: "stale base sha",
       artifact: (_baseSha: string, headSha: string) =>
         riskSignals(headSha, headSha),
@@ -673,7 +680,7 @@ describe("play-validate-review-artifacts validator", () => {
           "validate-risk-signals",
           testCase.args === undefined
             ? riskSignalsArgs(headSha)
-            : testCase.args(headSha),
+            : testCase.args(headSha, baseSha),
         ),
         testCase.stderr,
       );
