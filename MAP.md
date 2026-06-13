@@ -244,6 +244,8 @@ Quick navigation index for the DevCanon repository.
   [`skills/play-subagent-execution/references/snapshot-manifest-recipe.md`](skills/play-subagent-execution/references/snapshot-manifest-recipe.md)
 - Where is the implementer snapshot manifest helper script? ->
   [`skills/play-subagent-execution/scripts/write-snapshot-manifest.sh`](skills/play-subagent-execution/scripts/write-snapshot-manifest.sh)
+- Where is the executor risk-signals helper script? ->
+  [`skills/play-subagent-execution/scripts/write-risk-signals.sh`](skills/play-subagent-execution/scripts/write-risk-signals.sh)
 - Where are agent role definitions? -> [`agents/`](agents/)
 - Where is the implementer agent role? -> [`agents/implementer.yaml`](agents/implementer.yaml)
 - Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)
