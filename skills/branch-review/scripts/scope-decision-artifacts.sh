@@ -190,7 +190,7 @@ scope_explanation() {
   elif [ "$selection_reason" = "not-followup" ]; then
     printf 'Initial review uses the full review range.\n'
   elif [ -n "$semantic_notes" ]; then
-    printf '%s\n' "$semantic_notes"
+    printf 'Full review is required because scope escalation checks matched: %s. Notes: %s\n' "$selection_reason" "$semantic_notes"
   else
     printf 'Full review is required because scope escalation checks matched: %s.\n' "$selection_reason"
   fi
@@ -531,19 +531,6 @@ finalize_scope_decision() {
     prior_path_json="null"
   fi
 
-  reasons=""
-  if [ "$IS_FOLLOWUP_NARROW" = "true" ]; then
-    selection_reason="follow-up-narrow"
-  else
-    [ "$ACTIVE_DIFF_RANGE" = "$FULL_DIFF_RANGE" ] ||
-      fail "full escalation selected range must equal FULL_DIFF_RANGE"
-    reasons="$(append_reason "$reasons" "${MECHANICAL_ESCALATION_REASON:-}")"
-    reasons="$(append_reason "$reasons" "${SEMANTIC_ESCALATION_REASON:-}")"
-    [ -n "$reasons" ] || fail "full scope decision requires escalation reason"
-    selection_reason="$reasons"
-  fi
-  escalation_reasons_json="$(reason_list_json "$reasons")"
-
   semantic_notes="${SEMANTIC_DECISION_NOTES:-}"
   semantic_ambiguous="${SEMANTIC_DECISION_AMBIGUOUS:-false}"
   case "$semantic_ambiguous" in
@@ -553,9 +540,30 @@ finalize_scope_decision() {
   case ",${SEMANTIC_ESCALATION_REASON:-}," in
     *,ambiguous-classification,*) semantic_ambiguous=true ;;
   esac
+
+  reasons=""
+  if [ "$IS_FOLLOWUP_NARROW" = "true" ]; then
+    selection_reason="follow-up-narrow"
+  else
+    [ "$ACTIVE_DIFF_RANGE" = "$FULL_DIFF_RANGE" ] ||
+      fail "full escalation selected range must equal FULL_DIFF_RANGE"
+    reasons="$(append_reason "$reasons" "${MECHANICAL_ESCALATION_REASON:-}")"
+    reasons="$(append_reason "$reasons" "${SEMANTIC_ESCALATION_REASON:-}")"
+    if [ "$semantic_ambiguous" = "true" ]; then
+      case ",$reasons," in
+        *,ambiguous-classification,*) ;;
+        *) reasons="$(append_reason "$reasons" "ambiguous-classification")" ;;
+      esac
+    fi
+    [ -n "$reasons" ] || fail "full scope decision requires escalation reason"
+    selection_reason="$reasons"
+  fi
+  escalation_reasons_json="$(reason_list_json "$reasons")"
+
   if [ "$IS_FOLLOWUP_NARROW" = "false" ] &&
     [ "$MECHANICAL_ESCALATE_FULL" = "false" ] &&
     [ -z "${SEMANTIC_ESCALATION_REASON:-}" ] &&
+    [ "$semantic_ambiguous" = "false" ] &&
     [ -z "$semantic_notes" ]; then
     fail "semantic escalation reason or notes are required for semantic full escalation"
   fi
