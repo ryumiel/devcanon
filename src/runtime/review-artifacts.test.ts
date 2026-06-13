@@ -21,6 +21,11 @@ afterEach(() => {
   process.chdir(originalCwd);
 });
 
+async function cleanupRiskSignalsWorkspace(cwd: string): Promise<void> {
+  process.chdir(originalCwd);
+  await cleanupTempDir(cwd);
+}
+
 async function makeRiskSignalsWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -222,7 +227,7 @@ describe("review artifact runtime reducers", () => {
         stderr: "",
       });
     } finally {
-      await cleanupTempDir(cwd);
+      await cleanupRiskSignalsWorkspace(cwd);
     }
   });
 
@@ -410,7 +415,7 @@ describe("review artifact runtime reducers", () => {
         stderr: expect.stringContaining(testCase.stderr),
       });
     } finally {
-      await cleanupTempDir(cwd);
+      await cleanupRiskSignalsWorkspace(cwd);
     }
   });
 
@@ -430,7 +435,7 @@ describe("review artifact runtime reducers", () => {
         stderr: expect.stringContaining("risk-signals JSON validation failed"),
       });
     } finally {
-      await cleanupTempDir(cwd);
+      await cleanupRiskSignalsWorkspace(cwd);
     }
   });
 });
