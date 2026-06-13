@@ -252,6 +252,30 @@ describe("play-subagent-execution risk-signals producer", () => {
     }
   });
 
+  it("preserves an existing regular target when runtime validation fails", async () => {
+    const workspace = await makeGitWorkspace();
+    try {
+      const relPath = riskSignalsPath(workspace);
+      await writeFile(path.join(workspace.cwd, relPath), "old\n");
+      await expect(
+        runHelper(workspace, {
+          ...envFor(workspace),
+          RISK_SIGNALS_CHANGED_FILES_JSON: JSON.stringify(["README.md"]),
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.not.stringContaining(
+          `Risk signals written to ${relPath}.`,
+        ),
+      });
+      await expect(
+        readFile(path.join(workspace.cwd, relPath), "utf8"),
+      ).resolves.toBe("old\n");
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
   it.skipIf(!symlinkAvailable)("rejects symlinked .ephemeral", async () => {
     const workspace = await makeGitWorkspace();
     const replacement = `${workspace.cwd}-ephemeral-target`;

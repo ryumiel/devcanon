@@ -345,6 +345,17 @@ line is exactly:
 Risk signals written to <path>.
 ```
 
+Set these required inputs before invoking the helper:
+`RISK_SIGNALS_REVIEWED_BASE_REF`, `RISK_SIGNALS_REVIEWED_BASE_SHA`,
+`RISK_SIGNALS_REVIEWED_HEAD_SHA`, `RISK_SIGNALS_REVIEWED_RANGE`,
+`RISK_SIGNALS_CHANGED_FILES_JSON`, `RISK_SIGNALS_VALUES_JSON`,
+`RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED`, and
+`RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED`. The values JSON must
+contain exactly these six signal categories: `user_facing_behavior`,
+`documentation_examples`, `diagnostics`, `contract`, `generated_output`, and
+`governance_path`. Each value is `none`, `present`, or `unknown`;
+ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
+
 Notice is emitted only after the helper write and runtime validation succeed.
 If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.

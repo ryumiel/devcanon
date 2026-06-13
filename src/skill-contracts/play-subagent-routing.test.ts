@@ -1635,6 +1635,31 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExecutor).toContain(
       "Notice is emitted only after the helper write and runtime validation succeed",
     );
+    for (const requiredEnvName of [
+      "RISK_SIGNALS_REVIEWED_BASE_REF",
+      "RISK_SIGNALS_REVIEWED_BASE_SHA",
+      "RISK_SIGNALS_REVIEWED_HEAD_SHA",
+      "RISK_SIGNALS_REVIEWED_RANGE",
+      "RISK_SIGNALS_CHANGED_FILES_JSON",
+      "RISK_SIGNALS_VALUES_JSON",
+      "RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED",
+      "RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED",
+    ]) {
+      expect(executor).toContain(requiredEnvName);
+    }
+    for (const signalCategory of [
+      "user_facing_behavior",
+      "documentation_examples",
+      "diagnostics",
+      "contract",
+      "generated_output",
+      "governance_path",
+    ]) {
+      expect(executor).toContain(signalCategory);
+    }
+    expect(normalizedExecutor).toContain(
+      "Each value is `none`, `present`, or `unknown`; ambiguous/unclear classifications must be encoded as `unknown`, not omitted",
+    );
     expect(normalizedExecutor).toContain(
       "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
     );
