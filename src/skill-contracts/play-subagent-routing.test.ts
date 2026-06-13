@@ -1619,4 +1619,46 @@ describe("play subagent routing source contracts", () => {
       issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
     );
   });
+
+  it("pins executor risk-signals as bounded non-authoritative branch-review input", async () => {
+    const executor = await readSkillSource("play-subagent-execution");
+    const routingReference = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
+    );
+    const normalizedExecutor = normalizeWhitespace(executor);
+    const normalizedRoutingReference = normalizeWhitespace(routingReference);
+
+    expect(executor).toContain("Risk signals written to <path>.");
+    expect(normalizedExecutor).toContain(
+      "risk signals are non-authoritative branch-review input",
+    );
+    expect(normalizedExecutor).toContain(
+      "Notice is emitted only after the helper write and runtime validation succeed",
+    );
+    expect(normalizedExecutor).toContain(
+      "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
+    );
+    expect(normalizedExecutor).toContain(
+      "This skill did not run branch-level review; run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review",
+    );
+    expect(normalizedExecutor).not.toMatch(
+      /risk signals (approve|certify|determine|establish) PR-readiness/i,
+    );
+    expect(normalizedExecutor).not.toMatch(
+      /risk signals (approve|authorize|narrow) branch review/i,
+    );
+    expect(normalizedExecutor).not.toContain(
+      "permission to narrow branch review",
+    );
+
+    expect(normalizedRoutingReference).toContain(
+      "hard-risk categories inform bounded signal values",
+    );
+    expect(normalizedRoutingReference).toContain(
+      "branch-review independently validates and decides scope",
+    );
+    expect(normalizedRoutingReference).not.toContain(
+      "risk signals authorize narrow review",
+    );
+  });
 });
