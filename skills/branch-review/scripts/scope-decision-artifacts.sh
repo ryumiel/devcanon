@@ -16,6 +16,11 @@ require_env() {
   [ -n "${!name:-}" ] || fail "$name is required"
 }
 
+require_env_defined() {
+  local name="$1"
+  [ "${!name+x}" = "x" ] || fail "$name is required"
+}
+
 require_bool_env() {
   local name="$1"
   require_env "$name"
@@ -111,6 +116,31 @@ append_reason() {
   else
     printf '%s,%s\n' "$reasons" "$reason"
   fi
+}
+
+contains_csv_value() {
+  local values="$1"
+  local value="$2"
+
+  case ",$values," in
+    *,"$value",*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+append_unique_reason() {
+  local reasons="$1"
+  local reason="$2"
+
+  if contains_csv_value "$reasons" "$reason"; then
+    printf '%s\n' "$reasons"
+  else
+    append_reason "$reasons" "$reason"
+  fi
+}
+
+append_trigger() {
+  append_unique_reason "$1" "$2"
 }
 
 reason_list_json() {
@@ -369,6 +399,158 @@ validate_readable_json_file() {
   [ ! -L "$file" ] || fail "$label must not be a symlink: $file"
   jq -e 'type == "object"' "$file" >/dev/null ||
     fail "$label JSON validation failed: $file"
+}
+
+sanitize_output_value() {
+  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '?'
+}
+
+emit_risk_signals_classification() {
+  local classification="$1"
+  local reason="$2"
+  local notes="$3"
+
+  printf 'RISK_SIGNALS_CLASSIFICATION=%s\n' "$(sanitize_output_value "$classification")"
+  printf 'RISK_SIGNALS_SEMANTIC_ESCALATION_REASON=%s\n' "$(sanitize_output_value "$reason")"
+  printf 'RISK_SIGNALS_SEMANTIC_DECISION_NOTES=%s\n' "$(sanitize_output_value "$notes")"
+}
+
+collapse_diagnostic() {
+  tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
+}
+
+risk_signals_validation_failed() {
+  local diagnostic="$1"
+
+  emit_risk_signals_classification \
+    "invalid-fail-closed" \
+    "ambiguous-classification" \
+    "Supplied risk signals failed validation (${diagnostic}); use full branch review / higher scrutiny."
+}
+
+classify_valid_risk_signals() {
+  local reasons=""
+  local triggers=""
+  local values_json unknown_count no_escalation
+
+  if ! values_json="$(jq -c '
+    {
+      user_facing_behavior: .signals.user_facing_behavior,
+      documentation_examples: .signals.documentation_examples,
+      diagnostics: .signals.diagnostics,
+      contract: .signals.contract,
+      generated_output: .signals.generated_output,
+      governance_path: .signals.governance_path,
+      canonical_docs_may_be_affected: .canonical_docs_may_be_affected,
+      end_user_diagnostics_may_be_affected: .end_user_diagnostics_may_be_affected
+    }
+  ' "$RISK_SIGNALS_FILE")"; then
+    risk_signals_validation_failed "risk-signals JSON read failed"
+    return
+  fi
+
+  unknown_count="$(printf '%s\n' "$values_json" |
+    jq '[.user_facing_behavior, .documentation_examples, .diagnostics, .contract, .generated_output, .governance_path] | map(select(. == "unknown")) | length')"
+  if [ "$unknown_count" -gt 0 ]; then
+    reasons="$(append_unique_reason "$reasons" "ambiguous-classification")"
+  fi
+  for signal_name in user_facing_behavior documentation_examples diagnostics contract generated_output governance_path; do
+    if [ "$(printf '%s\n' "$values_json" | jq -r --arg signal "$signal_name" '.[$signal]')" = "unknown" ]; then
+      triggers="$(append_trigger "$triggers" "$signal_name")"
+    fi
+  done
+
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.generated_output')" = "present" ]; then
+    reasons="$(append_unique_reason "$reasons" "generated-output-contract")"
+    triggers="$(append_trigger "$triggers" "generated_output")"
+  fi
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.governance_path')" = "present" ]; then
+    reasons="$(append_unique_reason "$reasons" "shared-workflow-policy")"
+    triggers="$(append_trigger "$triggers" "governance_path")"
+  fi
+  for signal_name in contract documentation_examples diagnostics user_facing_behavior; do
+    if [ "$(printf '%s\n' "$values_json" | jq -r --arg signal "$signal_name" '.[$signal]')" = "present" ]; then
+      triggers="$(append_trigger "$triggers" "$signal_name")"
+    fi
+  done
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.canonical_docs_may_be_affected')" = "true" ]; then
+    triggers="$(append_trigger "$triggers" "canonical_docs_may_be_affected")"
+  fi
+  if [ "$(printf '%s\n' "$values_json" | jq -r '.end_user_diagnostics_may_be_affected')" = "true" ]; then
+    triggers="$(append_trigger "$triggers" "end_user_diagnostics_may_be_affected")"
+  fi
+  if printf '%s\n' "$values_json" | jq -e '
+    .contract == "present" or
+    .documentation_examples == "present" or
+    .canonical_docs_may_be_affected == true or
+    .diagnostics == "present" or
+    .user_facing_behavior == "present" or
+    .end_user_diagnostics_may_be_affected == true
+  ' >/dev/null; then
+    reasons="$(append_unique_reason "$reasons" "source-owned-contract")"
+  fi
+
+  no_escalation="$(printf '%s\n' "$values_json" | jq -r '
+    ([.user_facing_behavior, .documentation_examples, .diagnostics, .contract, .generated_output, .governance_path] | all(. == "none")) and
+    (.canonical_docs_may_be_affected == false) and
+    (.end_user_diagnostics_may_be_affected == false)
+  ')"
+  if [ "$no_escalation" = "true" ]; then
+    emit_risk_signals_classification "valid-no-escalation" "" "Valid risk signals found no escalation."
+  elif [ -n "$reasons" ]; then
+    emit_risk_signals_classification \
+      "valid-escalate" \
+      "$reasons" \
+      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
+  else
+    emit_risk_signals_classification \
+      "valid-no-escalation" \
+      "" \
+      "Valid risk signals found no escalation."
+  fi
+}
+
+classify_risk_signals() {
+  local validator stderr_file diagnostic
+
+  require_repo_root
+  validate_head_sha
+  require_env FULL_DIFF_RANGE
+  require_env_defined RISK_SIGNALS_FILE
+  require_env RISK_SIGNALS_STATUS
+
+  case "$RISK_SIGNALS_STATUS" in
+    absent)
+      emit_risk_signals_classification "absent" "" ""
+      ;;
+    invalid-path)
+      emit_risk_signals_classification \
+        "invalid-fail-closed" \
+        "ambiguous-classification" \
+        "Invalid supplied risk-signals path/status ($RISK_SIGNALS_FILE, $RISK_SIGNALS_STATUS); use full branch review / higher scrutiny."
+      ;;
+    supplied)
+      validator="$(resolve_validator)"
+      stderr_file="$(mktemp "${TMPDIR:-/tmp}/branch-risk-signals.XXXXXX")"
+      if ! bash "$validator" validate-risk-signals \
+        --surface branch-review \
+        --head-sha "$HEAD_SHA" \
+        --risk-signals-file "$RISK_SIGNALS_FILE" \
+        --expected-schema branch-review/risk-signals/v1 \
+        --expected-reviewed-range "$FULL_DIFF_RANGE" >/dev/null 2>"$stderr_file"; then
+        diagnostic="$(collapse_diagnostic <"$stderr_file")"
+        rm -f "$stderr_file"
+        [ -n "$diagnostic" ] || diagnostic="validator rejected risk signals"
+        risk_signals_validation_failed "$diagnostic"
+        return
+      fi
+      rm -f "$stderr_file"
+      classify_valid_risk_signals
+      ;;
+    *)
+      fail "RISK_SIGNALS_STATUS must be absent, supplied, or invalid-path"
+      ;;
+  esac
 }
 
 sha256_file() {
@@ -651,10 +833,13 @@ case "$command_name" in
   finalize-scope-decision)
     finalize_scope_decision
     ;;
+  classify-risk-signals)
+    classify_risk_signals
+    ;;
   write-approval-summary)
     write_approval_summary
     ;;
   *)
-    fail "usage: scope-decision-artifacts.sh prepare-scope-decision-write|prepare-approval-summary-write|validate-scope-decision|validate-approval-summary|finalize-scope-decision|write-approval-summary"
+    fail "usage: scope-decision-artifacts.sh prepare-scope-decision-write|prepare-approval-summary-write|validate-scope-decision|validate-approval-summary|finalize-scope-decision|classify-risk-signals|write-approval-summary"
     ;;
 esac

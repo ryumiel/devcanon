@@ -5,6 +5,8 @@ BASE_ARG=""
 FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
+RISK_SIGNALS_FILE=""
+RISK_SIGNALS_STATUS="absent"
 SCOPE_DECISION_FILE=""
 APPROVAL_SUMMARY_FILE=""
 CHANGED_FILES_FILE=""
@@ -82,6 +84,28 @@ validate_prior_findings() {
     bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
 }
 
+classify_risk_signals_path() {
+  local file="$1"
+
+  case "$file" in
+    *$'\n'* | *$'\r'* | *$'\t'*) return 1 ;;
+  esac
+  if printf '%s' "$file" | LC_ALL=C tr -d '\n\r\t' | LC_ALL=C grep -q '[[:cntrl:]]'; then
+    return 1
+  fi
+  case "$file" in
+    /*) return 1 ;;
+    .ephemeral/*/*) return 1 ;;
+    .ephemeral/*-risk-signals.json) ;;
+    *) return 1 ;;
+  esac
+  [ "${file#*..}" = "$file" ] || return 1
+}
+
+sanitize_key_value() {
+  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '?'
+}
+
 branch_scope_helper() {
   if [[ -n "${BRANCH_REVIEW_SCOPE_HELPER:-}" ]]; then
     printf '%s\n' "$BRANCH_REVIEW_SCOPE_HELPER"
@@ -142,6 +166,19 @@ parse_args() {
           exit 1
         }
         PRIOR_FINDINGS_FILE="$2"
+        shift 2
+        ;;
+      --risk-signals)
+        if [ -z "${2:-}" ] || [[ "${2:-}" == --* ]]; then
+          echo "--risk-signals requires a path" >&2
+          exit 1
+        fi
+        RISK_SIGNALS_FILE="$(sanitize_key_value "$2")"
+        if classify_risk_signals_path "$2"; then
+          RISK_SIGNALS_STATUS="supplied"
+        else
+          RISK_SIGNALS_STATUS="invalid-path"
+        fi
         shift 2
         ;;
       --*)
@@ -326,6 +363,8 @@ compute_scope_values
 
 emit_line "BASE" "$BASE"
 emit_line "FIX_MODE" "$FIX_MODE"
+emit_line "RISK_SIGNALS_FILE" "$RISK_SIGNALS_FILE"
+emit_line "RISK_SIGNALS_STATUS" "$RISK_SIGNALS_STATUS"
 emit_line "FULL_DIFF_RANGE" "$FULL_DIFF_RANGE"
 emit_line "CANDIDATE_ACTIVE_DIFF_RANGE" "$CANDIDATE_ACTIVE_DIFF_RANGE"
 emit_line "MECHANICAL_ACTIVE_DIFF_RANGE" "$MECHANICAL_ACTIVE_DIFF_RANGE"

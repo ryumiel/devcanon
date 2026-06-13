@@ -23,12 +23,15 @@ digraph branch_review {
 
 ## Arguments
 
-| Arg                       | Effect                                                                                                                                                                                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<base>`                  | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
-| `--fix`                   | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                                          |
-| `--last-reviewed <sha>`   | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
-| `--prior-findings <path>` | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
+`branch-review [--fix] [--risk-signals <repo-relative-path>] [--last-reviewed <sha> --prior-findings <path>] [base]`
+
+| Arg                                   | Effect                                                                                                                                                                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<base>`                              | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
+| `--fix`                               | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                                          |
+| `--risk-signals <repo-relative-path>` | Optional, non-authoritative repo-relative `.ephemeral/*-risk-signals.json` handoff from `play-subagent-execution`. Valid signals can only preserve or escalate scrutiny; invalid supplied signals fail closed.                                      |
+| `--last-reviewed <sha>`               | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
+| `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
 
 `--fix` without follow-up arguments keeps the existing full-diff default used
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
@@ -55,6 +58,8 @@ while IFS= read -r line; do
   case "$key" in
     BASE) BASE="$value" ;;
     FIX_MODE) FIX_MODE="$value" ;;
+    RISK_SIGNALS_FILE) RISK_SIGNALS_FILE="$value" ;;
+    RISK_SIGNALS_STATUS) RISK_SIGNALS_STATUS="$value" ;;
     FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value" ;;
     CANDIDATE_ACTIVE_DIFF_RANGE) CANDIDATE_ACTIVE_DIFF_RANGE="$value" ;;
     MECHANICAL_ACTIVE_DIFF_RANGE) MECHANICAL_ACTIVE_DIFF_RANGE="$value" ;;
@@ -99,6 +104,8 @@ The helper writes `KEY=VALUE` lines to stdout:
 
 - `BASE`
 - `FIX_MODE`
+- `RISK_SIGNALS_FILE`
+- `RISK_SIGNALS_STATUS`
 - `FULL_DIFF_RANGE`
 - `CANDIDATE_ACTIVE_DIFF_RANGE`
 - `MECHANICAL_ACTIVE_DIFF_RANGE`
@@ -130,11 +137,18 @@ the prior findings file. Malformed follow-up SHAs stop with
 `--last-reviewed requires a 40-character lowercase hex SHA`. A mismatched review
 head stops with `--prior-findings review head must match --last-reviewed`.
 Missing values stop with `--last-reviewed requires a SHA` or
-`--prior-findings requires a path`; unknown flags stop with
+`--prior-findings requires a path`; `--risk-signals` without a value stops with
+`--risk-signals requires a path`; unknown flags stop with
 `unknown branch-review argument`; duplicate positional bases stop with
 `multiple base arguments supplied`. The prior findings file is local review
 context, not GitHub thread state, and this skill still performs no GitHub
 posting.
+
+`--risk-signals` is optional and non-authoritative. Missing risk signals are
+normal branch-review usage. The prepare helper only classifies the supplied path
+as `absent`, `supplied`, or `invalid-path`; it does not read the artifact.
+Prior findings follow-up validation remains separate from risk-signal
+validation.
 
 The shared support validator owns deterministic review-artifact mechanics such
 as follow-up SHA usability, changed-file facts, language-hint derivation,
@@ -159,6 +173,12 @@ it. Missing, stale, malformed, conflicting, or untrusted handoff data fails
 closed to full branch review. This mirrors `play-subagent-execution`: plan hints
 are inputs, the executor/reviewer owns the effective route, and revalidation may only preserve or escalate.
 
+Risk signals are one such handoff. Valid risk signals can only preserve or
+escalate scrutiny; they never justify narrow review. Invalid, stale, malformed,
+or untrusted supplied risk signals fail closed to full review or higher scrutiny
+without adding reserved scope reason codes. Scope-decision artifact remains the
+authoritative branch-review explanation.
+
 In follow-up mode, apply
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
 `play-review` and finalize the active range conservatively. The helper's
@@ -171,7 +191,8 @@ not replace wrapper-level semantic classification:
   incremental re-review after `--last-reviewed` passes paired input and
   lowercase hex validation.
 - Start from `MECHANICAL_ACTIVE_DIFF_RANGE`, then inspect
-  `CHANGED_FILES_FILE`, any upstream handoff, and the current follow-up diff.
+  `CHANGED_FILES_FILE`, `RISK_SIGNALS_*`, any upstream handoff, and the current
+  follow-up diff.
 - `active_diff_range = candidate_active_diff_range` only when support-validator
   checks and wrapper semantic classification both permit narrow review.
 - `is_followup_narrow = true` only when the final selected range is narrow.
@@ -215,6 +236,59 @@ After semantic classification is complete and both `ACTIVE_DIFF_RANGE` and
 ```bash
 SCOPE_DECISION_HELPER="$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"
 
+append_csv() {
+  if [ -z "$1" ]; then
+    printf '%s\n' "$2"
+  elif [ -z "$2" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s,%s\n' "$1" "$2"
+  fi
+}
+
+combine_notes() {
+  if [ -z "$1" ]; then
+    printf '%s\n' "$2"
+  elif [ -z "$2" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s; %s\n' "$1" "$2"
+  fi
+}
+
+WRAPPER_SEMANTIC_ESCALATION_REASON="${SEMANTIC_ESCALATION_REASON:-}"
+WRAPPER_SEMANTIC_DECISION_NOTES="${SEMANTIC_DECISION_NOTES:-}"
+
+RISK_SIGNALS_CLASSIFICATION_OUTPUT=$(
+  HEAD_SHA="$(git rev-parse HEAD)" \
+  FULL_DIFF_RANGE="$FULL_DIFF_RANGE" \
+  RISK_SIGNALS_FILE="${RISK_SIGNALS_FILE:-}" \
+  RISK_SIGNALS_STATUS="${RISK_SIGNALS_STATUS:-absent}" \
+    bash "$SCOPE_DECISION_HELPER" classify-risk-signals
+) || exit 1
+
+while IFS= read -r line; do
+  key=${line%%=*}
+  value=${line#*=}
+  case "$key" in
+    RISK_SIGNALS_CLASSIFICATION) RISK_SIGNALS_CLASSIFICATION="$value" ;;
+    RISK_SIGNALS_SEMANTIC_ESCALATION_REASON) RISK_SIGNALS_SEMANTIC_ESCALATION_REASON="$value" ;;
+    RISK_SIGNALS_SEMANTIC_DECISION_NOTES) RISK_SIGNALS_SEMANTIC_DECISION_NOTES="$value" ;;
+  esac
+done <<EOF
+$RISK_SIGNALS_CLASSIFICATION_OUTPUT
+EOF
+
+# Risk-signal semantic values compose with existing wrapper semantic classification; they do not replace it.
+
+FINAL_SEMANTIC_ESCALATION_REASON="$(append_csv "$WRAPPER_SEMANTIC_ESCALATION_REASON" "$RISK_SIGNALS_SEMANTIC_ESCALATION_REASON")"
+FINAL_SEMANTIC_DECISION_NOTES="$(combine_notes "$WRAPPER_SEMANTIC_DECISION_NOTES" "$RISK_SIGNALS_SEMANTIC_DECISION_NOTES")"
+
+if [ -n "${FINAL_SEMANTIC_ESCALATION_REASON:-}" ]; then
+  ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"
+  IS_FOLLOWUP_NARROW=false
+fi
+
 FINAL_CHANGED_FILES_JSON=$(
   git diff -z --name-only "$ACTIVE_DIFF_RANGE" |
     jq -R -s -c 'split("\u0000")[:-1] | sort'
@@ -246,8 +320,8 @@ CHANGED_FILE_COUNT="$CHANGED_FILE_COUNT" \
 FOLLOWUP_SHA_USABLE="$FOLLOWUP_SHA_USABLE" \
 MECHANICAL_ESCALATE_FULL="$MECHANICAL_ESCALATE_FULL" \
 MECHANICAL_ESCALATION_REASON="$MECHANICAL_ESCALATION_REASON" \
-SEMANTIC_ESCALATION_REASON="${SEMANTIC_ESCALATION_REASON:-}" \
-SEMANTIC_DECISION_NOTES="${SEMANTIC_DECISION_NOTES:-}" \
+SEMANTIC_ESCALATION_REASON="$FINAL_SEMANTIC_ESCALATION_REASON" \
+SEMANTIC_DECISION_NOTES="$FINAL_SEMANTIC_DECISION_NOTES" \
 FINAL_CHANGED_FILES_JSON="$FINAL_CHANGED_FILES_JSON" \
 FINAL_LANGUAGE_HINTS_JSON="$FINAL_LANGUAGE_HINTS_JSON" \
   bash "$SCOPE_DECISION_HELPER" finalize-scope-decision || exit 1

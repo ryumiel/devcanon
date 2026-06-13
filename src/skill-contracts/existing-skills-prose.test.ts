@@ -186,6 +186,41 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps branch-review risk-signals prose non-authoritative and fail-closed", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const normalized = normalizeWhitespace(branchReview);
+
+    expect(normalized).toContain(
+      "`--risk-signals` is optional and non-authoritative",
+    );
+    expect(normalized).toContain("handoff from `play-subagent-execution`");
+    expect(normalized).toContain(
+      "Missing risk signals are normal branch-review usage",
+    );
+    expect(normalized).toContain(
+      "Valid risk signals can only preserve or escalate scrutiny; they never justify narrow review",
+    );
+    expect(normalized).toContain(
+      "Invalid, stale, malformed, or untrusted supplied risk signals fail closed to full review or higher scrutiny without adding reserved scope reason codes",
+    );
+    expect(normalized).toContain(
+      "Scope-decision artifact remains the authoritative branch-review explanation",
+    );
+    expect(normalized).toContain(
+      "Prior findings follow-up validation remains separate from risk-signal validation",
+    );
+    expect(branchReview).toContain("classify-risk-signals");
+    expect(branchReview).toContain("RISK_SIGNALS_CLASSIFICATION");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(normalized).toContain(
+      "Risk-signal semantic values compose with existing wrapper semantic classification; they do not replace it",
+    );
+    expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).not.toContain("prior_findings_validation");
+  });
+
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");
@@ -357,6 +392,122 @@ describe("existing skills source prose contracts", () => {
       "does not prescribe concrete implementation code",
     );
     expect(normalizedBoundaryTraceability).toContain("command recipes");
+  });
+
+  it("keeps play-planning contract example discipline required for contract-changing plans", async () => {
+    const playPlanning = await readSkillSource("play-planning");
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const contractExampleDiscipline = getMarkdownSection(
+      playPlanning,
+      "Contract Example Discipline",
+    );
+    const planningSelfReview = getMarkdownSection(playPlanning, "Self-Review");
+    const planningReview = getMarkdownSection(playPlanning, "Plan Review");
+    const implementerExecutabilityReview = getMarkdownSection(
+      playPlanning,
+      "Implementer Executability Review",
+    );
+    const normalizedContractExampleDiscipline = normalizeWhitespace(
+      contractExampleDiscipline,
+    );
+    const normalizedPlanningSelfReview =
+      normalizeWhitespace(planningSelfReview);
+    const normalizedPlanningReview = normalizeWhitespace(planningReview);
+    const normalizedExecutabilityReview = normalizeWhitespace(
+      implementerExecutabilityReview,
+    );
+    const normalizedDocumentationChecklists = normalizeWhitespace(
+      documentationChecklists,
+    );
+
+    for (const trigger of [
+      "schemas",
+      "APIs",
+      "function shapes",
+      "artifacts",
+      "CLI output",
+      "helper I/O contracts",
+      "cross-skill contracts",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(trigger);
+    }
+
+    for (const requiredSectionContent of [
+      "canonical valid post-change example",
+      "source authority",
+      "invalid example families derived from that canonical valid example",
+      "required proof",
+      "out-of-scope invalid families",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(
+        requiredSectionContent,
+      );
+    }
+
+    expect(normalizedContractExampleDiscipline).toContain(
+      "Non-triggered plans state why no trigger applies",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "before task planning",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "Invalid examples without that canonical valid anchor are insufficient",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "minimal, verifiable, and contract-focused",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "incidental phrasing",
+    );
+    expect(normalizedContractExampleDiscipline).toContain("task history");
+    expect(normalizedContractExampleDiscipline).toContain("comment wording");
+    expect(normalizedContractExampleDiscipline).toContain(
+      "reviewer preference",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "must not include plan-authored implementation code, test bodies",
+    );
+    expect(normalizedContractExampleDiscipline).toContain(
+      "helper-name prescriptions, or command recipes",
+    );
+    expect(
+      normalizedContractExampleDiscipline.indexOf(
+        "canonical valid post-change example",
+      ),
+    ).toBeLessThan(
+      normalizedContractExampleDiscipline.indexOf(
+        "invalid example families derived from that canonical valid example",
+      ),
+    );
+
+    for (const reviewSurface of [
+      normalizedPlanningSelfReview,
+      normalizedPlanningReview,
+      normalizedExecutabilityReview,
+    ]) {
+      expect(reviewSurface).toContain("Contract Example Discipline");
+      expect(reviewSurface).toContain("canonical valid post-change example");
+      expect(reviewSurface).toContain(
+        "invalid example families derived from that canonical valid example",
+      );
+      expect(reviewSurface).toContain("out-of-scope invalid families");
+      expect(reviewSurface).toContain("fail");
+    }
+
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "carry forward the adjacent governance surfaces from the design and reconcile them against the Adjacent Governance Policy Set",
+    );
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "inspect it and either update it for a concrete contradiction or record why the owning source skill remains the right surface",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Governance or workflow policy changed: use the Adjacent Governance Policy Set",
+    );
+    expect(normalizedDocumentationChecklists).toContain(
+      "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
   });
 
   it("keeps boundary-changing brainstorm designs contract-decision complete", async () => {

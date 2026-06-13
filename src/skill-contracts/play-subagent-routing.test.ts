@@ -244,6 +244,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
     );
+    expect(normalizedPhase7).toContain(
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
+    );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
@@ -717,7 +723,10 @@ describe("play subagent routing source contracts", () => {
 
     expect(phase7).toContain("Invoke `branch-review --fix`");
     expect(normalizedPhase7).toContain(
-      "If the run commits any auto-fixes, rerun `branch-review --fix` on the new `HEAD`",
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "If the run commits any auto-fixes, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
     );
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
@@ -736,6 +745,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase7).toContain(
       "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+    );
+    expect(normalizedPhase7).toContain(
+      "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
     );
     expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
     expect(phase7Reference).toContain("Findings written to <path>.");
@@ -1617,6 +1629,124 @@ describe("play subagent routing source contracts", () => {
     );
     expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
       issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
+    );
+  });
+
+  it("pins executor risk-signals as bounded non-authoritative branch-review input", async () => {
+    const executor = await readSkillSource("play-subagent-execution");
+    const routingReference = await readRepoFile(
+      "skills/play-subagent-execution/references/review-routing-policy.md",
+    );
+    const helper = await readRepoFile(
+      "skills/play-subagent-execution/scripts/write-risk-signals.sh",
+    );
+    const normalizedExecutor = normalizeWhitespace(executor);
+    const normalizedRoutingReference = normalizeWhitespace(routingReference);
+    const normalizedHelper = normalizeWhitespace(helper);
+
+    expect(executor).toContain("scripts/write-risk-signals.sh");
+    expect(executor).toContain("branch-review/risk-signals/v1");
+    expect(executor).toContain("Risk signals written to <path>.");
+    expect(normalizedExecutor).toContain(
+      "risk signals are non-authoritative branch-review input",
+    );
+    expect(normalizedExecutor).toContain(
+      "Notice is emitted only after the helper write and runtime validation succeed",
+    );
+    expect(normalizedExecutor).toContain(
+      "after implementation and the applicable per-task/final review path",
+    );
+    for (const requiredEnvName of [
+      "RISK_SIGNALS_REVIEWED_BASE_REF",
+      "RISK_SIGNALS_REVIEWED_BASE_SHA",
+      "RISK_SIGNALS_REVIEWED_HEAD_SHA",
+      "RISK_SIGNALS_REVIEWED_RANGE",
+      "RISK_SIGNALS_CHANGED_FILES_JSON",
+      "RISK_SIGNALS_VALUES_JSON",
+      "RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED",
+      "RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED",
+    ]) {
+      expect(executor).toContain(requiredEnvName);
+    }
+    for (const signalCategory of [
+      "user_facing_behavior",
+      "documentation_examples",
+      "diagnostics",
+      "contract",
+      "generated_output",
+      "governance_path",
+    ]) {
+      expect(executor).toContain(signalCategory);
+    }
+    expect(normalizedExecutor).toContain(
+      "Each value is `none`, `present`, or `unknown`; ambiguous/unclear classifications must be encoded as `unknown`, not omitted",
+    );
+    expect(normalizedExecutor).toContain(
+      "`RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must describe the same full branch range that the next branch-review invocation will validate",
+    );
+    expect(normalizedExecutor).toContain(
+      "`RISK_SIGNALS_REVIEWED_BASE_REF` must match that range's base side",
+    );
+    expect(normalizedExecutor).toContain(
+      "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
+    );
+    expect(normalizedExecutor).toContain(
+      "When the helper emits `Risk signals written to <path>.`, pass that emitted path to the next branch review invocation as `branch-review --risk-signals <path>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "in an auto-fix loop, `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "regenerate risk signals for the new `HEAD` before rerunning branch review, or omit the stale risk-signals path intentionally",
+    );
+    expect(normalizedExecutor).toContain(
+      "This skill did not run branch-level review; run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review",
+    );
+    expect(helper).toContain(
+      'target=".ephemeral/${slug}-${RISK_SIGNALS_REVIEWED_HEAD_SHA}-risk-signals.json"',
+    );
+    expect(helper).toContain("LC_ALL=C tr -c 'A-Za-z0-9._-' '-'");
+    expect(helper).toContain("*..*");
+    expect(helper).toContain(
+      "require_full_branch_range_env RISK_SIGNALS_REVIEWED_RANGE",
+    );
+    expect(helper).toContain("must be a full branch range ending in ...HEAD");
+    expect(helper).toMatch(
+      /temp_file="\.ephemeral\/\.\$\{slug\}-\$\{RISK_SIGNALS_REVIEWED_HEAD_SHA\}-risk-signals\.[^"]+-risk-signals\.json"/u,
+    );
+    expect(helper).toContain('prepare_write_target "$target"');
+    expect(helper).toContain('write_payload "$temp_file"');
+    expect(helper).toContain("validate-risk-signals");
+    expect(helper).toContain("--surface branch-review");
+    expect(helper).toContain("--expected-schema branch-review/risk-signals/v1");
+    expect(helper).toContain("--expected-reviewed-range");
+    expect(helper).toContain('mv -f "$temp_file" "$target"');
+    expect(helper).toContain(
+      "printf 'Risk signals written to %s.\\n' \"$target\"",
+    );
+    expect(normalizedHelper).toContain(
+      "RISK_SIGNALS_VALUES_JSON must contain exactly the six required signal keys with none, present, or unknown values",
+    );
+    expect(helper).not.toMatch(/\b(branch-review|play-review)\b.*--fix/);
+    expect(helper).not.toMatch(/\bgh\s+(api|pr|issue)\b/);
+    expect(normalizedExecutor).not.toMatch(
+      /risk signals (approve|certify|determine|establish) PR-readiness/i,
+    );
+    expect(normalizedExecutor).not.toMatch(
+      /risk signals (approve|authorize|narrow) branch review/i,
+    );
+    expect(normalizedExecutor).not.toContain(
+      "permission to narrow branch review",
+    );
+
+    expect(normalizedRoutingReference).toContain(
+      "hard-risk categories inform bounded signal values",
+    );
+    expect(normalizedRoutingReference).toContain(
+      "branch-review independently validates and decides scope",
+    );
+    expect(normalizedRoutingReference).not.toContain(
+      "risk signals authorize narrow review",
     );
   });
 });

@@ -108,6 +108,7 @@ Commands:
 | `validate-diff-anchors`     | `pr-review`                               | Validates that postable inline anchors target right-side lines in the selected review diff.                                                                                    |
 | `compare-approved-payload`  | `pr-review` approved-review artifact flow | Regenerates the expected approved-review payload from validated scope and findings inputs and compares it to the supplied payload.                                             |
 | `validate-approval-summary` | `branch-review` approval-summary flow     | Validates a `branch-review/approval-summary/v1` artifact, linked scope-decision and findings evidence, counts, digests, reviewed head, and terminal-state gate interpretation. |
+| `validate-risk-signals`     | `branch-review` risk-signal handoff       | Validates a `branch-review/risk-signals/v1` artifact from `play-subagent-execution` before branch-review may use it as non-authoritative escalation context.                   |
 
 Every command that validates or consumes a scope decision receives the same
 explicit scope-policy inputs, including the surface, immutable head SHA,
@@ -131,6 +132,17 @@ unsafe or missing paths, malformed linked evidence, digest drift, count drift,
 unknown terminal states, and any `gate_passed` field.
 Consumers must use this validator output for pass/block interpretation rather
 than deriving pass/fail from summary fields themselves.
+
+`validate-risk-signals` requires `--surface branch-review`, `--head-sha`,
+`--risk-signals-file`, `--expected-schema branch-review/risk-signals/v1`, and
+`--expected-reviewed-range`. Successful validation prints no stdout and exits
+zero. The command rejects non-branch-review surfaces, unsupported schemas,
+unsafe paths or suffixes, stale heads, base-ref/range mismatch, changed-file
+drift including duplicate file entries, malformed producer/evidence fields,
+missing or extra signal keys, invalid signal values, missing booleans, and
+irrelevant scope-only flags such as `--base-ref` or `--emit-gate-result`.
+Adapters consume failures as fail-closed branch-review context; a valid artifact
+can only preserve or escalate scrutiny and never authorizes narrow review.
 
 The validator is runtime-backed through the packaged `devcanon-runtime` support
 skill. It may require Node.js through that packaged support runtime, but it must
