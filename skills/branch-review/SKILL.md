@@ -253,6 +253,16 @@ FINAL_LANGUAGE_HINTS_JSON="$FINAL_LANGUAGE_HINTS_JSON" \
   bash "$SCOPE_DECISION_HELPER" finalize-scope-decision || exit 1
 ```
 
+The finalized `branch-review/scope-decision/v1` artifact is the operator and
+downstream-tool surface for explaining the selected scope. It includes
+`scope_reason_codes`, a validated finite machine-readable code list, and
+`scope_explanation`, a concise human-readable explanation. The current accepted
+reason-code contract is `governed_path`, `file_count`, `range_validation`,
+`language_or_surface_change`, `semantic_contract_risk`, and `narrow_allowed`;
+the support validator rejects unknown, reserved, duplicate, missing, or
+scope-inconsistent reason fields. Use these validated artifact fields rather
+than deriving rationale from helper internals.
+
 For a final full escalation caused by wrapper semantic classification, set
 `ACTIVE_DIFF_RANGE="$FULL_DIFF_RANGE"`, `IS_FOLLOWUP_NARROW=false`, and provide
 a semantic escalation reason such as `source-owned-contract`,
