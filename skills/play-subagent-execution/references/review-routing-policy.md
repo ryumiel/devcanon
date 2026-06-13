@@ -146,6 +146,15 @@ Hard-risk triggers force `spec-and-quality`:
 - manifests, generated files, file deletions, file renames, file mode changes;
 - test harness or validation behavior changes that can mask regressions.
 
+## Bounded Risk Signals
+
+Terminal risk signals are non-authoritative input for later branch-review.
+The hard-risk categories inform bounded signal values, especially `contract`,
+`generated_output`, `diagnostics`, `documentation_examples`, and
+`governance_path`, but they do not duplicate this routing policy or authorize a
+reduced branch review. Later branch-review independently validates and decides
+scope.
+
 Foundation-producing tasks receive at least `spec-only` before dependent tasks
 start, even when the plan hints `none-final-only`. If a foundation-producing
 task also matches any hard-risk trigger, use `spec-and-quality`.

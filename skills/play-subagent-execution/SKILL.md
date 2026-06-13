@@ -329,6 +329,30 @@ whole-implementation reviewer remains the built-in gate, then the
 direct/manual terminal handoff resolves whether the active workflow requires
 `branch-review` before `play-branch-finish`.
 
+### Terminal risk signals
+
+When terminal handoff state exists, produce bounded risk signals after
+implementation and the applicable per-task/final review path. The risk signals
+are non-authoritative branch-review input: they summarize executor-observed
+surfaces and do not decide PR readiness, approve branch review, or narrow
+branch-review scope. Branch-review independently validates its inputs and owns
+branch-level review scope.
+
+Use `scripts/write-risk-signals.sh` to write the artifact. The success notice
+line is exactly:
+
+```text
+Risk signals written to <path>.
+```
+
+Notice is emitted only after the helper write and runtime validation succeed.
+If the helper fails when terminal handoff was promised or expected, report a
+blocker and do not emit the notice.
+
+Direct/manual terminal handoff remains unchanged. This skill did not run
+branch-level review; run `branch-review` before `play-branch-finish` when the
+active workflow requires branch-level review.
+
 ### Direct/manual terminal handoff
 
 When this is a direct or manual invocation and there is no verified owning
@@ -484,6 +508,7 @@ are not child-agent dispatch prompt templates.
 - `references/snapshot-manifest-recipe.md` — canonical construction recipe for implementer `implementer/snapshot/v1` manifests
 - `scripts/write-snapshot-manifest.sh` — helper script for writing implementer `implementer/snapshot/v1` manifests
 - `scripts/validate-snapshot-manifest.sh` — helper script for validating requested implementer `implementer/snapshot/v1` manifests before controller consumption
+- `scripts/write-risk-signals.sh` — helper script for writing validated terminal `branch-review/risk-signals/v1` artifacts
 
 ## Example Workflow
 

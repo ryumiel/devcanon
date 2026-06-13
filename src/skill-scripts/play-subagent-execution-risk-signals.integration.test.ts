@@ -98,6 +98,15 @@ function envFor(
   };
 }
 
+function omitKey(
+  value: Record<string, string>,
+  omittedKey: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== omittedKey),
+  );
+}
+
 function sanitizeSlug(branchName: string): string {
   const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/g, "");
   if (
@@ -294,9 +303,12 @@ describe("play-subagent-execution risk-signals producer", () => {
   it("fails before write when a required environment input is missing", async () => {
     const workspace = await makeGitWorkspace();
     try {
-      const env = envFor(workspace);
-      delete env.RISK_SIGNALS_REVIEWED_BASE_SHA;
-      await expect(runHelper(workspace, env)).rejects.toMatchObject({
+      await expect(
+        runHelper(
+          workspace,
+          omitKey(envFor(workspace), "RISK_SIGNALS_REVIEWED_BASE_SHA"),
+        ),
+      ).rejects.toMatchObject({
         stderr: expect.stringContaining(
           "RISK_SIGNALS_REVIEWED_BASE_SHA is required",
         ),
@@ -312,12 +324,12 @@ describe("play-subagent-execution risk-signals producer", () => {
   it("rejects missing signal keys", async () => {
     const workspace = await makeGitWorkspace();
     try {
-      const values = JSON.parse(signalValues());
-      delete values.contract;
       await expect(
         runHelper(workspace, {
           ...envFor(workspace),
-          RISK_SIGNALS_VALUES_JSON: JSON.stringify(values),
+          RISK_SIGNALS_VALUES_JSON: JSON.stringify(
+            omitKey(JSON.parse(signalValues()), "contract"),
+          ),
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("RISK_SIGNALS_VALUES_JSON"),
