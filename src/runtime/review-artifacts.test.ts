@@ -304,6 +304,18 @@ describe("review artifact runtime reducers", () => {
       stderr: "risk-signals head mismatch",
     },
     {
+      name: "stale base sha",
+      artifact: (_baseSha: string, headSha: string) =>
+        riskSignalsArtifact(headSha, headSha),
+      stderr: "risk-signals base sha mismatch",
+    },
+    {
+      name: "forged base ref",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, { reviewed_base_ref: "topic" }),
+      stderr: "risk-signals base ref mismatch",
+    },
+    {
       name: "range mismatch",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {
@@ -326,6 +338,27 @@ describe("review artifact runtime reducers", () => {
       args: (headSha: string) =>
         riskSignalsArgs(headSha, ".ephemeral/topic-risk.json"),
       stderr: "--risk-signals-file path validation failed",
+    },
+    {
+      name: "irrelevant base-ref flag",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha),
+      args: (headSha: string) => [
+        ...riskSignalsArgs(headSha),
+        "--base-ref",
+        "main",
+      ],
+      stderr: "validate-risk-signals does not accept --base-ref",
+    },
+    {
+      name: "irrelevant emit gate result flag",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha),
+      args: (headSha: string) => [
+        ...riskSignalsArgs(headSha),
+        "--emit-gate-result",
+      ],
+      stderr: "validate-risk-signals does not accept --emit-gate-result",
     },
     {
       name: "changed-file contradiction",

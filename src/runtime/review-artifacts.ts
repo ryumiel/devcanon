@@ -45,6 +45,7 @@ interface ReviewArtifactOptions {
   expectedScopeDecisionFile: string;
   expectedReviewedRange: string;
   emitGateResult: boolean;
+  providedFlags: string[];
 }
 
 const EMPTY_OPTIONS: ReviewArtifactOptions = {
@@ -71,6 +72,7 @@ const EMPTY_OPTIONS: ReviewArtifactOptions = {
   expectedScopeDecisionFile: "",
   expectedReviewedRange: "",
   emitGateResult: false,
+  providedFlags: [],
 };
 
 type ApprovalTerminalState =
@@ -194,12 +196,16 @@ export async function runReviewArtifactsCommand(
 }
 
 function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
-  const options = { ...EMPTY_OPTIONS };
+  const options: ReviewArtifactOptions = {
+    ...EMPTY_OPTIONS,
+    providedFlags: [],
+  };
   let index = 0;
   while (index < args.length) {
     const flag = args[index];
     if (flag === "--emit-gate-result") {
       options.emitGateResult = true;
+      options.providedFlags.push(flag);
       index += 1;
       continue;
     }
@@ -207,6 +213,7 @@ function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
     if (value === undefined || value.length === 0) {
       throw new ReviewArtifactsError(`${flag} is required`);
     }
+    options.providedFlags.push(flag);
     switch (flag) {
       case "--surface":
         options.surface = value;
@@ -987,6 +994,7 @@ async function validateRiskSignals(
 ): Promise<void> {
   await requireRepoRoot();
   requireRiskSignalsFlags(options);
+  rejectRiskSignalsExtraFlags(options);
   await validateHeadShaCommit(options.headSha);
   await validateCurrentHead(options.headSha);
   await assertReadableFile("--risk-signals-file", options.riskSignalsFile);
@@ -1016,9 +1024,21 @@ async function validateRiskSignals(
   }
   await requireRangeExists(gitExecutionRange(reviewedRange, options.headSha));
 
+  const reviewedBaseRef = stringField(riskSignals, "reviewed_base_ref");
+  const rangeBaseRef = rangeBaseSide(reviewedRange);
+  if (reviewedBaseRef !== rangeBaseRef) {
+    fail("risk-signals base ref mismatch");
+  }
+
   const reviewedBaseSha = stringField(riskSignals, "reviewed_base_sha");
   if (!(await gitRefExists(`${reviewedBaseSha}^{commit}`))) {
     fail("risk-signals base sha does not resolve");
+  }
+  const rangeBaseSha = (await git(["rev-parse", `${rangeBaseRef}^{commit}`]))
+    .trim()
+    .split("\n")[0];
+  if (reviewedBaseSha !== rangeBaseSha) {
+    fail("risk-signals base sha mismatch");
   }
 
   const expectedFiles = await changedFiles(
@@ -1044,6 +1064,30 @@ function requireRiskSignalsFlags(options: ReviewArtifactOptions): void {
   if (options.expectedSchema !== "branch-review/risk-signals/v1") {
     fail("--expected-schema must be branch-review/risk-signals/v1");
   }
+}
+
+function rejectRiskSignalsExtraFlags(options: ReviewArtifactOptions): void {
+  const allowed = new Set([
+    "--surface",
+    "--head-sha",
+    "--risk-signals-file",
+    "--expected-schema",
+    "--expected-reviewed-range",
+  ]);
+  const extraFlag = options.providedFlags.find((flag) => !allowed.has(flag));
+  if (extraFlag !== undefined) {
+    fail(`validate-risk-signals does not accept ${extraFlag}`);
+  }
+}
+
+function rangeBaseSide(range: string): string {
+  if (range.endsWith("...HEAD")) {
+    return range.slice(0, -"...HEAD".length);
+  }
+  if (range.endsWith("..HEAD")) {
+    return range.slice(0, -"..HEAD".length);
+  }
+  fail("risk-signals reviewed range mismatch");
 }
 
 function validateRiskSignalsSchema(

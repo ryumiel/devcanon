@@ -586,6 +586,18 @@ describe("play-validate-review-artifacts validator", () => {
       stderr: "risk-signals head mismatch",
     },
     {
+      name: "stale base sha",
+      artifact: (_baseSha: string, headSha: string) =>
+        riskSignals(headSha, headSha),
+      stderr: "risk-signals base sha mismatch",
+    },
+    {
+      name: "forged base ref",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignals(baseSha, headSha, { reviewed_base_ref: "topic" }),
+      stderr: "risk-signals base ref mismatch",
+    },
+    {
       name: "malformed head",
       artifact: (baseSha: string, headSha: string) =>
         riskSignals(baseSha, headSha, { reviewed_head_sha: "ABC" }),
@@ -612,6 +624,27 @@ describe("play-validate-review-artifacts validator", () => {
       args: (headSha: string) =>
         riskSignalsArgs(headSha, ".ephemeral/topic-risk.json"),
       stderr: "--risk-signals-file path validation failed",
+    },
+    {
+      name: "irrelevant base-ref flag",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignals(baseSha, headSha),
+      args: (headSha: string) => [
+        ...riskSignalsArgs(headSha),
+        "--base-ref",
+        "main",
+      ],
+      stderr: "validate-risk-signals does not accept --base-ref",
+    },
+    {
+      name: "irrelevant emit gate result flag",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignals(baseSha, headSha),
+      args: (headSha: string) => [
+        ...riskSignalsArgs(headSha),
+        "--emit-gate-result",
+      ],
+      stderr: "validate-risk-signals does not accept --emit-gate-result",
     },
     {
       name: "changed-file contradiction",
