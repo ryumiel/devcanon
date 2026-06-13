@@ -1044,9 +1044,11 @@ async function validateRiskSignals(
   const expectedFiles = await changedFiles(
     gitExecutionRange(reviewedRange, options.headSha),
   );
-  const actualFiles = uniqueSorted(
-    stringArrayField(riskSignals, "changed_files"),
-  );
+  const changedFilesClaim = stringArrayField(riskSignals, "changed_files");
+  if (new Set(changedFilesClaim).size !== changedFilesClaim.length) {
+    fail("risk-signals changed files contain duplicates");
+  }
+  const actualFiles = uniqueSorted(changedFilesClaim);
   if (!jsonEqual(expectedFiles, actualFiles)) {
     fail("risk-signals changed files do not match expected range");
   }

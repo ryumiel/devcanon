@@ -28,14 +28,16 @@ const PR_REVIEW_MANIFEST_NOTICE_LINES = [
 function shellFunctionBody(
   content: string,
   functionName: string,
-  nextFunctionName: string,
 ): string {
   const start = content.indexOf(`${functionName}() {`);
-  const end = content.indexOf(`${nextFunctionName}() {`, start);
 
   expect(start).toBeGreaterThanOrEqual(0);
-  expect(end).toBeGreaterThan(start);
+  const nextFunction = content
+    .slice(start + 1)
+    .match(/\n[A-Za-z_][A-Za-z0-9_]*\(\) \{/u);
+  expect(nextFunction?.index).toBeDefined();
 
+  const end = start + 1 + (nextFunction?.index ?? 0);
   return content.slice(start, end);
 }
 
@@ -714,7 +716,6 @@ describe("phase artifact source contracts", () => {
     const riskSignalsClassifier = shellFunctionBody(
       scopeDecisionHelper,
       "classify_risk_signals",
-      "sha256_file",
     );
 
     expect(branchReview).toContain("| `--last-reviewed <sha>`");

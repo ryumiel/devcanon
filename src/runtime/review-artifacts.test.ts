@@ -375,6 +375,14 @@ describe("review artifact runtime reducers", () => {
         }),
       stderr: "risk-signals changed files do not match expected range",
     },
+    {
+      name: "duplicate changed-file entry",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          changed_files: ["src/app.ts", "src/app.ts"],
+        }),
+      stderr: "risk-signals changed files contain duplicates",
+    },
   ])("rejects invalid risk-signals artifacts: $name", async (testCase) => {
     const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
     try {
