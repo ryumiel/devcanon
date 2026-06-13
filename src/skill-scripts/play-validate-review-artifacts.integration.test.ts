@@ -1242,6 +1242,37 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("rejects initial ambiguous-classification reason without ambiguous semantic decision", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...initialScope(baseSha, headSha),
+        selection_reason:
+          "Initial review uses full review with ambiguous risk signals.",
+        escalation_reasons: ["ambiguous-classification", "not-followup"],
+        scope_reason_codes: ["range_validation", "semantic_contract_risk"],
+        scope_explanation:
+          "Initial review uses full review with ambiguous risk signals.",
+        semantic_decision: {
+          checked: true,
+          ambiguous: false,
+          notes: "Risk signal validation was not ambiguous.",
+        },
+      });
+
+      await expectRejectsWith(
+        runValidator(
+          cwd,
+          "validate-scope-decision",
+          scopeArgs(headSha, baseSha),
+        ),
+        "ambiguous-classification escalation reason missing",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects branch-review reason fields on pr-review scope decisions", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

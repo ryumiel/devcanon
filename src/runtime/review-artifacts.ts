@@ -468,6 +468,8 @@ async function validateScopeDecision(
     if (!reasonPresent(escalationReasons, "ambiguous-classification")) {
       fail("ambiguous-classification escalation reason missing");
     }
+  } else if (reasonPresent(escalationReasons, "ambiguous-classification")) {
+    fail("ambiguous-classification escalation reason missing");
   }
 
   const expectedFiles = await changedFiles(selectedExecRange);
@@ -600,12 +602,6 @@ async function validateScopeDecision(
       fail("mechanical escalation reason does not match git");
     }
 
-    if (
-      reasonPresent(escalationReasons, "ambiguous-classification") &&
-      !semanticAmbiguous
-    ) {
-      fail("ambiguous-classification escalation reason missing");
-    }
     if (semanticAmbiguous) {
       hasRealFollowupTrigger = true;
     } else if (
