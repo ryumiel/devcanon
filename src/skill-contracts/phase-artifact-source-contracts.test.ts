@@ -1015,6 +1015,9 @@ describe("phase artifact source contracts", () => {
 
   it("keeps risk-signals runtime validation as the branch-review consumer authority", async () => {
     const runtime = await readRepoFile("src/runtime/review-artifacts.ts");
+    const validatorSkillSource = await readSkillSource(
+      "play-validate-review-artifacts",
+    );
     const validatorSkill = await readRepoFile(
       "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
     );
@@ -1022,8 +1025,28 @@ describe("phase artifact source contracts", () => {
       "skills/branch-review/scripts/scope-decision-artifacts.sh",
     );
     const normalizedRuntime = normalizeWhitespace(runtime);
+    const normalizedValidatorSkill = normalizeWhitespace(validatorSkillSource);
     const normalizedScopeHelper = normalizeWhitespace(branchReviewScopeHelper);
 
+    expect(validatorSkillSource).toContain("| `validate-risk-signals`");
+    expect(normalizedValidatorSkill).toContain(
+      "Validates a `branch-review/risk-signals/v1` artifact from `play-subagent-execution`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "`validate-risk-signals` requires `--surface branch-review`, `--head-sha`, `--risk-signals-file`, `--expected-schema branch-review/risk-signals/v1`, and `--expected-reviewed-range`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "Successful validation prints no stdout and exits zero",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "changed-file drift including duplicate file entries",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "irrelevant scope-only flags such as `--base-ref` or `--emit-gate-result`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "can only preserve or escalate scrutiny and never authorizes narrow review",
+    );
     expect(runtime).toContain('case "validate-risk-signals"');
     expect(runtime).toContain("requireRiskSignalsFlags");
     expect(runtime).toContain("rejectRiskSignalsExtraFlags");

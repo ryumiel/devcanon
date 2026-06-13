@@ -193,6 +193,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalized).toContain(
       "`--risk-signals` is optional and non-authoritative",
     );
+    expect(normalized).toContain("handoff from `play-subagent-execution`");
     expect(normalized).toContain(
       "Missing risk signals are normal branch-review usage",
     );
