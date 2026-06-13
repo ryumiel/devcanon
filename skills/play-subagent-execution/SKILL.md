@@ -77,8 +77,11 @@ the gate requires post-change example proof that positive examples match the
 target post-change contract, not the pre-change contract; invalid examples
 mutate exactly one named contract dimension unless multi-fault behavior is
 intentional and named; and derived fields stay consistent with source facts or
-are explicitly justified. A no-trigger omission reason is trusted only when this
-controller can identify
+are explicitly justified. Expected mismatches between current pre-change source
+and target post-change examples are implementation work when the task
+intentionally changes that source contract; unsupported, internally
+inconsistent, or unverifiable examples or source facts remain contract gaps. A
+no-trigger omission reason is trusted only when this controller can identify
 the upstream two-gate `play-planning` return for the plan being executed,
 meaning both Plan Review and Implementer Executability Review passed before
 `Plan written to <path>.` was emitted. Direct, hand-written, copied, or older

@@ -435,7 +435,7 @@ or reviewer preference.
 The discipline is broad example policy, not fixture-only policy. The positive
 examples, fixtures, API samples, helper I/O samples, CLI output samples, and
 cross-skill artifact examples must match the target post-change contract, not
-the pre-change contract. The invalid examples should mutate exactly one named
+the pre-change contract. The invalid examples must mutate exactly one named
 contract dimension from the canonical valid example unless multi-fault behavior
 is intentional and named. When source facts change, derived fields in examples
 or fixtures stay consistent with source facts, or the plan must explicitly

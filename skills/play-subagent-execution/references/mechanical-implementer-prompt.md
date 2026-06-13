@@ -45,9 +45,12 @@ Task tool (general-purpose):
     behavior is intentional and named; and derived fields stay consistent with
     source facts or are explicitly justified. Do not infer whether Contract
     Example Discipline should have been required; `play-planning` owns that
-    trigger taxonomy. If source inspection finds unsupported, internally
-    inconsistent, or unverifiable examples or source facts, report the exact
-    gap as BLOCKED or NEEDS_CONTEXT instead of broadening mechanical mode.
+    trigger taxonomy. Expected mismatches between current pre-change source and
+    target post-change examples are implementation work when the task
+    intentionally changes that source contract. If source inspection finds
+    unsupported, internally inconsistent, or unverifiable examples or source
+    facts, report the exact gap as BLOCKED or NEEDS_CONTEXT instead of
+    broadening mechanical mode.
 
     ## Context
 

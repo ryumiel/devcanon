@@ -87,8 +87,12 @@ Task tool (general-purpose):
       intentional and named; and derived fields stay consistent with source
       facts or are explicitly justified. Do not decide whether Contract Example
       Discipline should have been required; `play-planning` owns that trigger
-      taxonomy. Report exact source-backed gaps instead of accepting or
-      guessing through inconsistent examples.
+      taxonomy. Expected mismatches between current pre-change source and
+      target post-change examples are implementation work when the task
+      intentionally changes that source contract; unsupported, internally
+      inconsistent, or unverifiable examples or source facts remain contract
+      gaps. Report exact source-backed gaps instead of accepting or guessing
+      through inconsistent examples.
 
     **Within-document identifier drift (when changes include `*.md` files):**
 

@@ -450,6 +450,7 @@ describe("existing skills source prose contracts", () => {
       "positive examples",
       "match the target post-change contract",
       "not the pre-change contract",
+      "invalid examples must mutate exactly one named contract dimension",
       "mutate exactly one named contract dimension",
       "unless multi-fault behavior is intentional and named",
       "source facts change",
@@ -591,14 +592,13 @@ describe("existing skills source prose contracts", () => {
         "derived fields stay consistent with source facts",
       );
       expect(executorMirrorSurface).toContain("explicitly justified");
+      expect(executorMirrorSurface).toContain(
+        "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
+      );
+      expect(executorMirrorSurface).toContain(
+        "unsupported, internally inconsistent, or unverifiable",
+      );
     }
-
-    expect(normalizedImplementerPrompt).toContain(
-      "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
-    );
-    expect(normalizedImplementerPrompt).toContain(
-      "unsupported, internally inconsistent, or unverifiable",
-    );
 
     expect(normalizedMechanicalImplementerPrompt).toContain(
       "Mechanical mode does not bypass present Contract Example Discipline obligations",
