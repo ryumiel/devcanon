@@ -186,6 +186,35 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps branch-review risk-signals prose non-authoritative and fail-closed", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const normalized = normalizeWhitespace(branchReview);
+
+    expect(normalized).toContain(
+      "`--risk-signals` is optional and non-authoritative",
+    );
+    expect(normalized).toContain(
+      "Missing risk signals are normal branch-review usage",
+    );
+    expect(normalized).toContain(
+      "Valid risk signals can only preserve or escalate scrutiny; they never justify narrow review",
+    );
+    expect(normalized).toContain(
+      "Invalid, stale, malformed, or untrusted supplied risk signals fail closed to full review or higher scrutiny without adding reserved scope reason codes",
+    );
+    expect(normalized).toContain(
+      "Scope-decision artifact remains the authoritative branch-review explanation",
+    );
+    expect(normalized).toContain(
+      "Prior findings follow-up validation remains separate from risk-signal validation",
+    );
+    expect(branchReview).toContain("classify-risk-signals");
+    expect(branchReview).toContain("RISK_SIGNALS_CLASSIFICATION");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(branchReview).not.toContain("prior_findings_validation");
+  });
+
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");

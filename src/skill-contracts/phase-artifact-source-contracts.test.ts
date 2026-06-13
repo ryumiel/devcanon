@@ -695,6 +695,7 @@ describe("phase artifact source contracts", () => {
 
     expect(branchReview).toContain("| `--last-reviewed <sha>`");
     expect(branchReview).toContain("| `--prior-findings <path>`");
+    expect(branchReview).toContain("| `--risk-signals <repo-relative-path>`");
     expect(normalizedBranchReview).toContain(
       "40-character lowercase hex commit SHA",
     );
@@ -714,6 +715,8 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
     expect(branchReview).toContain("- `SCOPE_DECISION_FILE`");
     expect(branchReview).toContain("- `APPROVAL_SUMMARY_FILE`");
+    expect(branchReview).toContain("- `RISK_SIGNALS_FILE`");
+    expect(branchReview).toContain("- `RISK_SIGNALS_STATUS`");
     expect(branchReview).toContain(
       'SCOPE_DECISION_FILE) SCOPE_DECISION_FILE="$value" ;;',
     );
@@ -726,6 +729,7 @@ describe("phase artifact source contracts", () => {
       "--last-reviewed requires a 40-character lowercase hex SHA",
     );
     expect(branchReviewHelper).toContain("--prior-findings requires a path");
+    expect(branchReviewHelper).toContain("--risk-signals requires a path");
     expect(branchReviewHelper).toContain("unknown branch-review argument");
     expect(branchReviewHelper).toContain("multiple base arguments supplied");
     expect(branchReviewHelper).toContain("PRIOR_FINDINGS_HEAD_SHA");
@@ -744,6 +748,8 @@ describe("phase artifact source contracts", () => {
       "Malformed follow-up SHAs stop with `--last-reviewed requires a 40-character lowercase hex SHA`",
     );
     expect(branchReviewHelper).toContain('FULL_DIFF_RANGE="$BASE...HEAD"');
+    expect(branchReviewHelper).toContain('emit_line "RISK_SIGNALS_FILE"');
+    expect(branchReviewHelper).toContain('emit_line "RISK_SIGNALS_STATUS"');
     expect(branchReviewHelper).toContain(
       'CANDIDATE_ACTIVE_DIFF_RANGE="$LAST_REVIEWED_SHA..HEAD"',
     );
@@ -794,7 +800,19 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("Upstream Review-Scope Handoff");
     expect(branchReview).toContain("planning/execution categorization");
     expect(branchReview).toContain("non-authoritative context");
+    expect(normalizedBranchReview).toContain(
+      "`--risk-signals` is optional and non-authoritative",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Missing risk signals are normal branch-review usage",
+    );
     expect(normalizedBranchReview).toContain("may only preserve or escalate");
+    expect(normalizedBranchReview).toContain(
+      "Valid risk signals can only preserve or escalate scrutiny; they never justify narrow review",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Invalid, stale, malformed, or untrusted supplied risk signals fail closed to full review or higher scrutiny without adding reserved scope reason codes",
+    );
     expect(normalizedBranchReview).toContain(
       "configured path escalation from `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`",
     );
@@ -818,6 +836,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain("generated-output behavior");
     expect(branchReview).toContain("ambiguous classification");
+    expect(branchReview).toContain("classify-risk-signals");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_ESCALATION_REASON");
+    expect(branchReview).toContain("RISK_SIGNALS_SEMANTIC_DECISION_NOTES");
+    expect(branchReview).toContain(
+      'SEMANTIC_ESCALATION_REASON="${RISK_SIGNALS_SEMANTIC_ESCALATION_REASON:-}"',
+    );
     expect(normalizedBranchReview).not.toContain(
       "more than 5 files changed since `--last-reviewed`, unusable follow-up shas",
     );
@@ -829,6 +853,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Prior findings follow-up validation remains separate from risk-signal validation",
     );
     expect(branchReview).toContain(
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',

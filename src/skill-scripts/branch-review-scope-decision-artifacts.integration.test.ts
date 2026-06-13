@@ -125,6 +125,45 @@ function initialScope(baseSha: string, headSha: string, overrides = {}) {
   };
 }
 
+function riskSignals(baseSha: string, headSha: string, overrides = {}) {
+  return {
+    schema: "branch-review/risk-signals/v1",
+    producer: "play-subagent-execution",
+    evidence_source: {
+      kind: "executor-terminal-handoff",
+      path: ".ephemeral/example-plan.md",
+      summary: "Derived from executor terminal handoff state.",
+    },
+    reviewed_base_ref: "main",
+    reviewed_base_sha: baseSha,
+    reviewed_head_sha: headSha,
+    reviewed_range: "main...HEAD",
+    changed_files: ["src/app.ts"],
+    signals: {
+      user_facing_behavior: "none",
+      documentation_examples: "none",
+      diagnostics: "none",
+      contract: "none",
+      generated_output: "none",
+      governance_path: "none",
+    },
+    canonical_docs_may_be_affected: false,
+    end_user_diagnostics_may_be_affected: false,
+    notes: "",
+    ...overrides,
+  };
+}
+
+function parseKeyValues(stdout: string) {
+  const values: Record<string, string> = {};
+  for (const line of stdout.trim().split("\n")) {
+    const separator = line.indexOf("=");
+    if (separator === -1) continue;
+    values[line.slice(0, separator)] = line.slice(separator + 1);
+  }
+  return values;
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
@@ -226,6 +265,153 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           SCOPE_DECISION_FILE: decisionPath,
         }),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("classifies absent risk-signals as absent without escalation", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
+        HEAD_SHA: headSha,
+        FULL_DIFF_RANGE: "main...HEAD",
+        RISK_SIGNALS_FILE: "",
+        RISK_SIGNALS_STATUS: "absent",
+      });
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("absent");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe("");
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toBe("");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("classifies invalid risk-signal paths as fail-closed without reading them", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
+        HEAD_SHA: headSha,
+        FULL_DIFF_RANGE: "main...HEAD",
+        RISK_SIGNALS_FILE: ".ephemeral/nested/topic-risk-signals.json",
+        RISK_SIGNALS_STATUS: "invalid-path",
+      });
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("invalid-fail-closed");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe(
+        "ambiguous-classification",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "invalid-path",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "full branch review",
+      );
+      expect(result.stdout).not.toContain("prior_findings_validation");
+      expect(result.stdout).not.toContain("narrow_allowed");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("classifies supplied valid no-risk signals without escalation", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+      await writeJson(cwd, riskSignalsFile, riskSignals(baseSha, headSha));
+
+      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
+        HEAD_SHA: headSha,
+        FULL_DIFF_RANGE: "main...HEAD",
+        RISK_SIGNALS_FILE: riskSignalsFile,
+        RISK_SIGNALS_STATUS: "supplied",
+      });
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("valid-no-escalation");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe("");
+      expect(result.stdout).not.toContain("narrow_allowed");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("classifies supplied high-risk signals with fixed-order escalation reasons", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+      await writeJson(
+        cwd,
+        riskSignalsFile,
+        riskSignals(baseSha, headSha, {
+          signals: {
+            user_facing_behavior: "present",
+            documentation_examples: "unknown",
+            diagnostics: "present",
+            contract: "present",
+            generated_output: "present",
+            governance_path: "present",
+          },
+          canonical_docs_may_be_affected: true,
+          end_user_diagnostics_may_be_affected: true,
+        }),
+      );
+
+      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
+        HEAD_SHA: headSha,
+        FULL_DIFF_RANGE: "main...HEAD",
+        RISK_SIGNALS_FILE: riskSignalsFile,
+        RISK_SIGNALS_STATUS: "supplied",
+      });
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("valid-escalate");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe(
+        "ambiguous-classification,generated-output-contract,shared-workflow-policy,source-owned-contract",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        riskSignalsFile,
+      );
+      expect(result.stdout).not.toContain("prior_findings_validation");
+      expect(result.stdout).not.toContain("narrow_allowed");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("classifies validator-rejected supplied risk-signals as fail-closed ambiguity", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+      await writeJson(
+        cwd,
+        riskSignalsFile,
+        riskSignals(baseSha, headSha, { reviewed_range: "stale...HEAD" }),
+      );
+
+      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
+        HEAD_SHA: headSha,
+        FULL_DIFF_RANGE: "main...HEAD",
+        RISK_SIGNALS_FILE: riskSignalsFile,
+        RISK_SIGNALS_STATUS: "supplied",
+      });
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("invalid-fail-closed");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe(
+        "ambiguous-classification",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "risk-signals reviewed range mismatch",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "higher scrutiny",
+      );
+      expect(result.stdout).not.toContain("prior_findings_validation");
+      expect(result.stdout).not.toContain("narrow_allowed");
     } finally {
       await cleanupTempDir(cwd);
     }

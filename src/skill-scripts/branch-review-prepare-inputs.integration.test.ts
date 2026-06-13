@@ -123,6 +123,8 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
 
       expect(values.BASE).toBe("main");
       expect(values.FIX_MODE).toBe("false");
+      expect(values.RISK_SIGNALS_FILE).toBe("");
+      expect(values.RISK_SIGNALS_STATUS).toBe("absent");
       expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_ACTIVE_DIFF_RANGE).toBe("main...HEAD");
       expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("false");
@@ -141,6 +143,49 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("accepts a safe direct-child risk-signals path without requiring prior findings", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+      const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+
+      const values = await runHelper(cwd, [
+        "--risk-signals",
+        riskSignalsFile,
+      ]);
+
+      expect(values.RISK_SIGNALS_FILE).toBe(riskSignalsFile);
+      expect(values.RISK_SIGNALS_STATUS).toBe("supplied");
+      expect(values.PRIOR_BRANCH_FINDINGS).toBe("");
+      expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    ".ephemeral/nested/topic-risk-signals.json",
+    ".ephemeral/../topic-risk-signals.json",
+    "/tmp/topic-risk-signals.json",
+    ".ephemeral/topic-findings.json",
+  ])("marks unsafe risk-signals paths invalid without reading them: %s", async (riskSignalsFile) => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+
+      const values = await runHelper(cwd, [
+        "--risk-signals",
+        riskSignalsFile,
+      ]);
+
+      expect(values.RISK_SIGNALS_FILE).toBe(riskSignalsFile);
+      expect(values.RISK_SIGNALS_STATUS).toBe("invalid-path");
+      expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -494,6 +539,14 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
         stderr: expect.stringContaining("--last-reviewed requires a SHA"),
       });
       await expect(
+        execFileAsync("bash", [helperScript, "--risk-signals"], {
+          cwd,
+          env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("--risk-signals requires a path"),
+      });
+      await expect(
         execFileAsync("bash", [helperScript, "--unknown"], {
           cwd,
           env: { ...process.env, PLAY_REVIEW_DIR: playReviewDir },
@@ -549,6 +602,36 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
           "--prior-findings review head must match --last-reviewed",
         ),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("keeps prior findings validation separate from risk-signals path validation", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const lastReviewedSha = (
+        await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+      ).stdout.trim();
+      const findingsFile = await writeFindingsEnvelope(cwd, lastReviewedSha);
+      await commitFile(cwd, "notes/followup.md", "narrow\n");
+
+      const values = await runHelper(cwd, [
+        "--risk-signals",
+        ".ephemeral/nested/topic-risk-signals.json",
+        "--last-reviewed",
+        lastReviewedSha,
+        "--prior-findings",
+        findingsFile,
+      ]);
+
+      expect(values.RISK_SIGNALS_FILE).toBe(
+        ".ephemeral/nested/topic-risk-signals.json",
+      );
+      expect(values.RISK_SIGNALS_STATUS).toBe("invalid-path");
+      expect(values.PRIOR_BRANCH_FINDINGS).toBe(findingsFile);
+      expect(values.FOLLOWUP_SHA_USABLE).toBe("true");
+      expect(values.MECHANICAL_IS_FOLLOWUP_NARROW).toBe("true");
     } finally {
       await cleanupTempDir(cwd);
     }
