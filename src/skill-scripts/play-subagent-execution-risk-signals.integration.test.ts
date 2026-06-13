@@ -108,11 +108,12 @@ function omitKey(
 }
 
 function sanitizeSlug(branchName: string): string {
-  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/g, "");
+  const slug = branchName.replaceAll(/[^A-Za-z0-9._-]/g, "-");
   if (
     slug.length === 0 ||
     slug === "." ||
     slug === ".." ||
+    slug.includes("..") ||
     slug.startsWith("-") ||
     slug.startsWith(".")
   ) {
@@ -227,6 +228,30 @@ describe("play-subagent-execution risk-signals producer", () => {
       await expect(
         stat(path.join(workspace.cwd, relPath)),
       ).resolves.toBeTruthy();
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
+  it("replaces unsupported characters between dots so the emitted path validates", async () => {
+    const workspace = await makeGitWorkspace("a.@.b");
+    try {
+      const relPath = riskSignalsPath(workspace, "a.-.b");
+      await expect(runHelper(workspace)).resolves.toMatchObject({
+        stdout: `Risk signals written to ${relPath}.\n`,
+        stderr: "",
+      });
+      expect(relPath).toMatch(/^\.ephemeral\/[^/]+-risk-signals\.json$/u);
+      expect(relPath).toContain(workspace.headSha);
+      expect(relPath).not.toContain("..");
+      await expect(runValidator(workspace, relPath)).resolves.toMatchObject({
+        stdout: "",
+        stderr: "",
+      });
+      await expect(readJson(workspace.cwd, relPath)).resolves.toMatchObject({
+        reviewed_head_sha: workspace.headSha,
+        reviewed_range: "main...HEAD",
+      });
     } finally {
       await cleanupTempDir(workspace.cwd);
     }

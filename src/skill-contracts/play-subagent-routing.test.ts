@@ -1705,6 +1705,8 @@ describe("play subagent routing source contracts", () => {
     expect(helper).toContain(
       'target=".ephemeral/${slug}-${RISK_SIGNALS_REVIEWED_HEAD_SHA}-risk-signals.json"',
     );
+    expect(helper).toContain("LC_ALL=C tr -c 'A-Za-z0-9._-' '-'");
+    expect(helper).toContain("*..*");
     expect(helper).toMatch(
       /temp_file="\.ephemeral\/\.\$\{slug\}-\$\{RISK_SIGNALS_REVIEWED_HEAD_SHA\}-risk-signals\.[^"]+-risk-signals\.json"/u,
     );

@@ -46,9 +46,9 @@ require_repo_root() {
 slug_branch() {
   local branch_name="$1"
   local slug
-  slug="$(printf '%s' "$branch_name" | tr '/' '-' | LC_ALL=C tr -cd 'A-Za-z0-9._-')"
+  slug="$(printf '%s' "$branch_name" | LC_ALL=C tr -c 'A-Za-z0-9._-' '-')"
   case "$slug" in
-    "" | "." | ".." | -* | .*) slug="unnamed" ;;
+    "" | "." | ".." | *..* | -* | .*) slug="unnamed" ;;
   esac
   printf '%s\n' "$slug"
 }
