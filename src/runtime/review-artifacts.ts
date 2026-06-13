@@ -1306,7 +1306,7 @@ function validateScopeShapeSchema(
   }
 
   if (
-    !hasScopeShapeKeys(scope, expectedSchema, expectedScopeKeys) ||
+    !hasExactKeys(scope, expectedScopeKeys) ||
     stringField(scope, "schema") !== expectedSchema ||
     !["pr-review", "branch-review"].includes(stringField(scope, "surface")) ||
     !["initial", "follow-up"].includes(stringField(scope, "mode")) ||
@@ -1369,24 +1369,6 @@ function validateScopeShapeSchema(
   ) {
     fail("scope decision schema mismatch");
   }
-}
-
-function hasScopeShapeKeys(
-  scope: JsonObject,
-  expectedSchema: string,
-  expectedScopeKeys: readonly string[],
-): boolean {
-  if (hasExactKeys(scope, expectedScopeKeys)) {
-    return true;
-  }
-  return (
-    expectedSchema === "pr-review/scope-decision/v1" &&
-    hasExactKeys(scope, [
-      ...expectedScopeKeys,
-      "scope_reason_codes",
-      "scope_explanation",
-    ])
-  );
 }
 
 function validateBranchScopeReasonShape(scope: JsonObject): void {

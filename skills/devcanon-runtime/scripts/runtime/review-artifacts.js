@@ -981,7 +981,7 @@ function validateScopeShapeSchema(scope, expectedSchema) {
         !Object.hasOwn(scope, "scope_explanation")) {
         fail("scope_explanation is required");
     }
-    if (!hasScopeShapeKeys(scope, expectedSchema, expectedScopeKeys) ||
+    if (!hasExactKeys(scope, expectedScopeKeys) ||
         stringField(scope, "schema") !== expectedSchema ||
         !["pr-review", "branch-review"].includes(stringField(scope, "surface")) ||
         !["initial", "follow-up"].includes(stringField(scope, "mode")) ||
@@ -1027,17 +1027,6 @@ function validateScopeShapeSchema(scope, expectedSchema) {
         typeof semanticDecision.notes !== "string") {
         fail("scope decision schema mismatch");
     }
-}
-function hasScopeShapeKeys(scope, expectedSchema, expectedScopeKeys) {
-    if (hasExactKeys(scope, expectedScopeKeys)) {
-        return true;
-    }
-    return (expectedSchema === "pr-review/scope-decision/v1" &&
-        hasExactKeys(scope, [
-            ...expectedScopeKeys,
-            "scope_reason_codes",
-            "scope_explanation",
-        ]));
 }
 function validateBranchScopeReasonShape(scope) {
     const codes = branchScopeReasonCodes(scope);

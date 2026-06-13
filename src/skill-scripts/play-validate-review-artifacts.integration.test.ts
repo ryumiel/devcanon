@@ -203,8 +203,12 @@ function initialScope(
     changed_files: ["src/app.ts"],
     language_hints: ["ts"],
     escalation_reasons: ["not-followup"],
-    scope_reason_codes: ["range_validation"],
-    scope_explanation: "Initial review uses the full review range.",
+    ...(surface === "branch-review"
+      ? {
+          scope_reason_codes: ["range_validation"],
+          scope_explanation: "Initial review uses the full review range.",
+        }
+      : {}),
     prior_context: priorContext,
     mechanical_facts: {
       changed_file_count: 1,
@@ -247,6 +251,23 @@ function narrowScope(
       mechanical_escalate_full: false,
       mechanical_escalation_reason: "",
     },
+  };
+}
+
+function prReviewNarrowScope(
+  baseSha: string,
+  firstSha: string,
+  headSha: string,
+): JsonObject {
+  const {
+    scope_reason_codes: _codes,
+    scope_explanation: _explanation,
+    ...scope
+  } = narrowScope(baseSha, firstSha, headSha);
+  return {
+    ...scope,
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
   };
 }
 
@@ -934,6 +955,31 @@ describe("play-validate-review-artifacts validator", () => {
           scopeArgs(headSha, baseSha),
         ),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects branch-review reason fields on pr-review scope decisions", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...initialScope(baseSha, headSha, "pr-review"),
+        scope_reason_codes: ["range_validation"],
+        scope_explanation: "Initial review uses the full review range.",
+      });
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-scope-decision", [
+          ...scopeArgs(
+            headSha,
+            baseSha,
+            ".ephemeral/topic-scope-decision.json",
+            "pr-review",
+          ),
+        ]),
+        "scope decision schema mismatch",
+      );
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -2498,9 +2544,7 @@ describe("play-validate-review-artifacts validator", () => {
     const { cwd, baseSha, firstSha, headSha } = await makeGitWorkspace();
     try {
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
-        ...narrowScope(baseSha, firstSha, headSha),
-        schema: "pr-review/scope-decision/v1",
-        surface: "pr-review",
+        ...prReviewNarrowScope(baseSha, firstSha, headSha),
         prior_context: {
           kind: "github-prior-threads",
           path: ".ephemeral/topic-prior-threads.json",
@@ -2694,9 +2738,7 @@ describe("play-validate-review-artifacts validator", () => {
       });
       const newHead = await git(cwd, "rev-parse", "HEAD");
       await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
-        ...narrowScope(baseSha, beforeMultihunkChange, newHead),
-        schema: "pr-review/scope-decision/v1",
-        surface: "pr-review",
+        ...prReviewNarrowScope(baseSha, beforeMultihunkChange, newHead),
         changed_files: ["src/multihunk.ts"],
         selected_range: `${beforeMultihunkChange}..HEAD`,
         candidate_narrow_range: `${beforeMultihunkChange}..HEAD`,
