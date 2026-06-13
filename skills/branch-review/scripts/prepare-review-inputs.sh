@@ -6,6 +6,7 @@ FIX_MODE=false
 LAST_REVIEWED_SHA=""
 PRIOR_FINDINGS_FILE=""
 SCOPE_DECISION_FILE=""
+APPROVAL_SUMMARY_FILE=""
 CHANGED_FILES_FILE=""
 GOVERNED_PATH_PATTERN='^(docs/(adr|arch|product-requirements|specs|guidelines)/|MAP\.md$|AGENTS\.md$|CONTRIBUTING\.md$)'
 MAX_NARROW_CHANGED_FILES=5
@@ -104,6 +105,9 @@ prepare_scope_decision_file() {
   }
   SCOPE_DECISION_FILE="$(
     HEAD_SHA="$review_head_sha" bash "$helper" prepare-scope-decision-write
+  )"
+  APPROVAL_SUMMARY_FILE="$(
+    HEAD_SHA="$review_head_sha" bash "$helper" prepare-approval-summary-write
   )"
 }
 
@@ -335,3 +339,4 @@ emit_line "LANGUAGE_HINTS" "$LANGUAGE_HINTS"
 emit_line "LAST_REVIEWED_SHA" "$LAST_REVIEWED_SHA"
 emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"
 emit_line "SCOPE_DECISION_FILE" "$SCOPE_DECISION_FILE"
+emit_line "APPROVAL_SUMMARY_FILE" "$APPROVAL_SUMMARY_FILE"

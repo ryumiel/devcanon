@@ -251,6 +251,19 @@ describe("rendered phase artifact smoke coverage", () => {
     const branchReview = bodyFor("branch-review");
     expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
     expect(branchReview).toContain("Findings written to <path>.");
+    expect(branchReview).toContain("branch-review/approval-summary/v1");
+    expect(branchReview).toContain("Approval summary written to <path>.");
+    expect(branchReview).toContain("write-approval-summary");
+    expect(branchReview).toContain("validate-approval-summary");
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "pass/block interpretation for the summary",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "in `--fix` mode it is the post-fix remaining-set envelope overwritten in place",
+    );
     expect(branchReview).toContain("no GitHub posting");
     expect(branchReview).toContain("no `gh` commands");
     expect(branchReview).toContain("no GitHub schema");
@@ -306,6 +319,11 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(supportValidator).toContain("validate-prior-threads");
     expect(supportValidator).toContain("validate-diff-anchors");
     expect(supportValidator).toContain("compare-approved-payload");
+    expect(supportValidator).toContain("validate-approval-summary");
+    expect(supportValidator).toContain("branch-review/approval-summary/v1");
+    expect(normalizeRenderedWhitespace(supportValidator)).toContain(
+      "Consumers must use this validator output for pass/block interpretation",
+    );
     expect(supportValidator).toContain(
       "play-validate-review-artifacts validator missing",
     );
@@ -447,6 +465,17 @@ describe("rendered phase artifact smoke coverage", () => {
 
       expect(renderedBranchReview).toContain('REVIEW_SURFACE="branch-review"');
       expect(renderedBranchReview).toContain("Findings written to <path>.");
+      expect(renderedBranchReview).toContain(
+        "branch-review/approval-summary/v1",
+      );
+      expect(renderedBranchReview).toContain(
+        "Approval summary written to <path>.",
+      );
+      expect(renderedBranchReview).toContain("write-approval-summary");
+      expect(renderedBranchReview).toContain("validate-approval-summary");
+      expect(normalizeRenderedWhitespace(renderedBranchReview)).toContain(
+        "pass/block interpretation for the summary",
+      );
       expect(renderedBranchReview).toContain("no GitHub posting");
       expect(renderedBranchReview).toContain("no `gh` commands");
       expect(renderedBranchReview).toContain("no GitHub schema");

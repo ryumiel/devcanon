@@ -238,7 +238,7 @@ prepare_write_target() {
 slug_branch() {
   local branch_name="$1"
   local slug
-  slug=$(printf '%s' "$branch_name" | tr '/' '-' | tr -cd '[:alnum:]._-')
+  slug=$(printf '%s' "$branch_name" | tr '/' '-' | tr -cd 'A-Za-z0-9._-')
   case "$slug" in
     "" | "." | ".." | -* | .*) slug="unnamed" ;;
   esac

@@ -15,7 +15,7 @@ digraph branch_review {
   rankdir=TB;
   gather [label="1. Gather\ngit diff + log"];
   delegate [label="2. Invoke play-review skill workflow\n(shared review pipeline)"];
-  dispose [label="3. Dispose\npresent or --fix"];
+  dispose [label="3. Dispose\npresent or --fix + approval summary"];
 
   gather -> delegate -> dispose;
 }
@@ -65,6 +65,7 @@ while IFS= read -r line; do
     CHANGED_FILE_COUNT) CHANGED_FILE_COUNT="$value" ;;
     CHANGED_FILES_FILE) CHANGED_FILES_FILE="$value" ;;
     SCOPE_DECISION_FILE) SCOPE_DECISION_FILE="$value" ;;
+    APPROVAL_SUMMARY_FILE) APPROVAL_SUMMARY_FILE="$value" ;;
     LANGUAGE_HINTS) LANGUAGE_HINTS="$value" ;;
     LAST_REVIEWED_SHA) LAST_REVIEWED_SHA="$value" ;;
     PRIOR_BRANCH_FINDINGS) PRIOR_BRANCH_FINDINGS="$value" ;;
@@ -108,9 +109,15 @@ The helper writes `KEY=VALUE` lines to stdout:
 - `CHANGED_FILE_COUNT`
 - `CHANGED_FILES_FILE`
 - `SCOPE_DECISION_FILE`
+- `APPROVAL_SUMMARY_FILE`
 - `LANGUAGE_HINTS`
 - `LAST_REVIEWED_SHA`
 - `PRIOR_BRANCH_FINDINGS`
+
+`APPROVAL_SUMMARY_FILE` is a prepared direct-child
+`.ephemeral/*-approval-summary.json` target for Phase 3. Preparation checks
+the deterministic path and write target; the summary is not written until the
+final findings envelope for present mode or `--fix` mode is known.
 
 For base resolution, an explicit base argument wins; otherwise resolve from
 `origin/HEAD`, then `origin/main`, then `origin/master`, then `main`.
@@ -257,6 +264,25 @@ finalizer records `semantic_decision.ambiguous: true`.
 `semantic_decision.checked` means wrapper classification has completed; do not
 write the final artifact earlier.
 
+## Approval Summary
+
+Branch review produces a compact `branch-review/approval-summary/v1` artifact
+after the final findings envelope for the run is known. The summary is
+wrapper-level terminal evidence for the reviewed head and links to the detailed
+findings and scope-decision artifacts by path and digest; it does not duplicate
+finding bodies and must not contain `gate_passed`.
+`skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns
+deterministic validation and pass/block interpretation for the summary through
+`validate-approval-summary`. Branch review owns only the lifecycle point and
+exact notice line:
+
+```text
+Approval summary written to <path>.
+```
+
+Consumer gating from this summary into `play-branch-finish` remains deferred to
+GitHub issue #465; this skill only emits and validates the artifact.
+
 ## Phase 2: Invoke the play-review skill workflow
 
 Hand off to `play-review` with these inputs (compose them into the briefing prose that invokes the skill):
@@ -341,6 +367,33 @@ manually reshape finding entries.
 Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
+
+Then write and validate the approval summary using the finalized scope-decision
+artifact and this original present-mode findings envelope:
+
+```bash
+SCOPE_DECISION_HELPER="$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"
+: "${REVIEW_HEAD_SHA:?trusted review head missing}"
+: "${REVIEW_FINDINGS_FILE:?final findings path missing}"
+: "${SCOPE_DECISION_FILE:?scope decision path missing}"
+: "${APPROVAL_SUMMARY_FILE:?approval summary path missing}"
+
+HEAD_SHA="$REVIEW_HEAD_SHA" \
+BASE="$BASE" \
+FULL_DIFF_RANGE="$FULL_DIFF_RANGE" \
+ACTIVE_DIFF_RANGE="$ACTIVE_DIFF_RANGE" \
+SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+APPROVAL_SUMMARY_FILE="$APPROVAL_SUMMARY_FILE" \
+  bash "$SCOPE_DECISION_HELPER" write-approval-summary || exit 1
+```
+
+The helper reads and digest-binds the linked findings and scope-decision
+evidence, prepares the direct-child `.ephemeral/*-approval-summary.json`
+target, writes the compact summary, validates it through the shared support
+validator, and prints only the exact approval-summary notice after validation succeeds.
+Treat any nonzero exit as a contract failure; preserve the findings evidence
+and do not imply approval.
 
 Branch review is a local surface: no GitHub posting, no `gh` commands, no GitHub schema or Reviews API payload construction.
 `REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`;
@@ -456,6 +509,32 @@ mirror unresolved blocking carry-forward entries into `findings[]`. Re-emit the
 callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
 detect remaining blockers, classify nits, and produce `play-branch-finish`'s
 `nits_file`.
+
+Only after that post-fix remaining-set overwrite and findings notice, write the
+approval summary using the immutable Phase 2 review head and the same final
+findings path:
+
+```bash
+SCOPE_DECISION_HELPER="$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"
+: "${REVIEW_HEAD_SHA:?trusted review head missing}"
+: "${REVIEW_FINDINGS_FILE:?final findings path missing}"
+: "${SCOPE_DECISION_FILE:?scope decision path missing}"
+: "${APPROVAL_SUMMARY_FILE:?approval summary path missing}"
+
+HEAD_SHA="$REVIEW_HEAD_SHA" \
+BASE="$BASE" \
+FULL_DIFF_RANGE="$FULL_DIFF_RANGE" \
+ACTIVE_DIFF_RANGE="$ACTIVE_DIFF_RANGE" \
+SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
+APPROVAL_SUMMARY_FILE="$APPROVAL_SUMMARY_FILE" \
+  bash "$SCOPE_DECISION_HELPER" write-approval-summary || exit 1
+```
+
+This ordering is required: in present mode the final findings envelope is the
+original `play-review` envelope, while in `--fix` mode it is the post-fix
+remaining-set envelope overwritten in place. Never write the summary from the
+pre-fix findings after auto-fix commits have changed the remaining set.
 
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
 subset of the pre-fix findings plus carry-forward set: this skill only removes

@@ -72,6 +72,10 @@ expected_scope_decision_path() {
   printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
 
+expected_approval_summary_path() {
+  printf '.ephemeral/%s-%s-approval-summary.json\n' "$(branch_slug)" "$HEAD_SHA"
+}
+
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
@@ -176,6 +180,16 @@ prepare_scope_decision_write() {
   printf '%s\n' "$file"
 }
 
+prepare_approval_summary_write() {
+  local file
+  require_repo_root
+  validate_head_sha
+  file="$(expected_approval_summary_path)"
+  validate_direct_child_path "approval summary" "$file" "-approval-summary.json"
+  prepare_write_target "approval summary" "$file"
+  printf '%s\n' "$file"
+}
+
 validate_scope_decision() {
   local file expected validator prior_kind prior_path
   require_repo_root
@@ -214,6 +228,195 @@ validate_scope_decision() {
       --governed-path-pattern "$governed_path_pattern" \
       --max-narrow-changed-files "$max_narrow_changed_files"
   fi
+}
+
+validate_approval_summary() {
+  local file expected validator
+
+  require_repo_root
+  validate_head_sha
+  require_env APPROVAL_SUMMARY_FILE
+  require_env FINDINGS_FILE
+  require_env SCOPE_DECISION_FILE
+
+  expected="$(expected_approval_summary_path)"
+  file="$APPROVAL_SUMMARY_FILE"
+  validate_direct_child_path "approval summary" "$file" "-approval-summary.json"
+  [ "$file" = "$expected" ] || fail "approval summary path mismatch: $file"
+
+  validator="$(resolve_validator)"
+  if [ -n "$configured_path_pattern" ]; then
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE" \
+      --configured-path-pattern "$configured_path_pattern"
+  else
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE"
+  fi
+}
+
+run_approval_summary_validator() {
+  local summary_file="$1"
+  local validator
+
+  validator="$(resolve_validator)"
+  if [ -n "$configured_path_pattern" ]; then
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$summary_file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE" \
+      --configured-path-pattern "$configured_path_pattern"
+  else
+    bash "$validator" validate-approval-summary \
+      --surface branch-review \
+      --head-sha "$HEAD_SHA" \
+      --approval-summary-file "$summary_file" \
+      --expected-findings-file "$FINDINGS_FILE" \
+      --expected-scope-decision-file "$SCOPE_DECISION_FILE"
+  fi
+}
+
+validate_readable_json_file() {
+  local label="$1"
+  local file="$2"
+  local suffix="$3"
+
+  validate_direct_child_path "$label" "$file" "$suffix"
+  [ -r "$file" ] || fail "$label missing or unreadable: $file"
+  [ -f "$file" ] || fail "$label missing or not a regular file: $file"
+  [ ! -L "$file" ] || fail "$label must not be a symlink: $file"
+  jq -e 'type == "object"' "$file" >/dev/null ||
+    fail "$label JSON validation failed: $file"
+}
+
+sha256_file() {
+  local file="$1"
+
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  else
+    fail "sha256 digest command missing"
+  fi
+}
+
+findings_count_json() {
+  local file="$1"
+
+  jq -c '
+    if .schema != "play-review/findings/v1" or (.findings | type) != "array" or (.carry_forward | type) != "array" then
+      error("findings schema mismatch")
+    else
+      ([.findings[], .carry_forward[]] | unique) as $remaining
+      | {
+          blocker_count: ($remaining | map(select(.severity == "Blocking")) | length),
+          nit_count: ($remaining | map(select(.severity == "Nit")) | length),
+          carry_forward_count: (.carry_forward | length)
+        }
+    end
+  ' "$file" || fail "findings evidence validation failed"
+}
+
+terminal_state_for_counts() {
+  local counts_json="$1"
+
+  printf '%s\n' "$counts_json" | jq -r '
+    if .blocker_count > 0 then "blocked"
+    elif .nit_count > 0 or .carry_forward_count > 0 then "approved_with_nits"
+    else "approved"
+    end
+  '
+}
+
+write_approval_summary() {
+  local file expected tmp_file
+  local findings_digest scope_digest counts_json terminal_state
+
+  require_repo_root
+  validate_head_sha
+  require_env BASE
+  require_env FULL_DIFF_RANGE
+  require_env ACTIVE_DIFF_RANGE
+  require_env SCOPE_DECISION_FILE
+  require_env FINDINGS_FILE
+  require_env APPROVAL_SUMMARY_FILE
+
+  expected="$(expected_approval_summary_path)"
+  file="$APPROVAL_SUMMARY_FILE"
+  validate_direct_child_path "approval summary" "$file" "-approval-summary.json"
+  [ "$file" = "$expected" ] || fail "approval summary path mismatch: $file"
+  prepare_write_target "approval summary" "$file"
+  rm -f "$file"
+
+  validate_readable_json_file "findings" "$FINDINGS_FILE" "-findings.json"
+  validate_readable_json_file "scope decision" "$SCOPE_DECISION_FILE" "-scope-decision.json"
+  jq -e \
+    --arg head_sha "$HEAD_SHA" \
+    --arg full_range "$FULL_DIFF_RANGE" \
+    --arg selected_range "$ACTIVE_DIFF_RANGE" \
+    '.schema == "branch-review/scope-decision/v1" and
+      .surface == "branch-review" and
+      .head_sha == $head_sha and
+      .full_range == $full_range and
+      .selected_range == $selected_range' \
+    "$SCOPE_DECISION_FILE" >/dev/null ||
+    fail "scope decision evidence validation failed"
+
+  findings_digest="$(sha256_file "$FINDINGS_FILE")"
+  scope_digest="$(sha256_file "$SCOPE_DECISION_FILE")"
+  counts_json="$(findings_count_json "$FINDINGS_FILE")"
+  terminal_state="$(terminal_state_for_counts "$counts_json")"
+
+  resolve_validator >/dev/null
+  tmp_file="$(mktemp ".ephemeral/branch-review-approval-summary.XXXXXX")"
+  rm -f "$tmp_file"
+  tmp_file="${tmp_file}-approval-summary.json"
+  jq -n \
+    --arg schema "branch-review/approval-summary/v1" \
+    --arg surface "branch-review" \
+    --arg review_head_sha "$HEAD_SHA" \
+    --arg base_ref "$BASE" \
+    --arg full_range "$FULL_DIFF_RANGE" \
+    --arg selected_range "$ACTIVE_DIFF_RANGE" \
+    --arg scope_decision_file "$SCOPE_DECISION_FILE" \
+    --arg scope_decision_sha256 "$scope_digest" \
+    --arg findings_file "$FINDINGS_FILE" \
+    --arg findings_sha256 "$findings_digest" \
+    --arg terminal_state "$terminal_state" \
+    --argjson counts "$counts_json" \
+    '{
+      schema: $schema,
+      surface: $surface,
+      review_head_sha: $review_head_sha,
+      base_ref: $base_ref,
+      full_range: $full_range,
+      selected_range: $selected_range,
+      scope_decision_file: $scope_decision_file,
+      scope_decision_sha256: $scope_decision_sha256,
+      findings_file: $findings_file,
+      findings_sha256: $findings_sha256,
+      terminal_state: $terminal_state,
+      blocker_count: $counts.blocker_count,
+      nit_count: $counts.nit_count,
+      carry_forward_count: $counts.carry_forward_count
+    }' >"$tmp_file"
+  if ! run_approval_summary_validator "$tmp_file"; then
+    rm -f "$tmp_file"
+    fail "approval summary validation failed"
+  fi
+  mv "$tmp_file" "$file"
+  printf 'Approval summary written to %s.\n' "$file"
 }
 
 finalize_scope_decision() {
@@ -349,13 +552,22 @@ case "$command_name" in
   prepare-scope-decision-write)
     prepare_scope_decision_write
     ;;
+  prepare-approval-summary-write)
+    prepare_approval_summary_write
+    ;;
   validate-scope-decision)
     validate_scope_decision
+    ;;
+  validate-approval-summary)
+    validate_approval_summary
     ;;
   finalize-scope-decision)
     finalize_scope_decision
     ;;
+  write-approval-summary)
+    write_approval_summary
+    ;;
   *)
-    fail "usage: scope-decision-artifacts.sh prepare-scope-decision-write|validate-scope-decision|finalize-scope-decision"
+    fail "usage: scope-decision-artifacts.sh prepare-scope-decision-write|prepare-approval-summary-write|validate-scope-decision|validate-approval-summary|finalize-scope-decision|write-approval-summary"
     ;;
 esac

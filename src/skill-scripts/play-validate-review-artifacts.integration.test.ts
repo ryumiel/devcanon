@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   mkdir,
@@ -87,6 +88,26 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+}
+
+function jsonDigest(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(value, null, 2))
+    .digest("hex");
+}
+
+function approvalFindingsPath(headSha: string, branchName = "main"): string {
+  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return `.ephemeral/unnamed-${headSha}-findings.json`;
+  }
+  return `.ephemeral/${slug}-${headSha}-findings.json`;
 }
 
 async function runValidator(cwd: string, command: string, args: string[] = []) {
@@ -249,6 +270,46 @@ function findingsEnvelope(): JsonObject {
   };
 }
 
+function approvalSummary(
+  baseSha: string,
+  headSha: string,
+  scope: JsonObject,
+  findings: JsonObject,
+  overrides: JsonObject = {},
+): JsonObject {
+  return {
+    schema: "branch-review/approval-summary/v1",
+    surface: "branch-review",
+    review_head_sha: headSha,
+    base_ref: baseSha,
+    full_range: `${baseSha}...HEAD`,
+    selected_range: `${baseSha}...HEAD`,
+    scope_decision_file: ".ephemeral/topic-scope-decision.json",
+    scope_decision_sha256: jsonDigest(scope),
+    findings_file: approvalFindingsPath(headSha),
+    findings_sha256: jsonDigest(findings),
+    terminal_state: "blocked",
+    blocker_count: 1,
+    nit_count: 0,
+    carry_forward_count: 0,
+    ...overrides,
+  };
+}
+
+function approvalSummaryArgs(
+  headSha: string,
+  summaryFile = ".ephemeral/topic-approval-summary.json",
+) {
+  return [
+    "--approval-summary-file",
+    summaryFile,
+    "--head-sha",
+    headSha,
+    "--surface",
+    "branch-review",
+  ];
+}
+
 function priorThread(overrides: JsonObject = {}): JsonObject {
   return {
     thread_id: "PRRT_kwDOExample",
@@ -346,6 +407,510 @@ async function writeMarkerValidator(
 }
 
 describe("play-validate-review-artifacts validator", () => {
+  it("validates approval summaries and emits derived gate results", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          findingsFile,
+          "--expected-scope-decision-file",
+          ".ephemeral/topic-scope-decision.json",
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"blocked","gate_result":"blocking"}\n',
+      });
+
+      await writeJson(cwd, findingsFile, {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+      });
+      const approvedFindings = {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [],
+      };
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, approvedFindings, {
+          terminal_state: "approved",
+          blocker_count: 0,
+        }),
+      );
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"approved","gate_result":"passing"}\n',
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects stale, forbidden, mismatched, and contradictory approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      const summary = approvalSummary(baseSha, headSha, scope, findings);
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", summary);
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs("b".repeat(40)),
+        ]),
+        "--head-sha does not resolve to a commit",
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(baseSha),
+        ]),
+        "approval summary head mismatch",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        gate_passed: false,
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary contains forbidden field: gate_passed",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        terminal_state: "ready",
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary terminal_state is invalid",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        blocker_count: 0,
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary blocker count mismatch",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        terminal_state: "approved",
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary terminal_state contradicts counts",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        findings_sha256: "0".repeat(64),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary findings digest mismatch",
+      );
+
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        scope_decision_sha256: "0".repeat(64),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary scope-decision digest mismatch",
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          ".ephemeral/other-findings.json",
+        ]),
+        "approval summary linked findings path mismatch",
+      );
+
+      const staleFindingsFile = ".ephemeral/wrong-branch-findings.json";
+      await writeJson(cwd, staleFindingsFile, findings);
+      await writeJson(cwd, ".ephemeral/topic-approval-summary.json", {
+        ...summary,
+        findings_file: staleFindingsFile,
+        findings_sha256: jsonDigest(findings),
+      });
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          staleFindingsFile,
+        ]),
+        "findings path mismatch",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("maps approved_with_nits and invalid approval summaries through the support validator", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const nits = {
+        schema: "play-review/findings/v1",
+        findings: [finding({ severity: "Nit", critic: null })],
+        carry_forward: [],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, nits);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, nits, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 0,
+          nit_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout:
+          '{"terminal_state":"approved_with_nits","gate_result":"passing"}\n',
+      });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, nits, {
+          terminal_state: "invalid",
+          blocker_count: 0,
+          nit_count: 1,
+        }),
+      );
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"invalid","gate_result":"blocking"}\n',
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("matches play-review findings path slugging for non-ASCII branch names", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const branchName = "feat/café-1";
+    try {
+      await execFileAsync("git", ["switch", "-C", branchName], { cwd });
+      const findingsFile = approvalFindingsPath(headSha, branchName);
+      const scope = initialScope(baseSha, headSha);
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          findings_file: findingsFile,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--expected-findings-file",
+          findingsFile,
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("treats blocking carry-forward findings as blockers in approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const carryForwardBlocker = {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [finding({ anchor: "out-of-diff" })],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, carryForwardBlocker);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, carryForwardBlocker, {
+          terminal_state: "blocked",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"blocked","gate_result":"blocking"}\n',
+      });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, carryForwardBlocker, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary terminal_state contradicts counts",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("dedupes mirrored carry-forward findings from logical approval counts", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const mirroredBlocker = finding({ anchor: "out-of-diff" });
+      const findings = {
+        schema: "play-review/findings/v1",
+        findings: [mirroredBlocker],
+        carry_forward: [mirroredBlocker],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          terminal_state: "blocked",
+          blocker_count: 1,
+          carry_forward_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          terminal_state: "blocked",
+          blocker_count: 2,
+          carry_forward_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary blocker count mismatch",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("fully validates linked scope-decision invariants before trusting approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const shapeValidScope = {
+        ...initialScope(baseSha, headSha),
+        changed_files: ["README.md"],
+        language_hints: ["md"],
+      };
+      const findings = findingsEnvelope();
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        shapeValidScope,
+      );
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, shapeValidScope, findings),
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "changed files do not match selected range",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("forwards configured path policy when validating linked approval-summary scope evidence", async () => {
+    const { cwd, baseSha, firstSha } = await makeGitWorkspace();
+    try {
+      await writeFile(path.join(cwd, "src/generated.ts"), "gen\n");
+      await execFileAsync("git", ["add", "."], { cwd });
+      await execFileAsync("git", ["commit", "-m", "chore: generated"], {
+        cwd,
+      });
+      const headSha = await git(cwd, "rev-parse", "HEAD");
+      const scope = {
+        ...initialScope(baseSha, headSha),
+        changed_files: ["src/app.ts", "src/generated.ts"],
+        language_hints: ["ts"],
+        mode: "follow-up",
+        selection_reason:
+          "Configured path escalates the follow-up to full review.",
+        escalation_reasons: ["configured-path"],
+        last_reviewed_sha: firstSha,
+        candidate_narrow_range: `${firstSha}..HEAD`,
+        prior_context: {
+          kind: "branch-findings",
+          path: ".ephemeral/topic-findings.json",
+        },
+        mechanical_facts: {
+          changed_file_count: 2,
+          followup_sha_usable: true,
+          mechanical_escalate_full: true,
+          mechanical_escalation_reason: "configured-path",
+        },
+      };
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, approvalFindingsPath(headSha), findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings),
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "configured-path escalation reason missing",
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--configured-path-pattern",
+          "generated",
+        ]),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("fails closed for unsafe approval-summary and linked evidence paths", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const findings = findingsEnvelope();
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, findings);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, findings, {
+          findings_file: ".ephemeral/nested/topic-findings.json",
+        }),
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary schema mismatch",
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha, "../topic-approval-summary.json"),
+        ]),
+        "path traversal",
+      );
+
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          "--approval-summary-file",
+          ".ephemeral/topic-approval-summary.json",
+          "--head-sha",
+          headSha,
+          "--surface",
+          "pr-review",
+        ]),
+        "validate-approval-summary requires --surface branch-review",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("accepts a valid initial full scope decision", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

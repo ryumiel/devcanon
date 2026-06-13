@@ -713,8 +713,12 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain("PREPARE_INPUTS_HELPER");
     expect(branchReview).toContain("BRANCH_REVIEW_INPUTS");
     expect(branchReview).toContain("- `SCOPE_DECISION_FILE`");
+    expect(branchReview).toContain("- `APPROVAL_SUMMARY_FILE`");
     expect(branchReview).toContain(
       'SCOPE_DECISION_FILE) SCOPE_DECISION_FILE="$value" ;;',
+    );
+    expect(branchReview).toContain(
+      'APPROVAL_SUMMARY_FILE) APPROVAL_SUMMARY_FILE="$value" ;;',
     );
     expect(branchReview).toContain("PLAY_REVIEW_DIR");
     expect(branchReviewHelper).toContain("--last-reviewed requires a SHA");
@@ -747,6 +751,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReviewHelper).toContain("scope-decision-artifacts.sh");
     expect(branchReviewHelper).toContain("write_scope_decision_artifact");
     expect(branchReviewHelper).toContain("validate-scope-decision");
+    expect(branchReviewHelper).toContain("prepare-approval-summary-write");
     expect(branchReview).toContain('BASE) BASE="$value"');
     expect(branchReview).toContain('FULL_DIFF_RANGE) FULL_DIFF_RANGE="$value"');
     expect(branchReviewHelper).not.toContain("|src/|");
@@ -782,6 +787,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(branchReviewHelper).toContain(
       'emit_line "PRIOR_BRANCH_FINDINGS" "$PRIOR_FINDINGS_FILE"',
+    );
+    expect(branchReviewHelper).toContain(
+      'emit_line "APPROVAL_SUMMARY_FILE" "$APPROVAL_SUMMARY_FILE"',
     );
     expect(branchReview).toContain("Upstream Review-Scope Handoff");
     expect(branchReview).toContain("planning/execution categorization");
@@ -919,6 +927,68 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain(
       "detect remaining blockers, classify nits, and produce",
     );
+  });
+
+  it("keeps branch-review approval-summary producer lifecycle and validation authority in source", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const scopeHelper = await readRepoFile(
+      "skills/branch-review/scripts/scope-decision-artifacts.sh",
+    );
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedScopeHelper = normalizeWhitespace(scopeHelper);
+
+    expect(branchReview).toContain("branch-review/approval-summary/v1");
+    expect(branchReview).toContain("Approval summary written to <path>.");
+    expect(branchReview).toContain("write-approval-summary");
+    expect(branchReview).toContain("validate-approval-summary");
+    expect(branchReview).toContain(
+      ': "${REVIEW_HEAD_SHA:?trusted review head missing}"',
+    );
+    expect(branchReview).toContain(
+      ': "${REVIEW_FINDINGS_FILE:?final findings path missing}"',
+    );
+    expect(branchReview).toContain(
+      ': "${SCOPE_DECISION_FILE:?scope decision path missing}"',
+    );
+    expect(branchReview).toContain(
+      ': "${APPROVAL_SUMMARY_FILE:?approval summary path missing}"',
+    );
+    expect(normalizedBranchReview).toContain(
+      "after the final findings envelope for the run is known",
+    );
+    expect(normalizedBranchReview).toContain(
+      "in present mode the final findings envelope is the original `play-review` envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "in `--fix` mode it is the post-fix remaining-set envelope overwritten in place",
+    );
+    expect(normalizedBranchReview).toContain(
+      "validates it through the shared support validator",
+    );
+    expect(normalizedBranchReview).toContain(
+      "pass/block interpretation for the summary",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+    );
+    expect(normalizedBranchReview).toContain(
+      "does not duplicate finding bodies and must not contain `gate_passed`",
+    );
+    expect(branchReview).toContain("Review head: $REVIEW_HEAD_SHA.");
+    expect(branchReview).toContain("Findings written to <path>.");
+
+    expect(scopeHelper).toContain("prepare-approval-summary-write");
+    expect(scopeHelper).toContain("validate-approval-summary");
+    expect(scopeHelper).toContain("write-approval-summary");
+    expect(scopeHelper).toContain("-approval-summary.json");
+    expect(scopeHelper).toContain("Approval summary written to %s.\\n");
+    expect(normalizedScopeHelper).toContain(
+      '--expected-findings-file "$FINDINGS_FILE"',
+    );
+    expect(normalizedScopeHelper).toContain(
+      '--expected-scope-decision-file "$SCOPE_DECISION_FILE"',
+    );
+    expect(scopeHelper).not.toContain("gate_passed");
   });
 
   it("keeps shared follow-up review scope policy contracts in source", async () => {

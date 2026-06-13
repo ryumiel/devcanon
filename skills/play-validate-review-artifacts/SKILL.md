@@ -28,7 +28,9 @@ by Play review surfaces. It forwards those commands to the packaged
 mechanics for review-artifact contracts, including schema checks, Git-derived
 artifact facts, scope range invariants, follow-up SHA usability, changed-file
 and language-hint derivation, escalation reasons, diff-anchor validation, and
-approved-review payload equivalence.
+approved-review payload equivalence. It also owns deterministic validation and
+gate-result interpretation for `branch-review/approval-summary/v1`; approval
+summary artifacts store `terminal_state`, never `gate_passed`.
 
 The script does not own:
 
@@ -99,18 +101,36 @@ forwarded as flags rather than hidden global state.
 
 Commands:
 
-| Command                    | Consumer surface                          | Contract owned here                                                                                                                |
-| -------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `validate-scope-decision`  | `pr-review`, `branch-review`              | Validates scope-decision shape, expected schema/kind/path, Git ranges, derived facts, and escalation policy.                       |
-| `validate-prior-threads`   | `pr-review`                               | Validates normalized GitHub prior-thread artifacts and shared review-thread invariants.                                            |
-| `validate-diff-anchors`    | `pr-review`                               | Validates that postable inline anchors target right-side lines in the selected review diff.                                        |
-| `compare-approved-payload` | `pr-review` approved-review artifact flow | Regenerates the expected approved-review payload from validated scope and findings inputs and compares it to the supplied payload. |
+| Command                     | Consumer surface                          | Contract owned here                                                                                                                                                            |
+| --------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `validate-scope-decision`   | `pr-review`, `branch-review`              | Validates scope-decision shape, expected schema/kind/path, Git ranges, derived facts, and escalation policy.                                                                   |
+| `validate-prior-threads`    | `pr-review`                               | Validates normalized GitHub prior-thread artifacts and shared review-thread invariants.                                                                                        |
+| `validate-diff-anchors`     | `pr-review`                               | Validates that postable inline anchors target right-side lines in the selected review diff.                                                                                    |
+| `compare-approved-payload`  | `pr-review` approved-review artifact flow | Regenerates the expected approved-review payload from validated scope and findings inputs and compares it to the supplied payload.                                             |
+| `validate-approval-summary` | `branch-review` approval-summary flow     | Validates a `branch-review/approval-summary/v1` artifact, linked scope-decision and findings evidence, counts, digests, reviewed head, and terminal-state gate interpretation. |
 
 Every command that validates or consumes a scope decision receives the same
 explicit scope-policy inputs, including the surface, immutable head SHA,
 scope-decision path, expected schema, prior-context kind and path, governed path
 pattern, max narrow changed-file count, and optional configured path pattern.
 Scope-consuming commands must not rely on hidden prior validation state.
+
+`validate-approval-summary` requires `--approval-summary-file`, `--head-sha`,
+and `--surface branch-review`. Callers that already captured linked evidence
+may also pass `--expected-findings-file` and
+`--expected-scope-decision-file`; supplied paths must exactly match the paths
+embedded in the summary before the linked evidence is trusted. Callers must
+also pass the same `--configured-path-pattern` value used for the linked
+branch-review scope decision when configured path escalation is part of that
+evidence. With `--emit-gate-result`, successful validation prints one JSON
+object containing `terminal_state` and `gate_result`, where `gate_result` is
+exactly `passing` for `approved` and `approved_with_nits`, and `blocking` for
+`blocked` and `invalid`. Without `--emit-gate-result`, callers rely on the zero
+exit status. The command rejects non-`branch-review` surfaces, stale heads,
+unsafe or missing paths, malformed linked evidence, digest drift, count drift,
+unknown terminal states, and any `gate_passed` field.
+Consumers must use this validator output for pass/block interpretation rather
+than deriving pass/fail from summary fields themselves.
 
 The validator is runtime-backed through the packaged `devcanon-runtime` support
 skill. It may require Node.js through that packaged support runtime, but it must

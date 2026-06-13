@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildApprovedReviewPayload,
   diffHunkForLine,
+  gateResultForApprovalTerminalState,
 } from "./review-artifacts.js";
 
 describe("review artifact runtime reducers", () => {
@@ -89,5 +90,14 @@ describe("review artifact runtime reducers", () => {
         },
       ],
     });
+  });
+
+  it("maps approval terminal states to gate results centrally", () => {
+    expect(gateResultForApprovalTerminalState("approved")).toBe("passing");
+    expect(gateResultForApprovalTerminalState("approved_with_nits")).toBe(
+      "passing",
+    );
+    expect(gateResultForApprovalTerminalState("blocked")).toBe("blocking");
+    expect(gateResultForApprovalTerminalState("invalid")).toBe("blocking");
   });
 });

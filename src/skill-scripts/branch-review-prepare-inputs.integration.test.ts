@@ -135,6 +135,9 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       expect(values.SCOPE_DECISION_FILE).toBe(
         `.ephemeral/topic-${headSha}-scope-decision.json`,
       );
+      expect(values.APPROVAL_SUMMARY_FILE).toBe(
+        `.ephemeral/topic-${headSha}-approval-summary.json`,
+      );
       await expect(
         readChangedFiles(cwd, values.CHANGED_FILES_FILE),
       ).resolves.toEqual(["src/app.ts"]);
