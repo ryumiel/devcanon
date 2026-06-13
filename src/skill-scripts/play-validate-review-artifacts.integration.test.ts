@@ -203,6 +203,8 @@ function initialScope(
     changed_files: ["src/app.ts"],
     language_hints: ["ts"],
     escalation_reasons: ["not-followup"],
+    scope_reason_codes: ["range_validation"],
+    scope_explanation: "Initial review uses the full review range.",
     prior_context: priorContext,
     mechanical_facts: {
       changed_file_count: 1,
@@ -233,6 +235,8 @@ function narrowScope(
     is_followup_narrow: true,
     selection_reason: "Follow-up review uses the last-reviewed SHA range.",
     escalation_reasons: [],
+    scope_reason_codes: ["narrow_allowed"],
+    scope_explanation: "Follow-up review uses the last-reviewed SHA range.",
     prior_context: {
       kind: "branch-findings",
       path: ".ephemeral/topic-findings.json",
@@ -1000,17 +1004,25 @@ describe("play-validate-review-artifacts validator", () => {
   it.each([
     {
       name: "missing scope_reason_codes",
-      buildScope: (baseSha: string, _firstSha: string, headSha: string) =>
-        initialScope(baseSha, headSha),
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => {
+        const { scope_reason_codes: _omitted, ...scope } = initialScope(
+          baseSha,
+          headSha,
+        );
+        return scope;
+      },
       args: "initial",
       stderr: "scope_reason_codes is required",
     },
     {
       name: "missing scope_explanation",
-      buildScope: (baseSha: string, _firstSha: string, headSha: string) => ({
-        ...initialScope(baseSha, headSha),
-        scope_reason_codes: ["range_validation"],
-      }),
+      buildScope: (baseSha: string, _firstSha: string, headSha: string) => {
+        const { scope_explanation: _omitted, ...scope } = initialScope(
+          baseSha,
+          headSha,
+        );
+        return scope;
+      },
       args: "initial",
       stderr: "scope_explanation is required",
     },

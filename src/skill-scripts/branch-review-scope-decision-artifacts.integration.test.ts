@@ -111,6 +111,8 @@ function initialScope(baseSha: string, headSha: string, overrides = {}) {
     changed_files: ["src/app.ts"],
     language_hints: ["ts"],
     escalation_reasons: ["not-followup"],
+    scope_reason_codes: ["range_validation"],
+    scope_explanation: "Initial review uses the full review range.",
     prior_context: { kind: "none", path: null },
     mechanical_facts: {
       changed_file_count: 1,
@@ -681,8 +683,9 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
   });
 
   it("finalizes mechanical full escalation with file-count and governed-path reason fields", async () => {
-    const { cwd, lastReviewedSha } = await makeFollowupWorkspace();
+    const { cwd, baseSha } = await makeGitWorkspace();
     try {
+      const lastReviewedSha = baseSha;
       await mkdir(path.join(cwd, "docs/adr"), { recursive: true });
       await writeFile(path.join(cwd, "docs/adr/adr-9999.md"), "ADR\n");
       for (let index = 0; index < 6; index += 1) {
@@ -699,9 +702,9 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         runHelper(cwd, helperScript, "finalize-scope-decision", {
           HEAD_SHA: newHead,
           SCOPE_DECISION_FILE: decisionPath,
-          FULL_DIFF_RANGE: "main...HEAD",
+          FULL_DIFF_RANGE: `${baseSha}...HEAD`,
           CANDIDATE_ACTIVE_DIFF_RANGE: `${lastReviewedSha}..HEAD`,
-          ACTIVE_DIFF_RANGE: "main...HEAD",
+          ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
           IS_FOLLOWUP_NARROW: "false",
           LAST_REVIEWED_SHA: lastReviewedSha,
           PRIOR_BRANCH_FINDINGS: ".ephemeral/topic-findings.json",
@@ -711,9 +714,8 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           MECHANICAL_ESCALATION_REASON: "file-count,governance-path",
           FINAL_CHANGED_FILES_JSON: JSON.stringify([
             "docs/adr/adr-9999.md",
-            "notes/followup.md",
             ...Array.from({ length: 6 }, (_, index) => `src/multi-${index}.ts`),
-            "src/full-only.ts",
+            "src/app.ts",
           ]),
           FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md", "ts"]),
         }),
@@ -721,7 +723,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
 
       await expect(readJson(cwd, decisionPath)).resolves.toMatchObject({
         schema: "branch-review/scope-decision/v1",
-        selected_range: "main...HEAD",
+        selected_range: `${baseSha}...HEAD`,
         is_followup_narrow: false,
         escalation_reasons: ["file-count", "governance-path"],
         scope_reason_codes: ["file_count", "governed_path"],
