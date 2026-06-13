@@ -273,12 +273,17 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
   it("classifies absent risk-signals as absent without escalation", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
-      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
-        HEAD_SHA: headSha,
-        FULL_DIFF_RANGE: "main...HEAD",
-        RISK_SIGNALS_FILE: "",
-        RISK_SIGNALS_STATUS: "absent",
-      });
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: "",
+          RISK_SIGNALS_STATUS: "absent",
+        },
+      );
       const values = parseKeyValues(result.stdout);
 
       expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("absent");
@@ -292,12 +297,17 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
   it("classifies invalid risk-signal paths as fail-closed without reading them", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
-      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
-        HEAD_SHA: headSha,
-        FULL_DIFF_RANGE: "main...HEAD",
-        RISK_SIGNALS_FILE: ".ephemeral/nested/topic-risk-signals.json",
-        RISK_SIGNALS_STATUS: "invalid-path",
-      });
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: ".ephemeral/nested/topic-risk-signals.json",
+          RISK_SIGNALS_STATUS: "invalid-path",
+        },
+      );
       const values = parseKeyValues(result.stdout);
 
       expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("invalid-fail-closed");
@@ -323,12 +333,17 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
       await writeJson(cwd, riskSignalsFile, riskSignals(baseSha, headSha));
 
-      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
-        HEAD_SHA: headSha,
-        FULL_DIFF_RANGE: "main...HEAD",
-        RISK_SIGNALS_FILE: riskSignalsFile,
-        RISK_SIGNALS_STATUS: "supplied",
-      });
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: riskSignalsFile,
+          RISK_SIGNALS_STATUS: "supplied",
+        },
+      );
       const values = parseKeyValues(result.stdout);
 
       expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("valid-no-escalation");
@@ -360,12 +375,17 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
 
-      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
-        HEAD_SHA: headSha,
-        FULL_DIFF_RANGE: "main...HEAD",
-        RISK_SIGNALS_FILE: riskSignalsFile,
-        RISK_SIGNALS_STATUS: "supplied",
-      });
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: riskSignalsFile,
+          RISK_SIGNALS_STATUS: "supplied",
+        },
+      );
       const values = parseKeyValues(result.stdout);
 
       expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("valid-escalate");
@@ -392,12 +412,17 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         riskSignals(baseSha, headSha, { reviewed_range: "stale...HEAD" }),
       );
 
-      const result = await runHelper(cwd, helperScript, "classify-risk-signals", {
-        HEAD_SHA: headSha,
-        FULL_DIFF_RANGE: "main...HEAD",
-        RISK_SIGNALS_FILE: riskSignalsFile,
-        RISK_SIGNALS_STATUS: "supplied",
-      });
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: riskSignalsFile,
+          RISK_SIGNALS_STATUS: "supplied",
+        },
+      );
       const values = parseKeyValues(result.stdout);
 
       expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("invalid-fail-closed");

@@ -154,10 +154,7 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
       await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
       const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
 
-      const values = await runHelper(cwd, [
-        "--risk-signals",
-        riskSignalsFile,
-      ]);
+      const values = await runHelper(cwd, ["--risk-signals", riskSignalsFile]);
 
       expect(values.RISK_SIGNALS_FILE).toBe(riskSignalsFile);
       expect(values.RISK_SIGNALS_STATUS).toBe("supplied");
@@ -173,23 +170,26 @@ describe.skipIf(!jqAvailable)("branch-review prepare inputs helper", () => {
     ".ephemeral/../topic-risk-signals.json",
     "/tmp/topic-risk-signals.json",
     ".ephemeral/topic-findings.json",
-  ])("marks unsafe risk-signals paths invalid without reading them: %s", async (riskSignalsFile) => {
-    const cwd = await makeGitWorkspace();
-    try {
-      await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
+  ])(
+    "marks unsafe risk-signals paths invalid without reading them: %s",
+    async (riskSignalsFile) => {
+      const cwd = await makeGitWorkspace();
+      try {
+        await commitFile(cwd, "src/app.ts", "export const value = 1;\n");
 
-      const values = await runHelper(cwd, [
-        "--risk-signals",
-        riskSignalsFile,
-      ]);
+        const values = await runHelper(cwd, [
+          "--risk-signals",
+          riskSignalsFile,
+        ]);
 
-      expect(values.RISK_SIGNALS_FILE).toBe(riskSignalsFile);
-      expect(values.RISK_SIGNALS_STATUS).toBe("invalid-path");
-      expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        expect(values.RISK_SIGNALS_FILE).toBe(riskSignalsFile);
+        expect(values.RISK_SIGNALS_STATUS).toBe("invalid-path");
+        expect(values.FULL_DIFF_RANGE).toBe("main...HEAD");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("accepts flags around the base and selects a narrow follow-up range", async () => {
     const cwd = await makeGitWorkspace();
