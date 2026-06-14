@@ -88,8 +88,9 @@ Edit-Staleness Rule restates the same constraint for the per-task path.
 
 If any mechanical-nit commit is made, rerun `branch-review --fix` on the new
 `HEAD` and restart Phase 7. Continue until a run reports zero blocking findings
-auto-fixed, no unresolved true Blocking findings, and no additional mechanical
-nit commits after that review.
+auto-fixed, no unresolved true Blocking findings, captures that final run's
+approval-summary notice path, and no additional mechanical nit commits after
+that review.
 
 ## Judgment-Required Nits Envelope
 

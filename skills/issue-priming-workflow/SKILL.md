@@ -449,7 +449,8 @@ before rerunning `branch-review --fix --risk-signals <new-path>`, or rerun
 `branch-review --fix` while intentionally omitting stale risk signals. Continue
 until a run reports zero blocking findings auto-fixed and the remaining
 findings file contains no unresolved `severity: "Blocking"` entries except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and captures that
+final run's approval-summary notice path.
 If later mechanical nit handling creates any commit, rerun this same Branch
 Review step on the new `HEAD` before proceeding to Phase 8, with fresh risk
 signals when available.

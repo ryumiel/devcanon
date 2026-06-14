@@ -799,6 +799,46 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("pins issue-priming Phase 7 duplicate completion criteria to final approval-summary notice capture", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const eagerContinuation = normalizeWhitespace(
+      sliceBetween(
+        phase7,
+        "until a run reports zero blocking findings auto-fixed",
+        "If later mechanical nit handling creates any commit",
+      ),
+    );
+    const mechanicalNitCommits = normalizeWhitespace(
+      getMarkdownSection(phase7Reference, "Mechanical Nit Commits"),
+    );
+
+    expect(eagerContinuation).toContain(
+      "captures that final run's approval-summary notice path",
+    );
+    expect(eagerContinuation).toContain(
+      'findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
+    );
+    expect(mechanicalNitCommits).toContain(
+      "captures that final run's approval-summary notice path",
+    );
+    expect(mechanicalNitCommits).toContain(
+      "rerun `branch-review --fix` on the new `HEAD` and restart Phase 7",
+    );
+    expect(mechanicalNitCommits).toContain(
+      "no additional mechanical nit commits after that review",
+    );
+  });
+
   it("hands successful direct/manual execution off to play-branch-finish without copying finish choices", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
