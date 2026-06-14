@@ -89,6 +89,22 @@ function riskSignalsArtifact(
   };
 }
 
+function contractExampleDisciplineContext(overrides: JsonObject = {}) {
+  return {
+    present: true,
+    source: "extracted-plan-task-execution-context",
+    obligations:
+      "Contract Example Discipline requires valid examples to pass and invalid families to fail.",
+    consumer_rule:
+      "Contract Example Discipline Consumer Rule: enforce present obligations only.",
+    proof_obligations: {
+      valid_examples_pass: true,
+      invalid_families_fail: true,
+    },
+    ...overrides,
+  };
+}
+
 function riskSignalsArgs(
   headSha: string,
   file = ".ephemeral/topic-risk-signals.json",
@@ -239,18 +255,7 @@ describe("review artifact runtime reducers", () => {
         cwd,
         ".ephemeral/topic-risk-signals.json",
         riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: {
-            present: true,
-            source: "extracted-plan-task-execution-context",
-            obligations:
-              "Contract Example Discipline requires valid examples to pass and invalid families to fail.",
-            consumer_rule:
-              "Contract Example Discipline Consumer Rule: enforce present obligations only.",
-            proof_obligations: {
-              valid_examples_pass: true,
-              invalid_families_fail: true,
-            },
-          },
+          contract_example_discipline: contractExampleDisciplineContext(),
         }),
       );
 
@@ -287,37 +292,58 @@ describe("review artifact runtime reducers", () => {
       stderr: "risk-signals schema mismatch",
     },
     {
-      name: "malformed contract example discipline context",
+      name: "null contract example discipline context",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: {
-            present: true,
-            source: "extracted-plan-task-execution-context",
-            obligations: "",
-            consumer_rule: "rule",
-            proof_obligations: {
-              valid_examples_pass: true,
-              invalid_families_fail: true,
-            },
-          },
+          contract_example_discipline: null,
         }),
       stderr: "risk-signals schema mismatch",
     },
     {
-      name: "contract example discipline context with extra proof key",
+      name: "array contract example discipline context",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {
-          contract_example_discipline: {
-            present: true,
-            source: "extracted-plan-task-execution-context",
-            obligations: "obligations",
-            consumer_rule: "rule",
-            proof_obligations: {
-              valid_examples_pass: true,
-              invalid_families_fail: true,
-              extra: false,
-            },
-          },
+          contract_example_discipline: [],
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "contract example discipline context with extra key",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            extra: true,
+          }),
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "contract example discipline context missing proof boolean",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            proof_obligations: { valid_examples_pass: true },
+          }),
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "contract example discipline context with nul",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            obligations: "contains\0nul",
+          }),
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "contract example discipline context with oversized text",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            consumer_rule: "x".repeat(4001),
+          }),
         }),
       stderr: "risk-signals schema mismatch",
     },

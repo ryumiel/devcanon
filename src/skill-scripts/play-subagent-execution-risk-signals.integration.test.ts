@@ -98,8 +98,10 @@ function envFor(
   };
 }
 
-function contractExampleDisciplineContext(overrides = {}) {
-  return JSON.stringify({
+function contractExampleDisciplineContext(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
     present: true,
     source: "extracted-plan-task-execution-context",
     obligations:
@@ -111,7 +113,13 @@ function contractExampleDisciplineContext(overrides = {}) {
       invalid_families_fail: true,
     },
     ...overrides,
-  });
+  };
+}
+
+function contractExampleDisciplineContextJson(
+  overrides: Record<string, unknown> = {},
+) {
+  return JSON.stringify(contractExampleDisciplineContext(overrides));
 }
 
 function omitKey(
@@ -242,7 +250,7 @@ describe("play-subagent-execution risk-signals producer", () => {
         runHelper(workspace, {
           ...envFor(workspace),
           RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON:
-            contractExampleDisciplineContext(),
+            contractExampleDisciplineContextJson(),
         }),
       ).resolves.toMatchObject({
         stdout: `Risk signals written to ${relPath}.\n`,
@@ -476,29 +484,61 @@ describe("play-subagent-execution risk-signals producer", () => {
     }
   });
 
-  it("rejects malformed contract example discipline context before emitting a notice", async () => {
-    const workspace = await makeGitWorkspace();
-    try {
-      const relPath = riskSignalsPath(workspace);
-      await expect(
-        runHelper(workspace, {
-          ...envFor(workspace),
-          RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON:
-            contractExampleDisciplineContext({ obligations: "" }),
-        }),
-      ).rejects.toMatchObject({
-        stdout: "",
-        stderr: expect.stringContaining(
-          "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON",
-        ),
-      });
-      await expect(
-        stat(path.join(workspace.cwd, relPath)),
-      ).rejects.toBeTruthy();
-    } finally {
-      await cleanupTempDir(workspace.cwd);
-    }
-  });
+  it.each([
+    {
+      name: "null context",
+      value: null,
+    },
+    {
+      name: "array context",
+      value: [],
+    },
+    {
+      name: "extra top-level key",
+      value: contractExampleDisciplineContext({ extra: true }),
+    },
+    {
+      name: "missing proof boolean",
+      value: contractExampleDisciplineContext({
+        proof_obligations: { valid_examples_pass: true },
+      }),
+    },
+    {
+      name: "nul text",
+      value: contractExampleDisciplineContext({ obligations: "contains\0nul" }),
+    },
+    {
+      name: "oversized text",
+      value: contractExampleDisciplineContext({
+        consumer_rule: "x".repeat(4001),
+      }),
+    },
+  ])(
+    "rejects malformed contract example discipline context before emitting a notice: $name",
+    async ({ value }) => {
+      const workspace = await makeGitWorkspace();
+      try {
+        const relPath = riskSignalsPath(workspace);
+        await expect(
+          runHelper(workspace, {
+            ...envFor(workspace),
+            RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON:
+              JSON.stringify(value),
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining(
+            "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON",
+          ),
+        });
+        await expect(
+          stat(path.join(workspace.cwd, relPath)),
+        ).rejects.toBeTruthy();
+      } finally {
+        await cleanupTempDir(workspace.cwd);
+      }
+    },
+  );
 
   it("rejects invalid boolean environment values", async () => {
     const workspace = await makeGitWorkspace();
