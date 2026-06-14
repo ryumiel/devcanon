@@ -572,6 +572,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
       );
       expect(normalizedPhase7).toContain(
+        "has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path",
+      );
+      expect(normalizedPhase7).toContain(
         "capture that final run's exact `Approval summary written to <path>.` notice path",
       );
       expect(normalizedPhase7).toContain(
@@ -590,6 +593,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase8).toContain("play-branch-finish");
       expect(phase8).toContain("option 2: push and create PR");
       expect(phase8).toContain("phase-8-pr-handoff.md");
+      expect(normalizedPhase8).toContain(
+        "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass on the final Phase 7 run",
+      );
+      expect(normalizedPhase8).toContain(
+        "captured final approval-summary notice path",
+      );
       expect(normalizedPhase8).toContain(
         "Pass `assignee=@me` to `play-branch-finish` Option 2",
       );

@@ -485,19 +485,20 @@ earlier review run across an auto-fix rerun or mechanical-nit rerun. Phase 7
 only captures and carries the notice path; it does not parse approval summary
 fields, duplicate branch-review schema or validation policy, or perform PR
 creation readiness validation. Phase 8 may start only after the final Phase 7
-run reports zero blocking findings auto-fixed, no unresolved true Blocking
-findings, has a captured final approval-summary path, and no additional
-mechanical-nit commits after that review.
+run reports zero blocking findings auto-fixed, has no unresolved true Blocking
+findings except `INVALID` or `DOWNGRADE`, has a captured final
+approval-summary path, and no mechanical-nit commit occurs after that review.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.
 
 ### Phase 8: Create PR
 
 Phase 7 owns branch review before Phase 8. Phase 8 may start only after Phase 7
-`branch-review --fix` completion criteria pass: zero blocking findings
-auto-fixed, no unresolved remaining `Blocking` findings except findings whose
-`critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit
-commits are made after that review. Phase 8 must not rely on
+`branch-review --fix` completion criteria pass on the final Phase 7 run: zero
+blocking findings auto-fixed, no unresolved remaining `Blocking` findings
+except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captured
+final approval-summary notice path, and no mechanical-nit commit after that
+review. Phase 8 must not rely on
 `play-branch-finish` to run, validate, classify, or complete branch review.
 
 Before invoking the handoff, load

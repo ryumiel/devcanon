@@ -3257,22 +3257,46 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase7).toContain(
       "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
     );
+    expect(normalizedPhase7).toContain(
+      "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed, has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path, and no mechanical-nit commit occurs after that review",
+    );
     expect(normalizedPhase7).not.toContain("approval-summary JSON");
     expect(normalizedPhase7).toContain(
       "it does not parse approval summary fields, duplicate branch-review schema or validation policy, or perform PR creation readiness validation",
+    );
+
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Phase Flow Reference",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass on the final Phase 7 run",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "captured final approval-summary notice path",
     );
 
     expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
     expect(phase7Reference).toContain("Findings written to <path>.");
     expect(phase7Reference).toContain("Approval summary written to <path>.");
     expect(normalizedReference).toContain(
-      "parse three exact notice lines from that final run",
+      "After each `branch-review --fix` run, parse these exact notice lines from that run",
+    );
+    expect(normalizedReference).toContain(
+      "Once a run is candidate-final because all Phase 7 blocker, nit, and rerun criteria are satisfied",
+    );
+    expect(normalizedReference).toContain(
+      "also capture the approval-summary path from the exact `Approval summary written to <path>.` notice emitted by that same run",
     );
     expect(normalizedReference).toContain(
       "Do not parse approval-summary JSON fields",
     );
     expect(normalizedReference).toContain(
       "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizedReference).toContain(
+      "Approval-summary notice paths are final-run-only",
     );
     expect(normalizedReference).toContain(
       "missing final approval-summary notice is a hard stop before Phase 8",

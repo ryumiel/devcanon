@@ -7,12 +7,11 @@ nits, or preparing the Phase 8 `nits_file`.
 
 ## Review Artifact Parsing
 
-After the final `branch-review --fix` run, parse three exact notice lines from
-that final run:
+After each `branch-review --fix` run, parse these exact notice lines from that
+run:
 
 - `Review head: <40-hex-sha>.`
 - `Findings written to <path>.`
-- `Approval summary written to <path>.`
 
 Use the immutable review head from the notice line as `HEAD_SHA` when reading
 that run's findings. Do not recompute from current `HEAD`; `branch-review --fix`
@@ -23,18 +22,19 @@ helper and validate the findings path before reading the envelope.
 Do not re-parse human-readable review markdown. The side-channel
 `play-review/findings/v1` envelope is the consumer contract.
 
-Capture the approval-summary path only from the exact
-`Approval summary written to <path>.` notice emitted by the same final
-branch-review run whose review head and findings path are being used. Do not
+Once a run is candidate-final because all Phase 7 blocker, nit, and rerun
+criteria are satisfied, also capture the approval-summary path from the exact
+`Approval summary written to <path>.` notice emitted by that same run. Do not
 parse approval-summary JSON fields, duplicate branch-review's
 `branch-review/approval-summary/v1` schema, or reinterpret approval state here.
 Branch-review owns producing and validating that artifact. Phase 7 owns
 carrying the final notice path forward as handoff evidence.
 
 Do not reuse an approval-summary path captured from an earlier branch-review
-run. Any auto-fix commit or mechanical-nit commit restarts Phase 7 and
-invalidates all notice paths from the earlier run for Phase 8 handoff. A
-missing final approval-summary notice is a hard stop before Phase 8.
+run. Approval-summary notice paths are final-run-only; any auto-fix commit,
+mechanical-nit commit, or other rerun invalidates earlier approval-summary
+paths for Phase 8 handoff. A missing final approval-summary notice is a hard
+stop before Phase 8.
 
 ## Blocker Stop Rules
 

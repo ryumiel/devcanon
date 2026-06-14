@@ -212,13 +212,19 @@ describe("phase artifact source contracts", () => {
       "Approval summary written to <path>.",
     );
     expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
-      "parse three exact notice lines from that final run",
+      "After each `branch-review --fix` run, parse these exact notice lines from that run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Once a run is candidate-final because all Phase 7 blocker, nit, and rerun criteria are satisfied",
     );
     expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
       "Do not parse approval-summary JSON fields",
     );
     expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
       "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Approval-summary notice paths are final-run-only",
     );
     expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
       "missing final approval-summary notice is a hard stop before Phase 8",
