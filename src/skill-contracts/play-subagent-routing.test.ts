@@ -852,7 +852,7 @@ describe("play subagent routing source contracts", () => {
       "captures that final run's approval-summary notice path",
     );
     expect(eagerContinuation).toContain(
-      'findings whose `critic` verdict is `INVALID` or `DOWNGRADE`',
+      "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(mechanicalNitCommits).toContain(
       "captures that final run's approval-summary notice path",
