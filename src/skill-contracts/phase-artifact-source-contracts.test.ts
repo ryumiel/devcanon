@@ -208,6 +208,21 @@ describe("phase artifact source contracts", () => {
       expect(issuePrimingWorkflow).toContain(noticeLine);
     }
     expect(phase7ReviewHandling).toContain("Findings written to <path>.");
+    expect(phase7ReviewHandling).toContain(
+      "Approval summary written to <path>.",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "parse three exact notice lines from that final run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Do not parse approval-summary JSON fields",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "missing final approval-summary notice is a hard stop before Phase 8",
+    );
 
     expect(normalizedIssuePriming).toContain(
       "do not suppress or replace child skill approval gates",
@@ -1173,8 +1188,15 @@ describe("phase artifact source contracts", () => {
     expect(normalizedBranchReview).toContain(
       "pass/block interpretation for the summary",
     );
+    expect(normalizedBranchReview).not.toContain("GitHub issue #465");
     expect(normalizedBranchReview).toContain(
-      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+      "Branch-review emits and validates the approval-summary artifact",
+    );
+    expect(normalizedBranchReview).toContain(
+      "downstream workflows or `play-branch-finish` may validate caller-supplied approval-summary evidence when an explicit gate requires it",
+    );
+    expect(normalizedBranchReview).toContain(
+      "branch-review still does not create PRs or own branch-finish gating",
     );
     expect(normalizedBranchReview).toContain(
       "does not duplicate finding bodies and must not contain `gate_passed`",

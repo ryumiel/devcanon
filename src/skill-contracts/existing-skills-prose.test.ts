@@ -3232,6 +3232,53 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps issue-priming Phase 7 approval-summary handoff path capture source-owned", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedReference = normalizeWhitespace(phase7Reference);
+
+    expect(phase7).toContain("Approval summary written to <path>.");
+    expect(normalizedPhase7).toContain(
+      "capture that final run's exact `Approval summary written to <path>.` notice path",
+    );
+    expect(normalizedPhase7).toContain(
+      "A missing approval-summary notice from the final run is a hard stop before Phase 8",
+    );
+    expect(normalizedPhase7).toContain(
+      "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+    );
+    expect(normalizedPhase7).not.toContain("approval-summary JSON");
+    expect(normalizedPhase7).toContain(
+      "it does not parse approval summary fields, duplicate branch-review schema or validation policy, or perform PR creation readiness validation",
+    );
+
+    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
+    expect(phase7Reference).toContain("Findings written to <path>.");
+    expect(phase7Reference).toContain("Approval summary written to <path>.");
+    expect(normalizedReference).toContain(
+      "parse three exact notice lines from that final run",
+    );
+    expect(normalizedReference).toContain(
+      "Do not parse approval-summary JSON fields",
+    );
+    expect(normalizedReference).toContain(
+      "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizedReference).toContain(
+      "missing final approval-summary notice is a hard stop before Phase 8",
+    );
+  });
+
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(

@@ -258,8 +258,14 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "pass/block interpretation for the summary",
     );
+    expect(normalizeRenderedWhitespace(branchReview)).not.toContain(
+      "GitHub issue #465",
+    );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
-      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+      "Branch-review emits and validates the approval-summary artifact",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "downstream workflows or `play-branch-finish` may validate caller-supplied approval-summary evidence when an explicit gate requires it",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "in `--fix` mode it is the post-fix remaining-set envelope overwritten in place",
@@ -551,6 +557,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("phase-7-review-handling.md");
       expect(phase7).toContain("prepare-judgment-nits");
       expect(phase7).toContain("play-review/findings/v1");
+      expect(phase7).toContain("Approval summary written to <path>.");
       expect(phase7).toContain("-nits-pending.json");
       expect(normalizedPhase7).toContain(
         'ignore `critic: "INVALID"` for continuation and never pass it to Phase 8',
@@ -563,6 +570,15 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPhase7).toContain(
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
+      );
+      expect(normalizedPhase7).toContain(
+        "capture that final run's exact `Approval summary written to <path>.` notice path",
+      );
+      expect(normalizedPhase7).toContain(
+        "A missing approval-summary notice from the final run is a hard stop before Phase 8",
+      );
+      expect(normalizedPhase7).toContain(
+        "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
       );
       expect(normalizedPhase7).toContain(
         "classification flow is `--auto` only",

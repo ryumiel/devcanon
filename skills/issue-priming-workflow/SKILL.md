@@ -462,8 +462,9 @@ true `Blocking` finding is unresolved (`critic` is neither `INVALID` nor
 Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
 That reference owns review-head parsing, `play-review/findings/v1` validation,
-blocker checks, nit classification details, mechanical-nit commit rules,
-back-reference footers, edit-staleness rules, and the
+approval-summary notice-path capture, blocker checks, nit classification
+details, mechanical-nit commit rules, back-reference footers, edit-staleness
+rules, and the
 `prepare-judgment-nits` helper handoff.
 
 For the eager contract: ignore `critic: "INVALID"` for continuation and never
@@ -475,9 +476,18 @@ empty, omit `nits_file`.
 
 After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`
 on the new `HEAD` and restart Phase 7, passing only risk signals regenerated
-for that `HEAD` when using `--risk-signals`. Phase 8 may start only after the
-final Phase 7 run reports zero blocking findings auto-fixed, no unresolved true
-Blocking findings, and no additional mechanical-nit commits after that review.
+for that `HEAD` when using `--risk-signals`. For the run that will allow Phase
+8 to start, capture that final run's exact
+`Approval summary written to <path>.` notice path alongside the review head and
+findings path evidence. A missing approval-summary notice from the final run is
+a hard stop before Phase 8. Do not carry an approval-summary path from an
+earlier review run across an auto-fix rerun or mechanical-nit rerun. Phase 7
+only captures and carries the notice path; it does not parse approval summary
+fields, duplicate branch-review schema or validation policy, or perform PR
+creation readiness validation. Phase 8 may start only after the final Phase 7
+run reports zero blocking findings auto-fixed, no unresolved true Blocking
+findings, has a captured final approval-summary path, and no additional
+mechanical-nit commits after that review.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.
 

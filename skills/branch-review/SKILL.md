@@ -378,8 +378,10 @@ exact notice line:
 Approval summary written to <path>.
 ```
 
-Consumer gating from this summary into `play-branch-finish` remains deferred to
-GitHub issue #465; this skill only emits and validates the artifact.
+Branch-review emits and validates the approval-summary artifact; downstream
+workflows or `play-branch-finish` may validate caller-supplied
+approval-summary evidence when an explicit gate requires it, but branch-review
+still does not create PRs or own branch-finish gating.
 
 ## Phase 2: Invoke the play-review skill workflow
 
