@@ -3085,11 +3085,14 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toMatch(
       /does not invoke `branch-review`|must not invoke `branch-review`|do not invoke `branch-review`/i,
     );
-    expect(normalizedOption2).toMatch(
-      /validates? (?:the )?caller-supplied `nits_file` only as (?:a )?(?:posting|PR review comment posting) input|only validates? (?:the )?caller-supplied `nits_file` as (?:a )?(?:posting|PR review comment posting) input/i,
+    expect(normalizedOption2).toContain(
+      "validates caller-supplied `approval_summary_file` evidence only through the explicit `branch_review_required=true` gate",
     );
-    expect(normalizedOption2).toMatch(
-      /does not validate (?:branch-review completion|review completeness|final review completeness)|must not validate (?:branch-review completion|review completeness|final review completeness)|do not validate (?:branch-review completion|review completeness|final review completeness)/i,
+    expect(normalizedOption2).toContain(
+      "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+    );
+    expect(normalizedOption2).toContain(
+      "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
     );
     expect(normalizedIntegrationSection).toContain(
       "**play-subagent-execution** - After tasks complete and review status is resolved",
@@ -3104,7 +3107,7 @@ describe("existing skills source prose contracts", () => {
       /(?<!not )validates? (?:branch-review completion|review completeness|final review completeness)/i,
       /(?:review completeness|final review completeness) validation/i,
       /(?<!not )validates? (?:that )?branch-review (?:ran|completed|passed)/i,
-      /decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
+      /(?<!not |or )decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
       /(?:creates?|produces?|derives?) (?:branch-review )?findings/i,
       /(?:owns|performs|applies) caller-intent filtering/i,
     ]) {
@@ -3459,7 +3462,7 @@ describe("existing skills source prose contracts", () => {
     expect(commonMistakes).toMatch(/commit-history narration/i);
   });
 
-  it("keeps play-branch-finish autosquash bound to the reviewed-tree invariant", async () => {
+  it("keeps play-branch-finish autosquash bound to reviewed tree and head-bound approval evidence", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(
       skillSource,
@@ -3469,17 +3472,22 @@ describe("existing skills source prose contracts", () => {
     const normalizedOption2 = normalizeWhitespace(option2);
 
     expect(normalizedOption2).toContain("reviewed-tree invariant");
+    expect(normalizedOption2).toContain("approval-summary evidence");
     expect(normalizedOption2).toMatch(
-      /autosquash[^.]*must preserve the reviewed-tree invariant/i,
+      /autosquash[^.]*must preserve both the reviewed-tree invariant and any required approval-summary evidence/i,
     );
     expect(normalizedOption2).toMatch(
-      /If autosquash or any other post-review tree change would invalidate review, stop before push/i,
+      /When `branch_review_required=true`, approval evidence is head-bound/i,
     );
     expect(normalizedOption2).toMatch(
-      /require a new branch review outside this skill before re-entering Option 2/i,
+      /accepting an autosquash after branch review rewrites `HEAD`/i,
     );
     expect(normalizedOption2).toMatch(
-      /post-review tree change[^.]*requires a new branch review/i,
+      /makes the prior approval summary stale even when the tree is unchanged/i,
+    );
+    expect(normalizedOption2).toMatch(/fresh `approval_summary_file`/i);
+    expect(normalizedOption2).toMatch(
+      /Any post-review tree change also requires a new branch review/i,
     );
     expect(normalizedOption2).not.toMatch(
       /run a new `branch-review` before creating the PR/i,

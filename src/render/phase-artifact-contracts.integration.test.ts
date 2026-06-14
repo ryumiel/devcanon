@@ -743,13 +743,16 @@ describe("rendered phase artifact smoke coverage", () => {
         "Option 2 does not invoke `branch-review`",
       );
       expect(normalizedOption2).toContain(
-        "does not validate branch-review completion or review completeness",
+        "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
       );
       expect(normalizedOption2).toContain(
-        "has no branch-review pass/fail authority",
+        "validates caller-supplied `approval_summary_file` evidence only through the explicit `branch_review_required=true` gate",
       );
       expect(normalizedOption2).toContain(
-        "validates the caller-supplied `nits_file` only as a PR review comment posting input",
+        "delegates pass/block interpretation to `play-validate-review-artifacts`",
+      );
+      expect(normalizedOption2).toContain(
+        "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
       );
       expect(normalizedOption2).toContain(
         "Optional input — branch-review approval gate",
