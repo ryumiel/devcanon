@@ -904,8 +904,8 @@ function validateRiskSignalsContractExampleDiscipline(context) {
         "valid_examples_pass",
         "invalid_families_fail",
     ]) ||
-        typeof proofObligations.valid_examples_pass !== "boolean" ||
-        typeof proofObligations.invalid_families_fail !== "boolean") {
+        proofObligations.valid_examples_pass !== true ||
+        proofObligations.invalid_families_fail !== true) {
         fail("risk-signals schema mismatch");
     }
 }

@@ -504,6 +504,24 @@ describe("play-subagent-execution risk-signals producer", () => {
       }),
     },
     {
+      name: "false valid examples proof",
+      value: contractExampleDisciplineContext({
+        proof_obligations: {
+          valid_examples_pass: false,
+          invalid_families_fail: true,
+        },
+      }),
+    },
+    {
+      name: "false invalid families proof",
+      value: contractExampleDisciplineContext({
+        proof_obligations: {
+          valid_examples_pass: true,
+          invalid_families_fail: false,
+        },
+      }),
+    },
+    {
       name: "nul text",
       value: contractExampleDisciplineContext({ obligations: "contains\0nul" }),
     },

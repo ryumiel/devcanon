@@ -92,6 +92,10 @@ function approvalSummaryPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-approval-summary.json`;
 }
 
+function contractExampleContextPath(headSha: string) {
+  return `.ephemeral/topic-${headSha}-contract-example-discipline-context.json`;
+}
+
 function findingsPath(headSha: string) {
   return `.ephemeral/topic-${headSha}-findings.json`;
 }
@@ -394,6 +398,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+      const contextPath = contractExampleContextPath(headSha);
       await writeJson(
         cwd,
         riskSignalsFile,
@@ -436,9 +441,6 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         "source: extracted-plan-task-execution-context",
       );
       expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
-        "obligations_excerpt: Valid examples must pass. Invalid families must fail",
-      );
-      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
         "proof_obligations.valid_examples_pass: true",
       );
       expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
@@ -447,9 +449,36 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
         "triggers: contract_example_discipline",
       );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        `contract_example_discipline_context_path: ${contextPath}`,
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).not.toContain(
+        "obligations_excerpt",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).not.toContain(
+        "Invalid families must fail for the named dimension.",
+      );
       expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).not.toContain(
         "FULL CONSUMER RULE SHOULD NOT BE REPEATED",
       );
+
+      await expect(readJson(cwd, contextPath)).resolves.toMatchObject({
+        schema: "branch-review/contract-example-discipline-context/v1",
+        producer: "branch-review",
+        head_sha: headSha,
+        source_risk_signals_file: riskSignalsFile,
+        contract_example_discipline: {
+          present: true,
+          source: "extracted-plan-task-execution-context",
+          obligations:
+            "Valid examples must pass.\nInvalid families must fail for the named dimension.",
+          consumer_rule: "FULL CONSUMER RULE SHOULD NOT BE REPEATED",
+          proof_obligations: {
+            valid_examples_pass: true,
+            invalid_families_fail: true,
+          },
+        },
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

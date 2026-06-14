@@ -414,9 +414,10 @@ must contain exactly:
 }
 ```
 
-`proof_obligations` booleans reflect only obligations explicitly present in the
-extracted context. Copy `obligations` only from present Contract Example
-Discipline, task-local example, or proof-obligation lines, and copy
+`proof_obligations` values must be exactly `true` and reflect only obligations
+explicitly present in the extracted context. Copy `obligations` only from
+present Contract Example Discipline, task-local example, or proof-obligation
+lines, and copy
 `consumer_rule` from the shared rule content inlined under `Contract Example
 Discipline Consumer Rule`; do not include the whole plan. If present
 obligations cannot be represented in that bounded object because the data is

@@ -328,6 +328,32 @@ describe("review artifact runtime reducers", () => {
       stderr: "risk-signals schema mismatch",
     },
     {
+      name: "contract example discipline context with false valid examples proof",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            proof_obligations: {
+              valid_examples_pass: false,
+              invalid_families_fail: true,
+            },
+          }),
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "contract example discipline context with false invalid families proof",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignalsArtifact(baseSha, headSha, {
+          contract_example_discipline: contractExampleDisciplineContext({
+            proof_obligations: {
+              valid_examples_pass: true,
+              invalid_families_fail: false,
+            },
+          }),
+        }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
       name: "contract example discipline context with nul",
       artifact: (baseSha: string, headSha: string) =>
         riskSignalsArtifact(baseSha, headSha, {

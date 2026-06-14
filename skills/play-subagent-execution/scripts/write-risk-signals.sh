@@ -214,8 +214,8 @@ function validateContractExampleDisciplineContext(value) {
       "valid_examples_pass",
       "invalid_families_fail",
     ]) ||
-    typeof value.proof_obligations.valid_examples_pass !== "boolean" ||
-    typeof value.proof_obligations.invalid_families_fail !== "boolean"
+    value.proof_obligations.valid_examples_pass !== true ||
+    value.proof_obligations.invalid_families_fail !== true
   ) {
     fail(
       "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON must match the contract example discipline context schema",
