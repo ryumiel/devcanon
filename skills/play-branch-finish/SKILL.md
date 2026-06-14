@@ -313,7 +313,9 @@ gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 
 ```bash
 if [ -n "${APPROVED_HEAD_SHA:-}" ]; then
-  PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')
+  if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then
+    PR_HEAD_SHA=""
+  fi
   if [ -z "$PR_HEAD_SHA" ]; then
     echo "Post-create approved-head verification unavailable: GitHub headRefOid was unavailable."
   elif [ "$PR_HEAD_SHA" = "$APPROVED_HEAD_SHA" ]; then

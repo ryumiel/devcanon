@@ -42,11 +42,14 @@ effect and translates that input into the assignee behavior needed for
 Always pass `branch_review_required=true`, and pass the final Phase 7
 approval-summary path as `approval_summary_file`. If that final
 approval-summary path is absent or empty, stop before invoking
-`play-branch-finish`. Phase 8 does not validate approval-summary JSON, parse
-approval-summary fields, or duplicate `play-branch-finish` or
-`play-validate-review-artifacts` gate semantics. Its responsibility is limited
-to requiring the final Phase 7 path to exist in controller state and passing it
-as an explicit Option 2 input.
+`play-branch-finish`. If Phase 7 branch-review used
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+pattern through to `play-branch-finish` Option 2. Phase 8 does not validate
+approval-summary JSON, parse approval-summary fields, or duplicate
+`play-branch-finish` or `play-validate-review-artifacts` gate semantics. Its
+responsibility is limited to requiring the final Phase 7 path to exist in
+controller state and passing it, plus any configured path pattern used by the
+linked scope evidence, as explicit Option 2 input.
 
 ## PR Title and Body
 

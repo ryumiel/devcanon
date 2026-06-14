@@ -41,8 +41,10 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Fix:** Stop before `play-branch-finish` when the final approval-summary
   path is absent or empty. Otherwise pass `branch_review_required=true`,
   `approval_summary_file=<final Phase 7 approval-summary path>`, and
-  `assignee=@me`; keep optional `nits_file` and
-  `assumptions_comment_file` separate
+  `assignee=@me`; when Phase 7 used
+  `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+  pattern too. Keep optional `nits_file` and `assumptions_comment_file`
+  separate
 
 ## Skipping the gate for "obvious" gated issues
 

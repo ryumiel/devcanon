@@ -630,6 +630,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
       );
       expect(normalizedPhase8).toContain(
+        "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
         "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
       );
       expect(normalizedPhase8).toContain(
@@ -817,8 +820,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "Unavailable GitHub head SHA is not verification success.",
       );
       expect(approvedHeadVerificationSnippet).toContain(
-        "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+        "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
       );
+      expect(approvedHeadVerificationSnippet).toContain('PR_HEAD_SHA=""');
       expect(approvedHeadVerificationSnippet).toContain(
         "Post-create approved-head verification unavailable",
       );

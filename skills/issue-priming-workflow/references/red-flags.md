@@ -20,6 +20,8 @@ Behavioral signals that this skill is being violated.
 - You composed a PR title/description directly in Phase 8 instead of relying on `play-branch-finish` to invoke `pr-authoring`
 - You invoked `play-branch-finish` Option 2 without explicit
   `branch_review_required=true` and `approval_summary_file` inputs
+- Phase 7 used `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, but Phase 8 did not
+  pass the same configured path pattern to `play-branch-finish`
 - You reused a stale approval-summary path or proceeded when the final Phase 7
   approval-summary path was missing or empty
 - You treated `nits_file` or `assumptions_comment_file` as approval-summary

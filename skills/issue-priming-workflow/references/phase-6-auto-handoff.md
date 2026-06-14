@@ -49,7 +49,8 @@ The helper writes a JSON artifact with this schema:
   "plan_path": "<PLAN_PATH>",
   "head_sha": "<git HEAD sha>",
   "phase7_branch_review_fix_required": true,
-  "phase7_rerun_after_commits": true
+  "phase7_rerun_after_commits": true,
+  "phase7_final_approval_summary_notice_required": true
 }
 ```
 
@@ -137,6 +138,9 @@ run commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new
 
 This final whole-diff review is the downstream guarantee that supports both
 reduced per-task routes and the single-task final-review carve-out.
+The auto-handoff artifact records that the final approval-summary notice is a
+required Phase 7 guarantee so `play-subagent-execution` can verify the reduced
+route contract mechanically, not only from prose.
 
 ## Failure Modes
 

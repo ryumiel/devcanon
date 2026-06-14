@@ -519,10 +519,13 @@ performs post-merge cleanup or the operator explicitly discards the work.
 Pass `assignee=@me` to `play-branch-finish` Option 2. Pass
 `branch_review_required=true` to `play-branch-finish` Option 2. Pass the final
 Phase 7 approval-summary path to `play-branch-finish` Option 2 as
-`approval_summary_file`. Phase 8 does not validate approval-summary JSON or
-duplicate `play-branch-finish` or `play-validate-review-artifacts` gate
-semantics; it only passes explicit inputs and hard-stops on a missing or empty
-final approval-summary path.
+`approval_summary_file`. If Phase 7 branch-review ran with
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+pattern through to `play-branch-finish` Option 2 as
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`. Phase 8 does not validate
+approval-summary JSON or duplicate `play-branch-finish` or
+`play-validate-review-artifacts` gate semantics; it only passes explicit inputs
+and hard-stops on a missing or empty final approval-summary path.
 
 Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose`
 mode; `pr-authoring` owns project-specific PR guidance, title/body validation,

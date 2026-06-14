@@ -99,7 +99,8 @@ jq -n --arg plan "$PLAN_PATH" --arg head "$ISSUE_PRIMING_AUTO_HEAD" '{
   plan_path: $plan,
   head_sha: $head,
   phase7_branch_review_fix_required: true,
-  phase7_rerun_after_commits: true
+  phase7_rerun_after_commits: true,
+  phase7_final_approval_summary_notice_required: true
 }' > "$AUTO_HANDOFF_TMP"
 mv "$AUTO_HANDOFF_TMP" "$AUTO_HANDOFF_FILE"
 trap - EXIT

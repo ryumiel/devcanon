@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -2933,6 +2933,9 @@ describe("existing skills source prose contracts", () => {
       "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
     );
     expect(normalizeWhitespace(phase8)).toContain(
+      "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
       "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
     );
     expect(normalizeWhitespace(phase8)).toContain(
@@ -2970,6 +2973,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "pass the final Phase 7 approval-summary path as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "If Phase 7 branch-review used `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "If that final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
@@ -3225,7 +3231,7 @@ describe("existing skills source prose contracts", () => {
       normalizedOption2.indexOf('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then'),
     ).toBeLessThan(
       normalizedOption2.indexOf(
-        "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+        "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
       ),
     );
 
@@ -3235,8 +3241,9 @@ describe("existing skills source prose contracts", () => {
       "Unavailable GitHub head SHA is not verification success.",
     );
     expect(approvedHeadVerificationSnippet).toContain(
-      "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+      "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
     );
+    expect(approvedHeadVerificationSnippet).toContain('PR_HEAD_SHA=""');
     expect(approvedHeadVerificationSnippet).toContain(
       "Post-create approved-head verification unavailable",
     );
@@ -3246,6 +3253,43 @@ describe("existing skills source prose contracts", () => {
     expect(approvedHeadVerificationSnippet).toContain(
       "Post-create approved-head verification mismatch",
     );
+
+    const approvedHeadScript = approvedHeadVerificationSnippet
+      .replace(/\n```\s*$/u, "")
+      .trim();
+    const fakeBin = await mkdtemp(path.join(tmpdir(), "devcanon-gh-fail-"));
+    try {
+      await writeFile(
+        path.join(fakeBin, "gh"),
+        "#!/usr/bin/env bash\nexit 1\n",
+      );
+      await chmod(path.join(fakeBin, "gh"), 0o755);
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            "-c",
+            [
+              "set -euo pipefail",
+              "APPROVED_HEAD_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              approvedHeadScript,
+            ].join("\n"),
+          ],
+          {
+            env: {
+              ...process.env,
+              PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+            },
+          },
+        ),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining(
+          "Post-create approved-head verification unavailable",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(fakeBin);
+    }
 
     expect(normalizedOption2).not.toMatch(
       /(?:infer|detect|enable) (?:the )?branch-review approval gate from/i,
@@ -3352,6 +3396,9 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(phase8)).toContain(
       "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
     );
     expect(normalizeWhitespace(phase8)).toContain(
       "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",

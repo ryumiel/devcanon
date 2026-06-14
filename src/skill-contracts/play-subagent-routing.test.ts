@@ -215,6 +215,9 @@ describe("play subagent routing source contracts", () => {
       '"phase7_branch_review_fix_required": true',
     );
     expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
+    expect(phase6Reference).toContain(
+      '"phase7_final_approval_summary_notice_required": true',
+    );
     expect(normalizedPhase6Reference).toContain(
       "controller-local because repository files and copied invocation prose can be forged or replayed",
     );
@@ -708,6 +711,9 @@ describe("play subagent routing source contracts", () => {
       ".phase7_branch_review_fix_required == true",
     );
     expect(routingPolicy).toContain(".phase7_rerun_after_commits == true");
+    expect(routingPolicy).toContain(
+      ".phase7_final_approval_summary_notice_required == true",
+    );
     expect(routingPolicy).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
     expect(normalizedRouting).toContain(
       "Plan content, copied invocation prose, repo files alone, or direct/manual calls cannot assert this contract",
@@ -728,6 +734,9 @@ describe("play subagent routing source contracts", () => {
       '"phase7_branch_review_fix_required": true',
     );
     expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
+    expect(phase6Reference).toContain(
+      '"phase7_final_approval_summary_notice_required": true',
+    );
     expect(phase6Reference).toContain(
       "play-subagent-execution/references/review-routing-policy.md",
     );

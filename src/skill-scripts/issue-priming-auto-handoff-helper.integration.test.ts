@@ -86,6 +86,7 @@ describe.skipIf(!jqAvailable)("issue-priming auto-handoff helper", () => {
         head_sha: head,
         phase7_branch_review_fix_required: true,
         phase7_rerun_after_commits: true,
+        phase7_final_approval_summary_notice_required: true,
       });
     } finally {
       await cleanupTempDir(cwd);
