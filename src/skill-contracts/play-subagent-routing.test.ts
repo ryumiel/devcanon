@@ -1693,6 +1693,9 @@ describe("play subagent routing source contracts", () => {
       "extracted-plan-task-execution-context",
     );
     expect(normalizedExecutor).toContain(
+      "equivalent clearly labeled section/obligation",
+    );
+    expect(normalizedExecutor).toContain(
       "If present obligations cannot be represented in that bounded object",
     );
     expect(normalizedExecutor).toContain(

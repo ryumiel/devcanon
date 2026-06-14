@@ -66,10 +66,11 @@ Before any implementer dispatch or inline execution, run a structural
 task-contract gate against the extracted plan/task execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from plan-level Contract Example Discipline obligations when present, task-local
-checklist or no-trigger status, and any task-local example or proof obligations
-that refine the plan-level section. When Contract Example Discipline is present,
-inline the full shared
+from plan-level Contract Example Discipline obligations or equivalent clearly
+labeled sections/obligations when present, task-local checklist or no-trigger
+status, and any task-local example or proof obligations that refine the
+plan-level section. When Contract Example Discipline or an equivalent clearly
+labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
 context under the subsection heading `Contract Example Discipline Consumer
 Rule`. This named context is the only contract context prompt consumers
@@ -205,11 +206,13 @@ For the full selection and process diagrams, load
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
-   obligations when present, task-local checklist/no-trigger status, and any
-   task-local example or proof obligations that refine the plan-level section.
-   When Contract Example Discipline is present, also inline the full shared
-   consumer rule under `Contract Example Discipline Consumer Rule` so prompt
-   consumers can enforce the rule without relying on local reference paths.
+   obligations or equivalent clearly labeled sections/obligations when present,
+   task-local checklist/no-trigger status, and any task-local example or proof
+   obligations that refine the plan-level section. When Contract Example
+   Discipline or an equivalent clearly labeled section/obligation is present,
+   also inline the full shared consumer rule under
+   `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
+   the rule without relying on local reference paths.
    Then run the structural task-contract gate. Stop with BLOCKED/NEEDS_CONTEXT
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
@@ -394,12 +397,12 @@ ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
 
 Optionally set
 `RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON` only when the extracted
-context contains present Contract Example Discipline obligations and the next
-branch review must preserve that source-owned contract context after an
-`issue-priming-workflow --auto` single-task run skips this skill's final
-whole-implementation reviewer. When set, the helper writes the validated object
-as the risk-signals artifact's `contract_example_discipline` field. The JSON
-must contain exactly:
+context contains present Contract Example Discipline obligations or an
+equivalent clearly labeled section/obligation and the next branch review must
+preserve that source-owned contract context after an `issue-priming-workflow
+--auto` single-task run skips this skill's final whole-implementation reviewer.
+When set, the helper writes the validated object as the risk-signals artifact's
+`contract_example_discipline` field. The JSON must contain exactly:
 
 ```json
 {
@@ -416,8 +419,8 @@ must contain exactly:
 
 `proof_obligations` values must be exactly `true` and reflect only obligations
 explicitly present in the extracted context. Copy `obligations` only from
-present Contract Example Discipline, task-local example, or proof-obligation
-lines, and copy
+present Contract Example Discipline, an equivalent clearly labeled
+section/obligation, task-local example, or proof-obligation lines, and copy
 `consumer_rule` from the shared rule content inlined under `Contract Example
 Discipline Consumer Rule`; do not include the whole plan. If present
 obligations cannot be represented in that bounded object because the data is

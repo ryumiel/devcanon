@@ -163,8 +163,11 @@ function parseJsonEnv(name) {
 
 function parseOptionalJsonEnv(name) {
   const value = process.env[name];
-  if (value === undefined || value.length === 0) {
+  if (value === undefined) {
     return undefined;
+  }
+  if (value.length === 0) {
+    fail(`${name} must be valid JSON`);
   }
   try {
     return JSON.parse(value);

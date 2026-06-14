@@ -558,6 +558,29 @@ describe("play-subagent-execution risk-signals producer", () => {
     },
   );
 
+  it("rejects an explicitly empty contract example discipline context before emitting a notice", async () => {
+    const workspace = await makeGitWorkspace();
+    try {
+      const relPath = riskSignalsPath(workspace);
+      await expect(
+        runHelper(workspace, {
+          ...envFor(workspace),
+          RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON: "",
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON must be valid JSON",
+        ),
+      });
+      await expect(
+        stat(path.join(workspace.cwd, relPath)),
+      ).rejects.toBeTruthy();
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
   it("rejects invalid boolean environment values", async () => {
     const workspace = await makeGitWorkspace();
     try {

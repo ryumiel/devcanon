@@ -728,6 +728,9 @@ describe("existing skills source prose contracts", () => {
       "inline the full shared `references/contract-example-discipline-consumer-rule.md` content",
     );
     expect(normalizedExecution).toContain(
+      "Contract Example Discipline or an equivalent clearly labeled section/obligation is present",
+    );
+    expect(normalizedExecution).toContain(
       "under the subsection heading `Contract Example Discipline Consumer Rule`",
     );
 
