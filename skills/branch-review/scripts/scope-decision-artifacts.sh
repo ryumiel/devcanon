@@ -625,10 +625,15 @@ findings_count_json() {
     if .schema != "play-review/findings/v1" or (.findings | type) != "array" or (.carry_forward | type) != "array" then
       error("findings schema mismatch")
     else
+      def true_blocker:
+        .severity == "Blocking" and .critic != "INVALID" and .critic != "DOWNGRADE";
+      def nonblocking_feedback:
+        .severity == "Nit" or (.severity == "Blocking" and .critic == "DOWNGRADE");
+
       ([.findings[], .carry_forward[]] | unique) as $remaining
       | {
-          blocker_count: ($remaining | map(select(.severity == "Blocking")) | length),
-          nit_count: ($remaining | map(select(.severity == "Nit")) | length),
+          blocker_count: ($remaining | map(select(true_blocker)) | length),
+          nit_count: ($remaining | map(select(nonblocking_feedback)) | length),
           carry_forward_count: (.carry_forward | length)
         }
     end

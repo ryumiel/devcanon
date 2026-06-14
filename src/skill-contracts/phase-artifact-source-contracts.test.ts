@@ -1194,6 +1194,12 @@ describe("phase artifact source contracts", () => {
     expect(normalizedBranchReview).toContain(
       "pass/block interpretation for the summary",
     );
+    expect(normalizedBranchReview).toContain(
+      "Approval-summary blocker counts use true-blocking semantics",
+    );
+    expect(normalizedBranchReview).toContain(
+      "invalidated blocking findings are neither blockers nor postable nits",
+    );
     expect(normalizedBranchReview).not.toContain("GitHub issue #465");
     expect(normalizedBranchReview).toContain(
       "Branch-review emits and validates the approval-summary artifact",
@@ -1215,6 +1221,8 @@ describe("phase artifact source contracts", () => {
     expect(scopeHelper).toContain("write-approval-summary");
     expect(scopeHelper).toContain("-approval-summary.json");
     expect(scopeHelper).toContain("Approval summary written to %s.\\n");
+    expect(scopeHelper).toContain("def true_blocker:");
+    expect(scopeHelper).toContain("def nonblocking_feedback:");
     expect(normalizedScopeHelper).toContain(
       '--expected-findings-file "$FINDINGS_FILE"',
     );

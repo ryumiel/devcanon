@@ -369,6 +369,11 @@ after the final findings envelope for the run is known. The summary is
 wrapper-level terminal evidence for the reviewed head and links to the detailed
 findings and scope-decision artifacts by path and digest; it does not duplicate
 finding bodies and must not contain `gate_passed`.
+Approval-summary blocker counts use true-blocking semantics: a
+`severity: "Blocking"` finding or carry-forward entry blocks only when its
+`critic` verdict is neither `INVALID` nor `DOWNGRADE`. Downgraded blocking
+findings remain non-blocking feedback for the `approved_with_nits` path, while
+invalidated blocking findings are neither blockers nor postable nits.
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns
 deterministic validation and pass/block interpretation for the summary through
 `validate-approval-summary`. Branch review owns only the lifecycle point and

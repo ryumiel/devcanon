@@ -1068,6 +1068,122 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("validates approval summaries with true-blocking critic semantics", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const downgradedBlocker = {
+        schema: "play-review/findings/v1",
+        findings: [finding({ critic: "DOWNGRADE" })],
+        carry_forward: [],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, downgradedBlocker);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, downgradedBlocker, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 0,
+          nit_count: 1,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout:
+          '{"terminal_state":"approved_with_nits","gate_result":"passing"}\n',
+      });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, downgradedBlocker, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 1,
+          nit_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary blocker count mismatch",
+      );
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, downgradedBlocker, {
+          terminal_state: "blocked",
+          blocker_count: 0,
+          nit_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary terminal_state contradicts counts",
+      );
+
+      const invalidatedBlocker = {
+        schema: "play-review/findings/v1",
+        findings: [finding({ critic: "INVALID" })],
+        carry_forward: [],
+      };
+      await writeJson(cwd, findingsFile, invalidatedBlocker);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, invalidatedBlocker, {
+          terminal_state: "approved",
+          blocker_count: 0,
+          nit_count: 0,
+        }),
+      );
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"approved","gate_result":"passing"}\n',
+      });
+
+      const validBlocker = {
+        schema: "play-review/findings/v1",
+        findings: [finding({ critic: "VALID" })],
+        carry_forward: [],
+      };
+      await writeJson(cwd, findingsFile, validBlocker);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, validBlocker, {
+          terminal_state: "blocked",
+          blocker_count: 1,
+          nit_count: 0,
+        }),
+      );
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"blocked","gate_result":"blocking"}\n',
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("matches play-review findings path slugging for non-ASCII branch names", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     const branchName = "feat/café-1";

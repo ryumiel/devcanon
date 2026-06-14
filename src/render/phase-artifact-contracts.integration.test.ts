@@ -258,6 +258,12 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "pass/block interpretation for the summary",
     );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "Approval-summary blocker counts use true-blocking semantics",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "Downgraded blocking findings remain non-blocking feedback",
+    );
     expect(normalizeRenderedWhitespace(branchReview)).not.toContain(
       "GitHub issue #465",
     );
@@ -327,6 +333,12 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(supportValidator).toContain("compare-approved-payload");
     expect(supportValidator).toContain("validate-approval-summary");
     expect(supportValidator).toContain("branch-review/approval-summary/v1");
+    expect(normalizeRenderedWhitespace(supportValidator)).toContain(
+      "recomputes approval counts from the linked findings using true-blocking semantics",
+    );
+    expect(normalizeRenderedWhitespace(supportValidator)).toContain(
+      "invalidated blocking entries count as neither blockers nor postable nits",
+    );
     expect(normalizeRenderedWhitespace(supportValidator)).toContain(
       "Consumers must use this validator output for pass/block interpretation",
     );
@@ -764,6 +776,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedOption2).toContain("approval_summary_file");
       expect(normalizedOption2).toContain(
         "required only when `branch_review_required=true`",
+      );
+      expect(normalizedOption2).toContain(
+        "configured full-review path pattern",
+      );
+      expect(normalizedOption2).toContain(
+        "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+      );
+      expect(option2).toContain(
+        'BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"',
       );
       expect(normalizedOption2).toContain(
         "The gate is explicit only and must not be inferred",

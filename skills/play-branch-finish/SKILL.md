@@ -141,7 +141,10 @@ command.
 empty, or `false`, the gate is disabled and Option 2 preserves the existing
 push/PR behavior without requiring approval evidence. Callers may also pass
 `approval_summary_file`; it is required only when
-`branch_review_required=true`.
+`branch_review_required=true`. Callers that required branch review with a
+configured full-review path pattern must also pass that same pattern so the
+gate can revalidate linked scope-decision evidence with the original scope
+policy.
 
 The gate is explicit only and must not be inferred from repository contents,
 branch names, issue links, private controller state, review-shaped prose, or
@@ -238,9 +241,11 @@ originally/now wording to the PR body.
 Run the adapter helper after autosquash handling and tree-invariant checks and
 before `git push`. Bind `BRANCH_REVIEW_REQUIRED` from the caller's
 `branch_review_required` argument and, when set, bind `APPROVAL_SUMMARY_FILE`
-from the caller's `approval_summary_file` argument. The helper reports
-`GATE_REQUIRED=false` when the gate is disabled; continue to the existing
-push/PR flow in that case.
+from the caller's `approval_summary_file` argument. When the caller supplied a
+configured branch-review full-review path pattern, bind it to
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` for the helper as well. The helper
+reports `GATE_REQUIRED=false` when the gate is disabled; continue to the
+existing push/PR flow in that case.
 
 ```bash
 PLAY_BRANCH_FINISH_DIR="<installed-play-branch-finish-skill-bundle>"
@@ -248,6 +253,7 @@ BRANCH_REVIEW_APPROVAL_GATE_HELPER="$PLAY_BRANCH_FINISH_DIR/scripts/branch-revie
 GATE_OUTPUT="$(
   BRANCH_REVIEW_REQUIRED="${BRANCH_REVIEW_REQUIRED:-}" \
   APPROVAL_SUMMARY_FILE="${APPROVAL_SUMMARY_FILE:-}" \
+  BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}" \
     bash "$BRANCH_REVIEW_APPROVAL_GATE_HELPER"
 )" || exit 1
 printf '%s\n' "$GATE_OUTPUT"

@@ -3144,6 +3144,13 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "required only when `branch_review_required=true`",
     );
+    expect(normalizedOption2).toContain("configured full-review path pattern");
+    expect(normalizedOption2).toContain(
+      "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+    );
+    expect(option2).toContain(
+      'BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"',
+    );
     expect(normalizedOption2).toContain(
       "The gate is explicit only and must not be inferred",
     );
