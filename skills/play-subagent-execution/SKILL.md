@@ -63,22 +63,46 @@ BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
-task-contract gate against the task text. Do not infer trigger applicability
-inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy. The
-gate verifies either a structurally complete `**Contract checklist:**` field or
-an explicit task-specific reason no checklist trigger applies. A no-trigger
-omission reason is trusted only when this controller can identify the upstream
-two-gate `play-planning` return for the plan being executed, meaning both Plan
-Review and Implementer Executability Review passed before `Plan written to
-<path>.` was emitted. Direct, hand-written, copied, or older plans without that
-upstream two-gate return must include a structurally complete checklist instead
-of an omission reason. When a checklist
-is present, it must explicitly name trigger criteria, owner/authority, affected
-consumers/generated outputs, must-preserve, required behavior, spec/procedure
-work, risk surfaces, and proof obligations, with no blank field or unexplained
-`N/A`. If this structural gate fails, stop before implementation and report
-BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch an implementer or execute
-inline against the invalid task contract.
+task-contract gate against the extracted plan/task execution context. Before
+implementer dispatch, reviewer dispatch, final whole-implementation review, or
+skip-dispatch evaluation, assemble the extracted plan/task execution context
+from plan-level Contract Example Discipline obligations or equivalent clearly
+labeled sections/obligations when present, task-local checklist or no-trigger
+status, and any task-local example or proof obligations that refine the
+plan-level section. When Contract Example Discipline or an equivalent clearly
+labeled section/obligation is present, inline the full shared
+`references/contract-example-discipline-consumer-rule.md` content in that
+context under the subsection heading `Contract Example Discipline Consumer
+Rule`. This named context is the only contract context prompt consumers
+receive; subagents receive curated inlined context and do not read the full plan
+file or resolve controller-relative rule paths.
+
+Do not infer trigger applicability inside `play-subagent-execution`;
+`play-planning` owns the trigger taxonomy. The gate verifies either a
+structurally complete `**Contract checklist:**` field or an explicit
+task-specific reason no checklist trigger applies. Present Contract Example
+Discipline obligations are part of the task contract; the executor only
+verifies obligations already included in extracted plan/task execution context;
+do not infer trigger applicability and do not decide whether Contract Example
+Discipline should have been required. In the case when extracted plan/task
+execution context includes Contract Example Discipline or an equivalent clearly
+labeled section/obligation, apply the shared consumer rule in
+[`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
+A no-trigger omission reason is trusted only when this controller can identify
+the upstream two-gate `play-planning` return for the plan being executed,
+meaning both Plan Review and Implementer Executability Review passed before
+`Plan written to <path>.` was emitted. Direct, hand-written, copied, or older
+plans without that upstream two-gate return must include a structurally complete
+checklist instead of an omission reason. When a checklist is present, it must
+explicitly name trigger criteria, owner/authority, affected consumers/generated
+outputs, must-preserve, required behavior, spec/procedure work, risk surfaces,
+and proof obligations, with no blank field or unexplained `N/A`. If this
+structural gate or the extracted plan/task execution context is missing,
+malformed, unsupported, internally inconsistent, or unverifiable, stop before
+implementation and report BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch
+an implementer, dispatch a reviewer, run the final whole-implementation review,
+evaluate skip-dispatch as eligible, or execute inline against the invalid task
+contract.
 
 This structural task-contract gate is separate from DONE-report snapshot
 classification. Snapshot request/skip classification is owned by
@@ -179,9 +203,20 @@ For the full selection and process diagrams, load
 2. Extract all authored tasks with their full text, surrounding context,
    contract checklist fields, verification expectations, and any mode or route
    hints.
-3. Run the structural task-contract gate before any implementer dispatch or
-   inline execution. Stop with BLOCKED/NEEDS_CONTEXT when a required checklist is
-   missing, malformed, blank, unexplained, or unsupported by source inspection.
+3. Assemble the extracted plan/task execution context before implementer
+   dispatch, reviewer dispatch, final whole-implementation review, or
+   skip-dispatch evaluation. Include plan-level Contract Example Discipline
+   obligations or equivalent clearly labeled sections/obligations when present,
+   task-local checklist/no-trigger status, and any task-local example or proof
+   obligations that refine the plan-level section. When Contract Example
+   Discipline or an equivalent clearly labeled section/obligation is present,
+   also inline the full shared consumer rule under
+   `Contract Example Discipline Consumer Rule` so prompt consumers can enforce
+   the rule without relying on local reference paths.
+   Then run the structural task-contract gate. Stop with BLOCKED/NEEDS_CONTEXT
+   when a required checklist or extracted context is missing, malformed, blank,
+   unexplained, unsupported, internally inconsistent, or unverifiable by source
+   inspection.
 4. For single-task mechanical plans, evaluate the skip-dispatch guardrails. When
    all guardrails hold, the controller performs the Write/Edit, verification,
    and commit inline. Otherwise dispatch an implementer prompt.
@@ -360,6 +395,38 @@ categories: `user_facing_behavior`,
 `governance_path`. Each value is `none`, `present`, or `unknown`;
 ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
 
+Optionally set
+`RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON` only when the extracted
+context contains present Contract Example Discipline obligations or an
+equivalent clearly labeled section/obligation and the next branch review must
+preserve that source-owned contract context after an `issue-priming-workflow
+--auto` single-task run skips this skill's final whole-implementation reviewer.
+When set, the helper writes the validated object as the risk-signals artifact's
+`contract_example_discipline` field. The JSON must contain exactly:
+
+```json
+{
+  "present": true,
+  "source": "extracted-plan-task-execution-context",
+  "obligations": "<non-empty string, max 4000 chars, no NUL>",
+  "consumer_rule": "<non-empty string, max 4000 chars, no NUL>",
+  "proof_obligations": {
+    "valid_examples_pass": true,
+    "invalid_families_fail": true
+  }
+}
+```
+
+`proof_obligations` values must be exactly `true` and reflect only obligations
+explicitly present in the extracted context. Copy `obligations` only from
+present Contract Example Discipline, an equivalent clearly labeled
+section/obligation, task-local example, or proof-obligation lines, and copy
+`consumer_rule` from the shared rule content inlined under `Contract Example
+Discipline Consumer Rule`; do not include the whole plan. If present
+obligations cannot be represented in that bounded object because the data is
+empty, too large, contains NUL, or lacks an explicit proof-obligation signal,
+report BLOCKED and do not invoke the helper or emit the success notice.
+
 Notice is emitted only after the helper write and runtime validation succeed.
 If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
@@ -505,6 +572,12 @@ subagent prompt; do not inline their full bodies into this skill source.
   `code-quality-reviewer` agent for per-task code-quality review and for the
   final whole-implementation reviewer surface where this skill's final-review
   gate calls that reviewer.
+- `references/contract-example-discipline-consumer-rule.md` — shared
+  consumer-side Contract Example Discipline rule used by the executor, prompt
+  templates, final whole-implementation review surface, and skip-dispatch
+  policy. The controller loads this file and inlines its content under
+  `Contract Example Discipline Consumer Rule` when the extracted plan/task
+  execution context contains present obligations.
 
 ## Branch Policy Reference Map
 

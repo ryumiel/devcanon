@@ -20,6 +20,17 @@ Task tool (general-purpose):
 
     [From implementer's report]
 
+    ## Extracted Plan/Task Execution Context
+
+    [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
+
+    This controller-curated context contains any present plan-level Contract
+    Example Discipline obligations, the task-local checklist/no-trigger status,
+    and task-local example or proof obligations. Enforce present Contract
+    Example Discipline obligations using the controller-supplied `Contract
+    Example Discipline Consumer Rule` subsection in this extracted context; do
+    not infer whether the discipline should have been required.
+
     ## CRITICAL: Do Not Trust the Report
 
     The implementer finished suspiciously quickly. Their report may be incomplete,
@@ -78,6 +89,11 @@ Task tool (general-purpose):
       changes, tests, generated-output evidence, documentation updates, or
       stated blockers as required by the task. A blank field, unexplained
       `N/A`, or unproven proof obligation is a missing requirement.
+    - In the case when extracted plan/task execution context includes Contract
+      Example Discipline or an equivalent clearly labeled section/obligation,
+      independently verify the controller-supplied `Contract Example Discipline
+      Consumer Rule` subsection from the extracted context as spec-compliance
+      checks.
 
     **Within-document identifier drift (when changes include `*.md` files):**
 

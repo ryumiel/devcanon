@@ -850,9 +850,13 @@ function validateRiskSignalsSchema(riskSignals, expectedSchema) {
             "canonical_docs_may_be_affected",
             "end_user_diagnostics_may_be_affected",
         ];
-        if (!hasExactKeys(riskSignals, Object.hasOwn(riskSignals, "notes")
-            ? [...topLevelKeys, "notes"]
-            : topLevelKeys) ||
+        const optionalTopLevelKeys = [
+            ...(Object.hasOwn(riskSignals, "notes") ? ["notes"] : []),
+            ...(Object.hasOwn(riskSignals, "contract_example_discipline")
+                ? ["contract_example_discipline"]
+                : []),
+        ];
+        if (!hasExactKeys(riskSignals, [...topLevelKeys, ...optionalTopLevelKeys]) ||
             stringField(riskSignals, "schema") !== expectedSchema ||
             stringField(riskSignals, "producer") !== "play-subagent-execution" ||
             stringField(riskSignals, "reviewed_base_ref").length === 0 ||
@@ -868,6 +872,9 @@ function validateRiskSignalsSchema(riskSignals, expectedSchema) {
         }
         validateRiskSignalsEvidenceSource(objectField(riskSignals, "evidence_source"));
         validateRiskSignalsSignals(objectField(riskSignals, "signals"));
+        if (Object.hasOwn(riskSignals, "contract_example_discipline")) {
+            validateRiskSignalsContractExampleDiscipline(objectField(riskSignals, "contract_example_discipline"));
+        }
     }
     catch (err) {
         if (err instanceof ReviewArtifactsError &&
@@ -876,6 +883,34 @@ function validateRiskSignalsSchema(riskSignals, expectedSchema) {
         }
         throw err;
     }
+}
+function validateRiskSignalsContractExampleDiscipline(context) {
+    if (!hasExactKeys(context, [
+        "present",
+        "source",
+        "obligations",
+        "consumer_rule",
+        "proof_obligations",
+    ]) ||
+        context.present !== true ||
+        stringField(context, "source") !==
+            "extracted-plan-task-execution-context" ||
+        !isBoundedRiskSignalsText(stringField(context, "obligations")) ||
+        !isBoundedRiskSignalsText(stringField(context, "consumer_rule"))) {
+        fail("risk-signals schema mismatch");
+    }
+    const proofObligations = objectField(context, "proof_obligations");
+    if (!hasExactKeys(proofObligations, [
+        "valid_examples_pass",
+        "invalid_families_fail",
+    ]) ||
+        proofObligations.valid_examples_pass !== true ||
+        proofObligations.invalid_families_fail !== true) {
+        fail("risk-signals schema mismatch");
+    }
+}
+function isBoundedRiskSignalsText(value) {
+    return value.length > 0 && value.length <= 4000 && !value.includes("\0");
 }
 function validateRiskSignalsEvidenceSource(evidenceSource) {
     const keys = Object.keys(evidenceSource);

@@ -26,6 +26,17 @@ Task tool (general-purpose):
     unless they are explicitly labeled as approved verbatim artifact content
     with an authority source.
 
+    ## Extracted Plan/Task Execution Context
+
+    [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
+
+    This controller-curated context contains any present plan-level Contract
+    Example Discipline obligations, the task-local checklist/no-trigger status,
+    and task-local example or proof obligations. Enforce present Contract
+    Example Discipline obligations using the controller-supplied `Contract
+    Example Discipline Consumer Rule` subsection in this extracted context; do
+    not infer whether the discipline should have been required.
+
     If the task includes a contract checklist, treat its owner/authority,
     affected consumers/generated outputs, must-preserve, required behavior,
     spec/procedure work, risk surfaces, and proof obligations as constraints you

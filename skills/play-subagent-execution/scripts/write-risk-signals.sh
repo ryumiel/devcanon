@@ -161,6 +161,72 @@ function parseJsonEnv(name) {
   }
 }
 
+function parseOptionalJsonEnv(name) {
+  const value = process.env[name];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value.length === 0) {
+    fail(`${name} must be valid JSON`);
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    fail(`${name} must be valid JSON`);
+  }
+}
+
+function hasExactKeys(value, keys) {
+  const actualKeys = Object.keys(value).sort();
+  const expectedKeys = [...keys].sort();
+  return (
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every((key, index) => key === expectedKeys[index])
+  );
+}
+
+function isBoundedText(value) {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 4000 &&
+    !value.includes("\0")
+  );
+}
+
+function validateContractExampleDisciplineContext(value) {
+  if (
+    value === null ||
+    Array.isArray(value) ||
+    typeof value !== "object" ||
+    !hasExactKeys(value, [
+      "present",
+      "source",
+      "obligations",
+      "consumer_rule",
+      "proof_obligations",
+    ]) ||
+    value.present !== true ||
+    value.source !== "extracted-plan-task-execution-context" ||
+    !isBoundedText(value.obligations) ||
+    !isBoundedText(value.consumer_rule) ||
+    value.proof_obligations === null ||
+    Array.isArray(value.proof_obligations) ||
+    typeof value.proof_obligations !== "object" ||
+    !hasExactKeys(value.proof_obligations, [
+      "valid_examples_pass",
+      "invalid_families_fail",
+    ]) ||
+    value.proof_obligations.valid_examples_pass !== true ||
+    value.proof_obligations.invalid_families_fail !== true
+  ) {
+    fail(
+      "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON must match the contract example discipline context schema",
+    );
+  }
+  return value;
+}
+
 const changedFiles = parseJsonEnv("RISK_SIGNALS_CHANGED_FILES_JSON");
 if (
   !Array.isArray(changedFiles) ||
@@ -225,6 +291,16 @@ const artifact = {
 
 if ((process.env.RISK_SIGNALS_NOTES ?? "").length > 0) {
   artifact.notes = process.env.RISK_SIGNALS_NOTES;
+}
+
+const contractExampleDisciplineContext = parseOptionalJsonEnv(
+  "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON",
+);
+if (contractExampleDisciplineContext !== undefined) {
+  artifact.contract_example_discipline =
+    validateContractExampleDisciplineContext(
+      contractExampleDisciplineContext,
+    );
 }
 
 fs.writeFileSync(outputFile, `${JSON.stringify(artifact, null, 2)}\n`);

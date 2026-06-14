@@ -27,6 +27,17 @@ Task tool (general-purpose):
     authority is missing for content you are asked to reproduce, report BLOCKED
     or NEEDS_CONTEXT instead of copying it.
 
+    ## Extracted Plan/Task Execution Context
+
+    [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
+
+    This controller-curated context contains any present plan-level Contract
+    Example Discipline obligations, the task-local checklist/no-trigger status,
+    and task-local example or proof obligations. Enforce present Contract
+    Example Discipline obligations using the controller-supplied `Contract
+    Example Discipline Consumer Rule` subsection in this extracted context; do
+    not infer whether the discipline should have been required.
+
     If the task includes a contract checklist, honor its owner/authority,
     affected consumers/generated outputs, must-preserve, required behavior,
     spec/procedure work, risk, and proof-obligation constraints within
@@ -34,6 +45,9 @@ Task tool (general-purpose):
     or unconfirmed owner/authority, source-of-truth, consumer,
     generated-output, or evidence surface is not a mechanical replacement
     target; report BLOCKED or NEEDS_CONTEXT instead of guessing.
+
+    Mechanical mode does not bypass present Contract Example Discipline
+    obligations.
 
     ## Context
 

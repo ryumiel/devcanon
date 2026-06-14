@@ -17,12 +17,22 @@ spec review.
 Task tool (general-purpose):
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
   PLAN_OR_REQUIREMENTS: Task N from [plan-file]
+  EXTRACTED_PLAN_TASK_EXECUTION_CONTEXT: [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
   BASE_SHA: [commit before task]
   HEAD_SHA: [current commit]
   DESCRIPTION: [task summary]
 ```
 
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
+
+When this template is used as the final whole-implementation code-quality
+reviewer surface, the extracted context covers the whole implementation scope.
+If the extracted plan/task execution context contains present Contract Example
+Discipline obligations, enforce them as code-quality review obligations using
+the controller-supplied `Contract Example Discipline Consumer Rule` subsection
+from that extracted context.
+Do not infer whether Contract Example Discipline should have been required;
+`play-planning` owns that trigger taxonomy.
 
 **In addition to standard code quality concerns, the reviewer should check:**
 

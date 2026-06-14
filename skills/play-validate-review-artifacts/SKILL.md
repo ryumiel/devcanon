@@ -139,10 +139,18 @@ than deriving pass/fail from summary fields themselves.
 zero. The command rejects non-branch-review surfaces, unsupported schemas,
 unsafe paths or suffixes, stale heads, base-ref/range mismatch, changed-file
 drift including duplicate file entries, malformed producer/evidence fields,
-missing or extra signal keys, invalid signal values, missing booleans, and
-irrelevant scope-only flags such as `--base-ref` or `--emit-gate-result`.
+missing or extra signal keys, invalid signal values, missing booleans, false
+contract-example proof values, and irrelevant scope-only flags such as
+`--base-ref` or `--emit-gate-result`.
 Adapters consume failures as fail-closed branch-review context; a valid artifact
 can only preserve or escalate scrutiny and never authorizes narrow review.
+The optional `contract_example_discipline` field is accepted only with the
+exact bounded shape produced by `play-subagent-execution`: `present: true`,
+`source: "extracted-plan-task-execution-context"`, non-empty `obligations` and
+`consumer_rule` strings of at most 4000 characters with no NUL, and exact
+`true` `proof_obligations.valid_examples_pass` and
+`proof_obligations.invalid_families_fail` fields. Any missing, extra, stale, or
+malformed content rejects the artifact.
 
 The validator is runtime-backed through the packaged `devcanon-runtime` support
 skill. It may require Node.js through that packaged support runtime, but it must

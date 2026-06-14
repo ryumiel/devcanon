@@ -81,6 +81,10 @@ expected_approval_summary_path() {
   printf '.ephemeral/%s-%s-approval-summary.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
 
+expected_contract_example_context_path() {
+  printf '.ephemeral/%s-%s-contract-example-discipline-context.json\n' "$(branch_slug)" "$HEAD_SHA"
+}
+
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
@@ -415,6 +419,33 @@ emit_risk_signals_classification() {
   printf 'RISK_SIGNALS_SEMANTIC_DECISION_NOTES=%s\n' "$(sanitize_output_value "$notes")"
 }
 
+write_contract_example_context_artifact() {
+  local file tmp_file
+
+  file="$(expected_contract_example_context_path)"
+  validate_direct_child_path "contract example discipline context" "$file" "-contract-example-discipline-context.json"
+  prepare_write_target "contract example discipline context" "$file"
+  tmp_file="$(mktemp ".ephemeral/branch-review-contract-example-discipline-context.XXXXXX")"
+  jq -e \
+    --arg schema "branch-review/contract-example-discipline-context/v1" \
+    --arg producer "branch-review" \
+    --arg head_sha "$HEAD_SHA" \
+    --arg source_risk_signals_file "$RISK_SIGNALS_FILE" \
+    '{
+      schema: $schema,
+      producer: $producer,
+      head_sha: $head_sha,
+      source_risk_signals_file: $source_risk_signals_file,
+      contract_example_discipline: .contract_example_discipline
+    }' "$RISK_SIGNALS_FILE" >"$tmp_file" ||
+    {
+      rm -f "$tmp_file"
+      fail "contract example discipline context artifact write failed"
+    }
+  mv "$tmp_file" "$file"
+  printf '%s\n' "$file"
+}
+
 collapse_diagnostic() {
   tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
 }
@@ -432,6 +463,7 @@ classify_valid_risk_signals() {
   local reasons=""
   local triggers=""
   local values_json unknown_count no_escalation
+  local contract_example_context_path contract_example_summary notes
 
   if ! values_json="$(jq -c '
     {
@@ -490,18 +522,39 @@ classify_valid_risk_signals() {
     reasons="$(append_unique_reason "$reasons" "source-owned-contract")"
   fi
 
+  contract_example_summary="$(
+    jq -r '
+      if has("contract_example_discipline") then
+        .contract_example_discipline as $context |
+        "contract_example_discipline: present; source: \($context.source); proof_obligations.valid_examples_pass: \($context.proof_obligations.valid_examples_pass); proof_obligations.invalid_families_fail: \($context.proof_obligations.invalid_families_fail); escalation: source-owned-contract"
+      else
+        ""
+      end
+    ' "$RISK_SIGNALS_FILE"
+  )"
+  if [ -n "$contract_example_summary" ]; then
+    contract_example_context_path="$(write_contract_example_context_artifact)"
+    contract_example_summary="$contract_example_summary; contract_example_discipline_context_path: $contract_example_context_path"
+    reasons="$(append_unique_reason "$reasons" "source-owned-contract")"
+    triggers="$(append_trigger "$triggers" "contract_example_discipline")"
+  fi
+
   no_escalation="$(printf '%s\n' "$values_json" | jq -r '
     ([.user_facing_behavior, .documentation_examples, .diagnostics, .contract, .generated_output, .governance_path] | all(. == "none")) and
     (.canonical_docs_may_be_affected == false) and
     (.end_user_diagnostics_may_be_affected == false)
   ')"
-  if [ "$no_escalation" = "true" ]; then
+  if [ "$no_escalation" = "true" ] && [ -z "$reasons" ]; then
     emit_risk_signals_classification "valid-no-escalation" "" "Valid risk signals found no escalation."
   elif [ -n "$reasons" ]; then
+    notes="Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
+    if [ -n "$contract_example_summary" ]; then
+      notes="$notes $contract_example_summary"
+    fi
     emit_risk_signals_classification \
       "valid-escalate" \
       "$reasons" \
-      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
+      "$notes"
   else
     emit_risk_signals_classification \
       "valid-no-escalation" \

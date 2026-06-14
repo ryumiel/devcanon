@@ -446,6 +446,22 @@ describe("existing skills source prose contracts", () => {
       );
     }
 
+    for (const tightenedExampleObligation of [
+      "positive examples",
+      "match the target post-change contract",
+      "not the pre-change contract",
+      "invalid examples must mutate exactly one named contract dimension",
+      "mutate exactly one named contract dimension",
+      "unless multi-fault behavior is intentional and named",
+      "source facts change",
+      "derived fields",
+      "explicitly justify",
+    ]) {
+      expect(normalizedContractExampleDiscipline).toContain(
+        tightenedExampleObligation,
+      );
+    }
+
     expect(normalizedContractExampleDiscipline).toContain(
       "Non-triggered plans state why no trigger applies",
     );
@@ -493,6 +509,15 @@ describe("existing skills source prose contracts", () => {
         "invalid example families derived from that canonical valid example",
       );
       expect(reviewSurface).toContain("out-of-scope invalid families");
+      expect(reviewSurface).toContain(
+        "positive examples match the target post-change contract",
+      );
+      expect(reviewSurface).toContain(
+        "invalid examples mutate exactly one named contract dimension",
+      );
+      expect(reviewSurface).toContain(
+        "derived fields stay consistent with source facts",
+      );
       expect(reviewSurface).toContain("fail");
     }
 
@@ -507,6 +532,239 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedDocumentationChecklists).toContain(
       "Generated outputs, installed managed outputs, PR descriptions, issues, comments, and `.ephemeral/` notes can provide evidence",
+    );
+  });
+
+  it("keeps executor mirrors narrow for plan-declared Contract Example Discipline", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    const normalizedExecution = normalizeWhitespace(playSubagentExecution);
+    const normalizedImplementerPrompt = normalizeWhitespace(implementerPrompt);
+    const normalizedMechanicalImplementerPrompt = normalizeWhitespace(
+      mechanicalImplementerPrompt,
+    );
+    const normalizedSpecReviewerPrompt =
+      normalizeWhitespace(specReviewerPrompt);
+    const normalizedSkipDispatchPolicy =
+      normalizeWhitespace(skipDispatchPolicy);
+
+    expect(normalizedExecution).toContain(
+      "Do not infer trigger applicability inside `play-subagent-execution`; `play-planning` owns the trigger taxonomy",
+    );
+    expect(normalizedExecution).toContain(
+      "do not decide whether Contract Example Discipline should have been required",
+    );
+
+    for (const executorMirrorSurface of [
+      normalizedExecution,
+      normalizedImplementerPrompt,
+      normalizedMechanicalImplementerPrompt,
+      normalizedSpecReviewerPrompt,
+      normalizedSkipDispatchPolicy,
+    ]) {
+      expect(executorMirrorSurface).toContain("Contract Example Discipline");
+    }
+    for (const promptSurface of [
+      normalizedImplementerPrompt,
+      normalizedMechanicalImplementerPrompt,
+      normalizedSpecReviewerPrompt,
+    ]) {
+      expect(promptSurface).toContain(
+        "controller-supplied `Contract Example Discipline Consumer Rule` subsection",
+      );
+      expect(promptSurface).not.toContain(
+        "references/contract-example-discipline-consumer-rule.md",
+      );
+    }
+
+    expect(normalizedMechanicalImplementerPrompt).toContain(
+      "Mechanical mode does not bypass present Contract Example Discipline obligations",
+    );
+
+    const normalizedExecutorMirrorBlocks = normalizeWhitespace(
+      [
+        markdownBlocksContaining(
+          playSubagentExecution,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          implementerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          mechanicalImplementerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          specReviewerPrompt,
+          /Contract Example Discipline/,
+        ),
+        markdownBlocksContaining(
+          skipDispatchPolicy,
+          /Contract Example Discipline/,
+        ),
+      ].join("\n\n"),
+    );
+
+    expect(normalizedExecutorMirrorBlocks).not.toMatch(
+      /plans? that changes? schemas, APIs, function shapes, artifacts, CLI output, helper I\/O contracts, or cross-skill contracts must include/i,
+    );
+    expect(normalizedExecutorMirrorBlocks).not.toMatch(
+      /requires? Contract Example Discipline for contract-changing plans/i,
+    );
+    for (const duplicatedConsumerRule of [
+      "positive examples match the target post-change contract",
+      "invalid examples mutate exactly one named contract dimension",
+      "unless multi-fault behavior is intentional and named",
+      "derived fields stay consistent with source facts",
+      "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
+    ]) {
+      expect(normalizedExecutorMirrorBlocks).not.toContain(
+        duplicatedConsumerRule,
+      );
+    }
+  });
+
+  it("keeps Contract Example Discipline consumer wording in one shared executor reference", async () => {
+    const consumerRule = await readRepoFile(
+      "skills/play-subagent-execution/references/contract-example-discipline-consumer-rule.md",
+    );
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    const normalizedConsumerRule = normalizeWhitespace(consumerRule);
+
+    for (const requiredClause of [
+      "positive examples match the target post-change contract",
+      "not the pre-change contract",
+      "invalid examples mutate exactly one named contract dimension",
+      "unless multi-fault behavior is intentional and named",
+      "derived fields stay consistent with source facts",
+      "when extracted context requires proof that valid examples pass",
+      "when extracted context requires proof that invalid examples fail",
+      "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
+      "unsupported, internally inconsistent, or unverifiable",
+    ]) {
+      expect(normalizedConsumerRule).toContain(requiredClause);
+    }
+
+    for (const consumerSurface of [
+      playSubagentExecution,
+      implementerPrompt,
+      mechanicalImplementerPrompt,
+      specReviewerPrompt,
+      codeQualityReviewerPrompt,
+      skipDispatchPolicy,
+    ]) {
+      const normalizedConsumerSurface = normalizeWhitespace(consumerSurface);
+      expect(normalizedConsumerSurface).toContain(
+        "Contract Example Discipline",
+      );
+      for (const duplicatedConsumerRule of [
+        "positive examples match the target post-change contract",
+        "invalid examples mutate exactly one named contract dimension",
+        "unless multi-fault behavior is intentional and named",
+        "derived fields stay consistent with source facts",
+        "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
+      ]) {
+        expect(normalizedConsumerSurface).not.toContain(duplicatedConsumerRule);
+      }
+    }
+  });
+
+  it("passes extracted plan/task execution context into every Contract Example Discipline consumer", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const implementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/implementer-prompt.md",
+    );
+    const mechanicalImplementerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/mechanical-implementer-prompt.md",
+    );
+    const specReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+    );
+    const codeQualityReviewerPrompt = await readRepoFile(
+      "skills/play-subagent-execution/references/code-quality-reviewer-prompt.md",
+    );
+    const normalizedExecution = normalizeWhitespace(playSubagentExecution);
+
+    expect(normalizedExecution).toContain(
+      "assemble the extracted plan/task execution context",
+    );
+    expect(normalizedExecution).toContain(
+      "before implementer dispatch, reviewer dispatch, final whole-implementation review, or skip-dispatch evaluation",
+    );
+    expect(normalizedExecution).toContain(
+      "inline the full shared `references/contract-example-discipline-consumer-rule.md` content",
+    );
+    expect(normalizedExecution).toContain(
+      "Contract Example Discipline or an equivalent clearly labeled section/obligation is present",
+    );
+    expect(normalizedExecution).toContain(
+      "under the subsection heading `Contract Example Discipline Consumer Rule`",
+    );
+
+    for (const promptSurface of [
+      implementerPrompt,
+      mechanicalImplementerPrompt,
+      specReviewerPrompt,
+      codeQualityReviewerPrompt,
+    ]) {
+      const normalizedPromptSurface = normalizeWhitespace(promptSurface);
+      expect(normalizedPromptSurface).toContain(
+        "[EXTRACTED PLAN/TASK EXECUTION CONTEXT]",
+      );
+      expect(normalizedPromptSurface).toContain(
+        "Contract Example Discipline Consumer Rule",
+      );
+    }
+  });
+
+  it("keeps skip-dispatch checklist satisfaction mandatory when Contract Example Discipline is present", async () => {
+    const skipDispatchPolicy = await readRepoFile(
+      "skills/play-subagent-execution/references/skip-dispatch-policy.md",
+    );
+    const normalizedSkipDispatchPolicy =
+      normalizeWhitespace(skipDispatchPolicy);
+
+    expect(normalizedSkipDispatchPolicy).toContain(
+      "Contract Example Discipline obligations are additive",
+    );
+    expect(normalizedSkipDispatchPolicy).toContain(
+      "do not satisfy guardrail #4 by themselves",
+    );
+    expect(normalizedSkipDispatchPolicy).not.toContain(
+      "Present Contract Example Discipline obligations also satisfy the gate rule below",
     );
   });
 
