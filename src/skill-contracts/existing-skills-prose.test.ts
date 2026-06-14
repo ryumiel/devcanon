@@ -2923,6 +2923,21 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(phase8)).toContain(
       "Pass `assignee=@me` to `play-branch-finish` Option 2",
     );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
+    );
     expect(phase8).toContain("references/phase-8-pr-handoff.md");
     expect(normalizeWhitespace(phase8)).not.toContain(
       "Pass `--assignee @me` to `gh pr create`",
@@ -2951,6 +2966,18 @@ describe("existing skills source prose contracts", () => {
       "Always pass `assignee=@me` to `play-branch-finish` Option 2",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Always pass `branch_review_required=true`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "pass the final Phase 7 approval-summary path as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "If that final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "`approval_summary_file` is not a nits envelope or assumptions comment",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "Do not move these responsibilities across boundaries for prompt-size reasons",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
@@ -2973,6 +3000,12 @@ describe("existing skills source prose contracts", () => {
     ).not.toContain("ignoring PR guideline");
     expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
       "instead of relying on `play-branch-finish` to invoke `pr-authoring`",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
+      "You invoked `play-branch-finish` Option 2 without explicit `branch_review_required=true` and `approval_summary_file` inputs",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
+      "You reused a stale approval-summary path or proceeded when the final Phase 7 approval-summary path was missing or empty",
     );
     expect(normalizeWhitespace(issuePrimingRedFlags)).not.toContain(
       "reading the project's PR guideline first",
@@ -3300,6 +3333,21 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(phase8)).toContain(
       "captured final approval-summary notice path",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
     );
 
     expect(phase7Reference).toContain("Review head: <40-hex-sha>.");

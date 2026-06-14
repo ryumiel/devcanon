@@ -18,5 +18,11 @@ Behavioral signals that this skill is being violated.
   of continuing to Phase 7 branch review and Phase 8 PR creation unless a
   concrete blocker stops `--auto`
 - You composed a PR title/description directly in Phase 8 instead of relying on `play-branch-finish` to invoke `pr-authoring`
+- You invoked `play-branch-finish` Option 2 without explicit
+  `branch_review_required=true` and `approval_summary_file` inputs
+- You reused a stale approval-summary path or proceeded when the final Phase 7
+  approval-summary path was missing or empty
+- You treated `nits_file` or `assumptions_comment_file` as approval-summary
+  evidence
 
 **All of these mean: STOP. Go back to the workflow.**

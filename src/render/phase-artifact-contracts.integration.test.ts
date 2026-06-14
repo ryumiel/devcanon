@@ -606,7 +606,22 @@ describe("rendered phase artifact smoke coverage", () => {
         "captured final approval-summary notice path",
       );
       expect(normalizedPhase8).toContain(
+        "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+      );
+      expect(normalizedPhase8).toContain(
         "Pass `assignee=@me` to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
+        "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
+        "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
       );
       expect(normalizedPhase8).toContain(
         "PR creation preserves the branch and worktree",
@@ -632,6 +647,9 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPhase8).toContain(
         "Pass judgment-required Phase 7 feedback only through `nits_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "Do not use `nits_file` or `assumptions_comment_file` as approval-summary evidence",
       );
       expect(normalizedPhase8).toContain(
         "Phase 8 does not classify findings or prepare the nits envelope",

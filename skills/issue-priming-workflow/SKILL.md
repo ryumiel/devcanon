@@ -502,21 +502,31 @@ except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captured
 final approval-summary notice path, and no mechanical-nit commit after that
 review. Phase 8 must not rely on
 `play-branch-finish` to run, validate, classify, or complete branch review.
+If the final approval-summary path is absent or empty, stop before invoking
+`play-branch-finish`.
 
 Before invoking the handoff, load
 [`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md). That
-reference owns detailed PR body, assumptions, assignee, and nits explanation;
-the eager contract below owns the hard stops and arguments.
+reference owns detailed PR body, assumptions, explicit review-gate inputs,
+assignee, and nits explanation; the eager contract below owns the hard stops
+and arguments.
 
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**.
 Do NOT merge - the PR is the user's review gate. PR creation preserves the
 branch and worktree for review, CI, and follow-up fixes until `pr-merge`
 performs post-merge cleanup or the operator explicitly discards the work.
 
-Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
-`play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode;
-`pr-authoring` owns project-specific PR guidance, title/body validation, and
-default fallback title/body structure.
+Pass `assignee=@me` to `play-branch-finish` Option 2. Pass
+`branch_review_required=true` to `play-branch-finish` Option 2. Pass the final
+Phase 7 approval-summary path to `play-branch-finish` Option 2 as
+`approval_summary_file`. Phase 8 does not validate approval-summary JSON or
+duplicate `play-branch-finish` or `play-validate-review-artifacts` gate
+semantics; it only passes explicit inputs and hard-stops on a missing or empty
+final approval-summary path.
+
+Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose`
+mode; `pr-authoring` owns project-specific PR guidance, title/body validation,
+and default fallback title/body structure.
 
 Pass reviewer-relevant resolved auto-mode assumptions only through
 `assumptions_comment_file`. When resolved assumptions need reviewer visibility,
@@ -540,8 +550,10 @@ assumptions comment.
 
 Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
 produced no judgment-required nits, omit `nits_file` entirely; absence means no
-post-creation nit comments. Phase 8 does not classify findings or prepare the
-nits envelope.
+post-creation nit comments. `approval_summary_file` is separate from
+`nits_file` and `assumptions_comment_file`. Do not use `nits_file` or
+`assumptions_comment_file` as approval-summary evidence. Phase 8 does not
+classify findings or prepare the nits envelope.
 
 ## Phase Flow Reference
 
