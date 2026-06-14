@@ -635,6 +635,15 @@ describe("play subagent routing source contracts", () => {
     const routingPolicy = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
+    const routingAdvantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const routingAdr = await readRepoFile(
+      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
+    );
     const singleTaskPlans = getMarkdownSection(
       playSubagentExecution,
       "Single-Task Plans",
@@ -655,6 +664,9 @@ describe("play subagent routing source contracts", () => {
       "## Phase Flow Reference",
     );
     const normalizedRouting = normalizeWhitespace(routingPolicy);
+    const normalizedRoutingAdvantages = normalizeWhitespace(routingAdvantages);
+    const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
+    const normalizedRoutingAdr = normalizeWhitespace(routingAdr);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
@@ -673,6 +685,20 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
+    for (const reducedRouteSurface of [
+      normalizedRouting,
+      normalizedRoutingAdvantages,
+      normalizedExampleWorkflow,
+      normalizedRoutingAdr,
+    ]) {
+      expect(reducedRouteSurface).toContain(
+        "zero blocking findings auto-fixed",
+      );
+      expect(reducedRouteSurface).toContain(
+        "a captured final approval-summary notice path",
+      );
+      expect(reducedRouteSurface).toContain("mechanical nit commits");
+    }
     expect(routingPolicy).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
     );

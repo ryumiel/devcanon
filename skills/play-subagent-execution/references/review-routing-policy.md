@@ -42,7 +42,8 @@ owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
 full branch diff, rerunning it after any Phase 7 commit until the final run
 reports zero blocking findings auto-fixed, no unresolved remaining `Blocking`
 findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`,
-and no additional mechanical nit commits.
+has a captured final approval-summary notice path, and no additional
+mechanical nit commits.
 
 ## Auto-Handoff Validation
 
