@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -50,6 +57,15 @@ async function writeValidator(
   );
   await chmod(script, 0o755);
   return script;
+}
+
+async function writeMarkerValidator(cwd: string) {
+  const markerFile = path.join(cwd, "validator-called");
+  const validator = await writeValidator(cwd, [
+    `touch ${JSON.stringify(markerFile)}`,
+    'printf \'{"terminal_state":"approved","gate_result":"passing"}\\n\'',
+  ]);
+  return { markerFile, validator };
 }
 
 async function runHelper(
@@ -115,11 +131,7 @@ describe("play-branch-finish branch-review approval gate adapter", () => {
 
   it("requires APPROVAL_SUMMARY_FILE before invoking the validator", async () => {
     const { cwd } = await makeGitWorkspace();
-    const markerFile = path.join(cwd, "validator-called");
-    const validator = await writeValidator(cwd, [
-      `touch ${JSON.stringify(markerFile)}`,
-      "exit 0",
-    ]);
+    const { markerFile, validator } = await writeMarkerValidator(cwd);
     try {
       await expect(
         runHelper(cwd, {
@@ -128,6 +140,82 @@ describe("play-branch-finish branch-review approval gate adapter", () => {
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("APPROVAL_SUMMARY_FILE is required"),
+      });
+      await expect(readFile(markerFile, "utf8")).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects nested approval summary paths before invoking the validator", async () => {
+    const { cwd } = await makeGitWorkspace();
+    const { markerFile, validator } = await writeMarkerValidator(cwd);
+    await mkdir(path.join(cwd, ".ephemeral", "nested"));
+    await writeFile(
+      path.join(cwd, ".ephemeral", "nested", "topic-approval-summary.json"),
+      "{}\n",
+    );
+    try {
+      await expect(
+        runHelper(cwd, {
+          BRANCH_REVIEW_REQUIRED: "true",
+          APPROVAL_SUMMARY_FILE:
+            ".ephemeral/nested/topic-approval-summary.json",
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "nested approval summary path rejected",
+        ),
+      });
+      await expect(readFile(markerFile, "utf8")).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects traversal approval summary paths before invoking the validator", async () => {
+    const { cwd } = await makeGitWorkspace();
+    const { markerFile, validator } = await writeMarkerValidator(cwd);
+    await writeFile(
+      path.join(cwd, ".ephemeral", "topic..-approval-summary.json"),
+      "{}\n",
+    );
+    try {
+      await expect(
+        runHelper(cwd, {
+          BRANCH_REVIEW_REQUIRED: "true",
+          APPROVAL_SUMMARY_FILE: ".ephemeral/topic..-approval-summary.json",
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("path traversal"),
+      });
+      await expect(readFile(markerFile, "utf8")).rejects.toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects symlink approval summary paths before invoking the validator", async () => {
+    const { cwd } = await makeGitWorkspace();
+    const { markerFile, validator } = await writeMarkerValidator(cwd);
+    await writeFile(path.join(cwd, "summary-target.json"), "{}\n");
+    await symlink(
+      path.join(cwd, "summary-target.json"),
+      path.join(cwd, ".ephemeral", "topic-approval-summary.json"),
+    );
+    try {
+      await expect(
+        runHelper(cwd, {
+          BRANCH_REVIEW_REQUIRED: "true",
+          APPROVAL_SUMMARY_FILE: ".ephemeral/topic-approval-summary.json",
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "approval summary must not be a symlink",
+        ),
       });
       await expect(readFile(markerFile, "utf8")).rejects.toThrow();
     } finally {
@@ -164,6 +252,46 @@ describe("play-branch-finish branch-review approval gate adapter", () => {
           "--approval-summary-file",
           approvalSummaryFile,
           "--emit-gate-result",
+          "",
+        ].join("\n"),
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("forwards configured path pattern to the approval summary validator when set", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const approvalSummaryFile = await writeApprovalSummary(cwd);
+    const argsFile = path.join(cwd, "validator-args.txt");
+    const validator = await writeValidator(cwd, [
+      `printf '%s\\n' "$@" > ${JSON.stringify(argsFile)}`,
+      'printf \'{"terminal_state":"approved","gate_result":"passing"}\\n\'',
+    ]);
+    try {
+      await expect(
+        runHelper(cwd, {
+          BRANCH_REVIEW_REQUIRED: "true",
+          APPROVAL_SUMMARY_FILE: approvalSummaryFile,
+          BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN: "docs/specs/**",
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining("GATE_RESULT=passing"),
+      });
+
+      await expect(readFile(argsFile, "utf8")).resolves.toBe(
+        [
+          "validate-approval-summary",
+          "--surface",
+          "branch-review",
+          "--head-sha",
+          headSha,
+          "--approval-summary-file",
+          approvalSummaryFile,
+          "--emit-gate-result",
+          "--configured-path-pattern",
+          "docs/specs/**",
           "",
         ].join("\n"),
       );

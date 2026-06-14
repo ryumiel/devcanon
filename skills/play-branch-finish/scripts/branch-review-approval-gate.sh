@@ -125,12 +125,20 @@ validate_approval_summary_path "$APPROVAL_SUMMARY_FILE"
 
 head_sha="$(current_head_sha)"
 validator="$(resolve_validator)"
+validator_args=(
+  validate-approval-summary
+  --surface branch-review
+  --head-sha "$head_sha"
+  --approval-summary-file "$APPROVAL_SUMMARY_FILE"
+  --emit-gate-result
+)
+if [ -n "${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}" ]; then
+  validator_args+=(
+    --configured-path-pattern "$BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN"
+  )
+fi
 validator_stdout="$(
-  bash "$validator" validate-approval-summary \
-    --surface branch-review \
-    --head-sha "$head_sha" \
-    --approval-summary-file "$APPROVAL_SUMMARY_FILE" \
-    --emit-gate-result
+  bash "$validator" "${validator_args[@]}"
 )"
 gate_result="$(parse_gate_result "$validator_stdout")"
 
