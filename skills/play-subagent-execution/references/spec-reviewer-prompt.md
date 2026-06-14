@@ -20,6 +20,17 @@ Task tool (general-purpose):
 
     [From implementer's report]
 
+    ## Extracted Plan/Task Execution Context
+
+    [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
+
+    This controller-curated context contains any present plan-level Contract
+    Example Discipline obligations, the task-local checklist/no-trigger status,
+    and task-local example or proof obligations. Enforce present Contract
+    Example Discipline obligations using the shared rule in
+    `references/contract-example-discipline-consumer-rule.md`; do not infer
+    whether the discipline should have been required.
+
     ## CRITICAL: Do Not Trust the Report
 
     The implementer finished suspiciously quickly. Their report may be incomplete,
@@ -80,19 +91,9 @@ Task tool (general-purpose):
       `N/A`, or unproven proof obligation is a missing requirement.
     - In the case when extracted plan/task execution context includes Contract
       Example Discipline or an equivalent clearly labeled section/obligation,
-      independently verify the source-backed example consistency obligations as
-      spec-compliance checks. Confirm positive examples match the target
-      post-change contract, not the pre-change contract; invalid examples
-      mutate exactly one named contract dimension unless multi-fault behavior is
-      intentional and named; and derived fields stay consistent with source
-      facts or are explicitly justified. Do not decide whether Contract Example
-      Discipline should have been required; `play-planning` owns that trigger
-      taxonomy. Expected mismatches between current pre-change source and
-      target post-change examples are implementation work when the task
-      intentionally changes that source contract; unsupported, internally
-      inconsistent, or unverifiable examples or source facts remain contract
-      gaps. Report exact source-backed gaps instead of accepting or guessing
-      through inconsistent examples.
+      independently verify the shared consumer rule in
+      `references/contract-example-discipline-consumer-rule.md` as
+      spec-compliance checks.
 
     **Within-document identifier drift (when changes include `*.md` files):**
 

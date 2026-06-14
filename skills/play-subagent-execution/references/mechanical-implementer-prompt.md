@@ -27,6 +27,17 @@ Task tool (general-purpose):
     authority is missing for content you are asked to reproduce, report BLOCKED
     or NEEDS_CONTEXT instead of copying it.
 
+    ## Extracted Plan/Task Execution Context
+
+    [EXTRACTED PLAN/TASK EXECUTION CONTEXT]
+
+    This controller-curated context contains any present plan-level Contract
+    Example Discipline obligations, the task-local checklist/no-trigger status,
+    and task-local example or proof obligations. Enforce present Contract
+    Example Discipline obligations using the shared rule in
+    `references/contract-example-discipline-consumer-rule.md`; do not infer
+    whether the discipline should have been required.
+
     If the task includes a contract checklist, honor its owner/authority,
     affected consumers/generated outputs, must-preserve, required behavior,
     spec/procedure work, risk, and proof-obligation constraints within
@@ -36,21 +47,7 @@ Task tool (general-purpose):
     target; report BLOCKED or NEEDS_CONTEXT instead of guessing.
 
     Mechanical mode does not bypass present Contract Example Discipline
-    obligations. In the case when extracted plan/task execution context
-    includes Contract Example Discipline or an equivalent clearly labeled
-    section/obligation, verify the source-backed example consistency
-    obligations after reading the relevant contracts. Confirm positive examples
-    match the target post-change contract, not the pre-change contract; invalid
-    examples mutate exactly one named contract dimension unless multi-fault
-    behavior is intentional and named; and derived fields stay consistent with
-    source facts or are explicitly justified. Do not infer whether Contract
-    Example Discipline should have been required; `play-planning` owns that
-    trigger taxonomy. Expected mismatches between current pre-change source and
-    target post-change examples are implementation work when the task
-    intentionally changes that source contract. If source inspection finds
-    unsupported, internally inconsistent, or unverifiable examples or source
-    facts, report the exact gap as BLOCKED or NEEDS_CONTEXT instead of
-    broadening mechanical mode.
+    obligations.
 
     ## Context
 
