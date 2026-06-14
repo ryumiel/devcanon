@@ -410,7 +410,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
 Auto handoff: <repo-relative-path>
@@ -425,8 +425,9 @@ loop is also the final whole-diff no-Blocking guarantee for reduced per-task
 routes. If any Phase 7 run commits auto-fixes or mechanical nit fixes, rerun
 Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
 auto-fixed and leaves no unresolved remaining `Blocking` findings except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, followed by no
-mechanical nit commits, satisfies the final-review guarantee.
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
+approval-summary notice path, and is followed by no mechanical nit commits,
+satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 

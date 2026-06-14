@@ -711,11 +711,23 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase6Reference).toContain(
       "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
     );
+    expect(normalizedPhase6Reference).toContain(
+      "Phase 8 may start only after the final Phase 7 run reports",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "no additional mechanical nit commits after that review",
+    );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
     expect(phase6).toContain("Auto handoff: <repo-relative-path>");
     expect(normalizedPhase6).toContain(
       "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "a captured final approval-summary notice path",
     );
     expect(normalizedPhase6).toContain(
       "That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route",
@@ -771,7 +783,7 @@ describe("play subagent routing source contracts", () => {
       "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(normalizedPhase8).toContain(
-      "no additional mechanical nit commits are made after that review",
+      "no mechanical-nit commit after that review",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope",

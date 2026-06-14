@@ -546,6 +546,12 @@ describe("rendered phase artifact smoke coverage", () => {
         "missing, unclear, invalid, or unverified reduced-route state fails closed to `spec-and-quality`",
       );
       expect(normalizedPhase6).toContain(
+        "a captured final approval-summary notice path",
+      );
+      expect(normalizedPhase6).toContain(
+        "no additional mechanical nit commits after that review",
+      );
+      expect(normalizedPhase6).toContain(
         "Successful `play-subagent-execution` completion returns control to this owning workflow",
       );
       expect(normalizedPhase6).toContain("Phase 6 completion is not terminal");

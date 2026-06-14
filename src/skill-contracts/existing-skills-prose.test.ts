@@ -3236,17 +3236,42 @@ describe("existing skills source prose contracts", () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
     const phase7Reference = await readRepoFile(
       "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
     );
     const phase7 = sliceBetween(
       issuePrimingWorkflow,
       "### Phase 7: Branch Review",
       "### Phase 8: Create PR",
     );
+    const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedReference = normalizeWhitespace(phase7Reference);
 
+    expect(normalizedPhase6).toContain(
+      "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6).toContain(
+      "no additional mechanical nit commits after that review",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "no additional mechanical nit commits after that review",
+    );
     expect(phase7).toContain("Approval summary written to <path>.");
     expect(normalizedPhase7).toContain(
       "capture that final run's exact `Approval summary written to <path>.` notice path",

@@ -131,7 +131,8 @@ run commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new
 
 - zero blocking findings auto-fixed;
 - no unresolved remaining `Blocking` findings except findings whose `critic`
-  verdict is `INVALID` or `DOWNGRADE`; and
+  verdict is `INVALID` or `DOWNGRADE`;
+- a captured final approval-summary notice path; and
 - no additional mechanical nit commits after that review.
 
 This final whole-diff review is the downstream guarantee that supports both
