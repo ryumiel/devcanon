@@ -3124,6 +3124,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toMatch(
       /Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`/i,
     );
+    expect(option2).toContain(')" || exit 1');
     expect(normalizedOption2).toContain(
       "A failing gate stops before push or PR creation",
     );

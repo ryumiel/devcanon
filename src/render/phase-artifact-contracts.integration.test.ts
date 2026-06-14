@@ -719,6 +719,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedOption2).toContain(
         "Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`",
       );
+      expect(option2).toContain(')" || exit 1');
       expect(normalizedOption2).toContain(
         "A failing gate stops before push or PR creation",
       );
