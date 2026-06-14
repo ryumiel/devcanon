@@ -68,9 +68,13 @@ implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
 from plan-level Contract Example Discipline obligations when present, task-local
 checklist or no-trigger status, and any task-local example or proof obligations
-that refine the plan-level section. This named context is the only contract
-context prompt consumers receive; subagents receive curated inlined context and
-do not read the full plan file.
+that refine the plan-level section. When Contract Example Discipline is present,
+inline the full shared
+`references/contract-example-discipline-consumer-rule.md` content in that
+context under the subsection heading `Contract Example Discipline Consumer
+Rule`. This named context is the only contract context prompt consumers
+receive; subagents receive curated inlined context and do not read the full plan
+file or resolve controller-relative rule paths.
 
 Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy. The gate verifies either a
@@ -203,6 +207,9 @@ For the full selection and process diagrams, load
    skip-dispatch evaluation. Include plan-level Contract Example Discipline
    obligations when present, task-local checklist/no-trigger status, and any
    task-local example or proof obligations that refine the plan-level section.
+   When Contract Example Discipline is present, also inline the full shared
+   consumer rule under `Contract Example Discipline Consumer Rule` so prompt
+   consumers can enforce the rule without relying on local reference paths.
    Then run the structural task-contract gate. Stop with BLOCKED/NEEDS_CONTEXT
    when a required checklist or extracted context is missing, malformed, blank,
    unexplained, unsupported, internally inconsistent, or unverifiable by source
@@ -385,6 +392,37 @@ categories: `user_facing_behavior`,
 `governance_path`. Each value is `none`, `present`, or `unknown`;
 ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
 
+Optionally set
+`RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON` only when the extracted
+context contains present Contract Example Discipline obligations and the next
+branch review must preserve that source-owned contract context after an
+`issue-priming-workflow --auto` single-task run skips this skill's final
+whole-implementation reviewer. When set, the helper writes the validated object
+as the risk-signals artifact's `contract_example_discipline` field. The JSON
+must contain exactly:
+
+```json
+{
+  "present": true,
+  "source": "extracted-plan-task-execution-context",
+  "obligations": "<non-empty string, max 4000 chars, no NUL>",
+  "consumer_rule": "<non-empty string, max 4000 chars, no NUL>",
+  "proof_obligations": {
+    "valid_examples_pass": true,
+    "invalid_families_fail": true
+  }
+}
+```
+
+`proof_obligations` booleans reflect only obligations explicitly present in the
+extracted context. Copy `obligations` only from present Contract Example
+Discipline, task-local example, or proof-obligation lines, and copy
+`consumer_rule` from the shared rule content inlined under `Contract Example
+Discipline Consumer Rule`; do not include the whole plan. If present
+obligations cannot be represented in that bounded object because the data is
+empty, too large, contains NUL, or lacks an explicit proof-obligation signal,
+report BLOCKED and do not invoke the helper or emit the success notice.
+
 Notice is emitted only after the helper write and runtime validation succeed.
 If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
@@ -533,8 +571,9 @@ subagent prompt; do not inline their full bodies into this skill source.
 - `references/contract-example-discipline-consumer-rule.md` — shared
   consumer-side Contract Example Discipline rule used by the executor, prompt
   templates, final whole-implementation review surface, and skip-dispatch
-  policy when the extracted plan/task execution context contains present
-  obligations.
+  policy. The controller loads this file and inlines its content under
+  `Contract Example Discipline Consumer Rule` when the extracted plan/task
+  execution context contains present obligations.
 
 ## Branch Policy Reference Map
 

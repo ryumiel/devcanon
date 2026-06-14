@@ -15,6 +15,11 @@ example consistency obligations:
 - invalid examples mutate exactly one named contract dimension unless
   multi-fault behavior is intentional and named.
 - derived fields stay consistent with source facts or are explicitly justified.
+- when extracted context requires proof that valid examples pass, verify that
+  source-owned tests, fixtures, docs, generated output, or review evidence
+  exercise the valid example family against the target post-change contract.
+- when extracted context requires proof that invalid examples fail, verify that
+  each named invalid family is rejected for the intended contract dimension.
 - Expected mismatches between current pre-change source and target post-change
   examples are implementation work when the task intentionally changes that
   source contract.

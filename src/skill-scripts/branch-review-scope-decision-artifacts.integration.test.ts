@@ -390,6 +390,71 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("classifies supplied contract example discipline context as sanitized source-owned contract escalation", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const riskSignalsFile = ".ephemeral/topic-risk-signals.json";
+      await writeJson(
+        cwd,
+        riskSignalsFile,
+        riskSignals(baseSha, headSha, {
+          contract_example_discipline: {
+            present: true,
+            source: "extracted-plan-task-execution-context",
+            obligations:
+              "Valid examples must pass.\nInvalid families must fail for the named dimension.",
+            consumer_rule: "FULL CONSUMER RULE SHOULD NOT BE REPEATED",
+            proof_obligations: {
+              valid_examples_pass: true,
+              invalid_families_fail: true,
+            },
+          },
+        }),
+      );
+
+      const result = await runHelper(
+        cwd,
+        helperScript,
+        "classify-risk-signals",
+        {
+          HEAD_SHA: headSha,
+          FULL_DIFF_RANGE: "main...HEAD",
+          RISK_SIGNALS_FILE: riskSignalsFile,
+          RISK_SIGNALS_STATUS: "supplied",
+        },
+      );
+      const values = parseKeyValues(result.stdout);
+
+      expect(values.RISK_SIGNALS_CLASSIFICATION).toBe("valid-escalate");
+      expect(values.RISK_SIGNALS_SEMANTIC_ESCALATION_REASON).toBe(
+        "source-owned-contract",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "contract_example_discipline: present",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "source: extracted-plan-task-execution-context",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "obligations_excerpt: Valid examples must pass. Invalid families must fail",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "proof_obligations.valid_examples_pass: true",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "proof_obligations.invalid_families_fail: true",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).toContain(
+        "triggers: contract_example_discipline",
+      );
+      expect(values.RISK_SIGNALS_SEMANTIC_DECISION_NOTES).not.toContain(
+        "FULL CONSUMER RULE SHOULD NOT BE REPEATED",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("classifies supplied high-risk signals with fixed-order escalation reasons", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

@@ -1665,6 +1665,7 @@ describe("play subagent routing source contracts", () => {
       "RISK_SIGNALS_VALUES_JSON",
       "RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED",
       "RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED",
+      "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON",
     ]) {
       expect(executor).toContain(requiredEnvName);
     }
@@ -1686,6 +1687,13 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExecutor).toContain(
       "`RISK_SIGNALS_REVIEWED_BASE_REF` must match that range's base side",
+    );
+    expect(normalizedExecutor).toContain("contract_example_discipline");
+    expect(normalizedExecutor).toContain(
+      "extracted-plan-task-execution-context",
+    );
+    expect(normalizedExecutor).toContain(
+      "If present obligations cannot be represented in that bounded object",
     );
     expect(normalizedExecutor).toContain(
       "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
@@ -1717,6 +1725,7 @@ describe("play subagent routing source contracts", () => {
     expect(helper).toContain('prepare_write_target "$target"');
     expect(helper).toContain('write_payload "$temp_file"');
     expect(helper).toContain("validate-risk-signals");
+    expect(helper).toContain("validateContractExampleDisciplineContext");
     expect(helper).toContain("--surface branch-review");
     expect(helper).toContain("--expected-schema branch-review/risk-signals/v1");
     expect(helper).toContain("--expected-reviewed-range");

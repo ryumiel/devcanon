@@ -575,8 +575,18 @@ describe("existing skills source prose contracts", () => {
       normalizedSpecReviewerPrompt,
       normalizedSkipDispatchPolicy,
     ]) {
-      expect(executorMirrorSurface).toContain(
-        "contract-example-discipline-consumer-rule.md",
+      expect(executorMirrorSurface).toContain("Contract Example Discipline");
+    }
+    for (const promptSurface of [
+      normalizedImplementerPrompt,
+      normalizedMechanicalImplementerPrompt,
+      normalizedSpecReviewerPrompt,
+    ]) {
+      expect(promptSurface).toContain(
+        "controller-supplied `Contract Example Discipline Consumer Rule` subsection",
+      );
+      expect(promptSurface).not.toContain(
+        "references/contract-example-discipline-consumer-rule.md",
       );
     }
 
@@ -658,6 +668,8 @@ describe("existing skills source prose contracts", () => {
       "invalid examples mutate exactly one named contract dimension",
       "unless multi-fault behavior is intentional and named",
       "derived fields stay consistent with source facts",
+      "when extracted context requires proof that valid examples pass",
+      "when extracted context requires proof that invalid examples fail",
       "Expected mismatches between current pre-change source and target post-change examples are implementation work when the task intentionally changes that source contract",
       "unsupported, internally inconsistent, or unverifiable",
     ]) {
@@ -674,7 +686,7 @@ describe("existing skills source prose contracts", () => {
     ]) {
       const normalizedConsumerSurface = normalizeWhitespace(consumerSurface);
       expect(normalizedConsumerSurface).toContain(
-        "contract-example-discipline-consumer-rule.md",
+        "Contract Example Discipline",
       );
       for (const duplicatedConsumerRule of [
         "positive examples match the target post-change contract",
@@ -712,6 +724,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedExecution).toContain(
       "before implementer dispatch, reviewer dispatch, final whole-implementation review, or skip-dispatch evaluation",
     );
+    expect(normalizedExecution).toContain(
+      "inline the full shared `references/contract-example-discipline-consumer-rule.md` content",
+    );
+    expect(normalizedExecution).toContain(
+      "under the subsection heading `Contract Example Discipline Consumer Rule`",
+    );
 
     for (const promptSurface of [
       implementerPrompt,
@@ -719,8 +737,12 @@ describe("existing skills source prose contracts", () => {
       specReviewerPrompt,
       codeQualityReviewerPrompt,
     ]) {
-      expect(normalizeWhitespace(promptSurface)).toContain(
+      const normalizedPromptSurface = normalizeWhitespace(promptSurface);
+      expect(normalizedPromptSurface).toContain(
         "[EXTRACTED PLAN/TASK EXECUTION CONTEXT]",
+      );
+      expect(normalizedPromptSurface).toContain(
+        "Contract Example Discipline Consumer Rule",
       );
     }
   });

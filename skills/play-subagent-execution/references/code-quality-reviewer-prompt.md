@@ -29,7 +29,8 @@ When this template is used as the final whole-implementation code-quality
 reviewer surface, the extracted context covers the whole implementation scope.
 If the extracted plan/task execution context contains present Contract Example
 Discipline obligations, enforce them as code-quality review obligations using
-[`contract-example-discipline-consumer-rule.md`](contract-example-discipline-consumer-rule.md).
+the controller-supplied `Contract Example Discipline Consumer Rule` subsection
+from that extracted context.
 Do not infer whether Contract Example Discipline should have been required;
 `play-planning` owns that trigger taxonomy.
 

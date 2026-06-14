@@ -33,9 +33,9 @@ Task tool (general-purpose):
     This controller-curated context contains any present plan-level Contract
     Example Discipline obligations, the task-local checklist/no-trigger status,
     and task-local example or proof obligations. Enforce present Contract
-    Example Discipline obligations using the shared rule in
-    `references/contract-example-discipline-consumer-rule.md`; do not infer
-    whether the discipline should have been required.
+    Example Discipline obligations using the controller-supplied `Contract
+    Example Discipline Consumer Rule` subsection in this extracted context; do
+    not infer whether the discipline should have been required.
 
     If the task includes a contract checklist, treat its owner/authority,
     affected consumers/generated outputs, must-preserve, required behavior,

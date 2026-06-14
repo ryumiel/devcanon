@@ -439,6 +439,10 @@ unless a concrete blocker stops `--auto`.
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 If Phase 6 emitted `Risk signals written to <path>.`, invoke
 `branch-review --fix --risk-signals <path>` for the next branch-review run.
+When those risk signals carry `contract_example_discipline` context from an
+auto single-task executor run, Phase 7 still treats it as non-authoritative
+handoff data; branch-review validates it, escalates scrutiny when present, and
+passes only sanitized semantic notes into downstream reviewer context.
 If the run commits any auto-fixes, regenerate risk signals for the new `HEAD`
 before rerunning `branch-review --fix --risk-signals <new-path>`, or rerun
 `branch-review --fix` while intentionally omitting stale risk signals. Continue

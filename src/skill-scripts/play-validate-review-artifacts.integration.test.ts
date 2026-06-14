@@ -511,6 +511,36 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("validates risk-signals artifacts with contract example discipline context", async () => {
+    const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-risk-signals.json",
+        riskSignals(baseSha, headSha, {
+          contract_example_discipline: {
+            present: true,
+            source: "extracted-plan-task-execution-context",
+            obligations:
+              "Contract Example Discipline requires valid examples to pass and invalid families to fail.",
+            consumer_rule:
+              "Contract Example Discipline Consumer Rule: enforce present obligations only.",
+            proof_obligations: {
+              valid_examples_pass: true,
+              invalid_families_fail: true,
+            },
+          },
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-risk-signals", riskSignalsArgs(headSha)),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it.each([
     {
       name: "missing required flag",
@@ -531,6 +561,23 @@ describe("play-validate-review-artifacts validator", () => {
       name: "unknown top-level key",
       artifact: (baseSha: string, headSha: string) =>
         riskSignals(baseSha, headSha, { unexpected: true }),
+      stderr: "risk-signals schema mismatch",
+    },
+    {
+      name: "malformed contract example discipline context",
+      artifact: (baseSha: string, headSha: string) =>
+        riskSignals(baseSha, headSha, {
+          contract_example_discipline: {
+            present: true,
+            source: "extracted-plan-task-execution-context",
+            obligations: "obligations",
+            consumer_rule: "",
+            proof_obligations: {
+              valid_examples_pass: true,
+              invalid_families_fail: true,
+            },
+          },
+        }),
       stderr: "risk-signals schema mismatch",
     },
     {

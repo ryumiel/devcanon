@@ -1117,13 +1117,14 @@ function validateRiskSignalsSchema(
       "canonical_docs_may_be_affected",
       "end_user_diagnostics_may_be_affected",
     ];
+    const optionalTopLevelKeys = [
+      ...(Object.hasOwn(riskSignals, "notes") ? ["notes"] : []),
+      ...(Object.hasOwn(riskSignals, "contract_example_discipline")
+        ? ["contract_example_discipline"]
+        : []),
+    ];
     if (
-      !hasExactKeys(
-        riskSignals,
-        Object.hasOwn(riskSignals, "notes")
-          ? [...topLevelKeys, "notes"]
-          : topLevelKeys,
-      ) ||
+      !hasExactKeys(riskSignals, [...topLevelKeys, ...optionalTopLevelKeys]) ||
       stringField(riskSignals, "schema") !== expectedSchema ||
       stringField(riskSignals, "producer") !== "play-subagent-execution" ||
       stringField(riskSignals, "reviewed_base_ref").length === 0 ||
@@ -1144,6 +1145,11 @@ function validateRiskSignalsSchema(
       objectField(riskSignals, "evidence_source"),
     );
     validateRiskSignalsSignals(objectField(riskSignals, "signals"));
+    if (Object.hasOwn(riskSignals, "contract_example_discipline")) {
+      validateRiskSignalsContractExampleDiscipline(
+        objectField(riskSignals, "contract_example_discipline"),
+      );
+    }
   } catch (err) {
     if (
       err instanceof ReviewArtifactsError &&
@@ -1153,6 +1159,42 @@ function validateRiskSignalsSchema(
     }
     throw err;
   }
+}
+
+function validateRiskSignalsContractExampleDiscipline(
+  context: JsonObject,
+): void {
+  if (
+    !hasExactKeys(context, [
+      "present",
+      "source",
+      "obligations",
+      "consumer_rule",
+      "proof_obligations",
+    ]) ||
+    context.present !== true ||
+    stringField(context, "source") !==
+      "extracted-plan-task-execution-context" ||
+    !isBoundedRiskSignalsText(stringField(context, "obligations")) ||
+    !isBoundedRiskSignalsText(stringField(context, "consumer_rule"))
+  ) {
+    fail("risk-signals schema mismatch");
+  }
+  const proofObligations = objectField(context, "proof_obligations");
+  if (
+    !hasExactKeys(proofObligations, [
+      "valid_examples_pass",
+      "invalid_families_fail",
+    ]) ||
+    typeof proofObligations.valid_examples_pass !== "boolean" ||
+    typeof proofObligations.invalid_families_fail !== "boolean"
+  ) {
+    fail("risk-signals schema mismatch");
+  }
+}
+
+function isBoundedRiskSignalsText(value: string): boolean {
+  return value.length > 0 && value.length <= 4000 && !value.includes("\0");
 }
 
 function validateRiskSignalsEvidenceSource(evidenceSource: JsonObject): void {

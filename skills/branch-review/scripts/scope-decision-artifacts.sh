@@ -431,7 +431,7 @@ risk_signals_validation_failed() {
 classify_valid_risk_signals() {
   local reasons=""
   local triggers=""
-  local values_json unknown_count no_escalation
+  local values_json unknown_count no_escalation contract_example_summary notes
 
   if ! values_json="$(jq -c '
     {
@@ -490,18 +490,47 @@ classify_valid_risk_signals() {
     reasons="$(append_unique_reason "$reasons" "source-owned-contract")"
   fi
 
+  contract_example_summary="$(
+    jq -r '
+      def sanitize_control_chars:
+        explode
+        | map(if . < 32 or . == 127 then 32 else . end)
+        | implode
+        | gsub(" +"; " ");
+      if has("contract_example_discipline") then
+        .contract_example_discipline as $context |
+        (
+          $context.obligations
+          | sanitize_control_chars
+          | .[0:500]
+        ) as $excerpt |
+        "contract_example_discipline: present; source: \($context.source); obligations_excerpt: \($excerpt); proof_obligations.valid_examples_pass: \($context.proof_obligations.valid_examples_pass); proof_obligations.invalid_families_fail: \($context.proof_obligations.invalid_families_fail); escalation: source-owned-contract"
+      else
+        ""
+      end
+    ' "$RISK_SIGNALS_FILE"
+  )"
+  if [ -n "$contract_example_summary" ]; then
+    reasons="$(append_unique_reason "$reasons" "source-owned-contract")"
+    triggers="$(append_trigger "$triggers" "contract_example_discipline")"
+  fi
+
   no_escalation="$(printf '%s\n' "$values_json" | jq -r '
     ([.user_facing_behavior, .documentation_examples, .diagnostics, .contract, .generated_output, .governance_path] | all(. == "none")) and
     (.canonical_docs_may_be_affected == false) and
     (.end_user_diagnostics_may_be_affected == false)
   ')"
-  if [ "$no_escalation" = "true" ]; then
+  if [ "$no_escalation" = "true" ] && [ -z "$reasons" ]; then
     emit_risk_signals_classification "valid-no-escalation" "" "Valid risk signals found no escalation."
   elif [ -n "$reasons" ]; then
+    notes="Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
+    if [ -n "$contract_example_summary" ]; then
+      notes="$notes $contract_example_summary"
+    fi
     emit_risk_signals_classification \
       "valid-escalate" \
       "$reasons" \
-      "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny: $reasons; triggers: $triggers."
+      "$notes"
   else
     emit_risk_signals_classification \
       "valid-no-escalation" \

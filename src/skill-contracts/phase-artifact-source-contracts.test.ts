@@ -1047,6 +1047,9 @@ describe("phase artifact source contracts", () => {
     expect(normalizedValidatorSkill).toContain(
       "can only preserve or escalate scrutiny and never authorizes narrow review",
     );
+    expect(normalizedValidatorSkill).toContain(
+      "The optional `contract_example_discipline` field is accepted only with the exact bounded shape",
+    );
     expect(runtime).toContain('case "validate-risk-signals"');
     expect(runtime).toContain("requireRiskSignalsFlags");
     expect(runtime).toContain("rejectRiskSignalsExtraFlags");
@@ -1066,6 +1069,7 @@ describe("phase artifact source contracts", () => {
       "--expected-schema must be branch-review/risk-signals/v1",
     );
     expect(runtime).toContain("validateSuffix(");
+    expect(runtime).toContain("validateRiskSignalsContractExampleDiscipline");
     expect(runtime).toContain('"--risk-signals-file"');
     expect(runtime).toContain('"-risk-signals.json"');
     expect(runtime).toContain(
@@ -1101,6 +1105,9 @@ describe("phase artifact source contracts", () => {
     expect(normalizedScopeHelper).toContain(
       "Valid risk signals from $RISK_SIGNALS_FILE require higher scrutiny",
     );
+    expect(normalizedScopeHelper).toContain("contract_example_discipline");
+    expect(normalizedScopeHelper).toContain("obligations_excerpt");
+    expect(normalizedScopeHelper).not.toContain("consumer_rule");
   });
 
   it("keeps branch-review approval-summary producer lifecycle and validation authority in source", async () => {

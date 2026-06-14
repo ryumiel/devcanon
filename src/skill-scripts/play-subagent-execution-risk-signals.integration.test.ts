@@ -98,6 +98,22 @@ function envFor(
   };
 }
 
+function contractExampleDisciplineContext(overrides = {}) {
+  return JSON.stringify({
+    present: true,
+    source: "extracted-plan-task-execution-context",
+    obligations:
+      "Contract Example Discipline requires valid examples to pass and invalid families to fail.",
+    consumer_rule:
+      "Contract Example Discipline Consumer Rule: enforce present obligations only.",
+    proof_obligations: {
+      valid_examples_pass: true,
+      invalid_families_fail: true,
+    },
+    ...overrides,
+  });
+}
+
 function omitKey(
   value: Record<string, string>,
   omittedKey: string,
@@ -212,6 +228,39 @@ describe("play-subagent-execution risk-signals producer", () => {
         stat(path.join(workspace.cwd, relPath)),
       ).resolves.toMatchObject({
         isFile: expect.any(Function),
+      });
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
+  it("writes and validates bounded contract example discipline context when supplied", async () => {
+    const workspace = await makeGitWorkspace();
+    try {
+      const relPath = riskSignalsPath(workspace);
+      await expect(
+        runHelper(workspace, {
+          ...envFor(workspace),
+          RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON:
+            contractExampleDisciplineContext(),
+        }),
+      ).resolves.toMatchObject({
+        stdout: `Risk signals written to ${relPath}.\n`,
+        stderr: "",
+      });
+      await expect(runValidator(workspace, relPath)).resolves.toMatchObject({
+        stdout: "",
+        stderr: "",
+      });
+      await expect(readJson(workspace.cwd, relPath)).resolves.toMatchObject({
+        contract_example_discipline: {
+          present: true,
+          source: "extracted-plan-task-execution-context",
+          proof_obligations: {
+            valid_examples_pass: true,
+            invalid_families_fail: true,
+          },
+        },
       });
     } finally {
       await cleanupTempDir(workspace.cwd);
@@ -422,6 +471,30 @@ describe("play-subagent-execution risk-signals producer", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("RISK_SIGNALS_VALUES_JSON"),
       });
+    } finally {
+      await cleanupTempDir(workspace.cwd);
+    }
+  });
+
+  it("rejects malformed contract example discipline context before emitting a notice", async () => {
+    const workspace = await makeGitWorkspace();
+    try {
+      const relPath = riskSignalsPath(workspace);
+      await expect(
+        runHelper(workspace, {
+          ...envFor(workspace),
+          RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON:
+            contractExampleDisciplineContext({ obligations: "" }),
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON",
+        ),
+      });
+      await expect(
+        stat(path.join(workspace.cwd, relPath)),
+      ).rejects.toBeTruthy();
     } finally {
       await cleanupTempDir(workspace.cwd);
     }

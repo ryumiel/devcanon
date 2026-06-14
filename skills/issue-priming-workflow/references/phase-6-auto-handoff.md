@@ -112,6 +112,13 @@ not receive that carve-out.
 The carve-out is not a standalone shortcut. Its safety depends on the mandatory
 Phase 7 whole-diff review guarantee described below.
 
+When the extracted execution context contains present Contract Example
+Discipline obligations, the executor may include bounded
+`contract_example_discipline` context in its terminal risk signals. That context
+is not a substitute for Phase 7 review. It exists so branch-review can preserve
+the source-owned contract signal after this single-task carve-out and expose
+only sanitized semantic notes to downstream reviewers.
+
 ## Phase 7 Final-Review Guarantee
 
 Phase 6 completion is not terminal. Successful executor completion returns
