@@ -133,6 +133,22 @@ to assign the new PR, for example `issue-priming-workflow` passes
 before running `gh pr create`, then append `--assignee "$ASSIGNEE"` to the
 command.
 
+**Optional input — branch-review approval gate.** Callers may pass
+`branch_review_required=true|false`. When `branch_review_required` is absent,
+empty, or `false`, the gate is disabled and Option 2 preserves the existing
+push/PR behavior without requiring approval evidence. Callers may also pass
+`approval_summary_file`; it is required only when
+`branch_review_required=true`.
+
+The gate is explicit only and must not be inferred from repository contents,
+branch names, issue links, private controller state, review-shaped prose, or
+the existence of `.ephemeral` files. Option 2 still does not invoke
+`branch-review`; `branch-review` production stays outside this skill. The
+adapter delegates approval-summary interpretation to
+`play-validate-review-artifacts`. Option 2 must not parse findings,
+scope-decision JSON, branch-review field schemas, or approval-summary terminal
+state.
+
 **Optional pre-push autosquash checkpoint.** This checkpoint lives inside
 Option 2; do not add a fifth top-level option. Offer it only after tests pass,
 after the base branch is resolved, and before `git push`. Autosquash is
@@ -213,6 +229,29 @@ The PR title and description remain final-state oriented. Do not add
 commit-history narration, autosquash chronology, review-history notes, or
 originally/now wording to the PR body.
 
+Run the adapter helper after autosquash handling and tree-invariant checks and
+before `git push`. Bind `BRANCH_REVIEW_REQUIRED` from the caller's
+`branch_review_required` argument and, when set, bind `APPROVAL_SUMMARY_FILE`
+from the caller's `approval_summary_file` argument. The helper reports
+`GATE_REQUIRED=false` when the gate is disabled; continue to the existing
+push/PR flow in that case.
+
+```bash
+PLAY_BRANCH_FINISH_DIR="<installed-play-branch-finish-skill-bundle>"
+BRANCH_REVIEW_APPROVAL_GATE_HELPER="$PLAY_BRANCH_FINISH_DIR/scripts/branch-review-approval-gate.sh"
+GATE_OUTPUT="$(
+  BRANCH_REVIEW_REQUIRED="${BRANCH_REVIEW_REQUIRED:-}" \
+  APPROVAL_SUMMARY_FILE="${APPROVAL_SUMMARY_FILE:-}" \
+    bash "$BRANCH_REVIEW_APPROVAL_GATE_HELPER"
+)"
+printf '%s\n' "$GATE_OUTPUT"
+APPROVED_HEAD_SHA="$(printf '%s\n' "$GATE_OUTPUT" | sed -n 's/^APPROVED_HEAD_SHA=//p')"
+```
+
+A failing gate stops before push or PR creation and preserves the branch and
+worktree for review follow-up. When the gate succeeds and the adapter reports
+`APPROVED_HEAD_SHA`, retain that value for post-create verification.
+
 ```bash
 # Push branch
 git push -u origin <feature-branch>
@@ -232,6 +271,8 @@ anti-patterns, and content-vs-diff validation. It returns a final-state PR title
 and body for `gh pr create`. Do not embed assumptions comments, unaddressed
 nits, commit-history narration, autosquash chronology, review-history notes,
 originally/now wording, or file-by-file diff restatement in the PR body.
+`pr-authoring` still owns PR title/body policy and is invoked before
+`gh pr create`; do not duplicate PR body policy in Option 2.
 
 Option 2 accepts an optional `assignee` argument. When set, pass it through to
 `gh pr create --assignee`; callers such as `issue-priming-workflow` pass
@@ -255,6 +296,24 @@ ASSIGNEE_FLAG=()
 
 gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 ```
+
+**After `gh pr create` succeeds, verify the approved head when the gate was enabled.** Skip this step entirely when the gate was disabled or the adapter did not report `APPROVED_HEAD_SHA`. When `APPROVED_HEAD_SHA` is present, compare it to the created PR's `headRefOid` and report the result as a match, mismatch, or unavailable:
+
+```bash
+PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')
+if [ -z "$PR_HEAD_SHA" ]; then
+  echo "Post-create approved-head verification unavailable: GitHub headRefOid was unavailable."
+elif [ "$PR_HEAD_SHA" = "$APPROVED_HEAD_SHA" ]; then
+  echo "Post-create approved-head verification matched: $PR_HEAD_SHA."
+else
+  echo "Post-create approved-head verification mismatch: approved $APPROVED_HEAD_SHA, PR head $PR_HEAD_SHA."
+fi
+```
+
+Unavailable GitHub head SHA is not verification success. A mismatch means the
+created PR head differs from the approved head and must be reported distinctly.
+Do not automatically close or delete the PR on mismatch. The PR remains an
+external side effect; preserve the branch and worktree for follow-up.
 
 **After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
 

@@ -3079,6 +3079,132 @@ describe("existing skills source prose contracts", () => {
     }
   });
 
+  it("keeps play-branch-finish branch-review approval gate explicit and pre-push", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+
+    expect(normalizedOption2).toContain(
+      "Optional input — branch-review approval gate",
+    );
+    expect(normalizedOption2).toContain("branch_review_required=true|false");
+    expect(normalizedOption2).toContain(
+      "absent, empty, or `false`, the gate is disabled",
+    );
+    expect(normalizedOption2).toContain(
+      "preserves the existing push/PR behavior without requiring approval evidence",
+    );
+    expect(normalizedOption2).toContain("approval_summary_file");
+    expect(normalizedOption2).toContain(
+      "required only when `branch_review_required=true`",
+    );
+    expect(normalizedOption2).toContain(
+      "The gate is explicit only and must not be inferred",
+    );
+    for (const forbiddenInferenceSource of [
+      "repository contents",
+      "branch names",
+      "issue links",
+      "private controller state",
+      "review-shaped prose",
+      "the existence of `.ephemeral` files",
+    ]) {
+      expect(normalizedOption2).toContain(forbiddenInferenceSource);
+    }
+    expect(normalizedOption2).toMatch(
+      /Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`/i,
+    );
+    expect(normalizedOption2).toContain(
+      "A failing gate stops before push or PR creation",
+    );
+    expect(normalizedOption2).toContain(
+      "preserves the branch and worktree for review follow-up",
+    );
+    expect(normalizedOption2).toContain(
+      "delegates approval-summary interpretation to `play-validate-review-artifacts`",
+    );
+    for (const forbiddenParsingSurface of [
+      "parse findings",
+      "scope-decision JSON",
+      "branch-review field schemas",
+      "approval-summary terminal state",
+    ]) {
+      expect(normalizedOption2).toContain(forbiddenParsingSurface);
+    }
+    expect(normalizedOption2).toContain(
+      "Option 2 still does not invoke `branch-review`",
+    );
+    expect(normalizedOption2).toContain(
+      "`branch-review` production stays outside this skill",
+    );
+    expect(normalizedOption2).toContain(
+      "`pr-authoring` still owns PR title/body policy",
+    );
+    expect(normalizedOption2).toContain("invoked before `gh pr create`");
+    expect(normalizedOption2).toContain("do not duplicate PR body policy");
+    expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
+    expect(normalizedOption2).toContain("headRefOid");
+    expect(normalizedOption2).toContain(
+      "report the result as a match, mismatch, or unavailable",
+    );
+    expect(normalizedOption2).toContain(
+      "Unavailable GitHub head SHA is not verification success",
+    );
+    expect(normalizedOption2).toContain(
+      "Do not automatically close or delete the PR on mismatch",
+    );
+
+    expect(
+      normalizedOption2.indexOf("post-autosquash tree changed"),
+    ).toBeLessThan(normalizedOption2.indexOf("Run the adapter helper"));
+    expect(normalizedOption2.indexOf("Run the adapter helper")).toBeLessThan(
+      normalizedOption2.indexOf("git push -u origin <feature-branch>"),
+    );
+    expect(normalizedOption2.indexOf("pr-authoring` still owns")).toBeLessThan(
+      normalizedOption2.indexOf("gh pr create --title"),
+    );
+    expect(normalizedOption2.indexOf("headRefOid")).toBeGreaterThan(
+      normalizedOption2.indexOf("gh pr create --title"),
+    );
+
+    expect(normalizedOption2).not.toMatch(
+      /(?:infer|detect|enable) (?:the )?branch-review approval gate from/i,
+    );
+    expect(normalizedOption2).not.toMatch(/run `?branch-review`?/i);
+    expect(normalizedOption2).not.toMatch(
+      /Unavailable GitHub head SHA is verification success|unavailable GitHub head SHA is verified/i,
+    );
+
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Bypassing a required branch-review gate",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Inferring the branch-review gate from non-authoritative state",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Treating unavailable or mismatched post-create head verification as success",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Bypass a required branch-review approval gate",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Infer a branch-review gate from non-authoritative state",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Treat unavailable or mismatched post-create headRefOid verification as success",
+    );
+  });
+
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(

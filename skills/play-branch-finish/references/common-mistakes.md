@@ -64,6 +64,28 @@ Failure modes the skill exists to prevent.
 - **Fix:** Compare the pre-autosquash and post-autosquash trees, and stop before
   push unless the tree is unchanged
 
+**Bypassing a required branch-review gate**
+
+- **Problem:** A caller requires branch-review approval, but Option 2 pushes or
+  creates the PR without running the explicit approval-gate adapter
+- **Fix:** When `branch_review_required=true`, run the adapter before `git push`
+  and stop before push/PR creation on any gate failure
+
+**Inferring the branch-review gate from non-authoritative state**
+
+- **Problem:** Repository contents, branch names, issue links, private
+  controller state, review-shaped prose, or `.ephemeral` files are treated as a
+  signal to enable or satisfy the gate
+- **Fix:** Enable the gate only from explicit `branch_review_required=true`, and
+  require `approval_summary_file` only in that enabled path
+
+**Treating unavailable or mismatched post-create head verification as success**
+
+- **Problem:** Missing `headRefOid` or a PR head that differs from
+  `APPROVED_HEAD_SHA` is reported as verified
+- **Fix:** After PR creation, report approved-head verification as match,
+  mismatch, or unavailable; unavailable and mismatch are not success
+
 **Narrating autosquash in the PR body**
 
 - **Problem:** Commit-history narration distracts from the final reviewed state

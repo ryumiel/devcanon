@@ -12,6 +12,11 @@ Behavioral signals that this skill is being violated.
   non-local branch without separate explicit shared-branch rewrite approval
 - Autosquash commits whose granular history carries review or audit value
 - Push after autosquash when the post-autosquash tree changed
+- Bypass a required branch-review approval gate
+- Infer a branch-review gate from non-authoritative state such as repository
+  contents, branch names, issue links, private controller state, review-shaped
+  prose, or `.ephemeral` files
+- Treat unavailable or mismatched post-create headRefOid verification as success
 - Remove a PR-created worktree before merge or explicit discard
 - Remove a worktree outside `<MAIN_ROOT>/.worktrees/`
 - Run `git worktree remove` from inside the target worktree

@@ -703,6 +703,40 @@ describe("rendered phase artifact smoke coverage", () => {
         "validates the caller-supplied `nits_file` only as a PR review comment posting input",
       );
       expect(normalizedOption2).toContain(
+        "Optional input — branch-review approval gate",
+      );
+      expect(normalizedOption2).toContain("branch_review_required=true|false");
+      expect(normalizedOption2).toContain(
+        "absent, empty, or `false`, the gate is disabled",
+      );
+      expect(normalizedOption2).toContain("approval_summary_file");
+      expect(normalizedOption2).toContain(
+        "required only when `branch_review_required=true`",
+      );
+      expect(normalizedOption2).toContain(
+        "The gate is explicit only and must not be inferred",
+      );
+      expect(normalizedOption2).toContain(
+        "Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`",
+      );
+      expect(normalizedOption2).toContain(
+        "A failing gate stops before push or PR creation",
+      );
+      expect(normalizedOption2).toContain(
+        "delegates approval-summary interpretation to `play-validate-review-artifacts`",
+      );
+      expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
+      expect(normalizedOption2).toContain("headRefOid");
+      expect(normalizedOption2).toContain(
+        "report the result as a match, mismatch, or unavailable",
+      );
+      expect(normalizedOption2).toContain(
+        "Unavailable GitHub head SHA is not verification success",
+      );
+      expect(normalizedOption2).toContain(
+        "Do not automatically close or delete the PR on mismatch",
+      );
+      expect(normalizedOption2).toContain(
         "may pass an `assumptions_comment_file` argument",
       );
       expect(normalizedOption2).toContain(
