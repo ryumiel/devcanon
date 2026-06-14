@@ -300,13 +300,15 @@ gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 **After `gh pr create` succeeds, verify the approved head when the gate was enabled.** Skip this step entirely when the gate was disabled or the adapter did not report `APPROVED_HEAD_SHA`. When `APPROVED_HEAD_SHA` is present, compare it to the created PR's `headRefOid` and report the result as a match, mismatch, or unavailable:
 
 ```bash
-PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')
-if [ -z "$PR_HEAD_SHA" ]; then
-  echo "Post-create approved-head verification unavailable: GitHub headRefOid was unavailable."
-elif [ "$PR_HEAD_SHA" = "$APPROVED_HEAD_SHA" ]; then
-  echo "Post-create approved-head verification matched: $PR_HEAD_SHA."
-else
-  echo "Post-create approved-head verification mismatch: approved $APPROVED_HEAD_SHA, PR head $PR_HEAD_SHA."
+if [ -n "${APPROVED_HEAD_SHA:-}" ]; then
+  PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')
+  if [ -z "$PR_HEAD_SHA" ]; then
+    echo "Post-create approved-head verification unavailable: GitHub headRefOid was unavailable."
+  elif [ "$PR_HEAD_SHA" = "$APPROVED_HEAD_SHA" ]; then
+    echo "Post-create approved-head verification matched: $PR_HEAD_SHA."
+  else
+    echo "Post-create approved-head verification mismatch: approved $APPROVED_HEAD_SHA, PR head $PR_HEAD_SHA."
+  fi
 fi
 ```
 

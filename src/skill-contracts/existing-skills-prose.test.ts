@@ -3155,6 +3155,7 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain("do not duplicate PR body policy");
     expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
     expect(normalizedOption2).toContain("headRefOid");
+    expect(option2).toContain('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then');
     expect(normalizedOption2).toContain(
       "report the result as a match, mismatch, or unavailable",
     );
@@ -3176,6 +3177,31 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2.indexOf("headRefOid")).toBeGreaterThan(
       normalizedOption2.indexOf("gh pr create --title"),
+    );
+    expect(
+      normalizedOption2.indexOf('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then'),
+    ).toBeLessThan(
+      normalizedOption2.indexOf(
+        "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+      ),
+    );
+
+    const approvedHeadVerificationSnippet = sliceBetween(
+      option2,
+      'if [ -n "${APPROVED_HEAD_SHA:-}" ]; then',
+      "Unavailable GitHub head SHA is not verification success.",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification unavailable",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification matched",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification mismatch",
     );
 
     expect(normalizedOption2).not.toMatch(

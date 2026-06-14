@@ -728,6 +728,7 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
       expect(normalizedOption2).toContain("headRefOid");
+      expect(option2).toContain('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then');
       expect(normalizedOption2).toContain(
         "report the result as a match, mismatch, or unavailable",
       );
@@ -736,6 +737,23 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedOption2).toContain(
         "Do not automatically close or delete the PR on mismatch",
+      );
+      const approvedHeadVerificationSnippet = sliceRenderedSection(
+        option2,
+        'if [ -n "${APPROVED_HEAD_SHA:-}" ]; then',
+        "Unavailable GitHub head SHA is not verification success.",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty')",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification unavailable",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification matched",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification mismatch",
       );
       expect(normalizedOption2).toContain(
         "may pass an `assumptions_comment_file` argument",
