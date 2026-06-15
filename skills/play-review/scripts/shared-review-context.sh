@@ -51,6 +51,10 @@ escape_untrusted_prior_text() {
   escape_untrusted_markdown_text "$1"
 }
 
+escape_untrusted_guideline_text() {
+  escape_untrusted_markdown_text "$1"
+}
+
 require_jq() {
   command -v jq >/dev/null 2>&1 || fail "jq is required to build play-review shared context"
 }
@@ -128,6 +132,11 @@ validate_manifest_schema() {
     def nonempty_string: type == "string" and length > 0;
     def nonnegative_integer: type == "number" and . == floor and . >= 0;
     def required_string_array: type == "array" and all(.[]; nonempty_string);
+    def review_mode: . == "present" or . == "fix" or . == "github-post";
+    def routing_risk:
+      type == "object"
+      and (.mechanical_path_signals | required_string_array)
+      and (.semantic_classification_notes | required_string_array);
     def changed_file:
       type == "object"
       and (.status | nonempty_string)
@@ -155,7 +164,7 @@ validate_manifest_schema() {
     and (.header.head_sha | nonempty_string)
     and (.header.active_diff_range | nonempty_string)
     and (.header.full_pr_diff_range | nonempty_string)
-    and (.header.mode | nonempty_string)
+    and (.header.mode | review_mode)
     and (.header.language_hints | required_string_array)
     and (.changed_files | type == "object")
     and (.changed_files.command | nonempty_string)
@@ -166,8 +175,8 @@ validate_manifest_schema() {
     and (.doc_impact_summary.arch_files | type == "array" and all(.[]; repo_relative_path))
     and (.doc_impact_summary.new_adrs | type == "array" and all(.[]; repo_relative_path))
     and (.doc_impact_summary.modified_adrs | type == "array" and all(.[]; repo_relative_path))
-    and (.doc_impact_summary.architecture_routing_risks | required_string_array)
-    and (.doc_impact_summary.spec_routing_risks | required_string_array)
+    and (.doc_impact_summary.architecture_routing_risks | routing_risk)
+    and (.doc_impact_summary.spec_routing_risks | routing_risk)
     and ((.doc_impact_summary.notes == null) or (.doc_impact_summary.notes | nonempty_string))
     and (.adr_references | type == "array" and all(.[]; type == "object" and (.path | repo_relative_path) and (.reason | nonempty_string)))
     and (.discovered_guidelines | type == "object")
@@ -176,6 +185,9 @@ validate_manifest_schema() {
     and (.output_format.markdown | nonempty_string)
     and ((.prior_review_context == null) or (.prior_review_context | type == "object" and (.records | type == "array" and all(.[]; prior))))
   ' "$REVIEW_CONTEXT_INPUT_FILE" >/dev/null || {
+    if jq -e '.header.mode as $mode | ($mode != "present" and $mode != "fix" and $mode != "github-post")' "$REVIEW_CONTEXT_INPUT_FILE" >/dev/null; then
+      fail "manifest mode must be present, fix, or github-post"
+    fi
     if jq -e '.discovered_guidelines.records[]? | select((.summary | type != "string") or (.summary | length == 0))' "$REVIEW_CONTEXT_INPUT_FILE" >/dev/null; then
       fail "guideline summary is required"
     fi
@@ -212,6 +224,29 @@ append_array_values() {
   fi
 }
 
+append_routing_risk_values() {
+  local target="$1"
+  local title="$2"
+  local query="$3"
+  append_line "$target" "- **$title:**"
+  append_line "$target" "  - Mechanical path signals:"
+  if [ "$(jq "$query.mechanical_path_signals | length" "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
+    append_line "$target" "    - (none)"
+  else
+    while IFS= read -r value; do
+      append_line "$target" "    - $value"
+    done < <(jq -r "$query.mechanical_path_signals[] | @json | .[1:-1]" "$REVIEW_CONTEXT_INPUT_FILE")
+  fi
+  append_line "$target" "  - Semantic classification notes:"
+  if [ "$(jq "$query.semantic_classification_notes | length" "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
+    append_line "$target" "    - (none)"
+  else
+    while IFS= read -r value; do
+      append_line "$target" "    - $value"
+    done < <(jq -r "$query.semantic_classification_notes[] | @json | .[1:-1]" "$REVIEW_CONTEXT_INPUT_FILE")
+  fi
+}
+
 build_core_section() {
   local target="$1"
   append_line "$target" "# Shared Review Context"
@@ -244,8 +279,8 @@ build_core_section() {
   append_array_values "$target" "Architecture files" ".doc_impact_summary.arch_files"
   append_array_values "$target" "New ADRs" ".doc_impact_summary.new_adrs"
   append_array_values "$target" "Modified ADRs" ".doc_impact_summary.modified_adrs"
-  append_array_values "$target" "Architecture routing risks" ".doc_impact_summary.architecture_routing_risks"
-  append_array_values "$target" "Spec routing risks" ".doc_impact_summary.spec_routing_risks"
+  append_routing_risk_values "$target" "Architecture routing risks" ".doc_impact_summary.architecture_routing_risks"
+  append_routing_risk_values "$target" "Spec routing risks" ".doc_impact_summary.spec_routing_risks"
   if [ "$(jq -r '.doc_impact_summary.notes // empty' "$REVIEW_CONTEXT_INPUT_FILE")" != "" ]; then
     append_line "$target" "- **Notes:** $(escape_untrusted_markdown_text "$(jq -r '.doc_impact_summary.notes' "$REVIEW_CONTEXT_INPUT_FILE")")"
   fi
@@ -287,9 +322,13 @@ build_guideline_section() {
   local path_value
   local bytes_value
   local summary
+  local summary_display
   local priority
+  local priority_display
+  local path_display
   local excerpt_count
   local excerpt
+  local excerpt_display
   local excerpt_bytes
   count="$(jq '.discovered_guidelines.records | length' "$REVIEW_CONTEXT_INPUT_FILE")"
   append_line "$target" "## Discovered Guidelines"
@@ -302,31 +341,35 @@ build_guideline_section() {
   while [ "$index" -lt "$count" ]; do
     record="$(jq -c ".discovered_guidelines.records[$index]" "$REVIEW_CONTEXT_INPUT_FILE")"
     path_value="$(jq -r '.path' <<<"$record")"
+    path_display="$(escape_untrusted_guideline_text "$path_value")"
     bytes_value="$(jq -r '.bytes' <<<"$record")"
     summary="$(jq -r '.summary' <<<"$record")"
+    summary_display="$(escape_untrusted_guideline_text "$summary")"
     priority="$(jq -r '.priority // "unspecified"' <<<"$record")"
+    priority_display="$(escape_untrusted_guideline_text "$priority")"
     if [ "$index" -ge "$GUIDELINE_ITEM_LIMIT" ]; then
       append_line "$target" "### Guideline overflow record $((index + 1))"
-      append_line "$target" "- **Path:** $path_value"
+      append_line "$target" "- **Path:** $path_display"
       append_line "$target" "- **Byte count:** $bytes_value"
-      append_line "$target" "- **Summary:** $summary"
+      append_line "$target" "- **Summary:** $summary_display"
       append_line "$target" "- **Overflow:** record beyond $GUIDELINE_ITEM_LIMIT guideline item limit"
-      append_line "$target" "- Targeted reread: open $path_value before relying on this guideline."
+      append_line "$target" "- Targeted reread: open $path_display before relying on this guideline."
       append_line "$target" ""
     else
       append_line "$target" "### Guideline record $((index + 1))"
-      append_line "$target" "- **Path:** $path_value"
+      append_line "$target" "- **Path:** $path_display"
       append_line "$target" "- **Byte count:** $bytes_value"
-      append_line "$target" "- **Priority:** $priority"
-      append_line "$target" "- **Summary:** $summary"
-      append_line "$target" "- Targeted reread: open $path_value if this summary affects a finding."
+      append_line "$target" "- **Priority:** $priority_display"
+      append_line "$target" "- **Summary:** $summary_display"
+      append_line "$target" "- Targeted reread: open $path_display if this summary affects a finding."
       excerpt_count="$(jq '.exact_excerpts // [] | length' <<<"$record")"
       if [ "$excerpt_count" -eq 0 ]; then
         append_line "$target" "- **Exact excerpt:** (none)"
       else
         excerpt="$(jq -r '(.exact_excerpts // [])[0]' <<<"$record")"
         excerpt_bytes="$(byte_count_text "$excerpt")"
-        if [ "$excerpt_bytes" -le "$GUIDELINE_EXCERPT_LIMIT" ] && append_if_fits "$target" "$GUIDELINE_BUDGET" "$(printf -- '- **Exact excerpt bytes:** %s\n\n```text\n%s\n```\n' "$excerpt_bytes" "$excerpt")"; then
+        excerpt_display="$(escape_untrusted_guideline_text "$excerpt")"
+        if [ "$excerpt_bytes" -le "$GUIDELINE_EXCERPT_LIMIT" ] && append_if_fits "$target" "$GUIDELINE_BUDGET" "$(printf -- '- **Exact excerpt bytes:** %s\n- Exact excerpt: %s\n' "$excerpt_bytes" "$excerpt_display")"; then
           :
         else
           append_line "$target" "- **Overflow:** exact excerpt omitted due to byte budget."

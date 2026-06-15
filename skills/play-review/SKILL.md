@@ -494,9 +494,10 @@ Required fields:
 - `doc_impact_summary`: Phase 2 `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`,
   architecture-routing risks (`ARCHITECTURE_ROUTING_RISKS`), spec-routing risks
   (`SPEC_ROUTING_RISKS`), and optional notes, computed against
-  `full_pr_diff_range` where Phase 2 requires it. Preserve mechanical path
-  signals and semantic classification notes distinctly in the relevant risk
-  lists so follow-up narrow reviews can fail closed from full-PR context.
+  `full_pr_diff_range` where Phase 2 requires it. Represent each routing-risk
+  group as distinct mechanical path signals (`mechanical_path_signals`) and
+  semantic classification notes (`semantic_classification_notes`) arrays so
+  follow-up narrow reviews can fail closed from full-PR context.
   Supplied upstream handoff summaries, including sanitized
   `contract_example_discipline` risk-signal summaries from
   `branch_review_semantic_decision_notes`, stay in semantic classification
