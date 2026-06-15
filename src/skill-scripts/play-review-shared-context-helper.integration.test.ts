@@ -409,6 +409,33 @@ describe.skipIf(!jqAvailable)("play-review shared context helper", () => {
     }
   });
 
+  it("accepts mechanical path signals with spaces and root filenames", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const value = manifest();
+      value.doc_impact_summary.architecture_routing_risks.mechanical_path_signals =
+        ["docs/user guide.md", "LICENSE", "Dockerfile", "AGENTS.md"];
+      value.doc_impact_summary.spec_routing_risks.mechanical_path_signals = [
+        "docs/specs/reader workflow.md",
+        "LICENSE",
+        "Dockerfile",
+        "AGENTS.md",
+      ];
+      await writeManifest(cwd, inputFile, value);
+
+      await runHelper(cwd);
+      const content = await readFile(path.join(cwd, outputFile), "utf8");
+
+      expect(content).toContain("docs/user guide.md");
+      expect(content).toContain("docs/specs/reader workflow.md");
+      expect(content).toContain("LICENSE");
+      expect(content).toContain("Dockerfile");
+      expect(content).toContain("AGENTS.md");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects invalid schema values and missing structured manifest fields", async () => {
     const invalidSchema = await makeGitWorkspace();
     try {
@@ -448,15 +475,29 @@ describe.skipIf(!jqAvailable)("play-review shared context helper", () => {
       await cleanupTempDir(invalidHeaderMode);
     }
 
-    const invalidMechanicalSignal = await makeGitWorkspace();
-    try {
-      const value = manifest();
-      value.doc_impact_summary.architecture_routing_risks.mechanical_path_signals =
-        ["This is semantic prose, not a path"];
-      await writeManifest(invalidMechanicalSignal, inputFile, value);
-      await expectFailure(invalidMechanicalSignal, "manifest schema mismatch");
-    } finally {
-      await cleanupTempDir(invalidMechanicalSignal);
+    const unsafeMechanicalSignalCases = [
+      "/tmp/file.md",
+      "docs/../guide.md",
+      "docs//guide.md",
+      ".",
+      "docs/./guide.md",
+      "..",
+    ];
+
+    for (const unsafePath of unsafeMechanicalSignalCases) {
+      const invalidMechanicalSignal = await makeGitWorkspace();
+      try {
+        const value = manifest();
+        value.doc_impact_summary.architecture_routing_risks.mechanical_path_signals =
+          [unsafePath];
+        await writeManifest(invalidMechanicalSignal, inputFile, value);
+        await expectFailure(
+          invalidMechanicalSignal,
+          "manifest schema mismatch",
+        );
+      } finally {
+        await cleanupTempDir(invalidMechanicalSignal);
+      }
     }
   });
 

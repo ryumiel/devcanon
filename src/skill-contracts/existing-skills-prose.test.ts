@@ -1641,6 +1641,9 @@ describe("existing skills source prose contracts", () => {
     const briefingTemplate = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
     );
+    const redFlags = await readRepoFile(
+      "skills/play-review/references/red-flags.md",
+    );
     const phase2 = getMarkdownSection(
       skillSource,
       "Phase 2: Doc-impact summary",
@@ -1799,6 +1802,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(errorHandling)).toContain(
       "Stop with a concise diagnostic; do NOT dispatch Phase 3 agents",
     );
+
+    const normalizedRedFlags = normalizeWhitespace(redFlags);
+    expect(normalizedRedFlags).toContain(
+      "direct-child `.ephemeral/` findings file, review-context input manifest, or rendered shared review-context file",
+    );
+    expect(normalizedRedFlags).toContain("not unrelated edits");
   });
 
   it("requires covering ADR changes for durable play-review Architecture decisions", async () => {

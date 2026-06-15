@@ -137,8 +137,7 @@ validate_manifest_schema() {
     def nonnegative_integer: type == "number" and . == floor and . >= 0;
     def required_string_array: type == "array" and all(.[]; nonempty_string);
     def mechanical_path_signal:
-      repo_relative_path
-      and (test("[[:space:]]") | not);
+      repo_relative_path;
     def review_mode: . == "present" or . == "fix" or . == "github-post";
     def routing_risk:
       type == "object"
