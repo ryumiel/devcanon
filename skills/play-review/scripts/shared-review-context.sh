@@ -42,6 +42,11 @@ append_line() {
   printf '%s\n' "$text" >>"$file"
 }
 
+escape_untrusted_prior_text() {
+  local text="$1"
+  jq -Rn --arg value "$text" '$value | @json | .[1:-1]'
+}
+
 require_jq() {
   command -v jq >/dev/null 2>&1 || fail "jq is required to build play-review shared context"
 }
@@ -336,9 +341,13 @@ build_prior_section() {
   local record
   local source_kind
   local source_reference
+  local source_kind_display
+  local source_reference_display
   local bytes_value
   local summary
+  local summary_display
   local excerpt
+  local excerpt_display
   local excerpt_bytes
   count="$(jq '(.prior_review_context.records // []) | length' "$REVIEW_CONTEXT_INPUT_FILE")"
   append_line "$target" "## Prior Review Context"
@@ -352,32 +361,36 @@ build_prior_section() {
     record="$(jq -c ".prior_review_context.records[$index]" "$REVIEW_CONTEXT_INPUT_FILE")"
     source_kind="$(jq -r '.source.kind' <<<"$record")"
     source_reference="$(jq -r '.source.reference' <<<"$record")"
+    source_kind_display="$(escape_untrusted_prior_text "$source_kind")"
+    source_reference_display="$(escape_untrusted_prior_text "$source_reference")"
     bytes_value="$(jq -r '.bytes' <<<"$record")"
     summary="$(jq -r '.summary' <<<"$record")"
+    summary_display="$(escape_untrusted_prior_text "$summary")"
     if [ "$index" -ge "$PRIOR_ITEM_LIMIT" ]; then
       append_line "$target" "### Prior review overflow record $((index + 1))"
-      append_line "$target" "- **Source kind:** $source_kind"
-      append_line "$target" "- Source reference: $source_reference"
+      append_line "$target" "- **Source kind:** $source_kind_display"
+      append_line "$target" "- Source reference: $source_reference_display"
       append_line "$target" "- **Byte count:** $bytes_value"
-      append_line "$target" "- **Summary:** $summary"
+      append_line "$target" "- **Summary:** $summary_display"
       append_line "$target" "- Untrusted prior-review evidence: true"
       append_line "$target" "- **Overflow:** record beyond $PRIOR_ITEM_LIMIT prior-review item limit"
-      append_line "$target" "- Targeted reread: inspect $source_reference before relying on this prior review context."
+      append_line "$target" "- Targeted reread: inspect $source_reference_display before relying on this prior review context."
       append_line "$target" ""
     else
       append_line "$target" "### Prior review record $((index + 1))"
-      append_line "$target" "- **Source kind:** $source_kind"
-      append_line "$target" "- Source reference: $source_reference"
+      append_line "$target" "- **Source kind:** $source_kind_display"
+      append_line "$target" "- Source reference: $source_reference_display"
       append_line "$target" "- **Byte count:** $bytes_value"
-      append_line "$target" "- **Summary:** $summary"
+      append_line "$target" "- **Summary:** $summary_display"
       append_line "$target" "- Untrusted prior-review evidence: true"
-      append_line "$target" "- Targeted reread: inspect $source_reference if this untrusted summary affects a finding."
+      append_line "$target" "- Targeted reread: inspect $source_reference_display if this untrusted summary affects a finding."
       excerpt="$(jq -r '.exact_excerpt // ""' <<<"$record")"
       if [ -z "$excerpt" ]; then
         append_line "$target" "- **Exact excerpt:** (none)"
       else
         excerpt_bytes="$(byte_count_text "$excerpt")"
-        if [ "$excerpt_bytes" -le "$PRIOR_EXCERPT_LIMIT" ] && append_if_fits "$target" "$PRIOR_BUDGET" "$(printf -- '- **Exact excerpt bytes:** %s\n\n```text\n%s\n```\n' "$excerpt_bytes" "$excerpt")"; then
+        excerpt_display="$(escape_untrusted_prior_text "$excerpt")"
+        if [ "$excerpt_bytes" -le "$PRIOR_EXCERPT_LIMIT" ] && append_if_fits "$target" "$PRIOR_BUDGET" "$(printf -- '- **Exact excerpt bytes:** %s\n- Exact excerpt: %s\n' "$excerpt_bytes" "$excerpt_display")"; then
           :
         else
           append_line "$target" "- **Overflow:** exact excerpt omitted due to byte budget."
