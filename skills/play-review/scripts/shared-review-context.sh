@@ -42,9 +42,13 @@ append_line() {
   printf '%s\n' "$text" >>"$file"
 }
 
-escape_untrusted_prior_text() {
+escape_untrusted_markdown_text() {
   local text="$1"
   jq -Rn --arg value "$text" '$value | @json | .[1:-1]'
+}
+
+escape_untrusted_prior_text() {
+  escape_untrusted_markdown_text "$1"
 }
 
 require_jq() {
@@ -204,7 +208,7 @@ append_array_values() {
   else
     while IFS= read -r value; do
       append_line "$target" "  - $value"
-    done < <(jq -r "$query[]" "$REVIEW_CONTEXT_INPUT_FILE")
+    done < <(jq -r "$query[] | @json | .[1:-1]" "$REVIEW_CONTEXT_INPUT_FILE")
   fi
 }
 
@@ -242,7 +246,9 @@ build_core_section() {
   append_array_values "$target" "Modified ADRs" ".doc_impact_summary.modified_adrs"
   append_array_values "$target" "Architecture routing risks" ".doc_impact_summary.architecture_routing_risks"
   append_array_values "$target" "Spec routing risks" ".doc_impact_summary.spec_routing_risks"
-  jq -r 'select(.doc_impact_summary.notes != null) | "- **Notes:** " + .doc_impact_summary.notes' "$REVIEW_CONTEXT_INPUT_FILE" >>"$target"
+  if [ "$(jq -r '.doc_impact_summary.notes // empty' "$REVIEW_CONTEXT_INPUT_FILE")" != "" ]; then
+    append_line "$target" "- **Notes:** $(escape_untrusted_markdown_text "$(jq -r '.doc_impact_summary.notes' "$REVIEW_CONTEXT_INPUT_FILE")")"
+  fi
   append_line "$target" ""
   append_line "$target" "### ADR References"
   if [ "$(jq '.adr_references | length' "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
