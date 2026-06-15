@@ -523,7 +523,9 @@ Required fields:
 
 Optional fields:
 
-- Term: prior review context from PR threads or branch-local prior findings.
+Optional prior review context from PR threads or branch-local prior findings is
+represented by structured records, not raw thread or findings bodies.
+
 - `prior_review_context.records`: records derived from `prior_threads` and/or
   `prior_branch_findings`, only when provided. Each record that affects reviewer
   dispatch context must include `source.kind`, `source.reference`, UTF-8
