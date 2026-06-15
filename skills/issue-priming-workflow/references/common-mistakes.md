@@ -32,6 +32,20 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   `play-branch-finish` Option 2, which invokes `pr-authoring` in `compose` mode
   and applies the shared project-guideline or fallback contract
 
+## Omitting explicit review-gate inputs in Phase 8
+
+- **Problem:** Phase 8 invokes `play-branch-finish` Option 2 without
+  `branch_review_required=true` or without passing the final Phase 7
+  approval-summary path as `approval_summary_file`, so the required PR creation
+  gate is not explicit
+- **Fix:** Stop before `play-branch-finish` when the final approval-summary
+  path is absent or empty. Otherwise pass `branch_review_required=true`,
+  `approval_summary_file=<final Phase 7 approval-summary path>`, and
+  `assignee=@me`; when Phase 7 used
+  `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+  pattern too. Keep optional `nits_file` and `assumptions_comment_file`
+  separate
+
 ## Skipping the gate for "obvious" gated issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
@@ -46,6 +60,15 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 
 - **Problem:** Mechanical nits — typos, truncated sentences, broken cross-references — get posted as PR comments instead of fixed in the worktree, leaking workflow gaps that `--auto` exists to eliminate
 - **Fix:** After `branch-review --fix` returns, classify remaining nits and auto-fix mechanical ones before invoking Phase 8. See Phase 7 prose for the taxonomy
+
+## Reusing stale approval-summary evidence
+
+- **Problem:** Phase 8 passes an approval-summary path from an earlier
+  branch-review run, or proceeds after a rerun without a final approval-summary
+  notice path
+- **Fix:** Use only the final Phase 7 run's approval-summary notice path. Any
+  auto-fix commit, mechanical-nit commit, or other rerun invalidates earlier
+  paths for Phase 8 handoff
 
 ## Treating out-of-band authorization as merge consent
 

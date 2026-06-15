@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -2923,6 +2923,24 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(phase8)).toContain(
       "Pass `assignee=@me` to `play-branch-finish` Option 2",
     );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
+    );
     expect(phase8).toContain("references/phase-8-pr-handoff.md");
     expect(normalizeWhitespace(phase8)).not.toContain(
       "Pass `--assignee @me` to `gh pr create`",
@@ -2951,6 +2969,21 @@ describe("existing skills source prose contracts", () => {
       "Always pass `assignee=@me` to `play-branch-finish` Option 2",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "Always pass `branch_review_required=true`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "pass the final Phase 7 approval-summary path as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "If Phase 7 branch-review used `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "If that final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
+      "`approval_summary_file` is not a nits envelope or assumptions comment",
+    );
+    expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
       "Do not move these responsibilities across boundaries for prompt-size reasons",
     );
     expect(normalizeWhitespace(issuePrimingPhase8Handoff)).toContain(
@@ -2973,6 +3006,12 @@ describe("existing skills source prose contracts", () => {
     ).not.toContain("ignoring PR guideline");
     expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
       "instead of relying on `play-branch-finish` to invoke `pr-authoring`",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
+      "You invoked `play-branch-finish` Option 2 without explicit `branch_review_required=true` and `approval_summary_file` inputs",
+    );
+    expect(normalizeWhitespace(issuePrimingRedFlags)).toContain(
+      "You reused a stale approval-summary path or proceeded when the final Phase 7 approval-summary path was missing or empty",
     );
     expect(normalizeWhitespace(issuePrimingRedFlags)).not.toContain(
       "reading the project's PR guideline first",
@@ -3052,11 +3091,14 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toMatch(
       /does not invoke `branch-review`|must not invoke `branch-review`|do not invoke `branch-review`/i,
     );
-    expect(normalizedOption2).toMatch(
-      /validates? (?:the )?caller-supplied `nits_file` only as (?:a )?(?:posting|PR review comment posting) input|only validates? (?:the )?caller-supplied `nits_file` as (?:a )?(?:posting|PR review comment posting) input/i,
+    expect(normalizedOption2).toContain(
+      "validates caller-supplied `approval_summary_file` evidence only through the explicit `branch_review_required=true` gate",
     );
-    expect(normalizedOption2).toMatch(
-      /does not validate (?:branch-review completion|review completeness|final review completeness)|must not validate (?:branch-review completion|review completeness|final review completeness)|do not validate (?:branch-review completion|review completeness|final review completeness)/i,
+    expect(normalizedOption2).toContain(
+      "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+    );
+    expect(normalizedOption2).toContain(
+      "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
     );
     expect(normalizedIntegrationSection).toContain(
       "**play-subagent-execution** - After tasks complete and review status is resolved",
@@ -3071,12 +3113,324 @@ describe("existing skills source prose contracts", () => {
       /(?<!not )validates? (?:branch-review completion|review completeness|final review completeness)/i,
       /(?:review completeness|final review completeness) validation/i,
       /(?<!not )validates? (?:that )?branch-review (?:ran|completed|passed)/i,
-      /decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
+      /(?<!not |or )decides? (?:whether )?(?:review|branch-review) (?:is )?(?:complete|complete enough|passed)/i,
       /(?:creates?|produces?|derives?) (?:branch-review )?findings/i,
       /(?:owns|performs|applies) caller-intent filtering/i,
     ]) {
       expect(normalizedOption2).not.toMatch(forbiddenClaim);
     }
+  });
+
+  it("keeps play-branch-finish branch-review approval gate explicit and pre-push", async () => {
+    const skillSource = await readSkillSource("play-branch-finish");
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const option2 = sliceBetween(
+      skillSource,
+      "#### Option 2: Push and Create PR",
+      "#### Option 3: Keep As-Is",
+    );
+    const normalizedOption2 = normalizeWhitespace(option2);
+
+    expect(normalizedOption2).toContain(
+      "Optional input — branch-review approval gate",
+    );
+    expect(normalizedOption2).toContain("branch_review_required=true|false");
+    expect(normalizedOption2).toContain(
+      "absent, empty, or `false`, the gate is disabled",
+    );
+    expect(normalizedOption2).toContain(
+      "preserves the existing push/PR behavior without requiring approval evidence",
+    );
+    expect(normalizedOption2).toContain("approval_summary_file");
+    expect(normalizedOption2).toContain(
+      "required only when `branch_review_required=true`",
+    );
+    expect(normalizedOption2).toContain("configured full-review path pattern");
+    expect(normalizedOption2).toContain(
+      "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+    );
+    expect(option2).toContain(
+      'BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"',
+    );
+    expect(normalizedOption2).toContain(
+      "The gate is explicit only and must not be inferred",
+    );
+    for (const forbiddenInferenceSource of [
+      "repository contents",
+      "branch names",
+      "issue links",
+      "private controller state",
+      "review-shaped prose",
+      "the existence of `.ephemeral` files",
+    ]) {
+      expect(normalizedOption2).toContain(forbiddenInferenceSource);
+    }
+    expect(normalizedOption2).toMatch(
+      /Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`/i,
+    );
+    expect(option2).toContain(')" || exit 1');
+    expect(normalizedOption2).toContain(
+      "A failing gate stops before push or PR creation",
+    );
+    expect(normalizedOption2).toContain(
+      "preserves the branch and worktree for review follow-up",
+    );
+    expect(normalizedOption2).toContain(
+      "delegates approval-summary interpretation to `play-validate-review-artifacts`",
+    );
+    for (const forbiddenParsingSurface of [
+      "parse findings",
+      "scope-decision JSON",
+      "branch-review field schemas",
+      "approval-summary terminal state",
+    ]) {
+      expect(normalizedOption2).toContain(forbiddenParsingSurface);
+    }
+    expect(normalizedOption2).toContain(
+      "Option 2 still does not invoke `branch-review`",
+    );
+    expect(normalizedOption2).toContain(
+      "`branch-review` production stays outside this skill",
+    );
+    expect(normalizedOption2).toContain(
+      "`pr-authoring` still owns PR title/body policy",
+    );
+    expect(normalizedOption2).toContain("invoked before `gh pr create`");
+    expect(normalizedOption2).toContain("do not duplicate PR body policy");
+    expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
+    expect(normalizedOption2).toContain("headRefOid");
+    expect(option2).toContain('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then');
+    expect(normalizedOption2).toContain(
+      "report the result as a match, mismatch, or unavailable",
+    );
+    expect(normalizedOption2).toContain(
+      "Unavailable GitHub head SHA is not verification success",
+    );
+    expect(normalizedOption2).toContain(
+      "Do not automatically close or delete the PR on mismatch",
+    );
+
+    expect(
+      normalizedOption2.indexOf("post-autosquash tree changed"),
+    ).toBeLessThan(normalizedOption2.indexOf("Run the adapter helper"));
+    expect(normalizedOption2.indexOf("Run the adapter helper")).toBeLessThan(
+      normalizedOption2.indexOf("git push -u origin <feature-branch>"),
+    );
+    expect(normalizedOption2.indexOf("pr-authoring` still owns")).toBeLessThan(
+      normalizedOption2.indexOf("gh pr create --title"),
+    );
+    expect(normalizedOption2.indexOf("headRefOid")).toBeGreaterThan(
+      normalizedOption2.indexOf("gh pr create --title"),
+    );
+    expect(
+      normalizedOption2.indexOf('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then'),
+    ).toBeLessThan(
+      normalizedOption2.indexOf(
+        "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
+      ),
+    );
+
+    const approvedHeadVerificationSnippet = sliceBetween(
+      option2,
+      'if [ -n "${APPROVED_HEAD_SHA:-}" ]; then',
+      "Unavailable GitHub head SHA is not verification success.",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
+    );
+    expect(approvedHeadVerificationSnippet).toContain('PR_HEAD_SHA=""');
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification unavailable",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification matched",
+    );
+    expect(approvedHeadVerificationSnippet).toContain(
+      "Post-create approved-head verification mismatch",
+    );
+
+    const approvedHeadScript = approvedHeadVerificationSnippet
+      .replace(/\n```\s*$/u, "")
+      .trim();
+    const fakeBin = await mkdtemp(path.join(tmpdir(), "devcanon-gh-fail-"));
+    try {
+      await writeFile(
+        path.join(fakeBin, "gh"),
+        "#!/usr/bin/env bash\nexit 1\n",
+      );
+      await chmod(path.join(fakeBin, "gh"), 0o755);
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            "-c",
+            [
+              "set -euo pipefail",
+              "APPROVED_HEAD_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              approvedHeadScript,
+            ].join("\n"),
+          ],
+          {
+            env: {
+              ...process.env,
+              PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+            },
+          },
+        ),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining(
+          "Post-create approved-head verification unavailable",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(fakeBin);
+    }
+
+    expect(normalizedOption2).not.toMatch(
+      /(?:infer|detect|enable) (?:the )?branch-review approval gate from/i,
+    );
+    expect(normalizedOption2).not.toMatch(/run `?branch-review`?/i);
+    expect(normalizedOption2).not.toMatch(
+      /Unavailable GitHub head SHA is verification success|unavailable GitHub head SHA is verified/i,
+    );
+
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Bypassing a required branch-review gate",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Inferring the branch-review gate from non-authoritative state",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Treating unavailable or mismatched post-create head verification as success",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Bypass a required branch-review approval gate",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Infer a branch-review gate from non-authoritative state",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Treat unavailable or mismatched post-create headRefOid verification as success",
+    );
+  });
+
+  it("keeps issue-priming Phase 7 approval-summary handoff path capture source-owned", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase6 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 6: Implement",
+      "### Phase 7: Branch Review",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const normalizedPhase6 = normalizeWhitespace(phase6);
+    const normalizedPhase7 = normalizeWhitespace(phase7);
+    const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
+    const normalizedReference = normalizeWhitespace(phase7Reference);
+
+    expect(normalizedPhase6).toContain(
+      "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6).toContain(
+      "no additional mechanical nit commits after that review",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "no additional mechanical nit commits after that review",
+    );
+    expect(phase7).toContain("Approval summary written to <path>.");
+    expect(normalizedPhase7).toContain(
+      "capture that final run's exact `Approval summary written to <path>.` notice path",
+    );
+    expect(normalizedPhase7).toContain(
+      "A missing approval-summary notice from the final run is a hard stop before Phase 8",
+    );
+    expect(normalizedPhase7).toContain(
+      "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+    );
+    expect(normalizedPhase7).toContain(
+      "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed, has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path, and no mechanical-nit commit occurs after that review",
+    );
+    expect(normalizedPhase7).not.toContain("approval-summary JSON");
+    expect(normalizedPhase7).toContain(
+      "it does not parse approval summary fields, duplicate branch-review schema or validation policy, or perform PR creation readiness validation",
+    );
+
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Phase Flow Reference",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass on the final Phase 7 run",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "captured final approval-summary notice path",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+    );
+    expect(normalizeWhitespace(phase8)).toContain(
+      "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
+    );
+
+    expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
+    expect(phase7Reference).toContain("Findings written to <path>.");
+    expect(phase7Reference).toContain("Approval summary written to <path>.");
+    expect(normalizedReference).toContain(
+      "After each `branch-review --fix` run, parse these exact notice lines from that run",
+    );
+    expect(normalizedReference).toContain(
+      "Once a run is candidate-final because all Phase 7 blocker, nit, and rerun criteria are satisfied",
+    );
+    expect(normalizedReference).toContain(
+      "also capture the approval-summary path from the exact `Approval summary written to <path>.` notice emitted by that same run",
+    );
+    expect(normalizedReference).toContain(
+      "Do not parse approval-summary JSON fields",
+    );
+    expect(normalizedReference).toContain(
+      "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizedReference).toContain(
+      "Approval-summary notice paths are final-run-only",
+    );
+    expect(normalizedReference).toContain(
+      "missing final approval-summary notice is a hard stop before Phase 8",
+    );
   });
 
   it("keeps play-branch-finish autosquash local, opt-in, and PR-body neutral", async () => {
@@ -3162,7 +3516,7 @@ describe("existing skills source prose contracts", () => {
     expect(commonMistakes).toMatch(/commit-history narration/i);
   });
 
-  it("keeps play-branch-finish autosquash bound to the reviewed-tree invariant", async () => {
+  it("keeps play-branch-finish autosquash bound to reviewed tree and head-bound approval evidence", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const option2 = sliceBetween(
       skillSource,
@@ -3172,17 +3526,22 @@ describe("existing skills source prose contracts", () => {
     const normalizedOption2 = normalizeWhitespace(option2);
 
     expect(normalizedOption2).toContain("reviewed-tree invariant");
+    expect(normalizedOption2).toContain("approval-summary evidence");
     expect(normalizedOption2).toMatch(
-      /autosquash[^.]*must preserve the reviewed-tree invariant/i,
+      /autosquash[^.]*must preserve both the reviewed-tree invariant and any required approval-summary evidence/i,
     );
     expect(normalizedOption2).toMatch(
-      /If autosquash or any other post-review tree change would invalidate review, stop before push/i,
+      /When `branch_review_required=true`, approval evidence is head-bound/i,
     );
     expect(normalizedOption2).toMatch(
-      /require a new branch review outside this skill before re-entering Option 2/i,
+      /accepting an autosquash after branch review rewrites `HEAD`/i,
     );
     expect(normalizedOption2).toMatch(
-      /post-review tree change[^.]*requires a new branch review/i,
+      /makes the prior approval summary stale even when the tree is unchanged/i,
+    );
+    expect(normalizedOption2).toMatch(/fresh `approval_summary_file`/i);
+    expect(normalizedOption2).toMatch(
+      /Any post-review tree change also requires a new branch review/i,
     );
     expect(normalizedOption2).not.toMatch(
       /run a new `branch-review` before creating the PR/i,

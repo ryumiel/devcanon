@@ -12,9 +12,11 @@ creation.
 
 - `issue-priming-workflow` owns when Phase 8 may start and which arguments are
   passed to `play-branch-finish`.
-- `play-branch-finish` owns push, `gh pr create`, assignee translation,
-  post-creation assumptions comments, post-creation nit review comments, and
-  branch/worktree preservation after PR creation.
+- `play-branch-finish` owns approval-gate validation, push, `gh pr create`,
+  assignee translation, post-creation assumptions comments, post-creation nit
+  review comments, and branch/worktree preservation after PR creation.
+- `play-validate-review-artifacts` owns approval-summary interpretation when
+  `play-branch-finish` Option 2 receives an explicit review gate.
 - `pr-authoring` owns PR title/body composition and validation through
   `play-branch-finish` Option 2.
 - `scripts/write-assumptions-comment.sh` owns assumptions comment path
@@ -36,6 +38,18 @@ Always pass `assignee=@me` to `play-branch-finish` Option 2. The parent
 workflow owns this handoff argument. `play-branch-finish` owns the GitHub side
 effect and translates that input into the assignee behavior needed for
 `gh pr create`.
+
+Always pass `branch_review_required=true`, and pass the final Phase 7
+approval-summary path as `approval_summary_file`. If that final
+approval-summary path is absent or empty, stop before invoking
+`play-branch-finish`. If Phase 7 branch-review used
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+pattern through to `play-branch-finish` Option 2. Phase 8 does not validate
+approval-summary JSON, parse approval-summary fields, or duplicate
+`play-branch-finish` or `play-validate-review-artifacts` gate semantics. Its
+responsibility is limited to requiring the final Phase 7 path to exist in
+controller state and passing it, plus any configured path pattern used by the
+linked scope evidence, as explicit Option 2 input.
 
 ## PR Title and Body
 
@@ -70,6 +84,9 @@ Ambiguous decisions still stop `--auto` and ask the user. Do not downgrade an
 unresolved ambiguity into an assumptions comment, and do not embed assumptions
 in the PR description.
 
+`approval_summary_file` is not a nits envelope or assumptions comment. Do not
+use `assumptions_comment_file` as approval-summary evidence.
+
 ## Nits
 
 Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope.
@@ -84,3 +101,7 @@ Do not pass mechanical nits to Phase 8. Do not pass `critic: "INVALID"`
 findings. Do not classify findings in Phase 8. Unaddressed judgment-required
 nits are routed to `play-branch-finish` and posted as PR review comments after
 PR creation; they must not be embedded in the PR description body.
+
+`approval_summary_file` is separate from `nits_file`; do not use `nits_file`
+as approval-summary evidence, and do not conflate review approval with
+judgment-required nit posting.

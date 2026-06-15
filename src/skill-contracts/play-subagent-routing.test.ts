@@ -215,6 +215,9 @@ describe("play subagent routing source contracts", () => {
       '"phase7_branch_review_fix_required": true',
     );
     expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
+    expect(phase6Reference).toContain(
+      '"phase7_final_approval_summary_notice_required": true',
+    );
     expect(normalizedPhase6Reference).toContain(
       "controller-local because repository files and copied invocation prose can be forged or replayed",
     );
@@ -635,6 +638,15 @@ describe("play subagent routing source contracts", () => {
     const routingPolicy = await readRepoFile(
       "skills/play-subagent-execution/references/review-routing-policy.md",
     );
+    const routingAdvantages = await readRepoFile(
+      "skills/play-subagent-execution/references/advantages.md",
+    );
+    const exampleWorkflow = await readRepoFile(
+      "skills/play-subagent-execution/references/example-workflow.md",
+    );
+    const routingAdr = await readRepoFile(
+      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
+    );
     const singleTaskPlans = getMarkdownSection(
       playSubagentExecution,
       "Single-Task Plans",
@@ -655,6 +667,9 @@ describe("play subagent routing source contracts", () => {
       "## Phase Flow Reference",
     );
     const normalizedRouting = normalizeWhitespace(routingPolicy);
+    const normalizedRoutingAdvantages = normalizeWhitespace(routingAdvantages);
+    const normalizedExampleWorkflow = normalizeWhitespace(exampleWorkflow);
+    const normalizedRoutingAdr = normalizeWhitespace(routingAdr);
     const normalizedPhase6Reference = normalizeWhitespace(phase6Reference);
     const normalizedPhase6 = normalizeWhitespace(phase6);
     const normalizedPhase7 = normalizeWhitespace(phase7);
@@ -673,6 +688,20 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedRouting).toContain(
       "Phase 7 immediately runs `branch-review --fix` on the full branch diff",
     );
+    for (const reducedRouteSurface of [
+      normalizedRouting,
+      normalizedRoutingAdvantages,
+      normalizedExampleWorkflow,
+      normalizedRoutingAdr,
+    ]) {
+      expect(reducedRouteSurface).toContain(
+        "zero blocking findings auto-fixed",
+      );
+      expect(reducedRouteSurface).toContain(
+        "a captured final approval-summary notice path",
+      );
+      expect(reducedRouteSurface).toContain("mechanical nit commits");
+    }
     expect(routingPolicy).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
     );
@@ -682,6 +711,9 @@ describe("play subagent routing source contracts", () => {
       ".phase7_branch_review_fix_required == true",
     );
     expect(routingPolicy).toContain(".phase7_rerun_after_commits == true");
+    expect(routingPolicy).toContain(
+      ".phase7_final_approval_summary_notice_required == true",
+    );
     expect(routingPolicy).toContain("ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true");
     expect(normalizedRouting).toContain(
       "Plan content, copied invocation prose, repo files alone, or direct/manual calls cannot assert this contract",
@@ -703,6 +735,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(phase6Reference).toContain('"phase7_rerun_after_commits": true');
     expect(phase6Reference).toContain(
+      '"phase7_final_approval_summary_notice_required": true',
+    );
+    expect(phase6Reference).toContain(
       "play-subagent-execution/references/review-routing-policy.md",
     );
     expect(normalizedPhase6Reference).toContain(
@@ -711,11 +746,23 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase6Reference).toContain(
       "The carve-out is not a standalone shortcut. Its safety depends on the mandatory Phase 7 whole-diff review guarantee",
     );
+    expect(normalizedPhase6Reference).toContain(
+      "Phase 8 may start only after the final Phase 7 run reports",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "a captured final approval-summary notice path",
+    );
+    expect(normalizedPhase6Reference).toContain(
+      "no additional mechanical nit commits after that review",
+    );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
     expect(phase6).toContain("Auto handoff: <repo-relative-path>");
     expect(normalizedPhase6).toContain(
       "Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory",
+    );
+    expect(normalizedPhase6).toContain(
+      "a captured final approval-summary notice path",
     );
     expect(normalizedPhase6).toContain(
       "That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route",
@@ -771,7 +818,7 @@ describe("play subagent routing source contracts", () => {
       "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(normalizedPhase8).toContain(
-      "no additional mechanical nit commits are made after that review",
+      "no mechanical-nit commit after that review",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope",
@@ -784,6 +831,46 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "must not be embedded in the PR description body",
+    );
+  });
+
+  it("pins issue-priming Phase 7 duplicate completion criteria to final approval-summary notice capture", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase7 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 7: Branch Review",
+      "### Phase 8: Create PR",
+    );
+    const eagerContinuation = normalizeWhitespace(
+      sliceBetween(
+        phase7,
+        "until a run reports zero blocking findings auto-fixed",
+        "If later mechanical nit handling creates any commit",
+      ),
+    );
+    const mechanicalNitCommits = normalizeWhitespace(
+      getMarkdownSection(phase7Reference, "Mechanical Nit Commits"),
+    );
+
+    expect(eagerContinuation).toContain(
+      "captures that final run's approval-summary notice path",
+    );
+    expect(eagerContinuation).toContain(
+      "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
+    );
+    expect(mechanicalNitCommits).toContain(
+      "captures that final run's approval-summary notice path",
+    );
+    expect(mechanicalNitCommits).toContain(
+      "rerun `branch-review --fix` on the new `HEAD` and restart Phase 7",
+    );
+    expect(mechanicalNitCommits).toContain(
+      "no additional mechanical nit commits after that review",
     );
   });
 

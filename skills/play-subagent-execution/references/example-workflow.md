@@ -16,7 +16,8 @@ artifact, where Phase 7 reruns
 `branch-review --fix` after any auto-fix or mechanical-nit commit until the
 final run reports zero blocking findings auto-fixed, no unresolved remaining
 `Blocking` findings except findings whose `critic` verdict is `INVALID` or
-`DOWNGRADE`, and no additional mechanical nit commits. For a
+`DOWNGRADE`, has a captured final approval-summary notice path, and no
+additional mechanical nit commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
@@ -248,8 +249,9 @@ final-code-quality-reviewer: agent_id=final-quality, review scope captured, base
 
 [Caller runs final whole-diff gate]
 `issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
-reports zero blocking findings auto-fixed. If mechanical nit fixes commit
-after that review, Phase 7 reruns on the new `HEAD`.
+reports zero blocking findings auto-fixed and captures that final run's
+approval-summary notice path. If mechanical nit fixes commit after that review,
+Phase 7 reruns on the new `HEAD`.
 Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 `DOWNGRADE` critic verdicts.
 

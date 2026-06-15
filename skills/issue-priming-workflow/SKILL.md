@@ -410,7 +410,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
 Auto handoff: <repo-relative-path>
@@ -425,8 +425,9 @@ loop is also the final whole-diff no-Blocking guarantee for reduced per-task
 routes. If any Phase 7 run commits auto-fixes or mechanical nit fixes, rerun
 Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
 auto-fixed and leaves no unresolved remaining `Blocking` findings except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, followed by no
-mechanical nit commits, satisfies the final-review guarantee.
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
+approval-summary notice path, and is followed by no mechanical nit commits,
+satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
@@ -448,7 +449,8 @@ before rerunning `branch-review --fix --risk-signals <new-path>`, or rerun
 `branch-review --fix` while intentionally omitting stale risk signals. Continue
 until a run reports zero blocking findings auto-fixed and the remaining
 findings file contains no unresolved `severity: "Blocking"` entries except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`.
+findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and captures that
+final run's approval-summary notice path.
 If later mechanical nit handling creates any commit, rerun this same Branch
 Review step on the new `HEAD` before proceeding to Phase 8, with fresh risk
 signals when available.
@@ -462,8 +464,9 @@ true `Blocking` finding is unresolved (`critic` is neither `INVALID` nor
 Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
 That reference owns review-head parsing, `play-review/findings/v1` validation,
-blocker checks, nit classification details, mechanical-nit commit rules,
-back-reference footers, edit-staleness rules, and the
+approval-summary notice-path capture, blocker checks, nit classification
+details, mechanical-nit commit rules, back-reference footers, edit-staleness
+rules, and the
 `prepare-judgment-nits` helper handoff.
 
 For the eager contract: ignore `critic: "INVALID"` for continuation and never
@@ -475,35 +478,58 @@ empty, omit `nits_file`.
 
 After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`
 on the new `HEAD` and restart Phase 7, passing only risk signals regenerated
-for that `HEAD` when using `--risk-signals`. Phase 8 may start only after the
-final Phase 7 run reports zero blocking findings auto-fixed, no unresolved true
-Blocking findings, and no additional mechanical-nit commits after that review.
+for that `HEAD` when using `--risk-signals`. For the run that will allow Phase
+8 to start, capture that final run's exact
+`Approval summary written to <path>.` notice path alongside the review head and
+findings path evidence. A missing approval-summary notice from the final run is
+a hard stop before Phase 8. Do not carry an approval-summary path from an
+earlier review run across an auto-fix rerun or mechanical-nit rerun. Phase 7
+only captures and carries the notice path; it does not parse approval summary
+fields, duplicate branch-review schema or validation policy, or perform PR
+creation readiness validation. Phase 8 may start only after the final Phase 7
+run reports zero blocking findings auto-fixed, has no unresolved true Blocking
+findings except `INVALID` or `DOWNGRADE`, has a captured final
+approval-summary path, and no mechanical-nit commit occurs after that review.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.
 
 ### Phase 8: Create PR
 
 Phase 7 owns branch review before Phase 8. Phase 8 may start only after Phase 7
-`branch-review --fix` completion criteria pass: zero blocking findings
-auto-fixed, no unresolved remaining `Blocking` findings except findings whose
-`critic` verdict is `INVALID` or `DOWNGRADE`, and no additional mechanical nit
-commits are made after that review. Phase 8 must not rely on
+`branch-review --fix` completion criteria pass on the final Phase 7 run: zero
+blocking findings auto-fixed, no unresolved remaining `Blocking` findings
+except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captured
+final approval-summary notice path, and no mechanical-nit commit after that
+review. Phase 8 must not rely on
 `play-branch-finish` to run, validate, classify, or complete branch review.
+If the final approval-summary path is absent or empty, stop before invoking
+`play-branch-finish`.
 
 Before invoking the handoff, load
 [`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md). That
-reference owns detailed PR body, assumptions, assignee, and nits explanation;
-the eager contract below owns the hard stops and arguments.
+reference owns detailed PR body, assumptions, explicit review-gate inputs,
+assignee, and nits explanation; the eager contract below owns the hard stops
+and arguments.
 
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**.
 Do NOT merge - the PR is the user's review gate. PR creation preserves the
 branch and worktree for review, CI, and follow-up fixes until `pr-merge`
 performs post-merge cleanup or the operator explicitly discards the work.
 
-Pass `assignee=@me` to `play-branch-finish` Option 2. Rely on
-`play-branch-finish` Option 2 to invoke `pr-authoring` in `compose` mode;
-`pr-authoring` owns project-specific PR guidance, title/body validation, and
-default fallback title/body structure.
+Pass `assignee=@me` to `play-branch-finish` Option 2. Pass
+`branch_review_required=true` to `play-branch-finish` Option 2. Pass the final
+Phase 7 approval-summary path to `play-branch-finish` Option 2 as
+`approval_summary_file`. If Phase 7 branch-review ran with
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
+pattern through to `play-branch-finish` Option 2 as
+`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`. Phase 8 does not validate
+approval-summary JSON or duplicate `play-branch-finish` or
+`play-validate-review-artifacts` gate semantics; it only passes explicit inputs
+and hard-stops on a missing or empty final approval-summary path.
+
+Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose`
+mode; `pr-authoring` owns project-specific PR guidance, title/body validation,
+and default fallback title/body structure.
 
 Pass reviewer-relevant resolved auto-mode assumptions only through
 `assumptions_comment_file`. When resolved assumptions need reviewer visibility,
@@ -527,8 +553,10 @@ assumptions comment.
 
 Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
 produced no judgment-required nits, omit `nits_file` entirely; absence means no
-post-creation nit comments. Phase 8 does not classify findings or prepare the
-nits envelope.
+post-creation nit comments. `approval_summary_file` is separate from
+`nits_file` and `assumptions_comment_file`. Do not use `nits_file` or
+`assumptions_comment_file` as approval-summary evidence. Phase 8 does not
+classify findings or prepare the nits envelope.
 
 ## Phase Flow Reference
 

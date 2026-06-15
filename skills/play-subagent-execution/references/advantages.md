@@ -41,7 +41,8 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   `branch-review --fix` after any auto-fix or mechanical-nit commit until the
   final run reports zero blocking findings auto-fixed, no unresolved remaining
   `Blocking` findings except findings whose `critic` verdict is `INVALID` or
-  `DOWNGRADE`, and no additional mechanical nit commits
+  `DOWNGRADE`, has a captured final approval-summary notice path, and no
+  additional mechanical nit commits
 - Single-task plans skip per-task reviewer dispatch and rely on the final
   code-quality reviewer plus direct/manual branch-level review status resolution,
   or downstream `branch-review --fix` on the `issue-priming-workflow --auto`

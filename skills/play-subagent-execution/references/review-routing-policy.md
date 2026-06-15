@@ -42,7 +42,8 @@ owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
 full branch diff, rerunning it after any Phase 7 commit until the final run
 reports zero blocking findings auto-fixed, no unresolved remaining `Blocking`
 findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`,
-and no additional mechanical nit commits.
+has a captured final approval-summary notice path, and no additional
+mechanical nit commits.
 
 ## Auto-Handoff Validation
 
@@ -71,7 +72,8 @@ if [ "${ISSUE_PRIMING_AUTO_PARENT_ACTIVE:-false}" = true ]; then
            .plan_path == $plan and
            .head_sha == $head and
            .phase7_branch_review_fix_required == true and
-           .phase7_rerun_after_commits == true
+           .phase7_rerun_after_commits == true and
+           .phase7_final_approval_summary_notice_required == true
          ' "$AUTO_HANDOFF_FILE" >/dev/null
       then
         ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=true

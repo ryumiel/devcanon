@@ -259,7 +259,19 @@ describe("rendered phase artifact smoke coverage", () => {
       "pass/block interpretation for the summary",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
-      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+      "Approval-summary blocker counts use true-blocking semantics",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "Downgraded blocking findings remain non-blocking feedback",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).not.toContain(
+      "GitHub issue #465",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "Branch-review emits and validates the approval-summary artifact",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "downstream workflows or `play-branch-finish` may validate caller-supplied approval-summary evidence when an explicit gate requires it",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "in `--fix` mode it is the post-fix remaining-set envelope overwritten in place",
@@ -321,6 +333,12 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(supportValidator).toContain("compare-approved-payload");
     expect(supportValidator).toContain("validate-approval-summary");
     expect(supportValidator).toContain("branch-review/approval-summary/v1");
+    expect(normalizeRenderedWhitespace(supportValidator)).toContain(
+      "recomputes approval counts from the linked findings using true-blocking semantics",
+    );
+    expect(normalizeRenderedWhitespace(supportValidator)).toContain(
+      "invalidated blocking entries count as neither blockers nor postable nits",
+    );
     expect(normalizeRenderedWhitespace(supportValidator)).toContain(
       "Consumers must use this validator output for pass/block interpretation",
     );
@@ -540,6 +558,12 @@ describe("rendered phase artifact smoke coverage", () => {
         "missing, unclear, invalid, or unverified reduced-route state fails closed to `spec-and-quality`",
       );
       expect(normalizedPhase6).toContain(
+        "a captured final approval-summary notice path",
+      );
+      expect(normalizedPhase6).toContain(
+        "no additional mechanical nit commits after that review",
+      );
+      expect(normalizedPhase6).toContain(
         "Successful `play-subagent-execution` completion returns control to this owning workflow",
       );
       expect(normalizedPhase6).toContain("Phase 6 completion is not terminal");
@@ -551,6 +575,7 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase7).toContain("phase-7-review-handling.md");
       expect(phase7).toContain("prepare-judgment-nits");
       expect(phase7).toContain("play-review/findings/v1");
+      expect(phase7).toContain("Approval summary written to <path>.");
       expect(phase7).toContain("-nits-pending.json");
       expect(normalizedPhase7).toContain(
         'ignore `critic: "INVALID"` for continuation and never pass it to Phase 8',
@@ -565,6 +590,18 @@ describe("rendered phase artifact smoke coverage", () => {
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
       );
       expect(normalizedPhase7).toContain(
+        "has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path",
+      );
+      expect(normalizedPhase7).toContain(
+        "capture that final run's exact `Approval summary written to <path>.` notice path",
+      );
+      expect(normalizedPhase7).toContain(
+        "A missing approval-summary notice from the final run is a hard stop before Phase 8",
+      );
+      expect(normalizedPhase7).toContain(
+        "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+      );
+      expect(normalizedPhase7).toContain(
         "classification flow is `--auto` only",
       );
       expect(normalizedPhase7).toContain(
@@ -575,7 +612,31 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(phase8).toContain("option 2: push and create PR");
       expect(phase8).toContain("phase-8-pr-handoff.md");
       expect(normalizedPhase8).toContain(
+        "Phase 8 may start only after Phase 7 `branch-review --fix` completion criteria pass on the final Phase 7 run",
+      );
+      expect(normalizedPhase8).toContain(
+        "captured final approval-summary notice path",
+      );
+      expect(normalizedPhase8).toContain(
+        "If the final approval-summary path is absent or empty, stop before invoking `play-branch-finish`",
+      );
+      expect(normalizedPhase8).toContain(
         "Pass `assignee=@me` to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
+        "Pass `branch_review_required=true` to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
+        "Pass the final Phase 7 approval-summary path to `play-branch-finish` Option 2 as `approval_summary_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "If Phase 7 branch-review ran with `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path pattern through to `play-branch-finish` Option 2",
+      );
+      expect(normalizedPhase8).toContain(
+        "`approval_summary_file` is separate from `nits_file` and `assumptions_comment_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "Phase 8 does not validate approval-summary JSON or duplicate `play-branch-finish` or `play-validate-review-artifacts` gate semantics",
       );
       expect(normalizedPhase8).toContain(
         "PR creation preserves the branch and worktree",
@@ -601,6 +662,9 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizedPhase8).toContain(
         "Pass judgment-required Phase 7 feedback only through `nits_file`",
+      );
+      expect(normalizedPhase8).toContain(
+        "Do not use `nits_file` or `assumptions_comment_file` as approval-summary evidence",
       );
       expect(normalizedPhase8).toContain(
         "Phase 8 does not classify findings or prepare the nits envelope",
@@ -694,13 +758,79 @@ describe("rendered phase artifact smoke coverage", () => {
         "Option 2 does not invoke `branch-review`",
       );
       expect(normalizedOption2).toContain(
-        "does not validate branch-review completion or review completeness",
+        "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
       );
       expect(normalizedOption2).toContain(
-        "has no branch-review pass/fail authority",
+        "validates caller-supplied `approval_summary_file` evidence only through the explicit `branch_review_required=true` gate",
       );
       expect(normalizedOption2).toContain(
-        "validates the caller-supplied `nits_file` only as a PR review comment posting input",
+        "delegates pass/block interpretation to `play-validate-review-artifacts`",
+      );
+      expect(normalizedOption2).toContain(
+        "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+      );
+      expect(normalizedOption2).toContain(
+        "Optional input — branch-review approval gate",
+      );
+      expect(normalizedOption2).toContain("branch_review_required=true|false");
+      expect(normalizedOption2).toContain(
+        "absent, empty, or `false`, the gate is disabled",
+      );
+      expect(normalizedOption2).toContain("approval_summary_file");
+      expect(normalizedOption2).toContain(
+        "required only when `branch_review_required=true`",
+      );
+      expect(normalizedOption2).toContain(
+        "configured full-review path pattern",
+      );
+      expect(normalizedOption2).toContain(
+        "BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN",
+      );
+      expect(option2).toContain(
+        'BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN="${BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN:-}"',
+      );
+      expect(normalizedOption2).toContain(
+        "The gate is explicit only and must not be inferred",
+      );
+      expect(normalizedOption2).toContain(
+        "Run the adapter helper after autosquash handling and tree-invariant checks and before `git push`",
+      );
+      expect(option2).toContain(')" || exit 1');
+      expect(normalizedOption2).toContain(
+        "A failing gate stops before push or PR creation",
+      );
+      expect(normalizedOption2).toContain(
+        "delegates approval-summary interpretation to `play-validate-review-artifacts`",
+      );
+      expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
+      expect(normalizedOption2).toContain("headRefOid");
+      expect(option2).toContain('if [ -n "${APPROVED_HEAD_SHA:-}" ]; then');
+      expect(normalizedOption2).toContain(
+        "report the result as a match, mismatch, or unavailable",
+      );
+      expect(normalizedOption2).toContain(
+        "Unavailable GitHub head SHA is not verification success",
+      );
+      expect(normalizedOption2).toContain(
+        "Do not automatically close or delete the PR on mismatch",
+      );
+      const approvedHeadVerificationSnippet = sliceRenderedSection(
+        option2,
+        'if [ -n "${APPROVED_HEAD_SHA:-}" ]; then',
+        "Unavailable GitHub head SHA is not verification success.",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "if ! PR_HEAD_SHA=$(gh pr view --json headRefOid --jq '.headRefOid // empty'); then",
+      );
+      expect(approvedHeadVerificationSnippet).toContain('PR_HEAD_SHA=""');
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification unavailable",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification matched",
+      );
+      expect(approvedHeadVerificationSnippet).toContain(
+        "Post-create approved-head verification mismatch",
       );
       expect(normalizedOption2).toContain(
         "may pass an `assumptions_comment_file` argument",

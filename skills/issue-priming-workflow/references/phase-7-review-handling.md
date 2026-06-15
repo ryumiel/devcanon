@@ -7,7 +7,8 @@ nits, or preparing the Phase 8 `nits_file`.
 
 ## Review Artifact Parsing
 
-After `branch-review --fix`, parse two exact notice lines from that run:
+After each `branch-review --fix` run, parse these exact notice lines from that
+run:
 
 - `Review head: <40-hex-sha>.`
 - `Findings written to <path>.`
@@ -20,6 +21,20 @@ helper and validate the findings path before reading the envelope.
 
 Do not re-parse human-readable review markdown. The side-channel
 `play-review/findings/v1` envelope is the consumer contract.
+
+Once a run is candidate-final because all Phase 7 blocker, nit, and rerun
+criteria are satisfied, also capture the approval-summary path from the exact
+`Approval summary written to <path>.` notice emitted by that same run. Do not
+parse approval-summary JSON fields, duplicate branch-review's
+`branch-review/approval-summary/v1` schema, or reinterpret approval state here.
+Branch-review owns producing and validating that artifact. Phase 7 owns
+carrying the final notice path forward as handoff evidence.
+
+Do not reuse an approval-summary path captured from an earlier branch-review
+run. Approval-summary notice paths are final-run-only; any auto-fix commit,
+mechanical-nit commit, or other rerun invalidates earlier approval-summary
+paths for Phase 8 handoff. A missing final approval-summary notice is a hard
+stop before Phase 8.
 
 ## Blocker Stop Rules
 
@@ -73,8 +88,9 @@ Edit-Staleness Rule restates the same constraint for the per-task path.
 
 If any mechanical-nit commit is made, rerun `branch-review --fix` on the new
 `HEAD` and restart Phase 7. Continue until a run reports zero blocking findings
-auto-fixed, no unresolved true Blocking findings, and no additional mechanical
-nit commits after that review.
+auto-fixed, no unresolved true Blocking findings, captures that final run's
+approval-summary notice path, and no additional mechanical nit commits after
+that review.
 
 ## Judgment-Required Nits Envelope
 
@@ -110,6 +126,7 @@ these conditions:
 
 - zero blocking findings auto-fixed in that final run;
 - no unresolved remaining Blocking findings except `INVALID` or `DOWNGRADE`;
+- final approval-summary notice path captured from that same final run;
 - no mechanical-nit commit after that final review.
 
 Manual operators decide nit handling case by case; this reference's automatic

@@ -1377,14 +1377,26 @@ function findingsCounts(findings: JsonObject): {
     ...carryForwardFindings,
   ]);
   return {
-    blockerCount: remainingFindings.filter(
-      (finding) => stringField(finding, "severity") === "Blocking",
-    ).length,
-    nitCount: remainingFindings.filter(
-      (finding) => stringField(finding, "severity") === "Nit",
-    ).length,
+    blockerCount: remainingFindings.filter(isTrueBlockingFinding).length,
+    nitCount: remainingFindings.filter(isNonblockingFeedbackFinding).length,
     carryForwardCount: carryForwardFindings.length,
   };
+}
+
+function isTrueBlockingFinding(finding: JsonObject): boolean {
+  return (
+    stringField(finding, "severity") === "Blocking" &&
+    finding.critic !== "INVALID" &&
+    finding.critic !== "DOWNGRADE"
+  );
+}
+
+function isNonblockingFeedbackFinding(finding: JsonObject): boolean {
+  return (
+    stringField(finding, "severity") === "Nit" ||
+    (stringField(finding, "severity") === "Blocking" &&
+      finding.critic === "DOWNGRADE")
+  );
 }
 
 function uniqueFindingsByContent(

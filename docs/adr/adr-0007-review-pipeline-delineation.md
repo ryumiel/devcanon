@@ -86,8 +86,16 @@ unchanged.
 Branch-level review stays upstream of branch finish. Review-required caller
 workflows run branch review before handing off to branch finish, and branch
 finish consumes caller-supplied review artifacts only for posting or other
-caller-requested follow-through. Branch finish does not become the production,
-validation, completeness, or pass/fail owner for branch-level review.
+caller-requested follow-through. When a caller or parent workflow explicitly
+requires branch review before PR creation, branch finish may also validate
+caller-supplied `branch-review/approval-summary/v1` evidence as a deterministic
+adapter gate before creating the PR. That adapter validation checks the supplied
+evidence for the caller's explicit gate; it does not produce branch review,
+judge review findings, decide review completeness, or own branch-review
+approval. Branch-review remains the approval-summary producer and review
+judgment owner, while the issue-priming workflow remains responsible for
+requiring and carrying the final branch-review approval evidence into branch
+finish.
 
 ## Consequences
 

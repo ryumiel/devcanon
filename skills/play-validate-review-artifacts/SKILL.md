@@ -120,16 +120,22 @@ Scope-consuming commands must not rely on hidden prior validation state.
 and `--surface branch-review`. Callers that already captured linked evidence
 may also pass `--expected-findings-file` and
 `--expected-scope-decision-file`; supplied paths must exactly match the paths
-embedded in the summary before the linked evidence is trusted. Callers must
-also pass the same `--configured-path-pattern` value used for the linked
-branch-review scope decision when configured path escalation is part of that
-evidence. With `--emit-gate-result`, successful validation prints one JSON
-object containing `terminal_state` and `gate_result`, where `gate_result` is
-exactly `passing` for `approved` and `approved_with_nits`, and `blocking` for
-`blocked` and `invalid`. Without `--emit-gate-result`, callers rely on the zero
-exit status. The command rejects non-`branch-review` surfaces, stale heads,
-unsafe or missing paths, malformed linked evidence, digest drift, count drift,
-unknown terminal states, and any `gate_passed` field.
+embedded in the summary before the linked evidence is trusted. The validator
+recomputes approval counts from the linked findings using true-blocking
+semantics: `severity: "Blocking"` findings and carry-forward entries count as
+blockers only when `critic` is neither `INVALID` nor `DOWNGRADE`; downgraded
+blocking entries count as non-blocking feedback for the `approved_with_nits`
+path; invalidated blocking entries count as neither blockers nor postable
+nits. Callers must also pass the same `--configured-path-pattern` value used
+for the linked branch-review scope decision when configured path escalation is
+part of that evidence. With `--emit-gate-result`, successful validation prints
+one JSON object containing `terminal_state` and `gate_result`, where
+`gate_result` is exactly `passing` for `approved` and `approved_with_nits`, and
+`blocking` for `blocked` and `invalid`. Without `--emit-gate-result`, callers
+rely on the zero exit status. The command rejects non-`branch-review` surfaces,
+stale heads, unsafe or missing paths, malformed linked evidence, digest drift,
+count drift, terminal-state drift, unknown terminal states, and any
+`gate_passed` field.
 Consumers must use this validator output for pass/block interpretation rather
 than deriving pass/fail from summary fields themselves.
 

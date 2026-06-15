@@ -208,6 +208,27 @@ describe("phase artifact source contracts", () => {
       expect(issuePrimingWorkflow).toContain(noticeLine);
     }
     expect(phase7ReviewHandling).toContain("Findings written to <path>.");
+    expect(phase7ReviewHandling).toContain(
+      "Approval summary written to <path>.",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "After each `branch-review --fix` run, parse these exact notice lines from that run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Once a run is candidate-final because all Phase 7 blocker, nit, and rerun criteria are satisfied",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Do not parse approval-summary JSON fields",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Do not reuse an approval-summary path captured from an earlier branch-review run",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "Approval-summary notice paths are final-run-only",
+    );
+    expect(normalizeWhitespace(phase7ReviewHandling)).toContain(
+      "missing final approval-summary notice is a hard stop before Phase 8",
+    );
 
     expect(normalizedIssuePriming).toContain(
       "do not suppress or replace child skill approval gates",
@@ -1174,7 +1195,20 @@ describe("phase artifact source contracts", () => {
       "pass/block interpretation for the summary",
     );
     expect(normalizedBranchReview).toContain(
-      "Consumer gating from this summary into `play-branch-finish` remains deferred to GitHub issue #465",
+      "Approval-summary blocker counts use true-blocking semantics",
+    );
+    expect(normalizedBranchReview).toContain(
+      "invalidated blocking findings are neither blockers nor postable nits",
+    );
+    expect(normalizedBranchReview).not.toContain("GitHub issue #465");
+    expect(normalizedBranchReview).toContain(
+      "Branch-review emits and validates the approval-summary artifact",
+    );
+    expect(normalizedBranchReview).toContain(
+      "downstream workflows or `play-branch-finish` may validate caller-supplied approval-summary evidence when an explicit gate requires it",
+    );
+    expect(normalizedBranchReview).toContain(
+      "branch-review still does not create PRs or own branch-finish gating",
     );
     expect(normalizedBranchReview).toContain(
       "does not duplicate finding bodies and must not contain `gate_passed`",
@@ -1187,6 +1221,8 @@ describe("phase artifact source contracts", () => {
     expect(scopeHelper).toContain("write-approval-summary");
     expect(scopeHelper).toContain("-approval-summary.json");
     expect(scopeHelper).toContain("Approval summary written to %s.\\n");
+    expect(scopeHelper).toContain("def true_blocker:");
+    expect(scopeHelper).toContain("def nonblocking_feedback:");
     expect(normalizedScopeHelper).toContain(
       '--expected-findings-file "$FINDINGS_FILE"',
     );
