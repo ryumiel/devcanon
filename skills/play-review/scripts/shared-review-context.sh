@@ -55,6 +55,10 @@ escape_untrusted_guideline_text() {
   escape_untrusted_markdown_text "$1"
 }
 
+escape_untrusted_manifest_text() {
+  escape_untrusted_markdown_text "$1"
+}
+
 require_jq() {
   command -v jq >/dev/null 2>&1 || fail "jq is required to build play-review shared context"
 }
@@ -132,10 +136,13 @@ validate_manifest_schema() {
     def nonempty_string: type == "string" and length > 0;
     def nonnegative_integer: type == "number" and . == floor and . >= 0;
     def required_string_array: type == "array" and all(.[]; nonempty_string);
+    def mechanical_path_signal:
+      repo_relative_path
+      and (test("[[:space:]]") | not);
     def review_mode: . == "present" or . == "fix" or . == "github-post";
     def routing_risk:
       type == "object"
-      and (.mechanical_path_signals | required_string_array)
+      and (.mechanical_path_signals | type == "array" and all(.[]; mechanical_path_signal))
       and (.semantic_classification_notes | required_string_array);
     def changed_file:
       type == "object"
@@ -249,6 +256,10 @@ append_routing_risk_values() {
 
 build_core_section() {
   local target="$1"
+  local record
+  local status_value
+  local path_value
+  local reason_value
   append_line "$target" "# Shared Review Context"
   append_line "$target" ""
   append_line "$target" "Review head: $HEAD_SHA"
@@ -272,7 +283,11 @@ build_core_section() {
   if [ "$(jq '.changed_files.records | length' "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
     append_line "$target" "(none)"
   else
-    jq -r '.changed_files.records[] | "- " + .status + " " + .path' "$REVIEW_CONTEXT_INPUT_FILE" >>"$target"
+    while IFS= read -r record; do
+      status_value="$(jq -r '.status' <<<"$record")"
+      path_value="$(jq -r '.path' <<<"$record")"
+      append_line "$target" "- $(escape_untrusted_manifest_text "$status_value") $(escape_untrusted_manifest_text "$path_value")"
+    done < <(jq -c '.changed_files.records[]' "$REVIEW_CONTEXT_INPUT_FILE")
   fi
   append_line "$target" ""
   append_line "$target" "### Documentation Impact"
@@ -289,7 +304,11 @@ build_core_section() {
   if [ "$(jq '.adr_references | length' "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
     append_line "$target" "(none)"
   else
-    jq -r '.adr_references[] | "- " + .path + " - " + .reason' "$REVIEW_CONTEXT_INPUT_FILE" >>"$target"
+    while IFS= read -r record; do
+      path_value="$(jq -r '.path' <<<"$record")"
+      reason_value="$(jq -r '.reason' <<<"$record")"
+      append_line "$target" "- $(escape_untrusted_manifest_text "$path_value") - $(escape_untrusted_manifest_text "$reason_value")"
+    done < <(jq -c '.adr_references[]' "$REVIEW_CONTEXT_INPUT_FILE")
   fi
   append_line "$target" ""
   append_line "$target" "## Output Format"
