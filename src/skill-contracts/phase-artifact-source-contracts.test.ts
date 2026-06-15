@@ -1375,6 +1375,15 @@ describe("phase artifact source contracts", () => {
   it("keeps play-review branch follow-up context, carry-forward, and fail-closed helper contracts", async () => {
     const playReview = await readSkillSource("play-review");
     const normalizedPlayReview = normalizeWhitespace(playReview);
+    const phase25 = getMarkdownSection(
+      playReview,
+      "Phase 2.5: Compose shared review context",
+    );
+    const activeSharedContextContract = phase25.slice(
+      0,
+      phase25.indexOf("Do not fall back to the legacy context-only check"),
+    );
+    expect(activeSharedContextContract.length).toBeGreaterThan(0);
 
     expect(playReview).toContain("`prior_branch_findings`");
     expect(playReview).toContain(
@@ -1428,8 +1437,19 @@ describe("phase artifact source contracts", () => {
       "exits nonzero on any contract violation",
     );
     expect(playReview).toContain("Findings-file consumers fail closed");
-    expect(playReview).toContain(
+    expect(activeSharedContextContract).toContain(
+      "scripts/shared-review-context.sh",
+    );
+    expect(activeSharedContextContract).toContain("build-review-context");
+    expect(activeSharedContextContract).toContain("REVIEW_CONTEXT_FILE=$(");
+    expect(normalizeWhitespace(activeSharedContextContract)).toContain(
+      "Treat any nonzero helper exit, malformed stdout, unreadable output file, empty output file, or output path that is not the derived direct-child `.ephemeral/*-review-context.md` as a hard stop",
+    );
+    expect(activeSharedContextContract).not.toContain(
       '[ -s "$CONTEXT_FILE" ] || { echo "shared review-context write failed: $CONTEXT_FILE" >&2; exit 1; }',
+    );
+    expect(playReview).toContain(
+      "Do not fall back to the legacy context-only check as the guard",
     );
     expect(playReview).toContain(
       "do NOT dispatch Phase 3 agents — they would read an absent file",
