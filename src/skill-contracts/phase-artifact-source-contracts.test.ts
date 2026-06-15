@@ -1402,7 +1402,7 @@ describe("phase artifact source contracts", () => {
     );
     expect(playReview).toContain("Prior review context");
     expect(normalizedPlayReview).toContain(
-      "include the validated `play-review/findings/v1` envelope content",
+      "do not include the validated `play-review/findings/v1` envelope content verbatim",
     );
     expect(normalizedPlayReview).toContain(
       "branch-local prior findings rather than GitHub threads",
