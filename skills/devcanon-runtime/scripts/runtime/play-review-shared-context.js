@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
-import { access, lstat, mkdtemp, readFile, realpath, rename, rm, writeFile, } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile, } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
@@ -16,16 +16,32 @@ export async function runPlayReviewSharedContextCommand(args) {
     try {
         const [commandName] = args;
         switch (commandName) {
+            case "write-review-context-input":
+                return ok(`${await writeReviewContextInput()}\n`);
             case "build-review-context":
                 return ok(`${await buildReviewContext()}\n`);
             default:
-                throw new SharedContextError("usage: shared-review-context.sh build-review-context");
+                throw new SharedContextError("usage: shared-review-context.sh write-review-context-input|build-review-context");
         }
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
+}
+async function writeReviewContextInput() {
+    const repoRoot = await requireRepoRoot();
+    const headSha = requiredEnv("HEAD_SHA");
+    validateHeadSha(headSha);
+    const findingsFile = requiredEnv("FINDINGS_FILE");
+    validateFindingsPath(findingsFile, headSha);
+    const { inputFile } = deriveContextPaths(findingsFile);
+    const manifest = parseManifestPayload(requiredEnv("REVIEW_CONTEXT_INPUT_JSON"));
+    validateManifestBindings(manifest, headSha, repoRoot);
+    await prepareManifestWriteTarget(inputFile);
+    await writeTextUnderEphemeral(inputFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    await guardManifestReadTarget(inputFile);
+    return inputFile;
 }
 async function buildReviewContext() {
     const repoRoot = await requireRepoRoot();
@@ -34,7 +50,11 @@ async function buildReviewContext() {
     const findingsFile = requiredEnv("FINDINGS_FILE");
     const reviewContextInputFile = requiredEnv("REVIEW_CONTEXT_INPUT_FILE");
     validateFindingsPath(findingsFile, headSha);
-    const reviewContextOutputFile = deriveOutputPath(findingsFile, reviewContextInputFile);
+    const { inputFile: expectedInputFile, outputFile: reviewContextOutputFile } = deriveContextPaths(findingsFile);
+    validateDirectEphemeralPath("review context input", reviewContextInputFile, "-review-context-input.json");
+    if (reviewContextInputFile !== expectedInputFile) {
+        throw new SharedContextError(`review context input path mismatch: ${reviewContextInputFile}`);
+    }
     await guardReadInputAndOutput(reviewContextInputFile, reviewContextOutputFile);
     const manifest = await readManifest(reviewContextInputFile);
     validateManifestBindings(manifest, headSha, repoRoot);
@@ -116,32 +136,16 @@ function validateFindingsPath(findingsFile, headSha) {
         throw new SharedContextError(`findings path must include HEAD_SHA: ${findingsFile}`);
     }
 }
-function deriveOutputPath(findingsFile, reviewContextInputFile) {
-    const expectedInputFile = findingsFile.replace(/-findings\.json$/u, "-review-context-input.json");
-    const reviewContextOutputFile = findingsFile.replace(/-findings\.json$/u, "-review-context.md");
-    validateDirectEphemeralPath("review context input", expectedInputFile, "-review-context-input.json");
-    validateDirectEphemeralPath("review context output", reviewContextOutputFile, "-review-context.md");
-    validateDirectEphemeralPath("review context input", reviewContextInputFile, "-review-context-input.json");
-    if (reviewContextInputFile !== expectedInputFile) {
-        throw new SharedContextError(`review context input path mismatch: ${reviewContextInputFile}`);
-    }
-    return reviewContextOutputFile;
+function deriveContextPaths(findingsFile) {
+    const inputFile = findingsFile.replace(/-findings\.json$/u, "-review-context-input.json");
+    const outputFile = findingsFile.replace(/-findings\.json$/u, "-review-context.md");
+    validateDirectEphemeralPath("review context input", inputFile, "-review-context-input.json");
+    validateDirectEphemeralPath("review context output", outputFile, "-review-context.md");
+    return { inputFile, outputFile };
 }
 async function guardReadInputAndOutput(reviewContextInputFile, reviewContextOutputFile) {
-    const ephemeralStat = await lstat(".ephemeral").catch(() => null);
-    if (ephemeralStat?.isSymbolicLink()) {
-        throw new SharedContextError(".ephemeral must be a directory, not a symlink");
-    }
-    const inputStat = await lstat(reviewContextInputFile).catch(() => null);
-    if (inputStat?.isSymbolicLink()) {
-        throw new SharedContextError(`review context input must not be a symlink: ${reviewContextInputFile}`);
-    }
-    if (inputStat === null || !inputStat.isFile()) {
-        throw new SharedContextError(`review context input missing or not a regular file: ${reviewContextInputFile}`);
-    }
-    await access(reviewContextInputFile, constants.R_OK).catch(() => {
-        throw new SharedContextError(`review context input missing or unreadable: ${reviewContextInputFile}`);
-    });
+    await guardEphemeralDirectory();
+    await guardManifestReadTarget(reviewContextInputFile);
     const outputStat = await lstat(reviewContextOutputFile).catch(() => null);
     if (outputStat?.isSymbolicLink()) {
         throw new SharedContextError(`review context output must not be a symlink: ${reviewContextOutputFile}`);
@@ -153,6 +157,41 @@ async function guardReadInputAndOutput(reviewContextInputFile, reviewContextOutp
         throw new SharedContextError(`review context output exists but is not a regular file: ${reviewContextOutputFile}`);
     }
 }
+async function guardEphemeralDirectory() {
+    const ephemeralStat = await lstat(".ephemeral").catch(() => null);
+    if (ephemeralStat?.isSymbolicLink()) {
+        throw new SharedContextError(".ephemeral must be a directory, not a symlink");
+    }
+    if (ephemeralStat !== null && !ephemeralStat.isDirectory()) {
+        throw new SharedContextError(".ephemeral must be a directory");
+    }
+}
+async function prepareManifestWriteTarget(inputFile) {
+    await guardEphemeralDirectory();
+    await mkdir(".ephemeral", { recursive: true });
+    const inputStat = await lstat(inputFile).catch(() => null);
+    if (inputStat?.isSymbolicLink()) {
+        throw new SharedContextError(`review context input must not be a symlink: ${inputFile}`);
+    }
+    if (inputStat?.isDirectory()) {
+        throw new SharedContextError(`review context input path is a directory: ${inputFile}`);
+    }
+    if (inputStat !== null && !inputStat.isFile()) {
+        throw new SharedContextError(`review context input exists but is not a regular file: ${inputFile}`);
+    }
+}
+async function guardManifestReadTarget(inputFile) {
+    const inputStat = await lstat(inputFile).catch(() => null);
+    if (inputStat?.isSymbolicLink()) {
+        throw new SharedContextError(`review context input must not be a symlink: ${inputFile}`);
+    }
+    if (inputStat === null || !inputStat.isFile()) {
+        throw new SharedContextError(`review context input missing or not a regular file: ${inputFile}`);
+    }
+    await access(inputFile, constants.R_OK).catch(() => {
+        throw new SharedContextError(`review context input missing or unreadable: ${inputFile}`);
+    });
+}
 async function readManifest(file) {
     let raw;
     try {
@@ -161,12 +200,15 @@ async function readManifest(file) {
     catch {
         throw new SharedContextError(`review context input missing or unreadable: ${file}`);
     }
+    return parseManifestPayload(raw, file);
+}
+function parseManifestPayload(payload, fileForError = "<payload>") {
     let parsed;
     try {
-        parsed = JSON.parse(raw);
+        parsed = JSON.parse(payload);
     }
     catch {
-        throw new SharedContextError(`manifest JSON is malformed: ${file}`);
+        throw new SharedContextError(`manifest JSON is malformed: ${fileForError}`);
     }
     if (!isSharedContextInput(parsed)) {
         if (hasInvalidMode(parsed)) {
@@ -181,7 +223,7 @@ async function readManifest(file) {
         if (hasInvalidPriorSummary(parsed)) {
             throw new SharedContextError("prior review summary is required");
         }
-        throw new SharedContextError(`manifest schema mismatch: ${file}`);
+        throw new SharedContextError(`manifest schema mismatch: ${fileForError}`);
     }
     return parsed;
 }
@@ -203,12 +245,12 @@ function buildCoreSection(manifest, headSha, findingsFile, reviewContextInputFil
     lines.add(`Working directory: ${repoRoot}`);
     lines.add("");
     lines.add("## Core Review Surface");
-    lines.add(`- **Base ref:** ${manifest.header.base_ref}`);
-    lines.add(`- **Active diff range:** ${manifest.header.active_diff_range}`);
-    lines.add(`- **Full PR diff range:** ${manifest.header.full_pr_diff_range}`);
+    lines.add(`- **Base ref:** ${escapeUntrustedManifestText(manifest.header.base_ref)}`);
+    lines.add(`- **Active diff range:** ${escapeUntrustedManifestText(manifest.header.active_diff_range)}`);
+    lines.add(`- **Full PR diff range:** ${escapeUntrustedManifestText(manifest.header.full_pr_diff_range)}`);
     lines.add(`- **Mode:** ${manifest.header.mode}`);
-    lines.add(`- **Language hints:** ${manifest.header.language_hints.join(", ")}`);
-    lines.add(`- **Changed-files command:** ${manifest.changed_files.command}`);
+    lines.add(`- **Language hints:** ${manifest.header.language_hints.map(escapeUntrustedManifestText).join(", ")}`);
+    lines.add(`- **Changed-files command:** ${escapeUntrustedManifestText(manifest.changed_files.command)}`);
     lines.add(`- **Changed-files total:** ${manifest.changed_files.total_count}`);
     lines.add(`- **Changed-files truncated:** ${manifest.changed_files.truncated}`);
     lines.add("");
@@ -401,6 +443,17 @@ async function writeReviewContext(reviewContextOutputFile, content) {
         await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
     }
 }
+async function writeTextUnderEphemeral(targetFile, content) {
+    const tmpDir = await mkdtemp(".ephemeral/shared-context-input.");
+    const tmpFile = path.join(tmpDir, "review-context-input.json");
+    try {
+        await writeFile(tmpFile, content, "utf8");
+        await rename(tmpFile, targetFile);
+    }
+    finally {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+}
 function isSharedContextInput(value) {
     if (!isObject(value)) {
         return false;
@@ -424,6 +477,7 @@ function isSharedContextInput(value) {
         nonnegativeInteger(changedFiles.total_count) &&
         typeof changedFiles.truncated === "boolean" &&
         Array.isArray(changedFiles.records) &&
+        changedFileCountIsConsistent(changedFiles) &&
         changedFiles.records.every(isChangedFile) &&
         isObject(docImpact) &&
         Array.isArray(docImpact.arch_files) &&
@@ -449,6 +503,18 @@ function isSharedContextInput(value) {
             (isObject(value.prior_review_context) &&
                 Array.isArray(value.prior_review_context.records) &&
                 value.prior_review_context.records.every(isPriorReviewRecord))));
+}
+function changedFileCountIsConsistent(changedFiles) {
+    if (!nonnegativeInteger(changedFiles.total_count) ||
+        typeof changedFiles.truncated !== "boolean" ||
+        !Array.isArray(changedFiles.records)) {
+        return false;
+    }
+    if (changedFiles.records.length > changedFiles.total_count) {
+        return false;
+    }
+    return (changedFiles.truncated ||
+        changedFiles.records.length === changedFiles.total_count);
 }
 function isChangedFile(value) {
     return (isObject(value) &&

@@ -1668,6 +1668,7 @@ describe("existing skills source prose contracts", () => {
     );
 
     expect(phase25).toContain("scripts/shared-review-context.sh");
+    expect(phase25).toContain("write-review-context-input");
     expect(phase25).toContain("build-review-context");
     expect(phase25).toContain("play-review/shared-context-input/v1");
     expect(normalizedPhase25).toContain(
@@ -1680,17 +1681,15 @@ describe("existing skills source prose contracts", () => {
       "Do not recompute a separate branch slug",
     );
     expect(normalizedPhase25).toContain(
-      "derived direct-child `.ephemeral/*-review-context-input.json` manifest",
+      "pass it to the installed helper in `REVIEW_CONTEXT_INPUT_JSON`",
     );
     expect(normalizedPhase25).toContain(
       "must not write findings, review-context output, wrapper artifacts, source files, or external state",
     );
     expect(normalizedPhase25).toContain(
-      "Write a temporary file under `.ephemeral/`, then atomically rename it",
+      "The helper owns the deterministic write mechanics",
     );
-    expect(normalizedPhase25).toContain(
-      "still the path derived from `$FINDINGS_FILE`",
-    );
+    expect(normalizedPhase25).toContain("atomically renames it into place");
 
     for (const field of [
       "working_directory",

@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import {
   access,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
@@ -97,17 +98,39 @@ export async function runPlayReviewSharedContextCommand(
   try {
     const [commandName] = args;
     switch (commandName) {
+      case "write-review-context-input":
+        return ok(`${await writeReviewContextInput()}\n`);
       case "build-review-context":
         return ok(`${await buildReviewContext()}\n`);
       default:
         throw new SharedContextError(
-          "usage: shared-review-context.sh build-review-context",
+          "usage: shared-review-context.sh write-review-context-input|build-review-context",
         );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, stdout: "", stderr: `${message}\n` };
   }
+}
+
+async function writeReviewContextInput(): Promise<string> {
+  const repoRoot = await requireRepoRoot();
+  const headSha = requiredEnv("HEAD_SHA");
+  validateHeadSha(headSha);
+  const findingsFile = requiredEnv("FINDINGS_FILE");
+  validateFindingsPath(findingsFile, headSha);
+  const { inputFile } = deriveContextPaths(findingsFile);
+  const manifest = parseManifestPayload(
+    requiredEnv("REVIEW_CONTEXT_INPUT_JSON"),
+  );
+  validateManifestBindings(manifest, headSha, repoRoot);
+  await prepareManifestWriteTarget(inputFile);
+  await writeTextUnderEphemeral(
+    inputFile,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  await guardManifestReadTarget(inputFile);
+  return inputFile;
 }
 
 async function buildReviewContext(): Promise<string> {
@@ -117,10 +140,18 @@ async function buildReviewContext(): Promise<string> {
   const findingsFile = requiredEnv("FINDINGS_FILE");
   const reviewContextInputFile = requiredEnv("REVIEW_CONTEXT_INPUT_FILE");
   validateFindingsPath(findingsFile, headSha);
-  const reviewContextOutputFile = deriveOutputPath(
-    findingsFile,
+  const { inputFile: expectedInputFile, outputFile: reviewContextOutputFile } =
+    deriveContextPaths(findingsFile);
+  validateDirectEphemeralPath(
+    "review context input",
     reviewContextInputFile,
+    "-review-context-input.json",
   );
+  if (reviewContextInputFile !== expectedInputFile) {
+    throw new SharedContextError(
+      `review context input path mismatch: ${reviewContextInputFile}`,
+    );
+  }
   await guardReadInputAndOutput(
     reviewContextInputFile,
     reviewContextOutputFile,
@@ -232,68 +263,38 @@ function validateFindingsPath(findingsFile: string, headSha: string): void {
   }
 }
 
-function deriveOutputPath(
-  findingsFile: string,
-  reviewContextInputFile: string,
-): string {
-  const expectedInputFile = findingsFile.replace(
+function deriveContextPaths(findingsFile: string): {
+  inputFile: string;
+  outputFile: string;
+} {
+  const inputFile = findingsFile.replace(
     /-findings\.json$/u,
     "-review-context-input.json",
   );
-  const reviewContextOutputFile = findingsFile.replace(
+  const outputFile = findingsFile.replace(
     /-findings\.json$/u,
     "-review-context.md",
   );
   validateDirectEphemeralPath(
     "review context input",
-    expectedInputFile,
+    inputFile,
     "-review-context-input.json",
   );
   validateDirectEphemeralPath(
     "review context output",
-    reviewContextOutputFile,
+    outputFile,
     "-review-context.md",
   );
-  validateDirectEphemeralPath(
-    "review context input",
-    reviewContextInputFile,
-    "-review-context-input.json",
-  );
-  if (reviewContextInputFile !== expectedInputFile) {
-    throw new SharedContextError(
-      `review context input path mismatch: ${reviewContextInputFile}`,
-    );
-  }
-  return reviewContextOutputFile;
+  return { inputFile, outputFile };
 }
 
 async function guardReadInputAndOutput(
   reviewContextInputFile: string,
   reviewContextOutputFile: string,
 ): Promise<void> {
-  const ephemeralStat = await lstat(".ephemeral").catch(() => null);
-  if (ephemeralStat?.isSymbolicLink()) {
-    throw new SharedContextError(
-      ".ephemeral must be a directory, not a symlink",
-    );
-  }
+  await guardEphemeralDirectory();
 
-  const inputStat = await lstat(reviewContextInputFile).catch(() => null);
-  if (inputStat?.isSymbolicLink()) {
-    throw new SharedContextError(
-      `review context input must not be a symlink: ${reviewContextInputFile}`,
-    );
-  }
-  if (inputStat === null || !inputStat.isFile()) {
-    throw new SharedContextError(
-      `review context input missing or not a regular file: ${reviewContextInputFile}`,
-    );
-  }
-  await access(reviewContextInputFile, constants.R_OK).catch(() => {
-    throw new SharedContextError(
-      `review context input missing or unreadable: ${reviewContextInputFile}`,
-    );
-  });
+  await guardManifestReadTarget(reviewContextInputFile);
 
   const outputStat = await lstat(reviewContextOutputFile).catch(() => null);
   if (outputStat?.isSymbolicLink()) {
@@ -313,6 +314,58 @@ async function guardReadInputAndOutput(
   }
 }
 
+async function guardEphemeralDirectory(): Promise<void> {
+  const ephemeralStat = await lstat(".ephemeral").catch(() => null);
+  if (ephemeralStat?.isSymbolicLink()) {
+    throw new SharedContextError(
+      ".ephemeral must be a directory, not a symlink",
+    );
+  }
+  if (ephemeralStat !== null && !ephemeralStat.isDirectory()) {
+    throw new SharedContextError(".ephemeral must be a directory");
+  }
+}
+
+async function prepareManifestWriteTarget(inputFile: string): Promise<void> {
+  await guardEphemeralDirectory();
+  await mkdir(".ephemeral", { recursive: true });
+  const inputStat = await lstat(inputFile).catch(() => null);
+  if (inputStat?.isSymbolicLink()) {
+    throw new SharedContextError(
+      `review context input must not be a symlink: ${inputFile}`,
+    );
+  }
+  if (inputStat?.isDirectory()) {
+    throw new SharedContextError(
+      `review context input path is a directory: ${inputFile}`,
+    );
+  }
+  if (inputStat !== null && !inputStat.isFile()) {
+    throw new SharedContextError(
+      `review context input exists but is not a regular file: ${inputFile}`,
+    );
+  }
+}
+
+async function guardManifestReadTarget(inputFile: string): Promise<void> {
+  const inputStat = await lstat(inputFile).catch(() => null);
+  if (inputStat?.isSymbolicLink()) {
+    throw new SharedContextError(
+      `review context input must not be a symlink: ${inputFile}`,
+    );
+  }
+  if (inputStat === null || !inputStat.isFile()) {
+    throw new SharedContextError(
+      `review context input missing or not a regular file: ${inputFile}`,
+    );
+  }
+  await access(inputFile, constants.R_OK).catch(() => {
+    throw new SharedContextError(
+      `review context input missing or unreadable: ${inputFile}`,
+    );
+  });
+}
+
 async function readManifest(file: string): Promise<SharedContextInput> {
   let raw: string;
   try {
@@ -323,11 +376,18 @@ async function readManifest(file: string): Promise<SharedContextInput> {
     );
   }
 
+  return parseManifestPayload(raw, file);
+}
+
+function parseManifestPayload(
+  payload: string,
+  fileForError = "<payload>",
+): SharedContextInput {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as unknown;
+    parsed = JSON.parse(payload) as unknown;
   } catch {
-    throw new SharedContextError(`manifest JSON is malformed: ${file}`);
+    throw new SharedContextError(`manifest JSON is malformed: ${fileForError}`);
   }
 
   if (!isSharedContextInput(parsed)) {
@@ -345,7 +405,7 @@ async function readManifest(file: string): Promise<SharedContextInput> {
     if (hasInvalidPriorSummary(parsed)) {
       throw new SharedContextError("prior review summary is required");
     }
-    throw new SharedContextError(`manifest schema mismatch: ${file}`);
+    throw new SharedContextError(`manifest schema mismatch: ${fileForError}`);
   }
 
   return parsed;
@@ -384,14 +444,22 @@ function buildCoreSection(
   lines.add(`Working directory: ${repoRoot}`);
   lines.add("");
   lines.add("## Core Review Surface");
-  lines.add(`- **Base ref:** ${manifest.header.base_ref}`);
-  lines.add(`- **Active diff range:** ${manifest.header.active_diff_range}`);
-  lines.add(`- **Full PR diff range:** ${manifest.header.full_pr_diff_range}`);
+  lines.add(
+    `- **Base ref:** ${escapeUntrustedManifestText(manifest.header.base_ref)}`,
+  );
+  lines.add(
+    `- **Active diff range:** ${escapeUntrustedManifestText(manifest.header.active_diff_range)}`,
+  );
+  lines.add(
+    `- **Full PR diff range:** ${escapeUntrustedManifestText(manifest.header.full_pr_diff_range)}`,
+  );
   lines.add(`- **Mode:** ${manifest.header.mode}`);
   lines.add(
-    `- **Language hints:** ${manifest.header.language_hints.join(", ")}`,
+    `- **Language hints:** ${manifest.header.language_hints.map(escapeUntrustedManifestText).join(", ")}`,
   );
-  lines.add(`- **Changed-files command:** ${manifest.changed_files.command}`);
+  lines.add(
+    `- **Changed-files command:** ${escapeUntrustedManifestText(manifest.changed_files.command)}`,
+  );
   lines.add(`- **Changed-files total:** ${manifest.changed_files.total_count}`);
   lines.add(
     `- **Changed-files truncated:** ${manifest.changed_files.truncated}`,
@@ -646,6 +714,20 @@ async function writeReviewContext(
   }
 }
 
+async function writeTextUnderEphemeral(
+  targetFile: string,
+  content: string,
+): Promise<void> {
+  const tmpDir = await mkdtemp(".ephemeral/shared-context-input.");
+  const tmpFile = path.join(tmpDir, "review-context-input.json");
+  try {
+    await writeFile(tmpFile, content, "utf8");
+    await rename(tmpFile, targetFile);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 function isSharedContextInput(value: unknown): value is SharedContextInput {
   if (!isObject(value)) {
     return false;
@@ -670,6 +752,7 @@ function isSharedContextInput(value: unknown): value is SharedContextInput {
     nonnegativeInteger(changedFiles.total_count) &&
     typeof changedFiles.truncated === "boolean" &&
     Array.isArray(changedFiles.records) &&
+    changedFileCountIsConsistent(changedFiles) &&
     changedFiles.records.every(isChangedFile) &&
     isObject(docImpact) &&
     Array.isArray(docImpact.arch_files) &&
@@ -695,6 +778,23 @@ function isSharedContextInput(value: unknown): value is SharedContextInput {
       (isObject(value.prior_review_context) &&
         Array.isArray(value.prior_review_context.records) &&
         value.prior_review_context.records.every(isPriorReviewRecord)))
+  );
+}
+
+function changedFileCountIsConsistent(changedFiles: JsonObject): boolean {
+  if (
+    !nonnegativeInteger(changedFiles.total_count) ||
+    typeof changedFiles.truncated !== "boolean" ||
+    !Array.isArray(changedFiles.records)
+  ) {
+    return false;
+  }
+  if (changedFiles.records.length > changedFiles.total_count) {
+    return false;
+  }
+  return (
+    changedFiles.truncated ||
+    changedFiles.records.length === changedFiles.total_count
   );
 }
 

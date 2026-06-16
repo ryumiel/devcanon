@@ -577,36 +577,37 @@ source before relying on it.
 
 ### Input manifest write guard
 
-The only write target in this preparation step is the derived direct-child
-`.ephemeral/*-review-context-input.json` manifest. Preparing the input manifest
-must not write findings, review-context output, wrapper artifacts, source files,
-or external state; do not append and do not follow symlinks.
+Preparing the input manifest must not write findings, review-context output,
+wrapper artifacts, source files, or external state. Assemble the manifest object
+in memory with `header.head_sha="$HEAD_SHA"` and
+`header.working_directory="$(pwd -P)"` from the physical repository root, encode
+it as compact JSON, and pass it to the installed helper in
+`REVIEW_CONTEXT_INPUT_JSON`. The helper owns the deterministic write mechanics:
+it validates `$FINDINGS_FILE`, derives the direct-child
+`.ephemeral/*-review-context-input.json` path, rejects traversal, nested paths,
+symlinked `.ephemeral`, symlinked or non-regular manifest targets, validates the
+manifest schema and trusted bindings, writes through a temporary file under
+`.ephemeral/`, atomically renames it into place, and verifies the final manifest
+is readable before printing only the repo-relative manifest path.
 
-Validate and write in this order:
+Do not write the manifest with a prompt-controlled `Write` or shell redirect.
+Do not append. Do not remove a symlink to make the write succeed.
 
-1. Validate `$FINDINGS_FILE` from § Output: it must be a repo-relative direct
-   child of `.ephemeral/`, end in `-findings.json`, contain the exact trusted
-   `$HEAD_SHA`, contain no `..`, and not be nested.
-2. Derive `$REVIEW_CONTEXT_INPUT_FILE` by replacing `-findings.json` with
-   `-review-context-input.json`; reject nested, traversal, absolute, or
-   non-derived paths.
-3. Reject a symlinked `.ephemeral` before creating it. Only after that check,
-   create `.ephemeral` if needed.
-4. Reject a symlinked, directory, non-regular, or otherwise unsafe manifest
-   target. Do not remove a symlink to make the write succeed.
-5. Assemble the manifest with `header.head_sha="$HEAD_SHA"` and
-   `header.working_directory="$(pwd -P)"` from the physical repository root.
-6. Write a temporary file under `.ephemeral/`, then atomically rename it to the
-   derived manifest path.
-7. Verify the final manifest is a readable regular file, still a direct child
-   of `.ephemeral/`, and still the path derived from `$FINDINGS_FILE`.
-
-After identity validation succeeds, invoke the helper from the installed
-`play-review` bundle:
+Invoke the helper from the installed `play-review` bundle in two steps:
 
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
 PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"
+REVIEW_CONTEXT_INPUT_FILE=$(
+  HEAD_SHA="$HEAD_SHA" \
+  FINDINGS_FILE="$FINDINGS_FILE" \
+  REVIEW_CONTEXT_INPUT_JSON="$REVIEW_CONTEXT_INPUT_JSON" \
+    bash "$PLAY_REVIEW_SHARED_CONTEXT_HELPER" write-review-context-input
+) || {
+  echo "shared review-context input helper failed; refusing Phase 3 dispatch" >&2
+  exit 1
+}
+
 REVIEW_CONTEXT_FILE=$(
   HEAD_SHA="$HEAD_SHA" \
   FINDINGS_FILE="$FINDINGS_FILE" \
