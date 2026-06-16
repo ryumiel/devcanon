@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -20,7 +21,6 @@ import {
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
-const jqAvailable = await commandAvailable("jq");
 const helperScript = path.join(
   process.cwd(),
   "skills/play-review/scripts/shared-review-context.sh",
@@ -29,15 +29,6 @@ const headSha = "0123456789abcdef0123456789abcdef01234567";
 const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const inputFile = `.ephemeral/topic-${headSha}-review-context-input.json`;
 const outputFile = `.ephemeral/topic-${headSha}-review-context.md`;
-
-async function commandAvailable(command: string): Promise<boolean> {
-  try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function makeGitWorkspace(): Promise<string> {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-shared-context-"));
@@ -154,8 +145,9 @@ async function runHelper(
   cwd: string,
   command = "build-review-context",
   env: NodeJS.ProcessEnv = {},
+  script = helperScript,
 ) {
-  return execFileAsync("bash", [helperScript, command], {
+  return execFileAsync("bash", [script, command], {
     cwd,
     env: {
       ...process.env,
@@ -207,7 +199,7 @@ function expectNoRoutingRiskListItemFenceBodies(section: string): void {
   expect(section).not.toMatch(/^\s*-\s+~{3,}/m);
 }
 
-describe.skipIf(!jqAvailable)("play-review shared context helper", () => {
+describe("play-review shared context helper", () => {
   it("builds one bounded direct-child context file from a valid manifest and replaces existing content", async () => {
     const cwd = await makeGitWorkspace();
     try {
@@ -229,6 +221,44 @@ describe.skipIf(!jqAvailable)("play-review shared context helper", () => {
       expect(content).not.toContain("stale content");
     } finally {
       await cleanupTempDir(cwd);
+    }
+  });
+
+  it("runs from a copied play-review bundle with sibling devcanon-runtime", async () => {
+    const tempDir = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-shared-context-bundle-"),
+    );
+    const workspace = await makeGitWorkspace();
+    try {
+      const skillsDir = path.join(tempDir, "skills");
+      await mkdir(skillsDir);
+      await cp(
+        path.resolve("skills/play-review"),
+        path.join(skillsDir, "play-review"),
+        { recursive: true },
+      );
+      await cp(
+        path.resolve("skills/devcanon-runtime"),
+        path.join(skillsDir, "devcanon-runtime"),
+        { recursive: true },
+      );
+      await writeManifest(workspace);
+
+      const { stdout, stderr } = await runHelper(
+        workspace,
+        "build-review-context",
+        {},
+        path.join(skillsDir, "play-review/scripts/shared-review-context.sh"),
+      );
+
+      expect(stderr).toBe("");
+      expect(stdout).toBe(`${outputFile}\n`);
+      await expect(
+        readFile(path.join(workspace, outputFile), "utf8"),
+      ).resolves.toContain("# Shared Review Context");
+    } finally {
+      await cleanupTempDir(workspace);
+      await cleanupTempDir(tempDir);
     }
   });
 
@@ -678,6 +708,49 @@ describe.skipIf(!jqAvailable)("play-review shared context helper", () => {
       expect(docImpactSection).toContain("~~~spec-mechanical.md");
       expect(docImpactSection).toContain("```spec semantic fence");
       expect(docImpactSection).toContain("~~~spec semantic fence");
+      expectNoRoutingRiskListItemFenceBodies(docImpactSection);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("renders fence-starting documentation impact paths as inert untrusted data", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await writeManifest(
+        cwd,
+        inputFile,
+        manifest({
+          doc_impact_summary: {
+            arch_files: ["```docs/arch.md", "~~~docs/arch.md"],
+            new_adrs: ["```docs/adr/new.md", "~~~docs/adr/new.md"],
+            modified_adrs: [
+              "```docs/adr/modified.md",
+              "~~~docs/adr/modified.md",
+            ],
+            architecture_routing_risks: {
+              mechanical_path_signals: ["skills/play-review/SKILL.md"],
+              semantic_classification_notes: ["Architecture signal."],
+            },
+            spec_routing_risks: {
+              mechanical_path_signals: ["skills/pr-review/SKILL.md"],
+              semantic_classification_notes: ["Spec signal."],
+            },
+            notes: "No oversized lists.",
+          },
+        }),
+      );
+
+      await runHelper(cwd);
+      const content = await readFile(path.join(cwd, outputFile), "utf8");
+      const docImpactSection = documentationImpactSection(content);
+
+      expect(docImpactSection).toContain("```docs/arch.md");
+      expect(docImpactSection).toContain("~~~docs/arch.md");
+      expect(docImpactSection).toContain("```docs/adr/new.md");
+      expect(docImpactSection).toContain("~~~docs/adr/new.md");
+      expect(docImpactSection).toContain("```docs/adr/modified.md");
+      expect(docImpactSection).toContain("~~~docs/adr/modified.md");
       expectNoRoutingRiskListItemFenceBodies(docImpactSection);
     } finally {
       await cleanupTempDir(cwd);
