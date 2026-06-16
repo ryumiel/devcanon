@@ -561,142 +561,221 @@ function appendRoutingRiskValues(
 }
 
 function buildGuidelineSection(manifest: SharedContextInput): string {
-  const lines = new Lines();
   const records = manifest.discovered_guidelines.records;
-  lines.add("## Discovered Guidelines");
+  const header = "## Discovered Guidelines\n";
   if (records.length === 0) {
+    const lines = new Lines();
+    lines.text(header);
     lines.add("(none)");
     lines.add("");
     return lines.toString();
   }
 
-  records.forEach((record, index) => {
+  const blocks = records.map((record, index): PackedSectionBlock => {
     const pathDisplay = escapeUntrustedGuidelineText(record.path);
     const summaryDisplay = escapeUntrustedGuidelineText(record.summary);
     const priorityDisplay = escapeUntrustedGuidelineText(
       record.priority ?? "unspecified",
     );
+    const baseLines = new Lines();
     if (index >= GUIDELINE_ITEM_LIMIT) {
-      lines.add(`### Guideline overflow record ${index + 1}`);
-      lines.add(`- **Path:** ${pathDisplay}`);
-      lines.add(`- **Byte count:** ${record.bytes}`);
-      lines.add(`- **Summary:** ${summaryDisplay}`);
-      lines.add(
+      baseLines.add(`### Guideline overflow record ${index + 1}`);
+      baseLines.add(`- **Path:** ${pathDisplay}`);
+      baseLines.add(`- **Byte count:** ${record.bytes}`);
+      baseLines.add(`- **Summary:** ${summaryDisplay}`);
+      baseLines.add(
         `- **Overflow:** record beyond ${GUIDELINE_ITEM_LIMIT} guideline item limit`,
       );
-      lines.add(
+      baseLines.add(
         `- Targeted reread: open ${pathDisplay} before relying on this guideline.`,
       );
-      lines.add("");
-    } else {
-      lines.add(`### Guideline record ${index + 1}`);
-      lines.add(`- **Path:** ${pathDisplay}`);
-      lines.add(`- **Byte count:** ${record.bytes}`);
-      lines.add(`- **Priority:** ${priorityDisplay}`);
-      lines.add(`- **Summary:** ${summaryDisplay}`);
-      lines.add(
-        `- Targeted reread: open ${pathDisplay} if this summary affects a finding.`,
-      );
-      const excerpt = record.exact_excerpts?.[0];
-      if (excerpt === undefined) {
-        lines.add("- **Exact excerpt:** (none)");
-      } else {
-        const excerptBytes = byteCount(excerpt);
-        const excerptDisplay = escapeUntrustedGuidelineText(excerpt);
-        const excerptText = `- **Exact excerpt bytes:** ${excerptBytes}\n- Exact excerpt: ${excerptDisplay}\n`;
-        if (
-          excerptBytes <= GUIDELINE_EXCERPT_LIMIT &&
-          byteCount(lines.toString()) + byteCount(excerptText) <=
-            GUIDELINE_BUDGET
-        ) {
-          lines.text(excerptText);
-        } else {
-          lines.add(
-            "- **Overflow:** exact excerpt omitted due to byte budget.",
-          );
-          lines.add(
-            "- **Exact excerpt:** Exact excerpt omitted due to byte budget.",
-          );
-        }
-      }
-      lines.add("");
+      baseLines.add("");
+      return { baseText: baseLines.toString() };
     }
-    if (byteCount(lines.toString()) > GUIDELINE_BUDGET) {
-      throw new SharedContextError("guideline section byte budget exceeded");
+
+    baseLines.add(`### Guideline record ${index + 1}`);
+    baseLines.add(`- **Path:** ${pathDisplay}`);
+    baseLines.add(`- **Byte count:** ${record.bytes}`);
+    baseLines.add(`- **Priority:** ${priorityDisplay}`);
+    baseLines.add(`- **Summary:** ${summaryDisplay}`);
+    baseLines.add(
+      `- Targeted reread: open ${pathDisplay} if this summary affects a finding.`,
+    );
+    const excerpt = record.exact_excerpts?.[0];
+    if (excerpt === undefined) {
+      baseLines.add("- **Exact excerpt:** (none)");
+      baseLines.add("");
+      return { baseText: baseLines.toString() };
     }
+
+    baseLines.add("- **Overflow:** exact excerpt omitted due to byte budget.");
+    baseLines.add(
+      "- **Exact excerpt:** Exact excerpt omitted due to byte budget.",
+    );
+    baseLines.add("");
+
+    const excerptBytes = byteCount(excerpt);
+    if (excerptBytes > GUIDELINE_EXCERPT_LIMIT) {
+      return { baseText: baseLines.toString() };
+    }
+
+    const includedLines = new Lines();
+    includedLines.add(`### Guideline record ${index + 1}`);
+    includedLines.add(`- **Path:** ${pathDisplay}`);
+    includedLines.add(`- **Byte count:** ${record.bytes}`);
+    includedLines.add(`- **Priority:** ${priorityDisplay}`);
+    includedLines.add(`- **Summary:** ${summaryDisplay}`);
+    includedLines.add(
+      `- Targeted reread: open ${pathDisplay} if this summary affects a finding.`,
+    );
+    includedLines.add(`- **Exact excerpt bytes:** ${excerptBytes}`);
+    includedLines.add(
+      `- Exact excerpt: ${escapeUntrustedGuidelineText(excerpt)}`,
+    );
+    includedLines.add("");
+    return {
+      baseText: baseLines.toString(),
+      includedText: includedLines.toString(),
+    };
   });
 
-  return lines.toString();
+  return packRequiredFirstSection(
+    header,
+    blocks,
+    GUIDELINE_BUDGET,
+    "guideline section byte budget exceeded",
+  );
 }
 
 function buildPriorSection(manifest: SharedContextInput): string {
-  const lines = new Lines();
   const records = manifest.prior_review_context?.records ?? [];
-  lines.add("## Prior Review Context");
+  const header = "## Prior Review Context\n";
   if (records.length === 0) {
+    const lines = new Lines();
+    lines.text(header);
     lines.add("(none)");
     lines.add("");
     return lines.toString();
   }
 
-  records.forEach((record, index) => {
+  const blocks = records.map((record, index): PackedSectionBlock => {
     const sourceKindDisplay = escapeUntrustedPriorText(record.source.kind);
     const sourceReferenceDisplay = escapeUntrustedPriorText(
       record.source.reference,
     );
     const summaryDisplay = escapeUntrustedPriorText(record.summary);
+    const baseLines = new Lines();
     if (index >= PRIOR_ITEM_LIMIT) {
-      lines.add(`### Prior review overflow record ${index + 1}`);
-      lines.add(`- **Source kind:** ${sourceKindDisplay}`);
-      lines.add(`- Source reference: ${sourceReferenceDisplay}`);
-      lines.add(`- **Byte count:** ${record.bytes}`);
-      lines.add(`- **Summary:** ${summaryDisplay}`);
-      lines.add("- Untrusted prior-review evidence: true");
-      lines.add(
+      baseLines.add(`### Prior review overflow record ${index + 1}`);
+      baseLines.add(`- **Source kind:** ${sourceKindDisplay}`);
+      baseLines.add(`- Source reference: ${sourceReferenceDisplay}`);
+      baseLines.add(`- **Byte count:** ${record.bytes}`);
+      baseLines.add(`- **Summary:** ${summaryDisplay}`);
+      baseLines.add("- Untrusted prior-review evidence: true");
+      baseLines.add(
         `- **Overflow:** record beyond ${PRIOR_ITEM_LIMIT} prior-review item limit`,
       );
-      lines.add(
+      baseLines.add(
         `- Targeted reread: inspect ${sourceReferenceDisplay} before relying on this prior review context.`,
       );
-      lines.add("");
-    } else {
-      lines.add(`### Prior review record ${index + 1}`);
-      lines.add(`- **Source kind:** ${sourceKindDisplay}`);
-      lines.add(`- Source reference: ${sourceReferenceDisplay}`);
-      lines.add(`- **Byte count:** ${record.bytes}`);
-      lines.add(`- **Summary:** ${summaryDisplay}`);
-      lines.add("- Untrusted prior-review evidence: true");
-      lines.add(
-        `- Targeted reread: inspect ${sourceReferenceDisplay} if this untrusted summary affects a finding.`,
-      );
-      const excerpt = record.exact_excerpt ?? "";
-      if (excerpt.length === 0) {
-        lines.add("- **Exact excerpt:** (none)");
-      } else {
-        const excerptBytes = byteCount(excerpt);
-        const excerptDisplay = escapeUntrustedPriorText(excerpt);
-        const excerptText = `- **Exact excerpt bytes:** ${excerptBytes}\n- Exact excerpt: ${excerptDisplay}\n`;
-        if (
-          excerptBytes <= PRIOR_EXCERPT_LIMIT &&
-          byteCount(lines.toString()) + byteCount(excerptText) <= PRIOR_BUDGET
-        ) {
-          lines.text(excerptText);
-        } else {
-          lines.add(
-            "- **Overflow:** exact excerpt omitted due to byte budget.",
-          );
-          lines.add(
-            "- **Exact excerpt:** Exact excerpt omitted due to byte budget.",
-          );
-        }
-      }
-      lines.add("");
+      baseLines.add("");
+      return { baseText: baseLines.toString() };
     }
-    if (byteCount(lines.toString()) > PRIOR_BUDGET) {
-      throw new SharedContextError("prior review section byte budget exceeded");
+
+    baseLines.add(`### Prior review record ${index + 1}`);
+    baseLines.add(`- **Source kind:** ${sourceKindDisplay}`);
+    baseLines.add(`- Source reference: ${sourceReferenceDisplay}`);
+    baseLines.add(`- **Byte count:** ${record.bytes}`);
+    baseLines.add(`- **Summary:** ${summaryDisplay}`);
+    baseLines.add("- Untrusted prior-review evidence: true");
+    baseLines.add(
+      `- Targeted reread: inspect ${sourceReferenceDisplay} if this untrusted summary affects a finding.`,
+    );
+    const excerpt = record.exact_excerpt ?? "";
+    if (excerpt.length === 0) {
+      baseLines.add("- **Exact excerpt:** (none)");
+      baseLines.add("");
+      return { baseText: baseLines.toString() };
     }
+
+    baseLines.add("- **Overflow:** exact excerpt omitted due to byte budget.");
+    baseLines.add(
+      "- **Exact excerpt:** Exact excerpt omitted due to byte budget.",
+    );
+    baseLines.add("");
+
+    const excerptBytes = byteCount(excerpt);
+    if (excerptBytes > PRIOR_EXCERPT_LIMIT) {
+      return { baseText: baseLines.toString() };
+    }
+
+    const includedLines = new Lines();
+    includedLines.add(`### Prior review record ${index + 1}`);
+    includedLines.add(`- **Source kind:** ${sourceKindDisplay}`);
+    includedLines.add(`- Source reference: ${sourceReferenceDisplay}`);
+    includedLines.add(`- **Byte count:** ${record.bytes}`);
+    includedLines.add(`- **Summary:** ${summaryDisplay}`);
+    includedLines.add("- Untrusted prior-review evidence: true");
+    includedLines.add(
+      `- Targeted reread: inspect ${sourceReferenceDisplay} if this untrusted summary affects a finding.`,
+    );
+    includedLines.add(`- **Exact excerpt bytes:** ${excerptBytes}`);
+    includedLines.add(`- Exact excerpt: ${escapeUntrustedPriorText(excerpt)}`);
+    includedLines.add("");
+    return {
+      baseText: baseLines.toString(),
+      includedText: includedLines.toString(),
+    };
   });
 
+  return packRequiredFirstSection(
+    header,
+    blocks,
+    PRIOR_BUDGET,
+    "prior review section byte budget exceeded",
+  );
+}
+
+interface PackedSectionBlock {
+  baseText: string;
+  includedText?: string;
+}
+
+function packRequiredFirstSection(
+  header: string,
+  blocks: PackedSectionBlock[],
+  budget: number,
+  errorMessage: string,
+): string {
+  const requiredText = `${header}${blocks
+    .map((block) => block.baseText)
+    .join("")}`;
+  if (byteCount(requiredText) > budget) {
+    throw new SharedContextError(errorMessage);
+  }
+
+  const suffixBaseBytes = new Array<number>(blocks.length + 1).fill(0);
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    suffixBaseBytes[index] =
+      suffixBaseBytes[index + 1] + byteCount(blocks[index].baseText);
+  }
+
+  const lines = new Lines();
+  lines.text(header);
+  for (const [index, block] of blocks.entries()) {
+    const candidate = block.includedText;
+    if (
+      candidate !== undefined &&
+      byteCount(lines.toString()) +
+        byteCount(candidate) +
+        suffixBaseBytes[index + 1] <=
+        budget
+    ) {
+      lines.text(candidate);
+    } else {
+      lines.text(block.baseText);
+    }
+  }
   return lines.toString();
 }
 

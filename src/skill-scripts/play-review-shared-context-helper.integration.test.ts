@@ -213,6 +213,16 @@ function priorReviewSection(content: string): string {
   return content.slice(index);
 }
 
+function guidelineSection(content: string): string {
+  const marker = "## Discovered Guidelines";
+  const endMarker = "## Prior Review Context";
+  const index = content.indexOf(marker);
+  const end = content.indexOf(endMarker);
+  expect(index).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(index);
+  return content.slice(index, end);
+}
+
 function documentationImpactSection(content: string): string {
   const marker = "### Documentation Impact";
   const endMarker = "### ADR References";
@@ -1067,6 +1077,165 @@ describe("play-review shared context helper", () => {
     }
   });
 
+  it("preserves required guideline records before optional exact excerpts", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const optionalExcerpt = "GUIDELINE OPTIONAL ".repeat(200);
+      await writeManifest(
+        cwd,
+        inputFile,
+        manifest({
+          discovered_guidelines: {
+            records: [
+              {
+                path: "docs/guidelines/first.md",
+                bytes: 500,
+                summary: "First guideline summary",
+                priority: "required",
+                exact_excerpts: [optionalExcerpt],
+              },
+              ...Array.from({ length: 3 }, (_, index) => ({
+                path: `docs/guidelines/later-${index + 1}.md`,
+                bytes: 6500,
+                summary: `${"later guideline required context ".repeat(200)}later required summary ${index + 1}`,
+                priority: "required",
+              })),
+            ],
+          },
+        }),
+      );
+
+      await runHelper(cwd);
+      const content = await readFile(path.join(cwd, outputFile), "utf8");
+      const section = guidelineSection(content);
+
+      expect(Buffer.byteLength(section, "utf8")).toBeLessThanOrEqual(24000);
+      expect(section).toContain("First guideline summary");
+      expect(section).toContain("later required summary 3");
+      expect(section).toContain(
+        'Targeted reread: open "docs/guidelines/later-3.md"',
+      );
+      expect(section).toContain("Exact excerpt omitted due to byte budget.");
+      expect(section).not.toContain("GUIDELINE OPTIONAL");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("preserves required prior-review records before optional exact excerpts", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const optionalExcerpt = "PRIOR OPTIONAL ".repeat(130);
+      await writeManifest(
+        cwd,
+        inputFile,
+        manifest({
+          prior_review_context: {
+            records: [
+              {
+                source: {
+                  kind: "github-review-thread",
+                  reference: "PR #12 thread early",
+                },
+                bytes: 500,
+                summary: "First prior review summary",
+                exact_excerpt: optionalExcerpt,
+                untrusted: true,
+              },
+              ...Array.from({ length: 3 }, (_, index) => ({
+                source: {
+                  kind: "github-review-thread",
+                  reference: `PR #12 thread later ${index + 1}`,
+                },
+                bytes: 4500,
+                summary: `${"later prior required context ".repeat(160)}later prior summary ${index + 1}`,
+                untrusted: true,
+              })),
+            ],
+          },
+        }),
+      );
+
+      await runHelper(cwd);
+      const content = await readFile(path.join(cwd, outputFile), "utf8");
+      const section = priorReviewSection(content);
+
+      expect(Buffer.byteLength(section, "utf8")).toBeLessThanOrEqual(16000);
+      expect(section).toContain("First prior review summary");
+      expect(section).toContain("later prior summary 3");
+      expect(section).toContain('Source reference: "PR #12 thread later 3"');
+      expect(section).toContain("Untrusted prior-review evidence: true");
+      expect(section).toContain(
+        'Targeted reread: inspect "PR #12 thread later 3"',
+      );
+      expect(section).toContain("Exact excerpt omitted due to byte budget.");
+      expect(section).not.toContain("PRIOR OPTIONAL");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("preserves fitting item-cap overflow entries before optional exact excerpts", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const guidelineExcerpt = "GUIDELINE OVERFLOW OPTIONAL ".repeat(140);
+      const priorExcerpt = "PRIOR OVERFLOW OPTIONAL ".repeat(80);
+      await writeManifest(
+        cwd,
+        inputFile,
+        manifest({
+          discovered_guidelines: {
+            records: Array.from({ length: 13 }, (_, index) => ({
+              path: `docs/guidelines/overflow-${index + 1}.md`,
+              bytes: 1500,
+              summary: `${"guideline overflow required context ".repeat(38)}guideline overflow summary ${index + 1}`,
+              priority: "required",
+              exact_excerpts: index === 0 ? [guidelineExcerpt] : undefined,
+            })),
+          },
+          prior_review_context: {
+            records: Array.from({ length: 21 }, (_, index) => ({
+              source: {
+                kind: "github-review-thread",
+                reference: `PR #12 overflow thread ${index + 1}`,
+              },
+              bytes: 600,
+              summary: `${"prior overflow required context ".repeat(11)}prior overflow summary ${index + 1}`,
+              exact_excerpt: index === 0 ? priorExcerpt : undefined,
+              untrusted: true,
+            })),
+          },
+        }),
+      );
+
+      await runHelper(cwd);
+      const content = await readFile(path.join(cwd, outputFile), "utf8");
+      const guidelines = guidelineSection(content);
+      const prior = priorReviewSection(content);
+
+      expect(Buffer.byteLength(guidelines, "utf8")).toBeLessThanOrEqual(24000);
+      expect(guidelines).toContain("Guideline overflow record 13");
+      expect(guidelines).toContain("guideline overflow summary 13");
+      expect(guidelines).toContain(
+        'Targeted reread: open "docs/guidelines/overflow-13.md"',
+      );
+      expect(guidelines).toContain("Exact excerpt omitted due to byte budget.");
+      expect(guidelines).not.toContain("GUIDELINE OVERFLOW OPTIONAL");
+
+      expect(Buffer.byteLength(prior, "utf8")).toBeLessThanOrEqual(16000);
+      expect(prior).toContain("Prior review overflow record 21");
+      expect(prior).toContain("prior overflow summary 21");
+      expect(prior).toContain(
+        'Targeted reread: inspect "PR #12 overflow thread 21"',
+      );
+      expect(prior).toContain("Untrusted prior-review evidence: true");
+      expect(prior).toContain("Exact excerpt omitted due to byte budget.");
+      expect(prior).not.toContain("PRIOR OVERFLOW OPTIONAL");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("uses UTF-8 byte accounting for multibyte content and fails closed when section summaries cannot fit", async () => {
     const cwd = await makeGitWorkspace();
     try {
@@ -1120,6 +1289,35 @@ describe("play-review shared context helper", () => {
       await expectFailure(overBudget, "guideline section byte budget exceeded");
     } finally {
       await cleanupTempDir(overBudget);
+    }
+
+    const overBudgetPrior = await makeGitWorkspace();
+    try {
+      await writeManifest(
+        overBudgetPrior,
+        inputFile,
+        manifest({
+          prior_review_context: {
+            records: [
+              {
+                source: {
+                  kind: "github-review-thread",
+                  reference: "PR #12 over-budget prior",
+                },
+                bytes: 20000,
+                summary: "界".repeat(6000),
+                untrusted: true,
+              },
+            ],
+          },
+        }),
+      );
+      await expectFailure(
+        overBudgetPrior,
+        "prior review section byte budget exceeded",
+      );
+    } finally {
+      await cleanupTempDir(overBudgetPrior);
     }
   });
 });
