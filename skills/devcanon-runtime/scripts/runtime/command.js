@@ -1,6 +1,7 @@
 import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import { RuntimePathError, normalizeRuntimePath, requireDirectEphemeralChild, } from "./paths.js";
+import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { runPrReviewManifestsCommand } from "./pr-review-manifests.js";
@@ -25,6 +26,8 @@ export async function runRuntimeCommand(args) {
                 return validateJson(rest);
             case "review-artifacts":
                 return await runReviewArtifactsCommand(rest);
+            case "play-review-shared-context":
+                return await runPlayReviewSharedContextCommand(rest);
             case "issue-worktree-setup":
                 return await runIssueWorktreeSetupCommand(rest);
             case "git-workspace-cleanup":

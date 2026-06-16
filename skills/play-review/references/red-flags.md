@@ -4,7 +4,7 @@ Behavioral signals that this skill is being violated. They restate the Hard
 Rules in `SKILL.md` from a "what does the failure look like" angle.
 
 - You called any `gh` command (`gh pr view`, `gh pr diff`, `gh api`, `gh pr review`) — that's the wrapper's job
-- You modified files in `working_directory` other than the `.ephemeral/` findings file or shared review-context file (see § Output and Phase 2.5) — this skill emits findings, not edits
+- You modified files in `working_directory` other than the direct-child `.ephemeral/` findings file, review-context input manifest, or rendered shared review-context file (see § Output and Phase 2.5) — this skill emits findings and bounded preparation artifacts, not unrelated edits
 - You created or removed a worktree — the wrapper handles that
 - You skipped the always-on `Code-quality` reviewer or omitted its baseline data-safety, language, tests, or external-invocation coverage
 - You treated line count alone as enough to suppress risk-triggered `Architecture` or `Spec` review

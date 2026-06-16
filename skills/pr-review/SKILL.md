@@ -347,7 +347,17 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
-Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown document with optional pre-findings presentation such as `## Root-Cause Synthesis`, followed by `## Findings` and (follow-up only) `## Carry-forward` sections. Immediately after `play-review` returns and before the Phase 5 user gate, capture the immutable review head and the exact findings notice path for Phase 6:
+Follow `skills/play-review/SKILL.md` end-to-end. The shared review context is
+internal `play-review` phase scaffolding, not a `pr-review` consumer hook. Do
+not parse, validate, render, post, or snapshot the Phase 2.5 shared
+review-context file in this wrapper. `pr-review` remains compatible when
+`play-review` changes only its bounded shared-context prose or helper internals
+and preserves the findings notice, findings envelope, and Phase 4 output
+contract. The output is a markdown document with optional pre-findings
+presentation such as `## Root-Cause Synthesis`, followed by `## Findings` and
+(follow-up only) `## Carry-forward` sections. Immediately after `play-review`
+returns and before the Phase 5 user gate, capture the immutable review head and
+the exact findings notice path for Phase 6:
 
 ```bash
 HEAD_SHA="$(git -C "$WORKING_DIRECTORY" rev-parse HEAD)"
