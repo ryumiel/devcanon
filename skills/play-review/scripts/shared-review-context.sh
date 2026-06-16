@@ -241,7 +241,7 @@ append_routing_risk_values() {
   else
     while IFS= read -r value; do
       append_line "$target" "    - $value"
-    done < <(jq -r "$query.mechanical_path_signals[] | @json | .[1:-1]" "$REVIEW_CONTEXT_INPUT_FILE")
+    done < <(jq -r "$query.mechanical_path_signals[] | @json" "$REVIEW_CONTEXT_INPUT_FILE")
   fi
   append_line "$target" "  - Semantic classification notes:"
   if [ "$(jq "$query.semantic_classification_notes | length" "$REVIEW_CONTEXT_INPUT_FILE")" -eq 0 ]; then
@@ -249,7 +249,7 @@ append_routing_risk_values() {
   else
     while IFS= read -r value; do
       append_line "$target" "    - $value"
-    done < <(jq -r "$query.semantic_classification_notes[] | @json | .[1:-1]" "$REVIEW_CONTEXT_INPUT_FILE")
+    done < <(jq -r "$query.semantic_classification_notes[] | @json" "$REVIEW_CONTEXT_INPUT_FILE")
   fi
 }
 
