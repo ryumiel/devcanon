@@ -108,6 +108,7 @@ Helper command surface:
 - `write`
 - `validate`
 - `inspect-worktree`
+- `read-status`
 - `cleanup-worktree`
 
 The authoritative lifecycle contract lives in
@@ -255,6 +256,7 @@ Helper command surface:
 - `prepare-result-write`
 - `write-result`
 - `validate-result`
+- `render-phase5-audit-summary`
 
 Exact controller-facing notice lines:
 
@@ -541,12 +543,53 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 
 After the preview render and result-manifest update validate, write `gated`
 with `RESULT_FILE="$REVIEW_RESULT_FILE"`, `PRESENTED_AT`, and
-`PRESENTATION_STATUS`. If the user edits the body or findings and the preview
-is re-rendered, update the same `gated` lease after the manifest update
-succeeds. The lease gate is still not approval.
+`PRESENTATION_STATUS`. Refresh lease validation for every gate cycle; never
+treat the `RESULT_FILE` path alone as freshness evidence. If the user edits the
+body or findings and the preview is re-rendered, update the same `gated` lease
+after the manifest update succeeds. The lease gate is still not approval.
 
-Present exactly that stdout to the user as the preview, plus the thread
-resolution list for follow-up reviews when applicable:
+After every successful `gated` write, including edited previews, render the
+mandatory Phase 5 artifact audit summary before asking for user action. The
+summary must derive only from the validated result manifest plus the current
+read-only lease/worktree status:
+
+```bash
+(
+  cd "$WORKING_DIRECTORY" || exit 1
+  PR_NUMBER="$PR_NUMBER" \
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || exit 1
+)
+
+LEASE_STATUS_JSON=$(
+  PR_NUMBER="$PR_NUMBER" \
+  WORKTREE_PATH="$WORKING_DIRECTORY" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+    bash "$PR_REVIEW_LEASE_HELPER" read-status
+) || exit 1
+
+PHASE5_AUDIT_SUMMARY=$(
+  PR_NUMBER="$PR_NUMBER" \
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  RESULT_FILE="$REVIEW_RESULT_FILE" \
+  LEASE_STATUS_JSON="$LEASE_STATUS_JSON" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
+) || exit 1
+```
+
+Fail closed if the summary detects a stale digest or validation timestamp,
+missing digest, mismatched presentation status, missing `presented_at`,
+identity mismatch, missing worktree, unregistered worktree, or unreadable
+worktree. Treat a dirty-but-valid worktree as truthful status and continue.
+`read-status` is read-only and must not record cleanup metadata. If summary
+rendering fails after the gate write, record `failed` with
+`FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and
+`FAILURE_RECOVERABILITY`, then preserve prior validated artifacts.
+
+Present exactly that stdout to the user as the preview, followed by the
+mandatory audit summary, plus the thread resolution list for follow-up reviews
+when applicable:
 
 ```
 ### Previous Threads
@@ -612,7 +655,9 @@ sentences naming what the implementation got right before findings:
 Then present the re-rendered stdout and wait again. Do not rebuild a preview
 from conversation text or current checkout state. After findings edits, rewrite
 `pr-review/result/v1` with `PRESENTATION_STATUS="edited"` and emit
-`PR review result manifest updated at <repo-relative-path>.`.
+`PR review result manifest updated at <repo-relative-path>.`, then refresh the
+`gated` lease and render the mandatory Phase 5 artifact audit summary again
+before waiting for approval.
 
 **User actions:**
 

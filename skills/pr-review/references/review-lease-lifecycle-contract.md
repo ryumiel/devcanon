@@ -70,6 +70,10 @@ and `FAILURE_RECOVERABILITY`.
 accepted that result manifest. Leases without a result manifest keep the result
 validation outcome null.
 
+The result manifest digest is stored only in
+`validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
+schema to carry lease freshness evidence.
+
 For compatibility with early `pr-review/lease/v1` files written before the
 validation field existed, the runtime interprets missing
 `validation.result_manifest` as null when no result manifest is present, or as
@@ -91,6 +95,34 @@ approved-review validation produced a payload copy. That pointer is cleanup
 evidence only when it is derived from the PR number and review head and matches
 the frozen approved-review payload.
 
+## Read-Only Status
+
+`review-leases.sh read-status` delegates to `devcanon-runtime runtime
+pr-review-leases read-status`. It is read-only and must not record cleanup
+metadata.
+
+Stdout is one JSON object with exactly these keys:
+
+- `lease_state`
+- `worktree_path`
+- `worktree_digest`
+- `worktree_exists`
+- `worktree_registered`
+- `worktree_dirty`
+- `identity_match`
+- `result_file`
+- `result_sha256`
+- `result_validated_at`
+- `lease_updated_at`
+- `presentation_status`
+- `presented_at`
+
+Boolean fields are JSON booleans. Consumers must treat missing digest, stale
+digest, stale validation timestamp, mismatched presentation status, missing
+`presented_at`, identity mismatch, missing worktree, unregistered worktree, or
+unreadable worktree as fail-closed audit failures. A dirty-but-valid worktree is
+truthful status and does not by itself block the Phase 5 gate.
+
 ## Artifact Requirements
 
 Referenced artifacts stay owned by their existing helpers. The lease reducer
@@ -99,7 +131,8 @@ validates direct-child paths and artifact identity before accepting pointers:
 - Handoff manifest: repository, PR number, refs, review head, and execution
   worktree path must match the lease identity.
 - Result manifest: repository, PR number, review head, deterministic handoff
-  chain, and handoff pointer must match.
+  chain, handoff pointer, and `validation.result_manifest.sha256` digest must
+  match.
 - Gated result: presentation status must be current for the presented preview.
 - Approved-review: review head and payload commit must bind to the gated result.
 - Validated payload copy: direct-child path must match the approved-review
