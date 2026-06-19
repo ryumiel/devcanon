@@ -25,6 +25,22 @@ const PR_REVIEW_MANIFEST_NOTICE_LINES = [
   "PR review result manifest updated at <repo-relative-path>.",
 ] as const;
 
+const PR_REVIEW_LEASE_READ_STATUS_KEYS = [
+  "lease_state",
+  "worktree_path",
+  "worktree_digest",
+  "worktree_exists",
+  "worktree_registered",
+  "worktree_dirty",
+  "identity_match",
+  "result_file",
+  "result_sha256",
+  "result_validated_at",
+  "lease_updated_at",
+  "presentation_status",
+  "presented_at",
+] as const;
+
 function shellFunctionBody(content: string, functionName: string): string {
   const start = content.indexOf(`${functionName}() {`);
 
@@ -606,15 +622,29 @@ describe("phase artifact source contracts", () => {
     const manifestHelper = await readRepoFile(
       "skills/pr-review/scripts/review-manifests.sh",
     );
+    const leaseHelper = await readRepoFile(
+      "skills/pr-review/scripts/review-leases.sh",
+    );
+    const leaseLifecycleReference = await readRepoFile(
+      "skills/pr-review/references/review-lease-lifecycle-contract.md",
+    );
     const manifestRuntime = await readRepoFile(
       "src/runtime/pr-review-manifests.ts",
     );
+    const leaseRuntime = await readRepoFile("src/runtime/pr-review-leases.ts");
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedManifestHelper = normalizeWhitespace(manifestHelper);
+    const normalizedLeaseHelper = normalizeWhitespace(leaseHelper);
+    const normalizedLeaseLifecycleReference = normalizeWhitespace(
+      leaseLifecycleReference,
+    );
     const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
+    const normalizedLeaseRuntime = normalizeWhitespace(leaseRuntime);
 
     expect(prReview).toContain("scripts/review-manifests.sh");
+    expect(prReview).toContain("scripts/review-leases.sh");
     expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
+    expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
     expect(prReview).toContain("pr-review/handoff/v1");
     expect(prReview).toContain("pr-review/result/v1");
     expect(prReview).toContain(
@@ -636,7 +666,17 @@ describe("phase artifact source contracts", () => {
       expect(manifestHelper).toContain(helperCommand);
     }
     expect(manifestHelper).toContain("runtime pr-review-manifests");
+    expect(leaseHelper).toContain("runtime pr-review-leases");
     expect(manifestRuntime).toContain("runPrReviewManifestsCommand");
+    expect(leaseRuntime).toContain("runPrReviewLeasesCommand");
+    expect(manifestHelper).toContain("render-phase5-audit-summary");
+    expect(manifestHelper).toContain(
+      'exec "$runtime" runtime pr-review-manifests "$command_name"',
+    );
+    expect(leaseHelper).toContain("read-status");
+    expect(leaseHelper).toContain(
+      'exec "$runtime" runtime pr-review-leases "$command_name"',
+    );
 
     for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
       expect(prReview).toContain(noticeLine);
@@ -661,7 +701,44 @@ describe("phase artifact source contracts", () => {
       "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
     );
     expect(normalizedPrReview).toContain(
+      "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
+    );
+    expect(normalizedPrReview).toContain(
+      "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+    );
+    expect(normalizedPrReview).toContain(
+      "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
+    );
+    expect(normalizedPrReview).toContain(
+      "Treat a dirty-but-valid worktree as truthful status and continue",
+    );
+    expect(normalizedPrReview).toContain(
+      "`read-status` is read-only and must not record cleanup metadata",
+    );
+    expect(normalizedPrReview).toContain(
+      "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+    );
+    expect(normalizedPrReview).toContain(
+      "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
+    );
+    expect(normalizedPrReview).toContain(
+      "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+    );
+    expect(normalizedPrReview).toContain(
+      "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
+    );
+    expect(normalizedPrReview).toContain(
+      "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
+    );
+    expect(normalizedPrReview).toContain(
       "read_pr_review_result_manifest_for_preview",
+    );
+    expect(normalizedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+    expect(normalizedPrReview).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+    );
+    expect(normalizedPrReview).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
     expect(normalizedPrReview).toContain(
       ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
@@ -710,10 +787,44 @@ describe("phase artifact source contracts", () => {
     expect(normalizedManifestRuntime).toContain(
       'schema: "pr-review/result/v1"',
     );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "The result manifest digest is stored only in `validation.result_manifest.sha256`",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Do not expand the `pr-review/result/v1` schema to carry lease freshness evidence",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "`review-leases.sh read-status` delegates to `devcanon-runtime runtime pr-review-leases read-status`",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "It is read-only and must not record cleanup metadata",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Boolean fields are JSON booleans",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "A dirty-but-valid worktree is truthful status and does not by itself block the Phase 5 gate",
+    );
+    for (const readStatusKey of PR_REVIEW_LEASE_READ_STATUS_KEYS) {
+      expect(leaseLifecycleReference).toContain(`- \`${readStatusKey}\``);
+    }
     expect(manifestRuntime).toContain('"approval_state"');
     expect(manifestRuntime).toContain('"lease_state"');
     expect(manifestRuntime).toContain('"review_payload_file"');
     expect(manifestRuntime).toContain('"payload_sha256"');
+    expect(normalizedManifestRuntime).toContain(
+      "renderPhase5AuditSummary",
+    );
+    expect(normalizedManifestRuntime).toContain("result_sha256");
+    expect(normalizedManifestRuntime).toContain("result_validated_at");
+    expect(normalizedManifestRuntime).toContain("presented_at");
+    expect(normalizedManifestRuntime).toContain("identity_match");
+    expect(normalizedManifestRuntime).toContain("worktree_registered");
+    expect(normalizedManifestRuntime).toContain("worktree_dirty");
+    expect(normalizedLeaseRuntime).toContain("readStatus");
+    expect(normalizedLeaseRuntime).toContain("result_sha256");
+    expect(normalizedLeaseRuntime).toContain("worktree_dirty");
+    expect(normalizedLeaseRuntime).not.toContain("cleanup_outcome");
     expect(manifestHelper).not.toMatch(/\bgh\s+api\b/);
     expect(manifestRuntime).not.toMatch(/\bgh\s+api\b/);
   });

@@ -284,6 +284,7 @@ describe("rendered phase artifact smoke coverage", () => {
     const prReview = bodyFor("pr-review");
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
     expect(prReview).toContain("scripts/review-manifests.sh");
+    expect(prReview).toContain("scripts/review-leases.sh");
     expect(prReview).toContain("build-github-review-payload");
     expect(prReview).toContain("prepare-review-payload-write");
     expect(prReview).toContain("freeze-approved-review");
@@ -292,6 +293,8 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain("pr-review/result/v1");
     expect(prReview).toContain("pr-review/approved-review/v1");
     expect(prReview).toContain('REVIEW_SURFACE="pr-review"');
+    expect(prReview).toContain("PR_REVIEW_MANIFEST_HELPER");
+    expect(prReview).toContain("PR_REVIEW_LEASE_HELPER");
     expect(prReview).toContain("REVIEW_BODY_FILE");
     expect(prReview).toContain("review body parent must be .ephemeral");
     expect(prReview).toContain("REVIEW_PAYLOAD_FILE");
@@ -312,8 +315,42 @@ describe("rendered phase artifact smoke coverage", () => {
       "PR head changed since review; refusing stale review result",
     );
     expect(prReview).toContain("read_pr_review_result_manifest_for_preview");
+    expect(prReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+    expect(prReview).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+    );
+    expect(prReview).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Treat a dirty-but-valid worktree as truthful status and continue",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "`read-status` is read-only and must not record cleanup metadata",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
     );
     expect(prReview).toContain(
       "review worktree HEAD changed since handoff; refusing stale review",
@@ -364,7 +401,9 @@ describe("rendered phase artifact smoke coverage", () => {
         "scripts/approved-review-artifacts.sh",
       );
       expect(renderedPrReview).toContain("scripts/review-manifests.sh");
+      expect(renderedPrReview).toContain("scripts/review-leases.sh");
       expect(renderedPrReview).toContain("PR_REVIEW_MANIFEST_HELPER");
+      expect(renderedPrReview).toContain("PR_REVIEW_LEASE_HELPER");
       expect(renderedPrReview).toContain("pr-review/handoff/v1");
       expect(renderedPrReview).toContain("pr-review/result/v1");
       expect(renderedPrReview).toContain("render-review-preview");
@@ -419,6 +458,14 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         "read_pr_review_result_manifest_for_preview",
       );
+      expect(renderedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+      expect(renderedPrReview).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+      );
+      expect(renderedPrReview).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+      );
+      expect(renderedPrReview).toContain("FAILURE_PHASE=preview-render");
       expect(renderedPrReview).toContain(
         ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
       );
@@ -442,6 +489,33 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Treat a dirty-but-valid worktree as truthful status and continue",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "`read-status` is read-only and must not record cleanup metadata",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Result-manifest consumption is only for rendering or resume",
