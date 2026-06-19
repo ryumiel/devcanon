@@ -734,6 +734,14 @@ describe("phase artifact source contracts", () => {
       "read_pr_review_result_manifest_for_preview",
     );
     expect(normalizedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+    expect(normalizedPrReview).toContain("PHASE5_AUDIT_STATUS=0");
+    expect(normalizedPrReview).toContain(") || PHASE5_AUDIT_STATUS=$?");
+    expect(normalizedPrReview).toContain(
+      'if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then',
+    );
+    expect(normalizedPrReview).toContain(
+      'REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+    );
     expect(normalizedPrReview).toContain('REPOSITORY="<owner/repo>"');
     expect(normalizedPrReview).toContain(
       'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
@@ -743,6 +751,22 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
+    expect(normalizedPrReview).toContain('STATE="failed"');
+    expect(normalizedPrReview).toContain('EXPECTED_STATE="gated"');
+    expect(normalizedPrReview).toContain(
+      'FINISHED_AT="$REVIEW_GATE_FINISHED_AT"',
+    );
+    expect(normalizedPrReview).toContain('FAILURE_PHASE="preview-render"');
+    expect(normalizedPrReview).toContain(
+      'FAILURE_REASON="Phase 5 artifact audit summary failed"',
+    );
+    expect(normalizedPrReview).toContain(
+      'FAILURE_RECOVERABILITY="recoverable"',
+    );
+    expect(normalizedPrReview).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+    );
+    expect(normalizedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
     expect(normalizedPrReview).toContain(
       "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
     );

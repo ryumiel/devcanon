@@ -316,6 +316,12 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReview).toContain("read_pr_review_result_manifest_for_preview");
     expect(prReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+    expect(prReview).toContain("PHASE5_AUDIT_STATUS=0");
+    expect(prReview).toContain(") || PHASE5_AUDIT_STATUS=$?");
+    expect(prReview).toContain('if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then');
+    expect(prReview).toContain(
+      'REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+    );
     expect(prReview).toContain('REPOSITORY="<owner/repo>"');
     expect(prReview).toContain('PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"');
     expect(prReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
@@ -323,6 +329,18 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
+    expect(prReview).toContain('STATE="failed"');
+    expect(prReview).toContain('EXPECTED_STATE="gated"');
+    expect(prReview).toContain('FINISHED_AT="$REVIEW_GATE_FINISHED_AT"');
+    expect(prReview).toContain('FAILURE_PHASE="preview-render"');
+    expect(prReview).toContain(
+      'FAILURE_REASON="Phase 5 artifact audit summary failed"',
+    );
+    expect(prReview).toContain('FAILURE_RECOVERABILITY="recoverable"');
+    expect(prReview).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+    );
+    expect(prReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
     );
@@ -464,6 +482,14 @@ describe("rendered phase artifact smoke coverage", () => {
         "read_pr_review_result_manifest_for_preview",
       );
       expect(renderedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+      expect(renderedPrReview).toContain("PHASE5_AUDIT_STATUS=0");
+      expect(renderedPrReview).toContain(") || PHASE5_AUDIT_STATUS=$?");
+      expect(renderedPrReview).toContain(
+        'if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then',
+      );
+      expect(renderedPrReview).toContain(
+        'REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+      );
       expect(renderedPrReview).toContain('REPOSITORY="<owner/repo>"');
       expect(renderedPrReview).toContain(
         'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
@@ -473,7 +499,23 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
       );
+      expect(renderedPrReview).toContain('STATE="failed"');
+      expect(renderedPrReview).toContain('EXPECTED_STATE="gated"');
+      expect(renderedPrReview).toContain(
+        'FINISHED_AT="$REVIEW_GATE_FINISHED_AT"',
+      );
       expect(renderedPrReview).toContain("FAILURE_PHASE=preview-render");
+      expect(renderedPrReview).toContain('FAILURE_PHASE="preview-render"');
+      expect(renderedPrReview).toContain(
+        'FAILURE_REASON="Phase 5 artifact audit summary failed"',
+      );
+      expect(renderedPrReview).toContain(
+        'FAILURE_RECOVERABILITY="recoverable"',
+      );
+      expect(renderedPrReview).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+      );
+      expect(renderedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
       expect(renderedPrReview).toContain(
         ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
       );

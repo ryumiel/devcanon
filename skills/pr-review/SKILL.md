@@ -562,6 +562,7 @@ read-only lease/worktree status:
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || exit 1
 )
 
+PHASE5_AUDIT_STATUS=0
 PHASE5_AUDIT_SUMMARY=$(
   REPOSITORY="<owner/repo>" \
   PR_NUMBER="$PR_NUMBER" \
@@ -571,7 +572,30 @@ PHASE5_AUDIT_SUMMARY=$(
   WORKTREE_PATH="$WORKING_DIRECTORY" \
   LEASE_FILE="$LEASE_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
-) || exit 1
+) || PHASE5_AUDIT_STATUS=$?
+if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
+  REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  (
+    cd "$REVIEW_CALLER_DIR" || exit 1
+    REPOSITORY="<owner/repo>" \
+    PR_NUMBER="$PR_NUMBER" \
+    PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+    WORKTREE_PATH="$WORKING_DIRECTORY" \
+    LEASE_FILE="$LEASE_FILE" \
+    STATE="failed" \
+    EXPECTED_STATE="gated" \
+    BASE_REF="$PR_BASE_REF" \
+    HEAD_REF="$PR_HEAD_REF" \
+    UPDATED_AT="$REVIEW_GATE_FINISHED_AT" \
+    RESULT_FILE="$REVIEW_RESULT_FILE" \
+    FINISHED_AT="$REVIEW_GATE_FINISHED_AT" \
+    FAILURE_PHASE="preview-render" \
+    FAILURE_REASON="Phase 5 artifact audit summary failed" \
+    FAILURE_RECOVERABILITY="recoverable" \
+      bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null
+  ) || exit 1
+  exit "$PHASE5_AUDIT_STATUS"
+fi
 ```
 
 Fail closed if the summary detects a stale digest or validation timestamp,
