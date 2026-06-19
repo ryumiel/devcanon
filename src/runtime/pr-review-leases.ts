@@ -368,35 +368,32 @@ async function validateLeaseCommand(): Promise<void> {
     identity.leaseFile,
     "lease file",
   );
-  const normalizedLease = normalizeLegacyLease(lease);
-  validateLeaseShape(normalizedLease);
-  if (normalizedLease.repository !== identity.repository) {
+  validateLeaseShape(lease);
+  if (lease.repository !== identity.repository) {
     throw new PrReviewLeaseError("lease repository mismatch");
   }
-  if (normalizedLease.pr_number !== identity.prNumber) {
+  if (lease.pr_number !== identity.prNumber) {
     throw new PrReviewLeaseError("lease PR number mismatch");
   }
-  if (normalizedLease.worktree_path !== identity.worktreePath) {
+  if (lease.worktree_path !== identity.worktreePath) {
     throw new PrReviewLeaseError("lease worktree path mismatch");
   }
-  if (normalizedLease.worktree_digest !== identity.worktreeDigest) {
+  if (lease.worktree_digest !== identity.worktreeDigest) {
     throw new PrReviewLeaseError("lease worktree digest mismatch");
   }
-  if (normalizedLease.lease_file !== identity.leaseFile) {
+  if (lease.lease_file !== identity.leaseFile) {
     throw new PrReviewLeaseError("lease file identity mismatch");
   }
-  await validateReferencedArtifacts(normalizedLease, identity.worktreePath);
+  await validateReferencedArtifacts(lease, identity.worktreePath);
 }
 
 async function readStatus(): Promise<string> {
   const identity = await readIdentity(true);
   await assertReadableWorktree(identity.worktreePath);
-  const lease = normalizeLegacyLease(
-    await readRequiredJson<PrReviewLease>(
-      identity.primaryRoot,
-      identity.leaseFile,
-      "lease file",
-    ),
+  const lease = await readRequiredJson<PrReviewLease>(
+    identity.primaryRoot,
+    identity.leaseFile,
+    "lease file",
   );
   validateLeaseShape(lease);
   assertExistingLeaseIdentity(lease, identity);
@@ -540,12 +537,10 @@ async function classifyCleanup(
   };
   let lease: PrReviewLease;
   try {
-    lease = normalizeLegacyLease(
-      await readRequiredJson<PrReviewLease>(
-        identity.primaryRoot,
-        identity.leaseFile,
-        "lease file",
-      ),
+    lease = await readRequiredJson<PrReviewLease>(
+      identity.primaryRoot,
+      identity.leaseFile,
+      "lease file",
     );
     validateLeaseShape(lease);
     base.leaseState = lease.state;
@@ -636,7 +631,7 @@ async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
     );
     return stdout.length > 0;
   } catch {
-    return true;
+    throw new PrReviewLeaseError("git status inspection failed for worktree");
   }
 }
 
@@ -843,6 +838,7 @@ async function readInputsForWrite(
   const inputs = readInputs();
   const resultFile = resultFileForLifecycleValidation(previous, inputs);
   if (resultFile !== null) {
+    validateDirectChild("result", resultFile, DIRECT_SUFFIXES.result);
     inputs.resultSha256 = await sha256DirectChild(
       worktreePath,
       resultFile,
@@ -1167,41 +1163,8 @@ function archivePathIfNeeded(
   return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
 }
 
-function normalizeLegacyLease(lease: PrReviewLease): PrReviewLease {
-  const rawValidation = (lease as { validation?: unknown }).validation;
-  if (rawValidation !== undefined) {
-    if (!isObject(rawValidation) || !isObject(rawValidation.result_manifest)) {
-      return lease;
-    }
-    if ("sha256" in rawValidation.result_manifest) {
-      return lease;
-    }
-    return {
-      ...lease,
-      validation: {
-        ...lease.validation,
-        result_manifest: {
-          ...lease.validation.result_manifest,
-          sha256: null,
-        },
-      },
-    };
-  }
-  const resultFile =
-    isObject((lease as { artifacts?: unknown }).artifacts) &&
-    typeof lease.artifacts.result_file === "string"
-      ? lease.artifacts.result_file
-      : null;
-  return {
-    ...lease,
-    validation:
-      resultFile === null
-        ? emptyValidation()
-        : validResultValidation(lease.updated_at),
-  };
-}
-
 function validateLeaseShape(lease: PrReviewLease): void {
+  assertLeaseObjectShape(lease);
   if (lease.schema !== "pr-review/lease/v1") {
     throw new PrReviewLeaseError("lease schema mismatch");
   }
@@ -1279,6 +1242,8 @@ function validateStateInvariants(lease: PrReviewLease): void {
     lease.validation.result_manifest.validated_at === null
   ) {
     throw new PrReviewLeaseError("lease schema mismatch");
+  } else if (lease.validation.result_manifest.sha256 === null) {
+    throw new PrReviewLeaseError("result manifest digest missing");
   }
   if (lease.state === "gated" && lease.presentation.presented_at === null) {
     throw new PrReviewLeaseError("lease schema mismatch");
@@ -1591,14 +1556,46 @@ function validateApprovedIdentity(
 async function readExistingLease(file: string): Promise<PrReviewLease | null> {
   try {
     await lstat(path.join(process.cwd(), file));
-    const lease = normalizeLegacyLease(
-      await readRequiredJson<PrReviewLease>(process.cwd(), file, "lease file"),
+    const lease = await readRequiredJson<PrReviewLease>(
+      process.cwd(),
+      file,
+      "lease file",
     );
     validateLeaseShape(lease);
     return lease;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
+  }
+}
+
+function assertLeaseObjectShape(lease: PrReviewLease): void {
+  if (!isObject(lease)) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (!isObject(lease.artifacts)) {
+    throw new PrReviewLeaseError("lease artifacts metadata missing");
+  }
+  if (!isObject(lease.validation)) {
+    throw new PrReviewLeaseError("lease validation metadata missing");
+  }
+  if (!isObject(lease.validation.result_manifest)) {
+    throw new PrReviewLeaseError("lease result_manifest metadata missing");
+  }
+  if (!("sha256" in lease.validation.result_manifest)) {
+    throw new PrReviewLeaseError("result manifest digest missing");
+  }
+  if (!isObject(lease.presentation)) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (!isObject(lease.terminal)) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (!isObject(lease.failure)) {
+    throw new PrReviewLeaseError("lease schema mismatch");
+  }
+  if (!isObject(lease.github)) {
+    throw new PrReviewLeaseError("lease schema mismatch");
   }
 }
 

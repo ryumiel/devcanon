@@ -87,6 +87,8 @@ function reviewedLease(): PrReviewLease {
     createdAt: "2026-06-11T00:00:00Z",
     updatedAt: "2026-06-11T00:01:00Z",
     resultFile: ".ephemeral/pr-432-result.json",
+    resultSha256:
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   });
 }
 
@@ -121,6 +123,8 @@ describe("pr-review lease reducer", () => {
         result_manifest: {
           status: "valid",
           validated_at: "2026-06-11T00:01:00Z",
+          sha256:
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         },
       },
     });
@@ -468,9 +472,160 @@ describe("pr-review lease command validation", () => {
     }
   });
 
-  it("normalizes legacy result validation without sha256 and persists a digest on the next lifecycle write", async () => {
+  it("rejects legacy validation shapes without rewriting or migrating them", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeLeaseWorkspace("pr-review-legacy-digest-");
+      await makeLeaseWorkspace("pr-review-legacy-validation-");
+    const reviewHead = "1111111111111111111111111111111111111111";
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+
+    try {
+      await writeResultArtifact(
+        worktree,
+        resultFile,
+        reviewHead,
+        "preview-current",
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      const validLease = reviewedCommandLease(
+        leaseFile,
+        physicalWorktree,
+        dynamicIdentity.worktreeDigest,
+        resultFile,
+        await sha256File(path.join(worktree, resultFile)),
+      );
+      const cases: Array<{
+        name: string;
+        lease: unknown;
+        stderr: string;
+      }> = [
+        {
+          name: "missing-validation",
+          lease: omitKey(validLease, "validation"),
+          stderr: "lease validation metadata missing",
+        },
+        {
+          name: "missing-result-manifest",
+          lease: {
+            ...validLease,
+            validation: {},
+          },
+          stderr: "lease result_manifest metadata missing",
+        },
+        {
+          name: "missing-digest",
+          lease: {
+            ...validLease,
+            validation: {
+              result_manifest: {
+                status: "valid",
+                validated_at: "2026-06-11T00:01:00Z",
+              },
+            },
+          },
+          stderr: "result manifest digest missing",
+        },
+      ];
+
+      for (const testCase of cases) {
+        await writeFile(
+          path.join(primary, leaseFile),
+          `${JSON.stringify(testCase.lease, null, 2)}\n`,
+        );
+        const before = await readFile(path.join(primary, leaseFile), "utf8");
+
+        process.env.LEASE_FILE = leaseFile;
+        let result = await runPrReviewLeasesCommand(["validate"]);
+        expect(result.exitCode, testCase.name).toBe(1);
+        expect(result.stdout, testCase.name).toBe("");
+        expect(result.stderr, testCase.name).toContain(testCase.stderr);
+        await expect(
+          readFile(path.join(primary, leaseFile), "utf8"),
+        ).resolves.toBe(before);
+
+        result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+        expect(result.exitCode, testCase.name).toBe(0);
+        expect(result.stdout, testCase.name).toContain(
+          "REFUSAL_REASON=invalid-lease",
+        );
+        await expect(
+          readFile(path.join(primary, leaseFile), "utf8"),
+        ).resolves.toBe(before);
+
+        process.env.PRESENTED_AT = "2026-06-11T00:02:00Z";
+        process.env.PRESENTATION_STATUS = "preview-current";
+        process.env.RESULT_FILE = resultFile;
+        process.env.STATE = "gated";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.UPDATED_AT = "2026-06-11T00:02:00Z";
+        result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode, testCase.name).toBe(1);
+        expect(result.stdout, testCase.name).toBe("");
+        expect(result.stderr, testCase.name).toContain(testCase.stderr);
+        await expect(
+          readFile(path.join(primary, leaseFile), "utf8"),
+        ).resolves.toBe(before);
+      }
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid result paths before hashing lifecycle write inputs", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeLeaseWorkspace("pr-review-result-path-");
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:00:00Z",
+      });
+      const before = await readFile(path.join(primary, leaseFile), "utf8");
+      await writeFile(
+        path.join(tempRoot, "outside-result.json"),
+        `${JSON.stringify({
+          repository: "owner/repo",
+          pr_number: 432,
+          review_head_sha: "1111111111111111111111111111111111111111",
+        })}\n`,
+      );
+
+      process.env.RESULT_FILE = "../outside-result.json";
+      process.env.STATE = "reviewed";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:01:00Z";
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("path traversal: ../outside-result.json");
+      await expect(
+        readFile(path.join(primary, leaseFile), "utf8"),
+      ).resolves.toBe(before);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("writes a digest when advancing valid reviewed leases to gated", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeLeaseWorkspace("pr-review-valid-digest-");
     const reviewHead = "1111111111111111111111111111111111111111";
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
 
@@ -492,30 +647,20 @@ describe("pr-review lease command validation", () => {
       );
       await writeFile(
         path.join(primary, leaseFile),
-        `${JSON.stringify({
-          ...reviewedCommandLease(
+        `${JSON.stringify(
+          reviewedCommandLease(
             leaseFile,
             physicalWorktree,
             dynamicIdentity.worktreeDigest,
             resultFile,
+            await sha256File(path.join(worktree, resultFile)),
           ),
-          validation: {
-            result_manifest: {
-              status: "valid",
-              validated_at: "2026-06-11T00:01:00Z",
-            },
-          },
-        })}\n`,
+          null,
+          2,
+        )}\n`,
       );
 
       process.env.LEASE_FILE = leaseFile;
-      const validateResult = await runPrReviewLeasesCommand(["validate"]);
-      expect(validateResult.exitCode).toBe(1);
-      expect(validateResult.stderr).toContain("result manifest digest missing");
-      expect(
-        await readFile(path.join(primary, leaseFile), "utf8"),
-      ).not.toContain('"sha256"');
-
       process.env.PRESENTED_AT = "2026-06-11T00:02:00Z";
       process.env.PRESENTATION_STATUS = "preview-current";
       await writeLeaseCommandState({
@@ -526,13 +671,8 @@ describe("pr-review lease command validation", () => {
       expect(lease.validation.result_manifest.sha256).toBe(
         await sha256File(path.join(worktree, resultFile)),
       );
-      const migratedValidateResult = await runPrReviewLeasesCommand([
-        "validate",
-      ]);
-      expect(
-        migratedValidateResult.exitCode,
-        migratedValidateResult.stderr,
-      ).toBe(0);
+      const validateResult = await runPrReviewLeasesCommand(["validate"]);
+      expect(validateResult.exitCode, validateResult.stderr).toBe(0);
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -619,7 +759,7 @@ describe("pr-review lease command validation", () => {
     }
   });
 
-  it("rejects legacy reviewed lease/v1 result pointers without digest evidence", async () => {
+  it("rejects legacy reviewed lease/v1 result pointers without validation metadata", async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-legacy-"));
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
@@ -682,7 +822,7 @@ describe("pr-review lease command validation", () => {
       const result = await runPrReviewLeasesCommand(["validate"]);
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("result manifest digest missing");
+      expect(result.stderr).toContain("lease validation metadata missing");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -931,6 +1071,24 @@ describe("pr-review lease read-status", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({
         worktree_dirty: true,
       });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when git status cannot inspect the worktree", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-status-git-failure-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      await writeFile(path.join(workspace.worktree, ".git"), "gitdir: /nope\n");
+      const result = await runPrReviewLeasesCommand(["read-status"]);
+      expect(result).toMatchObject({ exitCode: 1, stdout: "" });
+      expect(result.stderr).toContain("git status inspection failed");
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -1744,6 +1902,14 @@ function reviewPayload(reviewHead: string): Record<string, unknown> {
     body: "Review body\n",
     comments: [],
   };
+}
+
+function omitKey<T extends object, K extends keyof T>(
+  object: T,
+  key: K,
+): Omit<T, K> {
+  const { [key]: _omitted, ...rest } = object;
+  return rest;
 }
 
 function reviewedCommandLease(
