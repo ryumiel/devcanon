@@ -510,7 +510,8 @@ describe("pr-review lease command validation", () => {
 
       process.env.LEASE_FILE = leaseFile;
       const validateResult = await runPrReviewLeasesCommand(["validate"]);
-      expect(validateResult.exitCode).toBe(0);
+      expect(validateResult.exitCode).toBe(1);
+      expect(validateResult.stderr).toContain("result manifest digest missing");
       expect(
         await readFile(path.join(primary, leaseFile), "utf8"),
       ).not.toContain('"sha256"');
@@ -525,6 +526,13 @@ describe("pr-review lease command validation", () => {
       expect(lease.validation.result_manifest.sha256).toBe(
         await sha256File(path.join(worktree, resultFile)),
       );
+      const migratedValidateResult = await runPrReviewLeasesCommand([
+        "validate",
+      ]);
+      expect(
+        migratedValidateResult.exitCode,
+        migratedValidateResult.stderr,
+      ).toBe(0);
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -611,7 +619,7 @@ describe("pr-review lease command validation", () => {
     }
   });
 
-  it("validates legacy lease/v1 files without explicit validation metadata", async () => {
+  it("rejects legacy reviewed lease/v1 result pointers without digest evidence", async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-legacy-"));
     const primary = path.join(tempRoot, "primary");
     const worktree = path.join(tempRoot, "worktree");
@@ -672,7 +680,9 @@ describe("pr-review lease command validation", () => {
 
       process.env.LEASE_FILE = leaseFile;
       const result = await runPrReviewLeasesCommand(["validate"]);
-      expect(result).toMatchObject({ exitCode: 0, stdout: "" });
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("result manifest digest missing");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -1369,6 +1379,7 @@ describe("pr-review lease Git cleanup safety", () => {
         physicalWorktree,
         dynamicIdentity.worktreeDigest,
         resultFile,
+        await sha256File(path.join(worktree, resultFile)),
       );
       await writeFile(
         path.join(primary, leaseFile),
@@ -1740,6 +1751,7 @@ function reviewedCommandLease(
   worktreePath: string,
   worktreeDigest: string,
   resultFile: string,
+  resultSha256: string | null = null,
 ): PrReviewLease {
   return {
     schema: "pr-review/lease/v1",
@@ -1763,7 +1775,7 @@ function reviewedCommandLease(
       result_manifest: {
         status: "valid",
         validated_at: "2026-06-11T00:01:00Z",
-        sha256: null,
+        sha256: resultSha256,
       },
     },
     presentation: { presented_at: null, status: null },

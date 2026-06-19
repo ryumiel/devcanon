@@ -1368,9 +1368,6 @@ async function validateResultDigest(
   resultFile: string,
 ): Promise<void> {
   if (lease.validation.result_manifest.sha256 === null) {
-    if (lease.state === "reviewed") {
-      return;
-    }
     throw new PrReviewLeaseError("result manifest digest missing");
   }
   const resultSha256 = await sha256DirectChild(

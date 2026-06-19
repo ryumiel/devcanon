@@ -345,21 +345,22 @@ async function renderPhase5AuditSummary(): Promise<string> {
   const carryForwardItems = Array.isArray(findings.carry_forward)
     ? findings.carry_forward
     : [];
+  const code = formatMarkdownCodeSpan;
 
   return [
     "## Phase 5 Artifact Audit Summary",
     "",
-    `- Reviewed head SHA: \`${headSha}\``,
-    `- Repository and PR: \`${repository}#${prNumber}\``,
-    `- Base/head refs: \`${stringField(handoff, "base_ref")}\` -> \`${stringField(handoff, "head_ref")}\``,
-    `- Active diff range: \`${stringField(scope, "selected_range")}\``,
-    `- Full PR diff range: \`${stringField(scope, "full_range")}\``,
-    `- Result manifest: \`${resultFile}\``,
-    `- Findings: \`${stringField(result, "findings_file")}\` (${findingItems.length} active, ${carryForwardItems.length} carry-forward)`,
-    `- Result artifacts: handoff \`${stringField(artifacts, "handoff_file")}\`, scope \`${stringField(artifacts, "scope_decision_file")}\`, prior threads ${formatNullablePath(nullableStringField(artifacts, "prior_threads_file"))}, review body ${formatNullablePath(nullableStringField(result, "review_body_file"))}, context ${formatNullablePath(nullableStringField(result, "context_file"))}, rendered preview ${formatNullablePath(nullableStringField(artifacts, "rendered_preview_file"))}`,
-    `- Validation status: result \`${stringField(validation, "status")}\`; findings validated \`${String(booleanField(validation, "findings_validated"))}\`; scope validated \`${String(booleanField(validation, "scope_decision_validated"))}\`; lease result digest \`${status.result_sha256}\`; lease validated at \`${status.result_validated_at}\``,
-    `- Presentation status: result \`${stringField(presentation, "status")}\`; lease \`${status.presentation_status}\`; presented at \`${status.presented_at}\``,
-    `- Lease/worktree status: lease \`${status.lease_state}\`; worktree \`${status.worktree_path}\`; digest \`${status.worktree_digest}\`; exists \`${String(status.worktree_exists)}\`; registered \`${String(status.worktree_registered)}\`; dirty \`${String(status.worktree_dirty)}\`; identity match \`${String(status.identity_match)}\``,
+    `- Reviewed head SHA: ${code(headSha)}`,
+    `- Repository and PR: ${code(`${repository}#${prNumber}`)}`,
+    `- Base/head refs: ${code(stringField(handoff, "base_ref"))} -> ${code(stringField(handoff, "head_ref"))}`,
+    `- Active diff range: ${code(stringField(scope, "selected_range"))}`,
+    `- Full PR diff range: ${code(stringField(scope, "full_range"))}`,
+    `- Result manifest: ${code(resultFile)}`,
+    `- Findings: ${code(stringField(result, "findings_file"))} (${findingItems.length} active, ${carryForwardItems.length} carry-forward)`,
+    `- Result artifacts: handoff ${code(stringField(artifacts, "handoff_file"))}, scope ${code(stringField(artifacts, "scope_decision_file"))}, prior threads ${formatNullablePath(nullableStringField(artifacts, "prior_threads_file"))}, review body ${formatNullablePath(nullableStringField(result, "review_body_file"))}, context ${formatNullablePath(nullableStringField(result, "context_file"))}, rendered preview ${formatNullablePath(nullableStringField(artifacts, "rendered_preview_file"))}`,
+    `- Validation status: result ${code(stringField(validation, "status"))}; findings validated ${code(String(booleanField(validation, "findings_validated")))}; scope validated ${code(String(booleanField(validation, "scope_decision_validated")))}; lease result digest ${code(status.result_sha256)}; lease validated at ${code(status.result_validated_at)}`,
+    `- Presentation status: result ${code(stringField(presentation, "status"))}; lease ${code(status.presentation_status)}; presented at ${code(status.presented_at)}`,
+    `- Lease/worktree status: lease ${code(status.lease_state)}; worktree ${code(status.worktree_path)}; digest ${code(status.worktree_digest)}; exists ${code(String(status.worktree_exists))}; registered ${code(String(status.worktree_registered))}; dirty ${code(String(status.worktree_dirty))}; identity match ${code(String(status.identity_match))}`,
     "- Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
   ].join("\n");
 }
@@ -589,7 +590,20 @@ async function withCwd<T>(cwd: string, callback: () => Promise<T>): Promise<T> {
 }
 
 function formatNullablePath(value: string | null): string {
-  return value === null ? "`none`" : `\`${value}\``;
+  return value === null
+    ? formatMarkdownCodeSpan("none")
+    : formatMarkdownCodeSpan(value);
+}
+
+function formatMarkdownCodeSpan(value: string): string {
+  const backtickRuns = value.match(/`+/gu) ?? [];
+  if (backtickRuns.length === 0) {
+    return `\`${value}\``;
+  }
+  const delimiterLength =
+    Math.max(...backtickRuns.map((run) => run.length)) + 1;
+  const delimiter = "`".repeat(delimiterLength);
+  return `${delimiter} ${value} ${delimiter}`;
 }
 
 async function validateHandoffFile(file: string, identityFile = file) {

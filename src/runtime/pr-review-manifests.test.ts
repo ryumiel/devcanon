@@ -253,6 +253,64 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     }
   });
 
+  it("escapes backticks in dynamic audit summary code spans", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-summary-`ticks-");
+    const resultPath = path.join(workspace.worktree, workspace.resultFile);
+    const resultManifest = JSON.parse(
+      await readFile(resultPath, "utf8"),
+    ) as Record<string, unknown>;
+    const artifacts = resultManifest.artifacts as Record<string, unknown>;
+    const digests = resultManifest.digests as Record<string, unknown>;
+    const handoffFile = artifacts.handoff_file as string;
+    const handoffPath = path.join(workspace.worktree, handoffFile);
+    const handoff = JSON.parse(await readFile(handoffPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    await writeJson(workspace.worktree, handoffFile, {
+      ...handoff,
+      head_ref: "topic`review",
+    });
+    await writeJson(workspace.worktree, workspace.resultFile, {
+      ...resultManifest,
+      digests: {
+        ...digests,
+        handoff_sha256: await sha256File(handoffPath),
+      },
+    });
+    const leasePath = path.join(workspace.primary, workspace.leaseFile);
+    const lease = JSON.parse(await readFile(leasePath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const validation = lease.validation as Record<string, unknown>;
+    const resultValidation = validation.result_manifest as Record<
+      string,
+      unknown
+    >;
+    await writeJson(workspace.primary, workspace.leaseFile, {
+      ...lease,
+      validation: {
+        ...validation,
+        result_manifest: {
+          ...resultValidation,
+          sha256: await sha256File(resultPath),
+        },
+      },
+    });
+    setSummaryEnv(workspace);
+
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      "Base/head refs: `main` -> `` topic`review ``",
+    );
+    expect(result.stdout).toContain(
+      `worktree ${formatExpectedMarkdownCodeSpan(workspace.physicalWorktree)}`,
+    );
+  });
+
   it("uses only Phase 5-safe cleanup wording", async () => {
     const workspace = await makeManifestWorkspace("pr-review-cleanup-wording-");
     setSummaryEnv(workspace);
@@ -559,6 +617,17 @@ function digestPath(value: string): string {
   return createHash("sha256")
     .update(normalizeComparablePath(value))
     .digest("hex");
+}
+
+function formatExpectedMarkdownCodeSpan(value: string): string {
+  const backtickRuns = value.match(/`+/gu) ?? [];
+  if (backtickRuns.length === 0) {
+    return `\`${value}\``;
+  }
+  const delimiter = "`".repeat(
+    Math.max(...backtickRuns.map((run) => run.length)) + 1,
+  );
+  return `${delimiter} ${value} ${delimiter}`;
 }
 
 function normalizeComparablePath(value: string): string {

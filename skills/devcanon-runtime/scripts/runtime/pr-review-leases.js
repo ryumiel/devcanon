@@ -926,9 +926,6 @@ async function validateReferencedArtifacts(lease, worktreePath) {
 }
 async function validateResultDigest(lease, worktreePath, resultFile) {
     if (lease.validation.result_manifest.sha256 === null) {
-        if (lease.state === "reviewed") {
-            return;
-        }
         throw new PrReviewLeaseError("result manifest digest missing");
     }
     const resultSha256 = await sha256DirectChild(worktreePath, resultFile, "result file");
