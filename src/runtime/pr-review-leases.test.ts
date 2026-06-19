@@ -531,6 +531,51 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("rejects stale or missing result digests during validate and cleanup classification", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-validate-digest-",
+    );
+
+    try {
+      setReadStatusEnv(workspace);
+      await writeFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        `${JSON.stringify({
+          repository: "owner/repo",
+          pr_number: 432,
+          review_head_sha: workspace.reviewHead,
+          presentation: { status: "preview-current" },
+          stale: true,
+        })}\n`,
+      );
+
+      let result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("result manifest digest mismatch");
+
+      result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("REFUSAL_REASON=invalid-lease");
+
+      await writeResultArtifact(
+        workspace.worktree,
+        workspace.resultFile,
+        workspace.reviewHead,
+        "preview-current",
+      );
+      await mutateLease(workspace, (lease) => {
+        lease.validation.result_manifest.sha256 = null;
+      });
+
+      result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("result manifest digest missing");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed instead of overwriting malformed existing leases", async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
     const primary = path.join(tempRoot, "primary");
@@ -724,6 +769,7 @@ describe("pr-review lease command validation", () => {
             worktreePath: physicalWorktree,
             worktreeDigest: dynamicIdentity.worktreeDigest,
             resultFile,
+            resultSha256: await sha256File(path.join(worktree, resultFile)),
             approvedReviewFile,
           }),
           null,
@@ -778,6 +824,7 @@ describe("pr-review lease command validation", () => {
             worktreePath: physicalWorktree,
             worktreeDigest: dynamicIdentity.worktreeDigest,
             resultFile,
+            resultSha256: await sha256File(path.join(worktree, resultFile)),
             approvedReviewFile,
             validatedPayloadFile,
           }),
@@ -1586,6 +1633,7 @@ function postedCommandLease({
   worktreePath,
   worktreeDigest,
   resultFile,
+  resultSha256,
   approvedReviewFile,
   validatedPayloadFile = null,
 }: {
@@ -1593,6 +1641,7 @@ function postedCommandLease({
   worktreePath: string;
   worktreeDigest: string;
   resultFile: string;
+  resultSha256: string;
   approvedReviewFile: string;
   validatedPayloadFile?: string | null;
 }): PrReviewLease {
@@ -1618,7 +1667,7 @@ function postedCommandLease({
       result_manifest: {
         status: "valid",
         validated_at: "2026-06-11T00:02:00Z",
-        sha256: null,
+        sha256: resultSha256,
       },
     },
     presentation: {

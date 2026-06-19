@@ -904,6 +904,7 @@ async function validateReferencedArtifacts(lease, worktreePath) {
         validateHandoffIdentity(handoff, lease, worktreePath);
     }
     if (lease.artifacts.result_file !== null) {
+        await validateResultDigest(lease, worktreePath, lease.artifacts.result_file);
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
         resultReviewHead = stringField(result, "review_head_sha");
@@ -921,6 +922,18 @@ async function validateReferencedArtifacts(lease, worktreePath) {
                 throw new PrReviewLeaseError("validated payload approved-review mismatch");
             }
         }
+    }
+}
+async function validateResultDigest(lease, worktreePath, resultFile) {
+    if (lease.validation.result_manifest.sha256 === null) {
+        if (lease.state === "reviewed") {
+            return;
+        }
+        throw new PrReviewLeaseError("result manifest digest missing");
+    }
+    const resultSha256 = await sha256DirectChild(worktreePath, resultFile, "result file");
+    if (lease.validation.result_manifest.sha256 !== resultSha256) {
+        throw new PrReviewLeaseError("result manifest digest mismatch");
     }
 }
 async function findUnmanagedEphemeralArtifacts(lease, worktreePath) {

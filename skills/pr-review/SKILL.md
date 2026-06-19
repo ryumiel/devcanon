@@ -562,18 +562,14 @@ read-only lease/worktree status:
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || exit 1
 )
 
-LEASE_STATUS_JSON=$(
-  PR_NUMBER="$PR_NUMBER" \
-  WORKTREE_PATH="$WORKING_DIRECTORY" \
-  RESULT_FILE="$REVIEW_RESULT_FILE" \
-    bash "$PR_REVIEW_LEASE_HELPER" read-status
-) || exit 1
-
 PHASE5_AUDIT_SUMMARY=$(
+  REPOSITORY="<owner/repo>" \
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
   RESULT_FILE="$REVIEW_RESULT_FILE" \
-  LEASE_STATUS_JSON="$LEASE_STATUS_JSON" \
+  PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
+  WORKTREE_PATH="$WORKING_DIRECTORY" \
+  LEASE_FILE="$LEASE_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
 ) || exit 1
 ```
@@ -582,8 +578,10 @@ Fail closed if the summary detects a stale digest or validation timestamp,
 missing digest, mismatched presentation status, missing `presented_at`,
 identity mismatch, missing worktree, unregistered worktree, or unreadable
 worktree. Treat a dirty-but-valid worktree as truthful status and continue.
-`read-status` is read-only and must not record cleanup metadata. If summary
-rendering fails after the gate write, record `failed` with
+`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the
+primary repository root and parses that single JSON object; `read-status` is
+read-only and must not record cleanup metadata. If summary rendering fails
+after the gate write, record `failed` with
 `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and
 `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts.
 

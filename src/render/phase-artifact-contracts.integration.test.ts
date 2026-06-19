@@ -316,7 +316,10 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReview).toContain("read_pr_review_result_manifest_for_preview");
     expect(prReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
-    expect(prReview).toContain('bash "$PR_REVIEW_LEASE_HELPER" read-status');
+    expect(prReview).toContain('REPOSITORY="<owner/repo>"');
+    expect(prReview).toContain('PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"');
+    expect(prReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
+    expect(prReview).toContain('LEASE_FILE="$LEASE_FILE"');
     expect(prReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
@@ -338,6 +341,10 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "`read-status` is read-only and must not record cleanup metadata",
     );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
+    );
+    expect(prReview).not.toContain("LEASE_STATUS_JSON");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
     );
@@ -457,9 +464,12 @@ describe("rendered phase artifact smoke coverage", () => {
         "read_pr_review_result_manifest_for_preview",
       );
       expect(renderedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+      expect(renderedPrReview).toContain('REPOSITORY="<owner/repo>"');
       expect(renderedPrReview).toContain(
-        'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+        'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
       );
+      expect(renderedPrReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
+      expect(renderedPrReview).toContain('LEASE_FILE="$LEASE_FILE"');
       expect(renderedPrReview).toContain(
         'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
       );
@@ -503,6 +513,10 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "`read-status` is read-only and must not record cleanup metadata",
       );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
+      );
+      expect(renderedPrReview).not.toContain("LEASE_STATUS_JSON");
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
       );

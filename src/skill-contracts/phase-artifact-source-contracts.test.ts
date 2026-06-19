@@ -734,12 +734,19 @@ describe("phase artifact source contracts", () => {
       "read_pr_review_result_manifest_for_preview",
     );
     expect(normalizedPrReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
+    expect(normalizedPrReview).toContain('REPOSITORY="<owner/repo>"');
     expect(normalizedPrReview).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
+      'PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"',
     );
+    expect(normalizedPrReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
+    expect(normalizedPrReview).toContain('LEASE_FILE="$LEASE_FILE"');
     expect(normalizedPrReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
+    expect(normalizedPrReview).toContain(
+      "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
+    );
+    expect(normalizedPrReview).not.toContain("LEASE_STATUS_JSON");
     expect(normalizedPrReview).toContain(
       ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
     );

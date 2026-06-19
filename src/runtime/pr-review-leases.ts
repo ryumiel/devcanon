@@ -1316,6 +1316,11 @@ async function validateReferencedArtifacts(
     validateHandoffIdentity(handoff, lease, worktreePath);
   }
   if (lease.artifacts.result_file !== null) {
+    await validateResultDigest(
+      lease,
+      worktreePath,
+      lease.artifacts.result_file,
+    );
     const result = await readRequiredJson<JsonObject>(
       worktreePath,
       lease.artifacts.result_file,
@@ -1354,6 +1359,27 @@ async function validateReferencedArtifacts(
         );
       }
     }
+  }
+}
+
+async function validateResultDigest(
+  lease: PrReviewLease,
+  worktreePath: string,
+  resultFile: string,
+): Promise<void> {
+  if (lease.validation.result_manifest.sha256 === null) {
+    if (lease.state === "reviewed") {
+      return;
+    }
+    throw new PrReviewLeaseError("result manifest digest missing");
+  }
+  const resultSha256 = await sha256DirectChild(
+    worktreePath,
+    resultFile,
+    "result file",
+  );
+  if (lease.validation.result_manifest.sha256 !== resultSha256) {
+    throw new PrReviewLeaseError("result manifest digest mismatch");
   }
 }
 
