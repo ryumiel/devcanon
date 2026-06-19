@@ -216,6 +216,7 @@ export function reducePrReviewLease(
       };
     case "LC-03":
       requireInput("RESULT_FILE", inputs.resultFile);
+      requireInput("RESULT_SHA256", inputs.resultSha256);
       return {
         ...base,
         state: "reviewed",
@@ -225,10 +226,7 @@ export function reducePrReviewLease(
             inputs.handoffFile ?? previous?.artifacts.handoff_file ?? null,
           result_file: inputs.resultFile,
         },
-        validation: validResultValidation(
-          inputs.updatedAt,
-          inputs.resultSha256 ?? null,
-        ),
+        validation: validResultValidation(inputs.updatedAt, inputs.resultSha256),
       };
     case "LC-04":
     case "LC-14":
@@ -909,6 +907,7 @@ function applyGated(
   requireInput("RESULT_FILE", resultFile ?? undefined);
   requireInput("PRESENTED_AT", inputs.presentedAt);
   requireInput("PRESENTATION_STATUS", inputs.presentationStatus);
+  requireInput("RESULT_SHA256", inputs.resultSha256);
   return {
     ...base,
     state: "gated",
@@ -917,10 +916,7 @@ function applyGated(
       handoff_file: previous?.artifacts.handoff_file ?? null,
       result_file: resultFile,
     },
-    validation: validResultValidation(
-      inputs.updatedAt,
-      inputs.resultSha256 ?? null,
-    ),
+    validation: validResultValidation(inputs.updatedAt, inputs.resultSha256),
     presentation: {
       presented_at: inputs.presentedAt,
       status: inputs.presentationStatus,

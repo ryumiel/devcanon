@@ -30,6 +30,10 @@ const identity = {
   leaseFile:
     ".ephemeral/pr-432-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-lease.json",
 };
+const resultDigest =
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const refreshedResultDigest =
+  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 const originalCwd = process.cwd();
 const managedEnvKeys = [
@@ -87,8 +91,7 @@ function reviewedLease(): PrReviewLease {
     createdAt: "2026-06-11T00:00:00Z",
     updatedAt: "2026-06-11T00:01:00Z",
     resultFile: ".ephemeral/pr-432-result.json",
-    resultSha256:
-      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    resultSha256: resultDigest,
   });
 }
 
@@ -101,6 +104,7 @@ function gatedLease(): PrReviewLease {
     updatedAt: "2026-06-11T00:02:00Z",
     presentedAt: "2026-06-11T00:02:00Z",
     presentationStatus: "preview-current",
+    resultSha256: resultDigest,
   });
 }
 
@@ -123,8 +127,7 @@ describe("pr-review lease reducer", () => {
         result_manifest: {
           status: "valid",
           validated_at: "2026-06-11T00:01:00Z",
-          sha256:
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          sha256: resultDigest,
         },
       },
     });
@@ -135,7 +138,39 @@ describe("pr-review lease reducer", () => {
         presented_at: "2026-06-11T00:02:00Z",
         status: "preview-current",
       },
+      validation: {
+        result_manifest: {
+          status: "valid",
+          validated_at: "2026-06-11T00:02:00Z",
+          sha256: resultDigest,
+        },
+      },
     });
+  });
+
+  it("requires digest inputs for result-manifest reducer states", () => {
+    expect(() =>
+      reducePrReviewLease(createLease(), identity, {
+        state: "reviewed",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:01:00Z",
+        resultFile: ".ephemeral/pr-432-result.json",
+      }),
+    ).toThrow("RESULT_SHA256 is required");
+
+    expect(() =>
+      reducePrReviewLease(reviewedLease(), identity, {
+        state: "gated",
+        baseRef: "main",
+        headRef: "topic",
+        createdAt: "2026-06-11T00:00:00Z",
+        updatedAt: "2026-06-11T00:02:00Z",
+        presentedAt: "2026-06-11T00:02:00Z",
+        presentationStatus: "preview-current",
+      }),
+    ).toThrow("RESULT_SHA256 is required");
   });
 
   it("records post success and derives GitHub metadata", () => {
@@ -235,8 +270,12 @@ describe("pr-review lease reducer", () => {
       updatedAt: "2026-06-11T00:02:30Z",
       presentedAt: "2026-06-11T00:02:30Z",
       presentationStatus: "edited",
+      resultSha256: refreshedResultDigest,
     });
     expect(refreshedGate.presentation.status).toBe("edited");
+    expect(refreshedGate.validation.result_manifest.sha256).toBe(
+      refreshedResultDigest,
+    );
 
     const abortedFromGated = reducePrReviewLease(gated, identity, {
       state: "aborted",
@@ -314,6 +353,7 @@ describe("pr-review lease reducer", () => {
       updatedAt: "2026-06-11T00:08:00Z",
       presentedAt: "2026-06-11T00:08:00Z",
       presentationStatus: "preview-current",
+      resultSha256: resultDigest,
     });
     expect(recoveredGate.state).toBe("gated");
 
