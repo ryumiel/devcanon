@@ -26,6 +26,10 @@ const helperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/review-manifests.sh",
 );
+const leaseHelperScript = path.join(
+  process.cwd(),
+  "skills/pr-review/scripts/review-leases.sh",
+);
 const priorHelperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/prior-thread-artifacts.sh",
@@ -275,6 +279,33 @@ async function copyInstalledPrManifestHelper(root: string) {
   return script;
 }
 
+async function copyWrapperWithRecordingRuntime(
+  root: string,
+  sourceScript: string,
+  relativeScript: string,
+) {
+  const runtime = path.join(
+    root,
+    "devcanon-runtime/scripts/devcanon-runtime.sh",
+  );
+  const script = path.join(root, relativeScript);
+  await mkdir(path.dirname(runtime), { recursive: true });
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(
+    runtime,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      "printf '%s\\n' \"$*\"",
+      "",
+    ].join("\n"),
+  );
+  await chmod(runtime, 0o755);
+  await copyFile(sourceScript, script);
+  await chmod(script, 0o755);
+  return script;
+}
+
 async function copyInstalledPrPriorHelper(root: string) {
   const script = path.join(root, "pr-review/scripts/prior-thread-artifacts.sh");
   await mkdir(path.dirname(script), { recursive: true });
@@ -316,6 +347,61 @@ async function writePassingSupportValidator(cwd: string) {
 }
 
 describe("pr-review manifest helper", () => {
+  it("lists the Phase 5 audit summary and lease status commands in wrapper usage diagnostics", async () => {
+    await expect(
+      execFileAsync("bash", [helperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("render-phase5-audit-summary"),
+    });
+    await expect(
+      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("read-status"),
+    });
+  });
+
+  it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+
+      await expect(
+        runHelper(installed, "render-phase5-audit-summary", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests render-phase5-audit-summary\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("delegates the read-only lease status command to the pr-review-leases runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        leaseHelperScript,
+        "pr-review/scripts/review-leases.sh",
+      );
+
+      await expect(
+        runHelper(installed, "read-status", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-leases read-status\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
@@ -1583,6 +1669,7 @@ describe("pr-review manifest helper", () => {
 
   it("keeps approval payload and GitHub mutation authority out of the manifest helper", async () => {
     const manifestHelper = await readFile(helperScript, "utf8");
+    const leaseHelper = await readFile(leaseHelperScript, "utf8");
     const approvedHelper = await readFile(
       path.join(
         process.cwd(),
@@ -1594,7 +1681,10 @@ describe("pr-review manifest helper", () => {
     expect(manifestHelper).not.toContain("freeze-approved-review");
     expect(manifestHelper).not.toContain("build-github-review-payload");
     expect(manifestHelper).not.toMatch(/\bgh\s+api\b/);
+    expect(manifestHelper).not.toMatch(/\bjq\b/);
     expect(manifestHelper).not.toContain("pr-review/approved-review/v1");
+    expect(leaseHelper).not.toMatch(/\bgh\s+api\b/);
+    expect(leaseHelper).not.toMatch(/\bjq\b/);
     expect(approvedHelper).toContain("freeze_approved_review");
     expect(approvedHelper).toContain("pr-review/approved-review/v1");
   });

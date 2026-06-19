@@ -8,6 +8,7 @@ import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 const execFileAsync = promisify(execFile);
 const SHA_RE = /^[0-9a-f]{40}$/u;
+const SHA256_RE = /^[0-9a-f]{64}$/u;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
 const DIRECT_SUFFIXES = {
     handoff: "-handoff.json",
@@ -27,12 +28,14 @@ export async function runPrReviewLeasesCommand(args) {
             case "validate":
                 await validateLeaseCommand();
                 return ok("");
+            case "read-status":
+                return ok(`${await readStatus()}\n`);
             case "inspect-worktree":
                 return ok(await inspectWorktree());
             case "cleanup-worktree":
                 return ok(await cleanupWorktree());
             default:
-                throw new PrReviewLeaseError("usage: review-leases.sh derive-path|write|validate|inspect-worktree|cleanup-worktree");
+                throw new PrReviewLeaseError("usage: review-leases.sh derive-path|write|validate|read-status|inspect-worktree|cleanup-worktree");
         }
     }
     catch (err) {
@@ -74,7 +77,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
                     handoff_file: inputs.handoffFile ?? previous?.artifacts.handoff_file ?? null,
                     result_file: inputs.resultFile,
                 },
-                validation: validResultValidation(inputs.updatedAt),
+                validation: validResultValidation(inputs.updatedAt, inputs.resultSha256 ?? null),
             };
         case "LC-04":
         case "LC-14":
@@ -165,12 +168,18 @@ export function reducePrReviewLease(previous, identity, inputs) {
 }
 async function writeLease() {
     const identity = await readIdentity(true);
-    const inputs = readInputs();
     const previous = await readExistingLease(identity.leaseFile);
+    assertExistingLeaseIdentity(previous, identity);
+    const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
     const reduced = reducePrReviewLease(previous, identity, inputs);
     validateLeaseShape(reduced);
-    await validateReferencedArtifacts(reduced, identity.worktreePath);
+    if (previous !== null && isPostGatedPreviewRenderFailure(previous, inputs)) {
+        validatePostGatedPreviewRenderFailure(previous);
+    }
+    else {
+        await validateReferencedArtifacts(reduced, identity.worktreePath);
+    }
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
     const target = path.join(identity.primaryRoot, identity.leaseFile);
     const content = `${JSON.stringify(reduced, null, 2)}\n`;
@@ -202,6 +211,68 @@ async function validateLeaseCommand() {
         throw new PrReviewLeaseError("lease file identity mismatch");
     }
     await validateReferencedArtifacts(normalizedLease, identity.worktreePath);
+}
+async function readStatus() {
+    const identity = await readIdentity(true);
+    await assertReadableWorktree(identity.worktreePath);
+    const lease = normalizeLegacyLease(await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file"));
+    validateLeaseShape(lease);
+    assertExistingLeaseIdentity(lease, identity);
+    if (lease.state !== "gated") {
+        throw new PrReviewLeaseError("read-status requires gated lease");
+    }
+    if (!(await isRegisteredWorktree(identity.primaryRoot, identity.worktreePath))) {
+        throw new PrReviewLeaseError("worktree path is not registered for the primary repository");
+    }
+    const resultFile = requiredEnv("RESULT_FILE");
+    validateDirectChild("result", resultFile, DIRECT_SUFFIXES.result);
+    if (resultFile !== lease.artifacts.result_file) {
+        throw new PrReviewLeaseError("RESULT_FILE must match gated lease result");
+    }
+    const headSha = requiredEnv("HEAD_SHA");
+    if (!SHA_RE.test(headSha)) {
+        throw new PrReviewLeaseError("HEAD_SHA must be a lowercase 40-character SHA");
+    }
+    const resultSha256 = await sha256DirectChild(identity.worktreePath, resultFile, "result file");
+    const result = await readRequiredJson(identity.worktreePath, resultFile, "result file");
+    validateResultIdentity(result, lease);
+    if (stringField(result, "review_head_sha") !== headSha) {
+        throw new PrReviewLeaseError("result review head mismatch");
+    }
+    const resultPresentationStatus = presentationStatusFromResult(result);
+    if (lease.presentation.status !== resultPresentationStatus) {
+        throw new PrReviewLeaseError("presentation status mismatch");
+    }
+    if (lease.presentation.presented_at === null) {
+        throw new PrReviewLeaseError("presentation timestamp missing");
+    }
+    if (lease.validation.result_manifest.status !== "valid") {
+        throw new PrReviewLeaseError("result manifest validation missing");
+    }
+    if (lease.validation.result_manifest.sha256 === null) {
+        throw new PrReviewLeaseError("result manifest digest missing");
+    }
+    if (lease.validation.result_manifest.sha256 !== resultSha256) {
+        throw new PrReviewLeaseError("result manifest digest mismatch");
+    }
+    if (lease.validation.result_manifest.validated_at !== lease.updated_at) {
+        throw new PrReviewLeaseError("result manifest validation is stale");
+    }
+    return JSON.stringify({
+        lease_state: lease.state,
+        worktree_path: identity.worktreePath,
+        worktree_digest: identity.worktreeDigest,
+        worktree_exists: true,
+        worktree_registered: true,
+        worktree_dirty: await isWorktreeDirty(identity.worktreePath),
+        identity_match: true,
+        result_file: resultFile,
+        result_sha256: resultSha256,
+        result_validated_at: lease.validation.result_manifest.validated_at,
+        lease_updated_at: lease.updated_at,
+        presentation_status: lease.presentation.status,
+        presented_at: lease.presentation.presented_at,
+    });
 }
 async function inspectWorktree() {
     const identity = await readCleanupIdentity();
@@ -492,6 +563,20 @@ function readInputs() {
         expectedState: parseOptionalState(optionalEnv("EXPECTED_STATE")),
     };
 }
+async function readInputsForWrite(previous, worktreePath) {
+    const inputs = readInputs();
+    const resultFile = resultFileForLifecycleValidation(previous, inputs);
+    if (resultFile !== null) {
+        inputs.resultSha256 = await sha256DirectChild(worktreePath, resultFile, "result file");
+    }
+    return inputs;
+}
+function resultFileForLifecycleValidation(previous, inputs) {
+    if (inputs.state === "reviewed" || inputs.state === "gated") {
+        return inputs.resultFile ?? previous?.artifacts.result_file ?? null;
+    }
+    return null;
+}
 function buildBaseLease(previous, identity, inputs, row) {
     const createdAt = row === "LC-01" || row === "LC-18"
         ? inputs.createdAt
@@ -537,9 +622,7 @@ function applyGated(base, previous, inputs) {
             handoff_file: previous?.artifacts.handoff_file ?? null,
             result_file: resultFile,
         },
-        validation: resultFile === previous?.artifacts.result_file
-            ? (previous?.validation ?? emptyValidation())
-            : validResultValidation(inputs.updatedAt),
+        validation: validResultValidation(inputs.updatedAt, inputs.resultSha256 ?? null),
         presentation: {
             presented_at: inputs.presentedAt,
             status: inputs.presentationStatus,
@@ -561,6 +644,9 @@ function applyFailure(row, base, previous, inputs) {
         if (inputs.githubPostResult !== "failed") {
             throw new PrReviewLeaseError("GITHUB_POST_RESULT must be failed for github-post failure");
         }
+    }
+    if (inputs.failurePhase === "preview-render" && previous?.state === "gated") {
+        validatePostGatedPreviewRenderFailure(previous);
     }
     const resultFile = failureResultFile(row, previous, inputs);
     const approvedReviewFile = inputs.failurePhase === "approval-freeze" ||
@@ -624,6 +710,30 @@ function failureResultFile(row, previous, inputs) {
     }
     return current;
 }
+function isPostGatedPreviewRenderFailure(previous, inputs) {
+    return (previous?.state === "gated" &&
+        inputs.state === "failed" &&
+        inputs.failurePhase === "preview-render");
+}
+function validatePostGatedPreviewRenderFailure(previous) {
+    if (previous.state !== "gated") {
+        throw new PrReviewLeaseError("preview-render failure requires gated lease");
+    }
+    if (previous.artifacts.result_file === null) {
+        throw new PrReviewLeaseError("preview-render failure requires prior result pointer");
+    }
+    if (previous.validation.result_manifest.status !== "valid" ||
+        previous.validation.result_manifest.validated_at !== previous.updated_at) {
+        throw new PrReviewLeaseError("preview-render failure requires current validation evidence");
+    }
+    if (previous.validation.result_manifest.sha256 === null) {
+        throw new PrReviewLeaseError("preview-render failure requires prior result digest");
+    }
+    if (previous.presentation.presented_at === null ||
+        previous.presentation.status === null) {
+        throw new PrReviewLeaseError("preview-render failure requires prior presentation evidence");
+    }
+}
 function transitionId(previous, inputs) {
     const previousState = previous?.state ?? "none";
     if (previousState === "none" && inputs.state === "created")
@@ -676,8 +786,24 @@ function archivePathIfNeeded(previous, identity, inputs) {
     return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
 }
 function normalizeLegacyLease(lease) {
-    if (lease.validation !== undefined) {
-        return lease;
+    const rawValidation = lease.validation;
+    if (rawValidation !== undefined) {
+        if (!isObject(rawValidation) || !isObject(rawValidation.result_manifest)) {
+            return lease;
+        }
+        if ("sha256" in rawValidation.result_manifest) {
+            return lease;
+        }
+        return {
+            ...lease,
+            validation: {
+                ...lease.validation,
+                result_manifest: {
+                    ...lease.validation.result_manifest,
+                    sha256: null,
+                },
+            },
+        };
     }
     const resultFile = isObject(lease.artifacts) &&
         typeof lease.artifacts.result_file === "string"
@@ -708,6 +834,10 @@ function validateLeaseShape(lease) {
     }
     if (lease.validation.result_manifest.validated_at !== null) {
         validateTimestamp("validation.result_manifest.validated_at", lease.validation.result_manifest.validated_at);
+    }
+    if (lease.validation.result_manifest.sha256 !== null &&
+        !SHA256_RE.test(lease.validation.result_manifest.sha256)) {
+        throw new PrReviewLeaseError("validation.result_manifest.sha256 must be a lowercase 64-character sha256 or null");
     }
     for (const [label, value, suffix] of [
         ["handoff", lease.artifacts.handoff_file, DIRECT_SUFFIXES.handoff],
@@ -741,7 +871,8 @@ function validateStateInvariants(lease) {
     }
     if (lease.artifacts.result_file === null) {
         if (lease.validation.result_manifest.status !== null ||
-            lease.validation.result_manifest.validated_at !== null) {
+            lease.validation.result_manifest.validated_at !== null ||
+            lease.validation.result_manifest.sha256 !== null) {
             throw new PrReviewLeaseError("lease schema mismatch");
         }
     }
@@ -911,6 +1042,16 @@ function validateResultIdentity(result, lease) {
         }
     }
 }
+function presentationStatusFromResult(result) {
+    if (!isObject(result.presentation)) {
+        throw new PrReviewLeaseError("result presentation missing");
+    }
+    const status = result.presentation.status;
+    if (status !== "preview-current" && status !== "edited") {
+        throw new PrReviewLeaseError("result presentation mismatch");
+    }
+    return status;
+}
 function validateApprovedIdentity(approved, lease, resultReviewHead) {
     const reviewHead = stringField(approved, "review_head_sha");
     if (!SHA_RE.test(reviewHead)) {
@@ -932,6 +1073,7 @@ function validateApprovedIdentity(approved, lease, resultReviewHead) {
 }
 async function readExistingLease(file) {
     try {
+        await lstat(path.join(process.cwd(), file));
         const lease = normalizeLegacyLease(await readRequiredJson(process.cwd(), file, "lease file"));
         validateLeaseShape(lease);
         return lease;
@@ -940,6 +1082,26 @@ async function readExistingLease(file) {
         if (err.code === "ENOENT")
             return null;
         throw err;
+    }
+}
+function assertExistingLeaseIdentity(lease, identity) {
+    if (lease === null) {
+        return;
+    }
+    if (lease.repository !== identity.repository) {
+        throw new PrReviewLeaseError("lease repository mismatch");
+    }
+    if (lease.pr_number !== identity.prNumber) {
+        throw new PrReviewLeaseError("lease PR number mismatch");
+    }
+    if (lease.worktree_path !== identity.worktreePath) {
+        throw new PrReviewLeaseError("lease worktree path mismatch");
+    }
+    if (lease.worktree_digest !== identity.worktreeDigest) {
+        throw new PrReviewLeaseError("lease worktree digest mismatch");
+    }
+    if (lease.lease_file !== identity.leaseFile) {
+        throw new PrReviewLeaseError("lease file identity mismatch");
     }
 }
 async function readRequiredJson(root, relPath, label) {
@@ -964,6 +1126,26 @@ async function assertReadableDirectChild(root, relPath, label) {
         throw new PrReviewLeaseError(`${label} missing or not a regular file`);
     }
     await access(fullPath, constants.R_OK);
+}
+async function assertReadableWorktree(worktreePath) {
+    try {
+        const stat = await lstat(worktreePath);
+        if (!stat.isDirectory()) {
+            throw new PrReviewLeaseError("WORKTREE_PATH must be a directory");
+        }
+        await access(worktreePath, constants.R_OK | constants.X_OK);
+    }
+    catch (err) {
+        if (err instanceof PrReviewLeaseError)
+            throw err;
+        throw new PrReviewLeaseError("WORKTREE_PATH is not readable");
+    }
+}
+async function sha256DirectChild(root, relPath, label) {
+    await assertReadableDirectChild(root, relPath, label);
+    return createHash("sha256")
+        .update(await readFile(path.join(root, relPath)))
+        .digest("hex");
 }
 async function assertWritableDirectChild(root, relPath, label) {
     validateDirectChild(label, relPath);
@@ -1047,14 +1229,16 @@ function emptyValidation() {
         result_manifest: {
             status: null,
             validated_at: null,
+            sha256: null,
         },
     };
 }
-function validResultValidation(validatedAt) {
+function validResultValidation(validatedAt, sha256 = null) {
     return {
         result_manifest: {
             status: "valid",
             validated_at: validatedAt,
+            sha256,
         },
     };
 }

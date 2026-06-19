@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
+import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 const execFileAsync = promisify(execFile);
 const FORBIDDEN_KEYS = new Set([
     "approval",
@@ -41,8 +42,10 @@ export async function runPrReviewManifestsCommand(args) {
             case "validate-result":
                 await validateResultCommand();
                 return ok("");
+            case "render-phase5-audit-summary":
+                return ok(`${await renderPhase5AuditSummary()}\n`);
             default:
-                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result");
+                throw new PrReviewManifestError("usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|render-phase5-audit-summary");
         }
     }
     catch (err) {
@@ -193,6 +196,219 @@ async function validateHandoffCommand() {
 async function validateResultCommand() {
     requireEnv("RESULT_FILE");
     await validateResultFile(requiredEnv("RESULT_FILE"));
+}
+async function renderPhase5AuditSummary() {
+    for (const name of [
+        "REPOSITORY",
+        "PR_NUMBER",
+        "HEAD_SHA",
+        "RESULT_FILE",
+        "PRIMARY_REPOSITORY_ROOT",
+        "WORKTREE_PATH",
+        "LEASE_FILE",
+    ]) {
+        requireEnv(name);
+    }
+    const repository = requiredEnv("REPOSITORY");
+    const prNumber = readPrNumber();
+    const headSha = readHeadSha();
+    const resultFile = requiredEnv("RESULT_FILE");
+    validateDirectChildPath("result", resultFile, "-result.json");
+    const primaryRoot = await requireAbsoluteDirectory("PRIMARY_REPOSITORY_ROOT", requiredEnv("PRIMARY_REPOSITORY_ROOT"));
+    const worktreeRoot = await requireAbsoluteDirectory("WORKTREE_PATH", requiredEnv("WORKTREE_PATH"));
+    const { result, handoff, findings } = await withCwd(worktreeRoot, async () => {
+        await validateResultFile(resultFile);
+        const result = await readJsonObject(resultFile, "result file");
+        const handoffFile = stringField(objectField(result, "artifacts"), "handoff_file");
+        const findingsFile = stringField(result, "findings_file");
+        return {
+            result,
+            handoff: await readJsonObject(handoffFile, "handoff file"),
+            findings: await readJsonObject(findingsFile, "findings file"),
+        };
+    });
+    if (stringField(result, "repository") !== repository) {
+        fail("result repository mismatch");
+    }
+    if (numberField(result, "pr_number") !== prNumber) {
+        fail("result PR number mismatch");
+    }
+    if (stringField(result, "review_head_sha") !== headSha) {
+        fail("review head mismatch");
+    }
+    const status = await readLeaseStatus(primaryRoot, worktreeRoot, result);
+    const validation = objectField(result, "validation");
+    const artifacts = objectField(result, "artifacts");
+    const scope = objectField(result, "scope_decision");
+    const presentation = objectField(result, "presentation");
+    const findingItems = Array.isArray(findings.findings)
+        ? findings.findings
+        : [];
+    const carryForwardItems = Array.isArray(findings.carry_forward)
+        ? findings.carry_forward
+        : [];
+    return [
+        "## Phase 5 Artifact Audit Summary",
+        "",
+        `- Reviewed head SHA: \`${headSha}\``,
+        `- Repository and PR: \`${repository}#${prNumber}\``,
+        `- Base/head refs: \`${stringField(handoff, "base_ref")}\` -> \`${stringField(handoff, "head_ref")}\``,
+        `- Active diff range: \`${stringField(scope, "selected_range")}\``,
+        `- Full PR diff range: \`${stringField(scope, "full_range")}\``,
+        `- Result manifest: \`${resultFile}\``,
+        `- Findings: \`${stringField(result, "findings_file")}\` (${findingItems.length} active, ${carryForwardItems.length} carry-forward)`,
+        `- Result artifacts: handoff \`${stringField(artifacts, "handoff_file")}\`, scope \`${stringField(artifacts, "scope_decision_file")}\`, prior threads ${formatNullablePath(nullableStringField(artifacts, "prior_threads_file"))}, review body ${formatNullablePath(nullableStringField(result, "review_body_file"))}, context ${formatNullablePath(nullableStringField(result, "context_file"))}, rendered preview ${formatNullablePath(nullableStringField(artifacts, "rendered_preview_file"))}`,
+        `- Validation status: result \`${stringField(validation, "status")}\`; findings validated \`${String(booleanField(validation, "findings_validated"))}\`; scope validated \`${String(booleanField(validation, "scope_decision_validated"))}\`; lease result digest \`${status.result_sha256}\`; lease validated at \`${status.result_validated_at}\``,
+        `- Presentation status: result \`${stringField(presentation, "status")}\`; lease \`${status.presentation_status}\`; presented at \`${status.presented_at}\``,
+        `- Lease/worktree status: lease \`${status.lease_state}\`; worktree \`${status.worktree_path}\`; digest \`${status.worktree_digest}\`; exists \`${String(status.worktree_exists)}\`; registered \`${String(status.worktree_registered)}\`; dirty \`${String(status.worktree_dirty)}\`; identity match \`${String(status.identity_match)}\``,
+        "- Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
+    ].join("\n");
+}
+async function readLeaseStatus(primaryRoot, worktreeRoot, result) {
+    const outcome = await withCwd(primaryRoot, () => runPrReviewLeasesCommand(["read-status"]));
+    if (outcome.exitCode !== 0) {
+        const diagnostic = outcome.stderr.trim();
+        fail(diagnostic.length > 0
+            ? `read-status failed: ${diagnostic}`
+            : "read-status failed");
+    }
+    const status = parseLeaseStatus(outcome.stdout);
+    const resultFile = requiredEnv("RESULT_FILE");
+    if (status.result_file !== resultFile) {
+        fail("read-status result file mismatch");
+    }
+    if (normalizePathText(status.worktree_path) !== normalizePathText(worktreeRoot)) {
+        fail("read-status worktree path mismatch");
+    }
+    const currentResultSha256 = await withCwd(worktreeRoot, () => sha256File(resultFile));
+    if (status.result_sha256 !== currentResultSha256) {
+        fail("read-status result digest mismatch");
+    }
+    if (status.result_validated_at !== status.lease_updated_at) {
+        fail("read-status validation timestamp is stale");
+    }
+    if (status.presentation_status !==
+        stringField(objectField(result, "presentation"), "status")) {
+        fail("read-status presentation status mismatch");
+    }
+    if (!status.worktree_exists) {
+        fail("read-status worktree does not exist");
+    }
+    if (!status.worktree_registered) {
+        fail("read-status worktree is not registered");
+    }
+    if (!status.identity_match) {
+        fail("read-status identity mismatch");
+    }
+    return status;
+}
+function parseLeaseStatus(stdout) {
+    let parsed;
+    try {
+        parsed = JSON.parse(stdout.trim());
+    }
+    catch {
+        fail("read-status stdout must be a single JSON object");
+    }
+    if (!isObject(parsed)) {
+        fail("read-status stdout must be a single JSON object");
+    }
+    const expectedKeys = [
+        "lease_state",
+        "worktree_path",
+        "worktree_digest",
+        "worktree_exists",
+        "worktree_registered",
+        "worktree_dirty",
+        "identity_match",
+        "result_file",
+        "result_sha256",
+        "result_validated_at",
+        "lease_updated_at",
+        "presentation_status",
+        "presented_at",
+    ];
+    if (!hasExactKeys(parsed, expectedKeys)) {
+        fail("read-status schema mismatch");
+    }
+    const status = {
+        lease_state: stringField(parsed, "lease_state", "read-status schema mismatch"),
+        worktree_path: stringField(parsed, "worktree_path", "read-status schema mismatch"),
+        worktree_digest: stringField(parsed, "worktree_digest", "read-status schema mismatch"),
+        worktree_exists: booleanField(parsed, "worktree_exists", "read-status schema mismatch"),
+        worktree_registered: booleanField(parsed, "worktree_registered", "read-status schema mismatch"),
+        worktree_dirty: booleanField(parsed, "worktree_dirty", "read-status schema mismatch"),
+        identity_match: booleanField(parsed, "identity_match", "read-status schema mismatch"),
+        result_file: stringField(parsed, "result_file", "read-status schema mismatch"),
+        result_sha256: stringField(parsed, "result_sha256", "read-status schema mismatch"),
+        result_validated_at: stringField(parsed, "result_validated_at", "read-status schema mismatch"),
+        lease_updated_at: stringField(parsed, "lease_updated_at", "read-status schema mismatch"),
+        presentation_status: stringField(parsed, "presentation_status", "read-status schema mismatch"),
+        presented_at: stringField(parsed, "presented_at", "read-status schema mismatch"),
+    };
+    if (status.lease_state !== "gated") {
+        fail("read-status lease state must be gated");
+    }
+    if (!isAbsolutePath(status.worktree_path)) {
+        fail("read-status worktree path must be absolute");
+    }
+    if (!isSha256(status.worktree_digest)) {
+        fail("read-status worktree digest mismatch");
+    }
+    validateDirectChildPath("read-status result", status.result_file, "-result.json");
+    if (!isSha256(status.result_sha256)) {
+        fail("read-status result digest mismatch");
+    }
+    if (!isTimestamp(status.result_validated_at) ||
+        !isTimestamp(status.lease_updated_at) ||
+        !isTimestamp(status.presented_at)) {
+        fail("read-status timestamp mismatch");
+    }
+    if (status.presentation_status !== "preview-current" &&
+        status.presentation_status !== "edited") {
+        fail("read-status presentation status mismatch");
+    }
+    if (!status.worktree_exists) {
+        fail("read-status worktree does not exist");
+    }
+    if (!status.worktree_registered) {
+        fail("read-status worktree is not registered");
+    }
+    if (!status.identity_match) {
+        fail("read-status identity mismatch");
+    }
+    return status;
+}
+async function requireAbsoluteDirectory(label, value) {
+    if (!isAbsolutePath(value)) {
+        fail(`${label} must be an absolute path`);
+    }
+    try {
+        const fileStat = await stat(value);
+        if (!fileStat.isDirectory()) {
+            fail(`${label} must be a directory`);
+        }
+        return normalizePathText(await realpath(value));
+    }
+    catch (err) {
+        if (err instanceof PrReviewManifestError) {
+            throw err;
+        }
+        fail(`${label} must be a readable directory`);
+    }
+}
+async function withCwd(cwd, callback) {
+    const previous = process.cwd();
+    process.chdir(cwd);
+    try {
+        return await callback();
+    }
+    finally {
+        process.chdir(previous);
+    }
+}
+function formatNullablePath(value) {
+    return value === null ? "`none`" : `\`${value}\``;
 }
 async function validateHandoffFile(file, identityFile = file) {
     await requireRepoRoot();
@@ -1021,6 +1237,9 @@ function isSha(value) {
 }
 function isSha256(value) {
     return /^[0-9a-f]{64}$/u.test(value);
+}
+function isTimestamp(value) {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value);
 }
 function digestMatchesNullable(file, digest) {
     return file === null
