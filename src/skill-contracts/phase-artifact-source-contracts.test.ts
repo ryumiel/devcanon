@@ -722,7 +722,7 @@ describe("phase artifact source contracts", () => {
       "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
     );
     expect(normalizedPrReview).toContain(
-      "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
     );
     expect(normalizedPrReview).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -812,9 +812,7 @@ describe("phase artifact source contracts", () => {
     expect(manifestRuntime).toContain('"lease_state"');
     expect(manifestRuntime).toContain('"review_payload_file"');
     expect(manifestRuntime).toContain('"payload_sha256"');
-    expect(normalizedManifestRuntime).toContain(
-      "renderPhase5AuditSummary",
-    );
+    expect(normalizedManifestRuntime).toContain("renderPhase5AuditSummary");
     expect(normalizedManifestRuntime).toContain("result_sha256");
     expect(normalizedManifestRuntime).toContain("result_validated_at");
     expect(normalizedManifestRuntime).toContain("presented_at");

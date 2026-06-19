@@ -316,9 +316,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReview).toContain("read_pr_review_result_manifest_for_preview");
     expect(prReview).toContain("PHASE5_AUDIT_SUMMARY=$(");
-    expect(prReview).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" read-status',
-    );
+    expect(prReview).toContain('bash "$PR_REVIEW_LEASE_HELPER" read-status');
     expect(prReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
@@ -347,7 +345,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+      '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
@@ -512,7 +510,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "`pr-review/result/v1` with `PRESENTATION_STATUS=\"edited\"`",
+        '`pr-review/result/v1` with `PRESENTATION_STATUS="edited"`',
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "render the mandatory Phase 5 artifact audit summary again before waiting for approval",
