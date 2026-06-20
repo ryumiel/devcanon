@@ -1499,6 +1499,142 @@ describe("pr-review lease read-status", () => {
     }
   });
 
+  it("records Phase 5 audit failure with missing presentation timestamp after strict status rejection", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-missing-presentation-audit-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.presentation.presented_at = null;
+      });
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+
+      const validateBefore = await runPrReviewLeasesCommand(["validate"]);
+      expect(validateBefore.exitCode).toBe(1);
+      expect(validateBefore.stderr).toContain("lease schema mismatch");
+
+      const statusBefore = await runPrReviewLeasesCommand(["read-status"]);
+      expect(statusBefore).toMatchObject({ exitCode: 1, stdout: "" });
+      expect(statusBefore.stderr).toContain("lease schema mismatch");
+
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        failure: {
+          phase: "preview-render",
+          reason: "audit summary render failed",
+          recoverability: "recoverable",
+        },
+      });
+
+      process.env.WORKTREE_PATH = workspace.physicalWorktree;
+      const validateAfter = await runPrReviewLeasesCommand(["validate"]);
+      expect(validateAfter.exitCode, validateAfter.stderr).toBe(0);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears recovery artifacts for Phase 5 audit failure when worktree directory is unregistered", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-unregistered-audit-worktree-",
+    );
+
+    try {
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "--force", "worktree"],
+        {
+          cwd: workspace.primary,
+        },
+      );
+      await mkdir(path.join(workspace.worktree, ".ephemeral"), {
+        recursive: true,
+      });
+      await writeResultArtifact(
+        workspace.worktree,
+        workspace.resultFile,
+        workspace.reviewHead,
+        "preview-current",
+      );
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts).toEqual({
+        handoff_file: null,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      });
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: null,
+        status: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves current recovery artifacts for registered Phase 5 audit failures", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-current-audit-evidence-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts.result_file).toBe(workspace.resultFile);
+      expect(failed.validation.result_manifest).toEqual({
+        status: "valid",
+        validated_at: "2026-06-11T00:02:00Z",
+        sha256: workspace.resultSha256,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: "2026-06-11T00:02:00Z",
+        status: "preview-current",
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("clears stale recovery artifacts when recording Phase 5 audit failure", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-stale-audit-evidence-",

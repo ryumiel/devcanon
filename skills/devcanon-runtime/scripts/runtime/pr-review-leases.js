@@ -45,7 +45,7 @@ export async function runPrReviewLeasesCommand(args) {
         return { exitCode: 1, stdout: "", stderr: `${message}\n` };
     }
 }
-export function reducePrReviewLease(previous, identity, inputs) {
+export function reducePrReviewLease(previous, identity, inputs, options = {}) {
     const previousState = previous?.state ?? "none";
     const row = transitionId(previous, inputs);
     if (row === null) {
@@ -143,7 +143,7 @@ export function reducePrReviewLease(previous, identity, inputs) {
         case "LC-12":
         case "LC-13":
         case "LC-16":
-            return applyFailure(row, base, previous, inputs);
+            return applyFailure(row, base, previous, inputs, options);
         case "LC-17":
             requireInput("FINISHED_AT", inputs.finishedAt);
             requireInput("GITHUB_POSTED_AT", inputs.githubPostedAt);
@@ -178,7 +178,7 @@ async function writeLease() {
     let reduced = reducePrReviewLease(previous, identity, inputs);
     if (previous !== null && isPostGatedPreviewRenderFailure(previous, inputs)) {
         validatePostGatedPreviewRenderFailure(previous);
-        reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.worktreePath);
+        reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
     }
     else {
         validateLeaseShape(reduced);
@@ -204,8 +204,10 @@ async function recordAuditFailure() {
     if (inputs.expectedState !== "gated") {
         throw new PrReviewLeaseError("EXPECTED_STATE must be gated");
     }
-    let reduced = reducePrReviewLease(previous, identity, inputs);
-    reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.worktreePath);
+    let reduced = reducePrReviewLease(previous, identity, inputs, {
+        allowMissingGatedPresentationTimestamp: true,
+    });
+    reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
     validateLeaseShape(reduced);
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(reduced, null, 2)}\n`);
@@ -524,7 +526,10 @@ async function readAuditFailureIdentity() {
     const leaseFile = requiredEnv("LEASE_FILE");
     validateDirectChild("lease", leaseFile, DIRECT_SUFFIXES.lease);
     const previous = await readRequiredJson(primaryRoot, leaseFile, "lease file");
-    validateLeaseShape(previous, { allowMissingGatedRecoveryDigest: true });
+    validateLeaseShape(previous, {
+        allowMissingGatedPresentationTimestamp: true,
+        allowMissingGatedRecoveryDigest: true,
+    });
     if (previous.repository !== repository) {
         throw new PrReviewLeaseError("lease repository mismatch");
     }
@@ -703,7 +708,7 @@ function applyGated(base, previous, inputs) {
         },
     };
 }
-function applyFailure(row, base, previous, inputs) {
+function applyFailure(row, base, previous, inputs, options = {}) {
     requireInput("FINISHED_AT", inputs.finishedAt);
     requireInput("FAILURE_PHASE", inputs.failurePhase);
     requireInput("FAILURE_REASON", inputs.failureReason);
@@ -720,7 +725,9 @@ function applyFailure(row, base, previous, inputs) {
         }
     }
     if (inputs.failurePhase === "preview-render" && previous?.state === "gated") {
-        validatePostGatedPreviewRenderFailure(previous);
+        validatePostGatedPreviewRenderFailure(previous, {
+            allowMissingPresentationTimestamp: options.allowMissingGatedPresentationTimestamp === true,
+        });
     }
     const resultFile = failureResultFile(row, previous, inputs);
     const approvedReviewFile = inputs.failurePhase === "approval-freeze" ||
@@ -789,15 +796,16 @@ function isPostGatedPreviewRenderFailure(previous, inputs) {
         inputs.state === "failed" &&
         inputs.failurePhase === "preview-render");
 }
-function validatePostGatedPreviewRenderFailure(previous) {
+function validatePostGatedPreviewRenderFailure(previous, options = {}) {
     if (previous.state !== "gated") {
         throw new PrReviewLeaseError("preview-render failure requires gated lease");
     }
     if (previous.artifacts.result_file === null) {
         throw new PrReviewLeaseError("preview-render failure requires prior result pointer");
     }
-    if (previous.presentation.presented_at === null ||
-        previous.presentation.status === null) {
+    if (previous.presentation.status === null ||
+        (previous.presentation.presented_at === null &&
+            options.allowMissingPresentationTimestamp !== true)) {
         throw new PrReviewLeaseError("preview-render failure requires prior presentation evidence");
     }
 }
@@ -921,7 +929,9 @@ function validateStateInvariants(lease, options = {}) {
         !(options.allowMissingGatedRecoveryDigest && lease.state === "gated")) {
         throw new PrReviewLeaseError("result manifest digest missing");
     }
-    if (lease.state === "gated" && lease.presentation.presented_at === null) {
+    if (lease.state === "gated" &&
+        lease.presentation.presented_at === null &&
+        !options.allowMissingGatedPresentationTimestamp) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
     if ((lease.state === "posted" ||
@@ -951,9 +961,10 @@ function clearPreviewRenderRecoveryArtifacts(lease) {
         presentation: emptyPresentation(),
     };
 }
-async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, worktreePath) {
+async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath) {
     if (!hasCurrentPreviewRenderRecoveryEvidence(previous) ||
-        !(await isPlainDirectory(worktreePath))) {
+        !(await isPlainDirectory(worktreePath)) ||
+        !(await isRegisteredWorktree(primaryRoot, worktreePath))) {
         const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
         validateLeaseShape(cleared);
         return cleared;
