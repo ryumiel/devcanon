@@ -96,8 +96,8 @@ the frozen approved-review payload.
 ## Read-Only Status
 
 `review-leases.sh read-status` delegates to `devcanon-runtime runtime
-pr-review-leases read-status`. It is read-only and must not record cleanup
-metadata.
+pr-review-leases read-status`. It is read-only, must inspect git status with
+optional locks disabled, and must not record cleanup metadata.
 
 Stdout is one JSON object with exactly these keys:
 
@@ -121,6 +121,17 @@ digest, stale validation timestamp, mismatched presentation status, missing
 unreadable worktree as fail-closed audit failures. Failure to inspect git
 status is also fail-closed read-status behavior. A dirty-but-valid worktree is
 truthful status and does not by itself block the Phase 5 gate.
+
+`review-leases.sh record-audit-failure` is the recovery boundary for Phase 5
+audit summary failures after a successful `gated` write. It must run from the
+primary repository root, read the existing gated lease identity from
+`LEASE_FILE`, and must not require `WORKTREE_PATH`. It records a
+`preview-render` failure with `EXPECTED_STATE=gated`, including when the
+worktree is missing. Existing recovery artifact pointers are preserved only
+when the prior gated validation is current and the referenced artifacts still
+pass worktree identity and digest validation; missing worktrees, stale
+validation timestamps, missing digests, or invalid artifacts clear the recovery
+pointers before the failed lease is written.
 
 ## Artifact Requirements
 

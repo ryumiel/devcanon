@@ -23,11 +23,11 @@ resolve_runtime() {
 }
 
 case "$command_name" in
-  derive-path | write | validate | read-status | inspect-worktree | cleanup-worktree)
+  derive-path | write | record-audit-failure | validate | read-status | inspect-worktree | cleanup-worktree)
     runtime="$(resolve_runtime)"
     exec "$runtime" runtime pr-review-leases "$command_name"
     ;;
   *)
-    fail "usage: review-leases.sh derive-path|write|validate|read-status|inspect-worktree|cleanup-worktree"
+    fail "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree"
     ;;
 esac

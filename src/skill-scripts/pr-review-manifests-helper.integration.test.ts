@@ -358,6 +358,11 @@ describe("pr-review manifest helper", () => {
     ).rejects.toMatchObject({
       stderr: expect.stringContaining("read-status"),
     });
+    await expect(
+      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("record-audit-failure"),
+    });
   });
 
   it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
@@ -396,6 +401,27 @@ describe("pr-review manifest helper", () => {
         runHelper(installed, "read-status", {}, script),
       ).resolves.toMatchObject({
         stdout: "runtime pr-review-leases read-status\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("delegates the Phase 5 audit failure command to the pr-review-leases runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        leaseHelperScript,
+        "pr-review/scripts/review-leases.sh",
+      );
+
+      await expect(
+        runHelper(installed, "record-audit-failure", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-leases record-audit-failure\n",
       });
     } finally {
       await cleanupTempDir(installed);

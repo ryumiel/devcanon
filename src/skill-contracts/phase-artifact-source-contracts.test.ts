@@ -685,6 +685,7 @@ describe("phase artifact source contracts", () => {
       'exec "$runtime" runtime pr-review-manifests "$command_name"',
     );
     expect(leaseHelper).toContain("read-status");
+    expect(leaseHelper).toContain("record-audit-failure");
     expect(leaseHelper).toContain(
       'exec "$runtime" runtime pr-review-leases "$command_name"',
     );
@@ -727,10 +728,16 @@ describe("phase artifact source contracts", () => {
       "Treat a dirty-but-valid worktree as truthful status and continue",
     );
     expect(normalizedPrReview).toContain(
-      "`read-status` is read-only and must not record cleanup metadata",
+      "`read-status` is read-only, uses optional-lock-free git status inspection, and must not record cleanup metadata",
     );
     expect(normalizedPrReview).toContain(
-      "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+      "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
+    );
+    expect(normalizedPrReview).toContain(
+      "That command derives the worktree identity from the existing gated lease, so it can record the failure even when the worktree is missing",
+    );
+    expect(normalizedPrReview).toContain(
+      "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
     );
     expect(normalizedPrReview).toContain(
       "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
@@ -778,7 +785,7 @@ describe("phase artifact source contracts", () => {
       'FAILURE_RECOVERABILITY="recoverable"',
     );
     expect(normalizedPrReview).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
     );
     expect(normalizedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
     expect(normalizedPrReview).toContain(
@@ -871,7 +878,16 @@ describe("phase artifact source contracts", () => {
       "`review-leases.sh read-status` delegates to `devcanon-runtime runtime pr-review-leases read-status`",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
-      "It is read-only and must not record cleanup metadata",
+      "It is read-only, must inspect git status with optional locks disabled, and must not record cleanup metadata",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "`review-leases.sh record-audit-failure` is the recovery boundary for Phase 5 audit summary failures after a successful `gated` write",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "must not require `WORKTREE_PATH`",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "missing worktrees, stale validation timestamps, missing digests, or invalid artifacts clear the recovery pointers before the failed lease is written",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "Boolean fields are JSON booleans",

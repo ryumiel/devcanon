@@ -349,7 +349,7 @@ describe("rendered phase artifact smoke coverage", () => {
       'HEAD_REF="$PR_HEAD_REF"',
     );
     expect(prReview).toContain(
-      'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
     );
     expect(prReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
     expect(normalizeRenderedWhitespace(prReview)).toContain(
@@ -368,14 +368,17 @@ describe("rendered phase artifact smoke coverage", () => {
       "Treat a dirty-but-valid worktree as truthful status and continue",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "`read-status` is read-only and must not record cleanup metadata",
+      "`read-status` is read-only, uses optional-lock-free git status inspection, and must not record cleanup metadata",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
     );
     expect(prReview).not.toContain("LEASE_STATUS_JSON");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+      "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
@@ -535,7 +538,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'HEAD_REF="$PR_HEAD_REF"',
       );
       expect(renderedPrReview).toContain(
-        'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
+        'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
       );
       expect(renderedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
       expect(renderedPrReview).toContain(
@@ -584,14 +587,17 @@ describe("rendered phase artifact smoke coverage", () => {
         "Treat a dirty-but-valid worktree as truthful status and continue",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "`read-status` is read-only and must not record cleanup metadata",
+        "`read-status` is read-only, uses optional-lock-free git status inspection, and must not record cleanup metadata",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
       );
       expect(renderedPrReview).not.toContain("LEASE_STATUS_JSON");
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+        "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",

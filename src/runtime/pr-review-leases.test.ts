@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import {
+  access,
   chmod,
   mkdir,
   mkdtemp,
@@ -1099,6 +1101,45 @@ describe("pr-review lease read-status", () => {
     }
   });
 
+  it("inspects worktree dirtiness with optional git locks disabled", async () => {
+    const workspace = await makeGatedStatusWorkspace("pr-review-status-locks-");
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const realGit = await findGitExecutable();
+      const { binDir, recordFile } = await writeGitRecordingWrapper(
+        workspace.tempRoot,
+        realGit,
+      );
+      const originalPath = process.env.PATH;
+      process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ""}`;
+      try {
+        const result = await runPrReviewLeasesCommand(["read-status"]);
+        expect(result.exitCode, result.stderr).toBe(0);
+      } finally {
+        process.env.PATH = originalPath;
+      }
+
+      const statusArgs = (await readFile(recordFile, "utf8"))
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as string[]);
+      expect(statusArgs.length).toBeGreaterThan(0);
+      expect(statusArgs).toContainEqual([
+        "--no-optional-locks",
+        "-C",
+        workspace.physicalWorktree,
+        "status",
+        "--porcelain",
+      ]);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("accepts dirty but valid registered worktrees as status", async () => {
     const workspace = await makeGatedStatusWorkspace("pr-review-status-dirty-");
 
@@ -1395,6 +1436,175 @@ describe("pr-review lease read-status", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("records Phase 5 audit failure when the worktree is missing", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-missing-audit-worktree-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "--force", "worktree"],
+        {
+          cwd: workspace.primary,
+        },
+      );
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        failure: {
+          phase: "preview-render",
+          reason: "audit summary render failed",
+          recoverability: "recoverable",
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears stale recovery artifacts when recording Phase 5 audit failure", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-stale-audit-evidence-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.validation.result_manifest.validated_at = "2026-06-11T00:01:00Z";
+      });
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts.result_file).toBeNull();
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: null,
+        status: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears missing-digest recovery artifacts when recording Phase 5 audit failure", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-missing-digest-audit-evidence-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.validation.result_manifest.sha256 = null;
+      });
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts.result_file).toBeNull();
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: null,
+        status: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears presentation-mismatched recovery artifacts when recording Phase 5 audit failure", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-presentation-mismatch-audit-evidence-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.presentation.status = "edited";
+      });
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts.result_file).toBeNull();
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: null,
+        status: null,
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects audit failure recovery when the prior lease is not gated", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-audit-not-gated-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.state = "reviewed";
+        lease.presentation = { presented_at: null, status: null };
+      });
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "record-audit-failure requires gated preview-render failure",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 });
@@ -1771,6 +1981,26 @@ function setReadStatusEnv(workspace: GatedStatusWorkspace): void {
   process.env.HEAD_SHA = workspace.reviewHead;
 }
 
+function setAuditFailureEnv(
+  workspace: GatedStatusWorkspace,
+  updatedAt: string,
+): void {
+  process.env.REPOSITORY = "owner/repo";
+  process.env.PR_NUMBER = "432";
+  process.env.PRIMARY_REPOSITORY_ROOT = workspace.physicalPrimary;
+  process.env.LEASE_FILE = workspace.leaseFile;
+  process.env.STATE = "failed";
+  process.env.EXPECTED_STATE = "gated";
+  process.env.BASE_REF = "main";
+  process.env.HEAD_REF = "topic";
+  process.env.UPDATED_AT = updatedAt;
+  process.env.RESULT_FILE = workspace.resultFile;
+  process.env.FINISHED_AT = updatedAt;
+  process.env.FAILURE_PHASE = "preview-render";
+  process.env.FAILURE_REASON = "audit summary render failed";
+  process.env.FAILURE_RECOVERABILITY = "recoverable";
+}
+
 async function mutateLease(
   workspace: GatedStatusWorkspace,
   mutate: (lease: PrReviewLease) => void,
@@ -1843,6 +2073,71 @@ async function makeRegisteredWorkspace(prefix: string): Promise<{
     physicalPrimary: await realpath(primary),
     physicalWorktree: await realpath(worktree),
   };
+}
+
+async function findGitExecutable(): Promise<string> {
+  const names =
+    process.platform === "win32" ? ["git.exe", "git.cmd", "git.bat"] : ["git"];
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (dir.length === 0) {
+      continue;
+    }
+    for (const name of names) {
+      const candidate = path.join(dir, name);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Keep searching PATH.
+      }
+    }
+  }
+  throw new Error("git executable not found on PATH");
+}
+
+async function writeGitRecordingWrapper(
+  tempRoot: string,
+  realGit: string,
+): Promise<{ binDir: string; recordFile: string }> {
+  const binDir = path.join(tempRoot, "git-wrapper-bin");
+  const wrapperJs = path.join(binDir, "git-wrapper.mjs");
+  const recordFile = path.join(tempRoot, "git-status-args.jsonl");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(recordFile, "");
+  await writeFile(
+    wrapperJs,
+    [
+      "import { spawnSync } from 'node:child_process';",
+      "import { appendFileSync } from 'node:fs';",
+      `const realGit = ${JSON.stringify(realGit)};`,
+      `const recordFile = ${JSON.stringify(recordFile)};`,
+      "const args = process.argv.slice(2);",
+      "if (args.includes('status')) {",
+      "  appendFileSync(recordFile, `${JSON.stringify(args)}\\n`);",
+      "}",
+      "const result = spawnSync(realGit, args, { stdio: 'inherit', env: process.env });",
+      "process.exit(result.status ?? 1);",
+      "",
+    ].join("\n"),
+  );
+  if (process.platform === "win32") {
+    await writeFile(
+      path.join(binDir, "git.cmd"),
+      ["@echo off", `"${process.execPath}" "${wrapperJs}" %*`, ""].join("\r\n"),
+    );
+  } else {
+    const wrapper = path.join(binDir, "git");
+    await writeFile(
+      wrapper,
+      [
+        "#!/bin/sh",
+        `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(wrapperJs)} "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(wrapper, 0o755);
+  }
+  return { binDir, recordFile };
 }
 
 function identityFromLeaseFile(

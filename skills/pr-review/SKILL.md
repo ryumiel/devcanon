@@ -587,7 +587,6 @@ if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
     REPOSITORY="<owner/repo>" \
     PR_NUMBER="$PR_NUMBER" \
     PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
-    WORKTREE_PATH="$WORKING_DIRECTORY" \
     LEASE_FILE="$LEASE_FILE" \
     STATE="failed" \
     EXPECTED_STATE="gated" \
@@ -599,7 +598,7 @@ if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
     FAILURE_PHASE="preview-render" \
     FAILURE_REASON="Phase 5 artifact audit summary failed" \
     FAILURE_RECOVERABILITY="recoverable" \
-      bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null
+      bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null
   ) || exit 1
   exit "$PHASE5_AUDIT_STATUS"
 fi
@@ -611,10 +610,14 @@ identity mismatch, missing worktree, unregistered worktree, or unreadable
 worktree. Treat a dirty-but-valid worktree as truthful status and continue.
 `render-phase5-audit-summary` invokes `review-leases.sh read-status` from the
 primary repository root and parses that single JSON object; `read-status` is
-read-only and must not record cleanup metadata. If summary rendering fails
-after the gate write, record `failed` with
+read-only, uses optional-lock-free git status inspection, and must not record
+cleanup metadata. If summary rendering fails after the gate write, use the
+recovery-specific `record-audit-failure` command from the primary repository
+root to record `failed` with
 `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and
-`FAILURE_RECOVERABILITY`. Preserve prior validated artifacts only when they
+`FAILURE_RECOVERABILITY`. That command derives the worktree identity from the
+existing gated lease, so it can record the failure even when the worktree is
+missing. Preserve prior validated artifacts only when they are current and
 still pass digest and identity validation; otherwise record the failure without
 invalid recovery artifact pointers.
 
