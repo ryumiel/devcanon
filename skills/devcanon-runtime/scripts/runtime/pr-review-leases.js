@@ -173,10 +173,17 @@ async function writeLease() {
     assertExistingLeaseIdentity(previous, identity);
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
-    const reduced = reducePrReviewLease(previous, identity, inputs);
+    let reduced = reducePrReviewLease(previous, identity, inputs);
     validateLeaseShape(reduced);
     if (previous !== null && isPostGatedPreviewRenderFailure(previous, inputs)) {
         validatePostGatedPreviewRenderFailure(previous);
+        try {
+            await validateReferencedArtifacts(reduced, identity.worktreePath);
+        }
+        catch {
+            reduced = clearPreviewRenderRecoveryArtifacts(reduced);
+            validateLeaseShape(reduced);
+        }
     }
     else {
         await validateReferencedArtifacts(reduced, identity.worktreePath);
@@ -384,7 +391,16 @@ async function classifyCleanup(identity) {
             message: "lease is invalid; preserving worktree",
         };
     }
-    base.dirty = await isWorktreeDirty(identity.worktreePath);
+    try {
+        base.dirty = await isWorktreeDirty(identity.worktreePath);
+    }
+    catch {
+        return {
+            ...base,
+            refusalReason: "status-inspection-failed",
+            message: "git status inspection failed; preserving worktree",
+        };
+    }
     if (base.dirty) {
         return {
             ...base,
@@ -871,6 +887,19 @@ function validateStateInvariants(lease) {
     if (lease.state === "failed" && lease.failure.phase === null) {
         throw new PrReviewLeaseError("lease schema mismatch");
     }
+}
+function clearPreviewRenderRecoveryArtifacts(lease) {
+    return {
+        ...lease,
+        artifacts: {
+            handoff_file: null,
+            result_file: null,
+            approved_review_file: null,
+            validated_payload_file: null,
+        },
+        validation: emptyValidation(),
+        presentation: emptyPresentation(),
+    };
 }
 async function validateReferencedArtifacts(lease, worktreePath) {
     let resultReviewHead = null;

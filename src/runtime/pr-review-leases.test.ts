@@ -1316,7 +1316,7 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("records post-gated preview-render failure without rereading broken result artifacts", async () => {
+  it("records post-gated preview-render failure without invalid recovery artifacts", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeLeaseWorkspace("pr-review-preview-failure-");
     const reviewHead = "1111111111111111111111111111111111111111";
@@ -1369,15 +1369,24 @@ describe("pr-review lease read-status", () => {
       const failed = await readLease(primary, leaseFile);
       expect(failed).toMatchObject({
         state: "failed",
-        artifacts: { result_file: resultFile },
-        validation: gated.validation,
-        presentation: gated.presentation,
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
         failure: {
           phase: "preview-render",
           reason: "audit summary render failed",
           recoverability: "recoverable",
         },
       });
+      const validateResult = await runPrReviewLeasesCommand(["validate"]);
+      expect(validateResult.exitCode, validateResult.stderr).toBe(0);
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -1462,6 +1471,55 @@ describe("pr-review lease Git cleanup safety", () => {
       expect(result.stdout).toContain("OUTCOME=skipped");
       expect(result.stdout).toContain("REFUSAL_REASON=not-registered-worktree");
       expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("retains cleanup targets when git status inspection fails", async () => {
+    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
+      await makeRegisteredWorkspace("pr-review-status-cleanup-failure-");
+
+    try {
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      const dynamicIdentity = identityFromLeaseFile(
+        leaseFile,
+        physicalWorktree,
+      );
+      await writeFile(
+        path.join(primary, leaseFile),
+        `${JSON.stringify(
+          abortedCommandLease(
+            leaseFile,
+            physicalWorktree,
+            dynamicIdentity.worktreeDigest,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      await writeFile(path.join(worktree, ".git"), "gitdir: /nope\n");
+
+      process.env.LEASE_FILE = leaseFile;
+      let result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(
+        "REFUSAL_REASON=status-inspection-failed",
+      );
+      expect(result.stdout).toContain("OUTCOME=inspect");
+
+      result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=retained");
+      expect(result.stdout).toContain(
+        "REFUSAL_REASON=status-inspection-failed",
+      );
+      expect(result.stdout).toContain("METADATA_OUTCOME=retained");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });

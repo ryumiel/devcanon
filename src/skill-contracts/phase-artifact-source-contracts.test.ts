@@ -709,7 +709,7 @@ describe("phase artifact source contracts", () => {
       "PR head changed since review; refusing stale review result",
     );
     expect(normalizedPrReview).toContain(
-      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
     );
     expect(normalizedPrReview).toContain(
       "`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`, `REVIEW_FINDINGS_FILE`",
@@ -730,7 +730,7 @@ describe("phase artifact source contracts", () => {
       "`read-status` is read-only and must not record cleanup metadata",
     );
     expect(normalizedPrReview).toContain(
-      "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+      "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
     );
     expect(normalizedPrReview).toContain(
       "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",
@@ -845,6 +845,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "The result manifest digest is stored only in `validation.result_manifest.sha256`",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "the helper refreshes `validation.result_manifest.sha256` from the validated result file",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "Do not expand the `pr-review/result/v1` schema to carry lease freshness evidence",

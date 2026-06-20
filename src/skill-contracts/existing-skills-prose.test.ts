@@ -2038,10 +2038,10 @@ describe("existing skills source prose contracts", () => {
       "Before presenting or resuming this gate after a user-requested edit",
     );
     expect(normalizedPhase5).toContain(
-      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
     );
     expect(normalizedPhase5).toContain(
-      "Validate `REVIEW_RESULT_FILE` first, then extract and rebind the manifest-backed paths and review head needed for rendering",
+      "After validation, extract and rebind the manifest-backed paths and review head needed for rendering",
     );
     expect(normalizedPhase5).toContain(
       "Result-manifest consumption is only for rendering or resume",

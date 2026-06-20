@@ -408,9 +408,10 @@ do not present a review result whose lease cannot be resumed.
 
 Before presenting or resuming this gate after a user-requested edit, consume the
 current `pr-review/result/v1` manifest from the target worktree root. Phase 5
-renders and resumes from the validated result manifest, not from ambient
-conversation variables. Validate `REVIEW_RESULT_FILE` first, then extract and
-rebind the manifest-backed paths and review head needed for rendering:
+validates `REVIEW_RESULT_FILE` against the trusted review head captured before
+the gate, then renders and resumes from the validated result manifest rather
+than ambient conversation variables. After validation, extract and rebind the
+manifest-backed paths and review head needed for rendering:
 `REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`,
 `REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
 `PRIOR_THREADS_FILE` when present, and `RENDERED_PREVIEW_FILE` when present.
@@ -613,7 +614,9 @@ primary repository root and parses that single JSON object; `read-status` is
 read-only and must not record cleanup metadata. If summary rendering fails
 after the gate write, record `failed` with
 `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and
-`FAILURE_RECOVERABILITY`, then preserve prior validated artifacts.
+`FAILURE_RECOVERABILITY`. Preserve prior validated artifacts only when they
+still pass digest and identity validation; otherwise record the failure without
+invalid recovery artifact pointers.
 
 Present exactly that stdout to the user as the preview, followed by the
 mandatory audit summary, plus the thread resolution list for follow-up reviews

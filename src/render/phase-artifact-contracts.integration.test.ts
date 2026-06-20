@@ -353,7 +353,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+      "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
@@ -375,7 +375,7 @@ describe("rendered phase artifact smoke coverage", () => {
     );
     expect(prReview).not.toContain("LEASE_STATUS_JSON");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+      "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
@@ -569,7 +569,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'RENDERED_PREVIEW_FILE="$(jq -r \'.artifacts.rendered_preview_file // empty\' "$RESULT_JSON")"',
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
+        "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
@@ -591,7 +591,7 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).not.toContain("LEASE_STATUS_JSON");
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "If summary rendering fails after the gate write, record `failed` with `FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`, then preserve prior validated artifacts",
+        "Preserve prior validated artifacts only when they still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
