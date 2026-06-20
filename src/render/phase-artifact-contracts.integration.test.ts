@@ -341,6 +341,15 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(prReview).toContain('PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR"');
     expect(prReview).toContain('WORKTREE_PATH="$WORKING_DIRECTORY"');
     expect(prReview).toContain('LEASE_FILE="$LEASE_FILE"');
+    expect(prReviewPhase5AuditFailureBlock).toContain(
+      'PR_REVIEW_DIR="$PR_REVIEW_DIR"',
+    );
+    expect(prReviewPhase5AuditFailureBlock).toContain(
+      'PR_REVIEW_MANIFEST_HELPER_SCRIPT="$PR_REVIEW_MANIFEST_HELPER"',
+    );
+    expect(prReviewPhase5AuditFailureBlock).toContain(
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"',
+    );
     expect(prReview).toContain(
       'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
     );
@@ -477,6 +486,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain("scripts/review-leases.sh");
       expect(renderedPrReview).toContain("PR_REVIEW_MANIFEST_HELPER");
       expect(renderedPrReview).toContain("PR_REVIEW_LEASE_HELPER");
+      expect(renderedPrReviewPhase5AuditFailureBlock).toContain(
+        'PR_REVIEW_DIR="$PR_REVIEW_DIR"',
+      );
+      expect(renderedPrReviewPhase5AuditFailureBlock).toContain(
+        'PR_REVIEW_MANIFEST_HELPER_SCRIPT="$PR_REVIEW_MANIFEST_HELPER"',
+      );
+      expect(renderedPrReviewPhase5AuditFailureBlock).toContain(
+        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_HELPER"',
+      );
       expect(renderedPrReview).toContain("pr-review/handoff/v1");
       expect(renderedPrReview).toContain("pr-review/result/v1");
       expect(renderedPrReview).toContain("render-review-preview");
@@ -1211,6 +1229,7 @@ describe("rendered phase artifact smoke coverage", () => {
       for (const helperName of [
         "approved-review-artifacts.sh",
         "review-manifests.sh",
+        "review-leases.sh",
       ]) {
         const sourceHelper = await readFile(
           path.join(repoRoot, "skills", "pr-review", "scripts", helperName),

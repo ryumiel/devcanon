@@ -25,7 +25,8 @@ resolve_runtime() {
 case "$command_name" in
   derive-path | write | record-audit-failure | validate | read-status | inspect-worktree | cleanup-worktree)
     runtime="$(resolve_runtime)"
-    exec "$runtime" runtime pr-review-leases "$command_name"
+    PR_REVIEW_LEASE_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
+      exec "$runtime" runtime pr-review-leases "$command_name"
     ;;
   *)
     fail "usage: review-leases.sh derive-path|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree"

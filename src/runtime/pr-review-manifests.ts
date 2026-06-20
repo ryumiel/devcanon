@@ -16,6 +16,10 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
+import {
+  type PrReviewResultCommandAuthorityInput,
+  validatePrReviewResultCommandAuthority,
+} from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -387,7 +391,8 @@ async function readLeaseStatus(
     fail("read-status result file mismatch");
   }
   if (
-    normalizePathText(status.worktree_path) !== normalizePathText(worktreeRoot)
+    normalizePathTextForComparison(status.worktree_path) !==
+    normalizePathTextForComparison(worktreeRoot)
   ) {
     fail("read-status worktree path mismatch");
   }
@@ -570,7 +575,7 @@ async function requireAbsoluteDirectory(
     if (!fileStat.isDirectory()) {
       fail(`${label} must be a directory`);
     }
-    return normalizePathText(await realpath(value));
+    return toOperationalPathText(await realpath(value));
   } catch (err) {
     if (err instanceof PrReviewManifestError) {
       throw err;
@@ -618,14 +623,49 @@ async function validateHandoffFile(file: string, identityFile = file) {
 }
 
 async function validateResultFile(file: string, identityFile = file) {
-  await requireRepoRoot();
-  readPrNumber();
-  readHeadSha();
-  validateDirectChildPath("result", file);
-  await assertReadableFile("result file", file);
-  const result = await readJsonObject(file, "result file");
-  validateResultObject(result, file, identityFile);
-  await validateResultFacts(result, identityFile);
+  await validatePrReviewResultCommandAuthority(
+    readResultValidationInput(file, identityFile),
+  );
+}
+
+function readResultValidationInput(
+  resultFile: string,
+  resultIdentityPath = resultFile,
+): PrReviewResultCommandAuthorityInput {
+  return {
+    worktreeRoot: process.cwd(),
+    resultFile,
+    resultIdentityPath,
+    repository: optionalEnv("REPOSITORY"),
+    prNumber: readPrNumber(),
+    reviewHeadSha: readHeadSha(),
+    prReviewDir: optionalEnv("PR_REVIEW_DIR"),
+    prReviewManifestHelperScript: optionalEnv(
+      "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
+    ),
+    prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
+    playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
+    helperEnv: inheritedHelperEnv(),
+  };
+}
+
+function inheritedHelperEnv(): Record<string, string> {
+  const inherited: Record<string, string> = {};
+  for (const key of [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "SystemRoot",
+    "ComSpec",
+  ]) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      inherited[key] = value;
+    }
+  }
+  return inherited;
 }
 
 function validateHandoffObject(
@@ -1272,8 +1312,8 @@ async function validateExecutionRoot(
   }
   const manifestRoot = await gitTopLevel(process.cwd());
   const manifestRootReal = await realpath(manifestRoot);
-  const normalizedWorking = normalizePathText(workingDirectory);
-  const normalizedRoot = normalizePathText(manifestRootReal);
+  const normalizedWorking = normalizePathTextForComparison(workingDirectory);
+  const normalizedRoot = normalizePathTextForComparison(manifestRootReal);
   if (normalizedWorking !== normalizedRoot) {
     fail("execution working_directory must equal repository root");
   }
@@ -1285,7 +1325,7 @@ async function validateExecutionRoot(
     fail(`execution working_directory missing: ${workingDirectory}`);
   }
   const executionDirectory = await realpath(workingDirectory);
-  if (normalizePathText(executionDirectory) !== normalizedRoot) {
+  if (normalizePathTextForComparison(executionDirectory) !== normalizedRoot) {
     fail("execution working_directory must equal repository root");
   }
   const executionRoot = await gitTopLevel(workingDirectory);
@@ -1773,7 +1813,11 @@ function digestMatchesNullable(file: unknown, digest: unknown): boolean {
     : typeof digest === "string" && isSha256(digest);
 }
 
-function normalizePathText(value: string): string {
+export function toOperationalPathText(value: string): string {
+  return value.replace(/\\/gu, "/");
+}
+
+function normalizePathTextForComparison(value: string): string {
   let normalized = value.replace(/\\/gu, "/");
   if (/^\/[A-Za-z]\//u.test(normalized)) {
     normalized = `${normalized[1]}:${normalized.slice(2)}`;

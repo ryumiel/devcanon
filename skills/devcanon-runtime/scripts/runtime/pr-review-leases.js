@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
+import { validatePrReviewResultCommandAuthority } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
 const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
@@ -971,6 +972,7 @@ async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, pri
     }
     try {
         await validateReferencedArtifacts(previous, worktreePath);
+        await validatePreviewRenderRecoveryResult(previous, worktreePath);
         return reduced;
     }
     catch {
@@ -985,6 +987,51 @@ function hasCurrentPreviewRenderRecoveryEvidence(lease) {
         lease.validation.result_manifest.sha256 !== null &&
         lease.presentation.presented_at !== null &&
         lease.presentation.status !== null);
+}
+async function validatePreviewRenderRecoveryResult(lease, worktreePath) {
+    if (lease.artifacts.result_file === null) {
+        throw new PrReviewLeaseError("result file missing");
+    }
+    await validatePrReviewResultCommandAuthority({
+        worktreeRoot: worktreePath,
+        resultFile: lease.artifacts.result_file,
+        resultIdentityPath: lease.artifacts.result_file,
+        repository: lease.repository,
+        prNumber: lease.pr_number,
+        reviewHeadSha: reviewHeadShaFromResultFile(lease.artifacts.result_file),
+        leaseBaseRef: lease.base_ref,
+        leaseHeadRef: lease.head_ref,
+        prReviewDir: optionalEnv("PR_REVIEW_DIR"),
+        prReviewManifestHelperScript: optionalEnv("PR_REVIEW_MANIFEST_HELPER_SCRIPT"),
+        prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
+        playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
+        helperEnv: inheritedHelperEnv(),
+    });
+}
+function reviewHeadShaFromResultFile(resultFile) {
+    const match = /^\.ephemeral\/pr-[0-9]+-([0-9a-f]{40})-result\.json$/u.exec(resultFile);
+    if (match === null) {
+        throw new PrReviewLeaseError("result path mismatch");
+    }
+    return match[1];
+}
+function inheritedHelperEnv() {
+    const inherited = {};
+    for (const key of [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "SystemRoot",
+        "ComSpec",
+    ]) {
+        const value = process.env[key];
+        if (value !== undefined) {
+            inherited[key] = value;
+        }
+    }
+    return inherited;
 }
 async function isPlainDirectory(value) {
     try {

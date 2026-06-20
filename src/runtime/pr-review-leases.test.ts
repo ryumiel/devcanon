@@ -64,6 +64,10 @@ const managedEnvKeys = [
   "VALIDATED_PAYLOAD_FILE",
   "EXPECTED_STATE",
   "ALLOW_POLICY_OVERRIDE",
+  "PR_REVIEW_DIR",
+  "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
+  "PR_REVIEW_LEASE_HELPER_SCRIPT",
+  "PLAY_REVIEW_HELPER",
   "GIT_TRACE2_EVENT",
 ] as const;
 
@@ -460,6 +464,7 @@ describe("pr-review lease command validation", () => {
 
       await writeResultArtifact(
         worktree,
+        physicalWorktree,
         resultFile,
         reviewHead,
         "preview-current",
@@ -487,7 +492,13 @@ describe("pr-review lease command validation", () => {
         firstGate.updated_at,
       );
 
-      await writeResultArtifact(worktree, resultFile, reviewHead, "edited");
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        reviewHead,
+        "edited",
+      );
       const secondDigest = await sha256File(path.join(worktree, resultFile));
       expect(secondDigest).not.toBe(firstDigest);
       process.env.PRESENTED_AT = "2026-06-11T00:03:00Z";
@@ -522,6 +533,7 @@ describe("pr-review lease command validation", () => {
     try {
       await writeResultArtifact(
         worktree,
+        physicalWorktree,
         resultFile,
         reviewHead,
         "preview-current",
@@ -673,6 +685,7 @@ describe("pr-review lease command validation", () => {
     try {
       await writeResultArtifact(
         worktree,
+        physicalWorktree,
         resultFile,
         reviewHead,
         "preview-current",
@@ -748,6 +761,7 @@ describe("pr-review lease command validation", () => {
 
       await writeResultArtifact(
         workspace.worktree,
+        workspace.physicalWorktree,
         workspace.resultFile,
         workspace.reviewHead,
         "preview-current",
@@ -937,7 +951,12 @@ describe("pr-review lease command validation", () => {
     const approvedReviewFile = `.ephemeral/topic-${approvedHead}-approved-review.json`;
 
     try {
-      await writeResultArtifact(worktree, resultFile, resultHead);
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        resultHead,
+      );
       await writeApprovedReviewArtifact(
         worktree,
         approvedReviewFile,
@@ -988,7 +1007,12 @@ describe("pr-review lease command validation", () => {
       ".ephemeral/copied-validated-review-payload.json";
 
     try {
-      await writeResultArtifact(worktree, resultFile, reviewHead);
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        reviewHead,
+      );
       await writeApprovedReviewArtifact(
         worktree,
         approvedReviewFile,
@@ -1227,6 +1251,7 @@ describe("pr-review lease read-status", () => {
         ".ephemeral/pr-432-1111111111111111111111111111111111111111-result.json";
       await writeResultArtifact(
         separate,
+        physicalSeparate,
         resultFile,
         "1111111111111111111111111111111111111111",
         "preview-current",
@@ -1396,6 +1421,7 @@ describe("pr-review lease read-status", () => {
       });
       await writeResultArtifact(
         worktree,
+        physicalWorktree,
         resultFile,
         reviewHead,
         "preview-current",
@@ -1572,6 +1598,7 @@ describe("pr-review lease read-status", () => {
       });
       await writeResultArtifact(
         workspace.worktree,
+        workspace.physicalWorktree,
         workspace.resultFile,
         workspace.reviewHead,
         "preview-current",
@@ -1628,6 +1655,40 @@ describe("pr-review lease read-status", () => {
       expect(failed.presentation).toEqual({
         presented_at: "2026-06-11T00:02:00Z",
         status: "preview-current",
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears recovery artifacts when nested result artifact digests drift", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-nested-digest-audit-evidence-",
+    );
+
+    try {
+      await writeFile(
+        path.join(workspace.worktree, workspace.findingsFile),
+        `${JSON.stringify({ findings: [{ stale: true }], carry_forward: [] })}\n`,
+      );
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.artifacts.result_file).toBeNull();
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: null,
+        status: null,
       });
     } finally {
       process.chdir(originalCwd);
@@ -2075,16 +2136,29 @@ type GatedStatusWorkspace = Awaited<
   resultFile: string;
   resultSha256: string;
   reviewHead: string;
+  findingsFile: string;
+  prReviewDir: string;
+  prReviewManifestHelperScript: string;
+  prReviewLeaseHelperScript: string;
+  playReviewHelper: string;
 };
 
 async function makeGatedStatusWorkspace(
   prefix: string,
 ): Promise<GatedStatusWorkspace> {
   const workspace = await makeRegisteredWorkspace(prefix);
-  const reviewHead = "1111111111111111111111111111111111111111";
-  const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
-  await writeResultArtifact(
+  const { stdout: reviewHeadOutput } = await execFileAsync("git", [
+    "-C",
     workspace.worktree,
+    "rev-parse",
+    "HEAD",
+  ]);
+  const reviewHead = reviewHeadOutput.trim();
+  const helpers = await writeReviewHelperScripts(workspace.tempRoot);
+  const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+  const { findingsFile } = await writeResultArtifact(
+    workspace.worktree,
+    workspace.physicalWorktree,
     resultFile,
     reviewHead,
     "preview-current",
@@ -2122,6 +2196,8 @@ async function makeGatedStatusWorkspace(
     resultFile,
     resultSha256,
     reviewHead,
+    findingsFile,
+    ...helpers,
   };
 }
 
@@ -2150,6 +2226,12 @@ function setAuditFailureEnv(
   process.env.FAILURE_PHASE = "preview-render";
   process.env.FAILURE_REASON = "audit summary render failed";
   process.env.FAILURE_RECOVERABILITY = "recoverable";
+  process.env.PR_REVIEW_DIR = workspace.prReviewDir;
+  process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT =
+    workspace.prReviewManifestHelperScript;
+  process.env.PR_REVIEW_LEASE_HELPER_SCRIPT =
+    workspace.prReviewLeaseHelperScript;
+  process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
 }
 
 async function mutateLease(
@@ -2340,30 +2422,149 @@ function postedCommandLease({
   };
 }
 
+async function writeReviewHelperScripts(tempRoot: string): Promise<{
+  prReviewDir: string;
+  prReviewManifestHelperScript: string;
+  prReviewLeaseHelperScript: string;
+  playReviewHelper: string;
+}> {
+  const skillsRoot = path.join(tempRoot, "skills");
+  const prReviewDir = path.join(skillsRoot, "pr-review");
+  const prReviewScripts = path.join(prReviewDir, "scripts");
+  const playReviewScripts = path.join(skillsRoot, "play-review", "scripts");
+  await mkdir(prReviewScripts, { recursive: true });
+  await mkdir(playReviewScripts, { recursive: true });
+  const scopeHelper = path.join(prReviewScripts, "prior-thread-artifacts.sh");
+  const prReviewManifestHelperScript = path.join(
+    prReviewScripts,
+    "review-manifests.sh",
+  );
+  const prReviewLeaseHelperScript = path.join(
+    prReviewScripts,
+    "review-leases.sh",
+  );
+  const playReviewHelper = path.join(playReviewScripts, "review-artifacts.sh");
+  const passThrough = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n";
+  await writeFile(scopeHelper, passThrough);
+  await writeFile(prReviewManifestHelperScript, passThrough);
+  await writeFile(prReviewLeaseHelperScript, passThrough);
+  await writeFile(playReviewHelper, passThrough);
+  await chmod(scopeHelper, 0o755);
+  await chmod(prReviewManifestHelperScript, 0o755);
+  await chmod(prReviewLeaseHelperScript, 0o755);
+  await chmod(playReviewHelper, 0o755);
+  return {
+    prReviewDir,
+    prReviewManifestHelperScript,
+    prReviewLeaseHelperScript,
+    playReviewHelper,
+  };
+}
+
 async function writeResultArtifact(
   worktree: string,
+  physicalWorktree: string,
   resultFile: string,
   reviewHead: string,
   presentationStatus: "preview-current" | "edited" = "preview-current",
-): Promise<void> {
+): Promise<{ findingsFile: string }> {
+  const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
+  const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
+  const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
+  const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
+  const scopeDecision = {
+    head_sha: reviewHead,
+    selected_range: "main..HEAD",
+    full_range: "main...HEAD",
+    language_hints: [],
+    mode: "initial",
+    is_followup_narrow: false,
+    last_reviewed_sha: null,
+    selection_reason: "Initial review scope.",
+    prior_context: { kind: "none", path: null },
+  };
+  await writeFile(
+    path.join(worktree, scopeDecisionFile),
+    `${JSON.stringify(scopeDecision, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(worktree, findingsFile),
+    `${JSON.stringify({ findings: [], carry_forward: [] }, null, 2)}\n`,
+  );
+  await writeFile(path.join(worktree, reviewBodyFile), "Review preview.\n");
+  const handoff = {
+    schema: "pr-review/handoff/v1",
+    pr_number: 432,
+    repository: "owner/repo",
+    execution: {
+      kind: "review-worktree",
+      working_directory: physicalWorktree,
+    },
+    base_ref: "main",
+    head_ref: "topic",
+    review_scope_base_ref: "main",
+    active_diff_range: "main..HEAD",
+    full_pr_diff_range: "main...HEAD",
+    review_head_sha: reviewHead,
+    mode: "github-post",
+    language_hints: [],
+    follow_up: {
+      state: "initial",
+      last_reviewed_sha: null,
+      is_followup_narrow: false,
+    },
+    artifacts: {
+      scope_decision_file: scopeDecisionFile,
+      prior_threads_file: null,
+    },
+  };
+  await writeFile(
+    path.join(worktree, handoffFile),
+    `${JSON.stringify(handoff, null, 2)}\n`,
+  );
+  const result = {
+    schema: "pr-review/result/v1",
+    repository: "owner/repo",
+    pr_number: 432,
+    review_head_sha: reviewHead,
+    findings_file: findingsFile,
+    review_body_file: reviewBodyFile,
+    context_file: null,
+    artifacts: {
+      handoff_file: handoffFile,
+      scope_decision_file: scopeDecisionFile,
+      prior_threads_file: null,
+      rendered_preview_file: null,
+    },
+    digests: {
+      handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
+      findings_sha256: await sha256File(path.join(worktree, findingsFile)),
+      review_body_sha256: await sha256File(path.join(worktree, reviewBodyFile)),
+      context_sha256: null,
+      scope_decision_sha256: await sha256File(
+        path.join(worktree, scopeDecisionFile),
+      ),
+      prior_threads_sha256: null,
+      rendered_preview_sha256: null,
+    },
+    scope_decision: {
+      summary: "Initial review scope.",
+      selected_range: "main..HEAD",
+      full_range: "main...HEAD",
+      is_followup_narrow: false,
+    },
+    presentation: { status: presentationStatus, notes: null },
+    validation: {
+      status: "valid",
+      findings_validated: true,
+      scope_decision_validated: true,
+    },
+  };
   await writeFile(
     path.join(worktree, resultFile),
-    `${JSON.stringify({
-      repository: "owner/repo",
-      pr_number: 432,
-      review_head_sha: reviewHead,
-      findings_file: ".ephemeral/topic-findings.json",
-      review_body_file: ".ephemeral/topic-review-body.md",
-      context_file: null,
-      artifacts: {
-        handoff_file: ".ephemeral/pr-432-handoff.json",
-        scope_decision_file: ".ephemeral/topic-scope-decision.json",
-        prior_threads_file: null,
-        rendered_preview_file: null,
-      },
-      presentation: { status: presentationStatus },
-    })}\n`,
+    `${JSON.stringify(result, null, 2)}\n`,
   );
+  return { findingsFile };
 }
 
 async function writeApprovedReviewArtifact(

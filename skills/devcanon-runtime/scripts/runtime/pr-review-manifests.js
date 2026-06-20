@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
+import { validatePrReviewResultCommandAuthority, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
 const FORBIDDEN_KEYS = new Set([
     "approval",
@@ -278,7 +279,8 @@ async function readLeaseStatus(primaryRoot, worktreeRoot, result) {
     if (status.result_file !== resultFile) {
         fail("read-status result file mismatch");
     }
-    if (normalizePathText(status.worktree_path) !== normalizePathText(worktreeRoot)) {
+    if (normalizePathTextForComparison(status.worktree_path) !==
+        normalizePathTextForComparison(worktreeRoot)) {
         fail("read-status worktree path mismatch");
     }
     const currentResultSha256 = await withCwd(worktreeRoot, () => sha256File(resultFile));
@@ -389,7 +391,7 @@ async function requireAbsoluteDirectory(label, value) {
         if (!fileStat.isDirectory()) {
             fail(`${label} must be a directory`);
         }
-        return normalizePathText(await realpath(value));
+        return toOperationalPathText(await realpath(value));
     }
     catch (err) {
         if (err instanceof PrReviewManifestError) {
@@ -433,14 +435,40 @@ async function validateHandoffFile(file, identityFile = file) {
     await validateHandoffFacts(handoff, identityFile);
 }
 async function validateResultFile(file, identityFile = file) {
-    await requireRepoRoot();
-    readPrNumber();
-    readHeadSha();
-    validateDirectChildPath("result", file);
-    await assertReadableFile("result file", file);
-    const result = await readJsonObject(file, "result file");
-    validateResultObject(result, file, identityFile);
-    await validateResultFacts(result, identityFile);
+    await validatePrReviewResultCommandAuthority(readResultValidationInput(file, identityFile));
+}
+function readResultValidationInput(resultFile, resultIdentityPath = resultFile) {
+    return {
+        worktreeRoot: process.cwd(),
+        resultFile,
+        resultIdentityPath,
+        repository: optionalEnv("REPOSITORY"),
+        prNumber: readPrNumber(),
+        reviewHeadSha: readHeadSha(),
+        prReviewDir: optionalEnv("PR_REVIEW_DIR"),
+        prReviewManifestHelperScript: optionalEnv("PR_REVIEW_MANIFEST_HELPER_SCRIPT"),
+        prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
+        playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
+        helperEnv: inheritedHelperEnv(),
+    };
+}
+function inheritedHelperEnv() {
+    const inherited = {};
+    for (const key of [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "SystemRoot",
+        "ComSpec",
+    ]) {
+        const value = process.env[key];
+        if (value !== undefined) {
+            inherited[key] = value;
+        }
+    }
+    return inherited;
 }
 function validateHandoffObject(value, file, identityFile) {
     if (!isObject(value) ||
@@ -855,8 +883,8 @@ async function validateExecutionRoot(workingDirectory, reviewHeadSha) {
     }
     const manifestRoot = await gitTopLevel(process.cwd());
     const manifestRootReal = await realpath(manifestRoot);
-    const normalizedWorking = normalizePathText(workingDirectory);
-    const normalizedRoot = normalizePathText(manifestRootReal);
+    const normalizedWorking = normalizePathTextForComparison(workingDirectory);
+    const normalizedRoot = normalizePathTextForComparison(manifestRootReal);
     if (normalizedWorking !== normalizedRoot) {
         fail("execution working_directory must equal repository root");
     }
@@ -869,7 +897,7 @@ async function validateExecutionRoot(workingDirectory, reviewHeadSha) {
         fail(`execution working_directory missing: ${workingDirectory}`);
     }
     const executionDirectory = await realpath(workingDirectory);
-    if (normalizePathText(executionDirectory) !== normalizedRoot) {
+    if (normalizePathTextForComparison(executionDirectory) !== normalizedRoot) {
         fail("execution working_directory must equal repository root");
     }
     const executionRoot = await gitTopLevel(workingDirectory);
@@ -1258,7 +1286,10 @@ function digestMatchesNullable(file, digest) {
         ? digest === null
         : typeof digest === "string" && isSha256(digest);
 }
-function normalizePathText(value) {
+export function toOperationalPathText(value) {
+    return value.replace(/\\/gu, "/");
+}
+function normalizePathTextForComparison(value) {
     let normalized = value.replace(/\\/gu, "/");
     if (/^\/[A-Za-z]\//u.test(normalized)) {
         normalized = `${normalized[1]}:${normalized.slice(2)}`;

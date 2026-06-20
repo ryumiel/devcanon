@@ -71,6 +71,13 @@ afterEach(async () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
+  it("keeps POSIX single-letter roots as operational paths", async () => {
+    const { toOperationalPathText } = await import("./pr-review-manifests.js");
+    expect(toOperationalPathText("/c/repo")).toBe("/c/repo");
+    expect(toOperationalPathText("/w/worktree")).toBe("/w/worktree");
+    expect(toOperationalPathText("C:\\repo")).toBe("C:/repo");
+  });
+
   it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
     const workspace = await makeManifestWorkspace(
       "pr-review-manifest-summary-",

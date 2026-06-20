@@ -1404,6 +1404,26 @@ describe("pr-review manifest helper", () => {
             RESULT_FILE: resultPath(headSha),
           }),
         ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings digest mismatch"),
+        });
+
+        const resultWithCurrentFindingsDigest = await readJson(
+          cwd,
+          resultPath(headSha),
+        );
+        await writeJson(cwd, resultPath(headSha), {
+          ...resultWithCurrentFindingsDigest,
+          digests: {
+            ...resultWithCurrentFindingsDigest.digests,
+            findings_sha256: await sha256File(cwd, findingsPath(headSha)),
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
           stderr: expect.stringContaining("envelope shape mismatch"),
         });
 
