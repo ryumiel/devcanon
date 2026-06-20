@@ -282,6 +282,11 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(branchReview).toContain("build-github-review-payload");
 
     const prReview = bodyFor("pr-review");
+    const prReviewPhase5AuditFailureBlock = sliceRenderedSection(
+      prReview,
+      "PHASE5_AUDIT_STATUS=0",
+      "Fail closed if the summary detects",
+    );
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("scripts/review-leases.sh");
@@ -337,8 +342,12 @@ describe("rendered phase artifact smoke coverage", () => {
       'FAILURE_REASON="Phase 5 artifact audit summary failed"',
     );
     expect(prReview).toContain('FAILURE_RECOVERABILITY="recoverable"');
-    expect(prReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
-    expect(prReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
+    expect(prReviewPhase5AuditFailureBlock).toContain(
+      'HEAD_REF="$REVIEW_HEAD_REF"',
+    );
+    expect(prReviewPhase5AuditFailureBlock).not.toContain(
+      'HEAD_REF="$PR_HEAD_REF"',
+    );
     expect(prReview).toContain(
       'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
     );
@@ -412,6 +421,11 @@ describe("rendered phase artifact smoke coverage", () => {
       const renderedPlayReview = bodies[`play-review:${target}`];
       const renderedPrReview = bodies[`pr-review:${target}`];
       const renderedBranchReview = bodies[`branch-review:${target}`];
+      const renderedPrReviewPhase5AuditFailureBlock = sliceRenderedSection(
+        renderedPrReview,
+        "PHASE5_AUDIT_STATUS=0",
+        "Fail closed if the summary detects",
+      );
 
       expect(renderedPlayReview).toContain("scripts/review-artifacts.sh");
       expect(renderedPlayReview).toContain("render-review-preview");
@@ -514,8 +528,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         'FAILURE_RECOVERABILITY="recoverable"',
       );
-      expect(renderedPrReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
-      expect(renderedPrReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
+      expect(renderedPrReviewPhase5AuditFailureBlock).toContain(
+        'HEAD_REF="$REVIEW_HEAD_REF"',
+      );
+      expect(renderedPrReviewPhase5AuditFailureBlock).not.toContain(
+        'HEAD_REF="$PR_HEAD_REF"',
+      );
       expect(renderedPrReview).toContain(
         'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
       );

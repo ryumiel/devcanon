@@ -640,6 +640,17 @@ describe("phase artifact source contracts", () => {
     );
     const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
     const normalizedLeaseRuntime = normalizeWhitespace(leaseRuntime);
+    const phase5AuditFailureStart = prReview.indexOf("PHASE5_AUDIT_STATUS=0");
+    expect(phase5AuditFailureStart).toBeGreaterThanOrEqual(0);
+    const phase5AuditFailureEnd = prReview.indexOf(
+      "Fail closed if the summary detects",
+      phase5AuditFailureStart,
+    );
+    expect(phase5AuditFailureEnd).toBeGreaterThan(phase5AuditFailureStart);
+    const phase5AuditFailureBlock = prReview.slice(
+      phase5AuditFailureStart,
+      phase5AuditFailureEnd,
+    );
 
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("scripts/review-leases.sh");
@@ -823,8 +834,8 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
     );
-    expect(normalizedPrReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
-    expect(normalizedPrReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
+    expect(phase5AuditFailureBlock).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
+    expect(phase5AuditFailureBlock).not.toContain('HEAD_REF="$PR_HEAD_REF"');
 
     expect(normalizedManifestRuntime).toContain(
       'schema: "pr-review/handoff/v1"',
