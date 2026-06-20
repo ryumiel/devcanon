@@ -1957,7 +1957,7 @@ function reviewedCommandLease(
   worktreePath: string,
   worktreeDigest: string,
   resultFile: string,
-  resultSha256: string | null = null,
+  resultSha256: string,
 ): PrReviewLease {
   return {
     schema: "pr-review/lease/v1",

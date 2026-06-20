@@ -1247,7 +1247,7 @@ function emptyValidation() {
         },
     };
 }
-function validResultValidation(validatedAt, sha256 = null) {
+function validResultValidation(validatedAt, sha256) {
     return {
         result_manifest: {
             status: "valid",

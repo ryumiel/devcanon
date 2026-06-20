@@ -1779,7 +1779,7 @@ function emptyValidation(): PrReviewLease["validation"] {
 
 function validResultValidation(
   validatedAt: string,
-  sha256: string | null = null,
+  sha256: string,
 ): PrReviewLease["validation"] {
   return {
     result_manifest: {
