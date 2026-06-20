@@ -226,7 +226,10 @@ export function reducePrReviewLease(
             inputs.handoffFile ?? previous?.artifacts.handoff_file ?? null,
           result_file: inputs.resultFile,
         },
-        validation: validResultValidation(inputs.updatedAt, inputs.resultSha256),
+        validation: validResultValidation(
+          inputs.updatedAt,
+          inputs.resultSha256,
+        ),
       };
     case "LC-04":
     case "LC-14":
