@@ -1125,7 +1125,10 @@ describe("pr-review lease read-status", () => {
     try {
       process.chdir(workspace.physicalPrimary);
       setReadStatusEnv(workspace);
-      await writeFile(path.join(workspace.worktree, ".git"), "gitdir: /nope\n");
+      await rm(path.join(workspace.worktree, ".git"), {
+        recursive: true,
+        force: true,
+      });
       const result = await runPrReviewLeasesCommand(["read-status"]);
       expect(result).toMatchObject({ exitCode: 1, stdout: "" });
       expect(result.stderr).toContain("git status inspection failed");
@@ -1135,7 +1138,7 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("fails closed for missing, unregistered, unreadable, and identity-mismatched worktrees", async () => {
+  it("fails closed for missing, unregistered, unreadable where the platform enforces chmod permissions, and identity-mismatched worktrees", async () => {
     const missing = await makeGatedStatusWorkspace("pr-review-status-missing-");
     try {
       process.chdir(missing.physicalPrimary);
@@ -1197,19 +1200,21 @@ describe("pr-review lease read-status", () => {
       await rm(unregisteredBase.tempRoot, { recursive: true, force: true });
     }
 
-    const unreadable = await makeGatedStatusWorkspace(
-      "pr-review-status-unreadable-",
-    );
-    try {
-      process.chdir(unreadable.physicalPrimary);
-      setReadStatusEnv(unreadable);
-      await chmod(unreadable.worktree, 0);
-      const result = await runPrReviewLeasesCommand(["read-status"]);
-      expect(result).toMatchObject({ exitCode: 1, stdout: "" });
-    } finally {
-      await chmod(unreadable.worktree, 0o755).catch(() => undefined);
-      process.chdir(originalCwd);
-      await rm(unreadable.tempRoot, { recursive: true, force: true });
+    if (process.platform !== "win32") {
+      const unreadable = await makeGatedStatusWorkspace(
+        "pr-review-status-unreadable-",
+      );
+      try {
+        process.chdir(unreadable.physicalPrimary);
+        setReadStatusEnv(unreadable);
+        await chmod(unreadable.worktree, 0);
+        const result = await runPrReviewLeasesCommand(["read-status"]);
+        expect(result).toMatchObject({ exitCode: 1, stdout: "" });
+      } finally {
+        await chmod(unreadable.worktree, 0o755).catch(() => undefined);
+        process.chdir(originalCwd);
+        await rm(unreadable.tempRoot, { recursive: true, force: true });
+      }
     }
 
     const mismatch = await makeGatedStatusWorkspace(
@@ -1503,7 +1508,10 @@ describe("pr-review lease Git cleanup safety", () => {
           2,
         )}\n`,
       );
-      await writeFile(path.join(worktree, ".git"), "gitdir: /nope\n");
+      await rm(path.join(worktree, ".git"), {
+        recursive: true,
+        force: true,
+      });
 
       process.env.LEASE_FILE = leaseFile;
       let result = await runPrReviewLeasesCommand(["inspect-worktree"]);

@@ -18,6 +18,12 @@ const execFileAsync = promisify(execFile);
 
 const originalCwd = process.cwd();
 const tempRoots: string[] = [];
+const rmTempRootOptions = {
+  recursive: true,
+  force: true,
+  maxRetries: 5,
+  retryDelay: 100,
+} as const;
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -60,7 +66,7 @@ afterEach(async () => {
   vi.doUnmock("./pr-review-leases.js");
   vi.resetModules();
   for (const tempRoot of tempRoots.splice(0)) {
-    await rm(tempRoot, { recursive: true, force: true });
+    await rm(tempRoot, rmTempRootOptions);
   }
 });
 
@@ -209,15 +215,20 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         })),
       }));
 
-      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      try {
+        const result = await runManifestCommand([
+          "render-phase5-audit-summary",
+        ]);
 
-      expect(result.exitCode, testCase.name).toBe(1);
-      expect(result.stdout, testCase.name).toBe("");
-      expect(result.stderr, testCase.name).toContain(testCase.expectStderr);
-      vi.doUnmock("./pr-review-leases.js");
-      vi.resetModules();
+        expect(result.exitCode, testCase.name).toBe(1);
+        expect(result.stdout, testCase.name).toBe("");
+        expect(result.stderr, testCase.name).toContain(testCase.expectStderr);
+      } finally {
+        vi.doUnmock("./pr-review-leases.js");
+        vi.resetModules();
+      }
     }
-  });
+  }, 30_000);
 
   it("reports dirty-but-valid worktree status and fails closed for false status booleans", async () => {
     const dirty = await makeManifestWorkspace("pr-review-summary-dirty-");
@@ -244,12 +255,15 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         })),
       }));
 
-      result = await runManifestCommand(["render-phase5-audit-summary"]);
+      try {
+        result = await runManifestCommand(["render-phase5-audit-summary"]);
 
-      expect(result.exitCode, field).toBe(1);
-      expect(result.stderr, field).toContain(expected);
-      vi.doUnmock("./pr-review-leases.js");
-      vi.resetModules();
+        expect(result.exitCode, field).toBe(1);
+        expect(result.stderr, field).toContain(expected);
+      } finally {
+        vi.doUnmock("./pr-review-leases.js");
+        vi.resetModules();
+      }
     }
   });
 
