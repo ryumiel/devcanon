@@ -1,8 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { constants } from "node:fs";
 import {
-  access,
   chmod,
   mkdir,
   mkdtemp,
@@ -66,6 +64,7 @@ const managedEnvKeys = [
   "VALIDATED_PAYLOAD_FILE",
   "EXPECTED_STATE",
   "ALLOW_POLICY_OVERRIDE",
+  "GIT_TRACE2_EVENT",
 ] as const;
 
 afterEach(() => {
@@ -1107,33 +1106,49 @@ describe("pr-review lease read-status", () => {
     try {
       process.chdir(workspace.physicalPrimary);
       setReadStatusEnv(workspace);
-      const realGit = await findGitExecutable();
-      const { binDir, recordFile } = await writeGitRecordingWrapper(
-        workspace.tempRoot,
-        realGit,
-      );
-      const originalPath = process.env.PATH;
-      process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ""}`;
+      const traceFile = path.join(workspace.tempRoot, "git-trace2.jsonl");
+      const originalTrace = process.env.GIT_TRACE2_EVENT;
+      process.env.GIT_TRACE2_EVENT = traceFile;
       try {
         const result = await runPrReviewLeasesCommand(["read-status"]);
         expect(result.exitCode, result.stderr).toBe(0);
       } finally {
-        process.env.PATH = originalPath;
+        if (originalTrace === undefined) {
+          unsetEnv("GIT_TRACE2_EVENT");
+        } else {
+          process.env.GIT_TRACE2_EVENT = originalTrace;
+        }
       }
 
-      const statusArgs = (await readFile(recordFile, "utf8"))
+      const statusArgs = (await readFile(traceFile, "utf8"))
         .trim()
         .split("\n")
         .filter(Boolean)
-        .map((line) => JSON.parse(line) as string[]);
-      expect(statusArgs.length).toBeGreaterThan(0);
-      expect(statusArgs).toContainEqual([
-        "--no-optional-locks",
-        "-C",
-        workspace.physicalWorktree,
-        "status",
-        "--porcelain",
-      ]);
+        .map((line) => JSON.parse(line) as { event?: unknown; argv?: unknown })
+        .filter(
+          (event): event is { event: "start"; argv: string[] } =>
+            event.event === "start" &&
+            Array.isArray(event.argv) &&
+            event.argv.every((value) => typeof value === "string"),
+        )
+        .map((event) => event.argv)
+        .find((argv) => argv.includes("status"));
+      expect(statusArgs).toBeDefined();
+      if (statusArgs === undefined) {
+        throw new Error("missing git status trace2 start event");
+      }
+      expect(statusArgs).toEqual(
+        expect.arrayContaining([
+          "--no-optional-locks",
+          "-C",
+          workspace.physicalWorktree,
+          "status",
+          "--porcelain",
+        ]),
+      );
+      expect(statusArgs.indexOf("--no-optional-locks")).toBeLessThan(
+        statusArgs.indexOf("status"),
+      );
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -2073,71 +2088,6 @@ async function makeRegisteredWorkspace(prefix: string): Promise<{
     physicalPrimary: await realpath(primary),
     physicalWorktree: await realpath(worktree),
   };
-}
-
-async function findGitExecutable(): Promise<string> {
-  const names =
-    process.platform === "win32" ? ["git.exe", "git.cmd", "git.bat"] : ["git"];
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
-    if (dir.length === 0) {
-      continue;
-    }
-    for (const name of names) {
-      const candidate = path.join(dir, name);
-      try {
-        await access(candidate, constants.X_OK);
-        return candidate;
-      } catch {
-        // Keep searching PATH.
-      }
-    }
-  }
-  throw new Error("git executable not found on PATH");
-}
-
-async function writeGitRecordingWrapper(
-  tempRoot: string,
-  realGit: string,
-): Promise<{ binDir: string; recordFile: string }> {
-  const binDir = path.join(tempRoot, "git-wrapper-bin");
-  const wrapperJs = path.join(binDir, "git-wrapper.mjs");
-  const recordFile = path.join(tempRoot, "git-status-args.jsonl");
-  await mkdir(binDir, { recursive: true });
-  await writeFile(recordFile, "");
-  await writeFile(
-    wrapperJs,
-    [
-      "import { spawnSync } from 'node:child_process';",
-      "import { appendFileSync } from 'node:fs';",
-      `const realGit = ${JSON.stringify(realGit)};`,
-      `const recordFile = ${JSON.stringify(recordFile)};`,
-      "const args = process.argv.slice(2);",
-      "if (args.includes('status')) {",
-      "  appendFileSync(recordFile, `${JSON.stringify(args)}\\n`);",
-      "}",
-      "const result = spawnSync(realGit, args, { stdio: 'inherit', env: process.env });",
-      "process.exit(result.status ?? 1);",
-      "",
-    ].join("\n"),
-  );
-  if (process.platform === "win32") {
-    await writeFile(
-      path.join(binDir, "git.cmd"),
-      ["@echo off", `"${process.execPath}" "${wrapperJs}" %*`, ""].join("\r\n"),
-    );
-  } else {
-    const wrapper = path.join(binDir, "git");
-    await writeFile(
-      wrapper,
-      [
-        "#!/bin/sh",
-        `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(wrapperJs)} "$@"`,
-        "",
-      ].join("\n"),
-    );
-    await chmod(wrapper, 0o755);
-  }
-  return { binDir, recordFile };
 }
 
 function identityFromLeaseFile(
