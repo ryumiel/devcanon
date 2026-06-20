@@ -640,13 +640,28 @@ describe("phase artifact source contracts", () => {
     );
     const normalizedManifestRuntime = normalizeWhitespace(manifestRuntime);
     const normalizedLeaseRuntime = normalizeWhitespace(leaseRuntime);
-    const phase5AuditFailureStart = prReview.indexOf("PHASE5_AUDIT_STATUS=0");
-    expect(phase5AuditFailureStart).toBeGreaterThanOrEqual(0);
+    const phase5PostGatedAuditStart = prReview.indexOf(
+      "After every successful `gated` write",
+    );
+    expect(phase5PostGatedAuditStart).toBeGreaterThanOrEqual(0);
+    const phase5AuditFailureStart = prReview.indexOf(
+      "PHASE5_AUDIT_STATUS=0",
+      phase5PostGatedAuditStart,
+    );
+    expect(phase5AuditFailureStart).toBeGreaterThan(phase5PostGatedAuditStart);
     const phase5AuditFailureEnd = prReview.indexOf(
       "Fail closed if the summary detects",
       phase5AuditFailureStart,
     );
     expect(phase5AuditFailureEnd).toBeGreaterThan(phase5AuditFailureStart);
+    const phase5PostGatedAuditBlock = prReview.slice(
+      phase5PostGatedAuditStart,
+      phase5AuditFailureEnd,
+    );
+    const phase5PostGatedBeforeStatus = prReview.slice(
+      phase5PostGatedAuditStart,
+      phase5AuditFailureStart,
+    );
     const phase5AuditFailureBlock = prReview.slice(
       phase5AuditFailureStart,
       phase5AuditFailureEnd,
@@ -719,7 +734,7 @@ describe("phase artifact source contracts", () => {
       "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
     );
     expect(normalizedPrReview).toContain(
-      "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+      "The audit renderer validates the result manifest and then derives the summary only from that validated manifest plus the current read-only lease/worktree status",
     );
     expect(normalizedPrReview).toContain(
       "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
@@ -788,6 +803,13 @@ describe("phase artifact source contracts", () => {
       'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
     );
     expect(normalizedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
+    expect(phase5PostGatedAuditBlock).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    );
+    expect(phase5PostGatedAuditBlock).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+    );
+    expect(phase5PostGatedBeforeStatus).not.toContain("validate-result");
     expect(normalizedPrReview).toContain(
       "`render-phase5-audit-summary` invokes `review-leases.sh read-status` from the primary repository root and parses that single JSON object",
     );
@@ -906,6 +928,7 @@ describe("phase artifact source contracts", () => {
     expect(manifestRuntime).toContain('"review_payload_file"');
     expect(manifestRuntime).toContain('"payload_sha256"');
     expect(normalizedManifestRuntime).toContain("renderPhase5AuditSummary");
+    expect(manifestRuntime).toContain("await validateResultFile(resultFile);");
     expect(normalizedManifestRuntime).toContain("result_sha256");
     expect(normalizedManifestRuntime).toContain("result_validated_at");
     expect(normalizedManifestRuntime).toContain("presented_at");

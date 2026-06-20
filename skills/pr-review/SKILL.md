@@ -557,18 +557,10 @@ after the manifest update succeeds. The lease gate is still not approval.
 
 After every successful `gated` write, including edited previews, render the
 mandatory Phase 5 artifact audit summary before asking for user action. The
-summary must derive only from the validated result manifest plus the current
-read-only lease/worktree status:
+audit renderer validates the result manifest and then derives the summary only
+from that validated manifest plus the current read-only lease/worktree status:
 
 ```bash
-(
-  cd "$WORKING_DIRECTORY" || exit 1
-  PR_NUMBER="$PR_NUMBER" \
-  HEAD_SHA="$REVIEW_HEAD_SHA" \
-  RESULT_FILE="$REVIEW_RESULT_FILE" \
-    bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || exit 1
-)
-
 PHASE5_AUDIT_STATUS=0
 PHASE5_AUDIT_SUMMARY=$(
   REPOSITORY="<owner/repo>" \

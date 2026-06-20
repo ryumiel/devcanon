@@ -282,11 +282,21 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(branchReview).toContain("build-github-review-payload");
 
     const prReview = bodyFor("pr-review");
-    const prReviewPhase5AuditFailureBlock = sliceRenderedSection(
+    const prReviewPhase5PostGatedAuditBlock = sliceRenderedSection(
       prReview,
-      "PHASE5_AUDIT_STATUS=0",
+      "After every successful `gated` write",
       "Fail closed if the summary detects",
     );
+    const prReviewPhase5AuditStatusIndex =
+      prReviewPhase5PostGatedAuditBlock.indexOf("PHASE5_AUDIT_STATUS=0");
+    expect(prReviewPhase5AuditStatusIndex).toBeGreaterThanOrEqual(0);
+    const prReviewPhase5BeforeAuditStatus =
+      prReviewPhase5PostGatedAuditBlock.slice(
+        0,
+        prReviewPhase5AuditStatusIndex,
+      );
+    const prReviewPhase5AuditFailureBlock =
+      prReviewPhase5PostGatedAuditBlock.slice(prReviewPhase5AuditStatusIndex);
     expect(prReview).toContain("scripts/approved-review-artifacts.sh");
     expect(prReview).toContain("scripts/review-manifests.sh");
     expect(prReview).toContain("scripts/review-leases.sh");
@@ -352,6 +362,13 @@ describe("rendered phase artifact smoke coverage", () => {
       'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
     );
     expect(prReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
+    expect(prReviewPhase5PostGatedAuditBlock).toContain(
+      'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+    );
+    expect(prReviewPhase5PostGatedAuditBlock).toContain(
+      'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+    );
+    expect(prReviewPhase5BeforeAuditStatus).not.toContain("validate-result");
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Phase 5 validates `REVIEW_RESULT_FILE` against the trusted review head captured before the gate, then renders and resumes from the validated result manifest rather than ambient conversation variables",
     );
@@ -359,7 +376,7 @@ describe("rendered phase artifact smoke coverage", () => {
       "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+      "The audit renderer validates the result manifest and then derives the summary only from that validated manifest plus the current read-only lease/worktree status",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
@@ -424,11 +441,25 @@ describe("rendered phase artifact smoke coverage", () => {
       const renderedPlayReview = bodies[`play-review:${target}`];
       const renderedPrReview = bodies[`pr-review:${target}`];
       const renderedBranchReview = bodies[`branch-review:${target}`];
-      const renderedPrReviewPhase5AuditFailureBlock = sliceRenderedSection(
+      const renderedPrReviewPhase5PostGatedAuditBlock = sliceRenderedSection(
         renderedPrReview,
-        "PHASE5_AUDIT_STATUS=0",
+        "After every successful `gated` write",
         "Fail closed if the summary detects",
       );
+      const renderedPrReviewPhase5AuditStatusIndex =
+        renderedPrReviewPhase5PostGatedAuditBlock.indexOf(
+          "PHASE5_AUDIT_STATUS=0",
+        );
+      expect(renderedPrReviewPhase5AuditStatusIndex).toBeGreaterThanOrEqual(0);
+      const renderedPrReviewPhase5BeforeAuditStatus =
+        renderedPrReviewPhase5PostGatedAuditBlock.slice(
+          0,
+          renderedPrReviewPhase5AuditStatusIndex,
+        );
+      const renderedPrReviewPhase5AuditFailureBlock =
+        renderedPrReviewPhase5PostGatedAuditBlock.slice(
+          renderedPrReviewPhase5AuditStatusIndex,
+        );
 
       expect(renderedPlayReview).toContain("scripts/review-artifacts.sh");
       expect(renderedPlayReview).toContain("render-review-preview");
@@ -541,6 +572,15 @@ describe("rendered phase artifact smoke coverage", () => {
         'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
       );
       expect(renderedPrReview).toContain('exit "$PHASE5_AUDIT_STATUS"');
+      expect(renderedPrReviewPhase5PostGatedAuditBlock).toContain(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary',
+      );
+      expect(renderedPrReviewPhase5PostGatedAuditBlock).toContain(
+        'bash "$PR_REVIEW_LEASE_HELPER" record-audit-failure >/dev/null',
+      );
+      expect(renderedPrReviewPhase5BeforeAuditStatus).not.toContain(
+        "validate-result",
+      );
       expect(renderedPrReview).toContain(
         ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
       );
@@ -578,7 +618,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "The summary must derive only from the validated result manifest plus the current read-only lease/worktree status",
+        "The audit renderer validates the result manifest and then derives the summary only from that validated manifest plus the current read-only lease/worktree status",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Fail closed if the summary detects a stale digest or validation timestamp, missing digest, mismatched presentation status, missing `presented_at`, identity mismatch, missing worktree, unregistered worktree, or unreadable worktree",
