@@ -411,8 +411,8 @@ current `pr-review/result/v1` manifest from the target worktree root. Phase 5
 renders and resumes from the validated result manifest, not from ambient
 conversation variables. Validate `REVIEW_RESULT_FILE` first, then extract and
 rebind the manifest-backed paths and review head needed for rendering:
-`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_FINDINGS_FILE`,
-`REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
+`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`,
+`REVIEW_FINDINGS_FILE`, `REVIEW_BODY_FILE` when present, `REVIEW_SCOPE_DECISION_FILE`,
 `PRIOR_THREADS_FILE` when present, and `RENDERED_PREVIEW_FILE` when present.
 Then re-read the live PR head from GitHub and compare it to the rebound
 `REVIEW_HEAD_SHA`. If it changed, stop and return to Phase 1; do not present,
@@ -432,6 +432,12 @@ read_pr_review_result_manifest_for_preview() {
   cp "$REVIEW_RESULT_FILE" "$RESULT_JSON" || return 1
   REVIEW_HEAD_SHA="$(jq -r '.review_head_sha' "$RESULT_JSON")" || return 1
   REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
+  PR_NUMBER="$PR_NUMBER" \
+  HEAD_SHA="$REVIEW_HEAD_SHA" \
+  HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+    bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null || return 1
+  REVIEW_HEAD_REF="$(jq -r '.head_ref' "$REVIEW_HANDOFF_FILE")" || return 1
+  [ -n "$REVIEW_HEAD_REF" ] && [ "$REVIEW_HEAD_REF" != "null" ] || return 1
   REVIEW_FINDINGS_FILE="$(jq -r '.findings_file' "$RESULT_JSON")" || return 1
   REVIEW_BODY_FILE="$(jq -r '.review_body_file // empty' "$RESULT_JSON")" || return 1
   REVIEW_SCOPE_DECISION_FILE="$(jq -r '.artifacts.scope_decision_file' "$RESULT_JSON")" || return 1
@@ -585,7 +591,7 @@ if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
     STATE="failed" \
     EXPECTED_STATE="gated" \
     BASE_REF="$PR_BASE_REF" \
-    HEAD_REF="$PR_HEAD_REF" \
+    HEAD_REF="$REVIEW_HEAD_REF" \
     UPDATED_AT="$REVIEW_GATE_FINISHED_AT" \
     RESULT_FILE="$REVIEW_RESULT_FILE" \
     FINISHED_AT="$REVIEW_GATE_FINISHED_AT" \

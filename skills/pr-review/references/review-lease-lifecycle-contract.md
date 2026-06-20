@@ -74,11 +74,9 @@ The result manifest digest is stored only in
 `validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
 schema to carry lease freshness evidence.
 
-For compatibility with early `pr-review/lease/v1` files written before the
-validation field existed, the runtime interprets missing
-`validation.result_manifest` as null when no result manifest is present, or as
-`valid` at the lease `updated_at` timestamp when a result manifest is present.
-The next successful lifecycle write rewrites the lease with the explicit field.
+Missing validation metadata, missing `validation.result_manifest`, or missing
+required digest evidence makes a lease invalid. Classify it as
+`invalid-lease`; do not rewrite missing evidence into a valid shape.
 
 GitHub post metadata is phase-scoped:
 
@@ -120,7 +118,8 @@ Stdout is one JSON object with exactly these keys:
 Boolean fields are JSON booleans. Consumers must treat missing digest, stale
 digest, stale validation timestamp, mismatched presentation status, missing
 `presented_at`, identity mismatch, missing worktree, unregistered worktree, or
-unreadable worktree as fail-closed audit failures. A dirty-but-valid worktree is
+unreadable worktree as fail-closed audit failures. Failure to inspect git
+status is also fail-closed read-status behavior. A dirty-but-valid worktree is
 truthful status and does not by itself block the Phase 5 gate.
 
 ## Artifact Requirements

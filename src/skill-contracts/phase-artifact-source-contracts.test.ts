@@ -701,6 +701,9 @@ describe("phase artifact source contracts", () => {
       "Phase 5 renders and resumes from the validated result manifest, not from ambient conversation variables",
     );
     expect(normalizedPrReview).toContain(
+      "`REVIEW_HEAD_SHA`, `REVIEW_HANDOFF_FILE`, `REVIEW_HEAD_REF`, `REVIEW_FINDINGS_FILE`",
+    );
+    expect(normalizedPrReview).toContain(
       "After every successful `gated` write, including edited previews, render the mandatory Phase 5 artifact audit summary before asking for user action",
     );
     expect(normalizedPrReview).toContain(
@@ -781,6 +784,15 @@ describe("phase artifact source contracts", () => {
       'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
+      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
+    );
+    expect(normalizedPrReview).toContain(
+      'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',
+    );
+    expect(normalizedPrReview).toContain(
+      '[ -n "$REVIEW_HEAD_REF" ] && [ "$REVIEW_HEAD_REF" != "null" ] || return 1',
+    );
+    expect(normalizedPrReview).toContain(
       'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
@@ -811,6 +823,8 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
     );
+    expect(normalizedPrReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
+    expect(normalizedPrReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
 
     expect(normalizedManifestRuntime).toContain(
       'schema: "pr-review/handoff/v1"',
@@ -825,6 +839,18 @@ describe("phase artifact source contracts", () => {
       "Do not expand the `pr-review/result/v1` schema to carry lease freshness evidence",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
+      "Missing validation metadata, missing `validation.result_manifest`, or missing required digest evidence makes a lease invalid",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Classify it as `invalid-lease`; do not rewrite missing evidence into a valid shape",
+    );
+    expect(normalizedLeaseLifecycleReference).not.toContain(
+      "For compatibility with early `pr-review/lease/v1` files",
+    );
+    expect(normalizedLeaseLifecycleReference).not.toContain(
+      "The next successful lifecycle write rewrites the lease with the explicit field",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
       "`review-leases.sh read-status` delegates to `devcanon-runtime runtime pr-review-leases read-status`",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
@@ -835,6 +861,9 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "A dirty-but-valid worktree is truthful status and does not by itself block the Phase 5 gate",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Failure to inspect git status is also fail-closed read-status behavior",
     );
     for (const readStatusKey of PR_REVIEW_LEASE_READ_STATUS_KEYS) {
       expect(leaseLifecycleReference).toContain(`- \`${readStatusKey}\``);

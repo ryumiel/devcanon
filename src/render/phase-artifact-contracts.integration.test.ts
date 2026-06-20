@@ -337,6 +337,8 @@ describe("rendered phase artifact smoke coverage", () => {
       'FAILURE_REASON="Phase 5 artifact audit summary failed"',
     );
     expect(prReview).toContain('FAILURE_RECOVERABILITY="recoverable"');
+    expect(prReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
+    expect(prReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
     expect(prReview).toContain(
       'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
     );
@@ -512,6 +514,8 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(renderedPrReview).toContain(
         'FAILURE_RECOVERABILITY="recoverable"',
       );
+      expect(renderedPrReview).toContain('HEAD_REF="$REVIEW_HEAD_REF"');
+      expect(renderedPrReview).not.toContain('HEAD_REF="$PR_HEAD_REF"');
       expect(renderedPrReview).toContain(
         'bash "$PR_REVIEW_LEASE_HELPER" write >/dev/null',
       );
@@ -524,6 +528,15 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(renderedPrReview).toContain(
         'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
+      );
+      expect(renderedPrReview).toContain(
+        'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',
+      );
+      expect(renderedPrReview).toContain(
+        '[ -n "$REVIEW_HEAD_REF" ] && [ "$REVIEW_HEAD_REF" != "null" ] || return 1',
       );
       expect(renderedPrReview).toContain(
         'REVIEW_HEAD_SHA="$(jq -r \'.review_head_sha\' "$RESULT_JSON")"',
