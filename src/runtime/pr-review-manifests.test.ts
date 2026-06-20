@@ -237,20 +237,20 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("dirty `true`");
 
+    const falseStatusWorkspace = await makeManifestWorkspace(
+      "pr-review-summary-false-status-",
+    );
     for (const [field, expected] of [
       ["worktree_exists", "worktree does not exist"],
       ["worktree_registered", "worktree is not registered"],
       ["identity_match", "identity mismatch"],
     ] as const) {
-      const workspace = await makeManifestWorkspace(
-        `pr-review-summary-${field}-`,
-      );
-      setSummaryEnv(workspace);
+      setSummaryEnv(falseStatusWorkspace);
       vi.resetModules();
       vi.doMock("./pr-review-leases.js", () => ({
         runPrReviewLeasesCommand: vi.fn(async () => ({
           exitCode: 0,
-          stdout: `${JSON.stringify({ ...validStatus(workspace), [field]: false })}\n`,
+          stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
           stderr: "",
         })),
       }));
