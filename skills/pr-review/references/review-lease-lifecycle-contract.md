@@ -9,14 +9,32 @@ owns operator flow.
 ## State Authority
 
 The lease records lifecycle state and the result-manifest validation outcome
-that justifies entering `reviewed`. It does not store approval intent, review
-payload JSON, inline comments, findings content, or thread-resolution decisions.
+that justifies accepting or preserving review result evidence. It does not
+store approval intent, review payload JSON, inline comments, findings content,
+or thread-resolution decisions.
+
+Lease identity and result evidence are separate authority boundaries. Trusted
+lease identity decides whether a command may mutate lifecycle state. Result
+manifest digest checks, artifact identity checks, and helper-backed result
+command authority decide whether stored result evidence may be reported or
+preserved as current. Failure and cleanup observation writers must not turn
+stale result evidence into valid evidence; they either preserve evidence only
+after current validation or record the lifecycle/cleanup observation without
+invalid recovery pointers.
+
+Evidence validation is selected by lifecycle question. A reviewed write accepts
+a validated result manifest before preview presentation exists. Gated/live
+status paths require current presentation evidence. Failure preservation
+validates recovery evidence by family and clears invalid families with their
+dependents instead of treating recovery as one result-centric boolean.
 
 Valid states are:
 
 - `created`: review worktree exists; optional handoff pointer may be added after
   the Phase 3 handoff validates.
-- `reviewed`: Phase 4 result manifest validates and points to review findings.
+- `reviewed`: Phase 4 result manifest validates and points to review findings;
+  the result manifest may still have `presentation.status=not-presented`, and
+  the lease presentation fields remain null until the preview gate is rendered.
 - `gated`: Phase 5 rendered preview is current and waiting for user action.
 - `posted`: GitHub review post succeeded for the frozen approved-review
   artifact.
@@ -34,9 +52,9 @@ updates are valid only when the matching row says so.
 | ----- | ----------------------------- | --------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LC-01 | `create`                      | `none`                | `created`  | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
 | LC-02 | `attach-handoff`              | `created`             | `created`  | `HANDOFF_FILE`, `UPDATED_AT`                                                                                                                                                            |
-| LC-03 | `record-result`               | `created`             | `reviewed` | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` with the validation timestamp                                                                 |
-| LC-04 | `present-preview`             | `reviewed`            | `gated`    | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`                                                                                                 |
-| LC-05 | `present-preview`             | `gated`               | `gated`    | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`                                                                                           |
+| LC-03 | `record-result`               | `created`             | `reviewed` | `RESULT_FILE`, `UPDATED_AT`; the helper records `validation.result_manifest.status=valid` and `validation.result_manifest.sha256` from the validated result file                        |
+| LC-04 | `present-preview`             | `reviewed`            | `gated`    | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file        |
+| LC-05 | `present-preview`             | `gated`               | `gated`    | Existing or supplied `RESULT_FILE`, fresh `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file  |
 | LC-06 | `abort`                       | `reviewed`            | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
 | LC-07 | `abort`                       | `gated`               | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
 | LC-08 | `record-post-success`         | `gated`               | `posted`   | `APPROVED_REVIEW_FILE`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                                 |
@@ -45,7 +63,7 @@ updates are valid only when the matching row says so.
 | LC-11 | `record-failure`              | `gated`               | `failed`   | Pre-approval failure phase, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                     |
 | LC-12 | `record-failure`              | `gated`               | `failed`   | `FAILURE_PHASE=approval-freeze`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                |
 | LC-13 | `record-failure`              | `gated`               | `failed`   | `FAILURE_PHASE=github-post`, `APPROVED_REVIEW_FILE`, `GITHUB_POST_ATTEMPTED=true`, `GITHUB_POST_RESULT=failed`, `FINISHED_AT`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT` |
-| LC-14 | `present-preview`             | `failed`              | `gated`    | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`                                                                                                 |
+| LC-14 | `present-preview`             | `failed`              | `gated`    | Existing or supplied `RESULT_FILE`, `PRESENTED_AT`, `PRESENTATION_STATUS`, `UPDATED_AT`; the helper refreshes `validation.result_manifest.sha256` from the validated result file        |
 | LC-15 | `abort`                       | `failed`              | `aborted`  | `FINISHED_AT`, `TERMINAL_REASON`, `UPDATED_AT`                                                                                                                                          |
 | LC-16 | `record-failure`              | `failed`              | `failed`   | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
 | LC-17 | `retry-post-success`          | `failed`              | `posted`   | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
@@ -66,15 +84,26 @@ Terminal writes require `FINISHED_AT`. `aborted` writes also require
 and `FAILURE_RECOVERABILITY`.
 
 `reviewed` and later states that preserve a result manifest must also preserve
-`validation.result_manifest.status=valid` and the timestamp at which the helper
-accepted that result manifest. Leases without a result manifest keep the result
-validation outcome null.
+`validation.result_manifest.status=valid`, the timestamp at which the helper
+accepted that result manifest, and the digest of the accepted result file.
+Leases without a result manifest keep the result validation outcome null.
+That validation timestamp is policy-specific evidence:
 
-For compatibility with early `pr-review/lease/v1` files written before the
-validation field existed, the runtime interprets missing
-`validation.result_manifest` as null when no result manifest is present, or as
-`valid` at the lease `updated_at` timestamp when a result manifest is present.
-The next successful lifecycle write rewrites the lease with the explicit field.
+- LC-03 records the reviewed result acceptance time and does not imply preview
+  presentation.
+- LC-04, LC-05, LC-14, `read-status`, and Phase 5 audit status require the
+  result validation timestamp to match the current gated lease update.
+- Terminal and failed recovery states may preserve older valid result evidence
+  when artifact digest, identity, nested artifacts, and helper-backed authority
+  still validate for the preserved family.
+
+The result manifest digest is stored only in
+`validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
+schema to carry lease freshness evidence.
+
+Missing validation metadata, missing `validation.result_manifest`, or missing
+required digest evidence makes a lease invalid. Classify it as
+`invalid-lease`; do not rewrite missing evidence into a valid shape.
 
 GitHub post metadata is phase-scoped:
 
@@ -91,19 +120,76 @@ approved-review validation produced a payload copy. That pointer is cleanup
 evidence only when it is derived from the PR number and review head and matches
 the frozen approved-review payload.
 
+## Read-Only Status
+
+`review-leases.sh read-status` delegates to `devcanon-runtime runtime
+pr-review-leases read-status`. It is read-only, must inspect git status with
+optional locks disabled, and must not record cleanup metadata.
+
+Stdout is one JSON object with exactly these keys:
+
+- `lease_state`
+- `worktree_path`
+- `worktree_digest`
+- `worktree_exists`
+- `worktree_registered`
+- `worktree_dirty`
+- `identity_match`
+- `result_file`
+- `result_sha256`
+- `result_validated_at`
+- `lease_updated_at`
+- `presentation_status`
+- `presented_at`
+
+Boolean fields are JSON booleans. Consumers must treat missing digest, stale
+digest, stale validation timestamp, mismatched presentation status, missing
+`presented_at`, identity mismatch, missing worktree, unregistered worktree, or
+unreadable worktree as fail-closed audit failures. Failure to inspect git
+status is also fail-closed read-status behavior. Successful status output also
+requires the stored result evidence to pass lease-aware result command
+authority, including nested result artifacts and lease base/head evidence. A
+dirty-but-valid worktree is truthful status and does not by itself block the
+Phase 5 gate.
+
+`review-leases.sh record-audit-failure` is the recovery boundary for Phase 5
+audit summary failures after a successful `gated` write. It must run from the
+primary repository root, read the existing gated lease identity from
+`LEASE_FILE`, and must not require `WORKTREE_PATH`. It records a
+`preview-render` failure with `EXPECTED_STATE=gated`, including when the
+worktree is missing. Existing recovery artifact pointers are preserved only
+when the prior gated validation is current and the referenced artifacts still
+pass worktree identity, digest validation, and result command authority;
+missing worktrees, stale validation timestamps, missing digests, missing
+presentation evidence, or invalid artifacts clear the recovery pointers before
+the failed lease is written.
+
 ## Artifact Requirements
 
 Referenced artifacts stay owned by their existing helpers. The lease reducer
-validates direct-child paths and artifact identity before accepting pointers:
+validates direct-child paths, artifact identity, result digest freshness, and
+result command authority before accepting or preserving pointers as current.
+The policy selects which families are required:
 
 - Handoff manifest: repository, PR number, refs, review head, and execution
-  worktree path must match the lease identity.
+  worktree path must match the lease identity. Handoff evidence can be
+  preserved by itself for failures that occur after Phase 3 and before a result
+  manifest exists.
 - Result manifest: repository, PR number, review head, deterministic handoff
-  chain, and handoff pointer must match.
-- Gated result: presentation status must be current for the presented preview.
+  chain, handoff pointer, `validation.result_manifest.sha256` digest, nested
+  artifacts, and helper-backed result command authority must match. Reviewed
+  result evidence may carry `presentation.status=not-presented`; gated/live/post
+  policies require a presented status.
+- Gated result: presentation status and timestamp must be current for the
+  presented preview.
 - Approved-review: review head and payload commit must bind to the gated result.
 - Validated payload copy: direct-child path must match the approved-review
   payload.
+
+Recovery dependency order is strict: invalid result evidence clears result
+validation, presentation, approved-review, and validated payload pointers;
+invalid approval evidence clears the validated payload pointer; cleanup
+metadata never adds or refreshes artifact authority.
 
 ## Terminal Archive Behavior
 
@@ -136,3 +222,11 @@ Cleanup may preserve only lease-referenced artifacts and schema-declared
 artifact fields from those artifacts. Arbitrary strings in JSON content,
 findings bodies, review text, payload bodies, or other user-authored content do
 not prove cleanup ownership for `.ephemeral` files.
+
+Cleanup metadata is an observation on a trusted cleanup decision, not proof
+that historical result evidence remains current. When the lease identity
+matches but the physical worktree is missing or the path is no longer
+registered, `inspect-worktree` and `cleanup-worktree` may record skipped or
+retained cleanup metadata without reading artifacts from that unavailable or
+untrusted worktree. Present registered worktrees still require artifact
+validation before removal can proceed.

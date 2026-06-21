@@ -26,6 +26,10 @@ const helperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/review-manifests.sh",
 );
+const leaseHelperScript = path.join(
+  process.cwd(),
+  "skills/pr-review/scripts/review-leases.sh",
+);
 const priorHelperScript = path.join(
   process.cwd(),
   "skills/pr-review/scripts/prior-thread-artifacts.sh",
@@ -275,6 +279,33 @@ async function copyInstalledPrManifestHelper(root: string) {
   return script;
 }
 
+async function copyWrapperWithRecordingRuntime(
+  root: string,
+  sourceScript: string,
+  relativeScript: string,
+) {
+  const runtime = path.join(
+    root,
+    "devcanon-runtime/scripts/devcanon-runtime.sh",
+  );
+  const script = path.join(root, relativeScript);
+  await mkdir(path.dirname(runtime), { recursive: true });
+  await mkdir(path.dirname(script), { recursive: true });
+  await writeFile(
+    runtime,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      "printf '%s\\n' \"$*\"",
+      "",
+    ].join("\n"),
+  );
+  await chmod(runtime, 0o755);
+  await copyFile(sourceScript, script);
+  await chmod(script, 0o755);
+  return script;
+}
+
 async function copyInstalledPrPriorHelper(root: string) {
   const script = path.join(root, "pr-review/scripts/prior-thread-artifacts.sh");
   await mkdir(path.dirname(script), { recursive: true });
@@ -315,7 +346,99 @@ async function writePassingSupportValidator(cwd: string) {
   return validator;
 }
 
+async function copyExternalSupportValidator(root: string) {
+  const script = path.join(
+    root,
+    "play-validate-review-artifacts/scripts/review-artifacts.sh",
+  );
+  await mkdir(path.dirname(script), { recursive: true });
+  await copyFile(supportValidatorScript, script);
+  await chmod(script, 0o755);
+  return script;
+}
+
 describe("pr-review manifest helper", () => {
+  it("lists the Phase 5 audit summary and lease status commands in wrapper usage diagnostics", async () => {
+    await expect(
+      execFileAsync("bash", [helperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("render-phase5-audit-summary"),
+    });
+    await expect(
+      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("read-status"),
+    });
+    await expect(
+      execFileAsync("bash", [leaseHelperScript, "unknown-command"]),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("record-audit-failure"),
+    });
+  });
+
+  it("delegates the Phase 5 audit summary command to the pr-review-manifests runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        helperScript,
+        "pr-review/scripts/review-manifests.sh",
+      );
+
+      await expect(
+        runHelper(installed, "render-phase5-audit-summary", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-manifests render-phase5-audit-summary\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("delegates the read-only lease status command to the pr-review-leases runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        leaseHelperScript,
+        "pr-review/scripts/review-leases.sh",
+      );
+
+      await expect(
+        runHelper(installed, "read-status", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-leases read-status\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
+  it("delegates the Phase 5 audit failure command to the pr-review-leases runtime route", async () => {
+    const installed = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-wrapper-"),
+    );
+    try {
+      const script = await copyWrapperWithRecordingRuntime(
+        installed,
+        leaseHelperScript,
+        "pr-review/scripts/review-leases.sh",
+      );
+
+      await expect(
+        runHelper(installed, "record-audit-failure", {}, script),
+      ).resolves.toMatchObject({
+        stdout: "runtime pr-review-leases record-audit-failure\n",
+      });
+    } finally {
+      await cleanupTempDir(installed);
+    }
+  });
+
   it("derives deterministic handoff/result paths and separates different heads", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
@@ -1292,6 +1415,26 @@ describe("pr-review manifest helper", () => {
             RESULT_FILE: resultPath(headSha),
           }),
         ).rejects.toMatchObject({
+          stderr: expect.stringContaining("findings digest mismatch"),
+        });
+
+        const resultWithCurrentFindingsDigest = await readJson(
+          cwd,
+          resultPath(headSha),
+        );
+        await writeJson(cwd, resultPath(headSha), {
+          ...resultWithCurrentFindingsDigest,
+          digests: {
+            ...resultWithCurrentFindingsDigest.digests,
+            findings_sha256: await sha256File(cwd, findingsPath(headSha)),
+          },
+        });
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+          }),
+        ).rejects.toMatchObject({
           stderr: expect.stringContaining("envelope shape mismatch"),
         });
 
@@ -1313,6 +1456,89 @@ describe("pr-review manifest helper", () => {
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("findings path mismatch"),
         });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(installed);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "preserves explicit validator and runtime overrides through delegated result validation",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const external = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-external-validator-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const externalValidator = await copyExternalSupportValidator(external);
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: externalValidator,
+            DEVCANON_RUNTIME_DIR: runtimeSkillDir,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: externalValidator,
+            DEVCANON_RUNTIME_DIR: path.join(external, "missing-runtime"),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "devcanon-runtime support skill missing",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(external);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "keeps sibling validator fallback when explicit overrides are absent",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const installed = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-sibling-validator-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const installedScript = await copyInstalledPrManifestHelper(installed);
+        await copyInstalledPrPriorHelper(installed);
+        await copyInstalledPlayHelper(installed);
+        await copyInstalledSupportValidator(installed);
+
+        await expect(
+          runHelper(
+            cwd,
+            "validate-result",
+            {
+              HEAD_SHA: headSha,
+              RESULT_FILE: resultPath(headSha),
+            },
+            installedScript,
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
       } finally {
         await cleanupTempDir(cwd);
         await cleanupTempDir(installed);
@@ -1583,6 +1809,7 @@ describe("pr-review manifest helper", () => {
 
   it("keeps approval payload and GitHub mutation authority out of the manifest helper", async () => {
     const manifestHelper = await readFile(helperScript, "utf8");
+    const leaseHelper = await readFile(leaseHelperScript, "utf8");
     const approvedHelper = await readFile(
       path.join(
         process.cwd(),
@@ -1594,7 +1821,10 @@ describe("pr-review manifest helper", () => {
     expect(manifestHelper).not.toContain("freeze-approved-review");
     expect(manifestHelper).not.toContain("build-github-review-payload");
     expect(manifestHelper).not.toMatch(/\bgh\s+api\b/);
+    expect(manifestHelper).not.toMatch(/\bjq\b/);
     expect(manifestHelper).not.toContain("pr-review/approved-review/v1");
+    expect(leaseHelper).not.toMatch(/\bgh\s+api\b/);
+    expect(leaseHelper).not.toMatch(/\bjq\b/);
     expect(approvedHelper).toContain("freeze_approved_review");
     expect(approvedHelper).toContain("pr-review/approved-review/v1");
   });

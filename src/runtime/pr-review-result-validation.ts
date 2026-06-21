@@ -1,0 +1,1238 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
+import { requireDirectEphemeralChild } from "./paths.js";
+
+const execFileAsync = promisify(execFile);
+
+type JsonObject = Record<string, unknown>;
+
+export interface PrReviewResultValidationInput {
+  worktreeRoot: string;
+  resultFile: string;
+  resultIdentityPath?: string;
+  repository?: string;
+  prNumber: number;
+  reviewHeadSha: string;
+  leaseBaseRef?: string;
+  leaseHeadRef?: string;
+}
+
+export interface PrReviewResultCommandAuthorityInput
+  extends PrReviewResultValidationInput {
+  prReviewDir?: string;
+  prReviewManifestHelperScript?: string;
+  prReviewLeaseHelperScript?: string;
+  playReviewHelper?: string;
+  helperEnv?: Record<string, string>;
+}
+
+interface ResultEvidence {
+  result: JsonObject;
+  handoff: JsonObject;
+}
+
+const FORBIDDEN_KEYS = new Set([
+  "approval",
+  "approved_review",
+  "approved_review_file",
+  "approval_state",
+  "lease",
+  "lease_state",
+  "lease_file",
+  "review_payload_file",
+  "payload",
+  "payload_sha256",
+  "review_payload_sha256",
+  "REVIEW_EVENT",
+  "review_event",
+  "event",
+]);
+
+export async function validatePrReviewResultEvidence(
+  input: PrReviewResultValidationInput,
+): Promise<ResultEvidence> {
+  return withCwd(input.worktreeRoot, async () => {
+    await requireRepoRoot();
+    validateDirectChildPath("result", input.resultFile, "-result.json");
+    await assertReadableFile("result file", input.resultFile);
+    const result = await readJsonObject(input.resultFile, "result file");
+    validateResultObject(
+      result,
+      input.resultFile,
+      input.resultIdentityPath ?? input.resultFile,
+    );
+    const handoff = await validateResultFacts(result, input);
+    return { result, handoff };
+  });
+}
+
+export async function validatePrReviewResultCommandAuthority(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<void> {
+  await withCwd(input.worktreeRoot, async () => {
+    const { result, handoff } = await validatePrReviewResultEvidence({
+      worktreeRoot: input.worktreeRoot,
+      resultFile: input.resultFile,
+      resultIdentityPath: input.resultIdentityPath,
+      repository: input.repository,
+      prNumber: input.prNumber,
+      reviewHeadSha: input.reviewHeadSha,
+      leaseBaseRef: input.leaseBaseRef,
+      leaseHeadRef: input.leaseHeadRef,
+    });
+    const findingsFile = stringField(result, "findings_file");
+    await validateFindingsAuthority(findingsFile, input);
+
+    const handoffArtifacts = objectField(handoff, "artifacts");
+    await validateScopeAuthority(
+      stringField(handoffArtifacts, "scope_decision_file"),
+      stringField(handoff, "review_scope_base_ref"),
+      nullableStringField(handoffArtifacts, "prior_threads_file"),
+      input,
+    );
+
+    const artifacts = objectField(result, "artifacts");
+    const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
+    await validateScopeAuthority(
+      scopeDecisionFile,
+      await guardedScopeBaseRef(scopeDecisionFile),
+      nullableStringField(artifacts, "prior_threads_file"),
+      input,
+    );
+  });
+}
+
+async function validateHandoffFile(
+  file: string,
+  input: PrReviewResultValidationInput,
+  identityPath = file,
+): Promise<JsonObject> {
+  validateDirectChildPath("handoff", file, "-handoff.json");
+  await assertReadableFile("handoff file", file);
+  const handoff = await readJsonObject(file, "handoff file");
+  validateHandoffObject(handoff, file);
+  await validateHandoffFacts(handoff, identityPath, input);
+  return handoff;
+}
+
+async function validateHandoffFacts(
+  handoff: JsonObject,
+  identityPath: string,
+  input: PrReviewResultValidationInput,
+): Promise<void> {
+  const manifestPrNumber = String(numberField(handoff, "pr_number"));
+  if (manifestPrNumber !== String(input.prNumber)) {
+    fail(
+      `handoff PR number mismatch: manifest ${manifestPrNumber}, current ${input.prNumber}`,
+    );
+  }
+  const reviewHeadSha = stringField(handoff, "review_head_sha");
+  if (reviewHeadSha !== input.reviewHeadSha) {
+    fail(
+      `review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`,
+    );
+  }
+  if (
+    input.repository !== undefined &&
+    stringField(handoff, "repository") !== input.repository
+  ) {
+    fail("handoff repository mismatch");
+  }
+  if (
+    input.leaseBaseRef !== undefined &&
+    stringField(handoff, "base_ref") !== input.leaseBaseRef
+  ) {
+    fail("handoff base ref mismatch");
+  }
+  if (
+    input.leaseHeadRef !== undefined &&
+    stringField(handoff, "head_ref") !== input.leaseHeadRef
+  ) {
+    fail("handoff head ref mismatch");
+  }
+  const expected = expectedHandoffPath(input.prNumber, reviewHeadSha);
+  if (identityPath !== expected) {
+    fail(`handoff path mismatch: ${identityPath}`);
+  }
+  const execution = objectField(handoff, "execution");
+  await validateExecutionRoot(
+    stringField(execution, "working_directory"),
+    reviewHeadSha,
+  );
+  const artifacts = objectField(handoff, "artifacts");
+  const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
+  const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+  await validateScopePriorContext(scopeDecisionFile, priorThreadsFile);
+  const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+  if (stringField(scope, "head_sha") !== reviewHeadSha) {
+    fail("scope decision head mismatch");
+  }
+  if (
+    stringField(handoff, "active_diff_range") !==
+    stringField(scope, "selected_range")
+  ) {
+    fail("handoff active diff range mismatch");
+  }
+  if (
+    stringField(handoff, "full_pr_diff_range") !==
+    stringField(scope, "full_range")
+  ) {
+    fail("handoff full diff range mismatch");
+  }
+  if (
+    !jsonEqual(
+      arrayField(handoff, "language_hints"),
+      arrayField(scope, "language_hints"),
+    )
+  ) {
+    fail("handoff language hints mismatch");
+  }
+  const followUp = objectField(handoff, "follow_up");
+  const scopeMode = stringField(scope, "mode");
+  const scopeNarrow = booleanField(scope, "is_followup_narrow");
+  const expectedFollowState =
+    scopeMode === "initial" && !scopeNarrow
+      ? "initial"
+      : scopeMode === "follow-up" && scopeNarrow
+        ? "follow-up-narrow"
+        : scopeMode === "follow-up" && !scopeNarrow
+          ? "follow-up-full"
+          : null;
+  if (expectedFollowState === null) {
+    fail("scope decision follow-up state mismatch");
+  }
+  if (stringField(followUp, "state") !== expectedFollowState) {
+    fail("handoff follow-up state mismatch");
+  }
+  if (
+    (nullableStringField(followUp, "last_reviewed_sha") ?? "") !==
+    (nullableStringField(scope, "last_reviewed_sha") ?? "")
+  ) {
+    fail("handoff last reviewed SHA mismatch");
+  }
+  if (booleanField(followUp, "is_followup_narrow") !== scopeNarrow) {
+    fail("handoff follow-up narrow mismatch");
+  }
+}
+
+async function validateResultFacts(
+  result: JsonObject,
+  input: PrReviewResultValidationInput,
+): Promise<JsonObject> {
+  const manifestPrNumber = String(numberField(result, "pr_number"));
+  if (manifestPrNumber !== String(input.prNumber)) {
+    fail(
+      `result PR number mismatch: manifest ${manifestPrNumber}, current ${input.prNumber}`,
+    );
+  }
+  const reviewHeadSha = stringField(result, "review_head_sha");
+  if (reviewHeadSha !== input.reviewHeadSha) {
+    fail(
+      `review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`,
+    );
+  }
+  if (
+    input.repository !== undefined &&
+    stringField(result, "repository") !== input.repository
+  ) {
+    fail("result repository mismatch");
+  }
+  const expected = expectedResultPath(input.prNumber, reviewHeadSha);
+  if ((input.resultIdentityPath ?? input.resultFile) !== expected) {
+    fail(
+      `result path mismatch: ${input.resultIdentityPath ?? input.resultFile}`,
+    );
+  }
+  const artifacts = objectField(result, "artifacts");
+  const handoffFile = stringField(artifacts, "handoff_file");
+  if (handoffFile !== expectedHandoffPath(input.prNumber, reviewHeadSha)) {
+    fail("result handoff path mismatch");
+  }
+  const handoff = await validateHandoffFile(handoffFile, input);
+  if (
+    stringField(result, "repository") !== stringField(handoff, "repository")
+  ) {
+    fail("result repository mismatch");
+  }
+  const findingsFile = stringField(result, "findings_file");
+  if (findingsFile !== (await expectedFindingsPath(reviewHeadSha))) {
+    fail("findings path mismatch");
+  }
+  await assertReadableFile("findings file", findingsFile);
+  const reviewBodyFile = nullableStringField(result, "review_body_file");
+  const contextFile = nullableStringField(result, "context_file");
+  const renderedPreviewFile = nullableStringField(
+    artifacts,
+    "rendered_preview_file",
+  );
+  await validateOptionalReadableArtifact("review body file", reviewBodyFile);
+  await validateOptionalReadableArtifact("context file", contextFile);
+  await validateOptionalReadableArtifact(
+    "rendered preview file",
+    renderedPreviewFile,
+  );
+  const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
+  const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+  const handoffArtifacts = objectField(handoff, "artifacts");
+  if (
+    scopeDecisionFile !== stringField(handoffArtifacts, "scope_decision_file")
+  ) {
+    fail("result handoff scope decision mismatch");
+  }
+  if (
+    (priorThreadsFile ?? "null") !==
+    (nullableStringField(handoffArtifacts, "prior_threads_file") ?? "null")
+  ) {
+    fail("result handoff prior threads mismatch");
+  }
+  await validateScopePriorContext(scopeDecisionFile, priorThreadsFile);
+  const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+  const summary = objectField(result, "scope_decision");
+  if (
+    stringField(summary, "selected_range") !==
+    stringField(scope, "selected_range")
+  ) {
+    fail("result scope selected range mismatch");
+  }
+  if (stringField(summary, "full_range") !== stringField(scope, "full_range")) {
+    fail("result scope full range mismatch");
+  }
+  if (
+    booleanField(summary, "is_followup_narrow") !==
+    booleanField(scope, "is_followup_narrow")
+  ) {
+    fail("result scope follow-up narrow mismatch");
+  }
+  if (
+    stringField(summary, "summary") !== stringField(scope, "selection_reason")
+  ) {
+    fail("result scope summary mismatch");
+  }
+  const digests = objectField(result, "digests");
+  await validateDigest(
+    "handoff",
+    handoffFile,
+    stringField(digests, "handoff_sha256"),
+  );
+  await validateDigest(
+    "findings",
+    findingsFile,
+    stringField(digests, "findings_sha256"),
+  );
+  await validateOptionalDigest(
+    "review body",
+    reviewBodyFile,
+    nullableStringField(digests, "review_body_sha256"),
+  );
+  await validateOptionalDigest(
+    "context",
+    contextFile,
+    nullableStringField(digests, "context_sha256"),
+  );
+  await validateDigest(
+    "scope decision",
+    scopeDecisionFile,
+    stringField(digests, "scope_decision_sha256"),
+  );
+  await validateOptionalDigest(
+    "prior threads",
+    priorThreadsFile,
+    nullableStringField(digests, "prior_threads_sha256"),
+  );
+  await validateOptionalDigest(
+    "rendered preview",
+    renderedPreviewFile,
+    nullableStringField(digests, "rendered_preview_sha256"),
+  );
+  return handoff;
+}
+
+function validateHandoffObject(
+  value: unknown,
+  file: string,
+): asserts value is JsonObject {
+  if (
+    !isObject(value) ||
+    !hasExactKeys(value, [
+      "schema",
+      "pr_number",
+      "repository",
+      "execution",
+      "base_ref",
+      "head_ref",
+      "review_scope_base_ref",
+      "active_diff_range",
+      "full_pr_diff_range",
+      "review_head_sha",
+      "mode",
+      "language_hints",
+      "follow_up",
+      "artifacts",
+    ]) ||
+    hasForbiddenKey(value)
+  ) {
+    fail(`handoff schema mismatch: ${file}`);
+  }
+  const execution = objectField(
+    value,
+    "execution",
+    `handoff schema mismatch: ${file}`,
+  );
+  const followUp = objectField(
+    value,
+    "follow_up",
+    `handoff schema mismatch: ${file}`,
+  );
+  const artifacts = objectField(
+    value,
+    "artifacts",
+    `handoff schema mismatch: ${file}`,
+  );
+  const followState = stringField(
+    followUp,
+    "state",
+    `handoff schema mismatch: ${file}`,
+  );
+  const lastReviewed = nullableStringField(
+    followUp,
+    "last_reviewed_sha",
+    `handoff schema mismatch: ${file}`,
+  );
+  const isFollowupNarrow = booleanField(
+    followUp,
+    "is_followup_narrow",
+    `handoff schema mismatch: ${file}`,
+  );
+  if (
+    stringField(value, "schema", "") !== "pr-review/handoff/v1" ||
+    !isPositiveInteger(value.pr_number) ||
+    !isRepository(stringField(value, "repository", "")) ||
+    !hasExactKeys(execution, ["kind", "working_directory"]) ||
+    stringField(execution, "kind", "") !== "review-worktree" ||
+    !isAbsolutePath(stringField(execution, "working_directory", "")) ||
+    !isRefString(stringField(value, "base_ref", "")) ||
+    !isRefString(stringField(value, "head_ref", "")) ||
+    !isRefString(stringField(value, "review_scope_base_ref", "")) ||
+    stringField(value, "active_diff_range", "").length === 0 ||
+    stringField(value, "full_pr_diff_range", "").length === 0 ||
+    !isSha(stringField(value, "review_head_sha", "")) ||
+    stringField(value, "mode", "") !== "github-post" ||
+    !stringArrayField(
+      value,
+      "language_hints",
+      `handoff schema mismatch: ${file}`,
+    ).every((hint) => /^[a-z0-9][a-z0-9_+-]*$/u.test(hint)) ||
+    !hasExactKeys(followUp, [
+      "state",
+      "last_reviewed_sha",
+      "is_followup_narrow",
+    ]) ||
+    !["initial", "follow-up-full", "follow-up-narrow"].includes(followState) ||
+    !hasExactKeys(artifacts, ["scope_decision_file", "prior_threads_file"]) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "scope_decision_file", ""),
+      "-scope-decision.json",
+    ) ||
+    !isNullableDirectEphemeralPath(
+      artifacts.prior_threads_file,
+      "-prior-threads.json",
+    )
+  ) {
+    fail(`handoff schema mismatch: ${file}`);
+  }
+  if (
+    (followState === "initial" &&
+      (lastReviewed !== null || isFollowupNarrow !== false)) ||
+    (followState === "follow-up-narrow" &&
+      (!isSha(lastReviewed ?? "") || isFollowupNarrow !== true)) ||
+    (followState === "follow-up-full" &&
+      (!isSha(lastReviewed ?? "") || isFollowupNarrow !== false))
+  ) {
+    fail(`handoff schema mismatch: ${file}`);
+  }
+}
+
+function validateResultObject(
+  value: unknown,
+  file: string,
+  _identityPath: string,
+): asserts value is JsonObject {
+  if (
+    !isObject(value) ||
+    !hasExactKeys(value, [
+      "schema",
+      "pr_number",
+      "repository",
+      "review_head_sha",
+      "findings_file",
+      "review_body_file",
+      "context_file",
+      "artifacts",
+      "digests",
+      "scope_decision",
+      "presentation",
+      "validation",
+    ]) ||
+    hasForbiddenKey(value)
+  ) {
+    fail(`result schema mismatch: ${file}`);
+  }
+  const artifacts = objectField(
+    value,
+    "artifacts",
+    `result schema mismatch: ${file}`,
+  );
+  const digests = objectField(
+    value,
+    "digests",
+    `result schema mismatch: ${file}`,
+  );
+  const scope = objectField(
+    value,
+    "scope_decision",
+    `result schema mismatch: ${file}`,
+  );
+  const presentation = objectField(
+    value,
+    "presentation",
+    `result schema mismatch: ${file}`,
+  );
+  const validation = objectField(
+    value,
+    "validation",
+    `result schema mismatch: ${file}`,
+  );
+  if (
+    stringField(value, "schema", "") !== "pr-review/result/v1" ||
+    !isPositiveInteger(value.pr_number) ||
+    !isRepository(stringField(value, "repository", "")) ||
+    !isSha(stringField(value, "review_head_sha", "")) ||
+    !isDirectEphemeralPath(
+      stringField(value, "findings_file", ""),
+      "-findings.json",
+    ) ||
+    !isNullableDirectEphemeralPath(value.review_body_file, "-review-body.md") ||
+    !isNullableDirectEphemeralPath(value.context_file, "-context.md") ||
+    !hasExactKeys(artifacts, [
+      "handoff_file",
+      "scope_decision_file",
+      "prior_threads_file",
+      "rendered_preview_file",
+    ]) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "handoff_file", ""),
+      "-handoff.json",
+    ) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "scope_decision_file", ""),
+      "-scope-decision.json",
+    ) ||
+    !isNullableDirectEphemeralPath(
+      artifacts.prior_threads_file,
+      "-prior-threads.json",
+    ) ||
+    !isNullableDirectEphemeralPath(
+      artifacts.rendered_preview_file,
+      "-review-preview.md",
+    ) ||
+    !hasExactKeys(digests, [
+      "handoff_sha256",
+      "findings_sha256",
+      "review_body_sha256",
+      "context_sha256",
+      "scope_decision_sha256",
+      "prior_threads_sha256",
+      "rendered_preview_sha256",
+    ]) ||
+    !isSha256(stringField(digests, "handoff_sha256", "")) ||
+    !isSha256(stringField(digests, "findings_sha256", "")) ||
+    !isSha256(stringField(digests, "scope_decision_sha256", "")) ||
+    !digestMatchesNullable(
+      value.review_body_file,
+      digests.review_body_sha256,
+    ) ||
+    !digestMatchesNullable(value.context_file, digests.context_sha256) ||
+    !digestMatchesNullable(
+      artifacts.prior_threads_file,
+      digests.prior_threads_sha256,
+    ) ||
+    !digestMatchesNullable(
+      artifacts.rendered_preview_file,
+      digests.rendered_preview_sha256,
+    ) ||
+    !hasExactKeys(scope, [
+      "summary",
+      "selected_range",
+      "full_range",
+      "is_followup_narrow",
+    ]) ||
+    stringField(scope, "summary", "").length === 0 ||
+    stringField(scope, "selected_range", "").length === 0 ||
+    stringField(scope, "full_range", "").length === 0 ||
+    typeof scope.is_followup_narrow !== "boolean" ||
+    !hasExactKeys(presentation, ["status", "notes"]) ||
+    !["not-presented", "presented", "edited", "preview-current"].includes(
+      stringField(presentation, "status", ""),
+    ) ||
+    !(presentation.notes === null || typeof presentation.notes === "string") ||
+    !hasExactKeys(validation, [
+      "status",
+      "findings_validated",
+      "scope_decision_validated",
+    ]) ||
+    stringField(validation, "status", "") !== "valid" ||
+    validation.findings_validated !== true ||
+    validation.scope_decision_validated !== true
+  ) {
+    fail(`result schema mismatch: ${file}`);
+  }
+}
+
+async function validateScopeAuthority(
+  scopeDecisionFile: string,
+  expectedBaseRef: string,
+  manifestPriorPath: string | null,
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<void> {
+  validateDirectChildPath(
+    "scope decision",
+    scopeDecisionFile,
+    "-scope-decision.json",
+  );
+  await assertReadableFile("scope decision file", scopeDecisionFile);
+  await validateScopePriorContext(scopeDecisionFile, manifestPriorPath);
+  const scopeHelper = await resolveScopeHelper(input);
+  const baseEnv = input.helperEnv ?? {};
+  const env = {
+    ...baseEnv,
+    HEAD_SHA: input.reviewHeadSha,
+    BASE_REF: expectedBaseRef,
+    SCOPE_DECISION_FILE: scopeDecisionFile,
+  };
+  await runBashHelper(scopeHelper, "validate-scope-decision", env);
+  if (manifestPriorPath !== null) {
+    await runBashHelper(scopeHelper, "validate-scope-decision", {
+      ...env,
+      PRIOR_THREADS_FILE: manifestPriorPath,
+    });
+    await runBashHelper(scopeHelper, "validate-prior-threads", {
+      ...baseEnv,
+      HEAD_SHA: input.reviewHeadSha,
+      PRIOR_THREADS_FILE: manifestPriorPath,
+    });
+  }
+}
+
+async function validateScopePriorContext(
+  scopeDecisionFile: string,
+  manifestPriorPath: string | null,
+): Promise<void> {
+  validateDirectChildPath(
+    "scope decision",
+    scopeDecisionFile,
+    "-scope-decision.json",
+  );
+  await assertReadableFile("scope decision file", scopeDecisionFile);
+  const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+  const priorContext = objectField(
+    scope,
+    "prior_context",
+    "scope decision prior_context is missing or malformed",
+  );
+  const priorKind = stringField(
+    priorContext,
+    "kind",
+    "scope decision prior_context is missing or malformed",
+  );
+  const priorPath = nullableStringField(
+    priorContext,
+    "path",
+    "scope decision prior_context is missing or malformed",
+  );
+  if (priorKind === "none") {
+    if (priorPath !== null) {
+      fail("scope decision prior_context is missing or malformed");
+    }
+  } else if (priorKind === "github-prior-threads") {
+    if (priorPath === null || priorPath.length === 0) {
+      fail("scope decision prior_context is missing or malformed");
+    }
+  } else {
+    fail("scope decision prior_context is missing or malformed");
+  }
+  if (manifestPriorPath === null) {
+    if (priorKind !== "none") {
+      fail(
+        `prior threads path mismatch: manifest null but scope decision requires ${priorPath}`,
+      );
+    }
+    return;
+  }
+  validateDirectChildPath(
+    "prior threads",
+    manifestPriorPath,
+    "-prior-threads.json",
+  );
+  if (priorKind !== "github-prior-threads") {
+    fail(
+      `prior threads path mismatch: manifest ${manifestPriorPath} but scope decision has none`,
+    );
+  }
+  if (manifestPriorPath !== priorPath) {
+    fail(`prior threads path mismatch: ${manifestPriorPath}`);
+  }
+}
+
+async function validateFindingsAuthority(
+  findingsFile: string,
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<void> {
+  validateDirectChildPath("findings", findingsFile, "-findings.json");
+  await assertReadableFile("findings file", findingsFile);
+  const playHelper = await resolvePlayReviewHelper(input);
+  await runBashHelper(playHelper, "validate-findings", {
+    ...(input.helperEnv ?? {}),
+    HEAD_SHA: input.reviewHeadSha,
+    FINDINGS_FILE: findingsFile,
+  });
+}
+
+async function runBashHelper(
+  helper: string,
+  command: string,
+  env: Record<string, string>,
+): Promise<void> {
+  try {
+    await execFileAsync("bash", [helper, command], {
+      cwd: process.cwd(),
+      env,
+      maxBuffer: 1024 * 1024,
+    });
+  } catch (err) {
+    const stderr =
+      err && typeof err === "object" && "stderr" in err
+        ? String((err as { stderr?: unknown }).stderr).trim()
+        : "";
+    fail(stderr.length > 0 ? stderr : "helper command failed");
+  }
+}
+
+async function resolveScopeHelper(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<string> {
+  const dir = await resolvePrReviewDir(input);
+  return path.join(dir, "scripts/prior-thread-artifacts.sh");
+}
+
+async function resolvePrReviewDir(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<string> {
+  const candidates: string[] = [];
+  if (input.prReviewDir !== undefined) {
+    candidates.push(input.prReviewDir);
+  }
+  for (const script of [
+    input.prReviewManifestHelperScript,
+    input.prReviewLeaseHelperScript,
+  ]) {
+    if (script !== undefined) {
+      candidates.push(path.dirname(path.dirname(script)));
+      candidates.push(path.dirname(path.dirname(await realpath(script))));
+    }
+  }
+  for (const candidate of candidates) {
+    const helper = path.join(candidate, "scripts/prior-thread-artifacts.sh");
+    if (await isExecutableFile(helper)) {
+      return candidate;
+    }
+  }
+  fail("pr-review prior-thread artifact helper missing or not executable");
+}
+
+async function resolvePlayReviewHelper(
+  input: PrReviewResultCommandAuthorityInput,
+): Promise<string> {
+  if (input.playReviewHelper !== undefined) {
+    if (await isExecutableFile(input.playReviewHelper)) {
+      return input.playReviewHelper;
+    }
+    fail("play-review findings helper missing or not executable");
+  }
+  const roots: string[] = [];
+  for (const script of [
+    input.prReviewManifestHelperScript,
+    input.prReviewLeaseHelperScript,
+  ]) {
+    if (script !== undefined) {
+      roots.push(path.dirname(path.dirname(path.dirname(script))));
+      roots.push(
+        path.dirname(path.dirname(path.dirname(await realpath(script)))),
+      );
+    }
+  }
+  if (input.prReviewDir !== undefined) {
+    roots.push(path.dirname(input.prReviewDir));
+    roots.push(path.dirname(await realpath(input.prReviewDir)));
+  }
+  for (const root of roots) {
+    const candidate = path.join(
+      root,
+      "play-review/scripts/review-artifacts.sh",
+    );
+    if (await isExecutableFile(candidate)) {
+      return candidate;
+    }
+  }
+  fail("play-review findings helper missing or not executable");
+}
+
+async function isExecutableFile(file: string): Promise<boolean> {
+  try {
+    const fileStat = await lstat(file);
+    return (
+      fileStat.isFile() &&
+      (process.platform === "win32" || (fileStat.mode & 0o111) !== 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function validateExecutionRoot(
+  workingDirectory: string,
+  reviewHeadSha: string,
+): Promise<void> {
+  if (!isAbsolutePath(workingDirectory)) {
+    fail("execution working_directory must be absolute");
+  }
+  const manifestRoot = await gitTopLevel(process.cwd());
+  const manifestRootReal = await realpath(manifestRoot);
+  const normalizedWorking = normalizePathTextForComparison(workingDirectory);
+  const normalizedRoot = normalizePathTextForComparison(manifestRootReal);
+  if (normalizedWorking !== normalizedRoot) {
+    fail("execution working_directory must equal repository root");
+  }
+  try {
+    if (!(await stat(workingDirectory)).isDirectory()) {
+      fail(`execution working_directory missing: ${workingDirectory}`);
+    }
+  } catch {
+    fail(`execution working_directory missing: ${workingDirectory}`);
+  }
+  const executionDirectory = await realpath(workingDirectory);
+  if (normalizePathTextForComparison(executionDirectory) !== normalizedRoot) {
+    fail("execution working_directory must equal repository root");
+  }
+  const executionRoot = await gitTopLevel(workingDirectory);
+  if ((await realpath(executionRoot)) !== manifestRootReal) {
+    fail("execution working_directory git root mismatch");
+  }
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    workingDirectory,
+    "rev-parse",
+    "HEAD",
+  ]);
+  if (stdout.trim() !== reviewHeadSha) {
+    fail("execution worktree HEAD mismatch");
+  }
+}
+
+async function guardedScopeBaseRef(scopeDecisionFile: string): Promise<string> {
+  validateDirectChildPath(
+    "scope decision",
+    scopeDecisionFile,
+    "-scope-decision.json",
+  );
+  await assertReadableFile("scope decision file", scopeDecisionFile);
+  const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+  return stringField(scope, "full_range").replace(/\.\.\.HEAD$/u, "");
+}
+
+async function validateOptionalReadableArtifact(
+  label: string,
+  file: string | null,
+): Promise<void> {
+  if (file === null) {
+    return;
+  }
+  await assertReadableFile(label, file);
+}
+
+async function validateDigest(
+  label: string,
+  file: string,
+  expected: string,
+): Promise<void> {
+  const actual = await sha256File(file);
+  if (actual !== expected) {
+    fail(`${label} digest mismatch: ${file}`);
+  }
+}
+
+async function validateOptionalDigest(
+  label: string,
+  file: string | null,
+  expected: string | null,
+): Promise<void> {
+  if (file === null) {
+    if (expected !== null) {
+      fail(`${label} digest mismatch: ${file}`);
+    }
+    return;
+  }
+  if (expected === null) {
+    fail(`${label} digest mismatch: ${file}`);
+  }
+  await validateDigest(label, file, expected);
+}
+
+async function sha256File(file: string): Promise<string> {
+  const hash = createHash("sha256");
+  hash.update(await readFile(path.join(process.cwd(), file)));
+  return hash.digest("hex");
+}
+
+async function readJsonObject(
+  file: string,
+  label: string,
+): Promise<JsonObject> {
+  try {
+    const parsed = JSON.parse(
+      await readFile(path.join(process.cwd(), file), "utf-8"),
+    ) as unknown;
+    if (!isObject(parsed)) {
+      fail(`${label} missing or not a regular file: ${file}`);
+    }
+    return parsed;
+  } catch (err) {
+    if (err instanceof PrReviewResultValidationError) {
+      throw err;
+    }
+    fail(`${label} missing or not a regular file: ${file}`);
+  }
+}
+
+async function assertReadableFile(label: string, file: string): Promise<void> {
+  await guardEphemeral();
+  const fileStat = await lstat(path.join(process.cwd(), file)).catch(
+    () => null,
+  );
+  if (fileStat === null) {
+    fail(`${label} missing or not a regular file: ${file}`);
+  }
+  if (fileStat.isSymbolicLink()) {
+    fail(`${label} must not be a symlink: ${file}`);
+  }
+  if (!fileStat.isFile()) {
+    fail(`${label} missing or not a regular file: ${file}`);
+  }
+  try {
+    await access(path.join(process.cwd(), file), constants.R_OK);
+  } catch {
+    fail(`${label} missing or unreadable: ${file}`);
+  }
+}
+
+async function guardEphemeral(): Promise<void> {
+  const fileStat = await lstat(path.join(process.cwd(), ".ephemeral")).catch(
+    () => null,
+  );
+  if (fileStat?.isSymbolicLink()) {
+    fail(".ephemeral must be a directory, not a symlink");
+  }
+}
+
+function validateDirectChildPath(label: string, file: string, suffix = "") {
+  if (file.length === 0) {
+    fail(`${label} is required`);
+  }
+  if (file.includes("\\")) {
+    fail(`${label} path validation failed: ${file}`);
+  }
+  if (file.includes("..")) {
+    fail(`path traversal: ${file}`);
+  }
+  try {
+    requireDirectEphemeralChild(file);
+  } catch {
+    if (file.startsWith(".ephemeral/") && file.slice(11).includes("/")) {
+      fail(`nested ${label} path rejected: ${file}`);
+    }
+    fail(`${label} path validation failed: ${file}`);
+  }
+  if (suffix.length > 0 && !file.endsWith(suffix)) {
+    fail(`${label} path validation failed: ${file}`);
+  }
+}
+
+async function requireRepoRoot(): Promise<void> {
+  const topLevel = await gitTopLevel(process.cwd());
+  const physicalTopLevel = await realpath(topLevel);
+  const physicalCwd = await realpath(process.cwd());
+  if (physicalTopLevel !== physicalCwd) {
+    fail("review-manifests.sh must run from the repository root");
+  }
+}
+
+async function gitTopLevel(cwd: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      cwd,
+      "rev-parse",
+      "--show-toplevel",
+    ]);
+    return stdout.trim();
+  } catch {
+    fail("failed to determine git repository root");
+  }
+}
+
+async function expectedFindingsPath(headSha: string): Promise<string> {
+  const rawBranch = await currentBranchName();
+  const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranch(rawBranch);
+  return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+}
+
+async function currentBranchName(): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+    return stdout.trim();
+  } catch {
+    fail("failed to determine current git branch");
+  }
+}
+
+function expectedHandoffPath(prNumber: number, headSha: string): string {
+  return `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`;
+}
+
+function expectedResultPath(prNumber: number, headSha: string): string {
+  return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+}
+
+function slugBranch(branchName: string): string {
+  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return "unnamed";
+  }
+  return slug;
+}
+
+function isObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function objectField(
+  object: JsonObject,
+  key: string,
+  message = "runtime validation failed",
+): JsonObject {
+  const value = object[key];
+  if (!isObject(value)) {
+    fail(message);
+  }
+  return value;
+}
+
+function stringField(
+  object: JsonObject,
+  key: string,
+  message = "runtime validation failed",
+): string {
+  const value = object[key];
+  if (typeof value !== "string") {
+    fail(message);
+  }
+  return value;
+}
+
+function nullableStringField(
+  object: JsonObject,
+  key: string,
+  message = "runtime validation failed",
+): string | null {
+  const value = object[key];
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    fail(message);
+  }
+  return value;
+}
+
+function numberField(object: JsonObject, key: string): number {
+  const value = object[key];
+  if (typeof value !== "number") {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function booleanField(
+  object: JsonObject,
+  key: string,
+  message = "runtime validation failed",
+): boolean {
+  const value = object[key];
+  if (typeof value !== "boolean") {
+    fail(message);
+  }
+  return value;
+}
+
+function arrayField(object: JsonObject, key: string): unknown[] {
+  const value = object[key];
+  if (!Array.isArray(value)) {
+    fail("runtime validation failed");
+  }
+  return value;
+}
+
+function stringArrayField(
+  object: JsonObject,
+  key: string,
+  message: string,
+): string[] {
+  const value = arrayField(object, key);
+  if (!value.every((item) => typeof item === "string")) {
+    fail(message);
+  }
+  return value as string[];
+}
+
+function hasExactKeys(object: JsonObject, keys: readonly string[]): boolean {
+  return jsonEqual(Object.keys(object).sort(), [...keys].sort());
+}
+
+function hasForbiddenKey(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasForbiddenKey);
+  }
+  if (!isObject(value)) {
+    return false;
+  }
+  return Object.entries(value).some(
+    ([key, nested]) => FORBIDDEN_KEYS.has(key) || hasForbiddenKey(nested),
+  );
+}
+
+function isPositiveInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+function isRepository(value: string): boolean {
+  return /^[^/\s]+\/[^/\s]+$/u.test(value);
+}
+
+function isRefString(value: string): boolean {
+  return value.length > 0 && !/[\s\p{Cc}]/u.test(value);
+}
+
+function isAbsolutePath(value: string): boolean {
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(value);
+}
+
+function isDirectEphemeralPath(value: string, suffix: string): boolean {
+  return (
+    /^\.ephemeral\/[^/]+$/u.test(value) &&
+    !value.includes("\\") &&
+    !value.includes("..") &&
+    value.endsWith(suffix)
+  );
+}
+
+function isNullableDirectEphemeralPath(
+  value: unknown,
+  suffix: string,
+): boolean {
+  return (
+    value === null ||
+    (typeof value === "string" && isDirectEphemeralPath(value, suffix))
+  );
+}
+
+function isSha(value: string): boolean {
+  return /^[0-9a-f]{40}$/u.test(value);
+}
+
+function isSha256(value: string): boolean {
+  return /^[0-9a-f]{64}$/u.test(value);
+}
+
+function digestMatchesNullable(file: unknown, digest: unknown): boolean {
+  return file === null
+    ? digest === null
+    : typeof digest === "string" && isSha256(digest);
+}
+
+function normalizePathTextForComparison(value: string): string {
+  let normalized = value.replace(/\\/gu, "/");
+  if (/^\/[A-Za-z]\//u.test(normalized)) {
+    normalized = `${normalized[1]}:${normalized.slice(2)}`;
+  }
+  if (/^[A-Za-z]:\//u.test(normalized)) {
+    normalized = normalized.toLowerCase();
+  }
+  return normalized;
+}
+
+async function withCwd<T>(cwd: string, callback: () => Promise<T>): Promise<T> {
+  const previous = process.cwd();
+  process.chdir(cwd);
+  try {
+    return await callback();
+  } finally {
+    process.chdir(previous);
+  }
+}
+
+function jsonEqual(left: unknown, right: unknown): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => jsonEqual(value, right[index]))
+    );
+  }
+  if (isObject(left) && isObject(right)) {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    return (
+      jsonEqual(leftKeys, rightKeys) &&
+      leftKeys.every((key) => jsonEqual(left[key], right[key]))
+    );
+  }
+  return false;
+}
+
+function fail(message: string): never {
+  throw new PrReviewResultValidationError(message);
+}
+
+export class PrReviewResultValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PrReviewResultValidationError";
+  }
+}
