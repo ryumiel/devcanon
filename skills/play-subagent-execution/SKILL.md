@@ -434,11 +434,16 @@ If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
 
 When the helper emits `Risk signals written to <path>.`, pass that emitted path
-to the next branch review invocation as `branch-review --risk-signals <path>`
-or, in an auto-fix loop, `branch-review --fix --risk-signals <path>`. If a
-branch-review run or later mechanical-nit handling adds commits, regenerate
-risk signals for the new `HEAD` before rerunning branch review, or omit the
-stale risk-signals path intentionally.
+to the next branch review invocation. Default-base artifacts use the normal
+no-positional-base form: `branch-review --risk-signals <path>` or, in an
+auto-fix loop, `branch-review --fix --risk-signals <path>`. Detached issue-base
+artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
+full base SHA as branch-review's positional base:
+`branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
+`branch-review --fix --risk-signals <path> <full-base-sha>`. If a branch-review
+run or later mechanical-nit handling adds commits, regenerate risk signals for
+the new `HEAD` before rerunning branch review, or omit the stale risk-signals
+path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
