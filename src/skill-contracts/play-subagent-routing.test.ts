@@ -1775,6 +1775,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExecutor).toContain(
       "`RISK_SIGNALS_REVIEWED_BASE_REF` must match that range's base side",
     );
+    expect(normalizedExecutor).toContain(
+      "For detached issue-base reviews, use the full base SHA as both `RISK_SIGNALS_REVIEWED_BASE_REF` and the left side of `RISK_SIGNALS_REVIEWED_RANGE`",
+    );
     expect(normalizedExecutor).toContain("contract_example_discipline");
     expect(normalizedExecutor).toContain(
       "extracted-plan-task-execution-context",

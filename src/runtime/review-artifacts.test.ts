@@ -108,6 +108,7 @@ function contractExampleDisciplineContext(overrides: JsonObject = {}) {
 function riskSignalsArgs(
   headSha: string,
   file = ".ephemeral/topic-risk-signals.json",
+  expectedReviewedRange = "main...HEAD",
 ) {
   return [
     "validate-risk-signals",
@@ -120,7 +121,7 @@ function riskSignalsArgs(
     "--expected-schema",
     "branch-review/risk-signals/v1",
     "--expected-reviewed-range",
-    "main...HEAD",
+    expectedReviewedRange,
   ];
 }
 
@@ -237,6 +238,38 @@ describe("review artifact runtime reducers", () => {
 
       await expect(
         runReviewArtifactsCommand(riskSignalsArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("validates risk-signals artifacts that use the reviewed base SHA as the range left side", async () => {
+    const { cwd, baseSha, headSha } = await makeRiskSignalsWorkspace();
+    const reviewedRange = `${baseSha}...HEAD`;
+    try {
+      process.chdir(cwd);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-risk-signals.json",
+        riskSignalsArtifact(baseSha, headSha, {
+          reviewed_base_ref: baseSha,
+          reviewed_range: reviewedRange,
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(
+          riskSignalsArgs(
+            headSha,
+            ".ephemeral/topic-risk-signals.json",
+            reviewedRange,
+          ),
+        ),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",

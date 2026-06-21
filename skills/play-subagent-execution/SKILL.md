@@ -389,8 +389,10 @@ Set these required inputs before invoking the helper:
 `RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must
 describe the same full branch range that the next branch-review invocation will
 validate, such as `$BASE...HEAD`; `RISK_SIGNALS_REVIEWED_BASE_REF` must match
-that range's base side. The values JSON must contain exactly these six signal
-categories: `user_facing_behavior`,
+that range's base side. For detached issue-base reviews, use the full base SHA
+as both `RISK_SIGNALS_REVIEWED_BASE_REF` and the left side of
+`RISK_SIGNALS_REVIEWED_RANGE`. The values JSON must contain exactly these six
+signal categories: `user_facing_behavior`,
 `documentation_examples`, `diagnostics`, `contract`, `generated_output`, and
 `governance_path`. Each value is `none`, `present`, or `unknown`;
 ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
