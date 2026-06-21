@@ -704,6 +704,7 @@ describe("phase artifact source contracts", () => {
     expect(leaseHelper).toContain(
       'exec "$runtime" runtime pr-review-leases "$command_name"',
     );
+    expect(prReview).toContain("- `record-audit-failure`");
 
     for (const noticeLine of PR_REVIEW_MANIFEST_NOTICE_LINES) {
       expect(prReview).toContain(noticeLine);
@@ -752,7 +753,10 @@ describe("phase artifact source contracts", () => {
       "That command derives the worktree identity from the existing gated lease, so it can record the failure even when the worktree is missing",
     );
     expect(normalizedPrReview).toContain(
-      "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+      "Preserve prior validated artifacts only when they are current and still pass lease/result identity, digest freshness, result command authority including nested artifacts and helper-backed checks, current presentation evidence, and worktree existence/registration where applicable",
+    );
+    expect(normalizedPrReview).toContain(
+      "Invalid evidence is cleared while the failed lease is still written when identity and transition authority are trustworthy",
     );
     expect(normalizedPrReview).toContain(
       "Any user-requested change returns to this gate after the artifacts are rewritten and re-rendered",

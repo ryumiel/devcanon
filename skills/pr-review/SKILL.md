@@ -109,6 +109,7 @@ Helper command surface:
 - `validate`
 - `inspect-worktree`
 - `read-status`
+- `record-audit-failure`
 - `cleanup-worktree`
 
 The authoritative lifecycle contract lives in
@@ -613,8 +614,11 @@ root to record `failed` with
 `FAILURE_RECOVERABILITY`. That command derives the worktree identity from the
 existing gated lease, so it can record the failure even when the worktree is
 missing. Preserve prior validated artifacts only when they are current and
-still pass digest and identity validation; otherwise record the failure without
-invalid recovery artifact pointers.
+still pass lease/result identity, digest freshness, result command authority
+including nested artifacts and helper-backed checks, current presentation
+evidence, and worktree existence/registration where applicable. Invalid
+evidence is cleared while the failed lease is still written when identity and
+transition authority are trustworthy.
 
 Present exactly that stdout to the user as the preview, followed by the
 mandatory audit summary, plus the thread resolution list for follow-up reviews

@@ -404,7 +404,10 @@ describe("rendered phase artifact smoke coverage", () => {
       "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
-      "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+      "Preserve prior validated artifacts only when they are current and still pass lease/result identity, digest freshness, result command authority including nested artifacts and helper-backed checks, current presentation evidence, and worktree existence/registration where applicable",
+    );
+    expect(normalizeRenderedWhitespace(prReview)).toContain(
+      "Invalid evidence is cleared while the failed lease is still written when identity and transition authority are trustworthy",
     );
     expect(normalizeRenderedWhitespace(prReview)).toContain(
       "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
@@ -655,7 +658,10 @@ describe("rendered phase artifact smoke coverage", () => {
         "use the recovery-specific `record-audit-failure` command from the primary repository root to record `failed`",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
-        "Preserve prior validated artifacts only when they are current and still pass digest and identity validation; otherwise record the failure without invalid recovery artifact pointers",
+        "Preserve prior validated artifacts only when they are current and still pass lease/result identity, digest freshness, result command authority including nested artifacts and helper-backed checks, current presentation evidence, and worktree existence/registration where applicable",
+      );
+      expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
+        "Invalid evidence is cleared while the failed lease is still written when identity and transition authority are trustworthy",
       );
       expect(normalizeRenderedWhitespace(renderedPrReview)).toContain(
         "Refresh lease validation for every gate cycle; never treat the `RESULT_FILE` path alone as freshness evidence",
