@@ -346,6 +346,17 @@ async function writePassingSupportValidator(cwd: string) {
   return validator;
 }
 
+async function copyExternalSupportValidator(root: string) {
+  const script = path.join(
+    root,
+    "play-validate-review-artifacts/scripts/review-artifacts.sh",
+  );
+  await mkdir(path.dirname(script), { recursive: true });
+  await copyFile(supportValidatorScript, script);
+  await chmod(script, 0o755);
+  return script;
+}
+
 describe("pr-review manifest helper", () => {
   it("lists the Phase 5 audit summary and lease status commands in wrapper usage diagnostics", async () => {
     await expect(
@@ -1445,6 +1456,89 @@ describe("pr-review manifest helper", () => {
         ).rejects.toMatchObject({
           stderr: expect.stringContaining("findings path mismatch"),
         });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(installed);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "preserves explicit validator and runtime overrides through delegated result validation",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const external = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-external-validator-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const externalValidator = await copyExternalSupportValidator(external);
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: externalValidator,
+            DEVCANON_RUNTIME_DIR: runtimeSkillDir,
+          }),
+        ).resolves.toMatchObject({ stdout: "" });
+
+        await expect(
+          runHelper(cwd, "validate-result", {
+            HEAD_SHA: headSha,
+            RESULT_FILE: resultPath(headSha),
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: externalValidator,
+            DEVCANON_RUNTIME_DIR: path.join(external, "missing-runtime"),
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "devcanon-runtime support skill missing",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+        await cleanupTempDir(external);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "keeps sibling validator fallback when explicit overrides are absent",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeGitWorkspace();
+      const installed = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-sibling-validator-"),
+      );
+      try {
+        await writeValidInputs(cwd, baseSha, headSha);
+        await runHelper(
+          cwd,
+          "write-handoff",
+          handoffEnv(cwd, baseSha, headSha),
+        );
+        await runHelper(cwd, "write-result", resultEnv(headSha));
+        const installedScript = await copyInstalledPrManifestHelper(installed);
+        await copyInstalledPrPriorHelper(installed);
+        await copyInstalledPlayHelper(installed);
+        await copyInstalledSupportValidator(installed);
+
+        await expect(
+          runHelper(
+            cwd,
+            "validate-result",
+            {
+              HEAD_SHA: headSha,
+              RESULT_FILE: resultPath(headSha),
+            },
+            installedScript,
+          ),
+        ).resolves.toMatchObject({ stdout: "" });
       } finally {
         await cleanupTempDir(cwd);
         await cleanupTempDir(installed);

@@ -183,7 +183,18 @@ async function writeLease() {
     }
     else {
         validateLeaseShape(reduced);
-        await validateReferencedArtifacts(reduced, identity.worktreePath);
+        await validateReferencedArtifacts(reduced, identity.worktreePath, {
+            validateResultAuthority: true,
+        });
+        if (archive !== null) {
+            if (previous === null) {
+                throw new PrReviewLeaseError("archived lease missing");
+            }
+            validateLeaseShape(previous);
+            await validateReferencedArtifacts(previous, identity.worktreePath, {
+                validateResultAuthority: true,
+            });
+        }
     }
     validateLeaseShape(reduced);
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
@@ -300,7 +311,7 @@ async function readStatus() {
 async function inspectWorktree() {
     const identity = await readCleanupIdentity();
     const decision = await classifyCleanup(identity);
-    if (decision.identityMatch && decision.leaseState !== "") {
+    if (shouldRecordCleanupMetadata(decision)) {
         await recordCleanupMetadata(identity, decision.leaseState, "");
     }
     return cleanupOutput("inspect", decision);
@@ -310,14 +321,14 @@ async function cleanupWorktree() {
     const decision = await classifyCleanup(identity);
     if (!decision.canRemove) {
         const outcome = decision.metadataOutcome === "skipped" ? "skipped" : "retained";
-        if (decision.identityMatch && decision.leaseState !== "") {
+        if (shouldRecordCleanupMetadata(decision)) {
             await recordCleanupMetadata(identity, decision.leaseState, outcome);
             decision.metadataOutcome = outcome;
         }
         return cleanupOutput(outcome, decision);
     }
     try {
-        if (decision.identityMatch && decision.leaseState !== "") {
+        if (shouldRecordCleanupMetadata(decision)) {
             await recordCleanupMetadata(identity, decision.leaseState, "removed");
             decision.metadataOutcome = "removed";
         }
@@ -334,7 +345,7 @@ async function cleanupWorktree() {
         });
     }
     catch {
-        if (decision.identityMatch && decision.leaseState !== "") {
+        if (shouldRecordCleanupMetadata(decision)) {
             await recordCleanupMetadata(identity, decision.leaseState, "failed");
         }
         return cleanupOutput("failed", {
@@ -343,6 +354,11 @@ async function cleanupWorktree() {
             message: "git worktree remove failed",
         });
     }
+}
+function shouldRecordCleanupMetadata(decision) {
+    return (decision.identityMatch &&
+        decision.leaseState !== "" &&
+        decision.refusalReason !== "invalid-lease");
 }
 async function classifyCleanup(identity) {
     const base = {
@@ -390,7 +406,9 @@ async function classifyCleanup(identity) {
                 message: "worktree path is not registered for the primary repository",
             };
         }
-        await validateReferencedArtifacts(lease, identity.worktreePath);
+        await validateReferencedArtifacts(lease, identity.worktreePath, {
+            validateResultAuthority: true,
+        });
         const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(lease, identity.worktreePath);
         if (unmanagedArtifacts.length > 0) {
             return {
@@ -459,6 +477,9 @@ async function recordCleanupMetadata(identity, state, outcome) {
         },
     };
     validateLeaseShape(next);
+    await validateReferencedArtifacts(next, identity.worktreePath, {
+        validateResultAuthority: true,
+    });
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(next, null, 2)}\n`);
     if (state !== lease.state) {
         throw new PrReviewLeaseError("lease state changed during cleanup metadata write");
@@ -1025,6 +1046,8 @@ function inheritedHelperEnv() {
         "TMP",
         "SystemRoot",
         "ComSpec",
+        "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+        "DEVCANON_RUNTIME_DIR",
     ]) {
         const value = process.env[key];
         if (value !== undefined) {
@@ -1042,7 +1065,7 @@ async function isPlainDirectory(value) {
         return false;
     }
 }
-async function validateReferencedArtifacts(lease, worktreePath) {
+async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
     let resultReviewHead = null;
     if (lease.artifacts.handoff_file !== null) {
         const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
@@ -1053,6 +1076,9 @@ async function validateReferencedArtifacts(lease, worktreePath) {
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
         resultReviewHead = stringField(result, "review_head_sha");
+        if (options.validateResultAuthority === true) {
+            await validateResultCommandAuthority(lease, worktreePath);
+        }
     }
     if (lease.artifacts.approved_review_file !== null) {
         const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
@@ -1077,6 +1103,27 @@ async function validateResultDigest(lease, worktreePath, resultFile) {
     if (lease.validation.result_manifest.sha256 !== resultSha256) {
         throw new PrReviewLeaseError("result manifest digest mismatch");
     }
+}
+async function validateResultCommandAuthority(lease, worktreePath) {
+    if (lease.artifacts.result_file === null ||
+        lease.validation.result_manifest.status !== "valid") {
+        return;
+    }
+    await validatePrReviewResultCommandAuthority({
+        worktreeRoot: worktreePath,
+        resultFile: lease.artifacts.result_file,
+        resultIdentityPath: lease.artifacts.result_file,
+        repository: lease.repository,
+        prNumber: lease.pr_number,
+        reviewHeadSha: reviewHeadShaFromResultFile(lease.artifacts.result_file),
+        leaseBaseRef: lease.base_ref,
+        leaseHeadRef: lease.head_ref,
+        prReviewDir: optionalEnv("PR_REVIEW_DIR"),
+        prReviewManifestHelperScript: optionalEnv("PR_REVIEW_MANIFEST_HELPER_SCRIPT"),
+        prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
+        playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
+        helperEnv: inheritedHelperEnv(),
+    });
 }
 async function findUnmanagedEphemeralArtifacts(lease, worktreePath) {
     const ephemeralPath = path.join(worktreePath, ".ephemeral");

@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   writeFile,
@@ -68,6 +69,8 @@ const managedEnvKeys = [
   "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
   "PR_REVIEW_LEASE_HELPER_SCRIPT",
   "PLAY_REVIEW_HELPER",
+  "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+  "DEVCANON_RUNTIME_DIR",
   "GIT_TRACE2_EVENT",
 ] as const;
 
@@ -445,14 +448,29 @@ describe("pr-review lease reducer", () => {
 
 describe("pr-review lease command validation", () => {
   it("writes result sha256 and same-cycle validation timestamps for every preview presentation", async () => {
-    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeLeaseWorkspace("pr-review-preview-digest-");
-    const reviewHead = "1111111111111111111111111111111111111111";
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+      prReviewDir,
+      prReviewManifestHelperScript,
+      prReviewLeaseHelperScript,
+      playReviewHelper,
+    } = await makeResultAuthorityWorkspace("pr-review-preview-digest-");
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
 
     try {
       process.chdir(physicalPrimary);
       setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir,
+        prReviewManifestHelperScript,
+        prReviewLeaseHelperScript,
+        playReviewHelper,
+      });
       const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
       expect(pathResult.exitCode).toBe(0);
       const leaseFile = pathResult.stdout.trim();
@@ -677,9 +695,18 @@ describe("pr-review lease command validation", () => {
   });
 
   it("writes a digest when advancing valid reviewed leases to gated", async () => {
-    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeLeaseWorkspace("pr-review-valid-digest-");
-    const reviewHead = "1111111111111111111111111111111111111111";
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+      prReviewDir,
+      prReviewManifestHelperScript,
+      prReviewLeaseHelperScript,
+      playReviewHelper,
+    } = await makeResultAuthorityWorkspace("pr-review-valid-digest-");
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
 
     try {
@@ -692,6 +719,12 @@ describe("pr-review lease command validation", () => {
       );
       process.chdir(physicalPrimary);
       setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir,
+        prReviewManifestHelperScript,
+        prReviewLeaseHelperScript,
+        playReviewHelper,
+      });
       const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
       expect(pathResult.exitCode).toBe(0);
       const leaseFile = pathResult.stdout.trim();
@@ -730,6 +763,172 @@ describe("pr-review lease command validation", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects nested result artifact drift before fresh reviewed and gated writes", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-fresh-nested-drift-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      await rm(path.join(workspace.primary, leaseFile), { force: true });
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:00:00Z",
+      });
+      const createdBefore = await readFile(
+        path.join(workspace.primary, leaseFile),
+        "utf8",
+      );
+
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+      process.env.RESULT_FILE = workspace.resultFile;
+      process.env.STATE = "reviewed";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:01:00Z";
+      process.env.PR_REVIEW_DIR = workspace.prReviewDir;
+      process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT =
+        workspace.prReviewManifestHelperScript;
+      process.env.PR_REVIEW_LEASE_HELPER_SCRIPT =
+        workspace.prReviewLeaseHelperScript;
+      process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
+
+      let result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("findings digest mismatch");
+      await expect(
+        readFile(path.join(workspace.primary, leaseFile), "utf8"),
+      ).resolves.toBe(createdBefore);
+
+      await writeFile(
+        path.join(workspace.primary, leaseFile),
+        `${JSON.stringify(
+          reviewedCommandLease(
+            leaseFile,
+            workspace.physicalWorktree,
+            identityFromLeaseFile(leaseFile, workspace.physicalWorktree)
+              .worktreeDigest,
+            workspace.resultFile,
+            workspace.resultSha256,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      const reviewedBefore = await readFile(
+        path.join(workspace.primary, leaseFile),
+        "utf8",
+      );
+      process.env.PRESENTED_AT = "2026-06-11T00:02:00Z";
+      process.env.PRESENTATION_STATUS = "preview-current";
+      process.env.STATE = "gated";
+      process.env.UPDATED_AT = "2026-06-11T00:02:00Z";
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("findings digest mismatch");
+      await expect(
+        readFile(path.join(workspace.primary, leaseFile), "utf8"),
+      ).resolves.toBe(reviewedBefore);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects nested result artifact drift before terminal preservation and failed-to-posted writes", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-terminal-nested-drift-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      process.env.FAILURE_PHASE = "github-post";
+      process.env.FAILURE_REASON = "GitHub API rejected review";
+      process.env.GITHUB_POST_ATTEMPTED = "true";
+      process.env.GITHUB_POST_RESULT = "failed";
+      process.env.APPROVED_REVIEW_FILE = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        process.env.APPROVED_REVIEW_FILE,
+        workspace.reviewHead,
+      );
+      const beforeFailure = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+      let result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("findings digest mismatch");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(beforeFailure);
+
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(
+          {
+            ...JSON.parse(beforeFailure),
+            state: "failed",
+            updated_at: "2026-06-11T00:03:00Z",
+            artifacts: {
+              ...JSON.parse(beforeFailure).artifacts,
+              approved_review_file: process.env.APPROVED_REVIEW_FILE,
+            },
+            terminal: {
+              finished_at: "2026-06-11T00:03:00Z",
+              reason: null,
+            },
+            failure: {
+              phase: "github-post",
+              reason: "GitHub API rejected review",
+              recoverability: "recoverable",
+            },
+            github: {
+              github_post_attempted: true,
+              github_post_result: "failed",
+              github_posted_at: null,
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      const beforePosted = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      process.env.STATE = "posted";
+      process.env.EXPECTED_STATE = "failed";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      process.env.GITHUB_POSTED_AT = "2026-06-11T00:04:00Z";
+      unsetEnv("FAILURE_PHASE");
+      unsetEnv("FAILURE_REASON");
+      unsetEnv("FAILURE_RECOVERABILITY");
+      unsetEnv("GITHUB_POST_ATTEMPTED");
+      unsetEnv("GITHUB_POST_RESULT");
+
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("findings digest mismatch");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(beforePosted);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -1403,14 +1602,29 @@ describe("pr-review lease read-status", () => {
   });
 
   it("records post-gated preview-render failure without invalid recovery artifacts", async () => {
-    const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
-      await makeLeaseWorkspace("pr-review-preview-failure-");
-    const reviewHead = "1111111111111111111111111111111111111111";
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+      prReviewDir,
+      prReviewManifestHelperScript,
+      prReviewLeaseHelperScript,
+      playReviewHelper,
+    } = await makeResultAuthorityWorkspace("pr-review-preview-failure-");
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
 
     try {
       process.chdir(physicalPrimary);
       setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir,
+        prReviewManifestHelperScript,
+        prReviewLeaseHelperScript,
+        playReviewHelper,
+      });
       const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
       expect(pathResult.exitCode).toBe(0);
       const leaseFile = pathResult.stdout.trim();
@@ -1862,6 +2076,86 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("rejects nested result artifact drift before archive-on-recreate writes", async () => {
+    for (const state of ["posted", "aborted"] as const) {
+      const workspace = await makeGatedStatusWorkspace(
+        `pr-review-${state}-archive-nested-drift-`,
+      );
+
+      try {
+        process.chdir(workspace.physicalPrimary);
+        const prior =
+          state === "posted"
+            ? postedCommandLease({
+                leaseFile: workspace.leaseFile,
+                worktreePath: workspace.physicalWorktree,
+                worktreeDigest: workspace.worktreeDigest,
+                resultFile: workspace.resultFile,
+                resultSha256: workspace.resultSha256,
+                approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+              })
+            : {
+                ...(await readLease(workspace.primary, workspace.leaseFile)),
+                state: "aborted" as const,
+                updated_at: "2026-06-11T00:03:00Z",
+                terminal: {
+                  finished_at: "2026-06-11T00:03:00Z",
+                  reason: "user-aborted",
+                },
+              };
+        if (state === "posted") {
+          await writeApprovedReviewArtifact(
+            workspace.worktree,
+            prior.artifacts.approved_review_file ?? "",
+            workspace.reviewHead,
+          );
+        }
+        await writeFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          `${JSON.stringify(prior, null, 2)}\n`,
+        );
+        const before = await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        );
+        await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+        setLeaseCommandEnv(
+          workspace.physicalPrimary,
+          workspace.physicalWorktree,
+        );
+        process.env.LEASE_FILE = workspace.leaseFile;
+        process.env.STATE = "created";
+        process.env.BASE_REF = "main";
+        process.env.HEAD_REF = "topic";
+        process.env.CREATED_AT = "2026-06-11T00:04:00Z";
+        process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+        process.env.PR_REVIEW_DIR = workspace.prReviewDir;
+        process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT =
+          workspace.prReviewManifestHelperScript;
+        process.env.PR_REVIEW_LEASE_HELPER_SCRIPT =
+          workspace.prReviewLeaseHelperScript;
+        process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
+
+        const result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode, state).toBe(1);
+        expect(result.stderr, state).toContain("findings digest mismatch");
+        await expect(
+          readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+        ).resolves.toBe(before);
+        const archived = await readdir(
+          path.join(workspace.primary, ".ephemeral"),
+        );
+        expect(
+          archived.some((entry) => entry.includes("-archived-lease.json")),
+        ).toBe(false);
+      } finally {
+        process.chdir(originalCwd);
+        await rm(workspace.tempRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("skips cleanup targets that are clean separate clones, not registered worktrees", async () => {
     const { tempRoot, primary, physicalPrimary } =
       await makeRegisteredWorkspace("pr-review-separate-clone-");
@@ -1956,6 +2250,32 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("refuses cleanup metadata rewrites when nested result artifact digests drift", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-cleanup-nested-drift-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      const before = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("REFUSAL_REASON=invalid-lease");
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-cleanup-");
@@ -2024,7 +2344,7 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
-  it("does not treat arbitrary artifact strings as cleanup ownership", async () => {
+  it("treats malformed result metadata as invalid before cleanup ownership", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-owned-");
     const resultFile = ".ephemeral/pr-432-result.json";
@@ -2075,10 +2395,8 @@ describe("pr-review lease Git cleanup safety", () => {
       process.env.LEASE_FILE = leaseFile;
       const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain(
-        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
-      );
-      expect(result.stdout).toContain(".ephemeral/unmanaged.txt");
+      expect(result.stdout).toContain("REFUSAL_REASON=invalid-lease");
+      expect(result.stdout).not.toContain("METADATA_OUTCOME=retained");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
@@ -2234,6 +2552,23 @@ function setAuditFailureEnv(
   process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
 }
 
+function setHelperAuthorityEnv({
+  prReviewDir,
+  prReviewManifestHelperScript,
+  prReviewLeaseHelperScript,
+  playReviewHelper,
+}: {
+  prReviewDir: string;
+  prReviewManifestHelperScript: string;
+  prReviewLeaseHelperScript: string;
+  playReviewHelper: string;
+}): void {
+  process.env.PR_REVIEW_DIR = prReviewDir;
+  process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT = prReviewManifestHelperScript;
+  process.env.PR_REVIEW_LEASE_HELPER_SCRIPT = prReviewLeaseHelperScript;
+  process.env.PLAY_REVIEW_HELPER = playReviewHelper;
+}
+
 async function mutateLease(
   workspace: GatedStatusWorkspace,
   mutate: (lease: PrReviewLease) => void,
@@ -2243,6 +2578,23 @@ async function mutateLease(
   await writeFile(
     path.join(workspace.primary, workspace.leaseFile),
     `${JSON.stringify(lease, null, 2)}\n`,
+  );
+}
+
+async function mutateNestedFindingsWithoutUpdatingResult(
+  workspace: GatedStatusWorkspace,
+): Promise<void> {
+  await writeFile(
+    path.join(workspace.worktree, workspace.findingsFile),
+    `${JSON.stringify(
+      {
+        schema: "play-review/findings/v1",
+        findings: [{ stale: true }],
+        carry_forward: [],
+      },
+      null,
+      2,
+    )}\n`,
   );
 }
 
@@ -2264,6 +2616,29 @@ async function makeLeaseWorkspace(prefix: string): Promise<{
     worktree,
     physicalPrimary: await realpath(primary),
     physicalWorktree: await realpath(worktree),
+  };
+}
+
+async function makeResultAuthorityWorkspace(prefix: string): Promise<
+  Awaited<ReturnType<typeof makeRegisteredWorkspace>> & {
+    reviewHead: string;
+    prReviewDir: string;
+    prReviewManifestHelperScript: string;
+    prReviewLeaseHelperScript: string;
+    playReviewHelper: string;
+  }
+> {
+  const workspace = await makeRegisteredWorkspace(prefix);
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    workspace.worktree,
+    "rev-parse",
+    "HEAD",
+  ]);
+  return {
+    ...workspace,
+    reviewHead: stdout.trim(),
+    ...(await writeReviewHelperScripts(workspace.tempRoot)),
   };
 }
 

@@ -659,6 +659,8 @@ function inheritedHelperEnv(): Record<string, string> {
     "TMP",
     "SystemRoot",
     "ComSpec",
+    "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+    "DEVCANON_RUNTIME_DIR",
   ]) {
     const value = process.env[key];
     if (value !== undefined) {
