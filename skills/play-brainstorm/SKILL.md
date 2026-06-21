@@ -325,31 +325,19 @@ section before planning can proceed. This applies to workflow handoffs,
 helpers, scripts, APIs, validators, adapters, producers, consumers, generated
 or derived artifacts, source-owned policy boundaries, and fail-closed behavior.
 
-Each boundary-changing design must record:
-
-- boundary name;
-- participants, including producer, validator or policy authority, adapter, and
-  consumer when those roles apply;
-- authority and ownership;
-- required inputs;
-- optional inputs;
-- valid and invalid values;
-- missing or empty behavior;
-- outputs;
-- side effects and write targets;
-- validation-before-write ordering;
-- failure behavior;
-- forbidden behavior;
-- assumptions and blockers;
-- explicit non-goals;
-- fixed names versus intentionally deferred implementation choices.
+Each boundary-changing design must record grouped contract facts: boundary name;
+participants, including producer, validator or policy authority, adapter, and
+consumer when those roles apply; authority and ownership; required inputs,
+optional inputs, valid and invalid values, and missing or empty behavior;
+outputs, side effects and write targets, validation-before-write ordering,
+failure behavior, and forbidden behavior; assumptions and blockers, explicit
+non-goals, and fixed names versus intentionally deferred implementation
+choices.
 
 Contract decisions are design authority, not planning fill-in work. Planning may
-decompose, sequence, and prove those decisions, but it must not invent missing
-boundary names, ownership, input shape, side effects, or failure behavior that
-the design should have fixed. If a decision cannot be made safely during
-brainstorming, record it as a blocker or as an intentional implementation choice
-with the owning authority, risk, and proof expectation.
+decompose, sequence, and prove those decisions, but planning must not choose
+missing behavior semantics. Fix any ambiguity that would make implementation choose authority, identity tuple, producer or consumer, cwd/root, freshness proof, mutation/read-only effects, helper or script call shape, lifecycle state, cleanup, approval/posting, external effects, continuation/failure behavior, or forbidden behavior. If a decision cannot be made safely during brainstorming,
+record it as a blocker or as an intentional implementation choice with the owning authority, risk, and proof expectation. Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
 
 ## Hard Requirements Ledger
 
@@ -420,7 +408,7 @@ After writing the design document, look at it with fresh eyes:
    design includes a `## Hard Requirements` ledger. Fix any missing or
    ambiguous hard-requirements ledger row before handoff, and confirm each row
    has an ID, requirement, source, and rationale.
-8. **Contract decisions:** If the design creates or changes a boundary, confirm
+8. **Contract adequacy:** If the design creates or changes a boundary, confirm
    it includes `Contract Decisions` or an equivalent clearly labeled
    contract-decision section. Fix unresolved boundary names, participants,
    authority or ownership, required inputs, optional inputs, input shape,
@@ -429,7 +417,9 @@ After writing the design document, look at it with fresh eyes:
    behavior, assumptions, blockers, explicit non-goals, fixed names, or
    intentionally deferred implementation choices before handoff unless the
    design records them as blockers or intentional implementation choices with
-   authority, risk, and proof expectations.
+   authority, risk, and proof expectations. Run a smell scan for "existing helper", "current/latest state", "read-only inspection", "validated artifact", "identity inputs", "same operation", "active session", "the cache", and "the manifest"; block only when they hide behavior semantics.
+   Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
+   Run a scoped boundary-heavy adversarial pass only when the design creates or changes boundary semantics for workflow gates, artifact handoffs, helper/script contracts, generated artifacts, lifecycle state, cleanup, or read/write authority.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 
