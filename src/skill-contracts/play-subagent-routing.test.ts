@@ -256,6 +256,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
     );
+    expect(normalizedPhase7).toContain(
+      "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
+    );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
@@ -780,6 +783,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase7).toContain(
       "If the run commits any auto-fixes, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
+    );
+    expect(normalizedPhase7).toContain(
+      "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
