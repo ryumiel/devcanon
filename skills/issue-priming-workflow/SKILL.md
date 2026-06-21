@@ -439,27 +439,34 @@ unless a concrete blocker stops `--auto`.
 
 Invoke `branch-review --fix` to review the implementation before creating a PR.
 If Phase 6 emitted `Risk signals written to <path>.`, invoke
-`branch-review --fix --risk-signals <path>` for the next branch-review run.
-When those risk signals carry `contract_example_discipline` context from an
-auto single-task executor run, Phase 7 still treats it as non-authoritative
-handoff data; branch-review validates it, escalates scrutiny when present, and
-passes only sanitized semantic notes into downstream reviewer context.
+`branch-review --fix --risk-signals <path>` for default-base artifacts on the
+next branch-review run. If Phase 6 emitted detached issue-base risk signals
+whose reviewed range is `<full-base-sha>...HEAD`, invoke
+`branch-review --fix --risk-signals <path> <full-base-sha>` so branch-review
+validates the same full base SHA range. When those risk signals carry
+`contract_example_discipline` context from an auto single-task executor run,
+Phase 7 still treats it as non-authoritative handoff data; branch-review
+validates it, escalates scrutiny when present, and passes only sanitized
+semantic notes into downstream reviewer context.
 If the run commits any auto-fixes, regenerate risk signals for the new `HEAD`
-before rerunning `branch-review --fix --risk-signals <new-path>`, or rerun
-`branch-review --fix` while intentionally omitting stale risk signals. Continue
-until a run reports zero blocking findings auto-fixed and the remaining
-findings file contains no unresolved `severity: "Blocking"` entries except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, and captures that
-final run's approval-summary notice path.
+before rerunning `branch-review --fix --risk-signals <new-path>` with the same
+base-side rule, or rerun `branch-review --fix` while intentionally omitting
+stale risk signals. Continue until a run reports zero blocking findings
+auto-fixed and the remaining findings file contains no unresolved
+`severity: "Blocking"` entries except findings whose `critic` verdict is
+`INVALID` or `DOWNGRADE`, and captures that final run's approval-summary notice
+path.
 If later mechanical nit handling creates any commit, rerun this same Branch
 Review step on the new `HEAD` before proceeding to Phase 8, with fresh risk
 signals when available.
 
 This runs the full multi-agent review on `git diff <base>...HEAD` where
-`<base>` is the repository's default branch. With `--fix`, `branch-review`
-attempts eligible `Blocking` auto-fixes and commits them. If any remaining
-true `Blocking` finding is unresolved (`critic` is neither `INVALID` nor
-`DOWNGRADE`), **stop `--auto` and report to the user**.
+`<base>` is branch-review's selected base: normally the repository's default
+branch, or the supplied full base SHA for detached issue-base risk signals that
+use that same base side. With `--fix`, `branch-review` attempts eligible
+`Blocking` auto-fixes and commits them. If any remaining true `Blocking`
+finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop
+`--auto` and report to the user**.
 
 Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).

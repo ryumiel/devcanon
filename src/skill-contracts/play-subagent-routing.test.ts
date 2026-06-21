@@ -248,10 +248,16 @@ describe("play subagent routing source contracts", () => {
       "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
     );
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>` for default-base artifacts",
     );
     expect(normalizedPhase7).toContain(
-      "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
+      "If Phase 6 emitted detached issue-base risk signals whose reviewed range is `<full-base-sha>...HEAD`, invoke `branch-review --fix --risk-signals <path> <full-base-sha>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
+    );
+    expect(normalizedPhase7).toContain(
+      "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
@@ -770,10 +776,16 @@ describe("play subagent routing source contracts", () => {
 
     expect(phase7).toContain("Invoke `branch-review --fix`");
     expect(normalizedPhase7).toContain(
-      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>`",
+      "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>` for default-base artifacts",
     );
     expect(normalizedPhase7).toContain(
-      "If the run commits any auto-fixes, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>`",
+      "If Phase 6 emitted detached issue-base risk signals whose reviewed range is `<full-base-sha>...HEAD`, invoke `branch-review --fix --risk-signals <path> <full-base-sha>`",
+    );
+    expect(normalizedPhase7).toContain(
+      "If the run commits any auto-fixes, regenerate risk signals for the new `HEAD` before rerunning `branch-review --fix --risk-signals <new-path>` with the same base-side rule",
+    );
+    expect(normalizedPhase7).toContain(
+      "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(normalizedPhase7).toContain(
       "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
@@ -849,7 +861,7 @@ describe("play subagent routing source contracts", () => {
     const eagerContinuation = normalizeWhitespace(
       sliceBetween(
         phase7,
-        "until a run reports zero blocking findings auto-fixed",
+        "Continue until a run reports zero blocking findings",
         "If later mechanical nit handling creates any commit",
       ),
     );
@@ -1775,6 +1787,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedExecutor).toContain(
       "`RISK_SIGNALS_REVIEWED_BASE_REF` must match that range's base side",
     );
+    expect(normalizedExecutor).toContain(
+      "For detached issue-base reviews, use the full base SHA as both `RISK_SIGNALS_REVIEWED_BASE_REF` and the left side of `RISK_SIGNALS_REVIEWED_RANGE`",
+    );
     expect(normalizedExecutor).toContain("contract_example_discipline");
     expect(normalizedExecutor).toContain(
       "extracted-plan-task-execution-context",
@@ -1789,10 +1804,22 @@ describe("play subagent routing source contracts", () => {
       "If the helper fails when terminal handoff was promised or expected, report a blocker and do not emit the notice",
     );
     expect(normalizedExecutor).toContain(
-      "When the helper emits `Risk signals written to <path>.`, pass that emitted path to the next branch review invocation as `branch-review --risk-signals <path>`",
+      "When the helper emits `Risk signals written to <path>.`, pass that emitted path to the next branch review invocation",
+    );
+    expect(normalizedExecutor).toContain(
+      "Default-base artifacts use the normal no-positional-base form: `branch-review --risk-signals <path>`",
     );
     expect(normalizedExecutor).toContain(
       "in an auto-fix loop, `branch-review --fix --risk-signals <path>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "Detached issue-base artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same full base SHA as branch-review's positional base",
+    );
+    expect(normalizedExecutor).toContain(
+      "`branch-review --risk-signals <path> <full-base-sha>`",
+    );
+    expect(normalizedExecutor).toContain(
+      "`branch-review --fix --risk-signals <path> <full-base-sha>`",
     );
     expect(normalizedExecutor).toContain(
       "regenerate risk signals for the new `HEAD` before rerunning branch review, or omit the stale risk-signals path intentionally",

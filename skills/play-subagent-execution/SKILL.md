@@ -389,8 +389,10 @@ Set these required inputs before invoking the helper:
 `RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must
 describe the same full branch range that the next branch-review invocation will
 validate, such as `$BASE...HEAD`; `RISK_SIGNALS_REVIEWED_BASE_REF` must match
-that range's base side. The values JSON must contain exactly these six signal
-categories: `user_facing_behavior`,
+that range's base side. For detached issue-base reviews, use the full base SHA
+as both `RISK_SIGNALS_REVIEWED_BASE_REF` and the left side of
+`RISK_SIGNALS_REVIEWED_RANGE`. The values JSON must contain exactly these six
+signal categories: `user_facing_behavior`,
 `documentation_examples`, `diagnostics`, `contract`, `generated_output`, and
 `governance_path`. Each value is `none`, `present`, or `unknown`;
 ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
@@ -432,11 +434,16 @@ If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
 
 When the helper emits `Risk signals written to <path>.`, pass that emitted path
-to the next branch review invocation as `branch-review --risk-signals <path>`
-or, in an auto-fix loop, `branch-review --fix --risk-signals <path>`. If a
-branch-review run or later mechanical-nit handling adds commits, regenerate
-risk signals for the new `HEAD` before rerunning branch review, or omit the
-stale risk-signals path intentionally.
+to the next branch review invocation. Default-base artifacts use the normal
+no-positional-base form: `branch-review --risk-signals <path>` or, in an
+auto-fix loop, `branch-review --fix --risk-signals <path>`. Detached issue-base
+artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
+full base SHA as branch-review's positional base:
+`branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
+`branch-review --fix --risk-signals <path> <full-base-sha>`. If a branch-review
+run or later mechanical-nit handling adds commits, regenerate risk signals for
+the new `HEAD` before rerunning branch review, or omit the stale risk-signals
+path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
