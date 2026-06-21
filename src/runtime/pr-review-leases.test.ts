@@ -43,6 +43,7 @@ const managedEnvKeys = [
   "PRIMARY_REPOSITORY_ROOT",
   "WORKTREE_PATH",
   "LEASE_FILE",
+  "HANDOFF_FILE",
   "RESULT_FILE",
   "HEAD_SHA",
   "STATE",
@@ -767,6 +768,97 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("accepts initial not-presented results for reviewed leases without making them live status", async () => {
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+      prReviewDir,
+      prReviewManifestHelperScript,
+      prReviewLeaseHelperScript,
+      playReviewHelper,
+    } = await makeResultAuthorityWorkspace("pr-review-not-presented-");
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+
+    try {
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        reviewHead,
+        "not-presented",
+      );
+      const resultSha256 = await sha256File(path.join(worktree, resultFile));
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir,
+        prReviewManifestHelperScript,
+        prReviewLeaseHelperScript,
+        playReviewHelper,
+      });
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:00:00Z",
+      });
+
+      process.env.RESULT_FILE = resultFile;
+      await writeLeaseCommandState({
+        state: "reviewed",
+        updatedAt: "2026-06-11T00:01:00Z",
+      });
+
+      const reviewed = await readLease(primary, leaseFile);
+      expect(reviewed).toMatchObject({
+        state: "reviewed",
+        artifacts: { result_file: resultFile },
+        validation: {
+          result_manifest: {
+            status: "valid",
+            validated_at: "2026-06-11T00:01:00Z",
+            sha256: resultSha256,
+          },
+        },
+        presentation: { presented_at: null, status: null },
+      });
+
+      let result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      process.env.HEAD_SHA = reviewHead;
+      result = await runPrReviewLeasesCommand(["read-status"]);
+      expect(result).toMatchObject({ exitCode: 1, stdout: "" });
+      expect(result.stderr).toContain("read-status requires gated lease");
+
+      process.env.FINISHED_AT = "2026-06-11T00:02:00Z";
+      process.env.TERMINAL_REASON = "not posting";
+      await writeLeaseCommandState({
+        state: "aborted",
+        updatedAt: "2026-06-11T00:02:00Z",
+      });
+
+      const aborted = await readLease(primary, leaseFile);
+      expect(aborted).toMatchObject({
+        state: "aborted",
+        artifacts: { result_file: resultFile },
+        presentation: { presented_at: null, status: null },
+      });
+
+      result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects nested result artifact drift before fresh reviewed and gated writes", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-fresh-nested-drift-",
@@ -999,14 +1091,18 @@ describe("pr-review lease command validation", () => {
       expect(failed.state).toBe("failed");
       expect(failed.artifacts).toEqual({
         handoff_file: null,
-        result_file: null,
+        result_file: workspace.resultFile,
         approved_review_file: null,
         validated_payload_file: null,
       });
       expect(failed.validation.result_manifest).toEqual({
-        status: null,
-        validated_at: null,
-        sha256: null,
+        status: "valid",
+        validated_at: "2026-06-11T00:02:00Z",
+        sha256: workspace.resultSha256,
+      });
+      expect(failed.presentation).toEqual({
+        presented_at: "2026-06-11T00:02:00Z",
+        status: "preview-current",
       });
       expect(failed.failure).toEqual({
         phase: "approval-freeze",
@@ -1021,6 +1117,152 @@ describe("pr-review lease command validation", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves handoff-only evidence when a created lease records failure", async () => {
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+    } = await makeResultAuthorityWorkspace("pr-review-handoff-failure-");
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+    const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
+
+    try {
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        reviewHead,
+        "not-presented",
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:00:00Z",
+      });
+      process.env.HANDOFF_FILE = handoffFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:01:00Z",
+      });
+
+      process.env.STATE = "failed";
+      process.env.EXPECTED_STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:02:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:02:00Z";
+      process.env.FAILURE_PHASE = "review";
+      process.env.FAILURE_REASON = "review failed before result";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+      unsetEnv("RESULT_FILE");
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const failed = await readLease(primary, leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: handoffFile,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears invalid handoff-only evidence when a created lease records failure", async () => {
+    const {
+      tempRoot,
+      primary,
+      worktree,
+      physicalPrimary,
+      physicalWorktree,
+      reviewHead,
+    } = await makeResultAuthorityWorkspace(
+      "pr-review-invalid-handoff-failure-",
+    );
+    const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
+    const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
+
+    try {
+      await writeResultArtifact(
+        worktree,
+        physicalWorktree,
+        resultFile,
+        reviewHead,
+        "not-presented",
+      );
+      process.chdir(physicalPrimary);
+      setLeaseCommandEnv(physicalPrimary, physicalWorktree);
+      const pathResult = await runPrReviewLeasesCommand(["derive-path"]);
+      expect(pathResult.exitCode).toBe(0);
+      const leaseFile = pathResult.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:00:00Z",
+      });
+      process.env.HANDOFF_FILE = handoffFile;
+      await writeLeaseCommandState({
+        state: "created",
+        updatedAt: "2026-06-11T00:01:00Z",
+      });
+      const handoffPath = path.join(worktree, handoffFile);
+      const handoff = JSON.parse(await readFile(handoffPath, "utf8"));
+      await writeFile(
+        handoffPath,
+        `${JSON.stringify({ ...handoff, repository: "other/repo" }, null, 2)}\n`,
+      );
+
+      process.env.STATE = "failed";
+      process.env.EXPECTED_STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:02:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:02:00Z";
+      process.env.FAILURE_PHASE = "review";
+      process.env.FAILURE_REASON = "review failed before result";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+      unsetEnv("RESULT_FILE");
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const failed = await readLease(primary, leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -1084,6 +1326,36 @@ describe("pr-review lease command validation", () => {
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain("findings digest mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects terminal stored presentation evidence that mismatches the result", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-terminal-presentation-mismatch-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+
+      let result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      await mutateLease(workspace, (lease) => {
+        expect(lease.state).toBe("failed");
+        lease.presentation.status = "edited";
+      });
+
+      setReadStatusEnv(workspace);
+      result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("presentation status mismatch");
+
+      result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("REFUSAL_REASON=invalid-lease");
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -1996,6 +2268,91 @@ describe("pr-review lease read-status", () => {
       await expect(
         readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
       ).resolves.toBe(before);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves valid failed recovery evidence without requiring failure timestamp freshness", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-repeated-failure-preserve-",
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      process.env.FAILURE_PHASE = "github-post";
+      process.env.FAILURE_REASON = "GitHub API rejected review";
+      process.env.GITHUB_POST_ATTEMPTED = "true";
+      process.env.GITHUB_POST_RESULT = "failed";
+      process.env.APPROVED_REVIEW_FILE = approvedReviewFile;
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+
+      let result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      let failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.updated_at).toBe("2026-06-11T00:03:00Z");
+      expect(failed.validation.result_manifest.validated_at).toBe(
+        "2026-06-11T00:02:00Z",
+      );
+      expect(failed.artifacts).toMatchObject({
+        result_file: workspace.resultFile,
+        approved_review_file: approvedReviewFile,
+      });
+
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir: workspace.prReviewDir,
+        prReviewManifestHelperScript: workspace.prReviewManifestHelperScript,
+        prReviewLeaseHelperScript: workspace.prReviewLeaseHelperScript,
+        playReviewHelper: workspace.playReviewHelper,
+      });
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "failed";
+      process.env.EXPECTED_STATE = "failed";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      process.env.FAILURE_PHASE = "github-post";
+      process.env.FAILURE_REASON = "GitHub API rejected retry";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+      process.env.GITHUB_POST_ATTEMPTED = "true";
+      process.env.GITHUB_POST_RESULT = "failed";
+
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        updated_at: "2026-06-11T00:04:00Z",
+        artifacts: {
+          result_file: workspace.resultFile,
+          approved_review_file: approvedReviewFile,
+        },
+        validation: {
+          result_manifest: {
+            status: "valid",
+            validated_at: "2026-06-11T00:02:00Z",
+            sha256: workspace.resultSha256,
+          },
+        },
+        presentation: {
+          presented_at: "2026-06-11T00:02:00Z",
+          status: "preview-current",
+        },
+        failure: {
+          phase: "github-post",
+          reason: "GitHub API rejected retry",
+          recoverability: "recoverable",
+        },
+      });
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -3291,7 +3648,10 @@ async function writeResultArtifact(
   physicalWorktree: string,
   resultFile: string,
   reviewHead: string,
-  presentationStatus: "preview-current" | "edited" = "preview-current",
+  presentationStatus:
+    | "not-presented"
+    | "preview-current"
+    | "edited" = "preview-current",
 ): Promise<{ findingsFile: string }> {
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;

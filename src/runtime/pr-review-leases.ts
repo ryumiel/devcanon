@@ -32,6 +32,7 @@ type LeaseState =
 
 type GitHubPostResult = "succeeded" | "failed" | "not-attempted";
 type PresentationStatus = "preview-current" | "edited";
+type ResultPresentationStatus = PresentationStatus | "not-presented";
 type Recoverability = "recoverable" | "unrecoverable" | "unknown";
 type FailurePhase =
   | "handoff-validation"
@@ -42,6 +43,18 @@ type FailurePhase =
   | "stale-head"
   | "github-post";
 type ValidationStatus = "valid" | null;
+type EvidencePolicy =
+  | "accept-reviewed-result"
+  | "accept-gated-result"
+  | "accept-post-success"
+  | "validate-live-gated-status"
+  | "validate-stored-lease"
+  | "preserve-created-recovery"
+  | "preserve-reviewed-recovery"
+  | "preserve-gated-recovery"
+  | "preserve-failed-recovery"
+  | "validate-post-retry"
+  | "validate-cleanup-metadata";
 
 export interface PrReviewLease {
   schema: "pr-review/lease/v1";
@@ -343,6 +356,7 @@ async function writeLease(): Promise<string> {
   assertExistingLeaseIdentity(previous, identity);
   const inputs = await readInputsForWrite(previous, identity.worktreePath);
   const archive = archivePathIfNeeded(previous, identity, inputs);
+  const row = transitionId(previous, inputs);
   let reduced = reducePrReviewLease(previous, identity, inputs);
 
   if (previous !== null && inputs.state === "failed") {
@@ -351,11 +365,13 @@ async function writeLease(): Promise<string> {
       previous,
       identity.primaryRoot,
       identity.worktreePath,
+      recoveryPolicyForPreviousState(previous.state),
     );
   } else {
     validateLeaseShape(reduced);
     await validateReferencedArtifacts(reduced, identity.worktreePath, {
       validateResultAuthority: true,
+      policy: policyForLifecycleWrite(row),
     });
     if (archive !== null) {
       if (previous === null) {
@@ -364,6 +380,7 @@ async function writeLease(): Promise<string> {
       validateLeaseShape(previous);
       await validateReferencedArtifacts(previous, identity.worktreePath, {
         validateResultAuthority: true,
+        policy: "validate-stored-lease",
       });
     }
   }
@@ -409,6 +426,7 @@ async function recordAuditFailure(): Promise<string> {
     previous,
     identity.primaryRoot,
     identity.worktreePath,
+    "preserve-gated-recovery",
   );
   validateLeaseShape(reduced);
 
@@ -449,6 +467,7 @@ async function validateLeaseCommand(): Promise<void> {
   }
   await validateReferencedArtifacts(lease, identity.worktreePath, {
     validateResultAuthority: true,
+    policy: "validate-stored-lease",
   });
 }
 
@@ -520,6 +539,7 @@ async function readStatus(): Promise<string> {
   }
   await validateReferencedArtifacts(lease, identity.worktreePath, {
     validateResultAuthority: true,
+    policy: "validate-live-gated-status",
   });
 
   return JSON.stringify({
@@ -684,6 +704,7 @@ async function classifyCleanup(
     }
     await validateReferencedArtifacts(lease, identity.worktreePath, {
       validateResultAuthority: true,
+      policy: "validate-stored-lease",
     });
     const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(
       lease,
@@ -781,6 +802,7 @@ async function recordCleanupMetadata(
   if (validateArtifacts) {
     await validateReferencedArtifacts(next, identity.worktreePath, {
       validateResultAuthority: true,
+      policy: "validate-cleanup-metadata",
     });
   }
   await writeTextAtomically(
@@ -1182,7 +1204,7 @@ function applyFailure(
     },
     validation: previous?.validation ?? emptyValidation(),
     presentation:
-      row === "LC-11" || row === "LC-12" || row === "LC-13"
+      row === "LC-11" || row === "LC-12" || row === "LC-13" || row === "LC-16"
         ? (previous?.presentation ?? emptyPresentation())
         : emptyPresentation(),
     terminal: { finished_at: inputs.finishedAt, reason: null },
@@ -1348,6 +1370,50 @@ function archivePathIfNeeded(
   return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
 }
 
+function policyForLifecycleWrite(row: TransitionId | null): EvidencePolicy {
+  switch (row) {
+    case "LC-03":
+      return "accept-reviewed-result";
+    case "LC-04":
+    case "LC-05":
+    case "LC-14":
+      return "accept-gated-result";
+    case "LC-08":
+      return "accept-post-success";
+    case "LC-17":
+      return "validate-post-retry";
+    default:
+      return "validate-stored-lease";
+  }
+}
+
+function recoveryPolicyForPreviousState(state: LeaseState): EvidencePolicy {
+  switch (state) {
+    case "created":
+      return "preserve-created-recovery";
+    case "reviewed":
+      return "preserve-reviewed-recovery";
+    case "gated":
+      return "preserve-gated-recovery";
+    case "failed":
+      return "preserve-failed-recovery";
+    default:
+      return "validate-stored-lease";
+  }
+}
+
+function preservesGatePresentation(
+  policy: EvidencePolicy,
+  lease: PrReviewLease,
+): boolean {
+  return (
+    policy === "preserve-gated-recovery" ||
+    (policy === "preserve-failed-recovery" &&
+      lease.presentation.presented_at !== null &&
+      lease.presentation.status !== null)
+  );
+}
+
 interface LeaseShapeOptions {
   allowMissingGatedPresentationTimestamp?: boolean;
   allowMissingGatedRecoveryDigest?: boolean;
@@ -1491,9 +1557,9 @@ async function clearInvalidFailureRecoveryArtifacts(
   previous: PrReviewLease,
   primaryRoot: string,
   worktreePath: string,
+  policy: EvidencePolicy,
 ): Promise<PrReviewLease> {
   if (
-    !hasCurrentFailureRecoveryEvidence(previous) ||
     !(await isPlainDirectory(worktreePath)) ||
     !(await isRegisteredWorktree(primaryRoot, worktreePath))
   ) {
@@ -1501,35 +1567,121 @@ async function clearInvalidFailureRecoveryArtifacts(
     validateLeaseShape(cleared);
     return cleared;
   }
-  try {
-    await validateReferencedArtifacts(reduced, worktreePath, {
-      validateResultAuthority: true,
-    });
-    return reduced;
-  } catch {
-    const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
-    validateLeaseShape(cleared);
-    return cleared;
-  }
+  return classifyRecoveryEvidence(reduced, previous, worktreePath, policy);
 }
 
-function hasCurrentFailureRecoveryEvidence(lease: PrReviewLease): boolean {
-  if (
-    lease.artifacts.result_file === null ||
-    lease.validation.result_manifest.status !== "valid" ||
-    lease.validation.result_manifest.validated_at !== lease.updated_at ||
-    lease.validation.result_manifest.sha256 === null
-  ) {
-    return false;
+async function classifyRecoveryEvidence(
+  reduced: PrReviewLease,
+  previous: PrReviewLease,
+  worktreePath: string,
+  policy: EvidencePolicy,
+): Promise<PrReviewLease> {
+  const freshnessTimestamp =
+    policy === "preserve-gated-recovery" ? previous.updated_at : undefined;
+  let sanitized = clearPreviewRenderRecoveryArtifacts(reduced);
+
+  if (reduced.artifacts.handoff_file !== null) {
+    const handoffCandidate: PrReviewLease = {
+      ...sanitized,
+      artifacts: {
+        ...sanitized.artifacts,
+        handoff_file: reduced.artifacts.handoff_file,
+      },
+    };
+    try {
+      validateLeaseShape(handoffCandidate);
+      await validateReferencedArtifacts(handoffCandidate, worktreePath, {
+        policy,
+      });
+      sanitized = handoffCandidate;
+    } catch {
+      sanitized = clearPreviewRenderRecoveryArtifacts(reduced);
+    }
   }
-  if (
-    lease.state === "gated" &&
-    (lease.presentation.presented_at === null ||
-      lease.presentation.status === null)
-  ) {
-    return false;
+
+  if (reduced.artifacts.result_file === null) {
+    validateLeaseShape(sanitized);
+    return sanitized;
   }
-  return true;
+
+  const resultPresentation = preservesGatePresentation(policy, reduced)
+    ? reduced.presentation
+    : emptyPresentation();
+  const resultCandidate: PrReviewLease = {
+    ...sanitized,
+    artifacts: {
+      ...sanitized.artifacts,
+      result_file: reduced.artifacts.result_file,
+    },
+    validation: reduced.validation,
+    presentation: resultPresentation,
+  };
+  try {
+    validateLeaseShape(resultCandidate);
+    await validateReferencedArtifacts(resultCandidate, worktreePath, {
+      validateResultAuthority: true,
+      policy,
+      freshnessTimestamp,
+    });
+    sanitized = resultCandidate;
+  } catch {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  if (reduced.artifacts.approved_review_file === null) {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  const approvalCandidate: PrReviewLease = {
+    ...sanitized,
+    artifacts: {
+      ...sanitized.artifacts,
+      approved_review_file: reduced.artifacts.approved_review_file,
+      validated_payload_file: null,
+    },
+  };
+  try {
+    validateLeaseShape(approvalCandidate);
+    await validateReferencedArtifacts(approvalCandidate, worktreePath, {
+      validateResultAuthority: true,
+      policy,
+      freshnessTimestamp,
+    });
+    sanitized = approvalCandidate;
+  } catch {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  if (reduced.artifacts.validated_payload_file === null) {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  const payloadCandidate: PrReviewLease = {
+    ...sanitized,
+    artifacts: {
+      ...sanitized.artifacts,
+      validated_payload_file: reduced.artifacts.validated_payload_file,
+    },
+  };
+  try {
+    validateLeaseShape(payloadCandidate);
+    await validateReferencedArtifacts(payloadCandidate, worktreePath, {
+      validateResultAuthority: true,
+      policy,
+      freshnessTimestamp,
+    });
+    sanitized = payloadCandidate;
+  } catch {
+    validateLeaseShape(sanitized);
+    return sanitized;
+  }
+
+  validateLeaseShape(sanitized);
+  return sanitized;
 }
 
 function reviewHeadShaFromResultFile(resultFile: string): string {
@@ -1575,8 +1727,13 @@ async function isPlainDirectory(value: string): Promise<boolean> {
 async function validateReferencedArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
-  options: { validateResultAuthority?: boolean } = {},
+  options: {
+    validateResultAuthority?: boolean;
+    policy?: EvidencePolicy;
+    freshnessTimestamp?: string;
+  } = {},
 ): Promise<void> {
+  const policy = options.policy ?? "validate-stored-lease";
   let resultReviewHead: string | null = null;
   if (lease.artifacts.handoff_file !== null) {
     const handoff = await readRequiredJson<JsonObject>(
@@ -1598,13 +1755,8 @@ async function validateReferencedArtifacts(
       "result file",
     );
     validateResultIdentity(result, lease);
-    const resultPresentationStatus = presentationStatusFromResult(result);
-    if (
-      lease.presentation.status !== null &&
-      lease.presentation.status !== resultPresentationStatus
-    ) {
-      throw new PrReviewLeaseError("presentation status mismatch");
-    }
+    validateResultFreshness(lease, policy, options.freshnessTimestamp);
+    validateResultPresentation(result, lease, policy);
     resultReviewHead = stringField(result, "review_head_sha");
   }
   if (lease.artifacts.approved_review_file !== null) {
@@ -1641,6 +1793,120 @@ async function validateReferencedArtifacts(
   if (options.validateResultAuthority === true) {
     await validateResultCommandAuthority(lease, worktreePath);
   }
+}
+
+function validateResultFreshness(
+  lease: PrReviewLease,
+  policy: EvidencePolicy,
+  freshnessTimestamp?: string,
+): void {
+  if (lease.validation.result_manifest.status !== "valid") {
+    throw new PrReviewLeaseError("result manifest validation missing");
+  }
+  if (lease.validation.result_manifest.validated_at === null) {
+    throw new PrReviewLeaseError("result manifest validation missing");
+  }
+  if (lease.validation.result_manifest.sha256 === null) {
+    throw new PrReviewLeaseError("result manifest digest missing");
+  }
+  if (hasStaleResultValidation(lease, policy, freshnessTimestamp)) {
+    throw new PrReviewLeaseError("result manifest validation is stale");
+  }
+}
+
+function hasStaleResultValidation(
+  lease: PrReviewLease,
+  policy: EvidencePolicy,
+  freshnessTimestamp?: string,
+): boolean {
+  const expectedTimestamp = freshnessTimestamp ?? lease.updated_at;
+  if (
+    policy === "accept-gated-result" ||
+    policy === "validate-live-gated-status" ||
+    policy === "preserve-gated-recovery"
+  ) {
+    return lease.validation.result_manifest.validated_at !== expectedTimestamp;
+  }
+  return (
+    policy === "validate-stored-lease" &&
+    lease.state === "gated" &&
+    lease.validation.result_manifest.validated_at !== expectedTimestamp
+  );
+}
+
+function validateResultPresentation(
+  result: JsonObject,
+  lease: PrReviewLease,
+  policy: EvidencePolicy,
+): void {
+  const status = presentationStatusFromResult(result, {
+    allowNotPresented: allowsNotPresentedResult(policy, lease),
+  });
+  if (
+    !requiresLeasePresentation(policy, lease) &&
+    lease.presentation.status === null &&
+    lease.presentation.presented_at === null
+  ) {
+    return;
+  }
+  if (status === "not-presented") {
+    throw new PrReviewLeaseError("result presentation mismatch");
+  }
+  if (lease.presentation.status === null) {
+    throw new PrReviewLeaseError("presentation status missing");
+  }
+  if (lease.presentation.presented_at === null) {
+    throw new PrReviewLeaseError("presentation timestamp missing");
+  }
+  if (lease.presentation.status !== status) {
+    throw new PrReviewLeaseError("presentation status mismatch");
+  }
+}
+
+function allowsNotPresentedResult(
+  policy: EvidencePolicy,
+  lease: PrReviewLease,
+): boolean {
+  return (
+    policy === "accept-reviewed-result" ||
+    policy === "preserve-reviewed-recovery" ||
+    (policy === "validate-stored-lease" &&
+      hasStoredReviewedResultWithoutPresentation(lease)) ||
+    (policy === "validate-cleanup-metadata" &&
+      hasStoredReviewedResultWithoutPresentation(lease)) ||
+    (policy === "preserve-failed-recovery" &&
+      lease.presentation.status === null)
+  );
+}
+
+function hasStoredReviewedResultWithoutPresentation(
+  lease: PrReviewLease,
+): boolean {
+  return (
+    lease.artifacts.result_file !== null &&
+    lease.presentation.presented_at === null &&
+    lease.presentation.status === null &&
+    (lease.state === "reviewed" ||
+      lease.state === "aborted" ||
+      lease.state === "failed")
+  );
+}
+
+function requiresLeasePresentation(
+  policy: EvidencePolicy,
+  lease: PrReviewLease,
+): boolean {
+  return (
+    policy === "accept-gated-result" ||
+    policy === "accept-post-success" ||
+    policy === "validate-live-gated-status" ||
+    policy === "preserve-gated-recovery" ||
+    policy === "validate-post-retry" ||
+    (policy === "validate-stored-lease" &&
+      (lease.state === "gated" || lease.state === "posted")) ||
+    (policy === "preserve-failed-recovery" &&
+      lease.presentation.status !== null)
+  );
 }
 
 async function validateResultDigest(
@@ -1859,11 +2125,26 @@ function validateResultIdentity(
   }
 }
 
-function presentationStatusFromResult(result: JsonObject): PresentationStatus {
+function presentationStatusFromResult(result: JsonObject): PresentationStatus;
+function presentationStatusFromResult(
+  result: JsonObject,
+  options: { allowNotPresented: true },
+): ResultPresentationStatus;
+function presentationStatusFromResult(
+  result: JsonObject,
+  options: { allowNotPresented?: boolean },
+): ResultPresentationStatus;
+function presentationStatusFromResult(
+  result: JsonObject,
+  options: { allowNotPresented?: boolean } = {},
+): ResultPresentationStatus {
   if (!isObject(result.presentation)) {
     throw new PrReviewLeaseError("result presentation missing");
   }
   const status = result.presentation.status;
+  if (status === "not-presented" && options.allowNotPresented === true) {
+    return status;
+  }
   if (status !== "preview-current" && status !== "edited") {
     throw new PrReviewLeaseError("result presentation mismatch");
   }

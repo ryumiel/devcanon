@@ -22,11 +22,19 @@ stale result evidence into valid evidence; they either preserve evidence only
 after current validation or record the lifecycle/cleanup observation without
 invalid recovery pointers.
 
+Evidence validation is selected by lifecycle question. A reviewed write accepts
+a validated result manifest before preview presentation exists. Gated/live
+status paths require current presentation evidence. Failure preservation
+validates recovery evidence by family and clears invalid families with their
+dependents instead of treating recovery as one result-centric boolean.
+
 Valid states are:
 
 - `created`: review worktree exists; optional handoff pointer may be added after
   the Phase 3 handoff validates.
-- `reviewed`: Phase 4 result manifest validates and points to review findings.
+- `reviewed`: Phase 4 result manifest validates and points to review findings;
+  the result manifest may still have `presentation.status=not-presented`, and
+  the lease presentation fields remain null until the preview gate is rendered.
 - `gated`: Phase 5 rendered preview is current and waiting for user action.
 - `posted`: GitHub review post succeeded for the frozen approved-review
   artifact.
@@ -79,6 +87,15 @@ and `FAILURE_RECOVERABILITY`.
 `validation.result_manifest.status=valid`, the timestamp at which the helper
 accepted that result manifest, and the digest of the accepted result file.
 Leases without a result manifest keep the result validation outcome null.
+That validation timestamp is policy-specific evidence:
+
+- LC-03 records the reviewed result acceptance time and does not imply preview
+  presentation.
+- LC-04, LC-05, LC-14, `read-status`, and Phase 5 audit status require the
+  result validation timestamp to match the current gated lease update.
+- Terminal and failed recovery states may preserve older valid result evidence
+  when artifact digest, identity, nested artifacts, and helper-backed authority
+  still validate for the preserved family.
 
 The result manifest digest is stored only in
 `validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
@@ -151,17 +168,28 @@ the failed lease is written.
 
 Referenced artifacts stay owned by their existing helpers. The lease reducer
 validates direct-child paths, artifact identity, result digest freshness, and
-result command authority before accepting or preserving pointers as current:
+result command authority before accepting or preserving pointers as current.
+The policy selects which families are required:
 
 - Handoff manifest: repository, PR number, refs, review head, and execution
-  worktree path must match the lease identity.
+  worktree path must match the lease identity. Handoff evidence can be
+  preserved by itself for failures that occur after Phase 3 and before a result
+  manifest exists.
 - Result manifest: repository, PR number, review head, deterministic handoff
   chain, handoff pointer, `validation.result_manifest.sha256` digest, nested
-  artifacts, and helper-backed result command authority must match.
-- Gated result: presentation status must be current for the presented preview.
+  artifacts, and helper-backed result command authority must match. Reviewed
+  result evidence may carry `presentation.status=not-presented`; gated/live/post
+  policies require a presented status.
+- Gated result: presentation status and timestamp must be current for the
+  presented preview.
 - Approved-review: review head and payload commit must bind to the gated result.
 - Validated payload copy: direct-child path must match the approved-review
   payload.
+
+Recovery dependency order is strict: invalid result evidence clears result
+validation, presentation, approved-review, and validated payload pointers;
+invalid approval evidence clears the validated payload pointer; cleanup
+metadata never adds or refreshes artifact authority.
 
 ## Terminal Archive Behavior
 

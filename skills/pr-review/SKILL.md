@@ -402,6 +402,9 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 After the initial result manifest validates, write `reviewed` with
 `RESULT_FILE="$REVIEW_RESULT_FILE"`. If this write fails, stop before Phase 5;
 do not present a review result whose lease cannot be resumed.
+The reviewed lease records validated result evidence, not presentation. The
+detailed evidence-family and freshness contract lives in
+`references/review-lease-lifecycle-contract.md`.
 
 ## Phase 5: Present (USER GATE)
 

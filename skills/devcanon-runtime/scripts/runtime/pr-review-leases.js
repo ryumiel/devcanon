@@ -176,14 +176,16 @@ async function writeLease() {
     assertExistingLeaseIdentity(previous, identity);
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
+    const row = transitionId(previous, inputs);
     let reduced = reducePrReviewLease(previous, identity, inputs);
     if (previous !== null && inputs.state === "failed") {
-        reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
+        reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, recoveryPolicyForPreviousState(previous.state));
     }
     else {
         validateLeaseShape(reduced);
         await validateReferencedArtifacts(reduced, identity.worktreePath, {
             validateResultAuthority: true,
+            policy: policyForLifecycleWrite(row),
         });
         if (archive !== null) {
             if (previous === null) {
@@ -192,6 +194,7 @@ async function writeLease() {
             validateLeaseShape(previous);
             await validateReferencedArtifacts(previous, identity.worktreePath, {
                 validateResultAuthority: true,
+                policy: "validate-stored-lease",
             });
         }
     }
@@ -219,7 +222,7 @@ async function recordAuditFailure() {
         allowMissingGatedPresentationTimestamp: true,
         allowMissingGatedPresentationStatus: true,
     });
-    reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
+    reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath, "preserve-gated-recovery");
     validateLeaseShape(reduced);
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(reduced, null, 2)}\n`);
@@ -246,6 +249,7 @@ async function validateLeaseCommand() {
     }
     await validateReferencedArtifacts(lease, identity.worktreePath, {
         validateResultAuthority: true,
+        policy: "validate-stored-lease",
     });
 }
 async function readStatus() {
@@ -296,6 +300,7 @@ async function readStatus() {
     }
     await validateReferencedArtifacts(lease, identity.worktreePath, {
         validateResultAuthority: true,
+        policy: "validate-live-gated-status",
     });
     return JSON.stringify({
         lease_state: lease.state,
@@ -417,6 +422,7 @@ async function classifyCleanup(identity) {
         }
         await validateReferencedArtifacts(lease, identity.worktreePath, {
             validateResultAuthority: true,
+            policy: "validate-stored-lease",
         });
         const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(lease, identity.worktreePath);
         if (unmanagedArtifacts.length > 0) {
@@ -493,6 +499,7 @@ async function recordCleanupMetadata(identity, state, outcome, validateArtifacts
     if (validateArtifacts) {
         await validateReferencedArtifacts(next, identity.worktreePath, {
             validateResultAuthority: true,
+            policy: "validate-cleanup-metadata",
         });
     }
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(next, null, 2)}\n`);
@@ -788,7 +795,7 @@ function applyFailure(row, base, previous, inputs, options = {}) {
                     null),
         },
         validation: previous?.validation ?? emptyValidation(),
-        presentation: row === "LC-11" || row === "LC-12" || row === "LC-13"
+        presentation: row === "LC-11" || row === "LC-12" || row === "LC-13" || row === "LC-16"
             ? (previous?.presentation ?? emptyPresentation())
             : emptyPresentation(),
         terminal: { finished_at: inputs.finishedAt, reason: null },
@@ -900,6 +907,42 @@ function archivePathIfNeeded(previous, identity, inputs) {
     const stamp = (previous.terminal.finished_at ?? previous.updated_at).replace(/[-:Z]/gu, "");
     return `.ephemeral/pr-${identity.prNumber}-${identity.worktreeDigest}-${stamp}-${previous.state}-archived-lease.json`;
 }
+function policyForLifecycleWrite(row) {
+    switch (row) {
+        case "LC-03":
+            return "accept-reviewed-result";
+        case "LC-04":
+        case "LC-05":
+        case "LC-14":
+            return "accept-gated-result";
+        case "LC-08":
+            return "accept-post-success";
+        case "LC-17":
+            return "validate-post-retry";
+        default:
+            return "validate-stored-lease";
+    }
+}
+function recoveryPolicyForPreviousState(state) {
+    switch (state) {
+        case "created":
+            return "preserve-created-recovery";
+        case "reviewed":
+            return "preserve-reviewed-recovery";
+        case "gated":
+            return "preserve-gated-recovery";
+        case "failed":
+            return "preserve-failed-recovery";
+        default:
+            return "validate-stored-lease";
+    }
+}
+function preservesGatePresentation(policy, lease) {
+    return (policy === "preserve-gated-recovery" ||
+        (policy === "preserve-failed-recovery" &&
+            lease.presentation.presented_at !== null &&
+            lease.presentation.status !== null));
+}
 function validateLeaseShape(lease, options = {}) {
     assertLeaseObjectShape(lease);
     if (lease.schema !== "pr-review/lease/v1") {
@@ -1001,39 +1044,117 @@ function clearPreviewRenderRecoveryArtifacts(lease) {
         presentation: emptyPresentation(),
     };
 }
-async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath) {
-    if (!hasCurrentFailureRecoveryEvidence(previous) ||
-        !(await isPlainDirectory(worktreePath)) ||
+async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath, policy) {
+    if (!(await isPlainDirectory(worktreePath)) ||
         !(await isRegisteredWorktree(primaryRoot, worktreePath))) {
         const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
         validateLeaseShape(cleared);
         return cleared;
     }
+    return classifyRecoveryEvidence(reduced, previous, worktreePath, policy);
+}
+async function classifyRecoveryEvidence(reduced, previous, worktreePath, policy) {
+    const freshnessTimestamp = policy === "preserve-gated-recovery" ? previous.updated_at : undefined;
+    let sanitized = clearPreviewRenderRecoveryArtifacts(reduced);
+    if (reduced.artifacts.handoff_file !== null) {
+        const handoffCandidate = {
+            ...sanitized,
+            artifacts: {
+                ...sanitized.artifacts,
+                handoff_file: reduced.artifacts.handoff_file,
+            },
+        };
+        try {
+            validateLeaseShape(handoffCandidate);
+            await validateReferencedArtifacts(handoffCandidate, worktreePath, {
+                policy,
+            });
+            sanitized = handoffCandidate;
+        }
+        catch {
+            sanitized = clearPreviewRenderRecoveryArtifacts(reduced);
+        }
+    }
+    if (reduced.artifacts.result_file === null) {
+        validateLeaseShape(sanitized);
+        return sanitized;
+    }
+    const resultPresentation = preservesGatePresentation(policy, reduced)
+        ? reduced.presentation
+        : emptyPresentation();
+    const resultCandidate = {
+        ...sanitized,
+        artifacts: {
+            ...sanitized.artifacts,
+            result_file: reduced.artifacts.result_file,
+        },
+        validation: reduced.validation,
+        presentation: resultPresentation,
+    };
     try {
-        await validateReferencedArtifacts(reduced, worktreePath, {
+        validateLeaseShape(resultCandidate);
+        await validateReferencedArtifacts(resultCandidate, worktreePath, {
             validateResultAuthority: true,
+            policy,
+            freshnessTimestamp,
         });
-        return reduced;
+        sanitized = resultCandidate;
     }
     catch {
-        const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
-        validateLeaseShape(cleared);
-        return cleared;
+        validateLeaseShape(sanitized);
+        return sanitized;
     }
-}
-function hasCurrentFailureRecoveryEvidence(lease) {
-    if (lease.artifacts.result_file === null ||
-        lease.validation.result_manifest.status !== "valid" ||
-        lease.validation.result_manifest.validated_at !== lease.updated_at ||
-        lease.validation.result_manifest.sha256 === null) {
-        return false;
+    if (reduced.artifacts.approved_review_file === null) {
+        validateLeaseShape(sanitized);
+        return sanitized;
     }
-    if (lease.state === "gated" &&
-        (lease.presentation.presented_at === null ||
-            lease.presentation.status === null)) {
-        return false;
+    const approvalCandidate = {
+        ...sanitized,
+        artifacts: {
+            ...sanitized.artifacts,
+            approved_review_file: reduced.artifacts.approved_review_file,
+            validated_payload_file: null,
+        },
+    };
+    try {
+        validateLeaseShape(approvalCandidate);
+        await validateReferencedArtifacts(approvalCandidate, worktreePath, {
+            validateResultAuthority: true,
+            policy,
+            freshnessTimestamp,
+        });
+        sanitized = approvalCandidate;
     }
-    return true;
+    catch {
+        validateLeaseShape(sanitized);
+        return sanitized;
+    }
+    if (reduced.artifacts.validated_payload_file === null) {
+        validateLeaseShape(sanitized);
+        return sanitized;
+    }
+    const payloadCandidate = {
+        ...sanitized,
+        artifacts: {
+            ...sanitized.artifacts,
+            validated_payload_file: reduced.artifacts.validated_payload_file,
+        },
+    };
+    try {
+        validateLeaseShape(payloadCandidate);
+        await validateReferencedArtifacts(payloadCandidate, worktreePath, {
+            validateResultAuthority: true,
+            policy,
+            freshnessTimestamp,
+        });
+        sanitized = payloadCandidate;
+    }
+    catch {
+        validateLeaseShape(sanitized);
+        return sanitized;
+    }
+    validateLeaseShape(sanitized);
+    return sanitized;
 }
 function reviewHeadShaFromResultFile(resultFile) {
     const match = /^\.ephemeral\/pr-[0-9]+-([0-9a-f]{40})-result\.json$/u.exec(resultFile);
@@ -1072,6 +1193,7 @@ async function isPlainDirectory(value) {
     }
 }
 async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
+    const policy = options.policy ?? "validate-stored-lease";
     let resultReviewHead = null;
     if (lease.artifacts.handoff_file !== null) {
         const handoff = await readRequiredJson(worktreePath, lease.artifacts.handoff_file, "handoff file");
@@ -1081,11 +1203,8 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
         await validateResultDigest(lease, worktreePath, lease.artifacts.result_file);
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
-        const resultPresentationStatus = presentationStatusFromResult(result);
-        if (lease.presentation.status !== null &&
-            lease.presentation.status !== resultPresentationStatus) {
-            throw new PrReviewLeaseError("presentation status mismatch");
-        }
+        validateResultFreshness(lease, policy, options.freshnessTimestamp);
+        validateResultPresentation(result, lease, policy);
         resultReviewHead = stringField(result, "review_head_sha");
     }
     if (lease.artifacts.approved_review_file !== null) {
@@ -1105,6 +1224,82 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
     if (options.validateResultAuthority === true) {
         await validateResultCommandAuthority(lease, worktreePath);
     }
+}
+function validateResultFreshness(lease, policy, freshnessTimestamp) {
+    if (lease.validation.result_manifest.status !== "valid") {
+        throw new PrReviewLeaseError("result manifest validation missing");
+    }
+    if (lease.validation.result_manifest.validated_at === null) {
+        throw new PrReviewLeaseError("result manifest validation missing");
+    }
+    if (lease.validation.result_manifest.sha256 === null) {
+        throw new PrReviewLeaseError("result manifest digest missing");
+    }
+    if (hasStaleResultValidation(lease, policy, freshnessTimestamp)) {
+        throw new PrReviewLeaseError("result manifest validation is stale");
+    }
+}
+function hasStaleResultValidation(lease, policy, freshnessTimestamp) {
+    const expectedTimestamp = freshnessTimestamp ?? lease.updated_at;
+    if (policy === "accept-gated-result" ||
+        policy === "validate-live-gated-status" ||
+        policy === "preserve-gated-recovery") {
+        return lease.validation.result_manifest.validated_at !== expectedTimestamp;
+    }
+    return (policy === "validate-stored-lease" &&
+        lease.state === "gated" &&
+        lease.validation.result_manifest.validated_at !== expectedTimestamp);
+}
+function validateResultPresentation(result, lease, policy) {
+    const status = presentationStatusFromResult(result, {
+        allowNotPresented: allowsNotPresentedResult(policy, lease),
+    });
+    if (!requiresLeasePresentation(policy, lease) &&
+        lease.presentation.status === null &&
+        lease.presentation.presented_at === null) {
+        return;
+    }
+    if (status === "not-presented") {
+        throw new PrReviewLeaseError("result presentation mismatch");
+    }
+    if (lease.presentation.status === null) {
+        throw new PrReviewLeaseError("presentation status missing");
+    }
+    if (lease.presentation.presented_at === null) {
+        throw new PrReviewLeaseError("presentation timestamp missing");
+    }
+    if (lease.presentation.status !== status) {
+        throw new PrReviewLeaseError("presentation status mismatch");
+    }
+}
+function allowsNotPresentedResult(policy, lease) {
+    return (policy === "accept-reviewed-result" ||
+        policy === "preserve-reviewed-recovery" ||
+        (policy === "validate-stored-lease" &&
+            hasStoredReviewedResultWithoutPresentation(lease)) ||
+        (policy === "validate-cleanup-metadata" &&
+            hasStoredReviewedResultWithoutPresentation(lease)) ||
+        (policy === "preserve-failed-recovery" &&
+            lease.presentation.status === null));
+}
+function hasStoredReviewedResultWithoutPresentation(lease) {
+    return (lease.artifacts.result_file !== null &&
+        lease.presentation.presented_at === null &&
+        lease.presentation.status === null &&
+        (lease.state === "reviewed" ||
+            lease.state === "aborted" ||
+            lease.state === "failed"));
+}
+function requiresLeasePresentation(policy, lease) {
+    return (policy === "accept-gated-result" ||
+        policy === "accept-post-success" ||
+        policy === "validate-live-gated-status" ||
+        policy === "preserve-gated-recovery" ||
+        policy === "validate-post-retry" ||
+        (policy === "validate-stored-lease" &&
+            (lease.state === "gated" || lease.state === "posted")) ||
+        (policy === "preserve-failed-recovery" &&
+            lease.presentation.status !== null));
 }
 async function validateResultDigest(lease, worktreePath, resultFile) {
     if (lease.validation.result_manifest.sha256 === null) {
@@ -1255,11 +1450,14 @@ function validateResultIdentity(result, lease) {
         }
     }
 }
-function presentationStatusFromResult(result) {
+function presentationStatusFromResult(result, options = {}) {
     if (!isObject(result.presentation)) {
         throw new PrReviewLeaseError("result presentation missing");
     }
     const status = result.presentation.status;
+    if (status === "not-presented" && options.allowNotPresented === true) {
+        return status;
+    }
     if (status !== "preview-current" && status !== "edited") {
         throw new PrReviewLeaseError("result presentation mismatch");
     }
