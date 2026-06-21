@@ -345,11 +345,7 @@ async function writeLease(): Promise<string> {
   const archive = archivePathIfNeeded(previous, identity, inputs);
   let reduced = reducePrReviewLease(previous, identity, inputs);
 
-  if (
-    previous !== null &&
-    inputs.state === "failed" &&
-    !requiresStrictFailureEvidencePreservation(inputs)
-  ) {
+  if (previous !== null && inputs.state === "failed") {
     reduced = await clearInvalidFailureRecoveryArtifacts(
       reduced,
       previous,
@@ -1490,15 +1486,6 @@ function clearPreviewRenderRecoveryArtifacts(
   };
 }
 
-function requiresStrictFailureEvidencePreservation(
-  inputs: LeaseInputs,
-): boolean {
-  return (
-    inputs.failurePhase === "approval-freeze" ||
-    inputs.failurePhase === "github-post"
-  );
-}
-
 async function clearInvalidFailureRecoveryArtifacts(
   reduced: PrReviewLease,
   previous: PrReviewLease,
@@ -1515,7 +1502,7 @@ async function clearInvalidFailureRecoveryArtifacts(
     return cleared;
   }
   try {
-    await validateReferencedArtifacts(previous, worktreePath, {
+    await validateReferencedArtifacts(reduced, worktreePath, {
       validateResultAuthority: true,
     });
     return reduced;
@@ -1611,6 +1598,13 @@ async function validateReferencedArtifacts(
       "result file",
     );
     validateResultIdentity(result, lease);
+    const resultPresentationStatus = presentationStatusFromResult(result);
+    if (
+      lease.presentation.status !== null &&
+      lease.presentation.status !== resultPresentationStatus
+    ) {
+      throw new PrReviewLeaseError("presentation status mismatch");
+    }
     resultReviewHead = stringField(result, "review_head_sha");
   }
   if (lease.artifacts.approved_review_file !== null) {

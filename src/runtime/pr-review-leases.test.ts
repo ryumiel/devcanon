@@ -845,7 +845,7 @@ describe("pr-review lease command validation", () => {
     }
   });
 
-  it("rejects nested result artifact drift before terminal preservation and failed-to-posted writes", async () => {
+  it("clears invalid strict failure evidence instead of rejecting failed writes", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-terminal-nested-drift-",
     );
@@ -870,11 +870,33 @@ describe("pr-review lease command validation", () => {
       await mutateNestedFindingsWithoutUpdatingResult(workspace);
 
       let result = await runPrReviewLeasesCommand(["write"]);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("findings digest mismatch");
-      await expect(
-        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
-      ).resolves.toBe(beforeFailure);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const failedAfterDrift = await readLease(
+        workspace.primary,
+        workspace.leaseFile,
+      );
+      expect(failedAfterDrift.state).toBe("failed");
+      expect(failedAfterDrift.artifacts).toEqual({
+        handoff_file: null,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      });
+      expect(failedAfterDrift.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failedAfterDrift.failure).toEqual({
+        phase: "github-post",
+        reason: "GitHub API rejected review",
+        recoverability: "recoverable",
+      });
+      expect(failedAfterDrift.github).toEqual({
+        github_post_attempted: true,
+        github_post_result: "failed",
+        github_posted_at: null,
+      });
 
       await writeFile(
         path.join(workspace.primary, workspace.leaseFile),
@@ -927,6 +949,75 @@ describe("pr-review lease command validation", () => {
       await expect(
         readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
       ).resolves.toBe(beforePosted);
+
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(failedAfterDrift, null, 2)}\n`,
+      );
+      process.env.STATE = "posted";
+      process.env.EXPECTED_STATE = "failed";
+      process.env.UPDATED_AT = "2026-06-11T00:05:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:05:00Z";
+      process.env.GITHUB_POSTED_AT = "2026-06-11T00:05:00Z";
+      unsetEnv("FAILURE_PHASE");
+      unsetEnv("FAILURE_REASON");
+      unsetEnv("FAILURE_RECOVERABILITY");
+      unsetEnv("GITHUB_POST_ATTEMPTED");
+      unsetEnv("GITHUB_POST_RESULT");
+
+      result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "APPROVED_REVIEW_FILE must match existing failed approved-review",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("clears invalid approval-freeze evidence while recording failed", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-approval-freeze-invalid-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      process.env.FAILURE_PHASE = "approval-freeze";
+      process.env.FAILURE_REASON = "approved review validation failed";
+      process.env.APPROVED_REVIEW_FILE = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        process.env.APPROVED_REVIEW_FILE,
+        "2222222222222222222222222222222222222222",
+      );
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed.state).toBe("failed");
+      expect(failed.artifacts).toEqual({
+        handoff_file: null,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      });
+      expect(failed.validation.result_manifest).toEqual({
+        status: null,
+        validated_at: null,
+        sha256: null,
+      });
+      expect(failed.failure).toEqual({
+        phase: "approval-freeze",
+        reason: "approved review validation failed",
+        recoverability: "recoverable",
+      });
+      expect(failed.github).toEqual({
+        github_post_attempted: false,
+        github_post_result: "not-attempted",
+        github_posted_at: null,
+      });
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });

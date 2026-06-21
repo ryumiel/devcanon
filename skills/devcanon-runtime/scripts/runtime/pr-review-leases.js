@@ -177,9 +177,7 @@ async function writeLease() {
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
     let reduced = reducePrReviewLease(previous, identity, inputs);
-    if (previous !== null &&
-        inputs.state === "failed" &&
-        !requiresStrictFailureEvidencePreservation(inputs)) {
+    if (previous !== null && inputs.state === "failed") {
         reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
     }
     else {
@@ -1003,10 +1001,6 @@ function clearPreviewRenderRecoveryArtifacts(lease) {
         presentation: emptyPresentation(),
     };
 }
-function requiresStrictFailureEvidencePreservation(inputs) {
-    return (inputs.failurePhase === "approval-freeze" ||
-        inputs.failurePhase === "github-post");
-}
 async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath) {
     if (!hasCurrentFailureRecoveryEvidence(previous) ||
         !(await isPlainDirectory(worktreePath)) ||
@@ -1016,7 +1010,7 @@ async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRo
         return cleared;
     }
     try {
-        await validateReferencedArtifacts(previous, worktreePath, {
+        await validateReferencedArtifacts(reduced, worktreePath, {
             validateResultAuthority: true,
         });
         return reduced;
@@ -1087,6 +1081,11 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
         await validateResultDigest(lease, worktreePath, lease.artifacts.result_file);
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
+        const resultPresentationStatus = presentationStatusFromResult(result);
+        if (lease.presentation.status !== null &&
+            lease.presentation.status !== resultPresentationStatus) {
+            throw new PrReviewLeaseError("presentation status mismatch");
+        }
         resultReviewHead = stringField(result, "review_head_sha");
     }
     if (lease.artifacts.approved_review_file !== null) {
