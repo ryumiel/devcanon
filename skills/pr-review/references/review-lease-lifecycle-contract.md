@@ -9,8 +9,18 @@ owns operator flow.
 ## State Authority
 
 The lease records lifecycle state and the result-manifest validation outcome
-that justifies entering `reviewed`. It does not store approval intent, review
-payload JSON, inline comments, findings content, or thread-resolution decisions.
+that justifies accepting or preserving review result evidence. It does not
+store approval intent, review payload JSON, inline comments, findings content,
+or thread-resolution decisions.
+
+Lease identity and result evidence are separate authority boundaries. Trusted
+lease identity decides whether a command may mutate lifecycle state. Result
+manifest digest checks, artifact identity checks, and helper-backed result
+command authority decide whether stored result evidence may be reported or
+preserved as current. Failure and cleanup observation writers must not turn
+stale result evidence into valid evidence; they either preserve evidence only
+after current validation or record the lifecycle/cleanup observation without
+invalid recovery pointers.
 
 Valid states are:
 
@@ -66,9 +76,9 @@ Terminal writes require `FINISHED_AT`. `aborted` writes also require
 and `FAILURE_RECOVERABILITY`.
 
 `reviewed` and later states that preserve a result manifest must also preserve
-`validation.result_manifest.status=valid` and the timestamp at which the helper
-accepted that result manifest. Leases without a result manifest keep the result
-validation outcome null.
+`validation.result_manifest.status=valid`, the timestamp at which the helper
+accepted that result manifest, and the digest of the accepted result file.
+Leases without a result manifest keep the result validation outcome null.
 
 The result manifest digest is stored only in
 `validation.result_manifest.sha256`. Do not expand the `pr-review/result/v1`
@@ -119,8 +129,11 @@ Boolean fields are JSON booleans. Consumers must treat missing digest, stale
 digest, stale validation timestamp, mismatched presentation status, missing
 `presented_at`, identity mismatch, missing worktree, unregistered worktree, or
 unreadable worktree as fail-closed audit failures. Failure to inspect git
-status is also fail-closed read-status behavior. A dirty-but-valid worktree is
-truthful status and does not by itself block the Phase 5 gate.
+status is also fail-closed read-status behavior. Successful status output also
+requires the stored result evidence to pass lease-aware result command
+authority, including nested result artifacts and lease base/head evidence. A
+dirty-but-valid worktree is truthful status and does not by itself block the
+Phase 5 gate.
 
 `review-leases.sh record-audit-failure` is the recovery boundary for Phase 5
 audit summary failures after a successful `gated` write. It must run from the
@@ -129,20 +142,22 @@ primary repository root, read the existing gated lease identity from
 `preview-render` failure with `EXPECTED_STATE=gated`, including when the
 worktree is missing. Existing recovery artifact pointers are preserved only
 when the prior gated validation is current and the referenced artifacts still
-pass worktree identity and digest validation; missing worktrees, stale
-validation timestamps, missing digests, or invalid artifacts clear the recovery
-pointers before the failed lease is written.
+pass worktree identity, digest validation, and result command authority;
+missing worktrees, stale validation timestamps, missing digests, missing
+presentation evidence, or invalid artifacts clear the recovery pointers before
+the failed lease is written.
 
 ## Artifact Requirements
 
 Referenced artifacts stay owned by their existing helpers. The lease reducer
-validates direct-child paths and artifact identity before accepting pointers:
+validates direct-child paths, artifact identity, result digest freshness, and
+result command authority before accepting or preserving pointers as current:
 
 - Handoff manifest: repository, PR number, refs, review head, and execution
   worktree path must match the lease identity.
 - Result manifest: repository, PR number, review head, deterministic handoff
-  chain, handoff pointer, and `validation.result_manifest.sha256` digest must
-  match.
+  chain, handoff pointer, `validation.result_manifest.sha256` digest, nested
+  artifacts, and helper-backed result command authority must match.
 - Gated result: presentation status must be current for the presented preview.
 - Approved-review: review head and payload commit must bind to the gated result.
 - Validated payload copy: direct-child path must match the approved-review
@@ -179,3 +194,11 @@ Cleanup may preserve only lease-referenced artifacts and schema-declared
 artifact fields from those artifacts. Arbitrary strings in JSON content,
 findings bodies, review text, payload bodies, or other user-authored content do
 not prove cleanup ownership for `.ephemeral` files.
+
+Cleanup metadata is an observation on a trusted cleanup decision, not proof
+that historical result evidence remains current. When the lease identity
+matches but the physical worktree is missing or the path is no longer
+registered, `inspect-worktree` and `cleanup-worktree` may record skipped or
+retained cleanup metadata without reading artifacts from that unavailable or
+untrusted worktree. Present registered worktrees still require artifact
+validation before removal can proceed.

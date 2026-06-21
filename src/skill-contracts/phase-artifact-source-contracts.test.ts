@@ -909,7 +909,16 @@ describe("phase artifact source contracts", () => {
       "must not require `WORKTREE_PATH`",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
-      "missing worktrees, stale validation timestamps, missing digests, or invalid artifacts clear the recovery pointers before the failed lease is written",
+      "missing worktrees, stale validation timestamps, missing digests, missing presentation evidence, or invalid artifacts clear the recovery pointers before the failed lease is written",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Lease identity and result evidence are separate authority boundaries",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Successful status output also requires the stored result evidence to pass lease-aware result command authority",
+    );
+    expect(normalizedLeaseLifecycleReference).toContain(
+      "Cleanup metadata is an observation on a trusted cleanup decision, not proof that historical result evidence remains current",
     );
     expect(normalizedLeaseLifecycleReference).toContain(
       "Boolean fields are JSON booleans",

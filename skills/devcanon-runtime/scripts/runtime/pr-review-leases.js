@@ -177,9 +177,10 @@ async function writeLease() {
     const inputs = await readInputsForWrite(previous, identity.worktreePath);
     const archive = archivePathIfNeeded(previous, identity, inputs);
     let reduced = reducePrReviewLease(previous, identity, inputs);
-    if (previous !== null && isPostGatedPreviewRenderFailure(previous, inputs)) {
-        validatePostGatedPreviewRenderFailure(previous);
-        reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
+    if (previous !== null &&
+        inputs.state === "failed" &&
+        !requiresStrictFailureEvidencePreservation(inputs)) {
+        reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
     }
     else {
         validateLeaseShape(reduced);
@@ -218,8 +219,9 @@ async function recordAuditFailure() {
     }
     let reduced = reducePrReviewLease(previous, identity, inputs, {
         allowMissingGatedPresentationTimestamp: true,
+        allowMissingGatedPresentationStatus: true,
     });
-    reduced = await clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
+    reduced = await clearInvalidFailureRecoveryArtifacts(reduced, previous, identity.primaryRoot, identity.worktreePath);
     validateLeaseShape(reduced);
     await assertWritableDirectChild(identity.primaryRoot, identity.leaseFile, "lease");
     await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(reduced, null, 2)}\n`);
@@ -244,7 +246,9 @@ async function validateLeaseCommand() {
     if (lease.lease_file !== identity.leaseFile) {
         throw new PrReviewLeaseError("lease file identity mismatch");
     }
-    await validateReferencedArtifacts(lease, identity.worktreePath);
+    await validateReferencedArtifacts(lease, identity.worktreePath, {
+        validateResultAuthority: true,
+    });
 }
 async function readStatus() {
     const identity = await readIdentity(true);
@@ -292,6 +296,9 @@ async function readStatus() {
     if (lease.validation.result_manifest.validated_at !== lease.updated_at) {
         throw new PrReviewLeaseError("result manifest validation is stale");
     }
+    await validateReferencedArtifacts(lease, identity.worktreePath, {
+        validateResultAuthority: true,
+    });
     return JSON.stringify({
         lease_state: lease.state,
         worktree_path: identity.worktreePath,
@@ -312,7 +319,7 @@ async function inspectWorktree() {
     const identity = await readCleanupIdentity();
     const decision = await classifyCleanup(identity);
     if (shouldRecordCleanupMetadata(decision)) {
-        await recordCleanupMetadata(identity, decision.leaseState, "");
+        await recordCleanupMetadata(identity, decision.leaseState, "", shouldValidateCleanupMetadataArtifacts(decision));
     }
     return cleanupOutput("inspect", decision);
 }
@@ -322,14 +329,14 @@ async function cleanupWorktree() {
     if (!decision.canRemove) {
         const outcome = decision.metadataOutcome === "skipped" ? "skipped" : "retained";
         if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, outcome);
+            await recordCleanupMetadata(identity, decision.leaseState, outcome, shouldValidateCleanupMetadataArtifacts(decision));
             decision.metadataOutcome = outcome;
         }
         return cleanupOutput(outcome, decision);
     }
     try {
         if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, "removed");
+            await recordCleanupMetadata(identity, decision.leaseState, "removed", shouldValidateCleanupMetadataArtifacts(decision));
             decision.metadataOutcome = "removed";
         }
         const args = ["-C", identity.primaryRoot, "worktree", "remove"];
@@ -346,7 +353,7 @@ async function cleanupWorktree() {
     }
     catch {
         if (shouldRecordCleanupMetadata(decision)) {
-            await recordCleanupMetadata(identity, decision.leaseState, "failed");
+            await recordCleanupMetadata(identity, decision.leaseState, "failed", shouldValidateCleanupMetadataArtifacts(decision));
         }
         return cleanupOutput("failed", {
             ...decision,
@@ -359,6 +366,10 @@ function shouldRecordCleanupMetadata(decision) {
     return (decision.identityMatch &&
         decision.leaseState !== "" &&
         decision.refusalReason !== "invalid-lease");
+}
+function shouldValidateCleanupMetadataArtifacts(decision) {
+    return (decision.refusalReason !== "missing-worktree" &&
+        decision.refusalReason !== "not-registered-worktree");
 }
 async function classifyCleanup(identity) {
     const base = {
@@ -467,8 +478,12 @@ async function isWorktreeDirty(worktreePath) {
         throw new PrReviewLeaseError("git status inspection failed for worktree");
     }
 }
-async function recordCleanupMetadata(identity, state, outcome) {
+async function recordCleanupMetadata(identity, state, outcome, validateArtifacts) {
     const lease = await readRequiredJson(identity.primaryRoot, identity.leaseFile, "lease file");
+    assertExistingLeaseIdentity(lease, identity);
+    if (state !== lease.state) {
+        throw new PrReviewLeaseError("lease state changed during cleanup metadata write");
+    }
     const next = {
         ...lease,
         cleanup: {
@@ -477,13 +492,12 @@ async function recordCleanupMetadata(identity, state, outcome) {
         },
     };
     validateLeaseShape(next);
-    await validateReferencedArtifacts(next, identity.worktreePath, {
-        validateResultAuthority: true,
-    });
-    await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(next, null, 2)}\n`);
-    if (state !== lease.state) {
-        throw new PrReviewLeaseError("lease state changed during cleanup metadata write");
+    if (validateArtifacts) {
+        await validateReferencedArtifacts(next, identity.worktreePath, {
+            validateResultAuthority: true,
+        });
     }
+    await writeTextAtomically(path.join(identity.primaryRoot, identity.leaseFile), `${JSON.stringify(next, null, 2)}\n`);
 }
 function cleanupOutput(outcome, decision) {
     return [
@@ -749,6 +763,7 @@ function applyFailure(row, base, previous, inputs, options = {}) {
     if (inputs.failurePhase === "preview-render" && previous?.state === "gated") {
         validatePostGatedPreviewRenderFailure(previous, {
             allowMissingPresentationTimestamp: options.allowMissingGatedPresentationTimestamp === true,
+            allowMissingPresentationStatus: options.allowMissingGatedPresentationStatus === true,
         });
     }
     const resultFile = failureResultFile(row, previous, inputs);
@@ -802,7 +817,11 @@ function failureResultFile(row, previous, inputs) {
         return null;
     }
     if (row === "LC-16") {
-        return inputs.resultFile ?? previous?.artifacts.result_file ?? null;
+        const current = previous?.artifacts.result_file ?? null;
+        if (inputs.resultFile !== undefined && inputs.resultFile !== current) {
+            throw new PrReviewLeaseError("RESULT_FILE must match existing failed result");
+        }
+        return current;
     }
     const current = previous?.artifacts.result_file ?? null;
     if (current === null) {
@@ -825,7 +844,8 @@ function validatePostGatedPreviewRenderFailure(previous, options = {}) {
     if (previous.artifacts.result_file === null) {
         throw new PrReviewLeaseError("preview-render failure requires prior result pointer");
     }
-    if (previous.presentation.status === null ||
+    if ((previous.presentation.status === null &&
+        options.allowMissingPresentationStatus !== true) ||
         (previous.presentation.presented_at === null &&
             options.allowMissingPresentationTimestamp !== true)) {
         throw new PrReviewLeaseError("preview-render failure requires prior presentation evidence");
@@ -983,8 +1003,12 @@ function clearPreviewRenderRecoveryArtifacts(lease) {
         presentation: emptyPresentation(),
     };
 }
-async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath) {
-    if (!hasCurrentPreviewRenderRecoveryEvidence(previous) ||
+function requiresStrictFailureEvidencePreservation(inputs) {
+    return (inputs.failurePhase === "approval-freeze" ||
+        inputs.failurePhase === "github-post");
+}
+async function clearInvalidFailureRecoveryArtifacts(reduced, previous, primaryRoot, worktreePath) {
+    if (!hasCurrentFailureRecoveryEvidence(previous) ||
         !(await isPlainDirectory(worktreePath)) ||
         !(await isRegisteredWorktree(primaryRoot, worktreePath))) {
         const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
@@ -992,8 +1016,9 @@ async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, pri
         return cleared;
     }
     try {
-        await validateReferencedArtifacts(previous, worktreePath);
-        await validatePreviewRenderRecoveryResult(previous, worktreePath);
+        await validateReferencedArtifacts(previous, worktreePath, {
+            validateResultAuthority: true,
+        });
         return reduced;
     }
     catch {
@@ -1002,32 +1027,19 @@ async function clearInvalidPreviewRenderRecoveryArtifacts(reduced, previous, pri
         return cleared;
     }
 }
-function hasCurrentPreviewRenderRecoveryEvidence(lease) {
-    return (lease.validation.result_manifest.status === "valid" &&
-        lease.validation.result_manifest.validated_at === lease.updated_at &&
-        lease.validation.result_manifest.sha256 !== null &&
-        lease.presentation.presented_at !== null &&
-        lease.presentation.status !== null);
-}
-async function validatePreviewRenderRecoveryResult(lease, worktreePath) {
-    if (lease.artifacts.result_file === null) {
-        throw new PrReviewLeaseError("result file missing");
+function hasCurrentFailureRecoveryEvidence(lease) {
+    if (lease.artifacts.result_file === null ||
+        lease.validation.result_manifest.status !== "valid" ||
+        lease.validation.result_manifest.validated_at !== lease.updated_at ||
+        lease.validation.result_manifest.sha256 === null) {
+        return false;
     }
-    await validatePrReviewResultCommandAuthority({
-        worktreeRoot: worktreePath,
-        resultFile: lease.artifacts.result_file,
-        resultIdentityPath: lease.artifacts.result_file,
-        repository: lease.repository,
-        prNumber: lease.pr_number,
-        reviewHeadSha: reviewHeadShaFromResultFile(lease.artifacts.result_file),
-        leaseBaseRef: lease.base_ref,
-        leaseHeadRef: lease.head_ref,
-        prReviewDir: optionalEnv("PR_REVIEW_DIR"),
-        prReviewManifestHelperScript: optionalEnv("PR_REVIEW_MANIFEST_HELPER_SCRIPT"),
-        prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
-        playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
-        helperEnv: inheritedHelperEnv(),
-    });
+    if (lease.state === "gated" &&
+        (lease.presentation.presented_at === null ||
+            lease.presentation.status === null)) {
+        return false;
+    }
+    return true;
 }
 function reviewHeadShaFromResultFile(resultFile) {
     const match = /^\.ephemeral\/pr-[0-9]+-([0-9a-f]{40})-result\.json$/u.exec(resultFile);
@@ -1076,9 +1088,6 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
         const result = await readRequiredJson(worktreePath, lease.artifacts.result_file, "result file");
         validateResultIdentity(result, lease);
         resultReviewHead = stringField(result, "review_head_sha");
-        if (options.validateResultAuthority === true) {
-            await validateResultCommandAuthority(lease, worktreePath);
-        }
     }
     if (lease.artifacts.approved_review_file !== null) {
         const approved = await readRequiredJson(worktreePath, lease.artifacts.approved_review_file, "approved review file");
@@ -1093,6 +1102,9 @@ async function validateReferencedArtifacts(lease, worktreePath, options = {}) {
                 throw new PrReviewLeaseError("validated payload approved-review mismatch");
             }
         }
+    }
+    if (options.validateResultAuthority === true) {
+        await validateResultCommandAuthority(lease, worktreePath);
     }
 }
 async function validateResultDigest(lease, worktreePath, resultFile) {
