@@ -446,7 +446,9 @@ async function validateLeaseCommand(): Promise<void> {
   if (lease.lease_file !== identity.leaseFile) {
     throw new PrReviewLeaseError("lease file identity mismatch");
   }
-  await validateReferencedArtifacts(lease, identity.worktreePath);
+  await validateReferencedArtifacts(lease, identity.worktreePath, {
+    validateResultAuthority: true,
+  });
 }
 
 async function readStatus(): Promise<string> {
@@ -515,6 +517,9 @@ async function readStatus(): Promise<string> {
   if (lease.validation.result_manifest.validated_at !== lease.updated_at) {
     throw new PrReviewLeaseError("result manifest validation is stale");
   }
+  await validateReferencedArtifacts(lease, identity.worktreePath, {
+    validateResultAuthority: true,
+  });
 
   return JSON.stringify({
     lease_state: lease.state,
@@ -1566,9 +1571,6 @@ async function validateReferencedArtifacts(
     );
     validateResultIdentity(result, lease);
     resultReviewHead = stringField(result, "review_head_sha");
-    if (options.validateResultAuthority === true) {
-      await validateResultCommandAuthority(lease, worktreePath);
-    }
   }
   if (lease.artifacts.approved_review_file !== null) {
     const approved = await readRequiredJson<JsonObject>(
@@ -1600,6 +1602,9 @@ async function validateReferencedArtifacts(
         );
       }
     }
+  }
+  if (options.validateResultAuthority === true) {
+    await validateResultCommandAuthority(lease, worktreePath);
   }
 }
 

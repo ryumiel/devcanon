@@ -72,6 +72,7 @@ const managedEnvKeys = [
   "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
   "DEVCANON_RUNTIME_DIR",
   "GIT_TRACE2_EVENT",
+  "GIT_INDEX_FILE",
 ] as const;
 
 afterEach(() => {
@@ -978,6 +979,48 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("rejects nested result artifact drift during validate", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-validate-nested-drift-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("findings digest mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects lease ref mismatch against result handoff evidence during validate", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-validate-ref-mismatch-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.base_ref = "release";
+      });
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+
+      const result = await runPrReviewLeasesCommand(["validate"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("handoff base ref mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed instead of overwriting malformed existing leases", async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), "pr-review-lease-"));
     const primary = path.join(tempRoot, "primary");
@@ -1404,11 +1447,14 @@ describe("pr-review lease read-status", () => {
     try {
       process.chdir(workspace.physicalPrimary);
       setReadStatusEnv(workspace);
-      await rm(path.join(workspace.worktree, ".git"), {
-        recursive: true,
-        force: true,
-      });
+      const originalGitIndexFile = process.env.GIT_INDEX_FILE;
+      process.env.GIT_INDEX_FILE = workspace.tempRoot;
       const result = await runPrReviewLeasesCommand(["read-status"]);
+      if (originalGitIndexFile === undefined) {
+        unsetEnv("GIT_INDEX_FILE");
+      } else {
+        process.env.GIT_INDEX_FILE = originalGitIndexFile;
+      }
       expect(result).toMatchObject({ exitCode: 1, stdout: "" });
       expect(result.stderr).toContain("git status inspection failed");
     } finally {
@@ -1598,6 +1644,48 @@ describe("pr-review lease read-status", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
+    }
+  });
+
+  it("fails closed for nested result artifact drift before status success", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-status-nested-drift-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+      const result = await runPrReviewLeasesCommand(["read-status"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("findings digest mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed for lease base/head mismatch before status success", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-status-ref-mismatch-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.head_ref = "other-topic";
+      });
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+
+      const result = await runPrReviewLeasesCommand(["read-status"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("handoff head ref mismatch");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -2521,6 +2609,12 @@ async function makeGatedStatusWorkspace(
 
 function setReadStatusEnv(workspace: GatedStatusWorkspace): void {
   setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+  setHelperAuthorityEnv({
+    prReviewDir: workspace.prReviewDir,
+    prReviewManifestHelperScript: workspace.prReviewManifestHelperScript,
+    prReviewLeaseHelperScript: workspace.prReviewLeaseHelperScript,
+    playReviewHelper: workspace.playReviewHelper,
+  });
   process.env.LEASE_FILE = workspace.leaseFile;
   process.env.RESULT_FILE = workspace.resultFile;
   process.env.HEAD_SHA = workspace.reviewHead;

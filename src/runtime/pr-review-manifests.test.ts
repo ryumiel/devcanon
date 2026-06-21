@@ -311,6 +311,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     >;
     await writeJson(workspace.primary, workspace.leaseFile, {
       ...lease,
+      head_ref: "topic`review",
       validation: {
         ...validation,
         result_manifest: {
