@@ -1219,7 +1219,13 @@ function failureResultFile(
     return null;
   }
   if (row === "LC-16") {
-    return inputs.resultFile ?? previous?.artifacts.result_file ?? null;
+    const current = previous?.artifacts.result_file ?? null;
+    if (inputs.resultFile !== undefined && inputs.resultFile !== current) {
+      throw new PrReviewLeaseError(
+        "RESULT_FILE must match existing failed result",
+      );
+    }
+    return current;
   }
   const current = previous?.artifacts.result_file ?? null;
   if (current === null) {

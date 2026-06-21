@@ -1848,6 +1848,69 @@ describe("pr-review lease read-status", () => {
     }
   });
 
+  it("rejects failed-to-failed writes that replace the result pointer", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-repeated-failure-result-replacement-",
+    );
+
+    try {
+      const failed: PrReviewLease = {
+        ...(await readLease(workspace.primary, workspace.leaseFile)),
+        state: "failed",
+        updated_at: "2026-06-11T00:03:00Z",
+        terminal: {
+          finished_at: "2026-06-11T00:03:00Z",
+          reason: null,
+        },
+        failure: {
+          phase: "preview-render",
+          reason: "preview failed",
+          recoverability: "recoverable",
+        },
+      };
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(failed, null, 2)}\n`,
+      );
+      const before = await readFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        "utf8",
+      );
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir: workspace.prReviewDir,
+        prReviewManifestHelperScript: workspace.prReviewManifestHelperScript,
+        prReviewLeaseHelperScript: workspace.prReviewLeaseHelperScript,
+        playReviewHelper: workspace.playReviewHelper,
+      });
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.RESULT_FILE = `.ephemeral/pr-432-${workspace.reviewHead}-replacement-result.json`;
+      process.env.STATE = "failed";
+      process.env.EXPECTED_STATE = "failed";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      process.env.FAILURE_PHASE = "preview-render";
+      process.env.FAILURE_REASON = "preview still failed";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "RESULT_FILE must match existing failed result",
+      );
+      await expect(
+        readFile(path.join(workspace.primary, workspace.leaseFile), "utf8"),
+      ).resolves.toBe(before);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("records Phase 5 audit failure when the worktree is missing", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-missing-audit-worktree-",
