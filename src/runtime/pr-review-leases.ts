@@ -334,6 +334,7 @@ export function reducePrReviewLease(
 
 interface ReductionOptions {
   allowMissingGatedPresentationTimestamp?: boolean;
+  allowMissingGatedPresentationStatus?: boolean;
 }
 
 async function writeLease(): Promise<string> {
@@ -344,9 +345,12 @@ async function writeLease(): Promise<string> {
   const archive = archivePathIfNeeded(previous, identity, inputs);
   let reduced = reducePrReviewLease(previous, identity, inputs);
 
-  if (previous !== null && isPostGatedPreviewRenderFailure(previous, inputs)) {
-    validatePostGatedPreviewRenderFailure(previous);
-    reduced = await clearInvalidPreviewRenderRecoveryArtifacts(
+  if (
+    previous !== null &&
+    inputs.state === "failed" &&
+    !requiresStrictFailureEvidencePreservation(inputs)
+  ) {
+    reduced = await clearInvalidFailureRecoveryArtifacts(
       reduced,
       previous,
       identity.primaryRoot,
@@ -402,8 +406,9 @@ async function recordAuditFailure(): Promise<string> {
 
   let reduced = reducePrReviewLease(previous, identity, inputs, {
     allowMissingGatedPresentationTimestamp: true,
+    allowMissingGatedPresentationStatus: true,
   });
-  reduced = await clearInvalidPreviewRenderRecoveryArtifacts(
+  reduced = await clearInvalidFailureRecoveryArtifacts(
     reduced,
     previous,
     identity.primaryRoot,
@@ -542,7 +547,12 @@ async function inspectWorktree(): Promise<string> {
   const identity = await readCleanupIdentity();
   const decision = await classifyCleanup(identity);
   if (shouldRecordCleanupMetadata(decision)) {
-    await recordCleanupMetadata(identity, decision.leaseState, "");
+    await recordCleanupMetadata(
+      identity,
+      decision.leaseState,
+      "",
+      shouldValidateCleanupMetadataArtifacts(decision),
+    );
   }
   return cleanupOutput("inspect", decision);
 }
@@ -554,7 +564,12 @@ async function cleanupWorktree(): Promise<string> {
     const outcome =
       decision.metadataOutcome === "skipped" ? "skipped" : "retained";
     if (shouldRecordCleanupMetadata(decision)) {
-      await recordCleanupMetadata(identity, decision.leaseState, outcome);
+      await recordCleanupMetadata(
+        identity,
+        decision.leaseState,
+        outcome,
+        shouldValidateCleanupMetadataArtifacts(decision),
+      );
       decision.metadataOutcome = outcome;
     }
     return cleanupOutput(outcome, decision);
@@ -562,7 +577,12 @@ async function cleanupWorktree(): Promise<string> {
 
   try {
     if (shouldRecordCleanupMetadata(decision)) {
-      await recordCleanupMetadata(identity, decision.leaseState, "removed");
+      await recordCleanupMetadata(
+        identity,
+        decision.leaseState,
+        "removed",
+        shouldValidateCleanupMetadataArtifacts(decision),
+      );
       decision.metadataOutcome = "removed";
     }
     const args = ["-C", identity.primaryRoot, "worktree", "remove"];
@@ -578,7 +598,12 @@ async function cleanupWorktree(): Promise<string> {
     });
   } catch {
     if (shouldRecordCleanupMetadata(decision)) {
-      await recordCleanupMetadata(identity, decision.leaseState, "failed");
+      await recordCleanupMetadata(
+        identity,
+        decision.leaseState,
+        "failed",
+        shouldValidateCleanupMetadataArtifacts(decision),
+      );
     }
     return cleanupOutput("failed", {
       ...decision,
@@ -595,6 +620,15 @@ function shouldRecordCleanupMetadata(
     decision.identityMatch &&
     decision.leaseState !== "" &&
     decision.refusalReason !== "invalid-lease"
+  );
+}
+
+function shouldValidateCleanupMetadataArtifacts(
+  decision: CleanupDecision,
+): boolean {
+  return (
+    decision.refusalReason !== "missing-worktree" &&
+    decision.refusalReason !== "not-registered-worktree"
   );
 }
 
@@ -726,12 +760,19 @@ async function recordCleanupMetadata(
   identity: LeaseIdentity,
   state: LeaseState,
   outcome: "" | "removed" | "retained" | "skipped" | "failed",
+  validateArtifacts: boolean,
 ): Promise<void> {
   const lease = await readRequiredJson<PrReviewLease>(
     identity.primaryRoot,
     identity.leaseFile,
     "lease file",
   );
+  assertExistingLeaseIdentity(lease, identity);
+  if (state !== lease.state) {
+    throw new PrReviewLeaseError(
+      "lease state changed during cleanup metadata write",
+    );
+  }
   const next: PrReviewLease = {
     ...lease,
     cleanup: {
@@ -741,18 +782,15 @@ async function recordCleanupMetadata(
     },
   };
   validateLeaseShape(next);
-  await validateReferencedArtifacts(next, identity.worktreePath, {
-    validateResultAuthority: true,
-  });
+  if (validateArtifacts) {
+    await validateReferencedArtifacts(next, identity.worktreePath, {
+      validateResultAuthority: true,
+    });
+  }
   await writeTextAtomically(
     path.join(identity.primaryRoot, identity.leaseFile),
     `${JSON.stringify(next, null, 2)}\n`,
   );
-  if (state !== lease.state) {
-    throw new PrReviewLeaseError(
-      "lease state changed during cleanup metadata write",
-    );
-  }
 }
 
 function cleanupOutput(
@@ -1115,6 +1153,8 @@ function applyFailure(
     validatePostGatedPreviewRenderFailure(previous, {
       allowMissingPresentationTimestamp:
         options.allowMissingGatedPresentationTimestamp === true,
+      allowMissingPresentationStatus:
+        options.allowMissingGatedPresentationStatus === true,
     });
   }
   const resultFile = failureResultFile(row, previous, inputs);
@@ -1208,7 +1248,10 @@ function isPostGatedPreviewRenderFailure(
 
 function validatePostGatedPreviewRenderFailure(
   previous: PrReviewLease,
-  options: { allowMissingPresentationTimestamp?: boolean } = {},
+  options: {
+    allowMissingPresentationTimestamp?: boolean;
+    allowMissingPresentationStatus?: boolean;
+  } = {},
 ): void {
   if (previous.state !== "gated") {
     throw new PrReviewLeaseError("preview-render failure requires gated lease");
@@ -1219,7 +1262,8 @@ function validatePostGatedPreviewRenderFailure(
     );
   }
   if (
-    previous.presentation.status === null ||
+    (previous.presentation.status === null &&
+      options.allowMissingPresentationStatus !== true) ||
     (previous.presentation.presented_at === null &&
       options.allowMissingPresentationTimestamp !== true)
   ) {
@@ -1440,14 +1484,23 @@ function clearPreviewRenderRecoveryArtifacts(
   };
 }
 
-async function clearInvalidPreviewRenderRecoveryArtifacts(
+function requiresStrictFailureEvidencePreservation(
+  inputs: LeaseInputs,
+): boolean {
+  return (
+    inputs.failurePhase === "approval-freeze" ||
+    inputs.failurePhase === "github-post"
+  );
+}
+
+async function clearInvalidFailureRecoveryArtifacts(
   reduced: PrReviewLease,
   previous: PrReviewLease,
   primaryRoot: string,
   worktreePath: string,
 ): Promise<PrReviewLease> {
   if (
-    !hasCurrentPreviewRenderRecoveryEvidence(previous) ||
+    !hasCurrentFailureRecoveryEvidence(previous) ||
     !(await isPlainDirectory(worktreePath)) ||
     !(await isRegisteredWorktree(primaryRoot, worktreePath))
   ) {
@@ -1456,8 +1509,9 @@ async function clearInvalidPreviewRenderRecoveryArtifacts(
     return cleared;
   }
   try {
-    await validateReferencedArtifacts(previous, worktreePath);
-    await validatePreviewRenderRecoveryResult(previous, worktreePath);
+    await validateReferencedArtifacts(previous, worktreePath, {
+      validateResultAuthority: true,
+    });
     return reduced;
   } catch {
     const cleared = clearPreviewRenderRecoveryArtifacts(reduced);
@@ -1466,42 +1520,23 @@ async function clearInvalidPreviewRenderRecoveryArtifacts(
   }
 }
 
-function hasCurrentPreviewRenderRecoveryEvidence(
-  lease: PrReviewLease,
-): boolean {
-  return (
-    lease.validation.result_manifest.status === "valid" &&
-    lease.validation.result_manifest.validated_at === lease.updated_at &&
-    lease.validation.result_manifest.sha256 !== null &&
-    lease.presentation.presented_at !== null &&
-    lease.presentation.status !== null
-  );
-}
-
-async function validatePreviewRenderRecoveryResult(
-  lease: PrReviewLease,
-  worktreePath: string,
-): Promise<void> {
-  if (lease.artifacts.result_file === null) {
-    throw new PrReviewLeaseError("result file missing");
+function hasCurrentFailureRecoveryEvidence(lease: PrReviewLease): boolean {
+  if (
+    lease.artifacts.result_file === null ||
+    lease.validation.result_manifest.status !== "valid" ||
+    lease.validation.result_manifest.validated_at !== lease.updated_at ||
+    lease.validation.result_manifest.sha256 === null
+  ) {
+    return false;
   }
-  await validatePrReviewResultCommandAuthority({
-    worktreeRoot: worktreePath,
-    resultFile: lease.artifacts.result_file,
-    resultIdentityPath: lease.artifacts.result_file,
-    repository: lease.repository,
-    prNumber: lease.pr_number,
-    reviewHeadSha: reviewHeadShaFromResultFile(lease.artifacts.result_file),
-    leaseBaseRef: lease.base_ref,
-    leaseHeadRef: lease.head_ref,
-    prReviewDir: optionalEnv("PR_REVIEW_DIR"),
-    prReviewManifestHelperScript: optionalEnv(
-      "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
-    ),
-    prReviewLeaseHelperScript: optionalEnv("PR_REVIEW_LEASE_HELPER_SCRIPT"),
-    playReviewHelper: optionalEnv("PLAY_REVIEW_HELPER"),
-    helperEnv: inheritedHelperEnv(),
-  });
+  if (
+    lease.state === "gated" &&
+    (lease.presentation.presented_at === null ||
+      lease.presentation.status === null)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function reviewHeadShaFromResultFile(resultFile: string): string {

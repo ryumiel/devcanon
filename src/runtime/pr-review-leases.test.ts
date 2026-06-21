@@ -1782,6 +1782,72 @@ describe("pr-review lease read-status", () => {
     }
   });
 
+  it("records reviewed failure after nested result drift by clearing invalid recovery artifacts", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-reviewed-failure-nested-drift-",
+    );
+
+    try {
+      const reviewed = reviewedCommandLease(
+        workspace.leaseFile,
+        workspace.physicalWorktree,
+        workspace.worktreeDigest,
+        workspace.resultFile,
+        workspace.resultSha256,
+      );
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(reviewed, null, 2)}\n`,
+      );
+      await mutateNestedFindingsWithoutUpdatingResult(workspace);
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      setHelperAuthorityEnv({
+        prReviewDir: workspace.prReviewDir,
+        prReviewManifestHelperScript: workspace.prReviewManifestHelperScript,
+        prReviewLeaseHelperScript: workspace.prReviewLeaseHelperScript,
+        playReviewHelper: workspace.playReviewHelper,
+      });
+      process.env.LEASE_FILE = workspace.leaseFile;
+      process.env.STATE = "failed";
+      process.env.EXPECTED_STATE = "reviewed";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.UPDATED_AT = "2026-06-11T00:03:00Z";
+      process.env.FINISHED_AT = "2026-06-11T00:03:00Z";
+      process.env.FAILURE_PHASE = "preview-render";
+      process.env.FAILURE_REASON = "preview failed";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        failure: {
+          phase: "preview-render",
+          reason: "preview failed",
+          recoverability: "recoverable",
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("records Phase 5 audit failure when the worktree is missing", async () => {
     const workspace = await makeGatedStatusWorkspace(
       "pr-review-missing-audit-worktree-",
@@ -1876,6 +1942,47 @@ describe("pr-review lease read-status", () => {
       process.env.WORKTREE_PATH = workspace.physicalWorktree;
       const validateAfter = await runPrReviewLeasesCommand(["validate"]);
       expect(validateAfter.exitCode, validateAfter.stderr).toBe(0);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("records Phase 5 audit failure with missing presentation status by clearing recovery artifacts", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-missing-presentation-status-audit-",
+    );
+
+    try {
+      await mutateLease(workspace, (lease) => {
+        lease.presentation.status = null;
+      });
+      process.chdir(workspace.physicalPrimary);
+      setAuditFailureEnv(workspace, "2026-06-11T00:03:00Z");
+      unsetEnv("WORKTREE_PATH");
+
+      const result = await runPrReviewLeasesCommand(["record-audit-failure"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      const failed = await readLease(workspace.primary, workspace.leaseFile);
+      expect(failed).toMatchObject({
+        state: "failed",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        failure: {
+          phase: "preview-render",
+          reason: "audit summary render failed",
+          recoverability: "recoverable",
+        },
+      });
     } finally {
       process.chdir(originalCwd);
       await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -2164,6 +2271,50 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("records skipped cleanup metadata for missing terminal worktrees with historical result pointers", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-missing-terminal-result-cleanup-",
+    );
+
+    try {
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(posted, null, 2)}\n`,
+      );
+      await rm(workspace.worktree, { recursive: true, force: true });
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=skipped");
+      expect(result.stdout).toContain("REFUSAL_REASON=missing-worktree");
+      expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
+
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      expect(lease.artifacts.result_file).toBe(workspace.resultFile);
+      expect(lease.validation.result_manifest.sha256).toBe(
+        workspace.resultSha256,
+      );
+      expect(lease.cleanup?.last_outcome).toBe("skipped");
+      expect(lease.cleanup?.last_checked_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects nested result artifact drift before archive-on-recreate writes", async () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
@@ -2283,6 +2434,57 @@ describe("pr-review lease Git cleanup safety", () => {
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("records skipped cleanup metadata for unregistered terminal worktrees with historical result pointers", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-unregistered-terminal-result-cleanup-",
+    );
+
+    try {
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile: `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`,
+      });
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        `${JSON.stringify(posted, null, 2)}\n`,
+      );
+      await execFileAsync(
+        "git",
+        ["worktree", "remove", "--force", "worktree"],
+        { cwd: workspace.primary },
+      );
+      await mkdir(path.join(workspace.worktree, ".ephemeral"), {
+        recursive: true,
+      });
+
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      process.env.LEASE_FILE = workspace.leaseFile;
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=skipped");
+      expect(result.stdout).toContain("REFUSAL_REASON=not-registered-worktree");
+      expect(result.stdout).toContain("METADATA_OUTCOME=skipped");
+
+      const lease = await readLease(workspace.primary, workspace.leaseFile);
+      expect(lease.artifacts.result_file).toBe(workspace.resultFile);
+      expect(lease.validation.result_manifest.sha256).toBe(
+        workspace.resultSha256,
+      );
+      expect(lease.cleanup?.last_outcome).toBe("skipped");
+      expect(lease.cleanup?.last_checked_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
     }
   });
 
