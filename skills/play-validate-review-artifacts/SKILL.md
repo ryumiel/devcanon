@@ -116,6 +116,30 @@ scope-decision path, expected schema, prior-context kind and path, governed path
 pattern, max narrow changed-file count, and optional configured path pattern.
 Scope-consuming commands must not rely on hidden prior validation state.
 
+`pr-review` `validate-scope-decision` calls must pass
+`--provider-scope-evidence-file` in addition to the shared scope-policy inputs.
+The provider evidence path must also be recorded in
+`artifacts.provider_scope_evidence_file` on the scope-decision artifact, with
+`artifacts.provider_scope_evidence_sha256` binding the exact evidence bytes.
+The evidence artifact must use schema
+`pr-review/provider-scope-evidence/v1`, provider `github`, explicit provider
+OIDs, provider PR diff-base proof, normalized provider file entries,
+normalized local file entries, and provider/local diff digests. The validator
+requires the full PR range to be `<provider_pr_diff_base_sha>..<headRefOid>`
+and rejects moving local base refs such as `origin/main` or hidden `HEAD`
+expansion for `pr-review` full-range proof. Provider and local normalized file
+entries and diff digests must match under the provider evidence contract; stale
+heads, missing OIDs, missing or incomplete evidence, duplicate file entries,
+unbound paths, digest drift, file metadata drift, and provider/local diff
+identity drift fail closed before review dispatch.
+
+Adapters must pass the evidence path as an explicit support-validator flag.
+They may prepare that path from their own surface-specific inputs, but adapters
+must not satisfy provider evidence through environment variables, default paths,
+cached files, or other hidden global state inside the support validator. A
+scope decision that references provider evidence without the explicit
+`--provider-scope-evidence-file` flag is invalid for `pr-review`.
+
 `validate-approval-summary` requires `--approval-summary-file`, `--head-sha`,
 and `--surface branch-review`. Callers that already captured linked evidence
 may also pass `--expected-findings-file` and

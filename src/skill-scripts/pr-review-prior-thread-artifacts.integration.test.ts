@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -55,8 +56,17 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function gitRaw(cwd: string, ...args: string[]) {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
+}
+
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
+}
+
+function providerScopePath(headSha: string) {
+  return `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
 }
 
 function priorThreadsPath(headSha: string) {
@@ -69,9 +79,9 @@ function initialScope(baseSha: string, headSha: string, overrides = {}) {
     surface: "pr-review",
     mode: "initial",
     head_sha: headSha,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range: `${baseSha}..${headSha}`,
+    selected_range: `${baseSha}..${headSha}`,
+    candidate_narrow_range: `${baseSha}..${headSha}`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
@@ -88,6 +98,73 @@ function initialScope(baseSha: string, headSha: string, overrides = {}) {
     semantic_decision: { checked: true, ambiguous: false, notes: "" },
     ...overrides,
   };
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const patch = await gitRaw(
+    cwd,
+    "diff",
+    `${baseSha}..${headSha}`,
+    "--",
+    "src/app.ts",
+  );
+  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  const entry = {
+    path: "src/app.ts",
+    status: "added",
+    previous_path: null,
+    additions: 1,
+    deletions: 0,
+    changes: 1,
+    patch_sha256: sha256(patch),
+    patch_available: true,
+  };
+  return {
+    schema: "pr-review/provider-scope-evidence/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    provider_files: [entry],
+    local_files: [entry],
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+  };
+}
+
+async function writeInitialScope(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+  overrides = {},
+) {
+  const evidencePath = providerScopePath(headSha);
+  const evidenceText = JSON.stringify(
+    await providerScopeEvidence(cwd, baseSha, headSha),
+    null,
+    2,
+  );
+  await writeFile(path.join(cwd, evidencePath), evidenceText);
+  await writeJson(cwd, scopePath(headSha), {
+    ...initialScope(baseSha, headSha, overrides),
+    artifacts: {
+      provider_scope_evidence_file: evidencePath,
+      provider_scope_evidence_sha256: sha256(evidenceText),
+    },
+  });
 }
 
 function priorThreadsEnvelope(headSha: string, overrides = {}) {
@@ -186,7 +263,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
     try {
       const decisionPath = scopePath(headSha);
       const threadsPath = priorThreadsPath(headSha);
-      await writeJson(cwd, decisionPath, initialScope(baseSha, headSha));
+      await writeInitialScope(cwd, baseSha, headSha);
 
       await expect(
         runHelper(cwd, helperScript, "prepare-prior-threads-write", {
@@ -203,6 +280,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
           HEAD_SHA: headSha,
           BASE_REF: baseSha,
           SCOPE_DECISION_FILE: decisionPath,
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
         }),
       ).resolves.toMatchObject({ stdout: "" });
       await writeJson(cwd, threadsPath, priorThreadsEnvelope(headSha));
@@ -229,6 +307,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
           HEAD_SHA: headSha,
           BASE_REF: baseSha,
           SCOPE_DECISION_FILE: scopePath(headSha),
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: validator,
           MARKER_ARGS_FILE: markerArgs,
         }),
@@ -238,6 +317,8 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       expect(args).toContain("pr-review/scope-decision/v1");
       expect(args).toContain("--base-ref");
       expect(args).toContain(baseSha);
+      expect(args).toContain("--provider-scope-evidence-file");
+      expect(args).toContain(providerScopePath(headSha));
       expect(args).toContain("--governed-path-pattern");
     } finally {
       await cleanupTempDir(cwd);
@@ -306,17 +387,22 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         "wrong base",
       );
       const decisionPath = scopePath(headSha);
-      await writeJson(cwd, decisionPath, initialScope(wrongBaseSha, headSha));
+      await writeInitialScope(cwd, baseSha, headSha, {
+        full_range: `${wrongBaseSha}..${headSha}`,
+        selected_range: `${wrongBaseSha}..${headSha}`,
+        candidate_narrow_range: `${wrongBaseSha}..${headSha}`,
+      });
 
       await expect(
         runHelper(cwd, helperScript, "validate-scope-decision", {
           HEAD_SHA: headSha,
           BASE_REF: baseSha,
           SCOPE_DECISION_FILE: decisionPath,
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "full range does not match caller base ref",
+          "full range must use provider PR diff base",
         ),
       });
     } finally {
@@ -334,6 +420,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
           HEAD_SHA: headSha,
           BASE_REF: "HEAD^",
           SCOPE_DECISION_FILE: scopePath(headSha),
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
         }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(

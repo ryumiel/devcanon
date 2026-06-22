@@ -26,6 +26,7 @@ interface ReviewArtifactOptions {
   headSha: string;
   baseRef: string;
   scopeDecision: string;
+  providerScopeEvidenceFile: string;
   expectedSchema: string;
   priorContextKind: string;
   priorContextPath: string;
@@ -53,6 +54,7 @@ const EMPTY_OPTIONS: ReviewArtifactOptions = {
   headSha: "",
   baseRef: "",
   scopeDecision: "",
+  providerScopeEvidenceFile: "",
   expectedSchema: "",
   priorContextKind: "",
   priorContextPath: "",
@@ -232,6 +234,9 @@ function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
       case "--scope-decision-file":
         options.scopeDecision = value;
         break;
+      case "--provider-scope-evidence-file":
+        options.providerScopeEvidenceFile = value;
+        break;
       case "--expected-schema":
         options.expectedSchema = value;
         break;
@@ -350,6 +355,10 @@ async function validateScopeDecision(
   const changedCount = numberField(mechanicalFacts, "changed_file_count");
   const semanticChecked = booleanField(semanticDecision, "checked");
   const semanticAmbiguous = booleanField(semanticDecision, "ambiguous");
+  const providerEvidence =
+    options.surface === "pr-review"
+      ? await validatePrReviewProviderEvidence(scope, options)
+      : null;
 
   const scopeReasonCodes =
     options.surface === "branch-review" ? branchScopeReasonCodes(scope) : [];
@@ -359,27 +368,48 @@ async function validateScopeDecision(
     fail("semantic decision must be checked");
   }
 
-  const fullRangeBase = fullRange.endsWith("...HEAD")
-    ? fullRange.slice(0, -"...HEAD".length)
-    : "";
-  if (fullRangeBase.length === 0) {
-    fail("full range must end at HEAD");
-  }
-  if (
-    fullRangeBase.startsWith("-") ||
-    fullRangeBase.includes("..") ||
-    /\s/u.test(fullRangeBase)
-  ) {
-    fail("full range base ref is invalid");
-  }
-  if (!(await gitRefExists(`${fullRangeBase}^{commit}`))) {
-    fail("base ref does not resolve");
-  }
-  if (options.baseRef.length > 0) {
-    if (!(await gitRefExists(`${options.baseRef}^{commit}`))) {
+  if (options.surface === "pr-review") {
+    if (providerEvidence === null) {
+      fail("provider evidence is required for pr-review");
+    }
+    const providerDiffBase = stringField(
+      providerEvidence,
+      "provider_pr_diff_base_sha",
+    );
+    const providerHead = stringField(providerEvidence, "headRefOid");
+    const expectedFullRange = `${providerDiffBase}..${providerHead}`;
+    if (fullRange !== expectedFullRange) {
+      fail("full range must use provider PR diff base");
+    }
+  } else {
+    const fullRangeBase = fullRange.endsWith("...HEAD")
+      ? fullRange.slice(0, -"...HEAD".length)
+      : "";
+    if (fullRangeBase.length === 0) {
+      fail("full range must end at HEAD");
+    }
+    if (
+      fullRangeBase.startsWith("-") ||
+      fullRangeBase.includes("..") ||
+      /\s/u.test(fullRangeBase)
+    ) {
+      fail("full range base ref is invalid");
+    }
+    if (!(await gitRefExists(`${fullRangeBase}^{commit}`))) {
       fail("base ref does not resolve");
     }
-    if (fullRange !== `${options.baseRef}...HEAD`) {
+  }
+  if (options.baseRef.length > 0) {
+    if (
+      options.surface !== "pr-review" &&
+      !(await gitRefExists(`${options.baseRef}^{commit}`))
+    ) {
+      fail("base ref does not resolve");
+    }
+    if (
+      options.surface !== "pr-review" &&
+      fullRange !== `${options.baseRef}...HEAD`
+    ) {
       fail("full range does not match caller base ref");
     }
   }
@@ -705,6 +735,329 @@ async function validatePriorThreads(
     }
     throw err;
   }
+}
+
+async function validatePrReviewProviderEvidence(
+  scope: JsonObject,
+  options: ReviewArtifactOptions,
+): Promise<JsonObject> {
+  if (options.providerScopeEvidenceFile.length === 0) {
+    fail("--provider-scope-evidence-file is required for pr-review");
+  }
+  await assertReadableFile(
+    "--provider-scope-evidence-file",
+    options.providerScopeEvidenceFile,
+  );
+  validateSuffix(
+    "--provider-scope-evidence-file",
+    options.providerScopeEvidenceFile,
+    "-provider-scope-evidence.json",
+  );
+
+  const artifacts = objectField(scope, "artifacts");
+  const artifactEvidenceFile = stringField(
+    artifacts,
+    "provider_scope_evidence_file",
+  );
+  if (artifactEvidenceFile !== options.providerScopeEvidenceFile) {
+    fail("provider scope evidence file mismatch");
+  }
+  const evidenceText = await readFile(
+    options.providerScopeEvidenceFile,
+    "utf-8",
+  );
+  const evidenceDigest = createHash("sha256")
+    .update(evidenceText)
+    .digest("hex");
+  if (
+    evidenceDigest !== stringField(artifacts, "provider_scope_evidence_sha256")
+  ) {
+    fail("provider scope evidence digest mismatch");
+  }
+
+  const evidence = await readSingleJsonObject(
+    options.providerScopeEvidenceFile,
+    "provider evidence JSON validation failed",
+  );
+  validateProviderEvidenceShape(evidence);
+
+  if (
+    stringField(evidence, "baseRefOid").length > 0 &&
+    !isSha(stringField(evidence, "baseRefOid"))
+  ) {
+    fail("provider evidence baseRefOid is malformed");
+  }
+  for (const field of [
+    "baseRefOid",
+    "headRefOid",
+    "provider_pr_diff_base_sha",
+    "local_review_head_sha",
+  ]) {
+    if (!isSha(stringField(evidence, field))) {
+      fail(`provider evidence ${field} is malformed`);
+    }
+  }
+
+  if (stringField(evidence, "provider") !== "github") {
+    fail("provider evidence provider must be github");
+  }
+  if (stringField(evidence, "headRefOid") !== options.headSha) {
+    fail("provider evidence head mismatch");
+  }
+  if (stringField(evidence, "local_review_head_sha") !== options.headSha) {
+    fail("provider evidence local head mismatch");
+  }
+  const currentHead = (await git(["rev-parse", "HEAD"])).trim();
+  if (currentHead !== options.headSha) {
+    fail("--head-sha must match current repository HEAD");
+  }
+  const providerDiffBase = stringField(evidence, "provider_pr_diff_base_sha");
+  const providerHead = stringField(evidence, "headRefOid");
+  if (
+    stringField(evidence, "full_pr_diff_range") !==
+    `${providerDiffBase}..${providerHead}`
+  ) {
+    fail("provider evidence full range mismatch");
+  }
+  if (!(await gitRefExists(`${providerDiffBase}^{commit}`))) {
+    fail("provider PR diff base does not resolve");
+  }
+  if (!(await gitRefExists(`${providerHead}^{commit}`))) {
+    fail("provider head does not resolve");
+  }
+
+  const localRange = `${providerDiffBase}..${providerHead}`;
+  const expectedLocalFiles = await normalizedLocalFileEntries(localRange);
+  const providerFiles = normalizedEvidenceEntries(
+    arrayField(evidence, "provider_files"),
+  );
+  const localFiles = normalizedEvidenceEntries(
+    arrayField(evidence, "local_files"),
+  );
+  validateNoDuplicateFileEntries(providerFiles);
+  validateNoDuplicateFileEntries(localFiles);
+  if (!jsonEqual(providerFiles, localFiles)) {
+    fail("provider/local file evidence mismatch");
+  }
+  if (!jsonEqual(localFiles, expectedLocalFiles)) {
+    fail("local provider evidence does not match git");
+  }
+
+  const localDiffDigest = sha256String(await git(["diff", localRange]));
+  if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
+    fail("local diff digest does not match git");
+  }
+  if (
+    stringField(evidence, "provider_diff_sha256") !==
+    stringField(evidence, "local_diff_sha256")
+  ) {
+    const unavailableOnly =
+      providerFiles.length > 0 &&
+      providerFiles.every((entry) => !booleanField(entry, "patch_available"));
+    if (!unavailableOnly) {
+      fail("provider/local diff digest mismatch");
+    }
+  }
+
+  return evidence;
+}
+
+function validateProviderEvidenceShape(evidence: JsonObject): void {
+  try {
+    if (
+      !hasExactKeys(evidence, [
+        "schema",
+        "provider",
+        "repository",
+        "pr_number",
+        "baseRefOid",
+        "headRefOid",
+        "provider_pr_diff_base_sha",
+        "local_review_head_sha",
+        "full_pr_diff_range",
+        "evidence_complete",
+        "provider_files",
+        "local_files",
+        "provider_diff_sha256",
+        "local_diff_sha256",
+      ]) ||
+      stringField(evidence, "schema") !==
+        "pr-review/provider-scope-evidence/v1" ||
+      stringField(evidence, "provider") !== "github" ||
+      stringField(evidence, "repository").trim().length === 0 ||
+      !isPositiveInteger(evidence.pr_number) ||
+      evidence.evidence_complete !== true ||
+      !Array.isArray(evidence.provider_files) ||
+      !Array.isArray(evidence.local_files) ||
+      !isSha256(stringField(evidence, "provider_diff_sha256")) ||
+      !isSha256(stringField(evidence, "local_diff_sha256"))
+    ) {
+      fail("provider evidence schema mismatch");
+    }
+    for (const entry of [
+      ...arrayField(evidence, "provider_files"),
+      ...arrayField(evidence, "local_files"),
+    ]) {
+      if (!isProviderFileEntry(entry)) {
+        fail("provider evidence schema mismatch");
+      }
+    }
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("provider evidence schema mismatch");
+    }
+    throw err;
+  }
+}
+
+function isProviderFileEntry(entry: unknown): entry is JsonObject {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+    return false;
+  }
+  const file = entry as JsonObject;
+  return (
+    hasExactKeys(file, [
+      "path",
+      "status",
+      "previous_path",
+      "additions",
+      "deletions",
+      "changes",
+      "patch_sha256",
+      "patch_available",
+    ]) &&
+    isRepoPath(stringField(file, "path")) &&
+    ["added", "modified", "removed", "renamed"].includes(
+      stringField(file, "status"),
+    ) &&
+    (file.previous_path === null ||
+      isRepoPath(stringField(file, "previous_path"))) &&
+    isNonNegativeInteger(file.additions) &&
+    isNonNegativeInteger(file.deletions) &&
+    isNonNegativeInteger(file.changes) &&
+    numberField(file, "changes") ===
+      numberField(file, "additions") + numberField(file, "deletions") &&
+    typeof file.patch_available === "boolean" &&
+    ((file.patch_available === true &&
+      isSha256(stringField(file, "patch_sha256"))) ||
+      (file.patch_available === false &&
+        (file.patch_sha256 === null ||
+          isSha256(stringField(file, "patch_sha256")))))
+  );
+}
+
+function normalizedEvidenceEntries(entries: readonly unknown[]): JsonObject[] {
+  return entries.map((entry) => entry as JsonObject).sort(compareFileEntries);
+}
+
+function validateNoDuplicateFileEntries(entries: readonly JsonObject[]): void {
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const key = fileEntryKey(entry);
+    if (seen.has(key)) {
+      fail("provider evidence contains duplicate file entries");
+    }
+    seen.add(key);
+  }
+}
+
+function compareFileEntries(left: JsonObject, right: JsonObject): number {
+  return fileEntryKey(left).localeCompare(fileEntryKey(right));
+}
+
+function fileEntryKey(entry: JsonObject): string {
+  return [
+    stringField(entry, "path"),
+    nullableStringField(entry, "previous_path") ?? "",
+    stringField(entry, "status"),
+  ].join("\0");
+}
+
+async function normalizedLocalFileEntries(
+  range: string,
+): Promise<JsonObject[]> {
+  const statusEntries = await gitDiffNameStatus(range);
+  const entries: JsonObject[] = [];
+  for (const statusEntry of statusEntries) {
+    const numstat = await gitDiffNumstat(range, statusEntry.path);
+    const patch = await git(["diff", range, "--", statusEntry.path]);
+    entries.push({
+      path: statusEntry.path,
+      status: statusEntry.status,
+      previous_path: statusEntry.previousPath,
+      additions: numstat.additions,
+      deletions: numstat.deletions,
+      changes: numstat.additions + numstat.deletions,
+      patch_sha256: sha256String(patch),
+      patch_available: true,
+    });
+  }
+  return entries.sort(compareFileEntries);
+}
+
+async function gitDiffNameStatus(
+  range: string,
+): Promise<
+  Array<{ path: string; previousPath: string | null; status: string }>
+> {
+  const tokens = (await git(["diff", "--name-status", "-z", range]))
+    .split("\0")
+    .filter(Boolean);
+  const entries: Array<{
+    path: string;
+    previousPath: string | null;
+    status: string;
+  }> = [];
+  for (let index = 0; index < tokens.length; ) {
+    const rawStatus = tokens[index] ?? "";
+    index += 1;
+    const statusCode = rawStatus[0] ?? "";
+    if (statusCode === "R") {
+      const previousPath = tokens[index] ?? "";
+      const currentPath = tokens[index + 1] ?? "";
+      index += 2;
+      entries.push({
+        path: currentPath,
+        previousPath,
+        status: "renamed",
+      });
+      continue;
+    }
+    const currentPath = tokens[index] ?? "";
+    index += 1;
+    entries.push({
+      path: currentPath,
+      previousPath: null,
+      status:
+        statusCode === "A"
+          ? "added"
+          : statusCode === "D"
+            ? "removed"
+            : "modified",
+    });
+  }
+  return entries;
+}
+
+async function gitDiffNumstat(
+  range: string,
+  file: string,
+): Promise<{ additions: number; deletions: number }> {
+  const stdout = await git(["diff", "--numstat", "-z", range, "--", file]);
+  const [additionsRaw, deletionsRaw] = stdout.split(/\s+/u);
+  const additions = Number(additionsRaw);
+  const deletions = Number(deletionsRaw);
+  if (!Number.isInteger(additions) || !Number.isInteger(deletions)) {
+    fail("local diff numstat is unavailable");
+  }
+  return { additions, deletions };
+}
+
+function sha256String(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function validatePriorThreadsSchema(
@@ -1568,7 +1921,9 @@ function validateScopeShapeSchema(
   const expectedScopeKeys =
     expectedSchema === "branch-review/scope-decision/v1"
       ? [...baseScopeKeys, "scope_reason_codes", "scope_explanation"]
-      : baseScopeKeys;
+      : expectedSchema === "pr-review/scope-decision/v1"
+        ? [...baseScopeKeys, "artifacts"]
+        : baseScopeKeys;
 
   if (
     expectedSchema === "branch-review/scope-decision/v1" &&
@@ -1609,6 +1964,9 @@ function validateScopeShapeSchema(
   if (expectedSchema === "branch-review/scope-decision/v1") {
     validateBranchScopeReasonShape(scope);
   }
+  if (expectedSchema === "pr-review/scope-decision/v1") {
+    validatePrReviewScopeArtifactsShape(scope);
+  }
 
   const priorContext = objectField(scope, "prior_context");
   if (
@@ -1644,6 +2002,25 @@ function validateScopeShapeSchema(
     typeof semanticDecision.checked !== "boolean" ||
     typeof semanticDecision.ambiguous !== "boolean" ||
     typeof semanticDecision.notes !== "string"
+  ) {
+    fail("scope decision schema mismatch");
+  }
+}
+
+function validatePrReviewScopeArtifactsShape(scope: JsonObject): void {
+  const artifacts = objectField(scope, "artifacts");
+  if (
+    !hasExactKeys(artifacts, [
+      "provider_scope_evidence_file",
+      "provider_scope_evidence_sha256",
+    ]) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "provider_scope_evidence_file"),
+    ) ||
+    !stringField(artifacts, "provider_scope_evidence_file").endsWith(
+      "-provider-scope-evidence.json",
+    ) ||
+    !isSha256(stringField(artifacts, "provider_scope_evidence_sha256"))
   ) {
     fail("scope decision schema mismatch");
   }

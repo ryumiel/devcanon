@@ -307,6 +307,7 @@ build_support_scope_args() {
   local prior_context
   local prior_kind
   local prior_path
+  local provider_scope_evidence_file
 
   prior_context="$(jq -er '
     if (.prior_context | type) != "object" then
@@ -336,6 +337,21 @@ build_support_scope_args() {
 $prior_context
 EOF
 
+  provider_scope_evidence_file="$(jq -er '
+    if (.artifacts | type) != "object" then
+      empty
+    elif (.artifacts.provider_scope_evidence_file | type) != "string" then
+      empty
+    elif .artifacts.provider_scope_evidence_file == "" then
+      empty
+    else
+      .artifacts.provider_scope_evidence_file
+    end
+  ' "$scope_decision_file")" || {
+    echo "scope decision artifacts are missing or malformed" >&2
+    exit 1
+  }
+
   if [ -n "${PRIOR_THREADS_FILE:-}" ]; then
     [ "$prior_kind" = "github-prior-threads" ] &&
       [ "$PRIOR_THREADS_FILE" = "$prior_path" ] || {
@@ -349,6 +365,7 @@ EOF
     --head-sha "$review_head_sha"
     --base-ref "$BASE_REF"
     --scope-decision-file "$scope_decision_file"
+    --provider-scope-evidence-file "$provider_scope_evidence_file"
     --expected-schema pr-review/scope-decision/v1
     --expected-prior-context-kind "$prior_kind"
     --expected-prior-context-path "$prior_path"

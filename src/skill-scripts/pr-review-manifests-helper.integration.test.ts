@@ -76,6 +76,11 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function gitRaw(cwd: string, ...args: string[]) {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
+}
+
 async function bashPhysicalCwd(cwd: string) {
   const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
   return stdout.trim();
@@ -103,6 +108,10 @@ function normalizePathText(value: string) {
 
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
+}
+
+function providerScopePath(headSha: string, slug = "topic") {
+  return `.ephemeral/${slug}-${headSha}-provider-scope-evidence.json`;
 }
 
 function priorThreadsPath(headSha: string) {
@@ -139,9 +148,9 @@ function initialScope(
     surface: "pr-review",
     mode: "initial",
     head_sha: headSha,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range: `${baseSha}..${headSha}`,
+    selected_range: `${baseSha}..${headSha}`,
+    candidate_narrow_range: `${baseSha}..${headSha}`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
@@ -158,6 +167,91 @@ function initialScope(
     semantic_decision: { checked: true, ambiguous: false, notes: "" },
     ...overrides,
   };
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const range = `${baseSha}..${headSha}`;
+  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  const entries = await providerFileEntries(cwd, range);
+  return {
+    schema: "pr-review/provider-scope-evidence/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: Number(prNumber),
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    provider_files: entries,
+    local_files: entries,
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+  };
+}
+
+async function providerFileEntries(cwd: string, range: string) {
+  const tokens = (await gitRaw(cwd, "diff", "--name-status", "-z", range))
+    .split("\0")
+    .filter(Boolean);
+  const entries: Record<string, unknown>[] = [];
+  for (let index = 0; index < tokens.length; ) {
+    const rawStatus = tokens[index] ?? "";
+    index += 1;
+    const statusCode = rawStatus[0] ?? "";
+    let previousPath: string | null = null;
+    let filePath = tokens[index] ?? "";
+    if (statusCode === "R") {
+      previousPath = tokens[index] ?? "";
+      filePath = tokens[index + 1] ?? "";
+      index += 2;
+    } else {
+      index += 1;
+    }
+    const [additionsRaw, deletionsRaw] = (
+      await gitRaw(cwd, "diff", "--numstat", "-z", range, "--", filePath)
+    ).split(/\s+/u);
+    const additions = Number(additionsRaw);
+    const deletions = Number(deletionsRaw);
+    const patch = await gitRaw(cwd, "diff", range, "--", filePath);
+    entries.push({
+      path: filePath,
+      status:
+        statusCode === "A"
+          ? "added"
+          : statusCode === "D"
+            ? "removed"
+            : statusCode === "R"
+              ? "renamed"
+              : "modified",
+      previous_path: previousPath,
+      additions,
+      deletions,
+      changes: additions + deletions,
+      patch_sha256: sha256(patch),
+      patch_available: true,
+    });
+  }
+  return entries.sort((left, right) =>
+    [String(left.path), String(left.previous_path ?? ""), String(left.status)]
+      .join("\0")
+      .localeCompare(
+        [
+          String(right.path),
+          String(right.previous_path ?? ""),
+          String(right.status),
+        ].join("\0"),
+      ),
+  );
 }
 
 function priorThreadsEnvelope(headSha: string) {
@@ -207,7 +301,50 @@ function findingsEnvelope() {
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  const writableValue = await withProviderEvidence(cwd, relPath, value);
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(writableValue, null, 2),
+  );
+}
+
+async function withProviderEvidence(
+  cwd: string,
+  relPath: string,
+  value: unknown,
+) {
+  if (
+    relPath.endsWith("-scope-decision.json") &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).surface === "pr-review" &&
+    !Object.hasOwn(value as Record<string, unknown>, "artifacts")
+  ) {
+    const scope = value as Record<string, unknown>;
+    const headSha = String(scope.head_sha);
+    const [baseSha, rangeHeadSha] = String(scope.full_range).split("..");
+    const slug =
+      new RegExp(
+        `^\\.ephemeral/(.+)-${headSha}-scope-decision\\.json$`,
+        "u",
+      ).exec(relPath)?.[1] ?? "topic";
+    const evidencePath = providerScopePath(headSha, slug);
+    const evidenceText = JSON.stringify(
+      await providerScopeEvidence(cwd, baseSha ?? "", rangeHeadSha ?? headSha),
+      null,
+      2,
+    );
+    await writeFile(path.join(cwd, evidencePath), evidenceText);
+    return {
+      ...scope,
+      artifacts: {
+        provider_scope_evidence_file: evidencePath,
+        provider_scope_evidence_sha256: sha256(evidenceText),
+      },
+    };
+  }
+  return value;
 }
 
 async function readJson(cwd: string, relPath: string) {
@@ -221,7 +358,20 @@ async function sha256File(cwd: string, relPath: string) {
 }
 
 async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
-  await writeJson(cwd, scopePath(headSha), initialScope(baseSha, headSha));
+  const evidencePath = providerScopePath(headSha);
+  const evidenceText = JSON.stringify(
+    await providerScopeEvidence(cwd, baseSha, headSha),
+    null,
+    2,
+  );
+  await writeFile(path.join(cwd, evidencePath), evidenceText);
+  await writeJson(cwd, scopePath(headSha), {
+    ...initialScope(baseSha, headSha),
+    artifacts: {
+      provider_scope_evidence_file: evidencePath,
+      provider_scope_evidence_sha256: sha256(evidenceText),
+    },
+  });
   await writeJson(cwd, findingsPath(headSha), findingsEnvelope());
 }
 
@@ -234,8 +384,8 @@ function handoffEnv(cwd: string, baseSha: string, headSha: string) {
     BASE_REF: "main",
     HEAD_REF: "topic",
     REVIEW_SCOPE_BASE_REF: baseSha,
-    ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
-    FULL_PR_DIFF_RANGE: `${baseSha}...HEAD`,
+    ACTIVE_DIFF_RANGE: `${baseSha}..${headSha}`,
+    FULL_PR_DIFF_RANGE: `${baseSha}..${headSha}`,
     MODE: "github-post",
     LANGUAGE_HINTS_JSON: '["ts"]',
     FOLLOW_UP_STATE: "initial",
@@ -1132,7 +1282,9 @@ describe("pr-review manifest helper", () => {
             HANDOFF_FILE: handoffPath(headSha),
           }),
         ).rejects.toMatchObject({
-          stderr: expect.stringContaining("scope decision head mismatch"),
+          stderr: expect.stringContaining(
+            "provider scope evidence path mismatch",
+          ),
         });
         await writeJson(
           cwd,

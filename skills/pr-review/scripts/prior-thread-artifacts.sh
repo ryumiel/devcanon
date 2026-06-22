@@ -72,6 +72,10 @@ expected_scope_decision_path() {
   printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
 
+expected_provider_scope_evidence_path() {
+  printf '.ephemeral/%s-%s-provider-scope-evidence.json\n' "$(branch_slug)" "$HEAD_SHA"
+}
+
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
@@ -171,7 +175,7 @@ validate_prior_threads() {
 }
 
 validate_scope_decision() {
-  local file expected validator prior_kind prior_path expected_prior
+  local file expected validator prior_kind prior_path expected_prior provider_evidence
   require_repo_root
   validate_head_sha
   require_env SCOPE_DECISION_FILE
@@ -180,6 +184,23 @@ validate_scope_decision() {
   file="$SCOPE_DECISION_FILE"
   validate_direct_child_path "scope decision" "$file" "-scope-decision.json"
   [ "$file" = "$expected" ] || fail "scope decision path mismatch: $file"
+  provider_evidence="${PROVIDER_SCOPE_EVIDENCE_FILE:-}"
+  if [ -z "$provider_evidence" ]; then
+    provider_evidence="$(node -e '
+const fs = require("node:fs");
+try {
+  const scope = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+  const file = scope?.artifacts?.provider_scope_evidence_file;
+  if (typeof file !== "string" || file.length === 0) process.exit(2);
+  process.stdout.write(file);
+} catch {
+  process.exit(2);
+}
+' "$file")" || fail "scope decision artifacts are missing or malformed"
+  fi
+  validate_direct_child_path "provider scope evidence" "$provider_evidence" "-provider-scope-evidence.json"
+  [ "$provider_evidence" = "$(expected_provider_scope_evidence_path)" ] ||
+    fail "provider scope evidence path mismatch: $provider_evidence"
   expected_prior="$(expected_prior_threads_path)"
   prior_kind="none"
   prior_path="null"
@@ -198,6 +219,7 @@ validate_scope_decision() {
     --head-sha "$HEAD_SHA" \
     --base-ref "$BASE_REF" \
     --scope-decision-file "$file" \
+    --provider-scope-evidence-file "$provider_evidence" \
     --expected-schema pr-review/scope-decision/v1 \
     --expected-prior-context-kind "$prior_kind" \
     --expected-prior-context-path "$prior_path" \

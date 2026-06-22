@@ -1327,6 +1327,15 @@ describe("phase artifact source contracts", () => {
     expect(normalizedValidatorSkill).toContain(
       "The optional `contract_example_discipline` field is accepted only with the exact bounded shape",
     );
+    expect(normalizedValidatorSkill).toContain(
+      "`pr-review` `validate-scope-decision` calls must pass `--provider-scope-evidence-file`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "The provider evidence path must also be recorded in `artifacts.provider_scope_evidence_file`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "adapters must not satisfy provider evidence through environment variables, default paths, cached files, or other hidden global state",
+    );
     expect(runtime).toContain('case "validate-risk-signals"');
     expect(runtime).toContain("requireRiskSignalsFlags");
     expect(runtime).toContain("rejectRiskSignalsExtraFlags");

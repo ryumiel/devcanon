@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -52,9 +53,24 @@ async function makeRiskSignalsWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
+async function makeProviderScopeWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const workspace = await makeRiskSignalsWorkspace();
+  process.chdir(workspace.cwd);
+  return workspace;
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
+}
+
+async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
 }
 
 function riskSignalsArtifact(
@@ -128,6 +144,133 @@ function riskSignalsArgs(
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function providerEvidenceFileEntry(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+): Promise<JsonObject> {
+  const patch = await gitRaw(
+    cwd,
+    "diff",
+    `${baseSha}..${headSha}`,
+    "--",
+    "src/app.ts",
+  );
+  return {
+    path: "src/app.ts",
+    status: "added",
+    previous_path: null,
+    additions: 1,
+    deletions: 0,
+    changes: 1,
+    patch_sha256: sha256(patch),
+    patch_available: true,
+  };
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+  overrides: JsonObject = {},
+): Promise<JsonObject> {
+  const fileEntry = await providerEvidenceFileEntry(cwd, baseSha, headSha);
+  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  return {
+    schema: "pr-review/provider-scope-evidence/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 480,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    provider_files: [fileEntry],
+    local_files: [fileEntry],
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+    ...overrides,
+  };
+}
+
+async function providerScopeDecision(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+  evidencePath = ".ephemeral/topic-provider-scope-evidence.json",
+  overrides: JsonObject = {},
+): Promise<JsonObject> {
+  const evidenceContent = await readFile(path.join(cwd, evidencePath), "utf-8");
+  return {
+    schema: "pr-review/scope-decision/v1",
+    surface: "pr-review",
+    mode: "initial",
+    selected_range: `${baseSha}..${headSha}`,
+    full_range: `${baseSha}..${headSha}`,
+    candidate_narrow_range: `${baseSha}..${headSha}`,
+    is_followup_narrow: false,
+    selection_reason: "Initial PR review uses the provider-proven PR range.",
+    escalation_reasons: ["not-followup"],
+    last_reviewed_sha: null,
+    head_sha: headSha,
+    changed_files: ["src/app.ts"],
+    language_hints: ["ts"],
+    prior_context: { kind: "none", path: null },
+    mechanical_facts: {
+      changed_file_count: 1,
+      followup_sha_usable: false,
+      mechanical_escalate_full: true,
+      mechanical_escalation_reason: "not-followup",
+    },
+    semantic_decision: {
+      checked: true,
+      ambiguous: false,
+      notes: "No semantic narrowing for initial PR review.",
+    },
+    artifacts: {
+      provider_scope_evidence_file: evidencePath,
+      provider_scope_evidence_sha256: sha256(evidenceContent),
+    },
+    ...overrides,
+  };
+}
+
+function providerScopeArgs(
+  headSha: string,
+  baseRef = "main",
+  evidencePath = ".ephemeral/topic-provider-scope-evidence.json",
+) {
+  return [
+    "validate-scope-decision",
+    "--surface",
+    "pr-review",
+    "--head-sha",
+    headSha,
+    "--base-ref",
+    baseRef,
+    "--scope-decision-file",
+    ".ephemeral/topic-scope-decision.json",
+    "--expected-schema",
+    "pr-review/scope-decision/v1",
+    "--expected-prior-context-kind",
+    "none",
+    "--expected-prior-context-path",
+    "null",
+    "--governed-path-pattern",
+    "^(docs/)",
+    "--max-narrow-changed-files",
+    "5",
+    "--provider-scope-evidence-file",
+    evidencePath,
+  ];
 }
 
 describe("review artifact runtime reducers", () => {
@@ -224,6 +367,190 @@ describe("review artifact runtime reducers", () => {
     );
     expect(gateResultForApprovalTerminalState("blocked")).toBe("blocking");
     expect(gateResultForApprovalTerminalState("invalid")).toBe("blocking");
+  });
+
+  it("validates pr-review scope decisions against provider-proven evidence", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-provider-scope-evidence.json",
+        await providerScopeEvidence(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "missing explicit provider evidence input",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha),
+      args: (headSha: string) =>
+        providerScopeArgs(headSha).filter(
+          (arg) =>
+            ![
+              "--provider-scope-evidence-file",
+              ".ephemeral/topic-provider-scope-evidence.json",
+            ].includes(arg),
+        ),
+      stderr: "--provider-scope-evidence-file is required for pr-review",
+    },
+    {
+      name: "moving full range",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          selected_range: "main...HEAD",
+          full_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
+        }),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha),
+      stderr: "full range must use provider PR diff base",
+    },
+    {
+      name: "unproven baseRefOid",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, { baseRefOid: "main" }),
+      stderr: "provider evidence baseRefOid is malformed",
+    },
+    {
+      name: "missing provider evidence file",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha),
+      removeEvidenceFile: true,
+      stderr: "--provider-scope-evidence-file missing or not a regular file",
+    },
+    {
+      name: "incomplete provider evidence",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          evidence_complete: false,
+        }),
+      stderr: "provider evidence schema mismatch",
+    },
+    {
+      name: "stale provider head",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, { headRefOid: baseSha }),
+      stderr: "provider evidence head mismatch",
+    },
+    {
+      name: "missing provider diff base",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_pr_diff_base_sha: "",
+        }),
+      stderr: "provider evidence provider_pr_diff_base_sha is malformed",
+    },
+    {
+      name: "duplicate provider files",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
+        const entry = (evidence.provider_files as JsonObject[])[0];
+        return {
+          ...evidence,
+          provider_files: [entry, entry],
+          local_files: [entry, entry],
+        };
+      },
+      stderr: "provider evidence contains duplicate file entries",
+    },
+    {
+      name: "provider/local file mismatch",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
+        const localEntry = {
+          ...(evidence.local_files as JsonObject[])[0],
+          additions: 2,
+          changes: 2,
+        };
+        return { ...evidence, local_files: [localEntry] };
+      },
+      stderr: "provider/local file evidence mismatch",
+    },
+    {
+      name: "provider/local diff mismatch",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_diff_sha256: "b".repeat(64),
+        }),
+      stderr: "provider/local diff digest mismatch",
+    },
+    {
+      name: "malformed provider evidence",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          schema: "pr-review/provider-scope-evidence/v2",
+        }),
+      stderr: "provider evidence schema mismatch",
+    },
+  ])("rejects invalid pr-review provider evidence: $name", async (testCase) => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-provider-scope-evidence.json",
+        await testCase.evidence(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await testCase.scope(cwd, baseSha, headSha),
+      );
+      if (testCase.removeEvidenceFile === true) {
+        await rm(
+          path.join(cwd, ".ephemeral/topic-provider-scope-evidence.json"),
+        );
+      }
+
+      await expect(
+        runReviewArtifactsCommand(
+          testCase.args === undefined
+            ? providerScopeArgs(headSha)
+            : testCase.args(headSha),
+        ),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(testCase.stderr),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
   });
 
   it("validates canonical risk-signals artifacts without stdout", async () => {

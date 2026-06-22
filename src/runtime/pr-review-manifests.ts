@@ -1134,6 +1134,21 @@ async function validateScopeAuthority(
   );
   await assertReadableFile("scope decision file", scopeDecisionFile);
   const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+  const artifacts = objectField(
+    scope,
+    "artifacts",
+    "scope decision artifacts are missing or malformed",
+  );
+  const providerScopeEvidenceFile = stringField(
+    artifacts,
+    "provider_scope_evidence_file",
+    "scope decision artifacts are missing or malformed",
+  );
+  validateDirectChildPath(
+    "provider scope evidence",
+    providerScopeEvidenceFile,
+    "-provider-scope-evidence.json",
+  );
   const priorContext = objectField(
     scope,
     "prior_context",
@@ -1189,6 +1204,7 @@ async function validateScopeAuthority(
     HEAD_SHA: readHeadSha(),
     BASE_REF: expectedBaseRef,
     SCOPE_DECISION_FILE: scopeDecisionFile,
+    PROVIDER_SCOPE_EVIDENCE_FILE: providerScopeEvidenceFile,
   };
   await runBashHelper(scopeHelper, "validate-scope-decision", env);
   if (manifestPriorPath !== null) {
@@ -1360,7 +1376,12 @@ async function guardedScopeBaseRef(scopeDecisionFile: string): Promise<string> {
   );
   await assertReadableFile("scope decision file", scopeDecisionFile);
   const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
-  return stringField(scope, "full_range").replace(/\.\.\.HEAD$/u, "");
+  const fullRange = stringField(scope, "full_range");
+  if (fullRange.endsWith("...HEAD")) {
+    return fullRange.replace(/\.\.\.HEAD$/u, "");
+  }
+  const explicitRange = /^([0-9a-f]{40})\.\.[0-9a-f]{40}$/u.exec(fullRange);
+  return explicitRange?.[1] ?? fullRange;
 }
 
 async function validateOptionalReadableArtifact(

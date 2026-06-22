@@ -96,15 +96,142 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  const writableValue = await withProviderEvidence(cwd, relPath, value);
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(writableValue, null, 2),
+  );
 }
 
 function jsonDigest(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(value, null, 2))
     .digest("hex");
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function withProviderEvidence(
+  cwd: string,
+  relPath: string,
+  value: unknown,
+): Promise<unknown> {
+  if (
+    relPath.endsWith("-scope-decision.json") &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as JsonObject).surface === "pr-review" &&
+    !Object.hasOwn(value as JsonObject, "artifacts")
+  ) {
+    const scope = value as JsonObject;
+    const evidencePath = ".ephemeral/topic-provider-scope-evidence.json";
+    const evidence = await providerScopeEvidence(cwd, scope);
+    const evidenceText = JSON.stringify(evidence, null, 2);
+    await writeFile(path.join(cwd, evidencePath), evidenceText);
+    return {
+      ...scope,
+      artifacts: {
+        provider_scope_evidence_file: evidencePath,
+        provider_scope_evidence_sha256: sha256(evidenceText),
+      },
+    };
+  }
+  return value;
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  scope: JsonObject,
+): Promise<JsonObject> {
+  const headSha = String(scope.head_sha);
+  const fullRange = String(scope.full_range);
+  const baseSha = fullRange.split("..")[0] ?? "";
+  const entries = await providerFileEntries(cwd, `${baseSha}..${headSha}`);
+  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  return {
+    schema: "pr-review/provider-scope-evidence/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    provider_files: entries,
+    local_files: entries,
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+  };
+}
+
+async function providerFileEntries(
+  cwd: string,
+  range: string,
+): Promise<JsonObject[]> {
+  const tokens = (await gitRaw(cwd, "diff", "--name-status", "-z", range))
+    .split("\0")
+    .filter(Boolean);
+  const entries: JsonObject[] = [];
+  for (let index = 0; index < tokens.length; ) {
+    const rawStatus = tokens[index] ?? "";
+    index += 1;
+    const statusCode = rawStatus[0] ?? "";
+    let previousPath: string | null = null;
+    let filePath = tokens[index] ?? "";
+    if (statusCode === "R") {
+      previousPath = tokens[index] ?? "";
+      filePath = tokens[index + 1] ?? "";
+      index += 2;
+    } else {
+      index += 1;
+    }
+    const [additionsRaw, deletionsRaw] = (
+      await gitRaw(cwd, "diff", "--numstat", "-z", range, "--", filePath)
+    ).split(/\s+/u);
+    const additions = Number(additionsRaw);
+    const deletions = Number(deletionsRaw);
+    const patch = await gitRaw(cwd, "diff", range, "--", filePath);
+    entries.push({
+      path: filePath,
+      status:
+        statusCode === "A"
+          ? "added"
+          : statusCode === "D"
+            ? "removed"
+            : statusCode === "R"
+              ? "renamed"
+              : "modified",
+      previous_path: previousPath,
+      additions,
+      deletions,
+      changes: additions + deletions,
+      patch_sha256: sha256(patch),
+      patch_available: true,
+    });
+  }
+  return entries.sort((left, right) =>
+    [String(left.path), String(left.previous_path ?? ""), String(left.status)]
+      .join("\0")
+      .localeCompare(
+        [
+          String(right.path),
+          String(right.previous_path ?? ""),
+          String(right.status),
+        ].join("\0"),
+      ),
+  );
 }
 
 function approvalFindingsPath(headSha: string, branchName = "main"): string {
@@ -137,7 +264,7 @@ function scopeArgs(
   expectedPriorContextKind = "none",
   expectedPriorContextPath = "null",
 ) {
-  return [
+  const args = [
     "--surface",
     surface,
     "--head-sha",
@@ -155,6 +282,13 @@ function scopeArgs(
     "--max-narrow-changed-files",
     "5",
   ];
+  if (surface === "pr-review") {
+    args.push(
+      "--provider-scope-evidence-file",
+      ".ephemeral/topic-provider-scope-evidence.json",
+    );
+  }
+  return args;
 }
 
 function scopeArgsWithBaseRef(
@@ -205,9 +339,12 @@ function initialScope(
     surface,
     mode: "initial",
     head_sha: headSha,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
+    selected_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
+    candidate_narrow_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
@@ -279,6 +416,7 @@ function prReviewNarrowScope(
     ...scope,
     schema: "pr-review/scope-decision/v1",
     surface: "pr-review",
+    full_range: `${baseSha}..${headSha}`,
   };
 }
 
@@ -3271,7 +3409,7 @@ describe("play-validate-review-artifacts validator", () => {
         findings: [finding()],
       });
 
-      await expect(
+      await expectRejectsWith(
         runValidator(cwd, "validate-diff-anchors", [
           ...scopeArgs(
             reviewHeadSha,
@@ -3282,7 +3420,8 @@ describe("play-validate-review-artifacts validator", () => {
           "--findings-file",
           ".ephemeral/topic-findings.json",
         ]),
-      ).resolves.toMatchObject({ stdout: "" });
+        "--head-sha must match current repository HEAD",
+      );
       expect(laterHeadSha).not.toBe(reviewHeadSha);
     } finally {
       await cleanupTempDir(cwd);
