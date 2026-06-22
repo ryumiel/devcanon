@@ -90,6 +90,7 @@ async function writeHandoff() {
     const executionWorkingDirectory = normalizeExecutionWorkingDirectory(requiredEnv("EXECUTION_WORKING_DIRECTORY"));
     const scopeDecisionFile = requiredEnv("SCOPE_DECISION_FILE");
     await validateScopeAuthority(scopeDecisionFile, requiredEnv("REVIEW_SCOPE_BASE_REF"), priorThreadsFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
     const handoff = {
         schema: "pr-review/handoff/v1",
         pr_number: prNumber,
@@ -114,6 +115,8 @@ async function writeHandoff() {
         artifacts: {
             scope_decision_file: scopeDecisionFile,
             prior_threads_file: priorThreadsFile,
+            provider_scope_evidence_file: providerEvidence.file,
+            provider_scope_evidence_sha256: providerEvidence.sha256,
         },
     };
     validateHandoffObject(handoff, file, file);
@@ -138,6 +141,7 @@ async function writeResult() {
     const presentationNotes = optionalEnv("PRESENTATION_NOTES") ?? null;
     await validateFindingsAuthority(findingsFile);
     await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), priorThreadsFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
     await validateHandoffFile(handoffFile, handoffFile);
     await validateOptionalDirectChildReadableArtifact("review body", reviewBodyFile, "-review-body.md");
     await validateOptionalDirectChildReadableArtifact("context", contextFile, "-context.md");
@@ -156,6 +160,7 @@ async function writeResult() {
             scope_decision_file: scopeDecisionFile,
             prior_threads_file: priorThreadsFile,
             rendered_preview_file: renderedPreviewFile,
+            provider_scope_evidence_file: providerEvidence.file,
         },
         digests: {
             handoff_sha256: await sha256File(handoffFile),
@@ -167,6 +172,7 @@ async function writeResult() {
             rendered_preview_sha256: renderedPreviewFile === null
                 ? null
                 : await sha256File(renderedPreviewFile),
+            provider_scope_evidence_sha256: providerEvidence.sha256,
         },
         scope_decision: {
             summary: stringField(scope, "selection_reason"),
@@ -519,9 +525,16 @@ function validateHandoffObject(value, file, identityFile) {
             "is_followup_narrow",
         ]) ||
         !["initial", "follow-up-full", "follow-up-narrow"].includes(followState) ||
-        !hasExactKeys(artifacts, ["scope_decision_file", "prior_threads_file"]) ||
+        !hasExactKeys(artifacts, [
+            "scope_decision_file",
+            "prior_threads_file",
+            "provider_scope_evidence_file",
+            "provider_scope_evidence_sha256",
+        ]) ||
         !isDirectEphemeralPath(stringField(artifacts, "scope_decision_file", ""), "-scope-decision.json") ||
-        !isNullableDirectEphemeralPath(artifacts.prior_threads_file, "-prior-threads.json")) {
+        !isNullableDirectEphemeralPath(artifacts.prior_threads_file, "-prior-threads.json") ||
+        !isDirectEphemeralPath(stringField(artifacts, "provider_scope_evidence_file", ""), "-provider-scope-evidence.json") ||
+        !isSha256(stringField(artifacts, "provider_scope_evidence_sha256", ""))) {
         fail(`handoff schema mismatch: ${file}`);
     }
     if ((followState === "initial" &&
@@ -569,11 +582,13 @@ function validateResultObject(value, file, identityFile) {
             "scope_decision_file",
             "prior_threads_file",
             "rendered_preview_file",
+            "provider_scope_evidence_file",
         ]) ||
         !isDirectEphemeralPath(stringField(artifacts, "handoff_file", ""), "-handoff.json") ||
         !isDirectEphemeralPath(stringField(artifacts, "scope_decision_file", ""), "-scope-decision.json") ||
         !isNullableDirectEphemeralPath(artifacts.prior_threads_file, "-prior-threads.json") ||
         !isNullableDirectEphemeralPath(artifacts.rendered_preview_file, "-review-preview.md") ||
+        !isDirectEphemeralPath(stringField(artifacts, "provider_scope_evidence_file", ""), "-provider-scope-evidence.json") ||
         !hasExactKeys(digests, [
             "handoff_sha256",
             "findings_sha256",
@@ -582,10 +597,12 @@ function validateResultObject(value, file, identityFile) {
             "scope_decision_sha256",
             "prior_threads_sha256",
             "rendered_preview_sha256",
+            "provider_scope_evidence_sha256",
         ]) ||
         !isSha256(stringField(digests, "handoff_sha256", "")) ||
         !isSha256(stringField(digests, "findings_sha256", "")) ||
         !isSha256(stringField(digests, "scope_decision_sha256", "")) ||
+        !isSha256(stringField(digests, "provider_scope_evidence_sha256", "")) ||
         !digestMatchesNullable(value.review_body_file, digests.review_body_sha256) ||
         !digestMatchesNullable(value.context_file, digests.context_sha256) ||
         !digestMatchesNullable(artifacts.prior_threads_file, digests.prior_threads_sha256) ||
@@ -634,8 +651,18 @@ async function validateHandoffFacts(handoff, identityFile) {
     const artifacts = objectField(handoff, "artifacts");
     const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
     const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+    const providerScopeEvidenceFile = stringField(artifacts, "provider_scope_evidence_file");
+    const providerScopeEvidenceSha256 = stringField(artifacts, "provider_scope_evidence_sha256");
     const reviewScopeBaseRef = stringField(handoff, "review_scope_base_ref");
     await validateScopeAuthority(scopeDecisionFile, reviewScopeBaseRef, priorThreadsFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    if (providerScopeEvidenceFile !== providerEvidence.file) {
+        fail("handoff provider scope evidence mismatch");
+    }
+    if (providerScopeEvidenceSha256 !== providerEvidence.sha256) {
+        fail("handoff provider scope evidence digest mismatch");
+    }
+    await validateDigest("provider scope evidence", providerScopeEvidenceFile, providerScopeEvidenceSha256);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     if (stringField(scope, "head_sha") !== reviewHeadSha) {
         fail("scope decision head mismatch");
@@ -713,6 +740,7 @@ async function validateResultFacts(result, identityFile) {
     await validateOptionalReadableArtifact("rendered preview file", renderedPreviewFile);
     const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
     const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
+    const providerScopeEvidenceFile = stringField(artifacts, "provider_scope_evidence_file");
     const handoffArtifacts = objectField(handoff, "artifacts");
     if (scopeDecisionFile !== stringField(handoffArtifacts, "scope_decision_file")) {
         fail("result handoff scope decision mismatch");
@@ -721,7 +749,15 @@ async function validateResultFacts(result, identityFile) {
         (nullableStringField(handoffArtifacts, "prior_threads_file") ?? "null")) {
         fail("result handoff prior threads mismatch");
     }
+    if (providerScopeEvidenceFile !==
+        stringField(handoffArtifacts, "provider_scope_evidence_file")) {
+        fail("result handoff provider scope evidence mismatch");
+    }
     await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), priorThreadsFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    if (providerScopeEvidenceFile !== providerEvidence.file) {
+        fail("result provider scope evidence mismatch");
+    }
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     const summary = objectField(result, "scope_decision");
     if (stringField(summary, "selected_range") !==
@@ -746,6 +782,25 @@ async function validateResultFacts(result, identityFile) {
     await validateDigest("scope decision", scopeDecisionFile, stringField(digests, "scope_decision_sha256"));
     await validateOptionalDigest("prior threads", priorThreadsFile, nullableStringField(digests, "prior_threads_sha256"));
     await validateOptionalDigest("rendered preview", renderedPreviewFile, nullableStringField(digests, "rendered_preview_sha256"));
+    await validateDigest("provider scope evidence", providerScopeEvidenceFile, stringField(digests, "provider_scope_evidence_sha256"));
+    if (stringField(digests, "provider_scope_evidence_sha256") !==
+        providerEvidence.sha256) {
+        fail("provider scope evidence digest mismatch");
+    }
+}
+async function readProviderScopeEvidenceBinding(scopeDecisionFile) {
+    validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
+    await assertReadableFile("scope decision file", scopeDecisionFile);
+    const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
+    const artifacts = objectField(scope, "artifacts", "scope decision artifacts are missing or malformed");
+    const file = stringField(artifacts, "provider_scope_evidence_file", "scope decision artifacts are missing or malformed");
+    const sha256 = stringField(artifacts, "provider_scope_evidence_sha256", "scope decision artifacts are missing or malformed");
+    validateDirectChildPath("provider scope evidence", file, "-provider-scope-evidence.json");
+    if (!isSha256(sha256)) {
+        fail("scope decision artifacts are missing or malformed");
+    }
+    await validateDigest("provider scope evidence", file, sha256);
+    return { file, sha256 };
 }
 async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manifestPriorPath) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");

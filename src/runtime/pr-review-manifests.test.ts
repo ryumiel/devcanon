@@ -56,6 +56,7 @@ interface ManifestWorkspace {
   worktreeDigest: string;
   findingsFile: string;
   reviewBodyFile: string;
+  providerScopeEvidenceFile: string;
 }
 
 afterEach(async () => {
@@ -366,6 +367,66 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.stdout).toBe("");
     expect(outcome.stderr).toContain("result schema mismatch");
   });
+
+  it("rejects provider evidence digest drift during Phase 5 result validation", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-provider-evidence-drift-",
+    );
+    setSummaryEnv(workspace);
+    await writeJson(workspace.worktree, workspace.providerScopeEvidenceFile, {
+      schema: "pr-review/provider-scope-evidence/v1",
+      provider: "github",
+      repository: "owner/repo",
+      pr_number: 432,
+      baseRefOid: workspace.baseSha,
+      headRefOid: workspace.headSha,
+      provider_pr_diff_base_sha: workspace.baseSha,
+      local_review_head_sha: workspace.headSha,
+      full_pr_diff_range: `${workspace.baseSha}..${workspace.headSha}`,
+      evidence_complete: true,
+      provider_files: [],
+      local_files: [],
+      provider_diff_sha256: "0".repeat(64),
+      local_diff_sha256: "1".repeat(64),
+    });
+
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("provider scope evidence digest mismatch");
+  });
+
+  it("requires explicit provider evidence input for adapter scope validation", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-explicit-provider-input-",
+    );
+    const helper = await writeExecutable(
+      path.join(workspace.tempRoot, "pass-validator.sh"),
+      ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+    );
+    const adapter = path.join(
+      originalCwd,
+      "skills/pr-review/scripts/prior-thread-artifacts.sh",
+    );
+
+    await expect(
+      execFileAsync("bash", [adapter, "validate-scope-decision"], {
+        cwd: workspace.worktree,
+        env: {
+          ...process.env,
+          HEAD_SHA: workspace.headSha,
+          BASE_REF: workspace.baseSha,
+          SCOPE_DECISION_FILE: `.ephemeral/topic-${workspace.headSha}-scope-decision.json`,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
+        },
+      }),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "PROVIDER_SCOPE_EVIDENCE_FILE is required",
+      ),
+    });
+  });
 });
 
 async function runManifestCommand(
@@ -424,6 +485,26 @@ async function makeManifestWorkspace(
   const resultFile = `.ephemeral/pr-432-${headSha}-result.json`;
   const reviewBodyFile = `.ephemeral/topic-${headSha}-review-body.md`;
   const previewFile = `.ephemeral/topic-${headSha}-review-preview.md`;
+  const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+  await writeJson(worktree, providerScopeEvidenceFile, {
+    schema: "pr-review/provider-scope-evidence/v1",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 432,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    provider_files: [],
+    local_files: [],
+    provider_diff_sha256: "0".repeat(64),
+    local_diff_sha256: "0".repeat(64),
+  });
+  const providerScopeEvidenceSha256 = await sha256File(
+    path.join(worktree, providerScopeEvidenceFile),
+  );
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v1",
@@ -442,6 +523,10 @@ async function makeManifestWorkspace(
     mode: "initial",
     last_reviewed_sha: null,
     prior_context: { kind: "none", path: null },
+    artifacts: {
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+    },
   });
   await writeJson(worktree, handoffFile, {
     schema: "pr-review/handoff/v1",
@@ -467,6 +552,8 @@ async function makeManifestWorkspace(
     artifacts: {
       scope_decision_file: scopeFile,
       prior_threads_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
   });
   const resultManifest = {
@@ -482,6 +569,7 @@ async function makeManifestWorkspace(
       scope_decision_file: scopeFile,
       prior_threads_file: null,
       rendered_preview_file: previewFile,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
     },
     digests: {
       handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
@@ -493,6 +581,7 @@ async function makeManifestWorkspace(
       rendered_preview_sha256: await sha256File(
         path.join(worktree, previewFile),
       ),
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
     scope_decision: {
       summary: "Initial review covers the full pull request.",
@@ -568,6 +657,7 @@ async function makeManifestWorkspace(
     worktreeDigest,
     findingsFile,
     reviewBodyFile,
+    providerScopeEvidenceFile,
   };
 }
 

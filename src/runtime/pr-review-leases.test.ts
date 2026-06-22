@@ -3657,6 +3657,33 @@ async function writeResultArtifact(
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
   const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
+  const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
+  await writeFile(
+    path.join(worktree, providerScopeEvidenceFile),
+    `${JSON.stringify(
+      {
+        schema: "pr-review/provider-scope-evidence/v1",
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 432,
+        baseRefOid: reviewHead,
+        headRefOid: reviewHead,
+        provider_pr_diff_base_sha: reviewHead,
+        local_review_head_sha: reviewHead,
+        full_pr_diff_range: `${reviewHead}..${reviewHead}`,
+        evidence_complete: true,
+        provider_files: [],
+        local_files: [],
+        provider_diff_sha256: "0".repeat(64),
+        local_diff_sha256: "0".repeat(64),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const providerScopeEvidenceSha256 = await sha256File(
+    path.join(worktree, providerScopeEvidenceFile),
+  );
   const scopeDecision = {
     head_sha: reviewHead,
     selected_range: "main..HEAD",
@@ -3667,6 +3694,10 @@ async function writeResultArtifact(
     last_reviewed_sha: null,
     selection_reason: "Initial review scope.",
     prior_context: { kind: "none", path: null },
+    artifacts: {
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+    },
   };
   await writeFile(
     path.join(worktree, scopeDecisionFile),
@@ -3701,6 +3732,8 @@ async function writeResultArtifact(
     artifacts: {
       scope_decision_file: scopeDecisionFile,
       prior_threads_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
   };
   await writeFile(
@@ -3720,6 +3753,7 @@ async function writeResultArtifact(
       scope_decision_file: scopeDecisionFile,
       prior_threads_file: null,
       rendered_preview_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
     },
     digests: {
       handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
@@ -3731,6 +3765,7 @@ async function writeResultArtifact(
       ),
       prior_threads_sha256: null,
       rendered_preview_sha256: null,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
     scope_decision: {
       summary: "Initial review scope.",

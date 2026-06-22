@@ -184,20 +184,8 @@ validate_scope_decision() {
   file="$SCOPE_DECISION_FILE"
   validate_direct_child_path "scope decision" "$file" "-scope-decision.json"
   [ "$file" = "$expected" ] || fail "scope decision path mismatch: $file"
-  provider_evidence="${PROVIDER_SCOPE_EVIDENCE_FILE:-}"
-  if [ -z "$provider_evidence" ]; then
-    provider_evidence="$(node -e '
-const fs = require("node:fs");
-try {
-  const scope = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  const file = scope?.artifacts?.provider_scope_evidence_file;
-  if (typeof file !== "string" || file.length === 0) process.exit(2);
-  process.stdout.write(file);
-} catch {
-  process.exit(2);
-}
-' "$file")" || fail "scope decision artifacts are missing or malformed"
-  fi
+  require_env PROVIDER_SCOPE_EVIDENCE_FILE
+  provider_evidence="$PROVIDER_SCOPE_EVIDENCE_FILE"
   validate_direct_child_path "provider scope evidence" "$provider_evidence" "-provider-scope-evidence.json"
   [ "$provider_evidence" = "$(expected_provider_scope_evidence_path)" ] ||
     fail "provider scope evidence path mismatch: $provider_evidence"
