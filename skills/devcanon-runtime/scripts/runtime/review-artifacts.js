@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { access, lstat, mkdtemp, readFile, realpath, rm, stat, writeFile, } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { runGit, runGitRaw } from "./git.js";
+import { runGit, runGitRaw, runGitStdoutSha256 } from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 const EMPTY_OPTIONS = {
     surface: "",
@@ -673,7 +673,7 @@ async function validatePrReviewProviderEvidence(scope, options) {
         fail("local provider evidence does not match git");
     }
     validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
-    const localDiffDigest = sha256Buffer(await canonicalGitDiffRaw(localRange));
+    const localDiffDigest = await canonicalGitDiffSha256(localRange);
     if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
         fail("local diff digest does not match git");
     }
@@ -888,7 +888,7 @@ async function normalizedLocalFileEntries(range) {
         }
         const patchAvailable = numstat.patchAvailable;
         const patchSha256 = patchAvailable
-            ? sha256Buffer(await canonicalGitDiffRaw(range, pathspecs))
+            ? await canonicalGitDiffSha256(range, pathspecs)
             : null;
         entries.push({
             path: statusEntry.path,
@@ -943,7 +943,16 @@ async function canonicalGitDiffMetadataText(args) {
 async function canonicalGitDiffRaw(range, pathspecs = []) {
     return canonicalGitDiffRawWithArgs([range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])], { patch: true });
 }
+async function canonicalGitDiffSha256(range, pathspecs = []) {
+    return canonicalGitDiffSha256WithArgs([range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])], { patch: true, literalPathspecs: pathspecs.length > 0 });
+}
 async function canonicalGitDiffRawWithArgs(args, options) {
+    return canonicalGitDiffOutputWithArgs(args, options, "raw");
+}
+async function canonicalGitDiffSha256WithArgs(args, options) {
+    return canonicalGitDiffOutputWithArgs(args, options, "sha256");
+}
+async function canonicalGitDiffOutputWithArgs(args, options, output) {
     await assertNoAmbientInfoAttributes();
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-diff-"));
     const orderFile = path.join(tempDir, "orderfile");
@@ -957,6 +966,7 @@ async function canonicalGitDiffRawWithArgs(args, options) {
             ? ["--unified=3", "--inter-hunk-context=0"]
             : [];
         const gitArgs = [
+            ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
             ...canonicalGitConfigArgs(orderFile, attributesFile),
             "diff",
             "--no-ext-diff",
@@ -969,6 +979,13 @@ async function canonicalGitDiffRawWithArgs(args, options) {
             ...patchArgs,
             ...args,
         ];
+        if (output === "sha256") {
+            const { stdoutSha256 } = await runGitStdoutSha256(gitArgs, {
+                cwd: process.cwd(),
+                env: canonicalGitEnv(globalConfigFile),
+            });
+            return stdoutSha256;
+        }
         const { stdout } = await runGitRaw(gitArgs, {
             cwd: process.cwd(),
             env: canonicalGitEnv(globalConfigFile),
