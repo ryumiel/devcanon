@@ -844,7 +844,13 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPrReview).toContain("Task 4 records pressure evidence");
     expect(normalizedPrReview).toContain(
+      "skills/play-skill-authoring/SKILL.md` TDD Mapping",
+    );
+    expect(normalizedPrReview).toContain(
       "Generated outputs are render verification evidence only, and this task must not hand-edit generated output",
+    );
+    expect(normalizedPrReview).toContain(
+      "`skills/pr-review/SKILL.md`: updated here. It is the authoritative GitHub PR wrapper procedure and now requires provider-proven full PR scope",
     );
   });
 
