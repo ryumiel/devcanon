@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import {
   gitRevParse,
+  gitStatusCodeFromExecError,
   providerBoundGitArgs,
   providerBoundGitEnv,
   runGit,
@@ -84,14 +85,26 @@ describe("runtime Git utilities", () => {
     await expect(runGitStatus(["status"], { cwd: tempDir })).resolves.toBe(128);
   });
 
+  it("maps only explicit integer exec status codes to git status results", () => {
+    expect(gitStatusCodeFromExecError(null)).toBe(0);
+    expect(gitStatusCodeFromExecError({ code: 1 })).toBe(1);
+    expect(gitStatusCodeFromExecError({ code: 128 })).toBe(128);
+    expect(gitStatusCodeFromExecError({ code: "1" })).toBe(128);
+    expect(gitStatusCodeFromExecError({ code: null })).toBe(128);
+    expect(gitStatusCodeFromExecError({})).toBe(128);
+    expect(gitStatusCodeFromExecError(new Error("spawn failed"))).toBe(128);
+  });
+
   it("builds provider-bound git args and scrubs inherited Git interpretation environment", () => {
     const previousConfigCount = process.env.GIT_CONFIG_COUNT;
     const previousConfigParameters = process.env.GIT_CONFIG_PARAMETERS;
+    const previousCommonDir = process.env.GIT_COMMON_DIR;
     const previousExternalDiff = process.env.GIT_EXTERNAL_DIFF;
     const previousReplaceRefBase = process.env.GIT_REPLACE_REF_BASE;
     const previousWorkTree = process.env.GIT_WORK_TREE;
     process.env.GIT_CONFIG_COUNT = "1";
     process.env.GIT_CONFIG_PARAMETERS = "'diff.external=cat'";
+    process.env.GIT_COMMON_DIR = "/tmp/common-poison";
     process.env.GIT_EXTERNAL_DIFF = "cat";
     process.env.GIT_REPLACE_REF_BASE = "refs/replace";
     process.env.GIT_WORK_TREE = "/tmp/poison";
@@ -105,6 +118,7 @@ describe("runtime Git utilities", () => {
       const env = providerBoundGitEnv("/tmp/devcanon-global-config");
       expect(env.GIT_CONFIG_COUNT).toBeUndefined();
       expect(env.GIT_CONFIG_PARAMETERS).toBeUndefined();
+      expect(env.GIT_COMMON_DIR).toBeUndefined();
       expect(env.GIT_EXTERNAL_DIFF).toBeUndefined();
       expect(env.GIT_REPLACE_REF_BASE).toBeUndefined();
       expect(env.GIT_WORK_TREE).toBeUndefined();
@@ -115,6 +129,7 @@ describe("runtime Git utilities", () => {
     } finally {
       restoreEnv("GIT_CONFIG_COUNT", previousConfigCount);
       restoreEnv("GIT_CONFIG_PARAMETERS", previousConfigParameters);
+      restoreEnv("GIT_COMMON_DIR", previousCommonDir);
       restoreEnv("GIT_EXTERNAL_DIFF", previousExternalDiff);
       restoreEnv("GIT_REPLACE_REF_BASE", previousReplaceRefBase);
       restoreEnv("GIT_WORK_TREE", previousWorkTree);

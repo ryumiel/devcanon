@@ -25,6 +25,7 @@ export function providerBoundGitEnv(
   const blockedNames = new Set([
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_ATTR_SOURCE",
+    "GIT_COMMON_DIR",
     "GIT_DIFF_OPTS",
     "GIT_DIR",
     "GIT_EXTERNAL_DIFF",
@@ -156,16 +157,22 @@ export async function runGitStatus(
         maxBuffer: 10 * 1024 * 1024,
       },
       (error) => {
-        if (error && typeof error === "object" && "code" in error) {
-          const exitCode = Number(error.code);
-          resolve(Number.isInteger(exitCode) ? exitCode : 128);
-        } else {
-          resolve(0);
-        }
+        resolve(gitStatusCodeFromExecError(error));
       },
     );
     child.on("error", () => resolve(128));
   });
+}
+
+export function gitStatusCodeFromExecError(error: unknown): number {
+  if (error === null) {
+    return 0;
+  }
+  if (typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "number" && Number.isInteger(code) ? code : 128;
+  }
+  return 128;
 }
 
 export async function gitRevParse(
