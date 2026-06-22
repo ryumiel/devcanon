@@ -892,6 +892,8 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedDesignSelfReview).toContain("artifact handoffs");
     expect(normalizedDesignSelfReview).toContain("helper/script contracts");
     expect(normalizedDesignSelfReview).toContain("generated artifacts");
+    expect(normalizedDesignSelfReview).toContain("lifecycle state");
+    expect(normalizedDesignSelfReview).toContain("cleanup");
     expect(normalizedDesignSelfReview).toContain("read/write authority");
     expect(playBrainstorm).not.toContain("`## Contract\nDecisions`");
   });
