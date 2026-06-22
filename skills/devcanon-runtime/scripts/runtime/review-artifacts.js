@@ -593,6 +593,10 @@ async function validatePrReviewProviderEvidence(scope, options) {
     }
     await assertReadableFile("--provider-scope-evidence-file", options.providerScopeEvidenceFile);
     validateSuffix("--provider-scope-evidence-file", options.providerScopeEvidenceFile, "-provider-scope-evidence.json");
+    const expectedEvidenceFile = await expectedProviderScopeEvidencePath(options.headSha);
+    if (options.providerScopeEvidenceFile !== expectedEvidenceFile) {
+        fail("provider scope evidence path mismatch");
+    }
     const artifacts = objectField(scope, "artifacts");
     const artifactEvidenceFile = stringField(artifacts, "provider_scope_evidence_file");
     if (artifactEvidenceFile !== options.providerScopeEvidenceFile) {
@@ -777,8 +781,17 @@ async function normalizedLocalFileEntries(range) {
     const statusEntries = await gitDiffNameStatus(range);
     const entries = [];
     for (const statusEntry of statusEntries) {
-        const numstat = await gitDiffNumstat(range, statusEntry.path);
-        const patch = await git(["diff", range, "--", statusEntry.path]);
+        const pathspecs = statusEntry.previousPath === null
+            ? [statusEntry.path]
+            : [statusEntry.previousPath, statusEntry.path];
+        const numstat = await gitDiffNumstat(range, pathspecs);
+        const patch = await git([
+            "diff",
+            "--find-renames",
+            range,
+            "--",
+            ...pathspecs,
+        ]);
         entries.push({
             path: statusEntry.path,
             status: statusEntry.status,
@@ -793,7 +806,7 @@ async function normalizedLocalFileEntries(range) {
     return entries.sort(compareFileEntries);
 }
 async function gitDiffNameStatus(range) {
-    const tokens = (await git(["diff", "--name-status", "-z", range]))
+    const tokens = (await git(["diff", "--name-status", "-z", "--find-renames", range]))
         .split("\0")
         .filter(Boolean);
     const entries = [];
@@ -826,8 +839,16 @@ async function gitDiffNameStatus(range) {
     }
     return entries;
 }
-async function gitDiffNumstat(range, file) {
-    const stdout = await git(["diff", "--numstat", "-z", range, "--", file]);
+async function gitDiffNumstat(range, pathspecs) {
+    const stdout = await git([
+        "diff",
+        "--numstat",
+        "-z",
+        "--find-renames",
+        range,
+        "--",
+        ...pathspecs,
+    ]);
     const [additionsRaw, deletionsRaw] = stdout.split(/\s+/u);
     const additions = Number(additionsRaw);
     const deletions = Number(deletionsRaw);
@@ -1776,6 +1797,11 @@ async function expectedFindingsPath(headSha) {
     const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
     const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
     return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+}
+async function expectedProviderScopeEvidencePath(headSha) {
+    const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
+    return `.ephemeral/${branchSlug}-${headSha}-provider-scope-evidence.json`;
 }
 function slugBranchForFindings(branchName) {
     const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");

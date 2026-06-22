@@ -60,9 +60,11 @@ git fetch origin <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
 
-Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
+Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
+They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
+the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
@@ -151,7 +153,7 @@ wait for fresh user action.
 
 ## Phase 3: Determine diff ranges
 
-`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode. Keep the PR base ref name and the full-range left side distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name, while `REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"` is the ref passed to scope-decision and approved-review validators because the canonical full range is `"$REVIEW_SCOPE_BASE_REF...HEAD"`.
+`full_pr_diff_range` is **always** the provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"` from the explicit provider scope evidence artifact. Used for `play-review`'s doc-impact summary regardless of mode. Keep the PR base ref name and the provider diff-base SHA distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name, while `REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"` is the immutable SHA passed to scope-decision and approved-review validators because the canonical full range is `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"`.
 
 Apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
@@ -184,17 +186,19 @@ with those selected-range facts before invoking `play-review`.
 
 Before invoking `play-review`, prepare, write, validate, and bind the canonical
 Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
-resolve to the installed `pr-review` skill bundle. The artifact's `full_range`
-must be `"$REVIEW_SCOPE_BASE_REF...HEAD"`, where `REVIEW_SCOPE_BASE_REF` is the
-same left side used in `full_pr_diff_range`; do not store `main...HEAD` when
-Phase 3 selected `origin/main...HEAD`.
+resolve to the installed `pr-review` skill bundle. The adapter must pass an
+explicit provider scope evidence artifact through
+`PROVIDER_SCOPE_EVIDENCE_FILE`; the scope-decision artifact's `full_range` must
+be `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"` from that evidence.
 
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_BASE_REF="<base-ref>"
-REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"
-FULL_PR_DIFF_RANGE="$REVIEW_SCOPE_BASE_REF...HEAD"
+PROVIDER_SCOPE_EVIDENCE_FILE=".ephemeral/<branch-slug>-<headRefOid>-provider-scope-evidence.json"
+PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
+REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
+FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
@@ -212,6 +216,7 @@ bind_scope_decision_artifact() {
   HEAD_SHA="$HEAD_SHA" \
   BASE_REF="$REVIEW_SCOPE_BASE_REF" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  PROVIDER_SCOPE_EVIDENCE_FILE="$PROVIDER_SCOPE_EVIDENCE_FILE" \
   PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
@@ -342,7 +347,7 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `working_directory` = absolute path to `.worktrees/pr-<N>-review`
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
-- `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
+- `full_pr_diff_range` = `"<provider_pr_diff_base_sha>..<headRefOid>"` from explicit provider scope evidence (always)
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)

@@ -134,7 +134,7 @@ async function withProviderEvidence(
     !Object.hasOwn(value as JsonObject, "artifacts")
   ) {
     const scope = value as JsonObject;
-    const evidencePath = ".ephemeral/topic-provider-scope-evidence.json";
+    const evidencePath = await providerScopeEvidencePath(cwd, scope);
     const evidence = await providerScopeEvidence(cwd, scope);
     const evidenceText = JSON.stringify(evidence, null, 2);
     await writeFile(path.join(cwd, evidencePath), evidenceText);
@@ -176,11 +176,37 @@ async function providerScopeEvidence(
   };
 }
 
+async function providerScopeEvidencePath(
+  cwd: string,
+  scope: JsonObject,
+): Promise<string> {
+  const rawBranch = await git(cwd, "rev-parse", "--abbrev-ref", "HEAD");
+  const branchSlug =
+    rawBranch === "HEAD" ? "detached" : slugBranchForEvidence(rawBranch);
+  return `.ephemeral/${branchSlug}-${String(scope.head_sha)}-provider-scope-evidence.json`;
+}
+
+function slugBranchForEvidence(branchName: string): string {
+  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return "unnamed";
+  }
+  return slug;
+}
+
 async function providerFileEntries(
   cwd: string,
   range: string,
 ): Promise<JsonObject[]> {
-  const tokens = (await gitRaw(cwd, "diff", "--name-status", "-z", range))
+  const tokens = (
+    await gitRaw(cwd, "diff", "--name-status", "-z", "--find-renames", range)
+  )
     .split("\0")
     .filter(Boolean);
   const entries: JsonObject[] = [];
@@ -197,12 +223,30 @@ async function providerFileEntries(
     } else {
       index += 1;
     }
+    const pathspecs =
+      previousPath === null ? [filePath] : [previousPath, filePath];
     const [additionsRaw, deletionsRaw] = (
-      await gitRaw(cwd, "diff", "--numstat", "-z", range, "--", filePath)
+      await gitRaw(
+        cwd,
+        "diff",
+        "--numstat",
+        "-z",
+        "--find-renames",
+        range,
+        "--",
+        ...pathspecs,
+      )
     ).split(/\s+/u);
     const additions = Number(additionsRaw);
     const deletions = Number(deletionsRaw);
-    const patch = await gitRaw(cwd, "diff", range, "--", filePath);
+    const patch = await gitRaw(
+      cwd,
+      "diff",
+      "--find-renames",
+      range,
+      "--",
+      ...pathspecs,
+    );
     entries.push({
       path: filePath,
       status:
@@ -285,7 +329,7 @@ function scopeArgs(
   if (surface === "pr-review") {
     args.push(
       "--provider-scope-evidence-file",
-      ".ephemeral/topic-provider-scope-evidence.json",
+      `.ephemeral/main-${headSha}-provider-scope-evidence.json`,
     );
   }
   return args;

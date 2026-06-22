@@ -698,6 +698,42 @@ describe.skipIf(!jqAvailable)(
           REVIEW_PAYLOAD_FILE: realPayloadFile,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
         });
+        const nonContractProviderEvidenceFile =
+          ".ephemeral/topic-provider-scope-evidence.json";
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          nonContractProviderEvidenceFile,
+        );
+        const nonContractProviderDigest = await sha256File(
+          cwd,
+          nonContractProviderEvidenceFile,
+        );
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: nonContractProviderEvidenceFile,
+              provider_scope_evidence_sha256: nonContractProviderDigest,
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider scope evidence path mismatch",
+          ),
+        });
         await writeJson(
           cwd,
           realScopeDecisionFile,

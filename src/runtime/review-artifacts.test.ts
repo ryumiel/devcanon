@@ -73,6 +73,61 @@ async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
   return stdout;
 }
 
+async function makeProviderRenameWorkspace(edited: boolean): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-rename-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await mkdir(path.join(cwd, "src"), { recursive: true });
+  await writeFile(
+    path.join(cwd, "src/old.ts"),
+    [
+      "export const value1 = 1;",
+      "export const value2 = 2;",
+      "export const value3 = 3;",
+      "export const value4 = 4;",
+      "export const value5 = 5;",
+      "export const value6 = 6;",
+      "",
+    ].join("\n"),
+  );
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await execFileAsync("git", ["mv", "src/old.ts", "src/new.ts"], { cwd });
+  if (edited) {
+    await writeFile(
+      path.join(cwd, "src/new.ts"),
+      [
+        "export const value1 = 1;",
+        "export const value2 = 2;",
+        "export const value3 = 3;",
+        "export const value4 = 4;",
+        "export const value5 = 5;",
+        "export const value6 = 6;",
+        "export const renamed = true;",
+        "",
+      ].join("\n"),
+    );
+  }
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "refactor: rename file"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
 function riskSignalsArtifact(
   baseSha: string,
   headSha: string,
@@ -174,6 +229,51 @@ async function providerEvidenceFileEntry(
   };
 }
 
+async function providerRenameEvidenceFileEntry(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+): Promise<JsonObject> {
+  const range = `${baseSha}..${headSha}`;
+  const numstat = await gitRaw(
+    cwd,
+    "diff",
+    "--numstat",
+    "-z",
+    "--find-renames",
+    range,
+    "--",
+    "src/old.ts",
+    "src/new.ts",
+  );
+  const [additionsRaw, deletionsRaw] = numstat.split(/\s+/u);
+  const additions = Number(additionsRaw);
+  const deletions = Number(deletionsRaw);
+  const patch = await gitRaw(
+    cwd,
+    "diff",
+    "--find-renames",
+    range,
+    "--",
+    "src/old.ts",
+    "src/new.ts",
+  );
+  return {
+    path: "src/new.ts",
+    status: "renamed",
+    previous_path: "src/old.ts",
+    additions,
+    deletions,
+    changes: additions + deletions,
+    patch_sha256: sha256(patch),
+    patch_available: true,
+  };
+}
+
+function providerScopeEvidencePath(headSha: string): string {
+  return `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+}
+
 async function providerScopeEvidence(
   cwd: string,
   baseSha: string,
@@ -205,10 +305,15 @@ async function providerScopeDecision(
   cwd: string,
   baseSha: string,
   headSha: string,
-  evidencePath = ".ephemeral/topic-provider-scope-evidence.json",
+  evidencePath?: string,
   overrides: JsonObject = {},
 ): Promise<JsonObject> {
-  const evidenceContent = await readFile(path.join(cwd, evidencePath), "utf-8");
+  const providerEvidencePath =
+    evidencePath ?? providerScopeEvidencePath(headSha);
+  const evidenceContent = await readFile(
+    path.join(cwd, providerEvidencePath),
+    "utf-8",
+  );
   return {
     schema: "pr-review/scope-decision/v1",
     surface: "pr-review",
@@ -236,7 +341,7 @@ async function providerScopeDecision(
       notes: "No semantic narrowing for initial PR review.",
     },
     artifacts: {
-      provider_scope_evidence_file: evidencePath,
+      provider_scope_evidence_file: providerEvidencePath,
       provider_scope_evidence_sha256: sha256(evidenceContent),
     },
     ...overrides,
@@ -246,7 +351,7 @@ async function providerScopeDecision(
 function providerScopeArgs(
   headSha: string,
   baseRef = "main",
-  evidencePath = ".ephemeral/topic-provider-scope-evidence.json",
+  evidencePath = providerScopeEvidencePath(headSha),
 ) {
   return [
     "validate-scope-decision",
@@ -371,10 +476,11 @@ describe("review artifact runtime reducers", () => {
 
   it("validates pr-review scope decisions against provider-proven evidence", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
     try {
       await writeJson(
         cwd,
-        ".ephemeral/topic-provider-scope-evidence.json",
+        evidencePath,
         await providerScopeEvidence(cwd, baseSha, headSha),
       );
       await writeJson(
@@ -396,6 +502,50 @@ describe("review artifact runtime reducers", () => {
   });
 
   it.each([
+    { name: "pure rename", edited: false },
+    { name: "rename plus edit", edited: true },
+  ])(
+    "validates pr-review provider evidence for a local $name",
+    async ({ edited }) => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderRenameWorkspace(edited);
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const renameEntry = await providerRenameEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [renameEntry],
+            local_files: [renameEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: ["src/new.ts"],
+          }),
+        );
+
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
+
+  it.each([
     {
       name: "missing explicit provider evidence input",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
@@ -407,10 +557,30 @@ describe("review artifact runtime reducers", () => {
           (arg) =>
             ![
               "--provider-scope-evidence-file",
-              ".ephemeral/topic-provider-scope-evidence.json",
+              providerScopeEvidencePath(headSha),
             ].includes(arg),
         ),
       stderr: "--provider-scope-evidence-file is required for pr-review",
+    },
+    {
+      name: "non-contract provider evidence path",
+      evidencePath: ".ephemeral/topic-provider-scope-evidence.json",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(
+          cwd,
+          baseSha,
+          headSha,
+          ".ephemeral/topic-provider-scope-evidence.json",
+        ),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha),
+      args: (_headSha: string) =>
+        providerScopeArgs(
+          _headSha,
+          "main",
+          ".ephemeral/topic-provider-scope-evidence.json",
+        ),
+      stderr: "provider scope evidence path mismatch",
     },
     {
       name: "moving full range",
@@ -521,10 +691,14 @@ describe("review artifact runtime reducers", () => {
     },
   ])("rejects invalid pr-review provider evidence: $name", async (testCase) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath =
+      "evidencePath" in testCase && typeof testCase.evidencePath === "string"
+        ? testCase.evidencePath
+        : providerScopeEvidencePath(headSha);
     try {
       await writeJson(
         cwd,
-        ".ephemeral/topic-provider-scope-evidence.json",
+        evidencePath,
         await testCase.evidence(cwd, baseSha, headSha),
       );
       await writeJson(
@@ -533,9 +707,7 @@ describe("review artifact runtime reducers", () => {
         await testCase.scope(cwd, baseSha, headSha),
       );
       if (testCase.removeEvidenceFile === true) {
-        await rm(
-          path.join(cwd, ".ephemeral/topic-provider-scope-evidence.json"),
-        );
+        await rm(path.join(cwd, evidencePath));
       }
 
       await expect(
