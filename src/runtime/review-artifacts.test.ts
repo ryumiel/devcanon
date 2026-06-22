@@ -384,8 +384,13 @@ async function providerScopeEvidence(
   headSha: string,
   overrides: JsonObject = {},
 ): Promise<JsonObject> {
-  const fileEntry = await providerEvidenceFileEntry(cwd, baseSha, headSha);
   const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  const hasExplicitFileEntries =
+    Object.hasOwn(overrides, "provider_files") &&
+    Object.hasOwn(overrides, "local_files");
+  const fileEntry = hasExplicitFileEntries
+    ? null
+    : await providerEvidenceFileEntry(cwd, baseSha, headSha);
   return {
     schema: "pr-review/provider-scope-evidence/v1",
     provider: "github",
@@ -397,8 +402,8 @@ async function providerScopeEvidence(
     local_review_head_sha: headSha,
     full_pr_diff_range: `${baseSha}..${headSha}`,
     evidence_complete: true,
-    provider_files: [fileEntry],
-    local_files: [fileEntry],
+    provider_files: fileEntry === null ? [] : [fileEntry],
+    local_files: fileEntry === null ? [] : [fileEntry],
     provider_diff_sha256: sha256(fullDiff),
     local_diff_sha256: sha256(fullDiff),
     ...overrides,

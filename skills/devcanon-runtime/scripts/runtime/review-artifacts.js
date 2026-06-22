@@ -806,20 +806,27 @@ function compareFileEntries(left, right) {
     return fileEntryKey(left).localeCompare(fileEntryKey(right));
 }
 function fileEntryKey(entry) {
-    return [
-        stringField(entry, "path"),
-        nullableStringField(entry, "previous_path") ?? "",
-        stringField(entry, "status"),
-    ].join("\0");
+    return fileEntryKeyFromParts({
+        path: stringField(entry, "path"),
+        previousPath: nullableStringField(entry, "previous_path"),
+        status: stringField(entry, "status"),
+    });
+}
+function fileEntryKeyFromParts(entry) {
+    return [entry.path, entry.previousPath ?? "", entry.status].join("\0");
 }
 async function normalizedLocalFileEntries(range) {
     const statusEntries = await gitDiffNameStatus(range);
+    const numstats = await gitDiffNumstats(range);
     const entries = [];
     for (const statusEntry of statusEntries) {
         const pathspecs = statusEntry.previousPath === null
             ? [statusEntry.path]
             : [statusEntry.previousPath, statusEntry.path];
-        const numstat = await gitDiffNumstat(range, pathspecs);
+        const numstat = numstats.get(filePathPairKey(statusEntry));
+        if (numstat === undefined) {
+            fail("local diff numstat is unavailable");
+        }
         const patchAvailable = numstat.patchAvailable;
         const patchSha256 = patchAvailable
             ? sha256String(await git(["diff", "--find-renames", range, "--", ...pathspecs]))
@@ -871,17 +878,31 @@ async function gitDiffNameStatus(range) {
     }
     return entries;
 }
-async function gitDiffNumstat(range, pathspecs) {
+async function gitDiffNumstats(range) {
     const stdout = await git([
         "diff",
         "--numstat",
         "-z",
         "--find-renames",
         range,
-        "--",
-        ...pathspecs,
     ]);
-    const [additionsRaw, deletionsRaw] = stdout.split(/\s+/u);
+    const tokens = stdout.split("\0").filter(Boolean);
+    const entries = new Map();
+    for (let index = 0; index < tokens.length;) {
+        const header = tokens[index] ?? "";
+        index += 1;
+        const [additionsRaw, deletionsRaw, simplePath] = header.split("\t");
+        const previousPath = simplePath === "" ? (tokens[index] ?? "") : null;
+        const filePath = simplePath === "" ? (tokens[index + 1] ?? "") : simplePath;
+        index += simplePath === "" ? 2 : 0;
+        entries.set(filePathPairKey({ path: filePath ?? "", previousPath }), parseGitDiffNumstat(additionsRaw, deletionsRaw));
+    }
+    return entries;
+}
+function filePathPairKey(entry) {
+    return [entry.path, entry.previousPath ?? ""].join("\0");
+}
+function parseGitDiffNumstat(additionsRaw, deletionsRaw) {
     if (additionsRaw === "-" && deletionsRaw === "-") {
         return { additions: 0, deletions: 0, patchAvailable: false };
     }
