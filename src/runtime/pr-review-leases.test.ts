@@ -3680,6 +3680,7 @@ async function writeResultArtifact(
   const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
+  const providerPrDiffRange = `${reviewHead}..${reviewHead}`;
   await writeFile(
     path.join(worktree, providerScopeEvidenceFile),
     `${JSON.stringify(
@@ -3692,7 +3693,7 @@ async function writeResultArtifact(
         headRefOid: reviewHead,
         provider_pr_diff_base_sha: reviewHead,
         local_review_head_sha: reviewHead,
-        full_pr_diff_range: `${reviewHead}..${reviewHead}`,
+        full_pr_diff_range: providerPrDiffRange,
         evidence_complete: true,
         provider_files: [],
         local_files: [],
@@ -3708,8 +3709,8 @@ async function writeResultArtifact(
   );
   const scopeDecision = {
     head_sha: reviewHead,
-    selected_range: "main..HEAD",
-    full_range: "main...HEAD",
+    selected_range: providerPrDiffRange,
+    full_range: providerPrDiffRange,
     language_hints: [],
     mode: "initial",
     is_followup_narrow: false,
@@ -3740,9 +3741,9 @@ async function writeResultArtifact(
     },
     base_ref: "main",
     head_ref: "topic",
-    review_scope_base_ref: "main",
-    active_diff_range: "main..HEAD",
-    full_pr_diff_range: "main...HEAD",
+    review_scope_base_ref: reviewHead,
+    active_diff_range: providerPrDiffRange,
+    full_pr_diff_range: providerPrDiffRange,
     review_head_sha: reviewHead,
     mode: "github-post",
     language_hints: [],
@@ -3791,8 +3792,8 @@ async function writeResultArtifact(
     },
     scope_decision: {
       summary: "Initial review scope.",
-      selected_range: "main..HEAD",
-      full_range: "main...HEAD",
+      selected_range: providerPrDiffRange,
+      full_range: providerPrDiffRange,
       is_followup_narrow: false,
     },
     presentation: { status: presentationStatus, notes: null },
