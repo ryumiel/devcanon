@@ -739,6 +739,52 @@ describe("pr-review manifest helper", () => {
     }
   });
 
+  it("rejects review scope base refs that do not match provider evidence", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      const wrongBaseSha = "f".repeat(40);
+
+      await expect(
+        runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          REVIEW_SCOPE_BASE_REF: wrongBaseSha,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "scope decision review scope base mismatch",
+        ),
+      });
+
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const handoff = await readJson(cwd, handoffPath(headSha));
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        review_scope_base_ref: wrongBaseSha,
+      });
+      const result = await readJson(cwd, resultPath(headSha));
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        digests: {
+          ...result.digests,
+          handoff_sha256: await sha256File(cwd, handoffPath(headSha)),
+        },
+      });
+
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff review scope base mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it.skipIf(isWindows)(
     "rejects handoff manifests with whitespace in head_ref",
     async () => {

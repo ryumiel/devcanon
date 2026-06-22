@@ -147,6 +147,12 @@ async function writeHandoff(): Promise<string> {
       prNumber,
     },
   );
+  if (
+    requiredEnv("REVIEW_SCOPE_BASE_REF") !==
+    providerEvidence.providerDiffBaseSha
+  ) {
+    fail("handoff review scope base mismatch");
+  }
 
   const handoff = {
     schema: "pr-review/handoff/v1",
@@ -1004,6 +1010,9 @@ async function validateHandoffFacts(handoff: JsonObject, identityFile: string) {
   if (providerScopeEvidenceSha256 !== providerEvidence.sha256) {
     fail("handoff provider scope evidence digest mismatch");
   }
+  if (reviewScopeBaseRef !== providerEvidence.providerDiffBaseSha) {
+    fail("handoff review scope base mismatch");
+  }
   await validateDigest(
     "provider scope evidence",
     providerScopeEvidenceFile,
@@ -1222,7 +1231,7 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
 async function readProviderScopeEvidenceBinding(
   scopeDecisionFile: string,
   expectedIdentity: { repository: string; prNumber: number },
-): Promise<{ file: string; sha256: string }> {
+): Promise<{ file: string; sha256: string; providerDiffBaseSha: string }> {
   validateDirectChildPath(
     "scope decision",
     scopeDecisionFile,
@@ -1261,7 +1270,14 @@ async function readProviderScopeEvidenceBinding(
   if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
     fail("provider evidence PR number mismatch");
   }
-  return { file, sha256 };
+  const providerDiffBaseSha = stringField(
+    evidence,
+    "provider_pr_diff_base_sha",
+  );
+  if (!isSha(providerDiffBaseSha)) {
+    fail("provider evidence provider_pr_diff_base_sha is malformed");
+  }
+  return { file, sha256, providerDiffBaseSha };
 }
 
 async function validateScopeAuthority(
@@ -1286,6 +1302,16 @@ async function validateScopeAuthority(
     "provider_scope_evidence_file",
     "scope decision artifacts are missing or malformed",
   );
+  const providerEvidence = await readProviderScopeEvidenceBinding(
+    scopeDecisionFile,
+    {
+      repository: requiredEnv("REPOSITORY"),
+      prNumber: readPrNumber(),
+    },
+  );
+  if (expectedBaseRef !== providerEvidence.providerDiffBaseSha) {
+    fail("scope decision review scope base mismatch");
+  }
   validateDirectChildPath(
     "provider scope evidence",
     providerScopeEvidenceFile,

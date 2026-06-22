@@ -94,6 +94,10 @@ async function writeHandoff() {
         repository: requiredEnv("REPOSITORY"),
         prNumber,
     });
+    if (requiredEnv("REVIEW_SCOPE_BASE_REF") !==
+        providerEvidence.providerDiffBaseSha) {
+        fail("handoff review scope base mismatch");
+    }
     const handoff = {
         schema: "pr-review/handoff/v1",
         pr_number: prNumber,
@@ -676,6 +680,9 @@ async function validateHandoffFacts(handoff, identityFile) {
     if (providerScopeEvidenceSha256 !== providerEvidence.sha256) {
         fail("handoff provider scope evidence digest mismatch");
     }
+    if (reviewScopeBaseRef !== providerEvidence.providerDiffBaseSha) {
+        fail("handoff review scope base mismatch");
+    }
     await validateDigest("provider scope evidence", providerScopeEvidenceFile, providerScopeEvidenceSha256);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     if (stringField(scope, "head_sha") !== reviewHeadSha) {
@@ -824,7 +831,11 @@ async function readProviderScopeEvidenceBinding(scopeDecisionFile, expectedIdent
     if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
         fail("provider evidence PR number mismatch");
     }
-    return { file, sha256 };
+    const providerDiffBaseSha = stringField(evidence, "provider_pr_diff_base_sha");
+    if (!isSha(providerDiffBaseSha)) {
+        fail("provider evidence provider_pr_diff_base_sha is malformed");
+    }
+    return { file, sha256, providerDiffBaseSha };
 }
 async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manifestPriorPath) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
@@ -832,6 +843,13 @@ async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manife
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
     const artifacts = objectField(scope, "artifacts", "scope decision artifacts are missing or malformed");
     const providerScopeEvidenceFile = stringField(artifacts, "provider_scope_evidence_file", "scope decision artifacts are missing or malformed");
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: requiredEnv("REPOSITORY"),
+        prNumber: readPrNumber(),
+    });
+    if (expectedBaseRef !== providerEvidence.providerDiffBaseSha) {
+        fail("scope decision review scope base mismatch");
+    }
     validateDirectChildPath("provider scope evidence", providerScopeEvidenceFile, "-provider-scope-evidence.json");
     const priorContext = objectField(scope, "prior_context", "scope decision prior_context is missing or malformed");
     const priorKind = stringField(priorContext, "kind", "scope decision prior_context is missing or malformed");

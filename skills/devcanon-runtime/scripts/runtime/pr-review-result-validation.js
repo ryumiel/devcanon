@@ -105,6 +105,10 @@ async function validateHandoffFacts(handoff, identityPath, input) {
     if (providerScopeEvidenceSha256 !== providerEvidence.sha256) {
         fail("handoff provider scope evidence digest mismatch");
     }
+    if (stringField(handoff, "review_scope_base_ref") !==
+        providerEvidence.providerDiffBaseSha) {
+        fail("handoff review scope base mismatch");
+    }
     await validateDigest("provider scope evidence", providerScopeEvidenceFile, providerScopeEvidenceSha256);
     if (stringField(scope, "head_sha") !== reviewHeadSha) {
         fail("scope decision head mismatch");
@@ -406,7 +410,11 @@ async function readProviderScopeEvidenceBinding(scopeDecisionFile, expectedIdent
     if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
         fail("provider evidence PR number mismatch");
     }
-    return { file, sha256 };
+    const providerDiffBaseSha = stringField(evidence, "provider_pr_diff_base_sha");
+    if (!isSha(providerDiffBaseSha)) {
+        fail("provider evidence provider_pr_diff_base_sha is malformed");
+    }
+    return { file, sha256, providerDiffBaseSha };
 }
 async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manifestPriorPath, input) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
@@ -416,6 +424,9 @@ async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manife
         repository: input.repository,
         prNumber: input.prNumber,
     });
+    if (expectedBaseRef !== providerEvidence.providerDiffBaseSha) {
+        fail("scope decision review scope base mismatch");
+    }
     const scopeHelper = await resolveScopeHelper(input);
     const baseEnv = input.helperEnv ?? {};
     const env = {
@@ -603,7 +614,12 @@ async function guardedScopeBaseRef(scopeDecisionFile) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
     await assertReadableFile("scope decision file", scopeDecisionFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
-    return stringField(scope, "full_range").replace(/\.\.\.HEAD$/u, "");
+    const fullRange = stringField(scope, "full_range");
+    if (fullRange.endsWith("...HEAD")) {
+        return fullRange.replace(/\.\.\.HEAD$/u, "");
+    }
+    const explicitRange = /^([0-9a-f]{40})\.\.[0-9a-f]{40}$/u.exec(fullRange);
+    return explicitRange?.[1] ?? fullRange;
 }
 async function validateOptionalReadableArtifact(label, file) {
     if (file === null) {
