@@ -1602,10 +1602,10 @@ describe("phase artifact source contracts", () => {
       "provider/local file lists and diff digests match",
     );
     expect(normalizedPrReview).toContain(
-      "diff digest drift fails closed except for the runtime-defined unavailable-patch case",
+      "diff digest drift fails closed except for the runtime-defined all-provider-files-unavailable case",
     );
     expect(normalizedPrReview).toContain(
-      "matching metadata and `patch_available=false` for every provider file whose textual patch is unavailable",
+      "every provider file entry has `patch_available=false`, metadata matches exactly, and the complete provider file list is still bound",
     );
     expect(normalizedPrReview).toContain(
       'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',

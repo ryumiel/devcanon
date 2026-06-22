@@ -188,20 +188,21 @@ full PR scope. It must record provider `baseRefOid`, provider `headRefOid`,
 `provider_pr_diff_base_sha`; complete bound provider file/diff evidence;
 normalized local file entries; local diff digest; and the proof that
 provider/local file lists and diff digests match, except for the
-runtime-defined unavailable-patch case. In that exception, matching metadata and
-`patch_available=false` for every provider file whose textual patch is
-unavailable satisfy the provider evidence contract even when provider and local
-diff digests differ. For local ref checks, local base refs are allowed only as
+runtime-defined all-provider-files-unavailable case. In that exception, every
+provider file entry has `patch_available=false`, metadata matches exactly, and
+the complete provider file list is still bound, satisfying the provider
+evidence contract even when provider and local diff digests differ. For local
+ref checks, local base refs are allowed only as
 diagnostics or optimization inputs after exact-SHA
 equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven. Wrong-base diagnostics are
 fail-closed: stale base refs, moving local base refs, hidden `HEAD` expansion,
 incomplete provider evidence, provider/local file drift, diff digest drift, or
 any mismatch between provider proof and local checkout stop before Phase 4. In
 other words, diff digest drift fails closed except for the runtime-defined
-unavailable-patch case above. The wrapper must bind the provider scope evidence
-artifact into every scope-decision, handoff, result, and approved-review
-validation path that consumes full-range authority. Unbound side guards or
-ambient environment variables do not prove full range.
+all-provider-files-unavailable case above. The wrapper must bind the provider
+scope evidence artifact into every scope-decision, handoff, result, and
+approved-review validation path that consumes full-range authority. Unbound side
+guards or ambient environment variables do not prove full range.
 The key boundary is that play-review remains provider-agnostic and consumes
 only the explicit final scope facts supplied by this wrapper.
 
