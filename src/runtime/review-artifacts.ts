@@ -538,11 +538,14 @@ async function validateScopeDecision(
   let expectedCount = expectedFiles.length;
   let countRangeLabel = "selected range";
   if (lastReviewed.length > 0 && followupUsable) {
-    expectedCount = (
-      await changedFiles(
-        gitExecutionRange(`${lastReviewed}..HEAD`, options.headSha),
-      )
-    ).length;
+    const countExecRange = gitExecutionRange(
+      `${lastReviewed}..HEAD`,
+      options.headSha,
+    );
+    expectedCount =
+      options.surface === "pr-review"
+        ? (await providerBoundChangedFiles(countExecRange)).length
+        : (await changedFiles(countExecRange)).length;
     countRangeLabel = "candidate range";
   }
   if (changedCount !== expectedCount) {
@@ -1574,18 +1577,46 @@ async function assertNoLocalDiffDriverConfig(): Promise<void> {
     "--local",
     "--includes",
     "--get-regexp",
-    "^(diff\\.external|diff\\..*\\.(binary|textconv|command|xfuncname|wordRegex|algorithm))$",
+    "^diff\\.",
   ]);
   const worktreeDiffConfig = await gitConfigEntries([
     "config",
     "--worktree",
     "--includes",
     "--get-regexp",
-    "^(diff\\.external|diff\\..*\\.(binary|textconv|command|xfuncname|wordRegex|algorithm))$",
+    "^diff\\.",
   ]);
-  if (localDiffConfig.length > 0 || worktreeDiffConfig.length > 0) {
+  if (
+    [...localDiffConfig, ...worktreeDiffConfig].some(isUnsafeDiffConfigEntry)
+  ) {
     fail(LOCAL_INTERPRETATION_HARDENING_FAILURE);
   }
+}
+
+const CANONICALLY_NEUTRALIZED_DIFF_CONFIG_KEYS = new Set([
+  "diff.abbrev",
+  "diff.algorithm",
+  "diff.color",
+  "diff.context",
+  "diff.dstprefix",
+  "diff.indentheuristic",
+  "diff.interhunkcontext",
+  "diff.mnemonicprefix",
+  "diff.noprefix",
+  "diff.orderfile",
+  "diff.relative",
+  "diff.renamelimit",
+  "diff.renames",
+  "diff.srcprefix",
+  "diff.suppressblankempty",
+]);
+
+function isUnsafeDiffConfigEntry(entry: string): boolean {
+  const key = entry.split(/\s/u, 1)[0]?.toLowerCase() ?? "";
+  return (
+    key.startsWith("diff.") &&
+    !CANONICALLY_NEUTRALIZED_DIFF_CONFIG_KEYS.has(key)
+  );
 }
 
 async function gitConfigEntries(args: readonly string[]): Promise<string[]> {

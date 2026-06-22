@@ -157,7 +157,8 @@ export async function runGitStatus(
       },
       (error) => {
         if (error && typeof error === "object" && "code" in error) {
-          resolve(Number(error.code));
+          const exitCode = Number(error.code);
+          resolve(Number.isInteger(exitCode) ? exitCode : 128);
         } else {
           resolve(0);
         }

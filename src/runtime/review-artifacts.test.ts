@@ -1429,6 +1429,14 @@ describe("review artifact runtime reducers", () => {
       },
     },
     {
+      name: "repo-local top-level diff ignoreSubmodules",
+      poison: async (cwd: string) => {
+        await execFileAsync("git", ["config", "diff.ignoreSubmodules", "all"], {
+          cwd,
+        });
+      },
+    },
+    {
       name: "worktree textconv diff driver",
       poison: async (cwd: string) => {
         await execFileAsync(
@@ -1444,10 +1452,35 @@ describe("review artifact runtime reducers", () => {
       },
     },
     {
+      name: "worktree top-level diff submodule",
+      poison: async (cwd: string) => {
+        await execFileAsync(
+          "git",
+          ["config", "extensions.worktreeConfig", "true"],
+          { cwd },
+        );
+        await execFileAsync(
+          "git",
+          ["config", "--worktree", "diff.submodule", "log"],
+          { cwd },
+        );
+      },
+    },
+    {
       name: "included xfuncname diff driver",
       poison: async (cwd: string) => {
         const includePath = path.join(cwd, ".git", "included-diff-config");
         await writeFile(includePath, '[diff "poison"]\n\txfuncname = .*\n');
+        await execFileAsync("git", ["config", "include.path", includePath], {
+          cwd,
+        });
+      },
+    },
+    {
+      name: "included top-level diff submodule",
+      poison: async (cwd: string) => {
+        const includePath = path.join(cwd, ".git", "included-diff-config");
+        await writeFile(includePath, "[diff]\n\tsubmodule = log\n");
         await execFileAsync("git", ["config", "include.path", includePath], {
           cwd,
         });
@@ -1629,6 +1662,76 @@ describe("review artifact runtime reducers", () => {
       }
     },
   );
+
+  it("validates usable PR follow-up changed counts through provider-bound Git", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderRenameWorkspace(true);
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const previousConfigCount = process.env.GIT_CONFIG_COUNT;
+    const previousConfigKey = process.env.GIT_CONFIG_KEY_0;
+    const previousConfigValue = process.env.GIT_CONFIG_VALUE_0;
+    try {
+      const renameEntry = await providerRenameEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [renameEntry],
+          local_files: [renameEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          mode: "follow-up",
+          selected_range: `${baseSha}..HEAD`,
+          candidate_narrow_range: `${baseSha}..HEAD`,
+          is_followup_narrow: true,
+          escalation_reasons: [],
+          last_reviewed_sha: baseSha,
+          changed_files: ["src/new.ts"],
+          mechanical_facts: {
+            changed_file_count: 1,
+            followup_sha_usable: true,
+            mechanical_escalate_full: false,
+            mechanical_escalation_reason: "",
+          },
+        }),
+      );
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = "diff.renames";
+      process.env.GIT_CONFIG_VALUE_0 = "false";
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      if (previousConfigCount === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_COUNT");
+      } else {
+        process.env.GIT_CONFIG_COUNT = previousConfigCount;
+      }
+      if (previousConfigKey === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_KEY_0");
+      } else {
+        process.env.GIT_CONFIG_KEY_0 = previousConfigKey;
+      }
+      if (previousConfigValue === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_VALUE_0");
+      } else {
+        process.env.GIT_CONFIG_VALUE_0 = previousConfigValue;
+      }
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
 
   it("validates provider evidence for a literal leading-colon path", async () => {
     const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();

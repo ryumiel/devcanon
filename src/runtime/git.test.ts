@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
@@ -9,6 +9,7 @@ import {
   providerBoundGitEnv,
   runGit,
   runGitRaw,
+  runGitStatus,
   runGitStdoutSha256,
 } from "./git.js";
 
@@ -75,6 +76,12 @@ describe("runtime Git utilities", () => {
     ).resolves.toMatchObject({
       stdoutSha256: createHash("sha256").update(content).digest("hex"),
     });
+  });
+
+  it("returns a deterministic failure status for nonnumeric execution errors", async () => {
+    await rm(tempDir, { recursive: true, force: true });
+
+    await expect(runGitStatus(["status"], { cwd: tempDir })).resolves.toBe(128);
   });
 
   it("builds provider-bound git args and scrubs inherited Git interpretation environment", () => {
