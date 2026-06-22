@@ -19,6 +19,44 @@ export interface RuntimeGitDigestResult {
   stderr: string;
 }
 
+export function providerBoundGitEnv(
+  globalConfigFile: string,
+): NodeJS.ProcessEnv {
+  const blockedNames = new Set([
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_ATTR_SOURCE",
+    "GIT_DIFF_OPTS",
+    "GIT_DIR",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+    "GIT_INDEX_FILE",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_NAMESPACE",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_WORK_TREE",
+  ]);
+  const env: NodeJS.ProcessEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) =>
+        !key.startsWith("GIT_CONFIG") &&
+        key !== "GIT_CONFIG_PARAMETERS" &&
+        !blockedNames.has(key),
+    ),
+  );
+  env.GIT_CONFIG_GLOBAL = globalConfigFile;
+  env.GIT_CONFIG_NOSYSTEM = "1";
+  env.GIT_ATTR_NOSYSTEM = "1";
+  env.GIT_NO_REPLACE_OBJECTS = "1";
+  return env;
+}
+
+export function providerBoundGitArgs(args: readonly string[]): string[] {
+  return ["--no-replace-objects", ...args];
+}
+
 export async function runGit(
   args: readonly string[],
   options: { cwd: string; env?: NodeJS.ProcessEnv },
@@ -99,6 +137,33 @@ export async function runGitStdoutSha256(
       }
       resolve({ stdoutSha256: stdoutHash.digest("hex"), stderr });
     });
+  });
+}
+
+export async function runGitStatus(
+  args: readonly string[],
+  options: { cwd: string; env?: NodeJS.ProcessEnv },
+): Promise<number> {
+  return new Promise((resolve) => {
+    const child = execFile(
+      "git",
+      [...args],
+      {
+        cwd: options.cwd,
+        env: options.env,
+        shell: false,
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024,
+      },
+      (error) => {
+        if (error && typeof error === "object" && "code" in error) {
+          resolve(Number(error.code));
+        } else {
+          resolve(0);
+        }
+      },
+    );
+    child.on("error", () => resolve(128));
   });
 }
 

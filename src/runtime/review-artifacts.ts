@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -6,6 +5,7 @@ import {
   lstat,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   stat,
@@ -13,7 +13,14 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { runGit, runGitRaw, runGitStdoutSha256 } from "./git.js";
+import {
+  providerBoundGitArgs,
+  providerBoundGitEnv,
+  runGit,
+  runGitRaw,
+  runGitStatus,
+  runGitStdoutSha256,
+} from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 
 type RuntimeCommandOutcome =
@@ -139,6 +146,10 @@ const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
+const LOCAL_INTERPRETATION_HARDENING_FAILURE =
+  "canonical Git local interpretation hardening failed";
+const OBJECT_GRAPH_HARDENING_FAILURE =
+  "canonical Git object graph hardening failed";
 
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
   "governed_path",
@@ -421,13 +432,19 @@ async function validateScopeDecision(
   }
 
   const fullExecRange = gitExecutionRange(fullRange, options.headSha);
-  await requireRangeExists(fullExecRange);
+  await requireRangeExistsForSurface(options.surface, fullExecRange);
 
   let followupUsable = false;
-  if (
+  const lastReviewedExists =
     lastReviewed.length > 0 &&
-    (await gitRefExists(`${lastReviewed}^{commit}`)) &&
-    (await gitMergeBaseIsAncestor(lastReviewed, options.headSha))
+    (options.surface === "pr-review"
+      ? await providerBoundGitRefExists(`${lastReviewed}^{commit}`)
+      : await gitRefExists(`${lastReviewed}^{commit}`));
+  if (
+    lastReviewedExists &&
+    (options.surface === "pr-review"
+      ? await providerBoundGitMergeBaseIsAncestor(lastReviewed, options.headSha)
+      : await gitMergeBaseIsAncestor(lastReviewed, options.headSha))
   ) {
     followupUsable = true;
   }
@@ -466,7 +483,8 @@ async function validateScopeDecision(
       if (candidateRange !== fullRange) {
         fail("initial candidate_narrow_range must equal full_range");
       }
-      await requireRangeExists(
+      await requireRangeExistsForSurface(
+        options.surface,
         gitExecutionRange(candidateRange, options.headSha),
       );
       if (!reasonPresent(escalationReasons, "not-followup")) {
@@ -492,7 +510,7 @@ async function validateScopeDecision(
   }
 
   const selectedExecRange = gitExecutionRange(selectedRange, options.headSha);
-  await requireRangeExists(selectedExecRange);
+  await requireRangeExistsForSurface(options.surface, selectedExecRange);
 
   if (semanticAmbiguous && isNarrow) {
     fail("ambiguous semantic scope requires full review");
@@ -508,7 +526,10 @@ async function validateScopeDecision(
     fail("ambiguous-classification escalation reason missing");
   }
 
-  const expectedFiles = await changedFiles(selectedExecRange);
+  const expectedFiles =
+    options.surface === "pr-review"
+      ? await providerBoundChangedFiles(selectedExecRange)
+      : await changedFiles(selectedExecRange);
   const actualFiles = stringArrayField(scope, "changed_files").sort();
   if (!jsonEqual(expectedFiles, actualFiles)) {
     fail("changed files do not match selected range");
@@ -573,9 +594,14 @@ async function validateScopeDecision(
       ) {
         fail("narrow scope must use last-reviewed-sha..HEAD");
       }
-      const candidateFiles = await changedFiles(
-        gitExecutionRange(expectedCandidateRange, options.headSha),
+      const candidateExecRange = gitExecutionRange(
+        expectedCandidateRange,
+        options.headSha,
       );
+      const candidateFiles =
+        options.surface === "pr-review"
+          ? await providerBoundChangedFiles(candidateExecRange)
+          : await changedFiles(candidateExecRange);
       if (candidateFiles.length > Number(options.maxNarrowChangedFiles)) {
         if (isNarrow) {
           fail("file count requires full review");
@@ -819,10 +845,12 @@ async function validatePrReviewProviderEvidence(
   if (stringField(evidence, "local_review_head_sha") !== options.headSha) {
     fail("provider evidence local head mismatch");
   }
-  const currentHead = (await git(["rev-parse", "HEAD"])).trim();
+  await assertProviderBoundGitPreflight();
+  const currentHead = (await providerBoundGit(["rev-parse", "HEAD"])).trim();
   if (currentHead !== options.headSha) {
     fail("--head-sha must match current repository HEAD");
   }
+  const providerBase = stringField(evidence, "baseRefOid");
   const providerDiffBase = stringField(evidence, "provider_pr_diff_base_sha");
   const providerHead = stringField(evidence, "headRefOid");
   if (
@@ -831,20 +859,29 @@ async function validatePrReviewProviderEvidence(
   ) {
     fail("provider evidence full range mismatch");
   }
-  if (!(await gitRefExists(`${providerDiffBase}^{commit}`))) {
+  if (!(await providerBoundGitRefExists(`${providerBase}^{commit}`))) {
+    fail("provider baseRefOid does not resolve");
+  }
+  if (!(await providerBoundGitRefExists(`${providerDiffBase}^{commit}`))) {
     fail("provider PR diff base does not resolve");
   }
-  if (!(await gitRefExists(`${providerHead}^{commit}`))) {
+  if (!(await providerBoundGitRefExists(`${providerHead}^{commit}`))) {
     fail("provider head does not resolve");
   }
+  const providerMergeBases = await providerBoundGitMergeBases(
+    providerBase,
+    providerHead,
+  );
   if (
-    providerDiffBase === providerHead ||
-    !(await gitMergeBaseIsAncestor(providerDiffBase, providerHead))
+    providerMergeBases.length !== 1 ||
+    providerMergeBases[0] !== providerDiffBase ||
+    providerDiffBase === providerHead
   ) {
-    fail("provider PR diff base must be a strict ancestor of head");
+    fail("provider PR diff base must equal single merge base");
   }
 
   const localRange = `${providerDiffBase}..${providerHead}`;
+  await requireProviderBoundRangeExists(localRange);
   const digestProvenance = digestProvenanceField(evidence);
   const expectedLocalFiles = await normalizedLocalFileEntries(localRange);
   const providerFiles = normalizedEvidenceEntries(
@@ -1245,7 +1282,7 @@ async function canonicalGitDiffOutputWithArgs<T extends "raw" | "sha256">(
   options: { patch: boolean; literalPathspecs?: boolean },
   output: T,
 ): Promise<T extends "raw" ? Buffer : string> {
-  await assertNoAmbientInfoAttributes();
+  await assertProviderBoundGitPreflight();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-diff-"));
   const orderFile = path.join(tempDir, "orderfile");
   const attributesFile = path.join(tempDir, "attributes");
@@ -1271,14 +1308,15 @@ async function canonicalGitDiffOutputWithArgs<T extends "raw" | "sha256">(
       ...patchArgs,
       ...args,
     ];
+    const providerArgs = providerBoundGitArgs(gitArgs);
     if (output === "sha256") {
-      const { stdoutSha256 } = await runGitStdoutSha256(gitArgs, {
+      const { stdoutSha256 } = await runGitStdoutSha256(providerArgs, {
         cwd: process.cwd(),
         env: canonicalGitEnv(globalConfigFile),
       });
       return stdoutSha256 as T extends "raw" ? Buffer : string;
     }
-    const { stdout } = await runGitRaw(gitArgs, {
+    const { stdout } = await runGitRaw(providerArgs, {
       cwd: process.cwd(),
       env: canonicalGitEnv(globalConfigFile),
     });
@@ -1337,34 +1375,248 @@ function canonicalGitConfigArgs(
 }
 
 function canonicalGitEnv(globalConfigFile: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(process.env).filter(
-      ([key]) =>
-        !key.startsWith("GIT_CONFIG") && key !== "GIT_CONFIG_PARAMETERS",
-    ),
+  return providerBoundGitEnv(globalConfigFile);
+}
+
+async function providerBoundGit(args: readonly string[]): Promise<string> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-read-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    const { stdout } = await runGit(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+    return stdout;
+  } catch {
+    fail("git command failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function providerBoundGitStatus(
+  args: readonly string[],
+): Promise<number> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-status-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    return await runGitStatus(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function providerBoundGitRefExists(ref: string): Promise<boolean> {
+  return (await providerBoundGitStatus(["cat-file", "-e", ref])) === 0;
+}
+
+async function providerBoundGitMergeBases(
+  base: string,
+  head: string,
+): Promise<string[]> {
+  try {
+    const stdout = await providerBoundGit(["merge-base", "--all", base, head]);
+    return stdout.trim().split("\n").filter(Boolean);
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      fail("provider PR diff base must equal single merge base");
+    }
+    throw err;
+  }
+}
+
+async function providerBoundGitMergeBaseIsAncestor(
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  return (
+    (await providerBoundGitStatus([
+      "merge-base",
+      "--is-ancestor",
+      ancestor,
+      descendant,
+    ])) === 0
   );
-  env.GIT_EXTERNAL_DIFF = undefined;
-  env.GIT_DIFF_OPTS = undefined;
-  env.GIT_ATTR_SOURCE = undefined;
-  env.GIT_CONFIG_GLOBAL = globalConfigFile;
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_ATTR_NOSYSTEM = "1";
-  return env;
+}
+
+async function requireProviderBoundRangeExists(range: string): Promise<void> {
+  if ((await providerBoundGitStatus(["diff", "--quiet", range])) > 1) {
+    fail("review range does not resolve");
+  }
+}
+
+async function assertProviderBoundGitPreflight(): Promise<void> {
+  await assertNoObjectGraphOverrides();
+  await assertNoAmbientInfoAttributes();
+  await assertNoLocalDiffDriverConfig();
 }
 
 async function assertNoAmbientInfoAttributes(): Promise<void> {
-  const gitPathInfoAttributes = await git([
+  const gitPathInfoAttributes = await providerBoundGit([
     "rev-parse",
     "--git-path",
     "info/attributes",
   ]);
-  const gitCommonDir = await git(["rev-parse", "--git-common-dir"]);
+  const gitCommonDir = await providerBoundGit([
+    "rev-parse",
+    "--git-common-dir",
+  ]);
   const infoAttributePaths = new Set([
     resolveGitPath(gitPathInfoAttributes.trim()),
     path.join(resolveGitPath(gitCommonDir.trim()), "info", "attributes"),
   ]);
   for (const infoAttributes of infoAttributePaths) {
     await assertEmptyOrMissingInfoAttributes(infoAttributes);
+  }
+}
+
+async function assertNoObjectGraphOverrides(): Promise<void> {
+  const gitReplacePath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "refs/replace",
+  ]);
+  const gitPackedRefsPath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "packed-refs",
+  ]);
+  const gitGraftsPath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "info/grafts",
+  ]);
+  const gitCommonDir = await providerBoundGit([
+    "rev-parse",
+    "--git-common-dir",
+  ]);
+  const graftPaths = new Set([
+    resolveGitPath(gitGraftsPath.trim()),
+    path.join(resolveGitPath(gitCommonDir.trim()), "info", "grafts"),
+  ]);
+  await assertNoLooseReplaceRefs(resolveGitPath(gitReplacePath.trim()));
+  await assertNoPackedReplaceRefs(resolveGitPath(gitPackedRefsPath.trim()));
+  for (const graftPath of graftPaths) {
+    await assertEmptyOrMissingObjectGraphFile(graftPath);
+  }
+}
+
+async function assertNoLooseReplaceRefs(
+  replaceRefsPath: string,
+): Promise<void> {
+  try {
+    const replaceStat = await stat(replaceRefsPath);
+    if (!replaceStat.isDirectory()) {
+      return;
+    }
+    const entries = await readdir(replaceRefsPath);
+    if (entries.length > 0) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertNoPackedReplaceRefs(
+  packedRefsPath: string,
+): Promise<void> {
+  try {
+    const packedRefs = await readFile(packedRefsPath, "utf8");
+    if (
+      packedRefs
+        .split("\n")
+        .some((line) => /^\S+\s+refs\/replace\//u.test(line))
+    ) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertEmptyOrMissingObjectGraphFile(
+  filePath: string,
+): Promise<void> {
+  try {
+    const graphStat = await stat(filePath);
+    if (graphStat.size > 0) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertNoLocalDiffDriverConfig(): Promise<void> {
+  const localDiffConfig = await gitConfigEntries([
+    "config",
+    "--local",
+    "--includes",
+    "--get-regexp",
+    "^(diff\\.external|diff\\..*\\.(binary|textconv|command|xfuncname|wordRegex|algorithm))$",
+  ]);
+  const worktreeDiffConfig = await gitConfigEntries([
+    "config",
+    "--worktree",
+    "--includes",
+    "--get-regexp",
+    "^(diff\\.external|diff\\..*\\.(binary|textconv|command|xfuncname|wordRegex|algorithm))$",
+  ]);
+  if (localDiffConfig.length > 0 || worktreeDiffConfig.length > 0) {
+    fail(LOCAL_INTERPRETATION_HARDENING_FAILURE);
+  }
+}
+
+async function gitConfigEntries(args: readonly string[]): Promise<string[]> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-config-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    const { stdout } = await runGit(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+    return stdout.trim().split("\n").filter(Boolean);
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      Number((err as { code?: unknown }).code) === 1
+    ) {
+      return [];
+    }
+    if (
+      args.includes("--worktree") &&
+      err instanceof Error &&
+      "code" in err &&
+      Number((err as { code?: unknown }).code) === 128
+    ) {
+      return [];
+    }
+    fail(LOCAL_INTERPRETATION_HARDENING_FAILURE);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -1415,17 +1667,29 @@ async function gitDiffNumstats(
   for (let index = 0; index < tokens.length; ) {
     const header = tokens[index] ?? "";
     index += 1;
-    const [additionsRaw, deletionsRaw, simplePath] = header.split("\t");
-    const previousPath = simplePath === "" ? (tokens[index] ?? "") : null;
-    const filePath =
-      simplePath === ""
-        ? (tokens[index + 1] ?? "")
-        : simplePath === undefined
-          ? (tokens[index] ?? "")
-          : simplePath;
-    index += simplePath === "" ? 2 : simplePath === undefined ? 1 : 0;
+    const firstTab = header.indexOf("\t");
+    const secondTab = firstTab < 0 ? -1 : header.indexOf("\t", firstTab + 1);
+    if (firstTab < 0 || secondTab < 0) {
+      fail("local diff numstat is unavailable");
+    }
+    const additionsRaw = header.slice(0, firstTab);
+    const deletionsRaw = header.slice(firstTab + 1, secondTab);
+    const simplePath = header.slice(secondTab + 1);
+    if (simplePath === "") {
+      const previousPath = tokens[index] ?? "";
+      const filePath = tokens[index + 1] ?? "";
+      if (previousPath.length === 0 || filePath.length === 0) {
+        fail("local diff numstat is unavailable");
+      }
+      index += 2;
+      entries.set(
+        filePathPairKey({ path: filePath, previousPath }),
+        parseGitDiffNumstat(additionsRaw, deletionsRaw),
+      );
+      continue;
+    }
     entries.set(
-      filePathPairKey({ path: filePath ?? "", previousPath }),
+      filePathPairKey({ path: simplePath, previousPath: null }),
       parseGitDiffNumstat(additionsRaw, deletionsRaw),
     );
   }
@@ -2769,6 +3033,15 @@ async function changedFiles(range: string): Promise<string[]> {
   return stdout.split("\0").filter(Boolean).sort();
 }
 
+async function providerBoundChangedFiles(range: string): Promise<string[]> {
+  const stdout = await canonicalGitDiffMetadataText([
+    "--name-only",
+    "-z",
+    range,
+  ]);
+  return stdout.split("\0").filter(Boolean).sort();
+}
+
 function languageHints(files: readonly string[]): string[] {
   return uniqueSorted(
     files
@@ -2845,12 +3118,23 @@ async function requireRangeExists(range: string): Promise<void> {
   }
 }
 
+async function requireRangeExistsForSurface(
+  surface: string,
+  range: string,
+): Promise<void> {
+  if (surface === "pr-review") {
+    await requireProviderBoundRangeExists(range);
+    return;
+  }
+  await requireRangeExists(range);
+}
+
 async function diffHunkForFileLine(
   range: string,
   file: string,
   line: number,
 ): Promise<number | null> {
-  const diff = await git(["diff", range, "--", file]);
+  const diff = (await canonicalGitDiffRaw(range, [file])).toString("utf8");
   return diffHunkForLine(diff, line);
 }
 
@@ -2915,21 +3199,7 @@ async function gitDiffRangeExists(range: string): Promise<boolean> {
 }
 
 async function gitStatus(args: readonly string[]): Promise<number> {
-  return new Promise((resolve) => {
-    const child = execFile(
-      "git",
-      [...args],
-      { cwd: process.cwd(), shell: false, windowsHide: true },
-      (error) => {
-        if (error && typeof error === "object" && "code" in error) {
-          resolve(Number(error.code));
-        } else {
-          resolve(0);
-        }
-      },
-    );
-    child.on("error", () => resolve(128));
-  });
+  return runGitStatus(args, { cwd: process.cwd() });
 }
 
 function validatePattern(label: string, pattern: string): void {
@@ -3154,6 +3424,7 @@ function isRepoPath(value: unknown): value is string {
     typeof value === "string" &&
     value.length > 0 &&
     !value.startsWith("/") &&
+    !value.includes("\0") &&
     value
       .split("/")
       .every((part) => part !== "" && part !== "." && part !== "..")

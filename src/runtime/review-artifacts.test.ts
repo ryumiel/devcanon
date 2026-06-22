@@ -147,6 +147,80 @@ async function makeProviderMovingBaseWorkspace(): Promise<{
   return { cwd, baseSha, advancedBaseSha, headSha };
 }
 
+async function makeProviderInteriorAncestorWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  interiorSha: string;
+  headSha: string;
+}> {
+  const workspace = await makeProviderScopeWorkspace();
+  const { cwd, baseSha } = workspace;
+  const interiorSha = workspace.headSha;
+  await writeFile(path.join(cwd, "src/app.ts"), "export const value = 2;\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: update app"], { cwd });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  process.chdir(cwd);
+  return { cwd, baseSha, interiorSha, headSha };
+}
+
+async function makeProviderAmbiguousMergeBaseWorkspace(): Promise<{
+  cwd: string;
+  firstBaseSha: string;
+  secondBaseSha: string;
+  providerBaseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-provider-ambiguous-"),
+  );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+
+  await execFileAsync("git", ["switch", "-c", "left"], { cwd });
+  await writeFile(path.join(cwd, "left.txt"), "left\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: left"], { cwd });
+  const firstBaseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "main"], { cwd });
+  await execFileAsync("git", ["switch", "-c", "right"], { cwd });
+  await writeFile(path.join(cwd, "right.txt"), "right\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: right"], { cwd });
+  const secondBaseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "left"], { cwd });
+  await execFileAsync(
+    "git",
+    ["merge", "--no-ff", "right", "-m", "merge right"],
+    {
+      cwd,
+    },
+  );
+  const providerBaseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "right"], { cwd });
+  await execFileAsync(
+    "git",
+    ["merge", "--no-ff", firstBaseSha, "-m", "merge left"],
+    {
+      cwd,
+    },
+  );
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await execFileAsync("git", ["branch", "-m", "topic"], { cwd });
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, firstBaseSha, secondBaseSha, providerBaseSha, headSha };
+}
+
 async function makeProviderBinaryWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -176,6 +250,37 @@ async function makeProviderBinaryWorkspace(): Promise<{
   await mkdir(path.join(cwd, ".ephemeral"));
   process.chdir(cwd);
   return { cwd, baseSha, headSha };
+}
+
+async function makeProviderTabbedPathWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+  filePath: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-provider-tab-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  const filePath = "src/with\ttab.ts";
+  await mkdir(path.join(cwd, "src"), { recursive: true });
+  await writeFile(path.join(cwd, filePath), "export const value = 1;\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: add tabbed path"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha, filePath };
 }
 
 async function makeProviderDiffDriverWorkspace(): Promise<{
@@ -973,6 +1078,104 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
+  it("rejects provider diff bases that are strict interior ancestors", async () => {
+    const { cwd, baseSha, interiorSha, headSha } =
+      await makeProviderInteriorAncestorWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const truncatedRange = `${interiorSha}..${headSha}`;
+    try {
+      const truncatedDiff = await canonicalGitDiffRaw(cwd, truncatedRange);
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, interiorSha, headSha, {
+          baseRefOid: baseSha,
+          provider_diff_sha256: sha256(truncatedDiff),
+          local_diff_sha256: sha256(truncatedDiff),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, interiorSha, headSha, undefined, {
+          selected_range: truncatedRange,
+          full_range: truncatedRange,
+          candidate_narrow_range: truncatedRange,
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider PR diff base must equal single merge base",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects provider authority when baseRefOid does not resolve", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          baseRefOid: "f".repeat(40),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("provider baseRefOid does not resolve"),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects provider authority with ambiguous merge bases", async () => {
+    const { cwd, firstBaseSha, providerBaseSha, headSha } =
+      await makeProviderAmbiguousMergeBaseWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, firstBaseSha, headSha, {
+          baseRefOid: providerBaseSha,
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, firstBaseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider PR diff base must equal single merge base",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("rejects moving-base evidence that omits base-only file deletions", async () => {
     const { cwd, baseSha, advancedBaseSha, headSha } =
       await makeProviderMovingBaseWorkspace();
@@ -1005,7 +1208,7 @@ describe("review artifact runtime reducers", () => {
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
-          "provider PR diff base must be a strict ancestor of head",
+          "provider PR diff base must equal single merge base",
         ),
       });
     } finally {
@@ -1119,6 +1322,46 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
+  it("preserves tabs in provider-bound numstat paths", async () => {
+    const { cwd, baseSha, headSha, filePath } =
+      await makeProviderTabbedPathWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        filePath,
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [filePath],
+          language_hints: ["ts"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("rejects linked-worktree common info attributes before canonical diff hashing", async () => {
     const source = await makeRiskSignalsWorkspace();
     const linkedCwd = await mkdtemp(
@@ -1173,6 +1416,125 @@ describe("review artifact runtime reducers", () => {
       }).catch(() => undefined);
       await cleanupTempDir(linkedCwd);
       await cleanupTempDir(source.cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "repo-local binary diff driver",
+      poison: async (cwd: string) => {
+        await execFileAsync("git", ["config", "diff.poison.binary", "true"], {
+          cwd,
+        });
+      },
+    },
+    {
+      name: "worktree textconv diff driver",
+      poison: async (cwd: string) => {
+        await execFileAsync(
+          "git",
+          ["config", "extensions.worktreeConfig", "true"],
+          { cwd },
+        );
+        await execFileAsync(
+          "git",
+          ["config", "--worktree", "diff.poison.textconv", "cat"],
+          { cwd },
+        );
+      },
+    },
+    {
+      name: "included xfuncname diff driver",
+      poison: async (cwd: string) => {
+        const includePath = path.join(cwd, ".git", "included-diff-config");
+        await writeFile(includePath, '[diff "poison"]\n\txfuncname = .*\n');
+        await execFileAsync("git", ["config", "include.path", includePath], {
+          cwd,
+        });
+      },
+    },
+  ])("rejects $name for provider-bound validation", async ({ poison }) => {
+    const { cwd, baseSha, headSha } = await makeProviderDiffDriverWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+      await poison(cwd);
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "canonical Git local interpretation hardening failed",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      name: "loose replacement refs",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
+      },
+    },
+    {
+      name: "packed replacement refs",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
+        await execFileAsync("git", ["pack-refs", "--all"], { cwd });
+        await rm(path.join(cwd, ".git", "refs", "replace"), {
+          recursive: true,
+          force: true,
+        });
+      },
+    },
+    {
+      name: "graft files",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await writeFile(
+          path.join(cwd, ".git", "info", "grafts"),
+          `${headSha} ${baseSha}\n`,
+        );
+      },
+    },
+  ])("rejects $name for provider-bound validation", async ({ poison }) => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+      await poison(cwd, baseSha, headSha);
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "canonical Git object graph hardening failed",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
     }
   });
 
@@ -1796,7 +2158,7 @@ describe("review artifact runtime reducers", () => {
           provider_files: [],
           local_files: [],
         }),
-      stderr: "provider PR diff base must be a strict ancestor of head",
+      stderr: "provider PR diff base must equal single merge base",
     },
     {
       name: "malformed provider evidence",
