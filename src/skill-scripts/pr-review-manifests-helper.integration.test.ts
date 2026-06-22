@@ -413,7 +413,12 @@ async function runHelper(
 ) {
   return execFileAsync("bash", [script, command], {
     cwd,
-    env: { ...process.env, PR_NUMBER: prNumber, ...env },
+    env: {
+      ...process.env,
+      PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      ...env,
+    },
     maxBuffer: 1024 * 1024,
   });
 }
@@ -668,6 +673,66 @@ describe("pr-review manifest helper", () => {
           findings_validated: true,
           scope_decision_validated: true,
         },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires repository identity for handoff and result validation", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          REPOSITORY: "",
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("REPOSITORY is required"),
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          REPOSITORY: "",
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("REPOSITORY is required"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects handoff and result validation for the wrong repository", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          REPOSITORY: "other/repo",
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff repository mismatch"),
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          REPOSITORY: "other/repo",
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result repository mismatch"),
       });
     } finally {
       await cleanupTempDir(cwd);

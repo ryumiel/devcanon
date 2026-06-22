@@ -203,10 +203,12 @@ async function writeResult() {
     return file;
 }
 async function validateHandoffCommand() {
+    requireEnv("REPOSITORY");
     requireEnv("HANDOFF_FILE");
     await validateHandoffFile(requiredEnv("HANDOFF_FILE"));
 }
 async function validateResultCommand() {
+    requireEnv("REPOSITORY");
     requireEnv("RESULT_FILE");
     await validateResultFile(requiredEnv("RESULT_FILE"));
 }
@@ -454,7 +456,7 @@ function readResultValidationInput(resultFile, resultIdentityPath = resultFile) 
         worktreeRoot: process.cwd(),
         resultFile,
         resultIdentityPath,
-        repository: optionalEnv("REPOSITORY"),
+        repository: requiredEnv("REPOSITORY"),
         prNumber: readPrNumber(),
         reviewHeadSha: readHeadSha(),
         prReviewDir: optionalEnv("PR_REVIEW_DIR"),
@@ -647,6 +649,9 @@ async function validateHandoffFacts(handoff, identityFile) {
     const reviewHeadSha = stringField(handoff, "review_head_sha");
     if (reviewHeadSha !== headSha) {
         fail(`review head mismatch: manifest ${reviewHeadSha}, current ${headSha}`);
+    }
+    if (stringField(handoff, "repository") !== requiredEnv("REPOSITORY")) {
+        fail("handoff repository mismatch");
     }
     const expected = expectedHandoffPath(Number(prNumber), reviewHeadSha);
     if (identityFile !== expected) {

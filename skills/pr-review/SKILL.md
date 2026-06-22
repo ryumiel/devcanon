@@ -299,7 +299,7 @@ write_pr_review_handoff_manifest() {
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-handoff || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || return 1
   printf 'PR review handoff manifest written to %s.\n' "$REVIEW_HANDOFF_FILE"
 }
@@ -332,7 +332,7 @@ approval state, no lease state, and no GitHub review payload.
 (
   cd "$WORKING_DIRECTORY" || exit 1
   : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || exit 1
   CURRENT_WORKTREE_HEAD="$(git rev-parse HEAD)" || exit 1
   [ "$CURRENT_WORKTREE_HEAD" = "$REVIEW_HEAD_SHA" ] || {
@@ -393,7 +393,7 @@ write_initial_pr_review_result_manifest() {
     PRESENTATION_STATUS="not-presented" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
 }
@@ -435,6 +435,7 @@ read_pr_review_result_manifest_for_preview() {
   : "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
+  REPOSITORY="<owner/repo>" \
   RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
   RESULT_JSON=$(mktemp) || return 1
@@ -444,6 +445,7 @@ read_pr_review_result_manifest_for_preview() {
   REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
+  REPOSITORY="<owner/repo>" \
   HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null || return 1
   REVIEW_HEAD_REF="$(jq -r '.head_ref' "$REVIEW_HANDOFF_FILE")" || return 1
@@ -546,7 +548,7 @@ update_pr_review_result_manifest() {
     PRESENTATION_STATUS="preview-current" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest updated at %s.\n' "$REVIEW_RESULT_FILE"
 }
