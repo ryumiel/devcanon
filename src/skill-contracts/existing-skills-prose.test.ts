@@ -768,7 +768,7 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps boundary-changing brainstorm designs contract-decision complete", async () => {
+  it("keeps boundary-changing brainstorm designs contract-decision adequate", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const contractDecisions = getMarkdownSection(
       playBrainstorm,
@@ -839,6 +839,62 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedDesignSelfReview).toContain(
       "equivalent clearly labeled contract-decision section",
     );
+    expect(normalizedContractDecisions).toContain(
+      "planning must not choose missing behavior semantics",
+    );
+
+    for (const semanticDimension of [
+      "authority",
+      "identity tuple",
+      "producer",
+      "consumer",
+      "cwd/root",
+      "freshness proof",
+      "mutation/read-only effects",
+      "helper or script call shape",
+      "lifecycle state",
+      "cleanup",
+      "approval/posting",
+      "external effects",
+      "continuation/failure behavior",
+      "forbidden behavior",
+    ]) {
+      expect(normalizedContractDecisions).toContain(semanticDimension);
+    }
+
+    for (const smellTerm of [
+      "existing helper",
+      "current/latest state",
+      "read-only inspection",
+      "validated artifact",
+      "identity inputs",
+      "same operation",
+      "active session",
+      "the cache",
+      "the manifest",
+    ]) {
+      expect(normalizedDesignSelfReview).toContain(smellTerm);
+    }
+
+    expect(normalizedDesignSelfReview).toContain(
+      "only when they hide behavior semantics",
+    );
+    expect(normalizedDesignSelfReview).toContain(
+      "Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details",
+    );
+    expect(normalizedDesignSelfReview).toContain(
+      "boundary-heavy adversarial pass",
+    );
+    expect(normalizedDesignSelfReview).toContain(
+      "creates or changes boundary semantics",
+    );
+    expect(normalizedDesignSelfReview).toContain("workflow gates");
+    expect(normalizedDesignSelfReview).toContain("artifact handoffs");
+    expect(normalizedDesignSelfReview).toContain("helper/script contracts");
+    expect(normalizedDesignSelfReview).toContain("generated artifacts");
+    expect(normalizedDesignSelfReview).toContain("lifecycle state");
+    expect(normalizedDesignSelfReview).toContain("cleanup");
+    expect(normalizedDesignSelfReview).toContain("read/write authority");
     expect(playBrainstorm).not.toContain("`## Contract\nDecisions`");
   });
 

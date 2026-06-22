@@ -112,12 +112,32 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayBrainstorm).toContain(
         "equivalent clearly labeled contract-decision section",
       );
-      expect(playBrainstorm).toContain(
+      expect(normalizedPlayBrainstorm).toContain(
         "fixed names versus intentionally deferred implementation choices",
       );
       expect(playBrainstorm).toContain("authority and ownership");
       expect(playBrainstorm).toContain("required inputs");
       expect(playBrainstorm).toContain("forbidden behavior");
+      expect(normalizedPlayBrainstorm).toContain(
+        "planning must not choose missing behavior semantics",
+      );
+      expect(normalizedPlayBrainstorm).toContain("identity tuple");
+      expect(normalizedPlayBrainstorm).toContain("cwd/root");
+      expect(normalizedPlayBrainstorm).toContain("freshness proof");
+      expect(normalizedPlayBrainstorm).toContain("mutation/read-only effects");
+      expect(normalizedPlayBrainstorm).toContain("helper or script call shape");
+      expect(normalizedPlayBrainstorm).toContain(
+        "continuation/failure behavior",
+      );
+      expect(normalizedPlayBrainstorm).toContain(
+        "only when they hide behavior semantics",
+      );
+      expect(normalizedPlayBrainstorm).toContain(
+        "boundary-heavy adversarial pass",
+      );
+      expect(normalizedPlayBrainstorm).toContain(
+        "creates or changes boundary semantics",
+      );
       expect(normalizedPlayBrainstorm).toContain(
         "blockers or intentional implementation choices",
       );
