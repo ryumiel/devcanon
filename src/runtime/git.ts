@@ -1,4 +1,5 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -11,6 +12,11 @@ export interface RuntimeGitResult {
 export interface RuntimeGitRawResult {
   stdout: Buffer;
   stderr: Buffer;
+}
+
+export interface RuntimeGitDigestResult {
+  stdoutSha256: string;
+  stderr: string;
 }
 
 export async function runGit(
@@ -40,6 +46,60 @@ export async function runGitRaw(
     maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024,
   });
   return { stdout, stderr };
+}
+
+export async function runGitStdoutSha256(
+  args: readonly string[],
+  options: { cwd: string; env?: NodeJS.ProcessEnv; stderrMaxBuffer?: number },
+): Promise<RuntimeGitDigestResult> {
+  const stderrMaxBuffer = options.stderrMaxBuffer ?? 10 * 1024 * 1024;
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", [...args], {
+      cwd: options.cwd,
+      env: options.env,
+      shell: false,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdoutHash = createHash("sha256");
+    const stderrChunks: Buffer[] = [];
+    let stderrLength = 0;
+    let settled = false;
+
+    const finishReject = (err: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(err);
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutHash.update(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderrLength += chunk.length;
+      if (stderrLength > stderrMaxBuffer) {
+        child.kill();
+        finishReject(new Error("git stderr exceeded maxBuffer"));
+        return;
+      }
+      stderrChunks.push(chunk);
+    });
+    child.on("error", finishReject);
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      const stderr = Buffer.concat(stderrChunks).toString("utf8");
+      if (code !== 0) {
+        reject(new Error(stderr.length > 0 ? stderr : "git command failed"));
+        return;
+      }
+      resolve({ stdoutSha256: stdoutHash.digest("hex"), stderr });
+    });
+  });
 }
 
 export async function gitRevParse(

@@ -215,11 +215,12 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 async function gitRaw(
   cwd: string,
   args: readonly string[],
-  options: { env?: NodeJS.ProcessEnv } = {},
+  options: { env?: NodeJS.ProcessEnv; maxBuffer?: number } = {},
 ): Promise<string> {
   const { stdout } = await execFileAsync("git", [...args], {
     cwd,
     env: options.env,
+    maxBuffer: options.maxBuffer,
   });
   return stdout;
 }
@@ -228,16 +229,19 @@ async function canonicalGitDiffRaw(
   cwd: string,
   range: string,
   pathspecs: readonly string[] = [],
+  options: { literalPathspecs?: boolean; maxBuffer?: number } = {},
 ): Promise<string> {
-  return canonicalGitDiffRawWithArgs(cwd, [
-    range,
-    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
-  ]);
+  return canonicalGitDiffRawWithArgs(
+    cwd,
+    [range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])],
+    options,
+  );
 }
 
 async function canonicalGitDiffRawWithArgs(
   cwd: string,
   args: readonly string[],
+  options: { literalPathspecs?: boolean; maxBuffer?: number } = {},
 ): Promise<string> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-test-diff-"));
   const orderFile = path.join(tempDir, "orderfile");
@@ -250,6 +254,7 @@ async function canonicalGitDiffRawWithArgs(
     return await gitRaw(
       cwd,
       [
+        ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
         "-c",
         "diff.noprefix=false",
         "-c",
@@ -310,6 +315,7 @@ async function canonicalGitDiffRawWithArgs(
           GIT_CONFIG_NOSYSTEM: "1",
           GIT_ATTR_NOSYSTEM: "1",
         },
+        maxBuffer: options.maxBuffer,
       },
     );
   } finally {
@@ -373,6 +379,131 @@ async function makeProviderRenameWorkspace(edited: boolean): Promise<{
   }
   await execFileAsync("git", ["add", "."], { cwd });
   await execFileAsync("git", ["commit", "-m", "refactor: rename file"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
+async function makeProviderLeadingColonWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-leading-colon-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await writeFile(path.join(cwd, ":(top)README.md"), "literal path\n");
+  await execFileAsync(
+    "git",
+    ["--literal-pathspecs", "add", ":(top)README.md"],
+    {
+      cwd,
+    },
+  );
+  await execFileAsync("git", ["commit", "-m", "test: add literal path"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
+async function makeProviderLeadingColonRenameWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-leading-colon-rename-"),
+  );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(
+    path.join(cwd, ":old.ts"),
+    [
+      "export const value1 = 1;",
+      "export const value2 = 2;",
+      "export const value3 = 3;",
+      "export const value4 = 4;",
+      "export const value5 = 5;",
+      "",
+    ].join("\n"),
+  );
+  await execFileAsync("git", ["--literal-pathspecs", "add", ":old.ts"], {
+    cwd,
+  });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await execFileAsync(
+    "git",
+    ["--literal-pathspecs", "mv", ":old.ts", ":new.ts"],
+    { cwd },
+  );
+  await writeFile(
+    path.join(cwd, ":new.ts"),
+    [
+      "export const value1 = 1;",
+      "export const value2 = 2;",
+      "export const value3 = 3;",
+      "export const value4 = 4;",
+      "export const value5 = 5;",
+      "export const renamed = true;",
+      "",
+    ].join("\n"),
+  );
+  await execFileAsync("git", ["--literal-pathspecs", "add", ":new.ts"], {
+    cwd,
+  });
+  await execFileAsync("git", ["commit", "-m", "refactor: rename literal"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
+async function makeProviderLargeDiffWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-large-diff-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await writeFile(
+    path.join(cwd, "large.txt"),
+    `${"x".repeat(65 * 1024 * 1024)}\n`,
+  );
+  await execFileAsync("git", ["add", "large.txt"], { cwd });
+  await execFileAsync("git", ["commit", "-m", "test: add large text"], {
     cwd,
   });
   const headSha = await git(cwd, "rev-parse", "HEAD");
@@ -463,10 +594,14 @@ async function providerEvidenceFileEntry(
   baseSha: string,
   headSha: string,
   filePath = "src/app.ts",
+  options: { literalPathspecs?: boolean; maxBuffer?: number } = {},
 ): Promise<JsonObject> {
-  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
-    filePath,
-  ]);
+  const patch = await canonicalGitDiffRaw(
+    cwd,
+    `${baseSha}..${headSha}`,
+    [filePath],
+    options,
+  );
   return {
     path: filePath,
     status: "added",
@@ -514,29 +649,41 @@ async function providerRenameEvidenceFileEntry(
   cwd: string,
   baseSha: string,
   headSha: string,
+  paths: { previousPath: string; path: string } = {
+    previousPath: "src/old.ts",
+    path: "src/new.ts",
+  },
+  options: { literalPathspecs?: boolean; maxBuffer?: number } = {},
 ): Promise<JsonObject> {
   const range = `${baseSha}..${headSha}`;
-  const numstat = await gitRaw(cwd, [
-    "diff",
-    "--numstat",
-    "-z",
-    "--find-renames",
-    range,
-    "--",
-    "src/old.ts",
-    "src/new.ts",
-  ]);
+  const numstat = await gitRaw(
+    cwd,
+    [
+      ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
+      "diff",
+      "--numstat",
+      "-z",
+      "--find-renames",
+      range,
+      "--",
+      paths.previousPath,
+      paths.path,
+    ],
+    { maxBuffer: options.maxBuffer },
+  );
   const [additionsRaw, deletionsRaw] = numstat.split(/\s+/u);
   const additions = Number(additionsRaw);
   const deletions = Number(deletionsRaw);
-  const patch = await canonicalGitDiffRaw(cwd, range, [
-    "src/old.ts",
-    "src/new.ts",
-  ]);
+  const patch = await canonicalGitDiffRaw(
+    cwd,
+    range,
+    [paths.previousPath, paths.path],
+    options,
+  );
   return {
-    path: "src/new.ts",
+    path: paths.path,
     status: "renamed",
-    previous_path: "src/old.ts",
+    previous_path: paths.previousPath,
     additions,
     deletions,
     changes: additions + deletions,
@@ -554,8 +701,16 @@ async function providerScopeEvidence(
   baseSha: string,
   headSha: string,
   overrides: JsonObject = {},
+  options: { maxBuffer?: number } = {},
 ): Promise<JsonObject> {
-  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  const fullDiff = await canonicalGitDiffRaw(
+    cwd,
+    `${baseSha}..${headSha}`,
+    [],
+    {
+      maxBuffer: options.maxBuffer,
+    },
+  );
   const hasExplicitFileEntries =
     Object.hasOwn(overrides, "provider_files") &&
     Object.hasOwn(overrides, "local_files");
@@ -1112,6 +1267,236 @@ describe("review artifact runtime reducers", () => {
       }
     },
   );
+
+  it("validates provider evidence for a literal leading-colon path", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        ":(top)README.md",
+        { literalPathspecs: true },
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [":(top)README.md"],
+          language_hints: ["md"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects provider evidence for a leading-colon path when the patch digest is not literal", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        ":(top)README.md",
+        { literalPathspecs: true },
+      );
+      const interpretedPatch = await canonicalGitDiffRaw(
+        cwd,
+        `${baseSha}..${headSha}`,
+        [":(top)README.md"],
+      );
+      const forgedEntry = {
+        ...fileEntry,
+        patch_sha256: sha256(interpretedPatch),
+      };
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedEntry],
+          local_files: [forgedEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [":(top)README.md"],
+          language_hints: ["md"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider/local patch evidence mismatch",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("validates provider evidence for a literal leading-colon rename tuple", async () => {
+    const { cwd, baseSha, headSha } =
+      await makeProviderLeadingColonRenameWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const renameEntry = await providerRenameEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        { previousPath: ":old.ts", path: ":new.ts" },
+        { literalPathspecs: true },
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [renameEntry],
+          local_files: [renameEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [":new.ts"],
+          language_hints: ["ts"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects leading-colon rename evidence when the patch digest omits one rename side", async () => {
+    const { cwd, baseSha, headSha } =
+      await makeProviderLeadingColonRenameWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const renameEntry = await providerRenameEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        { previousPath: ":old.ts", path: ":new.ts" },
+        { literalPathspecs: true },
+      );
+      const currentOnlyPatch = await canonicalGitDiffRaw(
+        cwd,
+        `${baseSha}..${headSha}`,
+        [":new.ts"],
+        { literalPathspecs: true },
+      );
+      const forgedEntry = {
+        ...renameEntry,
+        patch_sha256: sha256(currentOnlyPatch),
+      };
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedEntry],
+          local_files: [forgedEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [":new.ts"],
+          language_hints: ["ts"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider/local patch evidence mismatch",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("validates provider evidence when canonical diff output exceeds the raw stdout cap", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderLargeDiffWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const largeDiffBuffer = 96 * 1024 * 1024;
+    try {
+      const fileEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        "large.txt",
+        { maxBuffer: largeDiffBuffer },
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(
+          cwd,
+          baseSha,
+          headSha,
+          {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          },
+          { maxBuffer: largeDiffBuffer },
+        ),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["large.txt"],
+          language_hints: ["txt"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  }, 20_000);
 
   it.each([
     {
