@@ -241,12 +241,12 @@ PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_BASE_REF="<base-ref>"
 PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
-FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
   PROVIDER_SCOPE_EVIDENCE_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1

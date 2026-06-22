@@ -2137,73 +2137,60 @@ describe("phase artifact source contracts", () => {
     );
   });
 
-  it("records play-skill-authoring pressure evidence for pr-review provider scope loopholes", async () => {
+  it("keeps play-skill-authoring pressure criteria for pr-review provider scope loopholes", async () => {
     const prReview = await readSkillSource("pr-review");
     const normalizedPrReview = normalizeWhitespace(prReview);
 
-    const pressureEvidence = {
-      promptSummary: [
+    const pressureCriteria = {
+      scenario: [
         "Design `pr-review` scope handling for a GitHub PR where the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M.",
         "Pressure condition: a small pre-dispatch `gh pr diff --name-only` guard seems faster than changing artifacts.",
         "Required lesson: provider-backed PR wrappers must prove full PR scope with provider-bound evidence, not moving local refs or ambient guards.",
       ],
-      redBaseline: {
-        liveRunBlocker:
-          "live subagent pressure execution unavailable: no subagent spawn/close tool is exposed to this delegated worker",
-        fallbackAuthority:
-          "issue #480 cites the pre-change `skills/pr-review/SKILL.md` `origin/<base>` authority wording captured before Task 3.",
-        reproductionFacts:
-          "issue #480 PR branch was created at B, base branch advanced to M, PR head is H, and origin/main == M",
-        oldLoophole:
-          "pre-change `origin/<base>` authority wording allowed `origin/main..HEAD` to masquerade as full PR scope",
+      redBaselineCriteria: {
+        vulnerableAuthority:
+          "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope.",
         observedRationalization:
           "A pressured agent can claim the moving base ref is current provider scope, treat unproven `baseRefOid` as the diff base, or rely on file-list equality from a quick guard.",
         expectedViolation:
           "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
       },
-      greenVerification: {
-        changedSourcePathsUsed: [
+      greenCriteria: {
+        requiredSourceSurfaces: [
           "skills/pr-review/SKILL.md Phase 1",
           "skills/pr-review/SKILL.md Phase 3",
           "skills/play-review/references/follow-up-scope-policy.md",
           "skills/play-validate-review-artifacts/SKILL.md",
         ],
-        result: "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
         complianceCriteria: [
+          "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
           "exact-SHA equivalence for any local base ref",
           "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
           "provider `baseRefOid` remains metadata unless provider PR diff-base proof binds it to local evidence",
           "unbound pre-dispatch guards and ambient environment variables do not prove full range",
         ],
-        disposition:
-          "GREEN: updated source prose closes the moving-base, unproven-baseRefOid, file-list-only, and unbound-guard loopholes.",
-        remainingLoopholes:
-          "None in source contract assertions; runtime implementation remains covered by validator tests rather than transcript fixtures.",
       },
     };
-    const pressureText = normalizeWhitespace(
-      JSON.stringify(pressureEvidence, null, 2),
+    const criteriaText = normalizeWhitespace(
+      JSON.stringify(pressureCriteria, null, 2),
     );
 
-    expect(pressureText).toContain(
-      "live subagent pressure execution unavailable: no subagent spawn/close tool is exposed to this delegated worker",
+    expect(criteriaText).toContain(
+      "the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M",
     );
-    expect(pressureText).toContain(
-      "issue #480 PR branch was created at B, base branch advanced to M, PR head is H, and origin/main == M",
+    expect(criteriaText).toContain(
+      "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope",
     );
-    expect(pressureText).toContain(
-      "pre-change `origin/<base>` authority wording allowed `origin/main..HEAD` to masquerade as full PR scope",
-    );
-    expect(pressureText).toContain(
+    expect(criteriaText).toContain(
       "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
     );
-    expect(pressureText).toContain(
+    expect(criteriaText).toContain(
       "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
     );
-    expect(pressureText).toContain(
+    expect(criteriaText).toContain(
       "exact-SHA equivalence for any local base ref",
     );
-    expect(pressureText).toContain(
+    expect(criteriaText).toContain(
       "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
     );
 

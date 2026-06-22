@@ -675,7 +675,7 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("allows provider/local diff digest drift when all file patches are unavailable", async () => {
+  it("rejects text patch evidence relabeled as unavailable", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
     try {
@@ -699,10 +699,11 @@ describe("review artifact runtime reducers", () => {
 
       await expect(
         runReviewArtifactsCommand(providerScopeArgs(headSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider/local patch evidence mismatch",
+        ),
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);

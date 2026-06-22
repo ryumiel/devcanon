@@ -95,10 +95,10 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
     expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
     expect(result.stdout).toContain(
-      `Active diff range: \`${workspace.baseSha}..HEAD\``,
+      `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
     );
     expect(result.stdout).toContain(
-      `Full PR diff range: \`${workspace.baseSha}...HEAD\``,
+      `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
     );
     expect(result.stdout).toContain(
       `Result manifest: \`${workspace.resultFile}\``,
@@ -589,6 +589,7 @@ async function makeManifestWorkspace(
   const reviewBodyFile = `.ephemeral/topic-${headSha}-review-body.md`;
   const previewFile = `.ephemeral/topic-${headSha}-review-preview.md`;
   const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+  const providerPrDiffRange = `${baseSha}..${headSha}`;
   await writeJson(worktree, providerScopeEvidenceFile, {
     schema: "pr-review/provider-scope-evidence/v1",
     provider: "github",
@@ -598,7 +599,7 @@ async function makeManifestWorkspace(
     headRefOid: headSha,
     provider_pr_diff_base_sha: baseSha,
     local_review_head_sha: headSha,
-    full_pr_diff_range: `${baseSha}..${headSha}`,
+    full_pr_diff_range: providerPrDiffRange,
     evidence_complete: true,
     provider_files: [],
     local_files: [],
@@ -619,8 +620,8 @@ async function makeManifestWorkspace(
   await writeJson(worktree, scopeFile, {
     head_sha: headSha,
     selection_reason: "Initial review covers the full pull request.",
-    selected_range: `${baseSha}..HEAD`,
-    full_range: `${baseSha}...HEAD`,
+    selected_range: providerPrDiffRange,
+    full_range: providerPrDiffRange,
     is_followup_narrow: false,
     language_hints: [],
     mode: "initial",
@@ -642,8 +643,8 @@ async function makeManifestWorkspace(
     base_ref: "main",
     head_ref: "topic",
     review_scope_base_ref: baseSha,
-    active_diff_range: `${baseSha}..HEAD`,
-    full_pr_diff_range: `${baseSha}...HEAD`,
+    active_diff_range: providerPrDiffRange,
+    full_pr_diff_range: providerPrDiffRange,
     review_head_sha: headSha,
     mode: "github-post",
     language_hints: [],
@@ -688,8 +689,8 @@ async function makeManifestWorkspace(
     },
     scope_decision: {
       summary: "Initial review covers the full pull request.",
-      selected_range: `${baseSha}..HEAD`,
-      full_range: `${baseSha}...HEAD`,
+      selected_range: providerPrDiffRange,
+      full_range: providerPrDiffRange,
       is_followup_narrow: false,
     },
     presentation: {

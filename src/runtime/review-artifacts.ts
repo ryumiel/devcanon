@@ -868,7 +868,8 @@ async function validatePrReviewProviderEvidence(
     const unavailableOnly =
       providerFiles.length > 0 &&
       providerFiles.every(isUnavailablePatchEntry) &&
-      localFiles.every(isUnavailablePatchEntry);
+      localFiles.every(isUnavailablePatchEntry) &&
+      expectedLocalFiles.every(isUnavailablePatchEntry);
     if (!unavailableOnly) {
       fail("provider/local diff digest mismatch");
     }
@@ -999,7 +1000,10 @@ function validateProviderPatchEvidence(
       continue;
     }
 
-    if (!isUnavailablePatchEntry(localFile)) {
+    if (
+      !isUnavailablePatchEntry(localFile) ||
+      !isUnavailablePatchEntry(expectedLocalFile)
+    ) {
       fail("provider/local patch evidence mismatch");
     }
   }
