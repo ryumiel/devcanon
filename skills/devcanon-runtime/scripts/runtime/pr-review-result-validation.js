@@ -71,8 +71,7 @@ async function validateHandoffFacts(handoff, identityPath, input) {
     if (reviewHeadSha !== input.reviewHeadSha) {
         fail(`review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`);
     }
-    if (input.repository !== undefined &&
-        stringField(handoff, "repository") !== input.repository) {
+    if (stringField(handoff, "repository") !== input.repository) {
         fail("handoff repository mismatch");
     }
     if (input.leaseBaseRef !== undefined &&
@@ -154,8 +153,7 @@ async function validateResultFacts(result, input) {
     if (reviewHeadSha !== input.reviewHeadSha) {
         fail(`review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`);
     }
-    if (input.repository !== undefined &&
-        stringField(result, "repository") !== input.repository) {
+    if (stringField(result, "repository") !== input.repository) {
         fail("result repository mismatch");
     }
     const expected = expectedResultPath(input.prNumber, reviewHeadSha);
@@ -402,8 +400,7 @@ async function readProviderScopeEvidenceBinding(scopeDecisionFile, expectedIdent
     }
     await validateDigest("provider scope evidence", file, sha256);
     const evidence = await readJsonObject(file, "provider scope evidence file");
-    if (expectedIdentity.repository !== undefined &&
-        stringField(evidence, "repository") !== expectedIdentity.repository) {
+    if (stringField(evidence, "repository") !== expectedIdentity.repository) {
         fail("provider evidence repository mismatch");
     }
     if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {

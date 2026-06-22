@@ -14,7 +14,7 @@ export interface PrReviewResultValidationInput {
   worktreeRoot: string;
   resultFile: string;
   resultIdentityPath?: string;
-  repository?: string;
+  repository: string;
   prNumber: number;
   reviewHeadSha: string;
   leaseBaseRef?: string;
@@ -136,10 +136,7 @@ async function validateHandoffFacts(
       `review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`,
     );
   }
-  if (
-    input.repository !== undefined &&
-    stringField(handoff, "repository") !== input.repository
-  ) {
+  if (stringField(handoff, "repository") !== input.repository) {
     fail("handoff repository mismatch");
   }
   if (
@@ -261,10 +258,7 @@ async function validateResultFacts(
       `review head mismatch: manifest ${reviewHeadSha}, current ${input.reviewHeadSha}`,
     );
   }
-  if (
-    input.repository !== undefined &&
-    stringField(result, "repository") !== input.repository
-  ) {
+  if (stringField(result, "repository") !== input.repository) {
     fail("result repository mismatch");
   }
   const expected = expectedResultPath(input.prNumber, reviewHeadSha);
@@ -668,7 +662,7 @@ function validateResultObject(
 
 async function readProviderScopeEvidenceBinding(
   scopeDecisionFile: string,
-  expectedIdentity: { repository?: string; prNumber: number },
+  expectedIdentity: { repository: string; prNumber: number },
 ): Promise<{ file: string; sha256: string }> {
   validateDirectChildPath(
     "scope decision",
@@ -702,10 +696,7 @@ async function readProviderScopeEvidenceBinding(
   }
   await validateDigest("provider scope evidence", file, sha256);
   const evidence = await readJsonObject(file, "provider scope evidence file");
-  if (
-    expectedIdentity.repository !== undefined &&
-    stringField(evidence, "repository") !== expectedIdentity.repository
-  ) {
+  if (stringField(evidence, "repository") !== expectedIdentity.repository) {
     fail("provider evidence repository mismatch");
   }
   if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
