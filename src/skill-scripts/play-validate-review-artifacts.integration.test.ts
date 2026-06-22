@@ -27,6 +27,10 @@ const validatorScript = path.join(
 
 type JsonObject = Record<string, unknown>;
 
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+
 async function makeGitWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -101,6 +105,62 @@ async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
   return stdout;
 }
 
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  return gitRaw(
+    cwd,
+    "-c",
+    "diff.noprefix=false",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.srcPrefix=a/",
+    "-c",
+    "diff.dstPrefix=b/",
+    "-c",
+    "diff.relative=false",
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.context=3",
+    "-c",
+    "diff.interHunkContext=0",
+    "-c",
+    "diff.algorithm=myers",
+    "-c",
+    "diff.renames=true",
+    "-c",
+    "diff.renameLimit=0",
+    "-c",
+    "diff.color=false",
+    "-c",
+    "color.ui=false",
+    "-c",
+    "core.quotePath=true",
+    "-c",
+    "diff.suppressBlankEmpty=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    range,
+    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+  );
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
   const writableValue = await withProviderEvidence(cwd, relPath, value);
@@ -157,9 +217,9 @@ async function providerScopeEvidence(
   const fullRange = String(scope.full_range);
   const baseSha = fullRange.split("..")[0] ?? "";
   const entries = await providerFileEntries(cwd, `${baseSha}..${headSha}`);
-  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
   return {
-    schema: "pr-review/provider-scope-evidence/v1",
+    schema: PROVIDER_EVIDENCE_SCHEMA,
     provider: "github",
     repository: "owner/repo",
     pr_number: 390,
@@ -169,6 +229,13 @@ async function providerScopeEvidence(
     local_review_head_sha: headSha,
     full_pr_diff_range: `${baseSha}..${headSha}`,
     evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
     provider_files: entries,
     local_files: entries,
     provider_diff_sha256: sha256(fullDiff),
@@ -239,14 +306,7 @@ async function providerFileEntries(
     ).split(/\s+/u);
     const additions = Number(additionsRaw);
     const deletions = Number(deletionsRaw);
-    const patch = await gitRaw(
-      cwd,
-      "diff",
-      "--find-renames",
-      range,
-      "--",
-      ...pathspecs,
-    );
+    const patch = await canonicalGitDiffRaw(cwd, range, pathspecs);
     entries.push({
       path: filePath,
       status:

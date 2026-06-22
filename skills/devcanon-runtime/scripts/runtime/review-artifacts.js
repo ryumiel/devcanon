@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdtemp, readFile, realpath, rm, writeFile, } from "node:fs/promises";
+import { access, lstat, mkdtemp, readFile, realpath, rm, stat, writeFile, } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { runGit } from "./git.js";
+import { runGit, runGitRaw } from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 const EMPTY_OPTIONS = {
     surface: "",
@@ -76,6 +77,10 @@ const INITIAL_FULL_ALLOWED_EXTRA_REASONS = new Set([
     ...SEMANTIC_ESCALATION_REASONS,
     "ambiguous-classification",
 ]);
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
     "governed_path",
     "file_count",
@@ -650,7 +655,12 @@ async function validatePrReviewProviderEvidence(scope, options) {
     if (!(await gitRefExists(`${providerHead}^{commit}`))) {
         fail("provider head does not resolve");
     }
+    if (providerDiffBase === providerHead ||
+        !(await gitMergeBaseIsAncestor(providerDiffBase, providerHead))) {
+        fail("provider PR diff base must be a strict ancestor of head");
+    }
     const localRange = `${providerDiffBase}..${providerHead}`;
+    const digestProvenance = digestProvenanceField(evidence);
     const expectedLocalFiles = await normalizedLocalFileEntries(localRange);
     const providerFiles = normalizedEvidenceEntries(arrayField(evidence, "provider_files"));
     const localFiles = normalizedEvidenceEntries(arrayField(evidence, "local_files"));
@@ -663,21 +673,71 @@ async function validatePrReviewProviderEvidence(scope, options) {
         fail("local provider evidence does not match git");
     }
     validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
-    const localDiffDigest = sha256String(await git(["diff", localRange]));
+    const localDiffDigest = sha256Buffer(await canonicalGitDiffRaw(localRange));
     if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
         fail("local diff digest does not match git");
     }
+    if (stringField(digestProvenance, "local_diff") !== CANONICAL_GIT_DIFF_DIALECT) {
+        fail("provider evidence schema mismatch");
+    }
+    validatePatchDigestProvenance(digestProvenance);
+    const unavailableOnly = providerFiles.length > 0 &&
+        providerFiles.every(isUnavailablePatchEntry) &&
+        localFiles.every(isUnavailablePatchEntry) &&
+        expectedLocalFiles.every(isUnavailablePatchEntry);
     if (stringField(evidence, "provider_diff_sha256") !==
         stringField(evidence, "local_diff_sha256")) {
-        const unavailableOnly = providerFiles.length > 0 &&
-            providerFiles.every(isUnavailablePatchEntry) &&
-            localFiles.every(isUnavailablePatchEntry) &&
-            expectedLocalFiles.every(isUnavailablePatchEntry);
-        if (!unavailableOnly) {
+        if (!unavailableOnly ||
+            stringField(digestProvenance, "provider_diff") !==
+                GITHUB_PROVIDER_DIFF_DIALECT) {
+            fail("provider/local diff digest mismatch");
+        }
+    }
+    else if (!hasCompatibleFullDiffProvenance(digestProvenance)) {
+        if (!unavailableOnly ||
+            stringField(digestProvenance, "provider_diff") !==
+                GITHUB_PROVIDER_DIFF_DIALECT) {
             fail("provider/local diff digest mismatch");
         }
     }
     return evidence;
+}
+function digestProvenanceField(evidence) {
+    return objectField(evidence, "digest_provenance");
+}
+function hasCompatibleFullDiffProvenance(provenance) {
+    return (stringField(provenance, "provider_diff") === CANONICAL_GIT_DIFF_DIALECT &&
+        stringField(provenance, "local_diff") === CANONICAL_GIT_DIFF_DIALECT);
+}
+function validatePatchDigestProvenance(provenance) {
+    if (stringField(provenance, "provider_patches") !==
+        CANONICAL_GIT_DIFF_DIALECT ||
+        stringField(provenance, "local_patches") !== CANONICAL_GIT_DIFF_DIALECT) {
+        fail("provider/local patch evidence mismatch");
+    }
+}
+function isDigestProvenance(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    const provenance = value;
+    const validFullDiffDialects = new Set([
+        CANONICAL_GIT_DIFF_DIALECT,
+        GITHUB_PROVIDER_DIFF_DIALECT,
+    ]);
+    return (hasExactKeys(provenance, [
+        "schema",
+        "provider_diff",
+        "local_diff",
+        "provider_patches",
+        "local_patches",
+    ]) &&
+        stringField(provenance, "schema") === DIGEST_PROVENANCE_SCHEMA &&
+        validFullDiffDialects.has(stringField(provenance, "provider_diff")) &&
+        stringField(provenance, "local_diff") === CANONICAL_GIT_DIFF_DIALECT &&
+        stringField(provenance, "provider_patches") ===
+            CANONICAL_GIT_DIFF_DIALECT &&
+        stringField(provenance, "local_patches") === CANONICAL_GIT_DIFF_DIALECT);
 }
 function validateProviderEvidenceShape(evidence) {
     try {
@@ -692,17 +752,18 @@ function validateProviderEvidenceShape(evidence) {
             "local_review_head_sha",
             "full_pr_diff_range",
             "evidence_complete",
+            "digest_provenance",
             "provider_files",
             "local_files",
             "provider_diff_sha256",
             "local_diff_sha256",
         ]) ||
-            stringField(evidence, "schema") !==
-                "pr-review/provider-scope-evidence/v1" ||
+            stringField(evidence, "schema") !== PROVIDER_EVIDENCE_SCHEMA ||
             stringField(evidence, "provider") !== "github" ||
             stringField(evidence, "repository").trim().length === 0 ||
             !isPositiveInteger(evidence.pr_number) ||
             evidence.evidence_complete !== true ||
+            !isDigestProvenance(evidence.digest_provenance) ||
             !Array.isArray(evidence.provider_files) ||
             !Array.isArray(evidence.local_files) ||
             !isSha256(stringField(evidence, "provider_diff_sha256")) ||
@@ -829,7 +890,7 @@ async function normalizedLocalFileEntries(range) {
         }
         const patchAvailable = numstat.patchAvailable;
         const patchSha256 = patchAvailable
-            ? sha256String(await git(["diff", "--find-renames", range, "--", ...pathspecs]))
+            ? sha256Buffer(await canonicalGitDiffRaw(range, pathspecs))
             : null;
         entries.push({
             path: statusEntry.path,
@@ -845,7 +906,7 @@ async function normalizedLocalFileEntries(range) {
     return entries.sort(compareFileEntries);
 }
 async function gitDiffNameStatus(range) {
-    const tokens = (await git(["diff", "--name-status", "-z", "--find-renames", range]))
+    const tokens = (await canonicalGitDiffMetadataText(["--name-status", "-z", range]))
         .split("\0")
         .filter(Boolean);
     const entries = [];
@@ -878,14 +939,147 @@ async function gitDiffNameStatus(range) {
     }
     return entries;
 }
-async function gitDiffNumstats(range) {
-    const stdout = await git([
-        "diff",
-        "--numstat",
-        "-z",
-        "--find-renames",
-        range,
+async function canonicalGitDiffMetadataText(args) {
+    return (await canonicalGitDiffRawWithArgs(args, { patch: false })).toString("utf8");
+}
+async function canonicalGitDiffRaw(range, pathspecs = []) {
+    return canonicalGitDiffRawWithArgs([range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])], { patch: true });
+}
+async function canonicalGitDiffRawWithArgs(args, options) {
+    await assertNoAmbientInfoAttributes();
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-diff-"));
+    const orderFile = path.join(tempDir, "orderfile");
+    const attributesFile = path.join(tempDir, "attributes");
+    const globalConfigFile = path.join(tempDir, "global-config");
+    await writeFile(orderFile, "");
+    await writeFile(attributesFile, "");
+    await writeFile(globalConfigFile, "");
+    try {
+        const patchArgs = options.patch
+            ? ["--unified=3", "--inter-hunk-context=0"]
+            : [];
+        const gitArgs = [
+            ...canonicalGitConfigArgs(orderFile, attributesFile),
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-color",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--find-renames",
+            "--diff-algorithm=myers",
+            ...patchArgs,
+            ...args,
+        ];
+        const { stdout } = await runGitRaw(gitArgs, {
+            cwd: process.cwd(),
+            env: canonicalGitEnv(globalConfigFile),
+        });
+        return stdout;
+    }
+    catch {
+        fail("git command failed");
+    }
+    finally {
+        await rm(tempDir, { recursive: true, force: true });
+    }
+}
+function canonicalGitConfigArgs(orderFile, attributesFile) {
+    return [
+        "-c",
+        "diff.noprefix=false",
+        "-c",
+        "diff.mnemonicPrefix=false",
+        "-c",
+        "diff.srcPrefix=a/",
+        "-c",
+        "diff.dstPrefix=b/",
+        "-c",
+        "diff.relative=false",
+        "-c",
+        "core.abbrev=40",
+        "-c",
+        "diff.abbrev=40",
+        "-c",
+        "diff.context=3",
+        "-c",
+        "diff.interHunkContext=0",
+        "-c",
+        "diff.algorithm=myers",
+        "-c",
+        "diff.renames=true",
+        "-c",
+        "diff.renameLimit=0",
+        "-c",
+        "diff.color=false",
+        "-c",
+        "color.ui=false",
+        "-c",
+        "core.quotePath=true",
+        "-c",
+        "diff.suppressBlankEmpty=false",
+        "-c",
+        "diff.indentHeuristic=false",
+        "-c",
+        `diff.orderFile=${orderFile}`,
+        "-c",
+        `core.attributesFile=${attributesFile}`,
+    ];
+}
+function canonicalGitEnv(globalConfigFile) {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_CONFIG") && key !== "GIT_CONFIG_PARAMETERS"));
+    env.GIT_EXTERNAL_DIFF = undefined;
+    env.GIT_DIFF_OPTS = undefined;
+    env.GIT_ATTR_SOURCE = undefined;
+    env.GIT_CONFIG_GLOBAL = globalConfigFile;
+    env.GIT_CONFIG_NOSYSTEM = "1";
+    env.GIT_ATTR_NOSYSTEM = "1";
+    return env;
+}
+async function assertNoAmbientInfoAttributes() {
+    const gitPathInfoAttributes = await git([
+        "rev-parse",
+        "--git-path",
+        "info/attributes",
     ]);
+    const gitCommonDir = await git(["rev-parse", "--git-common-dir"]);
+    const infoAttributePaths = new Set([
+        resolveGitPath(gitPathInfoAttributes.trim()),
+        path.join(resolveGitPath(gitCommonDir.trim()), "info", "attributes"),
+    ]);
+    for (const infoAttributes of infoAttributePaths) {
+        await assertEmptyOrMissingInfoAttributes(infoAttributes);
+    }
+}
+function resolveGitPath(gitPath) {
+    return path.isAbsolute(gitPath)
+        ? gitPath
+        : path.resolve(process.cwd(), gitPath);
+}
+function isNodeErrorCode(err, code) {
+    return (typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        err.code === code);
+}
+async function assertEmptyOrMissingInfoAttributes(infoAttributes) {
+    try {
+        const attributesStat = await stat(infoAttributes);
+        if (attributesStat.size > 0) {
+            fail("canonical diff driver discovery failed");
+        }
+    }
+    catch (err) {
+        if (err instanceof ReviewArtifactsError) {
+            throw err;
+        }
+        if (!isNodeErrorCode(err, "ENOENT")) {
+            fail("canonical diff driver discovery failed");
+        }
+    }
+}
+async function gitDiffNumstats(range) {
+    const stdout = await canonicalGitDiffMetadataText(["--numstat", "-z", range]);
     const tokens = stdout.split("\0").filter(Boolean);
     const entries = new Map();
     for (let index = 0; index < tokens.length;) {
@@ -893,8 +1087,12 @@ async function gitDiffNumstats(range) {
         index += 1;
         const [additionsRaw, deletionsRaw, simplePath] = header.split("\t");
         const previousPath = simplePath === "" ? (tokens[index] ?? "") : null;
-        const filePath = simplePath === "" ? (tokens[index + 1] ?? "") : simplePath;
-        index += simplePath === "" ? 2 : 0;
+        const filePath = simplePath === ""
+            ? (tokens[index + 1] ?? "")
+            : simplePath === undefined
+                ? (tokens[index] ?? "")
+                : simplePath;
+        index += simplePath === "" ? 2 : simplePath === undefined ? 1 : 0;
         entries.set(filePathPairKey({ path: filePath ?? "", previousPath }), parseGitDiffNumstat(additionsRaw, deletionsRaw));
     }
     return entries;
@@ -913,7 +1111,7 @@ function parseGitDiffNumstat(additionsRaw, deletionsRaw) {
     }
     return { additions, deletions, patchAvailable: true };
 }
-function sha256String(value) {
+function sha256Buffer(value) {
     return createHash("sha256").update(value).digest("hex");
 }
 function validatePriorThreadsSchema(envelope, options) {

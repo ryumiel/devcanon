@@ -21,6 +21,9 @@ const helperScript = path.join(
   "skills/pr-review/scripts/prior-thread-artifacts.sh",
 );
 const jqAvailable = await commandAvailable("jq");
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 
 async function commandAvailable(command: string): Promise<boolean> {
   try {
@@ -60,6 +63,62 @@ async function git(cwd: string, ...args: string[]) {
 async function gitRaw(cwd: string, ...args: string[]) {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout;
+}
+
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+) {
+  return gitRaw(
+    cwd,
+    "-c",
+    "diff.noprefix=false",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.srcPrefix=a/",
+    "-c",
+    "diff.dstPrefix=b/",
+    "-c",
+    "diff.relative=false",
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.context=3",
+    "-c",
+    "diff.interHunkContext=0",
+    "-c",
+    "diff.algorithm=myers",
+    "-c",
+    "diff.renames=true",
+    "-c",
+    "diff.renameLimit=0",
+    "-c",
+    "diff.color=false",
+    "-c",
+    "color.ui=false",
+    "-c",
+    "core.quotePath=true",
+    "-c",
+    "diff.suppressBlankEmpty=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    range,
+    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+  );
 }
 
 function scopePath(headSha: string) {
@@ -110,14 +169,10 @@ async function providerScopeEvidence(
   baseSha: string,
   headSha: string,
 ) {
-  const patch = await gitRaw(
-    cwd,
-    "diff",
-    `${baseSha}..${headSha}`,
-    "--",
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
     "src/app.ts",
-  );
-  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  ]);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
   const entry = {
     path: "src/app.ts",
     status: "added",
@@ -129,7 +184,7 @@ async function providerScopeEvidence(
     patch_available: true,
   };
   return {
-    schema: "pr-review/provider-scope-evidence/v1",
+    schema: PROVIDER_EVIDENCE_SCHEMA,
     provider: "github",
     repository: "owner/repo",
     pr_number: 390,
@@ -139,6 +194,13 @@ async function providerScopeEvidence(
     local_review_head_sha: headSha,
     full_pr_diff_range: `${baseSha}..${headSha}`,
     evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
     provider_files: [entry],
     local_files: [entry],
     provider_diff_sha256: sha256(fullDiff),

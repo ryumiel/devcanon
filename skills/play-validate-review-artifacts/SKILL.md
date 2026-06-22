@@ -122,25 +122,40 @@ The provider evidence path must also be recorded in
 `artifacts.provider_scope_evidence_file` on the scope-decision artifact, with
 `artifacts.provider_scope_evidence_sha256` binding the exact evidence bytes.
 The evidence artifact must use schema
-`pr-review/provider-scope-evidence/v1`, provider `github`, explicit provider
+`pr-review/provider-scope-evidence/v2`, provider `github`, explicit provider
 OIDs, provider PR diff-base proof, normalized provider file entries,
-normalized local file entries, and provider/local diff digests. The validator
+normalized local file entries, provider/local diff digests, and
+`digest_provenance` with schema `pr-review/digest-provenance/v1`. Digest
+provenance must cover `provider_diff`, `local_diff`, `provider_patches`, and
+`local_patches`; local digests must be `canonical-git-diff/v1`. The validator
+computes canonical Git evidence with raw bytes, stripped inherited
+`GIT_CONFIG*` injection, disabled global/system Git config and attributes, and
+empty explicit order/attributes files. Because Git always gives repository
+`info/attributes` precedence and provides no per-command disable for that
+source, non-empty repository `info/attributes` fails closed instead of being
+hashed as canonical evidence.
+The validator
 requires the full PR range to be `<provider_pr_diff_base_sha>..<headRefOid>`
 and rejects moving local base refs such as `origin/main` or hidden `HEAD`
 expansion for `pr-review` full-range proof. Provider and local normalized file
 metadata must match exactly for `path`, `previous_path`, `status`, `additions`,
-`deletions`, and `changes`, and local metadata must match Git for the proven
-range. When provider patch evidence is available, both provider and local file
-entries must set `patch_available=true` and their `patch_sha256` values must
-match Git. When textual patch evidence is unavailable for a file, both
-provider and local entries must represent that file with
+`deletions`, and `changes`, and local metadata must match canonical Git
+evidence for the proven range. When provider patch evidence is available, both
+provider and local file entries must set `patch_available=true`, their
+`patch_sha256` values must match canonical Git evidence, and provider/local
+patch provenance must be compatible. When textual patch evidence is unavailable
+for a file, both provider and local entries must represent that file with
 `patch_available=false` and `patch_sha256=null` while metadata still matches.
 Provider/local full diff digest mismatch is allowed only when every provider
-and local file entry is represented as unavailable; mixed available/unavailable
-sets still fail closed on diff digest drift. Stale heads, missing OIDs, missing
-or incomplete evidence, duplicate file entries, unbound paths, patch digest
-drift, file metadata drift, and provider/local diff identity drift outside the
-all-files-unavailable exception fail closed before review dispatch.
+and local file entry in a non-empty complete changed-file set is represented as
+unavailable, provider full-diff provenance is declared
+`github-provider-diff/v1`, local full-diff provenance is
+`canonical-git-diff/v1`, and the local digest matches canonical Git evidence.
+Mixed available/unavailable sets still fail closed on diff digest drift or
+incompatible provenance. Stale heads, missing OIDs, missing or incomplete
+evidence, missing digest provenance, duplicate file entries, unbound paths,
+patch digest drift, file metadata drift, and provider/local diff identity drift
+outside the all-files-unavailable exception fail closed before review dispatch.
 
 Adapters must pass the evidence path as an explicit support-validator flag.
 They may prepare that path from their own surface-specific inputs, but adapters

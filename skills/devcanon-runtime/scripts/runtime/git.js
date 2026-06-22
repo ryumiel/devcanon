@@ -4,9 +4,21 @@ const execFileAsync = promisify(execFile);
 export async function runGit(args, options) {
     const { stdout, stderr } = await execFileAsync("git", [...args], {
         cwd: options.cwd,
+        env: options.env,
         shell: false,
         windowsHide: true,
         maxBuffer: 10 * 1024 * 1024,
+    });
+    return { stdout, stderr };
+}
+export async function runGitRaw(args, options) {
+    const { stdout, stderr } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        env: options.env,
+        encoding: "buffer",
+        shell: false,
+        windowsHide: true,
+        maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024,
     });
     return { stdout, stderr };
 }

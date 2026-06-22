@@ -34,6 +34,9 @@ const reviewBodyFile = ".ephemeral/topic-review-body.md";
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
 const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
 const priorThreadsFile = `.ephemeral/topic-${headSha}-prior-threads.json`;
 
@@ -161,6 +164,66 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
 }
 
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "-c",
+      "diff.noprefix=false",
+      "-c",
+      "diff.mnemonicPrefix=false",
+      "-c",
+      "diff.srcPrefix=a/",
+      "-c",
+      "diff.dstPrefix=b/",
+      "-c",
+      "diff.relative=false",
+      "-c",
+      "core.abbrev=40",
+      "-c",
+      "diff.abbrev=40",
+      "-c",
+      "diff.context=3",
+      "-c",
+      "diff.interHunkContext=0",
+      "-c",
+      "diff.algorithm=myers",
+      "-c",
+      "diff.renames=true",
+      "-c",
+      "diff.renameLimit=0",
+      "-c",
+      "diff.color=false",
+      "-c",
+      "color.ui=false",
+      "-c",
+      "core.quotePath=true",
+      "-c",
+      "diff.suppressBlankEmpty=false",
+      "-c",
+      "diff.indentHeuristic=false",
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--find-renames",
+      "--diff-algorithm=myers",
+      "--unified=3",
+      "--inter-hunk-context=0",
+      range,
+      ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+    ],
+    { cwd },
+  );
+  return stdout;
+}
+
 async function sha256File(cwd: string, relPath: string): Promise<string> {
   return createHash("sha256")
     .update(await readFile(path.join(cwd, relPath)))
@@ -187,18 +250,13 @@ async function writeRealProviderEvidence(
   headShaValue: string,
   filePath: string,
 ) {
-  const patch = (
-    await execFileAsync(
-      "git",
-      ["diff", `${baseSha}..${headShaValue}`, "--", "src/example.ts"],
-      { cwd },
-    )
-  ).stdout;
-  const fullDiff = (
-    await execFileAsync("git", ["diff", `${baseSha}..${headShaValue}`], {
-      cwd,
-    })
-  ).stdout;
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headShaValue}`, [
+    "src/example.ts",
+  ]);
+  const fullDiff = await canonicalGitDiffRaw(
+    cwd,
+    `${baseSha}..${headShaValue}`,
+  );
   const entry = {
     path: "src/example.ts",
     status: "added",
@@ -210,7 +268,7 @@ async function writeRealProviderEvidence(
     patch_available: true,
   };
   await writeJson(cwd, filePath, {
-    schema: "pr-review/provider-scope-evidence/v1",
+    schema: PROVIDER_EVIDENCE_SCHEMA,
     provider: "github",
     repository: "owner/repo",
     pr_number: 390,
@@ -220,6 +278,13 @@ async function writeRealProviderEvidence(
     local_review_head_sha: headShaValue,
     full_pr_diff_range: `${baseSha}..${headShaValue}`,
     evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
     provider_files: [entry],
     local_files: [entry],
     provider_diff_sha256: createHash("sha256").update(fullDiff).digest("hex"),

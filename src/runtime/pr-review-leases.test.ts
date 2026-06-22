@@ -3685,7 +3685,7 @@ async function writeResultArtifact(
     path.join(worktree, providerScopeEvidenceFile),
     `${JSON.stringify(
       {
-        schema: "pr-review/provider-scope-evidence/v1",
+        schema: "pr-review/provider-scope-evidence/v2",
         provider: "github",
         repository: "owner/repo",
         pr_number: 432,
@@ -3695,6 +3695,13 @@ async function writeResultArtifact(
         local_review_head_sha: reviewHead,
         full_pr_diff_range: providerPrDiffRange,
         evidence_complete: true,
+        digest_provenance: {
+          schema: "pr-review/digest-provenance/v1",
+          provider_diff: "canonical-git-diff/v1",
+          local_diff: "canonical-git-diff/v1",
+          provider_patches: "canonical-git-diff/v1",
+          local_patches: "canonical-git-diff/v1",
+        },
         provider_files: [],
         local_files: [],
         provider_diff_sha256: "0".repeat(64),

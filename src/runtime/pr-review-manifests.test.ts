@@ -374,7 +374,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
     setSummaryEnv(workspace);
     await writeJson(workspace.worktree, workspace.providerScopeEvidenceFile, {
-      schema: "pr-review/provider-scope-evidence/v1",
+      schema: "pr-review/provider-scope-evidence/v2",
       provider: "github",
       repository: "owner/repo",
       pr_number: 432,
@@ -384,6 +384,13 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       local_review_head_sha: workspace.headSha,
       full_pr_diff_range: `${workspace.baseSha}..${workspace.headSha}`,
       evidence_complete: true,
+      digest_provenance: {
+        schema: "pr-review/digest-provenance/v1",
+        provider_diff: "canonical-git-diff/v1",
+        local_diff: "canonical-git-diff/v1",
+        provider_patches: "canonical-git-diff/v1",
+        local_patches: "canonical-git-diff/v1",
+      },
       provider_files: [],
       local_files: [],
       provider_diff_sha256: "0".repeat(64),
@@ -591,7 +598,7 @@ async function makeManifestWorkspace(
   const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
   const providerPrDiffRange = `${baseSha}..${headSha}`;
   await writeJson(worktree, providerScopeEvidenceFile, {
-    schema: "pr-review/provider-scope-evidence/v1",
+    schema: "pr-review/provider-scope-evidence/v2",
     provider: "github",
     repository: "owner/repo",
     pr_number: 432,
@@ -601,6 +608,13 @@ async function makeManifestWorkspace(
     local_review_head_sha: headSha,
     full_pr_diff_range: providerPrDiffRange,
     evidence_complete: true,
+    digest_provenance: {
+      schema: "pr-review/digest-provenance/v1",
+      provider_diff: "canonical-git-diff/v1",
+      local_diff: "canonical-git-diff/v1",
+      provider_patches: "canonical-git-diff/v1",
+      local_patches: "canonical-git-diff/v1",
+    },
     provider_files: [],
     local_files: [],
     provider_diff_sha256: "0".repeat(64),

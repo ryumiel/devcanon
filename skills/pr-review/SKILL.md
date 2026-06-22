@@ -186,23 +186,35 @@ that support skill's sibling-script contract.
 The Phase 3 provider scope evidence artifact is the wrapper-owned authority for
 full PR scope. It must record provider `baseRefOid`, provider `headRefOid`,
 `provider_pr_diff_base_sha`; complete bound provider file/diff evidence;
-normalized local file entries; local diff digest; and the proof that
-provider/local file metadata and available patch digests match, except for the
+normalized local file entries; local diff digest; and
+`digest_provenance` using schema `pr-review/digest-provenance/v1`. Producers
+must compute local file metadata, local diff digests, and local available patch
+digests from the support validator's canonical Git evidence contract, and must
+declare whether provider full-diff evidence uses canonical Git bytes or
+`github-provider-diff/v1` bytes. Canonical local evidence uses raw Git bytes
+with inherited `GIT_CONFIG*` injection stripped and global/system Git config and
+attributes disabled; a non-empty repository `info/attributes` file fails closed
+because Git gives it highest precedence and does not provide a per-command
+disable. Provider/local file metadata and available
+patch digests must match with compatible provenance, except for the
 runtime-defined all-provider-files-unavailable full-diff digest case. In that
-exception, every provider and local file entry has `patch_available=false` and
-`patch_sha256=null`, metadata matches exactly, and the complete provider file
-list is still bound, satisfying the provider evidence contract even when
-provider and local full diff digests differ. Mixed available/unavailable file
-sets do not qualify for the full-diff digest exception. For local ref checks,
+exception, every provider and local file entry in a non-empty complete
+changed-file set has `patch_available=false` and `patch_sha256=null`, metadata
+matches exactly, the complete provider file list is still bound, provider
+full-diff provenance is `github-provider-diff/v1`, local full-diff provenance
+is `canonical-git-diff/v1`, and the local digest matches canonical Git
+evidence. Mixed available/unavailable file sets do not qualify for the
+full-diff digest exception. For local ref checks,
 local base refs are allowed only as diagnostics or optimization inputs after
 exact-SHA
 equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven. Wrong-base diagnostics are
 fail-closed: stale base refs, moving local base refs, hidden `HEAD` expansion,
-incomplete provider evidence, provider/local file metadata drift, available
-patch digest drift, full-diff digest drift, or any mismatch between provider
-proof and local checkout stop before Phase 4. In other words, full-diff digest
-drift fails closed except for the runtime-defined all-provider-files-unavailable
-case above. The wrapper must bind the provider
+incomplete provider evidence, missing digest provenance, provider/local file
+metadata drift, available patch digest drift, full-diff digest drift,
+incompatible provenance, or any mismatch between provider proof and local
+checkout stop before Phase 4. In other words, full-diff digest drift fails
+closed except for the runtime-defined all-provider-files-unavailable case above.
+The wrapper must bind the provider
 scope evidence artifact into every scope-decision, handoff, result, and
 approved-review validation path that consumes full-range authority. Unbound side
 guards or ambient environment variables do not prove full range.
@@ -251,7 +263,7 @@ bind_scope_decision_artifact() {
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1
   ) || return 1
-  # Write the pr-review/provider-scope-evidence/v1 envelope to
+  # Write the pr-review/provider-scope-evidence/v2 envelope to
   # "$PROVIDER_SCOPE_EVIDENCE_FILE" using provider PR file and diff evidence.
   # The full_pr_diff_range must be "$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA".
   SCOPE_DECISION_FILE=$(

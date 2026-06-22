@@ -18,6 +18,11 @@ const originalCwd = process.cwd();
 
 type JsonObject = Record<string, unknown>;
 
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
+
 afterEach(() => {
   process.chdir(originalCwd);
 });
@@ -145,14 +150,152 @@ async function makeProviderBinaryWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
+async function makeProviderDiffDriverWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-provider-diff-driver-"),
+  );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, ".gitattributes"), "*.ts diff=poison\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await mkdir(path.join(cwd, "src"), { recursive: true });
+  await writeFile(path.join(cwd, "src/app.ts"), "export const value = 1;\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: add app"], { cwd });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
 }
 
-async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync("git", args, { cwd });
+async function gitRaw(
+  cwd: string,
+  args: readonly string[],
+  options: { env?: NodeJS.ProcessEnv } = {},
+): Promise<string> {
+  const { stdout } = await execFileAsync("git", [...args], {
+    cwd,
+    env: options.env,
+  });
   return stdout;
+}
+
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  return canonicalGitDiffRawWithArgs(cwd, [
+    range,
+    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+  ]);
+}
+
+async function canonicalGitDiffRawWithArgs(
+  cwd: string,
+  args: readonly string[],
+): Promise<string> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-test-diff-"));
+  const orderFile = path.join(tempDir, "orderfile");
+  const attributesFile = path.join(tempDir, "attributes");
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(orderFile, "");
+  await writeFile(attributesFile, "");
+  await writeFile(globalConfigFile, "");
+  try {
+    return await gitRaw(
+      cwd,
+      [
+        "-c",
+        "diff.noprefix=false",
+        "-c",
+        "diff.mnemonicPrefix=false",
+        "-c",
+        "diff.srcPrefix=a/",
+        "-c",
+        "diff.dstPrefix=b/",
+        "-c",
+        "diff.relative=false",
+        "-c",
+        "core.abbrev=40",
+        "-c",
+        "diff.abbrev=40",
+        "-c",
+        "diff.context=3",
+        "-c",
+        "diff.interHunkContext=0",
+        "-c",
+        "diff.algorithm=myers",
+        "-c",
+        "diff.renames=true",
+        "-c",
+        "diff.renameLimit=0",
+        "-c",
+        "diff.color=false",
+        "-c",
+        "color.ui=false",
+        "-c",
+        "core.quotePath=true",
+        "-c",
+        "diff.suppressBlankEmpty=false",
+        "-c",
+        "diff.indentHeuristic=false",
+        "-c",
+        `diff.orderFile=${orderFile}`,
+        "-c",
+        `core.attributesFile=${attributesFile}`,
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-color",
+        "--src-prefix=a/",
+        "--dst-prefix=b/",
+        "--find-renames",
+        "--diff-algorithm=myers",
+        "--unified=3",
+        "--inter-hunk-context=0",
+        ...args,
+      ],
+      {
+        env: {
+          ...canonicalGitTestEnv(),
+          GIT_EXTERNAL_DIFF: undefined,
+          GIT_DIFF_OPTS: undefined,
+          GIT_ATTR_SOURCE: undefined,
+          GIT_CONFIG_GLOBAL: globalConfigFile,
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_ATTR_NOSYSTEM: "1",
+        },
+      },
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function canonicalGitTestEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) =>
+        !key.startsWith("GIT_CONFIG") && key !== "GIT_CONFIG_PARAMETERS",
+    ),
+  );
 }
 
 async function makeProviderRenameWorkspace(edited: boolean): Promise<{
@@ -293,13 +436,9 @@ async function providerEvidenceFileEntry(
   headSha: string,
   filePath = "src/app.ts",
 ): Promise<JsonObject> {
-  const patch = await gitRaw(
-    cwd,
-    "diff",
-    `${baseSha}..${headSha}`,
-    "--",
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`, [
     filePath,
-  );
+  ]);
   return {
     path: filePath,
     status: "added",
@@ -333,14 +472,23 @@ function binaryUnavailablePatchEntry(filePath: string): JsonObject {
   };
 }
 
+function providerNativeDiffProvenance(): JsonObject {
+  return {
+    schema: DIGEST_PROVENANCE_SCHEMA,
+    provider_diff: GITHUB_PROVIDER_DIFF_DIALECT,
+    local_diff: CANONICAL_GIT_DIFF_DIALECT,
+    provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+    local_patches: CANONICAL_GIT_DIFF_DIALECT,
+  };
+}
+
 async function providerRenameEvidenceFileEntry(
   cwd: string,
   baseSha: string,
   headSha: string,
 ): Promise<JsonObject> {
   const range = `${baseSha}..${headSha}`;
-  const numstat = await gitRaw(
-    cwd,
+  const numstat = await gitRaw(cwd, [
     "diff",
     "--numstat",
     "-z",
@@ -349,19 +497,14 @@ async function providerRenameEvidenceFileEntry(
     "--",
     "src/old.ts",
     "src/new.ts",
-  );
+  ]);
   const [additionsRaw, deletionsRaw] = numstat.split(/\s+/u);
   const additions = Number(additionsRaw);
   const deletions = Number(deletionsRaw);
-  const patch = await gitRaw(
-    cwd,
-    "diff",
-    "--find-renames",
-    range,
-    "--",
+  const patch = await canonicalGitDiffRaw(cwd, range, [
     "src/old.ts",
     "src/new.ts",
-  );
+  ]);
   return {
     path: "src/new.ts",
     status: "renamed",
@@ -384,7 +527,7 @@ async function providerScopeEvidence(
   headSha: string,
   overrides: JsonObject = {},
 ): Promise<JsonObject> {
-  const fullDiff = await gitRaw(cwd, "diff", `${baseSha}..${headSha}`);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
   const hasExplicitFileEntries =
     Object.hasOwn(overrides, "provider_files") &&
     Object.hasOwn(overrides, "local_files");
@@ -392,7 +535,7 @@ async function providerScopeEvidence(
     ? null
     : await providerEvidenceFileEntry(cwd, baseSha, headSha);
   return {
-    schema: "pr-review/provider-scope-evidence/v1",
+    schema: PROVIDER_EVIDENCE_SCHEMA,
     provider: "github",
     repository: "owner/repo",
     pr_number: 480,
@@ -402,6 +545,13 @@ async function providerScopeEvidence(
     local_review_head_sha: headSha,
     full_pr_diff_range: `${baseSha}..${headSha}`,
     evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
     provider_files: fileEntry === null ? [] : [fileEntry],
     local_files: fileEntry === null ? [] : [fileEntry],
     provider_diff_sha256: sha256(fullDiff),
@@ -646,7 +796,7 @@ describe("review artifact runtime reducers", () => {
     const evidencePath = providerScopeEvidencePath(headSha);
     const movingBaseRange = `${advancedBaseSha}..${headSha}`;
     try {
-      const movingBaseDiff = await gitRaw(cwd, "diff", movingBaseRange);
+      const movingBaseDiff = await canonicalGitDiffRaw(cwd, movingBaseRange);
       await writeJson(
         cwd,
         evidencePath,
@@ -672,7 +822,7 @@ describe("review artifact runtime reducers", () => {
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
-          "local provider evidence does not match git",
+          "provider PR diff base must be a strict ancestor of head",
         ),
       });
     } finally {
@@ -680,7 +830,7 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("rejects text patch evidence relabeled as unavailable", async () => {
+  it("rejects unavailable text evidence when canonical local patches are available", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
     try {
@@ -694,6 +844,7 @@ describe("review artifact runtime reducers", () => {
           provider_files: [fileEntry],
           local_files: [fileEntry],
           provider_diff_sha256: "b".repeat(64),
+          digest_provenance: providerNativeDiffProvenance(),
         }),
       );
       await writeJson(
@@ -727,6 +878,7 @@ describe("review artifact runtime reducers", () => {
           provider_files: [fileEntry],
           local_files: [fileEntry],
           provider_diff_sha256: "b".repeat(64),
+          digest_provenance: providerNativeDiffProvenance(),
         }),
       );
       await writeJson(
@@ -746,6 +898,146 @@ describe("review artifact runtime reducers", () => {
         stderr: "",
       });
     } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("accepts all-unavailable provider-native provenance when full diff digests match", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderBinaryWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = binaryUnavailablePatchEntry("assets/blob.bin");
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+          digest_provenance: providerNativeDiffProvenance(),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["assets/blob.bin"],
+          language_hints: ["bin"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects linked-worktree common info attributes before canonical diff hashing", async () => {
+    const source = await makeRiskSignalsWorkspace();
+    const linkedCwd = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-linked-provider-"),
+    );
+    try {
+      await execFileAsync("git", ["switch", "main"], { cwd: source.cwd });
+      await execFileAsync("git", ["worktree", "add", linkedCwd, "topic"], {
+        cwd: source.cwd,
+      });
+      await mkdir(path.join(linkedCwd, ".ephemeral"));
+      process.chdir(linkedCwd);
+      const evidencePath = providerScopeEvidencePath(source.headSha);
+      await writeJson(
+        linkedCwd,
+        evidencePath,
+        await providerScopeEvidence(linkedCwd, source.baseSha, source.headSha),
+      );
+      await writeJson(
+        linkedCwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(linkedCwd, source.baseSha, source.headSha),
+      );
+      const commonGitDir = await git(
+        linkedCwd,
+        "rev-parse",
+        "--git-common-dir",
+      );
+      await writeFile(
+        path.join(
+          path.isAbsolute(commonGitDir)
+            ? commonGitDir
+            : path.resolve(linkedCwd, commonGitDir),
+          "info",
+          "attributes",
+        ),
+        "*.ts diff=ambient\n",
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(source.headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "canonical diff driver discovery failed",
+        ),
+      });
+    } finally {
+      process.chdir(originalCwd);
+      await execFileAsync("git", ["worktree", "remove", "--force", linkedCwd], {
+        cwd: source.cwd,
+      }).catch(() => undefined);
+      await cleanupTempDir(linkedCwd);
+      await cleanupTempDir(source.cwd);
+    }
+  });
+
+  it("ignores ambient GIT_CONFIG_COUNT diff-driver injection for canonical hashing", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderDiffDriverWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const previousConfigCount = process.env.GIT_CONFIG_COUNT;
+    const previousConfigKey = process.env.GIT_CONFIG_KEY_0;
+    const previousConfigValue = process.env.GIT_CONFIG_VALUE_0;
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = "diff.poison.binary";
+      process.env.GIT_CONFIG_VALUE_0 = "true";
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      if (previousConfigCount === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_COUNT");
+      } else {
+        process.env.GIT_CONFIG_COUNT = previousConfigCount;
+      }
+      if (previousConfigKey === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_KEY_0");
+      } else {
+        process.env.GIT_CONFIG_KEY_0 = previousConfigKey;
+      }
+      if (previousConfigValue === undefined) {
+        Reflect.deleteProperty(process.env, "GIT_CONFIG_VALUE_0");
+      } else {
+        process.env.GIT_CONFIG_VALUE_0 = previousConfigValue;
+      }
       await cleanupRiskSignalsWorkspace(cwd);
     }
   });
@@ -965,12 +1257,25 @@ describe("review artifact runtime reducers", () => {
       stderr: "provider/local patch evidence mismatch",
     },
     {
+      name: "self-range provider diff base",
+      scope: async (cwd: string, _baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, headSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_pr_diff_base_sha: headSha,
+          full_pr_diff_range: `${headSha}..${headSha}`,
+          provider_files: [],
+          local_files: [],
+        }),
+      stderr: "provider PR diff base must be a strict ancestor of head",
+    },
+    {
       name: "malformed provider evidence",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
       evidence: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeEvidence(cwd, baseSha, headSha, {
-          schema: "pr-review/provider-scope-evidence/v2",
+          schema: "pr-review/provider-scope-evidence/v1",
         }),
       stderr: "provider evidence schema mismatch",
     },

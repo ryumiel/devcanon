@@ -779,7 +779,10 @@ describe("existing skills source prose contracts", () => {
       "prepare-provider-scope-evidence-write",
     );
     expect(normalizedPrReview).toContain(
-      "Write the pr-review/provider-scope-evidence/v1 envelope to",
+      "Write the pr-review/provider-scope-evidence/v2 envelope to",
+    );
+    expect(normalizedPrReview).toContain(
+      "`digest_provenance` using schema `pr-review/digest-provenance/v1`",
     );
     expect(normalizedPrReview).toContain(
       "provider scope evidence file and digest",
