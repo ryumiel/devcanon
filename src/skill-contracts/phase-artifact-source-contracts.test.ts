@@ -1595,9 +1595,17 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrReview).toContain(
       "complete bound provider file/diff evidence",
     );
-    expect(normalizedPrReview).toContain("provider PR diff-base proof");
+    expect(normalizedPrReview).toContain(
+      "provider PR diff-base proof is shorthand for `provider_pr_diff_base_sha` plus bound provider/local file and diff evidence",
+    );
     expect(normalizedPrReview).toContain(
       "provider/local file lists and diff digests match",
+    );
+    expect(normalizedPrReview).toContain(
+      "diff digest drift fails closed except for the runtime-defined unavailable-patch case",
+    );
+    expect(normalizedPrReview).toContain(
+      "matching metadata and `patch_available=false` for every provider file whose textual patch is unavailable",
     );
     expect(normalizedPrReview).toContain(
       'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',

@@ -48,9 +48,11 @@ Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
 provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
 diff base. Also gather the complete provider file/diff evidence needed to prove
 full PR scope: paginated provider file metadata, provider diff bytes or digest,
-provider PR diff-base proof, and the local file list and local diff digest for
-the candidate full range. Phase 3 binds those facts into the provider scope
-evidence artifact before any review dispatch.
+the provider PR diff-base proof, and the local file list and local diff digest
+for the candidate full range. Here provider PR diff-base proof is shorthand
+for `provider_pr_diff_base_sha` plus bound provider/local file and diff
+evidence. Phase 3 binds those facts into the provider scope evidence artifact
+before any review dispatch.
 
 <!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
@@ -183,19 +185,23 @@ that support skill's sibling-script contract.
 
 The Phase 3 provider scope evidence artifact is the wrapper-owned authority for
 full PR scope. It must record provider `baseRefOid`, provider `headRefOid`,
-`provider_pr_diff_base_sha`, provider PR diff-base proof, complete bound
-provider file/diff evidence, normalized local file entries, local diff digest,
-and the proof that provider/local file lists and diff digests match. For local
-ref checks, local base refs are allowed only as diagnostics or optimization
-inputs after exact-SHA
+`provider_pr_diff_base_sha`; complete bound provider file/diff evidence;
+normalized local file entries; local diff digest; and the proof that
+provider/local file lists and diff digests match, except for the
+runtime-defined unavailable-patch case. In that exception, matching metadata and
+`patch_available=false` for every provider file whose textual patch is
+unavailable satisfy the provider evidence contract even when provider and local
+diff digests differ. For local ref checks, local base refs are allowed only as
+diagnostics or optimization inputs after exact-SHA
 equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven. Wrong-base diagnostics are
 fail-closed: stale base refs, moving local base refs, hidden `HEAD` expansion,
 incomplete provider evidence, provider/local file drift, diff digest drift, or
-any mismatch between provider proof and local checkout stop before Phase 4. The
-wrapper must bind the provider scope evidence artifact into every
-scope-decision, handoff, result, and approved-review validation path that
-consumes full-range authority. Unbound side guards or ambient environment
-variables do not prove full range.
+any mismatch between provider proof and local checkout stop before Phase 4. In
+other words, diff digest drift fails closed except for the runtime-defined
+unavailable-patch case above. The wrapper must bind the provider scope evidence
+artifact into every scope-decision, handoff, result, and approved-review
+validation path that consumes full-range authority. Unbound side guards or
+ambient environment variables do not prove full range.
 The key boundary is that play-review remains provider-agnostic and consumes
 only the explicit final scope facts supplied by this wrapper.
 
@@ -271,23 +277,33 @@ that exact scope-decision artifact and base-range ref.
 Task 3 compared this provider-scope contract against the Adjacent Governance
 Policy Set in `docs/guidelines/documentation-checklists.md`. Source skills under
 `skills/` remain authoritative; generated outputs are derived evidence only.
+Generated outputs are render verification evidence only, and this task must not
+hand-edit generated output. Generated outputs: no hand edits. Proof:
+`pnpm run dev -- render`.
 Disposition by required surface:
 
 - `CONTRIBUTING.md`: no update. It owns contributor, commit, and PR policy and
   only points review procedure to the code-review guideline; no contradiction
-  with wrapper-owned provider scope.
+  with wrapper-owned provider scope. Proof: `CONTRIBUTING.md` Pull Request
+  Policy.
 - `docs/guidelines/pr-guideline.md`: no update. It owns PR body structure and
-  review-comment placement, not review wrapper scope authority.
+  review-comment placement, not review wrapper scope authority. Proof:
+  `docs/guidelines/pr-guideline.md` § 2-4.
 - `docs/guidelines/code-review-guideline.md`: no update. It already requires
   callers to provide explicit review scope and forbids standalone reviewers
-  from discovering scope themselves.
+  from discovering scope themselves. Proof:
+  `docs/guidelines/code-review-guideline.md` § 8.
 - `.github/pull_request_template.md`: no update. It collects PR checklist
-  evidence and does not define review-scope authority.
+  evidence and does not define review-scope authority. Proof:
+  `.github/pull_request_template.md` checklist.
 - `WORKFLOW.md`: no update. It routes reviewers to the code-review guideline and
-  does not define provider-wrapper scope.
+  does not define provider-wrapper scope. Proof: `WORKFLOW.md` Quick Reference
+  and Opening a PR.
 - `AGENTS.md`: no update. It is the repository entry point and decision matrix;
-  no concrete contradiction with this scoped `pr-review` workflow change.
-- `docs/adr/adr-template.md`: no update. It defines ADR structure only.
+  no concrete contradiction with this scoped `pr-review` workflow change. Proof:
+  `AGENTS.md` Documentation and Decision Matrix.
+- `docs/adr/adr-template.md`: no update. It defines ADR structure only. Proof:
+  `docs/adr/adr-template.md`.
 - Affected accepted ADRs found by searching review pipeline, review scope, and
   provider-wrapper authority language: `docs/adr/adr-0007-review-pipeline-delineation.md`,
   `docs/adr/adr-0009-review-pipeline-consolidation.md`,
@@ -297,22 +313,33 @@ Disposition by required surface:
   `docs/adr/adr-0018-risk-based-per-task-review-routing.md`, and
   `docs/adr/adr-0022-three-topical-play-review-fanout.md`: no update. They
   preserve review-pipeline ownership and fanout/routing decisions without
-  claiming local base refs as provider scope authority.
+  claiming local base refs as provider scope authority. Proof: `docs/adr/`
+  search for review pipeline, review scope, provider scope, baseRefOid, and
+  diff-base language.
 - `docs/guidelines/documentation-standard.md`: no update. It owns AFDS document
   profiles and documentation quality, not this wrapper's provider evidence.
+  Proof: `docs/guidelines/documentation-standard.md`.
 - `docs/guidelines/documentation-checklists.md`: no update. Its Adjacent
-  Governance Policy Set is the checklist used for this disposition.
+  Governance Policy Set is the checklist used for this disposition. Proof:
+  `docs/guidelines/documentation-checklists.md` Adjacent Governance Policy Set.
 - `skills/pr-review/SKILL.md`: updated here. It is the authoritative GitHub PR
-  wrapper procedure and now requires provider-proven full PR scope.
+  wrapper procedure and now requires provider-proven full PR scope. Proof:
+  `skills/pr-review/SKILL.md` Phase 1 and Phase 3.
 - `skills/play-review/references/follow-up-scope-policy.md`: updated with the
   provider-agnostic active-range versus full routing/context range distinction.
+  Proof: `skills/play-review/references/follow-up-scope-policy.md` opening
+  contract.
 - `skills/play-validate-review-artifacts/SKILL.md`: no update. It already owns
   the support-validator contract for `--provider-scope-evidence-file`,
-  provider/local diff binding, and rejection of moving local base refs.
+  provider/local diff binding, and rejection of moving local base refs. Proof:
+  `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision`
+  contract.
 - `skills/play-skill-authoring/SKILL.md`: no update. It owns pressure-scenario
-  method; Task 4 records pressure evidence.
+  method; Task 4 records pressure evidence. Proof:
+  `skills/play-skill-authoring/SKILL.md` TDD Mapping.
 - Relevant source agents under `agents/`: no update. Search found no review
-  scope or `pr-review` routing instructions in source agents.
+  scope or `pr-review` routing instructions in source agents. Proof:
+  `rg -n "pr-review|review scope|provider scope" agents` returned no matches.
 
 After scope-decision validation succeeds and before Phase 4 can consume review
 inputs, write and validate the Phase 3 handoff manifest with the installed

@@ -776,6 +776,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPrReview).toContain(
       "Source skills under `skills/` remain authoritative; generated outputs are derived evidence only",
     );
+    expect(normalizedPrReview).toContain(
+      "Generated outputs: no hand edits. Proof: `pnpm run dev -- render`",
+    );
 
     for (const requiredSurface of [
       "CONTRIBUTING.md",
@@ -794,6 +797,25 @@ describe("existing skills source prose contracts", () => {
       "agents/",
     ]) {
       expect(prReview).toContain(requiredSurface);
+    }
+
+    for (const proofLocation of [
+      "Proof: `CONTRIBUTING.md` Pull Request Policy",
+      "Proof: `docs/guidelines/pr-guideline.md` § 2-4",
+      "Proof: `docs/guidelines/code-review-guideline.md` § 8",
+      "Proof: `.github/pull_request_template.md` checklist",
+      "Proof: `WORKFLOW.md` Quick Reference and Opening a PR",
+      "Proof: `AGENTS.md` Documentation and Decision Matrix",
+      "Proof: `docs/adr/adr-template.md`",
+      "Proof: `docs/guidelines/documentation-standard.md`",
+      "Proof: `docs/guidelines/documentation-checklists.md` Adjacent Governance Policy Set",
+      "Proof: `skills/pr-review/SKILL.md` Phase 1 and Phase 3",
+      "Proof: `skills/play-review/references/follow-up-scope-policy.md` opening contract",
+      "Proof: `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision` contract",
+      "Proof: `skills/play-skill-authoring/SKILL.md` TDD Mapping",
+      'Proof: `rg -n "pr-review|review scope|provider scope" agents` returned no matches',
+    ]) {
+      expect(normalizedPrReview).toContain(proofLocation);
     }
 
     for (const affectedAdr of [
@@ -815,6 +837,9 @@ describe("existing skills source prose contracts", () => {
       "review-pipeline ownership and fanout/routing decisions without claiming local base refs as provider scope authority",
     );
     expect(normalizedPrReview).toContain("Task 4 records pressure evidence");
+    expect(normalizedPrReview).toContain(
+      "Generated outputs are render verification evidence only, and this task must not hand-edit generated output",
+    );
   });
 
   it("keeps boundary-changing brainstorm designs contract-decision adequate", async () => {
