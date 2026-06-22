@@ -842,12 +842,20 @@ async function validatePrReviewProviderEvidence(
   );
   validateNoDuplicateFileEntries(providerFiles);
   validateNoDuplicateFileEntries(localFiles);
-  if (!jsonEqual(providerFiles, localFiles)) {
+  if (
+    !jsonEqual(fileEntryMetadata(providerFiles), fileEntryMetadata(localFiles))
+  ) {
     fail("provider/local file evidence mismatch");
   }
-  if (!jsonEqual(localFiles, expectedLocalFiles)) {
+  if (
+    !jsonEqual(
+      fileEntryMetadata(localFiles),
+      fileEntryMetadata(expectedLocalFiles),
+    )
+  ) {
     fail("local provider evidence does not match git");
   }
+  validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
 
   const localDiffDigest = sha256String(await git(["diff", localRange]));
   if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
@@ -859,7 +867,8 @@ async function validatePrReviewProviderEvidence(
   ) {
     const unavailableOnly =
       providerFiles.length > 0 &&
-      providerFiles.every((entry) => !booleanField(entry, "patch_available"));
+      providerFiles.every(isUnavailablePatchEntry) &&
+      localFiles.every(isUnavailablePatchEntry);
     if (!unavailableOnly) {
       fail("provider/local diff digest mismatch");
     }
@@ -949,14 +958,55 @@ function isProviderFileEntry(entry: unknown): entry is JsonObject {
     typeof file.patch_available === "boolean" &&
     ((file.patch_available === true &&
       isSha256(stringField(file, "patch_sha256"))) ||
-      (file.patch_available === false &&
-        (file.patch_sha256 === null ||
-          isSha256(stringField(file, "patch_sha256")))))
+      (file.patch_available === false && file.patch_sha256 === null))
   );
 }
 
 function normalizedEvidenceEntries(entries: readonly unknown[]): JsonObject[] {
   return entries.map((entry) => entry as JsonObject).sort(compareFileEntries);
+}
+
+function fileEntryMetadata(entries: readonly JsonObject[]): JsonObject[] {
+  return entries.map((entry) => ({
+    path: stringField(entry, "path"),
+    status: stringField(entry, "status"),
+    previous_path: nullableStringField(entry, "previous_path"),
+    additions: numberField(entry, "additions"),
+    deletions: numberField(entry, "deletions"),
+    changes: numberField(entry, "changes"),
+  }));
+}
+
+function validateProviderPatchEvidence(
+  providerFiles: readonly JsonObject[],
+  localFiles: readonly JsonObject[],
+  expectedLocalFiles: readonly JsonObject[],
+): void {
+  for (let index = 0; index < providerFiles.length; index += 1) {
+    const providerFile = providerFiles[index] as JsonObject;
+    const localFile = localFiles[index] as JsonObject;
+    const expectedLocalFile = expectedLocalFiles[index] as JsonObject;
+    if (booleanField(providerFile, "patch_available")) {
+      if (
+        !booleanField(localFile, "patch_available") ||
+        stringField(providerFile, "patch_sha256") !==
+          stringField(localFile, "patch_sha256") ||
+        stringField(localFile, "patch_sha256") !==
+          stringField(expectedLocalFile, "patch_sha256")
+      ) {
+        fail("provider/local patch evidence mismatch");
+      }
+      continue;
+    }
+
+    if (!isUnavailablePatchEntry(localFile)) {
+      fail("provider/local patch evidence mismatch");
+    }
+  }
+}
+
+function isUnavailablePatchEntry(entry: JsonObject): boolean {
+  return !booleanField(entry, "patch_available") && entry.patch_sha256 === null;
 }
 
 function validateNoDuplicateFileEntries(entries: readonly JsonObject[]): void {

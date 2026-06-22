@@ -63,6 +63,36 @@ async function makeProviderScopeWorkspace(): Promise<{
   return workspace;
 }
 
+async function makeProviderMultiFileWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-provider-files-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await mkdir(path.join(cwd, "src"), { recursive: true });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await writeFile(path.join(cwd, "src/app.ts"), "export const value = 1;\n");
+  await writeFile(path.join(cwd, "src/other.ts"), "export const other = 2;\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "feat: add app files"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
@@ -209,16 +239,17 @@ async function providerEvidenceFileEntry(
   cwd: string,
   baseSha: string,
   headSha: string,
+  filePath = "src/app.ts",
 ): Promise<JsonObject> {
   const patch = await gitRaw(
     cwd,
     "diff",
     `${baseSha}..${headSha}`,
     "--",
-    "src/app.ts",
+    filePath,
   );
   return {
-    path: "src/app.ts",
+    path: filePath,
     status: "added",
     previous_path: null,
     additions: 1,
@@ -226,6 +257,14 @@ async function providerEvidenceFileEntry(
     changes: 1,
     patch_sha256: sha256(patch),
     patch_available: true,
+  };
+}
+
+function unavailablePatchEntry(entry: JsonObject): JsonObject {
+  return {
+    ...entry,
+    patch_sha256: null,
+    patch_available: false,
   };
 }
 
@@ -501,6 +540,40 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
+  it("allows provider/local diff digest drift when all file patches are unavailable", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = unavailablePatchEntry(
+        await providerEvidenceFileEntry(cwd, baseSha, headSha),
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+          provider_diff_sha256: "b".repeat(64),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it.each([
     { name: "pure rename", edited: false },
     { name: "rename plus edit", edited: true },
@@ -680,6 +753,42 @@ describe("review artifact runtime reducers", () => {
       stderr: "provider/local diff digest mismatch",
     },
     {
+      name: "mixed available and unavailable provider files with diff mismatch",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["src/app.ts", "src/other.ts"],
+          mechanical_facts: {
+            changed_file_count: 2,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const availableEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          "src/app.ts",
+        );
+        const unavailableEntry = unavailablePatchEntry(
+          await providerEvidenceFileEntry(
+            cwd,
+            baseSha,
+            headSha,
+            "src/other.ts",
+          ),
+        );
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [availableEntry, unavailableEntry],
+          local_files: [availableEntry, unavailableEntry],
+          provider_diff_sha256: "b".repeat(64),
+        });
+      },
+      workspace: makeProviderMultiFileWorkspace,
+      stderr: "provider/local diff digest mismatch",
+    },
+    {
       name: "malformed provider evidence",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
@@ -690,7 +799,11 @@ describe("review artifact runtime reducers", () => {
       stderr: "provider evidence schema mismatch",
     },
   ])("rejects invalid pr-review provider evidence: $name", async (testCase) => {
-    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const makeWorkspace =
+      "workspace" in testCase && typeof testCase.workspace === "function"
+        ? testCase.workspace
+        : makeProviderScopeWorkspace;
+    const { cwd, baseSha, headSha } = await makeWorkspace();
     const evidencePath =
       "evidencePath" in testCase && typeof testCase.evidencePath === "string"
         ? testCase.evidencePath

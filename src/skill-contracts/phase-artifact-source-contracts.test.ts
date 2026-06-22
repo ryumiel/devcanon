@@ -1599,13 +1599,16 @@ describe("phase artifact source contracts", () => {
       "provider PR diff-base proof is shorthand for `provider_pr_diff_base_sha` plus bound provider/local file and diff evidence",
     );
     expect(normalizedPrReview).toContain(
-      "provider/local file lists and diff digests match",
+      "provider/local file metadata and available patch digests match",
     );
     expect(normalizedPrReview).toContain(
-      "diff digest drift fails closed except for the runtime-defined all-provider-files-unavailable case",
+      "full-diff digest drift fails closed except for the runtime-defined all-provider-files-unavailable case",
     );
     expect(normalizedPrReview).toContain(
-      "every provider file entry has `patch_available=false`, metadata matches exactly, and the complete provider file list is still bound",
+      "every provider and local file entry has `patch_available=false` and `patch_sha256=null`, metadata matches exactly, and the complete provider file list is still bound",
+    );
+    expect(normalizedPrReview).toContain(
+      "Mixed available/unavailable file sets do not qualify for the full-diff digest exception",
     );
     expect(normalizedPrReview).toContain(
       'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',

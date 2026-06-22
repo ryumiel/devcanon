@@ -128,10 +128,19 @@ normalized local file entries, and provider/local diff digests. The validator
 requires the full PR range to be `<provider_pr_diff_base_sha>..<headRefOid>`
 and rejects moving local base refs such as `origin/main` or hidden `HEAD`
 expansion for `pr-review` full-range proof. Provider and local normalized file
-entries and diff digests must match under the provider evidence contract; stale
-heads, missing OIDs, missing or incomplete evidence, duplicate file entries,
-unbound paths, digest drift, file metadata drift, and provider/local diff
-identity drift fail closed before review dispatch.
+metadata must match exactly for `path`, `previous_path`, `status`, `additions`,
+`deletions`, and `changes`, and local metadata must match Git for the proven
+range. When provider patch evidence is available, both provider and local file
+entries must set `patch_available=true` and their `patch_sha256` values must
+match Git. When textual patch evidence is unavailable for a file, both
+provider and local entries must represent that file with
+`patch_available=false` and `patch_sha256=null` while metadata still matches.
+Provider/local full diff digest mismatch is allowed only when every provider
+and local file entry is represented as unavailable; mixed available/unavailable
+sets still fail closed on diff digest drift. Stale heads, missing OIDs, missing
+or incomplete evidence, duplicate file entries, unbound paths, patch digest
+drift, file metadata drift, and provider/local diff identity drift outside the
+all-files-unavailable exception fail closed before review dispatch.
 
 Adapters must pass the evidence path as an explicit support-validator flag.
 They may prepare that path from their own surface-specific inputs, but adapters
