@@ -768,89 +768,31 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
-  it("keeps pr-review provider-scope governance disposition in source prose", async () => {
+  it("keeps pr-review provider-scope prose durable and artifact-bound", async () => {
     const prReview = await readSkillSource("pr-review");
     const normalizedPrReview = normalizeWhitespace(prReview);
 
-    expect(prReview).toContain("### Adjacent Governance Disposition");
     expect(normalizedPrReview).toContain(
-      "Source skills under `skills/` remain authoritative; generated outputs are derived evidence only",
+      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
     );
     expect(normalizedPrReview).toContain(
-      "Generated outputs: no hand edits. Proof: `pnpm run dev -- render`",
+      "prepare-provider-scope-evidence-write",
     );
     expect(normalizedPrReview).toContain(
-      "`skills/play-validate-review-artifacts/SKILL.md`: updated with the unavailable-patch support-validator contract for provider evidence, including unavailable patch representation and the all-files-unavailable diff digest exception. Proof: `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision` contract.",
-    );
-    expect(normalizedPrReview).not.toContain(
-      "`skills/play-validate-review-artifacts/SKILL.md`: no update.",
-    );
-
-    for (const requiredSurface of [
-      "CONTRIBUTING.md",
-      "docs/guidelines/pr-guideline.md",
-      "docs/guidelines/code-review-guideline.md",
-      ".github/pull_request_template.md",
-      "WORKFLOW.md",
-      "AGENTS.md",
-      "docs/adr/adr-template.md",
-      "docs/guidelines/documentation-standard.md",
-      "docs/guidelines/documentation-checklists.md",
-      "skills/pr-review/SKILL.md",
-      "skills/play-review/references/follow-up-scope-policy.md",
-      "skills/play-validate-review-artifacts/SKILL.md",
-      "skills/play-skill-authoring/SKILL.md",
-      "agents/",
-    ]) {
-      expect(prReview).toContain(requiredSurface);
-    }
-
-    for (const proofLocation of [
-      "Proof: `CONTRIBUTING.md` Pull Request Policy",
-      "Proof: `docs/guidelines/pr-guideline.md` § 2-4",
-      "Proof: `docs/guidelines/code-review-guideline.md` § 8",
-      "Proof: `.github/pull_request_template.md` checklist",
-      "Proof: `WORKFLOW.md` Quick Reference and Opening a PR",
-      "Proof: `AGENTS.md` Documentation and Decision Matrix",
-      "Proof: `docs/adr/adr-template.md`",
-      "Proof: `docs/guidelines/documentation-standard.md`",
-      "Proof: `docs/guidelines/documentation-checklists.md` Adjacent Governance Policy Set",
-      "Proof: `skills/pr-review/SKILL.md` Phase 1 and Phase 3",
-      "Proof: `skills/play-review/references/follow-up-scope-policy.md` opening contract",
-      "Proof: `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision` contract",
-      "Proof: `skills/play-skill-authoring/SKILL.md` TDD Mapping",
-      'Proof: `rg -n "pr-review|review scope|provider scope" agents` returned no matches',
-    ]) {
-      expect(normalizedPrReview).toContain(proofLocation);
-    }
-
-    for (const affectedAdr of [
-      "docs/adr/adr-0007-review-pipeline-delineation.md",
-      "docs/adr/adr-0009-review-pipeline-consolidation.md",
-      "docs/adr/adr-0011-reviewer-fanout-audit.md",
-      "docs/adr/adr-0016-single-task-auto-final-review-carve-out.md",
-      "docs/adr/adr-0017-guarded-tiny-diff-reviewer-fanout.md",
-      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
-      "docs/adr/adr-0022-three-topical-play-review-fanout.md",
-    ]) {
-      expect(prReview).toContain(affectedAdr);
-    }
-
-    expect(normalizedPrReview).toContain(
-      "no concrete contradiction with this scoped `pr-review` workflow change",
+      "Write the pr-review/provider-scope-evidence/v1 envelope to",
     );
     expect(normalizedPrReview).toContain(
-      "review-pipeline ownership and fanout/routing decisions without claiming local base refs as provider scope authority",
-    );
-    expect(normalizedPrReview).toContain("Task 4 records pressure evidence");
-    expect(normalizedPrReview).toContain(
-      "skills/play-skill-authoring/SKILL.md` TDD Mapping",
+      "provider scope evidence file and digest",
     );
     expect(normalizedPrReview).toContain(
-      "Generated outputs are render verification evidence only, and this task must not hand-edit generated output",
+      "provider scope evidence artifact through `PROVIDER_SCOPE_EVIDENCE_FILE`",
     );
+    expect(prReview).not.toContain("### Adjacent Governance Disposition");
+    expect(prReview).not.toMatch(/\bTask [0-9]+\b/u);
+    expect(prReview).not.toContain("Proof:");
+    expect(prReview).not.toContain("pnpm run dev -- render");
     expect(normalizedPrReview).toContain(
-      "`skills/pr-review/SKILL.md`: updated here. It is the authoritative GitHub PR wrapper procedure and now requires provider-proven full PR scope",
+      "play-review remains provider-agnostic",
     );
   });
 

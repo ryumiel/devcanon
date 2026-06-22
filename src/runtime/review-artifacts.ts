@@ -1043,13 +1043,12 @@ async function normalizedLocalFileEntries(
         ? [statusEntry.path]
         : [statusEntry.previousPath, statusEntry.path];
     const numstat = await gitDiffNumstat(range, pathspecs);
-    const patch = await git([
-      "diff",
-      "--find-renames",
-      range,
-      "--",
-      ...pathspecs,
-    ]);
+    const patchAvailable = numstat.patchAvailable;
+    const patchSha256 = patchAvailable
+      ? sha256String(
+          await git(["diff", "--find-renames", range, "--", ...pathspecs]),
+        )
+      : null;
     entries.push({
       path: statusEntry.path,
       status: statusEntry.status,
@@ -1057,8 +1056,8 @@ async function normalizedLocalFileEntries(
       additions: numstat.additions,
       deletions: numstat.deletions,
       changes: numstat.additions + numstat.deletions,
-      patch_sha256: sha256String(patch),
-      patch_available: true,
+      patch_sha256: patchSha256,
+      patch_available: patchAvailable,
     });
   }
   return entries.sort(compareFileEntries);
@@ -1113,7 +1112,7 @@ async function gitDiffNameStatus(
 async function gitDiffNumstat(
   range: string,
   pathspecs: readonly string[],
-): Promise<{ additions: number; deletions: number }> {
+): Promise<{ additions: number; deletions: number; patchAvailable: boolean }> {
   const stdout = await git([
     "diff",
     "--numstat",
@@ -1124,12 +1123,15 @@ async function gitDiffNumstat(
     ...pathspecs,
   ]);
   const [additionsRaw, deletionsRaw] = stdout.split(/\s+/u);
+  if (additionsRaw === "-" && deletionsRaw === "-") {
+    return { additions: 0, deletions: 0, patchAvailable: false };
+  }
   const additions = Number(additionsRaw);
   const deletions = Number(deletionsRaw);
   if (!Number.isInteger(additions) || !Number.isInteger(deletions)) {
     fail("local diff numstat is unavailable");
   }
-  return { additions, deletions };
+  return { additions, deletions, patchAvailable: true };
 }
 
 function sha256String(value: string): string {

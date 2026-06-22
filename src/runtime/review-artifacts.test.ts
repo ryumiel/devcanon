@@ -114,6 +114,37 @@ async function makeProviderMovingBaseWorkspace(): Promise<{
   return { cwd, baseSha, advancedBaseSha, headSha };
 }
 
+async function makeProviderBinaryWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-provider-binary-"),
+  );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await mkdir(path.join(cwd, "assets"), { recursive: true });
+  await writeFile(path.join(cwd, "assets/blob.bin"), Buffer.from([0, 1, 2, 0]));
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "test: add binary asset"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
@@ -284,6 +315,19 @@ async function providerEvidenceFileEntry(
 function unavailablePatchEntry(entry: JsonObject): JsonObject {
   return {
     ...entry,
+    patch_sha256: null,
+    patch_available: false,
+  };
+}
+
+function binaryUnavailablePatchEntry(filePath: string): JsonObject {
+  return {
+    path: filePath,
+    status: "added",
+    previous_path: null,
+    additions: 0,
+    deletions: 0,
+    changes: 0,
     patch_sha256: null,
     patch_available: false,
   };
@@ -651,6 +695,41 @@ describe("review artifact runtime reducers", () => {
         cwd,
         ".ephemeral/topic-scope-decision.json",
         await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("accepts binary provider evidence with unavailable patches", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderBinaryWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = binaryUnavailablePatchEntry("assets/blob.bin");
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+          provider_diff_sha256: "b".repeat(64),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["assets/blob.bin"],
+          language_hints: ["bin"],
+        }),
       );
 
       await expect(

@@ -239,7 +239,6 @@ be `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"` from that evidence.
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_BASE_REF="<base-ref>"
-PROVIDER_SCOPE_EVIDENCE_FILE=".ephemeral/<branch-slug>-<headRefOid>-provider-scope-evidence.json"
 PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
 REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"
@@ -248,6 +247,13 @@ REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  PROVIDER_SCOPE_EVIDENCE_FILE=$(
+    HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1
+  ) || return 1
+  # Write the pr-review/provider-scope-evidence/v1 envelope to
+  # "$PROVIDER_SCOPE_EVIDENCE_FILE" using provider PR file and diff evidence.
+  # The full_pr_diff_range must be "$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA".
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
@@ -276,76 +282,6 @@ Pass `REVIEW_SCOPE_DECISION_FILE` and `REVIEW_SCOPE_BASE_REF` through the Phase
 5 gate unchanged. Phase 6 must freeze and validate the approved review against
 that exact scope-decision artifact and base-range ref.
 
-### Adjacent Governance Disposition
-
-Task 3 compared this provider-scope contract against the Adjacent Governance
-Policy Set in `docs/guidelines/documentation-checklists.md`. Source skills under
-`skills/` remain authoritative; generated outputs are derived evidence only.
-Generated outputs are render verification evidence only, and this task must not
-hand-edit generated output. Generated outputs: no hand edits. Proof:
-`pnpm run dev -- render`.
-Disposition by required surface:
-
-- `CONTRIBUTING.md`: no update. It owns contributor, commit, and PR policy and
-  only points review procedure to the code-review guideline; no contradiction
-  with wrapper-owned provider scope. Proof: `CONTRIBUTING.md` Pull Request
-  Policy.
-- `docs/guidelines/pr-guideline.md`: no update. It owns PR body structure and
-  review-comment placement, not review wrapper scope authority. Proof:
-  `docs/guidelines/pr-guideline.md` § 2-4.
-- `docs/guidelines/code-review-guideline.md`: no update. It already requires
-  callers to provide explicit review scope and forbids standalone reviewers
-  from discovering scope themselves. Proof:
-  `docs/guidelines/code-review-guideline.md` § 8.
-- `.github/pull_request_template.md`: no update. It collects PR checklist
-  evidence and does not define review-scope authority. Proof:
-  `.github/pull_request_template.md` checklist.
-- `WORKFLOW.md`: no update. It routes reviewers to the code-review guideline and
-  does not define provider-wrapper scope. Proof: `WORKFLOW.md` Quick Reference
-  and Opening a PR.
-- `AGENTS.md`: no update. It is the repository entry point and decision matrix;
-  no concrete contradiction with this scoped `pr-review` workflow change. Proof:
-  `AGENTS.md` Documentation and Decision Matrix.
-- `docs/adr/adr-template.md`: no update. It defines ADR structure only. Proof:
-  `docs/adr/adr-template.md`.
-- Affected accepted ADRs found by searching review pipeline, review scope, and
-  provider-wrapper authority language: `docs/adr/adr-0007-review-pipeline-delineation.md`,
-  `docs/adr/adr-0009-review-pipeline-consolidation.md`,
-  `docs/adr/adr-0011-reviewer-fanout-audit.md`,
-  `docs/adr/adr-0016-single-task-auto-final-review-carve-out.md`,
-  `docs/adr/adr-0017-guarded-tiny-diff-reviewer-fanout.md`,
-  `docs/adr/adr-0018-risk-based-per-task-review-routing.md`, and
-  `docs/adr/adr-0022-three-topical-play-review-fanout.md`: no update. They
-  preserve review-pipeline ownership and fanout/routing decisions without
-  claiming local base refs as provider scope authority. Proof: `docs/adr/`
-  search for review pipeline, review scope, provider scope, baseRefOid, and
-  diff-base language.
-- `docs/guidelines/documentation-standard.md`: no update. It owns AFDS document
-  profiles and documentation quality, not this wrapper's provider evidence.
-  Proof: `docs/guidelines/documentation-standard.md`.
-- `docs/guidelines/documentation-checklists.md`: no update. Its Adjacent
-  Governance Policy Set is the checklist used for this disposition. Proof:
-  `docs/guidelines/documentation-checklists.md` Adjacent Governance Policy Set.
-- `skills/pr-review/SKILL.md`: updated here. It is the authoritative GitHub PR
-  wrapper procedure and now requires provider-proven full PR scope. Proof:
-  `skills/pr-review/SKILL.md` Phase 1 and Phase 3.
-- `skills/play-review/references/follow-up-scope-policy.md`: updated with the
-  provider-agnostic active-range versus full routing/context range distinction.
-  Proof: `skills/play-review/references/follow-up-scope-policy.md` opening
-  contract.
-- `skills/play-validate-review-artifacts/SKILL.md`: updated with the
-  unavailable-patch support-validator contract for provider evidence, including
-  unavailable patch representation and the all-files-unavailable diff digest
-  exception. Proof:
-  `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision`
-  contract.
-- `skills/play-skill-authoring/SKILL.md`: no update. It owns pressure-scenario
-  method; Task 4 records pressure evidence. Proof:
-  `skills/play-skill-authoring/SKILL.md` TDD Mapping.
-- Relevant source agents under `agents/`: no update. Search found no review
-  scope or `pr-review` routing instructions in source agents. Proof:
-  `rg -n "pr-review|review scope|provider scope" agents` returned no matches.
-
 After scope-decision validation succeeds and before Phase 4 can consume review
 inputs, write and validate the Phase 3 handoff manifest with the installed
 `pr-review` manifest helper. The helper owns deterministic mechanics:
@@ -358,10 +294,12 @@ Canonical manifest schemas:
 
 - `pr-review/handoff/v1` records Phase 3 review execution inputs, range choice,
   immutable review head, follow-up classification, language hints, and paths to
-  the validated scope-decision and optional prior-threads artifacts.
+  the validated scope-decision, provider scope evidence file and digest, and
+  optional prior-threads artifacts.
 - `pr-review/result/v1` records the deterministic handoff path, validated
   review findings, optional review body and preview paths, content digests for
-  mutable result inputs, the scope-decision summary, and presentation status.
+  mutable result inputs, the scope-decision summary, provider scope evidence
+  file and digest, and presentation status.
 
 Deterministic manifest paths:
 
