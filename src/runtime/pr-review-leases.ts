@@ -2034,6 +2034,7 @@ function collectHandoffArtifactPaths(
   }
   addOwnedPath(owned, stringField(artifacts, "scope_decision_file"));
   addOwnedPath(owned, nullableStringField(artifacts, "prior_threads_file"));
+  addOwnedPath(owned, stringField(artifacts, "provider_scope_evidence_file"));
 }
 
 function collectResultArtifactPaths(
@@ -2048,6 +2049,7 @@ function collectResultArtifactPaths(
   addOwnedPath(owned, stringField(artifacts, "scope_decision_file"));
   addOwnedPath(owned, nullableStringField(artifacts, "prior_threads_file"));
   addOwnedPath(owned, nullableStringField(artifacts, "rendered_preview_file"));
+  addOwnedPath(owned, stringField(artifacts, "provider_scope_evidence_file"));
 }
 
 function addOwnedPath(owned: Set<string>, value: string | null): void {

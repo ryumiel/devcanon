@@ -90,7 +90,10 @@ async function writeHandoff() {
     const executionWorkingDirectory = normalizeExecutionWorkingDirectory(requiredEnv("EXECUTION_WORKING_DIRECTORY"));
     const scopeDecisionFile = requiredEnv("SCOPE_DECISION_FILE");
     await validateScopeAuthority(scopeDecisionFile, requiredEnv("REVIEW_SCOPE_BASE_REF"), priorThreadsFile);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: requiredEnv("REPOSITORY"),
+        prNumber,
+    });
     const handoff = {
         schema: "pr-review/handoff/v1",
         pr_number: prNumber,
@@ -141,7 +144,10 @@ async function writeResult() {
     const presentationNotes = optionalEnv("PRESENTATION_NOTES") ?? null;
     await validateFindingsAuthority(findingsFile);
     await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), priorThreadsFile);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: requiredEnv("REPOSITORY"),
+        prNumber,
+    });
     await validateHandoffFile(handoffFile, handoffFile);
     await validateOptionalDirectChildReadableArtifact("review body", reviewBodyFile, "-review-body.md");
     await validateOptionalDirectChildReadableArtifact("context", contextFile, "-context.md");
@@ -655,7 +661,10 @@ async function validateHandoffFacts(handoff, identityFile) {
     const providerScopeEvidenceSha256 = stringField(artifacts, "provider_scope_evidence_sha256");
     const reviewScopeBaseRef = stringField(handoff, "review_scope_base_ref");
     await validateScopeAuthority(scopeDecisionFile, reviewScopeBaseRef, priorThreadsFile);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: stringField(handoff, "repository"),
+        prNumber: Number(prNumber),
+    });
     if (providerScopeEvidenceFile !== providerEvidence.file) {
         fail("handoff provider scope evidence mismatch");
     }
@@ -754,7 +763,10 @@ async function validateResultFacts(result, identityFile) {
         fail("result handoff provider scope evidence mismatch");
     }
     await validateScopeAuthority(scopeDecisionFile, await guardedScopeBaseRef(scopeDecisionFile), priorThreadsFile);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: stringField(result, "repository"),
+        prNumber: Number(manifestPrNumber),
+    });
     if (providerScopeEvidenceFile !== providerEvidence.file) {
         fail("result provider scope evidence mismatch");
     }
@@ -788,7 +800,7 @@ async function validateResultFacts(result, identityFile) {
         fail("provider scope evidence digest mismatch");
     }
 }
-async function readProviderScopeEvidenceBinding(scopeDecisionFile) {
+async function readProviderScopeEvidenceBinding(scopeDecisionFile, expectedIdentity) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
     await assertReadableFile("scope decision file", scopeDecisionFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
@@ -800,6 +812,13 @@ async function readProviderScopeEvidenceBinding(scopeDecisionFile) {
         fail("scope decision artifacts are missing or malformed");
     }
     await validateDigest("provider scope evidence", file, sha256);
+    const evidence = await readJsonObject(file, "provider scope evidence file");
+    if (stringField(evidence, "repository") !== expectedIdentity.repository) {
+        fail("provider evidence repository mismatch");
+    }
+    if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
+        fail("provider evidence PR number mismatch");
+    }
     return { file, sha256 };
 }
 async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manifestPriorPath) {

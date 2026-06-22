@@ -3077,6 +3077,28 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("treats provider scope evidence referenced by valid result chains as owned", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-owned-provider-evidence-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).not.toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      expect(result.stdout).not.toContain("provider-scope-evidence.json");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-cleanup-");

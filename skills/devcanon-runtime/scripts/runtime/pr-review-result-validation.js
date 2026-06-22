@@ -96,7 +96,10 @@ async function validateHandoffFacts(handoff, identityPath, input) {
     const providerScopeEvidenceSha256 = stringField(artifacts, "provider_scope_evidence_sha256");
     await validateScopePriorContext(scopeDecisionFile, priorThreadsFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: stringField(handoff, "repository"),
+        prNumber: numberField(handoff, "pr_number"),
+    });
     if (providerScopeEvidenceFile !== providerEvidence.file) {
         fail("handoff provider scope evidence mismatch");
     }
@@ -196,7 +199,10 @@ async function validateResultFacts(result, input) {
     }
     await validateScopePriorContext(scopeDecisionFile, priorThreadsFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: stringField(result, "repository"),
+        prNumber: numberField(result, "pr_number"),
+    });
     if (providerScopeEvidenceFile !== providerEvidence.file) {
         fail("result provider scope evidence mismatch");
     }
@@ -383,7 +389,7 @@ function validateResultObject(value, file, _identityPath) {
         fail(`result schema mismatch: ${file}`);
     }
 }
-async function readProviderScopeEvidenceBinding(scopeDecisionFile) {
+async function readProviderScopeEvidenceBinding(scopeDecisionFile, expectedIdentity) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
     await assertReadableFile("scope decision file", scopeDecisionFile);
     const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
@@ -395,13 +401,24 @@ async function readProviderScopeEvidenceBinding(scopeDecisionFile) {
         fail("scope decision artifacts are missing or malformed");
     }
     await validateDigest("provider scope evidence", file, sha256);
+    const evidence = await readJsonObject(file, "provider scope evidence file");
+    if (expectedIdentity.repository !== undefined &&
+        stringField(evidence, "repository") !== expectedIdentity.repository) {
+        fail("provider evidence repository mismatch");
+    }
+    if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
+        fail("provider evidence PR number mismatch");
+    }
     return { file, sha256 };
 }
 async function validateScopeAuthority(scopeDecisionFile, expectedBaseRef, manifestPriorPath, input) {
     validateDirectChildPath("scope decision", scopeDecisionFile, "-scope-decision.json");
     await assertReadableFile("scope decision file", scopeDecisionFile);
     await validateScopePriorContext(scopeDecisionFile, manifestPriorPath);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile);
+    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
+        repository: input.repository,
+        prNumber: input.prNumber,
+    });
     const scopeHelper = await resolveScopeHelper(input);
     const baseEnv = input.helperEnv ?? {};
     const env = {

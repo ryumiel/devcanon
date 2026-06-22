@@ -156,6 +156,16 @@ prepare_scope_decision_write() {
   printf '%s\n' "$file"
 }
 
+prepare_provider_scope_evidence_write() {
+  local file
+  require_repo_root
+  validate_head_sha
+  file="$(expected_provider_scope_evidence_path)"
+  validate_direct_child_path "provider scope evidence" "$file" "-provider-scope-evidence.json"
+  prepare_write_target "provider scope evidence" "$file"
+  printf '%s\n' "$file"
+}
+
 validate_prior_threads() {
   local file expected validator
   require_repo_root
@@ -225,10 +235,13 @@ case "$command_name" in
   prepare-scope-decision-write)
     prepare_scope_decision_write
     ;;
+  prepare-provider-scope-evidence-write)
+    prepare_provider_scope_evidence_write
+    ;;
   validate-scope-decision)
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|validate-scope-decision"
     ;;
 esac

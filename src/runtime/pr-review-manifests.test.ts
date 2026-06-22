@@ -397,6 +397,109 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(result.stderr).toContain("provider scope evidence digest mismatch");
   });
 
+  it.each([
+    {
+      name: "repository",
+      patch: { repository: "other/repo" },
+      stderr: "provider evidence repository mismatch",
+    },
+    {
+      name: "PR number",
+      patch: { pr_number: 433 },
+      stderr: "provider evidence PR number mismatch",
+    },
+  ])(
+    "rejects provider evidence $name mismatch during Phase 5 result validation",
+    async ({ patch, stderr }) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-provider-evidence-identity-",
+      );
+      setSummaryEnv(workspace);
+      const evidence = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.providerScopeEvidenceFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, workspace.providerScopeEvidenceFile, {
+        ...evidence,
+        ...patch,
+      });
+      const providerScopeEvidenceSha256 = await sha256File(
+        path.join(workspace.worktree, workspace.providerScopeEvidenceFile),
+      );
+      const scopeFile = `.ephemeral/topic-${workspace.headSha}-scope-decision.json`;
+      const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+      const scope = JSON.parse(
+        await readFile(path.join(workspace.worktree, scopeFile), "utf8"),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, scopeFile, {
+        ...scope,
+        artifacts: {
+          ...(scope.artifacts as Record<string, unknown>),
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const scopeSha256 = await sha256File(
+        path.join(workspace.worktree, scopeFile),
+      );
+      const handoff = JSON.parse(
+        await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, handoffFile, {
+        ...handoff,
+        artifacts: {
+          ...(handoff.artifacts as Record<string, unknown>),
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const handoffSha256 = await sha256File(
+        path.join(workspace.worktree, handoffFile),
+      );
+      const resultManifest = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.resultFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, workspace.resultFile, {
+        ...resultManifest,
+        digests: {
+          ...(resultManifest.digests as Record<string, unknown>),
+          handoff_sha256: handoffSha256,
+          scope_decision_sha256: scopeSha256,
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const resultSha256 = await sha256File(
+        path.join(workspace.worktree, workspace.resultFile),
+      );
+      const lease = JSON.parse(
+        await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      const validation = lease.validation as Record<string, unknown>;
+      await writeJson(workspace.primary, workspace.leaseFile, {
+        ...lease,
+        validation: {
+          ...validation,
+          result_manifest: {
+            ...(validation.result_manifest as Record<string, unknown>),
+            sha256: resultSha256,
+          },
+        },
+      });
+
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(stderr);
+    },
+  );
+
   it("requires explicit provider evidence input for adapter scope validation", async () => {
     const workspace = await makeManifestWorkspace(
       "pr-review-explicit-provider-input-",

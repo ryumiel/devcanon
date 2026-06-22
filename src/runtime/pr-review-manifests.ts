@@ -140,8 +140,13 @@ async function writeHandoff(): Promise<string> {
     requiredEnv("REVIEW_SCOPE_BASE_REF"),
     priorThreadsFile,
   );
-  const providerEvidence =
-    await readProviderScopeEvidenceBinding(scopeDecisionFile);
+  const providerEvidence = await readProviderScopeEvidenceBinding(
+    scopeDecisionFile,
+    {
+      repository: requiredEnv("REPOSITORY"),
+      prNumber,
+    },
+  );
 
   const handoff = {
     schema: "pr-review/handoff/v1",
@@ -203,8 +208,13 @@ async function writeResult(): Promise<string> {
     await guardedScopeBaseRef(scopeDecisionFile),
     priorThreadsFile,
   );
-  const providerEvidence =
-    await readProviderScopeEvidenceBinding(scopeDecisionFile);
+  const providerEvidence = await readProviderScopeEvidenceBinding(
+    scopeDecisionFile,
+    {
+      repository: requiredEnv("REPOSITORY"),
+      prNumber,
+    },
+  );
   await validateHandoffFile(handoffFile, handoffFile);
   await validateOptionalDirectChildReadableArtifact(
     "review body",
@@ -976,8 +986,13 @@ async function validateHandoffFacts(handoff: JsonObject, identityFile: string) {
     reviewScopeBaseRef,
     priorThreadsFile,
   );
-  const providerEvidence =
-    await readProviderScopeEvidenceBinding(scopeDecisionFile);
+  const providerEvidence = await readProviderScopeEvidenceBinding(
+    scopeDecisionFile,
+    {
+      repository: stringField(handoff, "repository"),
+      prNumber: Number(prNumber),
+    },
+  );
   if (providerScopeEvidenceFile !== providerEvidence.file) {
     fail("handoff provider scope evidence mismatch");
   }
@@ -1118,8 +1133,13 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
     await guardedScopeBaseRef(scopeDecisionFile),
     priorThreadsFile,
   );
-  const providerEvidence =
-    await readProviderScopeEvidenceBinding(scopeDecisionFile);
+  const providerEvidence = await readProviderScopeEvidenceBinding(
+    scopeDecisionFile,
+    {
+      repository: stringField(result, "repository"),
+      prNumber: Number(manifestPrNumber),
+    },
+  );
   if (providerScopeEvidenceFile !== providerEvidence.file) {
     fail("result provider scope evidence mismatch");
   }
@@ -1196,6 +1216,7 @@ async function validateResultFacts(result: JsonObject, identityFile: string) {
 
 async function readProviderScopeEvidenceBinding(
   scopeDecisionFile: string,
+  expectedIdentity: { repository: string; prNumber: number },
 ): Promise<{ file: string; sha256: string }> {
   validateDirectChildPath(
     "scope decision",
@@ -1228,6 +1249,13 @@ async function readProviderScopeEvidenceBinding(
     fail("scope decision artifacts are missing or malformed");
   }
   await validateDigest("provider scope evidence", file, sha256);
+  const evidence = await readJsonObject(file, "provider scope evidence file");
+  if (stringField(evidence, "repository") !== expectedIdentity.repository) {
+    fail("provider evidence repository mismatch");
+  }
+  if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
+    fail("provider evidence PR number mismatch");
+  }
   return { file, sha256 };
 }
 

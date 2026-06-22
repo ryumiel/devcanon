@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -276,6 +277,13 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         }),
       ).resolves.toMatchObject({ stdout: `${decisionPath}\n` });
       await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({
+        stdout: `${providerScopePath(headSha)}\n`,
+      });
+      await expect(
         runHelper(cwd, helperScript, "validate-scope-decision", {
           HEAD_SHA: headSha,
           BASE_REF: baseSha,
@@ -290,6 +298,40 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
           PRIOR_THREADS_FILE: threadsPath,
         }),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("guards provider evidence write targets before producer output", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const evidencePath = providerScopePath(headSha);
+
+      await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n` });
+
+      await writeFile(path.join(cwd, evidencePath), "existing\n");
+      await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).resolves.toMatchObject({ stdout: `${evidencePath}\n` });
+
+      await rm(path.join(cwd, evidencePath));
+      await mkdir(path.join(cwd, evidencePath), { recursive: true });
+      await expect(
+        runHelper(cwd, helperScript, "prepare-provider-scope-evidence-write", {
+          HEAD_SHA: headSha,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider scope evidence path is a directory",
+        ),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }
