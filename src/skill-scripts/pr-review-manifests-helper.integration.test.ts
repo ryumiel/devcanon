@@ -1723,6 +1723,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(external);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(

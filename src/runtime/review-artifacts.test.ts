@@ -957,7 +957,7 @@ describe("review artifact runtime reducers", () => {
         });
       },
       workspace: makeProviderMultiFileWorkspace,
-      stderr: "provider/local diff digest mismatch",
+      stderr: "provider/local patch evidence mismatch",
     },
     {
       name: "malformed provider evidence",
