@@ -779,6 +779,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPrReview).toContain(
       "Generated outputs: no hand edits. Proof: `pnpm run dev -- render`",
     );
+    expect(normalizedPrReview).toContain(
+      "`skills/play-validate-review-artifacts/SKILL.md`: updated with the unavailable-patch support-validator contract for provider evidence, including unavailable patch representation and the all-files-unavailable diff digest exception. Proof: `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision` contract.",
+    );
+    expect(normalizedPrReview).not.toContain(
+      "`skills/play-validate-review-artifacts/SKILL.md`: no update.",
+    );
 
     for (const requiredSurface of [
       "CONTRIBUTING.md",

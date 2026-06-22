@@ -333,9 +333,10 @@ Disposition by required surface:
   provider-agnostic active-range versus full routing/context range distinction.
   Proof: `skills/play-review/references/follow-up-scope-policy.md` opening
   contract.
-- `skills/play-validate-review-artifacts/SKILL.md`: no update. It already owns
-  the support-validator contract for `--provider-scope-evidence-file`,
-  provider/local diff binding, and rejection of moving local base refs. Proof:
+- `skills/play-validate-review-artifacts/SKILL.md`: updated with the
+  unavailable-patch support-validator contract for provider evidence, including
+  unavailable patch representation and the all-files-unavailable diff digest
+  exception. Proof:
   `skills/play-validate-review-artifacts/SKILL.md` `validate-scope-decision`
   contract.
 - `skills/play-skill-authoring/SKILL.md`: no update. It owns pressure-scenario
