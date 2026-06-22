@@ -98,6 +98,34 @@ async function makeProviderMultiFileWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
+async function makeProviderEmptyDiffWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+}> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "devcanon-provider-empty-"));
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  await writeFile(path.join(cwd, "README.md"), "baseline\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  await execFileAsync(
+    "git",
+    ["commit", "--allow-empty", "-m", "test: empty topic"],
+    { cwd },
+  );
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha };
+}
+
 async function makeProviderMovingBaseWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -830,7 +858,7 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("rejects unavailable text evidence when canonical local patches are available", async () => {
+  it("accepts unavailable text evidence with provider-native full diff drift", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
     try {
@@ -855,11 +883,10 @@ describe("review artifact runtime reducers", () => {
 
       await expect(
         runReviewArtifactsCommand(providerScopeArgs(headSha)),
-      ).resolves.toMatchObject({
-        exitCode: 1,
-        stderr: expect.stringContaining(
-          "provider/local patch evidence mismatch",
-        ),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
@@ -1211,6 +1238,83 @@ describe("review artifact runtime reducers", () => {
       stderr: "provider/local file evidence mismatch",
     },
     {
+      name: "provider unavailable while local patch is available",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const availableEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [unavailablePatchEntry(availableEntry)],
+          local_files: [availableEntry],
+        });
+      },
+      stderr: "provider/local patch evidence mismatch",
+    },
+    {
+      name: "provider available while local patch is unavailable",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const availableEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [availableEntry],
+          local_files: [unavailablePatchEntry(availableEntry)],
+        });
+      },
+      stderr: "provider/local patch evidence mismatch",
+    },
+    {
+      name: "provider and local forged metadata differs from canonical git",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        const forgedEntry = {
+          ...fileEntry,
+          additions: 2,
+          changes: 2,
+        };
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedEntry],
+          local_files: [forgedEntry],
+        });
+      },
+      stderr: "local provider evidence does not match git",
+    },
+    {
+      name: "available patch digest differs from canonical git",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        const forgedEntry = {
+          ...fileEntry,
+          patch_sha256: "b".repeat(64),
+        };
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedEntry],
+          local_files: [forgedEntry],
+        });
+      },
+      stderr: "provider/local patch evidence mismatch",
+    },
+    {
       name: "provider/local diff mismatch",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
@@ -1218,6 +1322,45 @@ describe("review artifact runtime reducers", () => {
         providerScopeEvidence(cwd, baseSha, headSha, {
           provider_diff_sha256: "b".repeat(64),
         }),
+      stderr: "provider/local diff digest mismatch",
+    },
+    {
+      name: "unavailable full diff drift with incompatible provenance",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const fileEntry = unavailablePatchEntry(
+          await providerEvidenceFileEntry(cwd, baseSha, headSha),
+        );
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+          provider_diff_sha256: "b".repeat(64),
+        });
+      },
+      stderr: "provider/local diff digest mismatch",
+    },
+    {
+      name: "empty provider and local file sets with provider-native diff drift",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [],
+          language_hints: [],
+          mechanical_facts: {
+            changed_file_count: 0,
+            followup_sha_usable: false,
+            mechanical_escalate_full: true,
+            mechanical_escalation_reason: "not-followup",
+          },
+        }),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [],
+          local_files: [],
+          provider_diff_sha256: "b".repeat(64),
+          digest_provenance: providerNativeDiffProvenance(),
+        }),
+      workspace: makeProviderEmptyDiffWorkspace,
       stderr: "provider/local diff digest mismatch",
     },
     {
@@ -1251,10 +1394,11 @@ describe("review artifact runtime reducers", () => {
           provider_files: [availableEntry, unavailableEntry],
           local_files: [availableEntry, unavailableEntry],
           provider_diff_sha256: "b".repeat(64),
+          digest_provenance: providerNativeDiffProvenance(),
         });
       },
       workspace: makeProviderMultiFileWorkspace,
-      stderr: "provider/local patch evidence mismatch",
+      stderr: "provider/local diff digest mismatch",
     },
     {
       name: "self-range provider diff base",

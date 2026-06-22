@@ -883,8 +883,7 @@ async function validatePrReviewProviderEvidence(
   const unavailableOnly =
     providerFiles.length > 0 &&
     providerFiles.every(isUnavailablePatchEntry) &&
-    localFiles.every(isUnavailablePatchEntry) &&
-    expectedLocalFiles.every(isUnavailablePatchEntry);
+    localFiles.every(isUnavailablePatchEntry);
   if (
     stringField(evidence, "provider_diff_sha256") !==
     stringField(evidence, "local_diff_sha256")
@@ -1079,10 +1078,7 @@ function validateProviderPatchEvidence(
       continue;
     }
 
-    if (
-      !isUnavailablePatchEntry(localFile) ||
-      !isUnavailablePatchEntry(expectedLocalFile)
-    ) {
+    if (!isUnavailablePatchEntry(localFile)) {
       fail("provider/local patch evidence mismatch");
     }
   }
