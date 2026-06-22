@@ -768,6 +768,55 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps pr-review provider-scope governance disposition in source prose", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const normalizedPrReview = normalizeWhitespace(prReview);
+
+    expect(prReview).toContain("### Adjacent Governance Disposition");
+    expect(normalizedPrReview).toContain(
+      "Source skills under `skills/` remain authoritative; generated outputs are derived evidence only",
+    );
+
+    for (const requiredSurface of [
+      "CONTRIBUTING.md",
+      "docs/guidelines/pr-guideline.md",
+      "docs/guidelines/code-review-guideline.md",
+      ".github/pull_request_template.md",
+      "WORKFLOW.md",
+      "AGENTS.md",
+      "docs/adr/adr-template.md",
+      "docs/guidelines/documentation-standard.md",
+      "docs/guidelines/documentation-checklists.md",
+      "skills/pr-review/SKILL.md",
+      "skills/play-review/references/follow-up-scope-policy.md",
+      "skills/play-validate-review-artifacts/SKILL.md",
+      "skills/play-skill-authoring/SKILL.md",
+      "agents/",
+    ]) {
+      expect(prReview).toContain(requiredSurface);
+    }
+
+    for (const affectedAdr of [
+      "docs/adr/adr-0007-review-pipeline-delineation.md",
+      "docs/adr/adr-0009-review-pipeline-consolidation.md",
+      "docs/adr/adr-0011-reviewer-fanout-audit.md",
+      "docs/adr/adr-0016-single-task-auto-final-review-carve-out.md",
+      "docs/adr/adr-0017-guarded-tiny-diff-reviewer-fanout.md",
+      "docs/adr/adr-0018-risk-based-per-task-review-routing.md",
+      "docs/adr/adr-0022-three-topical-play-review-fanout.md",
+    ]) {
+      expect(prReview).toContain(affectedAdr);
+    }
+
+    expect(normalizedPrReview).toContain(
+      "no concrete contradiction with this scoped `pr-review` workflow change",
+    );
+    expect(normalizedPrReview).toContain(
+      "review-pipeline ownership and fanout/routing decisions without claiming local base refs as provider scope authority",
+    );
+    expect(normalizedPrReview).toContain("Task 4 records pressure evidence");
+  });
+
   it("keeps boundary-changing brainstorm designs contract-decision adequate", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const contractDecisions = getMarkdownSection(

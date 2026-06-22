@@ -1557,9 +1557,14 @@ describe("phase artifact source contracts", () => {
     const playReview = await readSkillSource("play-review");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
+    const followUpScopePolicy = await readRepoFile(
+      "skills/play-review/references/follow-up-scope-policy.md",
+    );
     const normalizedPlayReview = normalizeWhitespace(playReview);
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedFollowUpScopePolicy =
+      normalizeWhitespace(followUpScopePolicy);
 
     expect(playReview).toContain("play-validate-review-artifacts");
     expect(normalizedPlayReview).toContain(
@@ -1580,6 +1585,46 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "After final active range selection, compute `language_hints`",
+    );
+    expect(normalizedPrReview).toContain(
+      "Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider `baseRefOid` is metadata, not proof that the base branch ref is the PR diff base",
+    );
+    expect(normalizedPrReview).toContain(
+      "complete bound provider file/diff evidence",
+    );
+    expect(normalizedPrReview).toContain("provider PR diff-base proof");
+    expect(normalizedPrReview).toContain(
+      "provider/local file lists and diff digests match",
+    );
+    expect(normalizedPrReview).toContain(
+      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
+    );
+    expect(normalizedPrReview).toContain(
+      "local base refs are allowed only as diagnostics or optimization inputs after exact-SHA equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven",
+    );
+    expect(normalizedPrReview).toContain(
+      "Wrong-base diagnostics are fail-closed",
+    );
+    expect(normalizedPrReview).toContain(
+      "bind the provider scope evidence artifact into every scope-decision, handoff, result, and approved-review validation path that consumes full-range authority",
+    );
+    expect(normalizedPrReview).toContain(
+      "play-review remains provider-agnostic",
+    );
+    expect(normalizedPrReview).not.toContain(
+      "origin/<base-ref>` as canonical full PR scope",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "The active range and full routing/context range are separate facts",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "For provider-backed PR wrappers, the full PR routing/context range must be provider-proven by the wrapper",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "`play-review` consumes explicit final scope facts and must not discover provider scope, provider OIDs, provider file lists, provider diffs, or provider PR diff-base proof",
     );
 
     expect(branchReview).toContain("references/follow-up-scope-policy.md");
