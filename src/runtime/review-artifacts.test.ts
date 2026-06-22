@@ -93,6 +93,27 @@ async function makeProviderMultiFileWorkspace(): Promise<{
   return { cwd, baseSha, headSha };
 }
 
+async function makeProviderMovingBaseWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  advancedBaseSha: string;
+  headSha: string;
+}> {
+  const workspace = await makeProviderScopeWorkspace();
+  const { cwd, baseSha, headSha } = workspace;
+  await execFileAsync("git", ["switch", "main"], { cwd });
+  await mkdir(path.join(cwd, "docs"), { recursive: true });
+  await writeFile(path.join(cwd, "docs/base-only.md"), "base-only\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "docs: advance base"], {
+    cwd,
+  });
+  const advancedBaseSha = await git(cwd, "rev-parse", "HEAD");
+  await execFileAsync("git", ["switch", "topic"], { cwd });
+  process.chdir(cwd);
+  return { cwd, baseSha, advancedBaseSha, headSha };
+}
+
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout.trim();
@@ -534,6 +555,76 @@ describe("review artifact runtime reducers", () => {
         exitCode: 0,
         stdout: "",
         stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("accepts provider-pinned initial review scope when the local base ref has advanced", async () => {
+    const { cwd, baseSha, advancedBaseSha, headSha } =
+      await makeProviderMovingBaseWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          baseRefOid: advancedBaseSha,
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, "main")),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("rejects moving-base evidence that omits base-only file deletions", async () => {
+    const { cwd, baseSha, advancedBaseSha, headSha } =
+      await makeProviderMovingBaseWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    const movingBaseRange = `${advancedBaseSha}..${headSha}`;
+    try {
+      const movingBaseDiff = await gitRaw(cwd, "diff", movingBaseRange);
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          baseRefOid: advancedBaseSha,
+          provider_pr_diff_base_sha: advancedBaseSha,
+          full_pr_diff_range: movingBaseRange,
+          provider_diff_sha256: sha256(movingBaseDiff),
+          local_diff_sha256: sha256(movingBaseDiff),
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, advancedBaseSha, headSha, undefined, {
+          selection_reason:
+            "Incorrectly treats the moving local base as the full PR range.",
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, "main")),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "local provider evidence does not match git",
+        ),
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
