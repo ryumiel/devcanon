@@ -775,12 +775,11 @@ describe("pr-review manifest helper", () => {
     }
   }, 30_000);
 
-  it("rejects handoff and result validation for the wrong repository", async () => {
+  it("rejects handoff validation for the wrong repository", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
       await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
-      await runHelper(cwd, "write-result", resultEnv(headSha));
 
       await expect(
         runHelper(cwd, "validate-handoff", {
@@ -791,6 +790,18 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("handoff repository mismatch"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects result validation for the wrong repository", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
       await expect(
         runHelper(cwd, "validate-result", {
           REPOSITORY: "other/repo",
