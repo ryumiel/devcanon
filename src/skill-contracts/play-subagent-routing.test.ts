@@ -265,7 +265,7 @@ describe("play subagent routing source contracts", () => {
       "## Review Artifact Parsing",
       "## Blocker Stop Rules",
       "## Nit Classification",
-      "## Mechanical Nit Commits",
+      "## Branch-Review-Owned Fix Commits",
       "## Judgment-Required Nits Envelope",
       "## Phase 8 Handoff",
     ]) {
@@ -695,6 +695,7 @@ describe("play subagent routing source contracts", () => {
       normalizedRouting,
       normalizedRoutingAdvantages,
       normalizedExampleWorkflow,
+      normalizedRoutingAdr,
     ]) {
       expect(reducedRouteSurface).toContain(
         "zero blocking findings auto-fixed",
@@ -706,10 +707,6 @@ describe("play subagent routing source contracts", () => {
         "fresh final approval-summary evidence after branch-review-owned fix commits",
       );
     }
-    expect(normalizedRoutingAdr).toContain("zero blocking findings auto-fixed");
-    expect(normalizedRoutingAdr).toContain(
-      "a captured final approval-summary notice path",
-    );
     expect(routingPolicy).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
     );
@@ -760,6 +757,9 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase6Reference).toContain(
       "a captured final approval-summary notice path",
     );
+    expect(normalizedPhase6Reference).toContain(
+      "fresh final approval-summary evidence after branch-review-owned fix commits",
+    );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
     expect(phase6).toContain("Auto handoff: <repo-relative-path>");
@@ -787,7 +787,7 @@ describe("play subagent routing source contracts", () => {
       "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(normalizedPhase7).toContain(
-      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix` on the new `HEAD` and restart Phase 7",
+      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
     );
     expect(phase7).toContain("references/phase-7-review-handling.md");
     expect(phase7).toContain("prepare-judgment-nits");
@@ -802,7 +802,7 @@ describe("play subagent routing source contracts", () => {
       'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix` on the new `HEAD` and restart Phase 7",
+      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
     );
     expect(normalizedPhase7).toContain(
       "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
@@ -829,7 +829,7 @@ describe("play subagent routing source contracts", () => {
       "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(normalizedPhase8).toContain(
-      "captured final approval-summary notice path, and no mechanical-nit commit after that review",
+      "fresh final approval-summary evidence after any branch-review-owned fix commits",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope",
@@ -872,7 +872,7 @@ describe("play subagent routing source contracts", () => {
       "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(phase8Handoff).toContain(
-      "final approval-summary notice path captured from that same final run",
+      "fresh final approval-summary evidence after any branch-review-owned fix commits",
     );
     expect(phase8Handoff).toContain(
       "final approval-summary notice path captured from that same final run",
@@ -942,8 +942,23 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedSingleTaskPlans).toContain(
       "direct/manual terminal handoff resolves whether the active workflow requires `branch-review` before `play-branch-finish`",
     );
+    expect(normalizedSingleTaskPlans).toContain(
+      "report implementation status and final review status before any branch-review or finish handoff",
+    );
+    expect(normalizedSingleTaskPlans).toContain(
+      "hand off to `branch-review` before any `play-branch-finish` handoff when the active workflow requires branch-level review before PR creation",
+    );
+    expect(normalizedSingleTaskPlans).toContain(
+      "Use `branch-review --fix` as the branch-level gate before finish only when the owning workflow already grants auto-fix authority or the operator explicitly confirms that branch-review may auto-commit fixes",
+    );
+    expect(normalizedSingleTaskPlans).toContain(
+      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
+    );
     expect(normalizedSingleTaskPlans).not.toContain(
       "the user can still run `branch-review` manually",
+    );
+    expect(normalizedSingleTaskPlans).not.toContain(
+      "stop before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
     );
     expect(normalizedDirectManualHandoff).toContain(
       "built-in final whole-implementation review passed",

@@ -350,10 +350,18 @@ computed by the controller. Hard-risk, unclear, or untrusted routes use
 If you invoke this skill **directly** (not via `--auto`) on a single-task
 plan, no whole-diff review runs after the final code-quality reviewer. When
 that reviewer passes, continue through the direct/manual terminal handoff:
-report that this skill did not run branch-level review, stop before
-`play-branch-finish` when the active workflow requires branch-level review
-before PR creation, and invoke `play-branch-finish` only when that workflow does
-not require branch-level review.
+report implementation status and final review status before any branch-review
+or finish handoff, report that this skill did not run branch-level review, and
+hand off to `branch-review` before any `play-branch-finish` handoff when the
+active workflow requires branch-level review before PR creation. Use
+`branch-review --fix` as the branch-level gate before finish only when the
+owning workflow already grants auto-fix authority or the operator explicitly
+confirms that branch-review may auto-commit fixes; otherwise hand off to
+branch-review without auto-fix authority and wait for review approval evidence.
+Do not invoke `play-branch-finish` until `branch-review` returns review
+approval evidence or the active workflow explicitly waives branch-level review.
+Invoke `play-branch-finish` only when branch-level review is not required or
+has been resolved.
 
 The trade-off here: per-task review on a single task adds review overhead
 without catching regressions across tasks (there is only one), so the
