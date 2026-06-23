@@ -1822,8 +1822,7 @@ function findingsCounts(findings) {
     return {
         blockerCount: remainingFindings.filter(isTrueBlockingFinding).length,
         nitCount: remainingFindings.filter(isNonblockingFeedbackFinding).length,
-        carryForwardCount: carryForwardFindings.filter(isCarryForwardFeedbackFinding)
-            .length,
+        carryForwardCount: carryForwardFindings.filter(isCarryForwardFeedbackFinding).length,
     };
 }
 function isTrueBlockingFinding(finding) {
