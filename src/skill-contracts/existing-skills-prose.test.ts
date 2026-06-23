@@ -3404,6 +3404,50 @@ describe("existing skills source prose contracts", () => {
     }
   });
 
+  it("keeps the play-branch-finish approval gate helper validator-only", async () => {
+    const helper = await readRepoFile(
+      "skills/play-branch-finish/scripts/branch-review-approval-gate.sh",
+    );
+    const normalizedHelper = normalizeWhitespace(helper);
+
+    expect(helper).toContain("validate-approval-summary");
+    expect(helper).toContain("--surface branch-review");
+    expect(helper).toContain("--head-sha");
+    expect(helper).toContain("--approval-summary-file");
+    expect(helper).toContain("--emit-gate-result");
+    expect(helper).toContain("--configured-path-pattern");
+    expect(helper).toContain("APPROVAL_SUMMARY_FILE is required");
+    expect(helper).toContain("approval summary path validation failed: $file");
+    expect(normalizedHelper).toContain(
+      "branch-review approval gate blocking: validator reported gate_result=$gate_result",
+    );
+    expect(helper).toContain("APPROVED_HEAD_SHA=%s");
+
+    for (const forbiddenHelperOwnership of [
+      "write-approval-summary",
+      "prepare-approval-summary-write",
+      "branch-review --fix",
+      "play-review/findings/v1",
+      "prepare-judgment-nits",
+      "validate-findings",
+      "render-review-preview",
+      "build-github-review-payload",
+    ]) {
+      expect(helper).not.toContain(forbiddenHelperOwnership);
+    }
+
+    for (const forbiddenHelperClassifier of [
+      /\bclassif(?:y|ies|ication)\b/i,
+      /\bfindings\[\]/i,
+      /\bseverity\b/i,
+      /\bcritic\b/i,
+      /\bfixable\b/i,
+      /\bmechanical(?:-|\s+)nits?\b/i,
+    ]) {
+      expect(normalizedHelper).not.toMatch(forbiddenHelperClassifier);
+    }
+  });
+
   it("keeps play-branch-finish branch-review approval gate explicit and pre-push", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
     const commonMistakes = await readRepoFile(

@@ -179,6 +179,46 @@ describe("existing skills render cleanly", () => {
     }
   });
 
+  it("renders play-branch-finish adapter guardrails for both targets", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    const { outputs } = await renderAll(config, false);
+
+    for (const target of ["claude", "codex"] as const) {
+      const output = getSkillOutput(outputs, "play-branch-finish", target);
+      const normalized = normalizeWhitespace(output.content);
+
+      expect(normalized).toContain(
+        "`branch-review` remains owned outside this skill",
+      );
+      expect(normalized).toContain("Option 2 does not invoke `branch-review`");
+      expect(normalized).toContain(
+        "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
+      );
+      expect(normalized).toContain(
+        "validates caller-supplied `approval_summary_file` evidence only through the explicit `branch_review_required=true` gate",
+      );
+      expect(normalized).toContain(
+        "delegates approval-summary interpretation to `play-validate-review-artifacts`",
+      );
+      expect(normalized).toContain(
+        "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+      );
+      expect(normalized).toContain("No filtering inside this skill");
+
+      for (const staleFinishOwnedNitPattern of [
+        /\b(?:play-branch-finish|finish|option\s+2|this skill)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+        /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+        /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+`?play-branch-finish`?\b/i,
+      ] as const) {
+        expect(normalized).not.toMatch(staleFinishOwnedNitPattern);
+      }
+    }
+  });
+
   it("preserves the pr-merge preflight and cleanup contract in rendered Codex output", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(

@@ -148,6 +148,8 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     }
 
     const issuePrimingWorkflow = bodies["issue-priming-workflow:codex"];
+    const normalizedIssuePrimingWorkflow =
+      normalizeWhitespace(issuePrimingWorkflow);
     expect(issuePrimingWorkflow).toContain("Plan:");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
@@ -155,6 +157,15 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Phase 7 owns branch review before Phase 8",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Phase 8 must not rely on `play-branch-finish` to run, validate, classify, or complete branch review",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Pass judgment-required Phase 7 feedback only through `nits_file`",
     );
   });
 

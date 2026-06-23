@@ -1614,6 +1614,61 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps finish surfaces out of fixable nit ownership", async () => {
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const finishSurfaces = [
+      {
+        label: "play-branch-finish source",
+        source: playBranchFinish,
+      },
+      {
+        label: "play-branch-finish common mistakes",
+        source: commonMistakes,
+      },
+      {
+        label: "play-branch-finish red flags",
+        source: redFlags,
+      },
+    ] as const;
+    const staleFinishOwnedNitPatterns = [
+      /\b(?:play-branch-finish|finish|option\s+2|this skill)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+      /\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?)\s+mechanical(?:-|\s+)nits?\s+(?:in|to)\s+(?:the\s+)?worktree\b/i,
+      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:inside|by|within)\s+`?play-branch-finish`?\b/i,
+      /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+`?play-branch-finish`?\b/i,
+    ] as const;
+
+    for (const { label, source } of finishSurfaces) {
+      const normalizedSource = normalizeWhitespace(source);
+
+      for (const staleFinishOwnedNitPattern of staleFinishOwnedNitPatterns) {
+        expect(
+          normalizedSource,
+          `${label} still contains obsolete finish-owned nit-fix wording`,
+        ).not.toMatch(staleFinishOwnedNitPattern);
+      }
+    }
+
+    expect(normalizeWhitespace(playBranchFinish)).toContain(
+      "No filtering inside this skill",
+    );
+    expect(normalizeWhitespace(playBranchFinish)).toContain(
+      "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Putting branch-review nits in the description body",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Embed branch-review nits in the PR description body",
+    );
+  });
+
   it("keeps shared follow-up review scope policy contracts in source", async () => {
     const playReview = await readSkillSource("play-review");
     const followUpScopePolicy = await readRepoFile(

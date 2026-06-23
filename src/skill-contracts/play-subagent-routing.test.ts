@@ -260,6 +260,25 @@ describe("play subagent routing source contracts", () => {
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));
     expect(normalizedPhase7).toContain("classification flow is `--auto` only");
+    const phase8 = sliceBetween(
+      issuePrimingWorkflow,
+      "### Phase 8: Create PR",
+      "## Phase Flow Reference",
+    );
+    const normalizedPhase8 = normalizeWhitespace(phase8);
+
+    expect(normalizedPhase8).toContain(
+      "Phase 7 owns branch review before Phase 8",
+    );
+    expect(normalizedPhase8).toContain(
+      "Phase 8 must not rely on `play-branch-finish` to run, validate, classify, or complete branch review",
+    );
+    expect(normalizedPhase8).toContain(
+      "Phase 8 does not classify findings or prepare the nits envelope",
+    );
+    expect(normalizedPhase8).toContain(
+      "Pass judgment-required Phase 7 feedback only through `nits_file`",
+    );
 
     for (const heading of [
       "## Review Artifact Parsing",

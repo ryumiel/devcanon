@@ -1024,6 +1024,13 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedOption2).toContain(
         "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
       );
+      for (const staleFinishOwnedNitPattern of [
+        /\b(?:play-branch-finish|finish|option\s+2|this skill)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+        /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+        /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+`?play-branch-finish`?\b/i,
+      ] as const) {
+        expect(normalizedOption2).not.toMatch(staleFinishOwnedNitPattern);
+      }
       expect(normalizedOption2).toContain(
         "Optional input — branch-review approval gate",
       );
