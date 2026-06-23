@@ -55,6 +55,12 @@ describe("git diff parser", () => {
     ]);
   });
 
+  it("maps type-change records to modified", () => {
+    expect(parseGitNameStatusZ(Buffer.from("T\0src/app.ts\0"))).toEqual([
+      { path: "src/app.ts", previousPath: null, status: "modified" },
+    ]);
+  });
+
   it("parses binary numstat records as unavailable patches", () => {
     expect(parseGitNumstatZ(Buffer.from("-\t-\tassets/blob.bin\0"))).toEqual([
       {

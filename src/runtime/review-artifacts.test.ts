@@ -284,6 +284,52 @@ async function makeProviderTabbedPathWorkspace(): Promise<{
   return { cwd, baseSha, headSha, filePath };
 }
 
+async function makeProviderTypeChangeWorkspace(): Promise<{
+  cwd: string;
+  baseSha: string;
+  headSha: string;
+  filePath: string;
+}> {
+  const cwd = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-provider-type-change-"),
+  );
+  await execFileAsync("git", ["init", "--initial-branch=main"], { cwd });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+    cwd,
+  });
+  const filePath = "file.txt";
+  await writeFile(path.join(cwd, filePath), "target\n");
+  await execFileAsync("git", ["add", "."], { cwd });
+  await execFileAsync("git", ["commit", "-m", "chore: baseline"], { cwd });
+  const baseSha = await git(cwd, "rev-parse", "HEAD");
+
+  await execFileAsync("git", ["switch", "-c", "topic"], { cwd });
+  const blobFixture = ".type-change-blob";
+  await writeFile(path.join(cwd, blobFixture), "target");
+  const symlinkBlobSha = await git(cwd, "hash-object", "-w", blobFixture);
+  await rm(path.join(cwd, blobFixture));
+  await execFileAsync(
+    "git",
+    [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "120000",
+      symlinkBlobSha,
+      filePath,
+    ],
+    { cwd },
+  );
+  await execFileAsync("git", ["commit", "-m", "test: change file type"], {
+    cwd,
+  });
+  const headSha = await git(cwd, "rev-parse", "HEAD");
+  await mkdir(path.join(cwd, ".ephemeral"));
+  process.chdir(cwd);
+  return { cwd, baseSha, headSha, filePath };
+}
+
 async function makeProviderDiffDriverWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -1377,6 +1423,47 @@ describe("review artifact runtime reducers", () => {
         await providerScopeDecision(cwd, baseSha, headSha, undefined, {
           changed_files: [filePath],
           language_hints: ["ts"],
+        }),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("maps provider-bound type-change paths to modified evidence", async () => {
+    const { cwd, baseSha, headSha, filePath } =
+      await makeProviderTypeChangeWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = {
+        ...(await providerEvidenceFileEntry(cwd, baseSha, headSha, filePath)),
+        status: "modified",
+        additions: 1,
+        deletions: 1,
+        changes: 2,
+      };
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [filePath],
+          language_hints: ["txt"],
         }),
       );
 

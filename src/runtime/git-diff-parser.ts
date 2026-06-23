@@ -74,6 +74,8 @@ function parseNameStatusHeader(
       return "added";
     case "M":
       return "modified";
+    case "T":
+      return "modified";
     case "D":
       return "removed";
     default:
