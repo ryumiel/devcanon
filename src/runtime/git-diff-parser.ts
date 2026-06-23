@@ -32,8 +32,8 @@ export function parseGitNameStatusZ(buffer: Buffer): GitNameStatusEntry[] {
     if (rawStatus === undefined || rawStatus.length === 0) {
       throwMalformed("name-status");
     }
-    const statusCode = rawStatus[0] ?? "";
-    if (statusCode === "R" || statusCode === "C") {
+    const nameStatus = parseNameStatusHeader(rawStatus);
+    if (nameStatus === "renamed" || nameStatus === "copied") {
       const previousPath = tokens[index];
       const currentPath = tokens[index + 1];
       if (
@@ -48,7 +48,7 @@ export function parseGitNameStatusZ(buffer: Buffer): GitNameStatusEntry[] {
       entries.push({
         path: currentPath,
         previousPath,
-        status: statusCode === "R" ? "renamed" : "copied",
+        status: nameStatus,
       });
       continue;
     }
@@ -60,15 +60,32 @@ export function parseGitNameStatusZ(buffer: Buffer): GitNameStatusEntry[] {
     entries.push({
       path: currentPath,
       previousPath: null,
-      status:
-        statusCode === "A"
-          ? "added"
-          : statusCode === "D"
-            ? "removed"
-            : "modified",
+      status: nameStatus,
     });
   }
   return entries;
+}
+
+function parseNameStatusHeader(
+  rawStatus: string,
+): GitNameStatusEntry["status"] {
+  switch (rawStatus) {
+    case "A":
+      return "added";
+    case "M":
+      return "modified";
+    case "D":
+      return "removed";
+    default:
+      break;
+  }
+  if (/^R[0-9]+$/u.test(rawStatus)) {
+    return "renamed";
+  }
+  if (/^C[0-9]+$/u.test(rawStatus)) {
+    return "copied";
+  }
+  throwMalformed("name-status");
 }
 
 export function parseGitNumstatZ(buffer: Buffer): GitNumstatEntry[] {

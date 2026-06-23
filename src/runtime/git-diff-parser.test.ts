@@ -79,6 +79,31 @@ describe("git diff parser", () => {
       message: "malformed git name-status output",
     },
     {
+      name: "name-status unsupported status header",
+      parse: () => parseGitNameStatusZ(Buffer.from("X\0src/app.ts\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status malformed rename score",
+      parse: () => parseGitNameStatusZ(Buffer.from("R\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status non-numeric rename score",
+      parse: () => parseGitNameStatusZ(Buffer.from("Rabc\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status malformed copy score",
+      parse: () => parseGitNameStatusZ(Buffer.from("C\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status non-numeric copy score",
+      parse: () => parseGitNameStatusZ(Buffer.from("Cabc\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
       name: "rename missing current path token",
       parse: () => parseGitNameStatusZ(Buffer.from("R100\0src/old.ts\0")),
       message: "malformed git name-status output",
