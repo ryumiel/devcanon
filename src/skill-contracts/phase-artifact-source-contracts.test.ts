@@ -1479,8 +1479,22 @@ describe("phase artifact source contracts", () => {
     expect(scopeHelper).not.toContain("gate_passed");
   });
 
-  it("keeps fixable nit ownership in branch-review instead of the issue-priming caller", async () => {
+  it("keeps fixable nit ownership in branch-review", async () => {
     const branchReview = await readSkillSource("branch-review");
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(normalizedBranchReview).toContain(
+      "`branch-review --fix` owns fixable review feedback, including objectively fixable nit-severity findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Only judgment-required nits remain for caller handoff",
+    );
+  });
+
+  it("keeps fixable nit ownership out of issue-priming caller surfaces", async () => {
     const issuePrimingWorkflow = await readSkillSource(
       "issue-priming-workflow",
     );
@@ -1505,7 +1519,6 @@ describe("phase artifact source contracts", () => {
     const autoModeDiscipline = await readRepoFile(
       "skills/issue-priming-workflow/references/auto-mode-discipline.md",
     );
-    const normalizedBranchReview = normalizeWhitespace(branchReview);
     const issuePrimingCallerSurfaces = [
       {
         label: "workflow source",
@@ -1547,16 +1560,6 @@ describe("phase artifact source contracts", () => {
       /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:outside|before|after|without)\s+`?branch-review`?\b/i,
       /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+phase\s+8\b/i,
     ] as const;
-
-    expect(normalizedBranchReview).toContain(
-      "`branch-review --fix` owns fixable review feedback, including objectively fixable nit-severity findings",
-    );
-    expect(normalizedBranchReview).toContain(
-      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits",
-    );
-    expect(normalizedBranchReview).toContain(
-      "Only judgment-required nits remain for caller handoff",
-    );
 
     for (const { label, source } of issuePrimingCallerSurfaces) {
       const normalizedSource = normalizeWhitespace(source);
