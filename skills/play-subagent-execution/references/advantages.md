@@ -38,11 +38,11 @@ Comparative notes on why this skill exists. Per-turn instruction lives in
   `none-final-only` only on the verified shared
   `issue-priming-workflow --auto` Phase 6 path with controller-local parent
   state and a valid `issue-priming/auto-handoff/v1` artifact, where Phase 7 reruns
-  `branch-review --fix` after any auto-fix or mechanical-nit commit until the
+  `branch-review --fix` after any branch-review-owned fix commit until the
   final run reports zero blocking findings auto-fixed, no unresolved remaining
   `Blocking` findings except findings whose `critic` verdict is `INVALID` or
-  `DOWNGRADE`, has a captured final approval-summary notice path, and no
-  additional mechanical nit commits
+  `DOWNGRADE`, has a captured final approval-summary notice path, and provides
+  fresh final approval-summary evidence after branch-review-owned fix commits
 - Single-task plans skip per-task reviewer dispatch and rely on the final
   code-quality reviewer plus direct/manual branch-level review status resolution,
   or downstream `branch-review --fix` on the `issue-priming-workflow --auto`

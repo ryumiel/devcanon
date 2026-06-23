@@ -441,9 +441,9 @@ artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
 full base SHA as branch-review's positional base:
 `branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
 `branch-review --fix --risk-signals <path> <full-base-sha>`. If a branch-review
-run or later mechanical-nit handling adds commits, regenerate risk signals for
-the new `HEAD` before rerunning branch review, or omit the stale risk-signals
-path intentionally.
+run or branch-review-owned fix commit changes `HEAD`, regenerate risk signals
+for the new `HEAD` before rerunning branch review, or omit the stale
+risk-signals path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
@@ -454,22 +454,29 @@ the active workflow requires branch-level review.
 When this is a direct or manual invocation and there is no verified owning
 caller final whole-diff gate, the final whole-implementation review is this
 skill's built-in terminal review gate. If that final whole-implementation
-review passes, report that implementation and final review passed. Before
-invoking `play-branch-finish`, also report these observable claims:
-built-in final whole-implementation review passed; this skill did not run
-branch-level review; run `branch-review` before `play-branch-finish` when the
-active workflow requires branch-level review before PR creation; proceeding to
-`play-branch-finish` is acceptable only when that workflow does not require
-branch-level review. If the active workflow requires branch-level review before
-PR creation, stop before invoking `play-branch-finish` so the operator can run
-`branch-review` first. If that workflow does not require branch-level review,
-then invoke `play-branch-finish`.
+review passes, report implementation status and final review status before any
+branch-review or finish handoff. Before invoking `play-branch-finish`, also
+report these observable claims: built-in final whole-implementation review
+passed; this skill did not run branch-level review; run `branch-review` before
+`play-branch-finish` when the active workflow requires branch-level review
+before PR creation; proceeding to `play-branch-finish` is acceptable only when
+that workflow does not require branch-level review. When the active workflow
+requires branch-level review before PR creation, hand off to `branch-review`
+before any `play-branch-finish` handoff. Use `branch-review --fix` as the
+branch-level gate before finish only when the owning workflow already grants
+auto-fix authority or the operator explicitly confirms that branch-review may
+auto-commit fixes; otherwise hand off to branch-review without auto-fix
+authority and wait for review approval evidence. Do not invoke
+`play-branch-finish` until `branch-review` returns review approval evidence or
+the active workflow explicitly waives branch-level review. If that workflow does
+not require branch-level review, then invoke `play-branch-finish`.
 
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow
 states. After the final whole-implementation review passes, the next action is
-to resolve the branch-level review status above and then either stop for
-required branch review or invoke `play-branch-finish`. Treating a summary as
+to resolve the branch-level review status above and then either hand off for
+required branch review, wait until that review status is resolved, or invoke
+`play-branch-finish` when branch review is not required. Treating a summary as
 completion and stopping there is invalid: summary-only completion is a workflow
 violation.
 
