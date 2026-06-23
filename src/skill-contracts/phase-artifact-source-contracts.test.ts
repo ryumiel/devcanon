@@ -1479,6 +1479,49 @@ describe("phase artifact source contracts", () => {
     expect(scopeHelper).not.toContain("gate_passed");
   });
 
+  it("keeps fixable nit ownership in branch-review instead of the issue-priming caller", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase8Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
+    const nitClassification = await readRepoFile(
+      "skills/issue-priming-workflow/references/nit-classification.md",
+    );
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedIssuePriming = normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedPhase7Reference = normalizeWhitespace(phase7Reference);
+    const normalizedPhase8Reference = normalizeWhitespace(phase8Reference);
+    const normalizedNitClassification = normalizeWhitespace(nitClassification);
+
+    expect(normalizedBranchReview).toContain(
+      "`branch-review --fix` owns fixable review feedback, including objectively fixable nit-severity findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Only judgment-required nits remain for caller handoff",
+    );
+
+    for (const callerSurface of [
+      normalizedIssuePriming,
+      normalizedPhase7Reference,
+      normalizedPhase8Reference,
+      normalizedNitClassification,
+    ]) {
+      expect(callerSurface).not.toContain("mechanical nits");
+      expect(callerSurface).not.toContain("mechanical-nit commit");
+      expect(callerSurface).not.toContain("Mechanical:");
+      expect(callerSurface).toContain("judgment-required nits");
+    }
+  });
+
   it("keeps shared follow-up review scope policy contracts in source", async () => {
     const playReview = await readSkillSource("play-review");
     const followUpScopePolicy = await readRepoFile(

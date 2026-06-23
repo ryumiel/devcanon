@@ -997,6 +997,29 @@ describe("play subagent routing source contracts", () => {
     }
   });
 
+  it("hands review-required direct/manual completion to branch-review before finish", async () => {
+    const playSubagentExecution = await readSkillSource(
+      "play-subagent-execution",
+    );
+    const directManualHandoff = sliceBetween(
+      playSubagentExecution,
+      "### Direct/manual terminal handoff",
+      "## Subagent Lifecycle",
+    );
+    const normalizedDirectManualHandoff =
+      normalizeWhitespace(directManualHandoff);
+
+    expect(normalizedDirectManualHandoff).toContain(
+      "When the active workflow requires branch-level review before PR creation, hand off to `branch-review` before any `play-branch-finish` handoff",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
+    );
+    expect(normalizedDirectManualHandoff).not.toContain(
+      "so the operator can run `branch-review` first",
+    );
+  });
+
   it("keeps direct/manual references aligned with branch-review status resolution", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
