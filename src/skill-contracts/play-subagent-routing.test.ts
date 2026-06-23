@@ -245,7 +245,7 @@ describe("play subagent routing source contracts", () => {
       'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
     );
     expect(normalizedPhase7).toContain(
       "If Phase 6 emitted `Risk signals written to <path>.`, invoke `branch-review --fix --risk-signals <path>` for default-base artifacts",
@@ -706,7 +706,9 @@ describe("play subagent routing source contracts", () => {
       expect(reducedRouteSurface).toContain(
         "a captured final approval-summary notice path",
       );
-      expect(reducedRouteSurface).toContain("mechanical nit commits");
+      expect(reducedRouteSurface).toContain(
+        "fresh final approval-summary evidence after branch-review-owned fix commits",
+      );
     }
     expect(routingPolicy).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",
@@ -759,7 +761,7 @@ describe("play subagent routing source contracts", () => {
       "a captured final approval-summary notice path",
     );
     expect(normalizedPhase6Reference).toContain(
-      "no additional mechanical nit commits after that review",
+      "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true");
     expect(phase6).toContain("ISSUE_PRIMING_AUTO_HEAD");
@@ -788,7 +790,7 @@ describe("play subagent routing source contracts", () => {
       "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
     expect(normalizedPhase7).toContain(
-      "If later mechanical nit handling creates any commit, rerun this same Branch Review step on the new `HEAD`",
+      "If `branch-review --fix` creates any fix commit, rerun this same Branch Review step on the new `HEAD`",
     );
     expect(phase7).toContain("references/phase-7-review-handling.md");
     expect(phase7).toContain("prepare-judgment-nits");
@@ -803,7 +805,7 @@ describe("play subagent routing source contracts", () => {
       'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
     );
     expect(normalizedPhase7).toContain(
-      "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+      "After any branch-review-owned fix commit, rerun `branch-review --fix`",
     );
     expect(normalizedPhase7).toContain(
       "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
@@ -830,13 +832,13 @@ describe("play subagent routing source contracts", () => {
       "no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
     expect(normalizedPhase8).toContain(
-      "no mechanical-nit commit after that review",
+      "fresh final approval-summary evidence after any branch-review-owned fix commits",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
-      "Do not pass mechanical nits to Phase 8",
+      "Pass only judgment-required remaining nits to Phase 8",
     );
     expect(normalizeWhitespace(phase8Reference)).toContain(
       "Do not classify findings in Phase 8",
@@ -862,11 +864,11 @@ describe("play subagent routing source contracts", () => {
       sliceBetween(
         phase7,
         "Continue until a run reports zero blocking findings",
-        "If later mechanical nit handling creates any commit",
+        "This runs the full multi-agent review",
       ),
     );
-    const mechanicalNitCommits = normalizeWhitespace(
-      getMarkdownSection(phase7Reference, "Mechanical Nit Commits"),
+    const phase8Handoff = normalizeWhitespace(
+      getMarkdownSection(phase7Reference, "Phase 8 Handoff"),
     );
 
     expect(eagerContinuation).toContain(
@@ -875,14 +877,14 @@ describe("play subagent routing source contracts", () => {
     expect(eagerContinuation).toContain(
       "findings whose `critic` verdict is `INVALID` or `DOWNGRADE`",
     );
-    expect(mechanicalNitCommits).toContain(
+    expect(phase8Handoff).toContain(
       "captures that final run's approval-summary notice path",
     );
-    expect(mechanicalNitCommits).toContain(
-      "rerun `branch-review --fix` on the new `HEAD` and restart Phase 7",
+    expect(phase8Handoff).toContain(
+      "fresh final approval-summary evidence after any branch-review-owned fix commits",
     );
-    expect(mechanicalNitCommits).toContain(
-      "no additional mechanical nit commits after that review",
+    expect(phase8Handoff).toContain(
+      "passes only judgment-required remaining nits to Phase 8",
     );
   });
 

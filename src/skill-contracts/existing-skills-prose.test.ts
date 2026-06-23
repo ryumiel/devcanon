@@ -3634,13 +3634,13 @@ describe("existing skills source prose contracts", () => {
       "a captured final approval-summary notice path",
     );
     expect(normalizedPhase6).toContain(
-      "no additional mechanical nit commits after that review",
+      "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
     expect(normalizedPhase6Reference).toContain(
       "a captured final approval-summary notice path",
     );
     expect(normalizedPhase6Reference).toContain(
-      "no additional mechanical nit commits after that review",
+      "fresh final approval-summary evidence after branch-review-owned fix commits",
     );
     expect(phase7).toContain("Approval summary written to <path>.");
     expect(normalizedPhase7).toContain(
@@ -3650,10 +3650,10 @@ describe("existing skills source prose contracts", () => {
       "A missing approval-summary notice from the final run is a hard stop before Phase 8",
     );
     expect(normalizedPhase7).toContain(
-      "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+      "Do not carry an approval-summary path from an earlier review run across a branch-review-owned fix rerun",
     );
     expect(normalizedPhase7).toContain(
-      "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed, has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path, and no mechanical-nit commit occurs after that review",
+      "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed, has no unresolved true Blocking findings except `INVALID` or `DOWNGRADE`, has a captured final approval-summary path, and carries fresh final approval evidence after any branch-review-owned fix commits",
     );
     expect(normalizedPhase7).not.toContain("approval-summary JSON");
     expect(normalizedPhase7).toContain(
