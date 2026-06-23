@@ -1541,11 +1541,11 @@ describe("phase artifact source contracts", () => {
       },
     ] as const;
     const staleCallerOwnedNitPatterns = [
-      /\bmechanical(?:-|\s+)nits?\b/i,
-      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commits?|fixes?|handling)\b/i,
-      /\bfix(?:es)?\s+mechanical(?:-|\s+)nits?\b/i,
-      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b/i,
-      /\bauto-fix(?:es)?\s+in\s+worktree\b/i,
+      /\b(?:issue-priming-workflow|phase\s+[678]|caller|controller|workflow)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+      /\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?)\s+mechanical(?:-|\s+)nits?\s+(?:in|to)\s+(?:the\s+)?worktree\b/i,
+      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:outside|before|after|without)\s+`?branch-review`?\b/i,
+      /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+phase\s+8\b/i,
     ] as const;
 
     expect(normalizedBranchReview).toContain(

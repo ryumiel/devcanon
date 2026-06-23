@@ -1082,7 +1082,10 @@ describe("play subagent routing source contracts", () => {
       '"Active workflow requires branch-level review before PR creation?" -> "Invoke play-branch-finish" [label="no"]',
     );
     expect(normalizedProcessDiagrams).toContain(
-      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
+      "If the active workflow requires branch-level review before PR creation, hand off to `branch-review` before any `play-branch-finish` handoff",
+    );
+    expect(normalizedProcessDiagrams).toContain(
+      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
     );
     expect(normalizedProcessDiagrams).toContain(
       "If that workflow does not require branch-level review, invoke `play-branch-finish`",
