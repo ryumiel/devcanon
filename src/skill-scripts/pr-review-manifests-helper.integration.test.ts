@@ -684,7 +684,7 @@ describe("pr-review manifest helper", () => {
     }
   });
 
-  it("writes and validates minimal valid handoff and result manifests", async () => {
+  it("writes and validates a minimal valid handoff manifest", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
@@ -709,6 +709,16 @@ describe("pr-review manifest helper", () => {
             .working_directory,
         ),
       );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("writes and validates a minimal valid result manifest", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
 
       await expect(
         runHelper(cwd, "write-result", resultEnv(headSha)),
@@ -743,7 +753,7 @@ describe("pr-review manifest helper", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
-  }, 30_000);
+  });
 
   it("requires repository identity for handoff and result validation", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
@@ -1257,20 +1267,12 @@ describe("pr-review manifest helper", () => {
     }
   });
 
-  it("rejects invalid path identity, optional suffixes, physical roots, and stale worktree HEAD", async () => {
+  it("rejects invalid path identity values", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    const other = await makeGitWorkspace();
-    const sameHeadOther = await mkdtemp(
-      path.join(os.tmpdir(), "devcanon-pr-same-head-"),
-    );
     try {
       await writeValidInputs(cwd, baseSha, headSha);
       await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
       await runHelper(cwd, "write-result", resultEnv(headSha));
-      await execFileAsync("git", ["clone", cwd, sameHeadOther]);
-      await execFileAsync("git", ["checkout", "--detach", headSha], {
-        cwd: sameHeadOther,
-      });
 
       const handoff = await readJson(cwd, handoffPath(headSha));
       await writeJson(cwd, handoffPath(headSha), {
@@ -1332,6 +1334,26 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("review head mismatch"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects handoff physical roots outside the repository root", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const other = await makeGitWorkspace();
+    const sameHeadOther = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-same-head-"),
+    );
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await execFileAsync("git", ["clone", cwd, sameHeadOther]);
+      await execFileAsync("git", ["checkout", "--detach", headSha], {
+        cwd: sameHeadOther,
+      });
+
+      const handoff = await readJson(cwd, handoffPath(headSha));
 
       await writeJson(cwd, handoffPath(headSha), {
         ...handoff,
@@ -1380,8 +1402,19 @@ describe("pr-review manifest helper", () => {
           "execution working_directory must equal repository root",
         ),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(other.cwd);
+      await cleanupTempDir(sameHeadOther);
+    }
+  });
 
-      await writeJson(cwd, handoffPath(headSha), handoff);
+  it("rejects nested optional result paths", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+
       await expect(
         runHelper(cwd, "write-result", {
           ...resultEnv(headSha),
@@ -1390,7 +1423,17 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested review body path rejected"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
 
+  it("rejects stale handoff worktree HEAD", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      const handoff = await readJson(cwd, handoffPath(headSha));
       await writeFile(
         path.join(cwd, "src/app.ts"),
         "export const value = 2;\n",
@@ -1408,8 +1451,18 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("execution worktree HEAD mismatch"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
 
-      await execFileAsync("git", ["checkout", "--detach", headSha], { cwd });
+  it("rejects stale result schema fields", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const result = await readJson(cwd, resultPath(headSha));
       await writeJson(cwd, resultPath(headSha), {
         ...result,
         context_file: ".ephemeral/current.txt",
@@ -1424,10 +1477,8 @@ describe("pr-review manifest helper", () => {
       });
     } finally {
       await cleanupTempDir(cwd);
-      await cleanupTempDir(other.cwd);
-      await cleanupTempDir(sameHeadOther);
     }
-  }, 30_000);
+  });
 
   it.skipIf(isWindows)(
     "rejects handoff and result mismatches against scope and prior-thread authority",
