@@ -706,6 +706,7 @@ describe("play subagent routing source contracts", () => {
       expect(reducedRouteSurface).toContain(
         "fresh final approval-summary evidence after branch-review-owned fix commits",
       );
+      expect(reducedRouteSurface).not.toContain("after any Phase 7 commit");
     }
     expect(routingPolicy).toContain(
       "ISSUE_PRIMING_AUTO_HANDOFF_VERIFIED=false",

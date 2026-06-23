@@ -39,7 +39,7 @@ classifications to `spec-and-quality`.
 Reduced per-task routes (`spec-only` or `none-final-only`) are valid only on
 the shared `issue-priming-workflow --auto` Phase 6 path. The parent workflow
 owns this invocation and Phase 7 immediately runs `branch-review --fix` on the
-full branch diff, rerunning it after any Phase 7 commit until the final run
+full branch diff, rerunning it after any branch-review-owned fix commit until the final run
 reports zero blocking findings auto-fixed, no unresolved remaining `Blocking`
 findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`,
 has a captured final approval-summary notice path, and provides fresh final
