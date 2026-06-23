@@ -708,12 +708,36 @@ async function readProviderScopeEvidenceBinding(
   if (numberField(evidence, "pr_number") !== expectedIdentity.prNumber) {
     fail("provider evidence PR number mismatch");
   }
+  if (
+    stringField(evidence, "schema") !== "pr-review/provider-scope-evidence/v2"
+  ) {
+    fail("provider evidence schema mismatch");
+  }
+  if (stringField(evidence, "provider") !== "github") {
+    fail("provider evidence provider must be github");
+  }
+  const baseRefOid = stringField(evidence, "baseRefOid");
+  const headRefOid = stringField(evidence, "headRefOid");
   const providerDiffBaseSha = stringField(
     evidence,
     "provider_pr_diff_base_sha",
   );
-  if (!isSha(providerDiffBaseSha)) {
-    fail("provider evidence provider_pr_diff_base_sha is malformed");
+  const localReviewHeadSha = stringField(evidence, "local_review_head_sha");
+  for (const [field, value] of [
+    ["baseRefOid", baseRefOid],
+    ["headRefOid", headRefOid],
+    ["provider_pr_diff_base_sha", providerDiffBaseSha],
+    ["local_review_head_sha", localReviewHeadSha],
+  ] as const) {
+    if (!isSha(value)) {
+      fail(`provider evidence ${field} is malformed`);
+    }
+  }
+  if (
+    stringField(evidence, "full_pr_diff_range") !==
+    `${providerDiffBaseSha}..${headRefOid}`
+  ) {
+    fail("provider evidence full range mismatch");
   }
   return { file, sha256, providerDiffBaseSha };
 }

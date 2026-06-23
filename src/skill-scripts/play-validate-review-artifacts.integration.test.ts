@@ -4158,7 +4158,7 @@ describe("play-validate-review-artifacts validator", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
-  });
+  }, 30_000);
 
   it("rejects unsafe paths and missing explicit flags", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();

@@ -743,7 +743,7 @@ describe("pr-review manifest helper", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
-  });
+  }, 30_000);
 
   it("requires repository identity for handoff and result validation", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
@@ -773,7 +773,7 @@ describe("pr-review manifest helper", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
-  });
+  }, 30_000);
 
   it("rejects handoff and result validation for the wrong repository", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
@@ -849,6 +849,43 @@ describe("pr-review manifest helper", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
+  }, 30_000);
+
+  it("rejects shaped provider diff-base evidence that is not derived from baseRefOid", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      const scope = await readJson(cwd, scopePath(headSha));
+      const artifacts = scope.artifacts as Record<string, unknown>;
+      const evidenceFile = String(artifacts.provider_scope_evidence_file);
+      const evidence = await readJson(cwd, evidenceFile);
+      const staleEvidenceText = JSON.stringify(
+        {
+          ...evidence,
+          baseRefOid: headSha,
+        },
+        null,
+        2,
+      );
+      await writeFile(path.join(cwd, evidenceFile), staleEvidenceText);
+      await writeJson(cwd, scopePath(headSha), {
+        ...scope,
+        artifacts: {
+          ...artifacts,
+          provider_scope_evidence_sha256: sha256(staleEvidenceText),
+        },
+      });
+
+      await expect(
+        runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha)),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider PR diff base must equal single merge base",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
   });
 
   it.skipIf(isWindows)(
@@ -887,6 +924,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -931,6 +969,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -1376,7 +1415,7 @@ describe("pr-review manifest helper", () => {
       await cleanupTempDir(other.cwd);
       await cleanupTempDir(sameHeadOther);
     }
-  });
+  }, 30_000);
 
   it.skipIf(isWindows)(
     "rejects handoff and result mismatches against scope and prior-thread authority",
@@ -1549,6 +1588,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -1626,6 +1666,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(

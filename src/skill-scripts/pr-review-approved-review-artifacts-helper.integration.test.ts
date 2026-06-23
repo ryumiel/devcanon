@@ -846,6 +846,89 @@ describe.skipIf(!jqAvailable)(
       }
     });
 
+    it("rejects approved-review freezing when provider diff-base is not derived from baseRefOid", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          realProviderEvidenceFile,
+        );
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, realProviderEvidenceFile), "utf-8"),
+        ) as Record<string, unknown>;
+        await writeJson(cwd, realProviderEvidenceFile, {
+          ...evidence,
+          baseRefOid: realHeadSha,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: await sha256File(
+                cwd,
+                realProviderEvidenceFile,
+              ),
+            },
+          }),
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider PR diff base must equal single merge base",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
     it("validates the approved review and prints the exact frozen payload", async () => {
       const cwd = await makeGitWorkspace();
       try {

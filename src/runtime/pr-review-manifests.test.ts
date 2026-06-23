@@ -415,6 +415,26 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       patch: { pr_number: 433 },
       stderr: "provider evidence PR number mismatch",
     },
+    {
+      name: "schema",
+      patch: { schema: "pr-review/provider-scope-evidence/v1" },
+      stderr: "provider evidence schema mismatch",
+    },
+    {
+      name: "provider",
+      patch: { provider: "gitlab" },
+      stderr: "provider evidence provider must be github",
+    },
+    {
+      name: "baseRefOid",
+      patch: { baseRefOid: "main" },
+      stderr: "provider evidence baseRefOid is malformed",
+    },
+    {
+      name: "full range",
+      patch: { full_pr_diff_range: `${"0".repeat(40)}..${"1".repeat(40)}` },
+      stderr: "provider evidence full range mismatch",
+    },
   ])(
     "rejects provider evidence $name mismatch during Phase 5 result validation",
     async ({ patch, stderr }) => {
