@@ -522,8 +522,7 @@ Before the per-fix-unit auto-fix loop, filter findings tagged
 `Critic: INVALID` out of auto-fix eligibility; note them in the report but do
 not group, iterate, auto-fix, or halt on them. Also filter blocking findings
 tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
-non-blocking feedback unless they separately qualify as objectively fixable nit
-work. Then classify remaining fixable units:
+non-blocking feedback. Then classify remaining fixable units:
 
 - Eligible blocking units are the remaining blocking findings verified by the
   critic.

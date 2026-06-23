@@ -1531,6 +1531,89 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps fixable nit ownership out of issue-priming caller surfaces", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const commonMistakes = await readRepoFile(
+      "skills/issue-priming-workflow/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/issue-priming-workflow/references/red-flags.md",
+    );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase8Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
+    const nitClassification = await readRepoFile(
+      "skills/issue-priming-workflow/references/nit-classification.md",
+    );
+    const autoModeDiscipline = await readRepoFile(
+      "skills/issue-priming-workflow/references/auto-mode-discipline.md",
+    );
+    const issuePrimingCallerSurfaces = [
+      {
+        label: "workflow source",
+        source: issuePrimingWorkflow,
+      },
+      {
+        label: "common mistakes",
+        source: commonMistakes,
+      },
+      {
+        label: "red flags",
+        source: redFlags,
+      },
+      {
+        label: "phase 6 auto handoff",
+        source: phase6Reference,
+      },
+      {
+        label: "phase 7 review handling",
+        source: phase7Reference,
+      },
+      {
+        label: "phase 8 PR handoff",
+        source: phase8Reference,
+      },
+      {
+        label: "nit classification",
+        source: nitClassification,
+      },
+      {
+        label: "auto-mode discipline",
+        source: autoModeDiscipline,
+      },
+    ] as const;
+    const staleCallerOwnedNitPatterns = [
+      /\b(?:issue-priming-workflow|phase\s+[678]|caller|controller|workflow)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+      /\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?)\s+mechanical(?:-|\s+)nits?\s+(?:in|to)\s+(?:the\s+)?worktree\b/i,
+      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:outside|before|after|without)\s+`?branch-review`?\b/i,
+      /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+phase\s+8\b/i,
+    ] as const;
+
+    for (const { label, source } of issuePrimingCallerSurfaces) {
+      const normalizedSource = normalizeWhitespace(source);
+
+      for (const staleCallerOwnedNitPattern of staleCallerOwnedNitPatterns) {
+        expect(
+          normalizedSource,
+          `${label} still contains caller-owned mechanical-nit wording`,
+        ).not.toMatch(staleCallerOwnedNitPattern);
+      }
+    }
+
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "judgment-required nits",
+    );
+  });
+
   it("keeps shared follow-up review scope policy contracts in source", async () => {
     const playReview = await readSkillSource("play-review");
     const followUpScopePolicy = await readRepoFile(
