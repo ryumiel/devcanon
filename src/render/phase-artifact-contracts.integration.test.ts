@@ -279,10 +279,16 @@ describe("rendered phase artifact smoke coverage", () => {
       "pass/block interpretation for the summary",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
-      "Approval-summary blocker counts use true-blocking semantics",
+      "Blocker counts use true-blocking semantics",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "Downgraded blocking findings remain non-blocking feedback",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "invalid findings are non-feedback",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "neither blockers, postable nits, nor carry-forward feedback for approval counts",
     );
     expect(normalizeRenderedWhitespace(branchReview)).not.toContain(
       "GitHub issue #465",

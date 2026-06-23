@@ -628,13 +628,16 @@ findings_count_json() {
       def true_blocker:
         .severity == "Blocking" and .critic != "INVALID" and .critic != "DOWNGRADE";
       def nonblocking_feedback:
-        .severity == "Nit" or (.severity == "Blocking" and .critic == "DOWNGRADE");
+        .critic != "INVALID" and
+        (.severity == "Nit" or (.severity == "Blocking" and .critic == "DOWNGRADE"));
+      def carry_forward_feedback:
+        .critic != "INVALID";
 
       ([.findings[], .carry_forward[]] | unique) as $remaining
       | {
           blocker_count: ($remaining | map(select(true_blocker)) | length),
           nit_count: ($remaining | map(select(nonblocking_feedback)) | length),
-          carry_forward_count: (.carry_forward | length)
+          carry_forward_count: (.carry_forward | map(select(carry_forward_feedback)) | length)
         }
     end
   ' "$file" || fail "findings evidence validation failed"

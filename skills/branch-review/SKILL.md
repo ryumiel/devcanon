@@ -28,7 +28,7 @@ digraph branch_review {
 | Arg                                   | Effect                                                                                                                                                                                                                                              |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<base>`                              | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
-| `--fix`                               | Auto-fix eligible blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                                          |
+| `--fix`                               | Auto-fix eligible blocking findings and objectively fixable nit findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                     |
 | `--risk-signals <repo-relative-path>` | Optional, non-authoritative repo-relative `.ephemeral/*-risk-signals.json` handoff from `play-subagent-execution`. Valid signals can only preserve or escalate scrutiny; invalid supplied signals fail closed.                                      |
 | `--last-reviewed <sha>`               | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
 | `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v1` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
@@ -369,11 +369,13 @@ after the final findings envelope for the run is known. The summary is
 wrapper-level terminal evidence for the reviewed head and links to the detailed
 findings and scope-decision artifacts by path and digest; it does not duplicate
 finding bodies and must not contain `gate_passed`.
-Approval-summary blocker counts use true-blocking semantics: a
+Approval-summary counts are derived from the true remaining findings after any
+`--fix` removals. Blocker counts use true-blocking semantics: a
 `severity: "Blocking"` finding or carry-forward entry blocks only when its
 `critic` verdict is neither `INVALID` nor `DOWNGRADE`. Downgraded blocking
 findings remain non-blocking feedback for the `approved_with_nits` path, while
-invalidated blocking findings are neither blockers nor postable nits.
+invalid findings are non-feedback: they are neither blockers, postable nits, nor
+carry-forward feedback for approval counts.
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` owns
 deterministic validation and pass/block interpretation for the summary through
 `validate-approval-summary`. Branch review owns only the lifecycle point and
@@ -421,7 +423,9 @@ side-channel `play-review/findings/v1` envelope file at
 `Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output
 for the contract).
 
-In `--fix` mode, capture the Phase 2 `head_sha` and `Findings written to <path>.` notice path before applying any auto-fix commits:
+In `--fix` mode, `branch-review --fix` owns fixable review feedback, including
+objectively fixable nit-severity findings. Capture the Phase 2 `head_sha` and
+`Findings written to <path>.` notice path before applying any auto-fix commits:
 
 ```bash
 REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
@@ -514,16 +518,37 @@ Branch review is a local surface: no GitHub posting, no `gh` commands, no GitHub
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
-Before the per-fix-unit auto-fix loop, filter blocking findings tagged
-`Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility; note them in the
-report but do not group, iterate, auto-fix, or halt on them. Then run a
-same-invariant grouping pass over the remaining blocking findings verified by
-the critic. Inspect the eligible blockers for a shared root invariant using only
-the existing finding text, evidence, anchors, classifications, and active diff
+Before the per-fix-unit auto-fix loop, filter findings tagged
+`Critic: INVALID` out of auto-fix eligibility; note them in the report but do
+not group, iterate, auto-fix, or halt on them. Also filter blocking findings
+tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
+non-blocking feedback unless they separately qualify as objectively fixable nit
+work. Then classify remaining fixable units:
+
+- Eligible blocking units are the remaining blocking findings verified by the
+  critic.
+- Eligible fixable-nit units are nit findings with one obvious correct fix that
+  requires only a 1-3 line source change at the flagged line or immediately
+  adjacent lines, stays inside the active diff, does not change behavior beyond
+  the stated nit, and requires no naming, design, style, product, or reviewer
+  judgment. `Anchor: out-of-diff`, ambiguous, subjective, documentation-policy,
+  broad cleanup, and cross-file nits are judgment-required nits, not fixable
+  nit units.
+
+Run a same-invariant grouping pass over the eligible blockers verified by the
+critic. Inspect the eligible blockers for a shared root invariant using only the
+existing finding text, evidence, anchors, classifications, and active diff
 context. This is controller planning only: it does not add or require fields in
 the `play-review/findings/v1` envelope, and individual finding anchors and
 classifications remain authoritative for classification, reporting, and
 stop-rule evaluation.
+
+Run a separate fixable-nit grouping pass. Group fixable nits only when they are
+in the same file and same local scope, and every nit in the group independently
+has one obvious correct 1-3 line fix. If any nit in a candidate group requires
+judgment, exceeds the 1-3 line source-change bound, crosses files or scopes, or
+would trigger a stop rule, leave the entire candidate ungrouped and keep the
+judgment-required nit(s) for caller handoff.
 
 When multiple blocking findings have the same shared root invariant, name that
 shared root invariant in the report, scan adjacent same-invariant surfaces in
@@ -538,10 +563,11 @@ same stop-rule constraints; if any included finding or the combined grouped edit
 would trigger a stop rule, halt `--fix` under the existing stop-rule contract
 instead of applying the grouped fix.
 
-Iterate over blocking findings as fix units. Each unit is either one ungrouped
-blocking finding verified by the critic (i.e., not `Critic: INVALID` or
-`DOWNGRADE`) or one same-invariant grouped blocker set formed above. Do not also
-process grouped members as individual findings. For each unit:
+Iterate over fix units. Each unit is one ungrouped blocking finding verified by
+the critic (i.e., not `Critic: INVALID` or `DOWNGRADE`), one same-invariant
+grouped blocker set formed above, one ungrouped fixable nit, or one same-file
+same-scope grouped fixable-nit set formed above. Do not also process grouped
+members as individual findings. For each unit:
 
 1. **If the unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The stop rule fires when:
    - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
@@ -553,11 +579,12 @@ process grouped members as individual findings. For each unit:
 
    Halting here is a contract with the caller: `issue-priming-workflow --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
 
-2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually.
+2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually. Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits.
 
-Nit findings are never auto-fixed. Collect them for the report (including any with `Anchor: out-of-diff`).
+Only judgment-required nits remain for caller handoff. Collect them for the
+report (including any with `Anchor: out-of-diff`).
 
-**Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`.
+**Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`. Preserve that policy for both blocker and nit fix commits. For every fixed nit, include a commit-message body trailer line of the form `Reported by branch-review at <path>:<line>`; grouped nit commits must include one such line for each fixed nit.
 
 After processing — whether the loop completes or halts on the stop rule — emit
 this exact standalone notice line, expanding `$REVIEW_HEAD_SHA` to its
@@ -570,8 +597,11 @@ Review head: $REVIEW_HEAD_SHA.
 Then report:
 
 - Number of blocking findings auto-fixed
-- Remaining nits (left for user), including `Anchor: out-of-diff` nits
-- The blocking finding that triggered the halt, if any (cite file:line, severity, category, and which stop-rule branch fired)
+- Number of fixable nit findings auto-fixed
+- Remaining judgment-required nits (left for user), including
+  `Anchor: out-of-diff` nits
+- The finding that triggered the halt, if any (cite file:line, severity,
+  category, and which stop-rule branch fired)
 - Blocking findings skipped because the critic flagged `INVALID` or `DOWNGRADE`
 - Hard-rule judgment-required blockers preserved in the remaining set (Sub-check
   1 Safety or Sub-check 2 Contracts)
@@ -598,16 +628,17 @@ HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
 ```
 
 The remaining-set `findings[]` contains all pre-fix findings except blockers
-that were successfully auto-fixed and committed. For a committed grouped fix,
-that exception covers every included finding in the grouped blocker set, not
-only the lead anchor or first finding processed. The remaining set includes
-every nit (regardless of anchor), blockers skipped because the critic flagged
-`INVALID` or `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
-remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker that
-triggered the halt (if any), any later blockers left unprocessed because an
-earlier stop-rule finding halted the loop, and unresolved blocking
-`carry_forward[]` entries from follow-up review. Auto-fixed blockers do NOT
-appear — they're already committed in the worktree. In follow-up runs, also preserve
+and fixable nits that were successfully auto-fixed and committed. For a
+committed grouped fix, that exception covers every included finding in the
+grouped blocker set or grouped fixable-nit set, not only the lead anchor or
+first finding processed. The remaining set includes every judgment-required nit
+(regardless of anchor), invalid findings, blockers skipped because the critic
+flagged `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
+remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker or nit
+that triggered the halt (if any), any later blockers or fixable nits left
+unprocessed because an earlier stop-rule finding halted the loop, and unresolved
+blocking `carry_forward[]` entries from follow-up review. Auto-fixed blockers
+and fixed nits do NOT appear — they're already committed in the worktree. In follow-up runs, also preserve
 `carry_forward[]` from the validated `play-review` envelope unchanged for audit
 continuity; unresolved blocking carry-forward entries must additionally be
 copied into the post-`--fix` remaining `findings[]` so downstream consumers that
@@ -651,7 +682,7 @@ pre-fix findings after auto-fix commits have changed the remaining set.
 
 **Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
 subset of the pre-fix findings plus carry-forward set: this skill only removes
-auto-fixed blockers from `findings[]`; it preserves `carry_forward[]` unchanged,
+auto-fixed blockers and fixed nits from `findings[]`; it preserves `carry_forward[]` unchanged,
 mirrors unresolved blocking carry-forward entries into `findings[]` for
 downstream blocker gates, never invents new entries, never re-anchors lines, and
 never edits `body` / `why` / `recommendation` text.
@@ -663,14 +694,15 @@ discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Quick Reference
 
-| Situation                                                 | Action                            |
-| --------------------------------------------------------- | --------------------------------- |
-| Empty diff                                                | Report "no changes", stop         |
-| All clean                                                 | Report "no issues found"          |
-| Blocking findings + `--fix`                               | Auto-fix eligible, commit, report |
-| Blocking finding needs design change or out-of-diff edits | Stop, report to caller            |
-| Hard-rule judgment-required blocker                       | Stop, preserve in findings file   |
-| Nits + `--fix`                                            | Leave for user, list in report    |
+| Situation                                                 | Action                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------ |
+| Empty diff                                                | Report "no changes", stop                              |
+| All clean                                                 | Report "no issues found"                               |
+| Blocking findings + `--fix`                               | Auto-fix eligible, commit, report                      |
+| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                 |
+| Hard-rule judgment-required blocker                       | Stop, preserve in findings file                        |
+| Fixable nits + `--fix`                                    | Auto-fix eligible one-obvious-fix nits, commit, report |
+| Judgment-required nits + `--fix`                          | Leave for user, list in report                         |
 
 ## Common Mistakes
 
