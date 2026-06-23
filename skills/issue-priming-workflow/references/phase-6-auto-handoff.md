@@ -126,15 +126,16 @@ Phase 6 completion is not terminal. Successful executor completion returns
 control to `issue-priming-workflow`, which must continue to Phase 7 and then
 Phase 8 unless a concrete blocker stops `--auto`.
 
-Phase 7 invokes `branch-review --fix` on the full branch diff. If any Phase 7
-run commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new
-`HEAD`. Phase 8 may start only after the final Phase 7 run reports:
+Phase 7 invokes `branch-review --fix` on the full branch diff. If
+`branch-review --fix` creates any branch-review-owned fix commit, Phase 7
+reruns on the new `HEAD`. Phase 8 may start only after the final Phase 7 run
+reports:
 
 - zero blocking findings auto-fixed;
 - no unresolved remaining `Blocking` findings except findings whose `critic`
   verdict is `INVALID` or `DOWNGRADE`;
 - a captured final approval-summary notice path; and
-- no additional mechanical nit commits after that review.
+- fresh final approval-summary evidence after branch-review-owned fix commits.
 
 This final whole-diff review is the downstream guarantee that supports both
 reduced per-task routes and the single-task final-review carve-out.

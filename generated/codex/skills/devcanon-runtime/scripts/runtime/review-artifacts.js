@@ -1822,7 +1822,7 @@ function findingsCounts(findings) {
     return {
         blockerCount: remainingFindings.filter(isTrueBlockingFinding).length,
         nitCount: remainingFindings.filter(isNonblockingFeedbackFinding).length,
-        carryForwardCount: carryForwardFindings.length,
+        carryForwardCount: carryForwardFindings.filter(isCarryForwardFeedbackFinding).length,
     };
 }
 function isTrueBlockingFinding(finding) {
@@ -1831,9 +1831,13 @@ function isTrueBlockingFinding(finding) {
         finding.critic !== "DOWNGRADE");
 }
 function isNonblockingFeedbackFinding(finding) {
-    return (stringField(finding, "severity") === "Nit" ||
-        (stringField(finding, "severity") === "Blocking" &&
-            finding.critic === "DOWNGRADE"));
+    return (finding.critic !== "INVALID" &&
+        (stringField(finding, "severity") === "Nit" ||
+            (stringField(finding, "severity") === "Blocking" &&
+                finding.critic === "DOWNGRADE")));
+}
+function isCarryForwardFeedbackFinding(finding) {
+    return finding.critic !== "INVALID";
 }
 function uniqueFindingsByContent(findings) {
     const unique = [];

@@ -1195,20 +1195,23 @@ describe("phase artifact source contracts", () => {
       '`mode` = `"fix"` if `$FIX_MODE` is `true`, else `"present"`',
     );
     expect(branchReview).toContain("same-invariant grouping pass");
-    expect(branchReview).toContain("Iterate over blocking findings");
+    expect(branchReview).toContain("Iterate over fix units");
     expect(branchReview.indexOf("same-invariant grouping pass")).toBeLessThan(
-      branchReview.indexOf("Iterate over blocking findings"),
+      branchReview.indexOf("Iterate over fix units"),
     );
     expect(branchReview).toContain("adjacent same-invariant surfaces");
     expect(normalizedBranchReview).toContain("shared root invariant");
     expect(normalizedBranchReview).toContain(
-      "filter blocking findings tagged `Critic: INVALID` or `DOWNGRADE` out of auto-fix eligibility",
+      "filter findings tagged `Critic: INVALID` out of auto-fix eligibility",
+    );
+    expect(normalizedBranchReview).toContain(
+      "filter blocking findings tagged `DOWNGRADE` out of blocking auto-fix eligibility",
     );
     expect(normalizedBranchReview).toContain(
       "do not group, iterate, auto-fix, or halt on them",
     );
     expect(normalizedBranchReview).toContain(
-      "over the remaining blocking findings verified by the critic",
+      "over the eligible blockers verified by the critic",
     );
     expect(normalizedBranchReview).toContain(
       "Before the per-fix-unit auto-fix loop",
@@ -1253,13 +1256,16 @@ describe("phase artifact source contracts", () => {
       "if any included finding or the combined grouped edit would trigger a stop rule",
     );
     expect(normalizedBranchReview).toContain(
-      "Each unit is either one ungrouped blocking finding verified by the critic",
+      "Each unit is one ungrouped blocking finding verified by the critic",
     );
     expect(normalizedBranchReview).toContain(
       "one same-invariant grouped blocker set formed above",
     );
     expect(normalizedBranchReview).toContain(
       "Do not also process grouped members as individual findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "one ungrouped fixable nit, or one same-file same-scope grouped fixable-nit set formed above",
     );
     expect(normalizedBranchReview).toContain(
       "need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit",
@@ -1273,6 +1279,7 @@ describe("phase artifact source contracts", () => {
     expect(normalizedBranchReview).toContain(
       "that exception covers every included finding in the grouped blocker set",
     );
+    expect(normalizedBranchReview).toContain("or grouped fixable-nit set");
     expect(branchReview).toContain(
       "Follow-up `carry_forward[]` entries preserved from `play-review`",
     );
@@ -1442,10 +1449,13 @@ describe("phase artifact source contracts", () => {
       "pass/block interpretation for the summary",
     );
     expect(normalizedBranchReview).toContain(
-      "Approval-summary blocker counts use true-blocking semantics",
+      "Blocker counts use true-blocking semantics",
     );
     expect(normalizedBranchReview).toContain(
-      "invalidated blocking findings are neither blockers nor postable nits",
+      "invalid findings are non-feedback",
+    );
+    expect(normalizedBranchReview).toContain(
+      "neither blockers, postable nits, nor carry-forward feedback for approval counts",
     );
     expect(normalizedBranchReview).not.toContain("GitHub issue #465");
     expect(normalizedBranchReview).toContain(
@@ -1477,6 +1487,186 @@ describe("phase artifact source contracts", () => {
       '--expected-scope-decision-file "$SCOPE_DECISION_FILE"',
     );
     expect(scopeHelper).not.toContain("gate_passed");
+  });
+
+  it("keeps fixable nit ownership in branch-review", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(normalizedBranchReview).toContain(
+      "`branch-review --fix` owns fixable review feedback, including objectively fixable nit-severity findings",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Only judgment-required nits remain for caller handoff",
+    );
+    expect(normalizedBranchReview).toContain(
+      "one obvious correct fix that requires only a 1-3 line source change",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Group fixable nits only when they are in the same file and same local scope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Reported by branch-review at <path>:<line>",
+    );
+  });
+
+  it("keeps Task 3 fixable nit ownership scoped to branch-review source", async () => {
+    const branchReview = await readSkillSource("branch-review");
+    const normalizedBranchReview = normalizeWhitespace(branchReview);
+
+    expect(normalizedBranchReview).toContain(
+      "`branch-review --fix` owns fixable review feedback",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
+    );
+    expect(normalizedBranchReview).toContain(
+      "Only judgment-required nits remain for caller handoff",
+    );
+    expect(normalizedBranchReview).not.toContain(
+      "Nit findings are never auto-fixed",
+    );
+  });
+
+  it("keeps fixable nit ownership out of issue-priming caller surfaces", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const commonMistakes = await readRepoFile(
+      "skills/issue-priming-workflow/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/issue-priming-workflow/references/red-flags.md",
+    );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
+    const phase7Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-7-review-handling.md",
+    );
+    const phase8Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-8-pr-handoff.md",
+    );
+    const nitClassification = await readRepoFile(
+      "skills/issue-priming-workflow/references/nit-classification.md",
+    );
+    const autoModeDiscipline = await readRepoFile(
+      "skills/issue-priming-workflow/references/auto-mode-discipline.md",
+    );
+    const issuePrimingCallerSurfaces = [
+      {
+        label: "workflow source",
+        source: issuePrimingWorkflow,
+      },
+      {
+        label: "common mistakes",
+        source: commonMistakes,
+      },
+      {
+        label: "red flags",
+        source: redFlags,
+      },
+      {
+        label: "phase 6 auto handoff",
+        source: phase6Reference,
+      },
+      {
+        label: "phase 7 review handling",
+        source: phase7Reference,
+      },
+      {
+        label: "phase 8 PR handoff",
+        source: phase8Reference,
+      },
+      {
+        label: "nit classification",
+        source: nitClassification,
+      },
+      {
+        label: "auto-mode discipline",
+        source: autoModeDiscipline,
+      },
+    ] as const;
+    const staleCallerOwnedNitPatterns = [
+      /\b(?:issue-priming-workflow|phase\s+[678]|caller|controller|workflow)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+      /\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?)\s+mechanical(?:-|\s+)nits?\s+(?:in|to)\s+(?:the\s+)?worktree\b/i,
+      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:outside|before|after|without)\s+`?branch-review`?\b/i,
+      /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+phase\s+8\b/i,
+    ] as const;
+
+    for (const { label, source } of issuePrimingCallerSurfaces) {
+      const normalizedSource = normalizeWhitespace(source);
+
+      for (const staleCallerOwnedNitPattern of staleCallerOwnedNitPatterns) {
+        expect(
+          normalizedSource,
+          `${label} still contains obsolete caller-owned nit-fix wording`,
+        ).not.toMatch(staleCallerOwnedNitPattern);
+      }
+    }
+
+    expect(normalizeWhitespace(phase8Reference)).toContain(
+      "judgment-required nits",
+    );
+  });
+
+  it("keeps finish surfaces out of fixable nit ownership", async () => {
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const commonMistakes = await readRepoFile(
+      "skills/play-branch-finish/references/common-mistakes.md",
+    );
+    const redFlags = await readRepoFile(
+      "skills/play-branch-finish/references/red-flags.md",
+    );
+    const finishSurfaces = [
+      {
+        label: "play-branch-finish source",
+        source: playBranchFinish,
+      },
+      {
+        label: "play-branch-finish common mistakes",
+        source: commonMistakes,
+      },
+      {
+        label: "play-branch-finish red flags",
+        source: redFlags,
+      },
+    ] as const;
+    const staleFinishOwnedNitPatterns = [
+      /\b(?:play-branch-finish|finish|option\s+2|this skill)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+      /\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?)\s+mechanical(?:-|\s+)nits?\s+(?:in|to)\s+(?:the\s+)?worktree\b/i,
+      /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+      /\bclassif(?:y|ies|ication)\s+(?:each\s+)?(?:nit|finding)[^.]*\bmechanical\b[^.]*\b(?:inside|by|within)\s+`?play-branch-finish`?\b/i,
+      /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+`?play-branch-finish`?\b/i,
+    ] as const;
+
+    for (const { label, source } of finishSurfaces) {
+      const normalizedSource = normalizeWhitespace(source);
+
+      for (const staleFinishOwnedNitPattern of staleFinishOwnedNitPatterns) {
+        expect(
+          normalizedSource,
+          `${label} still contains obsolete finish-owned nit-fix wording`,
+        ).not.toMatch(staleFinishOwnedNitPattern);
+      }
+    }
+
+    expect(normalizeWhitespace(playBranchFinish)).toContain(
+      "No filtering inside this skill",
+    );
+    expect(normalizeWhitespace(playBranchFinish)).toContain(
+      "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
+    );
+    expect(normalizeWhitespace(commonMistakes)).toContain(
+      "Putting branch-review nits in the description body",
+    );
+    expect(normalizeWhitespace(redFlags)).toContain(
+      "Embed branch-review nits in the PR description body",
+    );
   });
 
   it("keeps shared follow-up review scope policy contracts in source", async () => {

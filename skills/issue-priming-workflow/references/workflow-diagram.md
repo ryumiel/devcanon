@@ -31,7 +31,7 @@ digraph priming {
   auto_check -> plan [label="yes"];
   auto_check -> stop_interactive [label="no"];
   plan -> implement -> review -> create_pr -> done;
-  review [label="7. Branch Review\nbranch-review --fix\n+ classify nits"];
+  review [label="7. Branch Review\nbranch-review --fix\n+ remaining nits"];
   create_pr [label="8. Create PR\npush + gh pr create"];
   done [label="Complete\nPR ready for user", shape=doublecircle];
 }

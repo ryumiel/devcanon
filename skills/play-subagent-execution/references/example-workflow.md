@@ -13,18 +13,22 @@ tasks may run `spec-only`, and low-risk tasks may use `none-final-only` only
 on the verified shared `issue-priming-workflow --auto` Phase 6 path with
 controller-local parent state and a valid `issue-priming/auto-handoff/v1`
 artifact, where Phase 7 reruns
-`branch-review --fix` after any auto-fix or mechanical-nit commit until the
+`branch-review --fix` after any branch-review-owned fix commit until the
 final run reports zero blocking findings auto-fixed, no unresolved remaining
 `Blocking` findings except findings whose `critic` verdict is `INVALID` or
-`DOWNGRADE`, has a captured final approval-summary notice path, and no
-additional mechanical nit commits. For a
+`DOWNGRADE`, has a captured final approval-summary notice path, and provides
+fresh final approval-summary evidence after branch-review-owned fix commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch implementer -> implementer self-reviews and commits
 -> mark task complete -> final whole-implementation code-quality reviewer ->
-report final review passed and resolve branch-level review status -> stop for
-`branch-review` before `play-branch-finish` when the active workflow requires
-branch-level review before PR creation, otherwise invoke `play-branch-finish`.
+report implementation and final review status -> resolve branch-level review
+status -> hand off to `branch-review --fix` before `play-branch-finish` when
+the active workflow requires branch-level review before PR creation and
+owning-workflow or explicit operator authority allows auto-committing fixes;
+otherwise hand off to branch-review without auto-fix authority, wait for review
+approval evidence, or invoke `play-branch-finish` only when branch-level review
+is not required.
 On the `issue-priming-workflow --auto` single-task path, the flow instead
 returns to the caller after task completion so Phase 7 `branch-review --fix`
 becomes the whole-diff gate.
@@ -250,8 +254,9 @@ final-code-quality-reviewer: agent_id=final-quality, review scope captured, base
 [Caller runs final whole-diff gate]
 `issue-priming-workflow` Phase 7 runs `branch-review --fix` until a run
 reports zero blocking findings auto-fixed and captures that final run's
-approval-summary notice path. If mechanical nit fixes commit after that review,
-Phase 7 reruns on the new `HEAD`.
+approval-summary notice path. If a branch-review-owned fix commit lands after
+that review, Phase 7 reruns on the new `HEAD` and captures fresh final
+approval-summary evidence.
 Branch review: no unresolved remaining `Blocking` findings except `INVALID` or
 `DOWNGRADE` critic verdicts.
 

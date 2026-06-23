@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config";
 
 const integrationTestTimeout = process.platform === "win32" ? 60000 : 10000;
+const windowsHelperIntegrationTestTimeout =
+  process.platform === "win32" ? 60000 : 30000;
 const renderInstallIntegrationIncludes = [
   "src/config/*.integration.test.ts",
   "src/diff/*.integration.test.ts",
@@ -59,8 +61,8 @@ export default defineConfig({
         test: {
           name: "integration-windows-helper",
           include: windowsHelperIntegrationIncludes,
-          testTimeout: integrationTestTimeout,
-          hookTimeout: integrationTestTimeout,
+          testTimeout: windowsHelperIntegrationTestTimeout,
+          hookTimeout: windowsHelperIntegrationTestTimeout,
         },
       },
     ],

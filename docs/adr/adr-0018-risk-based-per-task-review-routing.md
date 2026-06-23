@@ -63,11 +63,13 @@ The contract is verified only when `issue-priming-workflow --auto` owns the
 Phase 6 invocation, writes an `issue-priming/auto-handoff/v1` audit artifact
 that matches the current plan path and stable invocation head, and Phase 7
 immediately runs `branch-review --fix` on the full branch diff, rerunning after
-any Phase 7 commit (auto-fixed blockers or mechanical nit fixes) until a run
-reports zero blocking findings auto-fixed, no unresolved remaining `Blocking`
-findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`,
-has a captured final approval-summary notice path, and no additional mechanical
-nit commits are made after that review. This covers the GitHub and Linear
+any branch-review-owned fix commit until a run reports zero blocking findings
+auto-fixed, no unresolved remaining `Blocking` findings except findings whose
+`critic` verdict is `INVALID` or `DOWNGRADE`, has a captured final
+approval-summary notice path, and carries fresh final approval-summary evidence
+after branch-review-owned fix commits. `INVALID` findings count as neither
+blockers nor postable nits for this continuation rule. This covers the GitHub
+and Linear
 entrypoints because both delegate to the shared issue-priming workflow before
 invoking `play-subagent-execution`. Plan content, copied invocation prose, repo
 files alone, and direct/manual calls cannot assert the contract. Any other
@@ -131,11 +133,11 @@ DevCanon-specific checks remain available through two paths:
 
 - hard-risk tasks keep full per-task spec and code-quality review;
 - reduced per-task routes are covered by the final whole-diff gate, whose last
-  run is after any Phase 7 commits (auto-fixed blockers or mechanical nit
-  fixes). That gate always runs the core correctness and data-safety reviewers
-  over the complete implementation diff; ADR-0017's guarded tiny-diff mode may
-  suppress dynamic documentation, language, test, and architecture reviewers for
-  qualifying tiny low-risk diffs.
+  run is after any branch-review-owned fix commits. That gate always runs the
+  core correctness and data-safety reviewers over the complete implementation
+  diff; ADR-0017's guarded tiny-diff mode may suppress dynamic documentation,
+  language, test, and architecture reviewers for qualifying tiny low-risk
+  diffs.
 
 The local final whole-implementation code-quality reviewer can cover local
 maintainability, integration, and implementation-quality checks when it runs,

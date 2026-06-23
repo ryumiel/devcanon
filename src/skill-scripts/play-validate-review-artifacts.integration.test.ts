@@ -1509,6 +1509,64 @@ describe("play-validate-review-artifacts validator", () => {
     }
   });
 
+  it("ignores invalidated carry-forward findings in approval summaries", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      const findingsFile = approvalFindingsPath(headSha);
+      const scope = initialScope(baseSha, headSha);
+      const invalidCarryForward = {
+        schema: "play-review/findings/v1",
+        findings: [],
+        carry_forward: [
+          finding({
+            anchor: "out-of-diff",
+            critic: "INVALID",
+          }),
+        ],
+      };
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", scope);
+      await writeJson(cwd, findingsFile, invalidCarryForward);
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, invalidCarryForward, {
+          terminal_state: "approved",
+          blocker_count: 0,
+          nit_count: 0,
+          carry_forward_count: 0,
+        }),
+      );
+
+      await expect(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+          "--emit-gate-result",
+        ]),
+      ).resolves.toMatchObject({
+        stdout: '{"terminal_state":"approved","gate_result":"passing"}\n',
+      });
+
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-approval-summary.json",
+        approvalSummary(baseSha, headSha, scope, invalidCarryForward, {
+          terminal_state: "approved_with_nits",
+          blocker_count: 0,
+          nit_count: 0,
+          carry_forward_count: 1,
+        }),
+      );
+      await expectRejectsWith(
+        runValidator(cwd, "validate-approval-summary", [
+          ...approvalSummaryArgs(headSha),
+        ]),
+        "approval summary carry-forward count mismatch",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("dedupes mirrored carry-forward findings from logical approval counts", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {

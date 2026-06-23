@@ -279,10 +279,16 @@ describe("rendered phase artifact smoke coverage", () => {
       "pass/block interpretation for the summary",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
-      "Approval-summary blocker counts use true-blocking semantics",
+      "Blocker counts use true-blocking semantics",
     );
     expect(normalizeRenderedWhitespace(branchReview)).toContain(
       "Downgraded blocking findings remain non-blocking feedback",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "invalid findings are non-feedback",
+    );
+    expect(normalizeRenderedWhitespace(branchReview)).toContain(
+      "neither blockers, postable nits, nor carry-forward feedback for approval counts",
     );
     expect(normalizeRenderedWhitespace(branchReview)).not.toContain(
       "GitHub issue #465",
@@ -810,7 +816,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "a captured final approval-summary notice path",
       );
       expect(normalizedPhase6).toContain(
-        "no additional mechanical nit commits after that review",
+        "fresh final approval-summary evidence after branch-review-owned fix commits",
       );
       expect(normalizedPhase6).toContain(
         "Successful `play-subagent-execution` completion returns control to this owning workflow",
@@ -833,7 +839,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
       );
       expect(normalizedPhase7).toContain(
-        "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+        "After any branch-review-owned fix commit, rerun `branch-review --fix`",
       );
       expect(normalizedPhase7).toContain(
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
@@ -848,7 +854,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "A missing approval-summary notice from the final run is a hard stop before Phase 8",
       );
       expect(normalizedPhase7).toContain(
-        "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+        "Do not carry an approval-summary path from an earlier review run across a branch-review-owned fix rerun",
       );
       expect(normalizedPhase7).toContain(
         "classification flow is `--auto` only",
@@ -1018,6 +1024,13 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedOption2).toContain(
         "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
       );
+      for (const staleFinishOwnedNitPattern of [
+        /\b(?:play-branch-finish|finish|option\s+2|this skill)\b[^.]*\b(?:fix(?:es)?|commit(?:s)?|auto-fix(?:es)?|classif(?:y|ies|ication)|handling)\b[^.]*\bmechanical(?:-|\s+)nits?\b/i,
+        /\bmechanical(?:-|\s+)nit(?:s)?\s+(?:commit|commits|fix|fixes|auto-fix|auto-fixes|handling)\b/i,
+        /\bdo\s+not\s+pass\s+mechanical(?:-|\s+)nits?\s+to\s+`?play-branch-finish`?\b/i,
+      ] as const) {
+        expect(normalizedOption2).not.toMatch(staleFinishOwnedNitPattern);
+      }
       expect(normalizedOption2).toContain(
         "Optional input — branch-review approval gate",
       );

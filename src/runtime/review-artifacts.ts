@@ -2374,7 +2374,9 @@ function findingsCounts(findings: JsonObject): {
   return {
     blockerCount: remainingFindings.filter(isTrueBlockingFinding).length,
     nitCount: remainingFindings.filter(isNonblockingFeedbackFinding).length,
-    carryForwardCount: carryForwardFindings.length,
+    carryForwardCount: carryForwardFindings.filter(
+      isCarryForwardFeedbackFinding,
+    ).length,
   };
 }
 
@@ -2388,10 +2390,15 @@ function isTrueBlockingFinding(finding: JsonObject): boolean {
 
 function isNonblockingFeedbackFinding(finding: JsonObject): boolean {
   return (
-    stringField(finding, "severity") === "Nit" ||
-    (stringField(finding, "severity") === "Blocking" &&
-      finding.critic === "DOWNGRADE")
+    finding.critic !== "INVALID" &&
+    (stringField(finding, "severity") === "Nit" ||
+      (stringField(finding, "severity") === "Blocking" &&
+        finding.critic === "DOWNGRADE"))
   );
+}
+
+function isCarryForwardFeedbackFinding(finding: JsonObject): boolean {
+  return finding.critic !== "INVALID";
 }
 
 function uniqueFindingsByContent(

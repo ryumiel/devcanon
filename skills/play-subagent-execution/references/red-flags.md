@@ -20,7 +20,10 @@ Behavioral signals that this skill is being violated.
   report instead of returning to the verified owning caller or resolving
   branch-level review status on the direct/manual path. Those summaries are
   status reports only, not terminal workflow states; a review-required workflow
-  must stop for `branch-review` before `play-branch-finish`, while a workflow
+  must hand off to `branch-review` before `play-branch-finish`, use
+  `branch-review --fix` only with owning-workflow authority or explicit
+  operator confirmation for auto-committed fixes, and wait for review approval
+  evidence or an explicit branch-review waiver before finish. A workflow
   without that requirement may invoke `play-branch-finish`.
 - Treat plan-authored snapshot hints as authoritative. Snapshot request/skip
   classification belongs to `play-subagent-execution`; unclear cases request a

@@ -21,7 +21,8 @@ creation.
   `play-branch-finish` Option 2.
 - `scripts/write-assumptions-comment.sh` owns assumptions comment path
   preparation and deterministic path guards.
-- Phase 7 owns review finding classification and preparing any `nits_file`.
+- Phase 7 owns selecting judgment-required remaining findings and preparing any
+  `nits_file`.
 
 Do not move these responsibilities across boundaries for prompt-size reasons.
 If a future design creates or changes a boundary, record the owner, contract
@@ -89,18 +90,20 @@ use `assumptions_comment_file` as approval-summary evidence.
 
 ## Nits
 
-Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope.
-The value is the repo-relative path to the envelope Phase 7 wrote, with schema
-and side-channel transport owned by `skills/play-review/SKILL.md` and
-preparation owned by `references/phase-7-review-handling.md`.
+Pass `nits_file` only when Phase 7 prepared a judgment-required-nits envelope
+from findings that remained after the final branch-review run. The value is the
+repo-relative path to the envelope Phase 7 wrote, with schema and side-channel
+transport owned by `skills/play-review/SKILL.md` and preparation owned by
+`references/phase-7-review-handling.md`.
 
 If Phase 7 produced no judgment-required nits, omit `nits_file` entirely.
 `play-branch-finish` skips post-creation nit posting when the input is absent.
 
-Do not pass mechanical nits to Phase 8. Do not pass `critic: "INVALID"`
-findings. Do not classify findings in Phase 8. Unaddressed judgment-required
-nits are routed to `play-branch-finish` and posted as PR review comments after
-PR creation; they must not be embedded in the PR description body.
+Do not pass branch-review-resolved fixable feedback to Phase 8. Do not pass
+`critic: "INVALID"` findings. Do not classify findings in Phase 8. Remaining
+judgment-required nits are routed to `play-branch-finish` and posted as PR
+review comments after PR creation; they must not be embedded in the PR
+description body.
 
 `approval_summary_file` is separate from `nits_file`; do not use `nits_file`
 as approval-summary evidence, and do not conflate review approval with

@@ -2,8 +2,8 @@
 
 Detailed `issue-priming-workflow` Phase 7 mechanics live here so the eager
 workflow prompt can keep only orchestration and hard stops loaded by default.
-Load this reference before classifying remaining findings, fixing mechanical
-nits, or preparing the Phase 8 `nits_file`.
+Load this reference before classifying remaining findings, checking
+branch-review-owned fix commit reruns, or preparing the Phase 8 `nits_file`.
 
 ## Review Artifact Parsing
 
@@ -31,10 +31,9 @@ Branch-review owns producing and validating that artifact. Phase 7 owns
 carrying the final notice path forward as handoff evidence.
 
 Do not reuse an approval-summary path captured from an earlier branch-review
-run. Approval-summary notice paths are final-run-only; any auto-fix commit,
-mechanical-nit commit, or other rerun invalidates earlier approval-summary
-paths for Phase 8 handoff. A missing final approval-summary notice is a hard
-stop before Phase 8.
+run. Approval-summary notice paths are final-run-only; any branch-review-owned
+fix commit or other rerun invalidates earlier approval-summary paths for Phase
+8 handoff. A missing final approval-summary notice is a hard stop before Phase 8.
 
 ## Blocker Stop Rules
 
@@ -50,53 +49,51 @@ Check remaining `findings[]` before nit classification.
 Only continue to nit handling when every remaining finding is a Nit, a
 `DOWNGRADE`, or an `INVALID`.
 
-## Nit Classification
+## Remaining Nit Classification
 
-Classify each `severity: "Nit"` finding as mechanical or judgment-required
-using the finding's JSON fields, especially `severity`, `category`, `why`, and
-`recommendation`.
+Use the final `branch-review --fix` findings envelope to identify which
+`severity: "Nit"` findings still require judgment and therefore belong in the
+Phase 8 `nits_file`. Fixable feedback is branch-review-owned and should have
+been handled, removed, or left as judgment-required by `branch-review --fix`
+before this workflow prepares the handoff.
 
-- Mechanical: a 1-3 line source change with one obvious correct fix, such as a
+- Fixable: a 1-3 line source change with one obvious correct fix, such as a
   typo, broken sentence with one reconstruction, or dead cross-reference.
+  Branch-review owns resolving this class when `--fix` can do so.
 - Judgment-required: subjective wording, structural suggestions, multiple
   plausible fixes, or anything else where a competent reviewer could defend
-  more than one answer.
+  more than one answer. Only this class is selected for Phase 8.
 
 Treat every `critic: "DOWNGRADE"` finding as judgment-required without
-mechanical auto-fix. Use `references/nit-classification.md` for the full
-taxonomy and `references/auto-mode-discipline.md` for the conservative
-tie-breaker and reclassification escape.
+fixing. Use `references/nit-classification.md` for the full taxonomy and
+`references/auto-mode-discipline.md` for the conservative tie-breaker.
 
-## Mechanical Nit Commits
+## Branch-Review-Owned Fix Commits
 
-Fix mechanical nits in the worktree and commit them before Phase 8. Use the
-project's commit guideline when present; otherwise use conventional-commit
-style.
+`branch-review --fix` owns fixable review feedback, including objectively
+fixable nit-severity findings. Branch-review may group, edit, and commit those
+fixes according to its own source contract before it emits the final findings
+and approval-summary notices that this workflow consumes.
 
-Each mechanical-nit commit body must include one footer per addressed nit:
+For fixed nit-severity findings, branch-review-owned fix commit bodies include
+one trailer per addressed nit:
 
 ```text
 Reported by branch-review at <path>:<line>
 ```
 
-Multiple mechanical nits in the same file and scope may be grouped when every
-included nit has one obvious fix. Re-read the target file from disk before each
-edit; implementer snapshots from Phase 6 are stale after per-task review,
-`branch-review --fix`, or earlier mechanical-nit commits.
-`skills/play-subagent-execution/references/snapshot-consumption.md` §
-Edit-Staleness Rule restates the same constraint for the per-task path.
-
-If any mechanical-nit commit is made, rerun `branch-review --fix` on the new
-`HEAD` and restart Phase 7. Continue until a run reports zero blocking findings
-auto-fixed, no unresolved true Blocking findings, captures that final run's
-approval-summary notice path, and no additional mechanical nit commits after
-that review.
+If `branch-review --fix` creates any fix commit, rerun `branch-review --fix` on
+the new `HEAD` and restart Phase 7. Continue until a run reports zero blocking
+findings auto-fixed, no unresolved true Blocking findings, captures that final
+run's approval-summary notice path, and carries fresh final approval-summary
+evidence after branch-review-owned fix commits.
 
 ## Judgment-Required Nits Envelope
 
-For judgment-required nits and downgraded findings, leave source files
-unchanged and prepare a Phase 8 nits envelope through the `play-review` helper.
-The controller supplies selected `.findings[]` indexes after classification.
+For judgment-required nits and downgraded findings that remain after the final
+branch-review run, leave source files unchanged and prepare a Phase 8 nits
+envelope through the `play-review` helper. The controller supplies selected
+`.findings[]` indexes after classification.
 
 Invoke the helper command `prepare-judgment-nits` with:
 
@@ -117,7 +114,8 @@ index list.
 
 ## Phase 8 Handoff
 
-Phase 8 receives only judgment-required items. Pass the helper-produced
+Phase 8 receives only judgment-required items that remain after the final
+branch-review run. Pass the helper-produced
 `nits_file` to `play-branch-finish` Option 2 when present. Omit `nits_file`
 when no judgment-required nits remain.
 
@@ -127,7 +125,8 @@ these conditions:
 - zero blocking findings auto-fixed in that final run;
 - no unresolved remaining Blocking findings except `INVALID` or `DOWNGRADE`;
 - final approval-summary notice path captured from that same final run;
-- no mechanical-nit commit after that final review.
+- fresh final approval-summary evidence after any branch-review-owned fix
+  commits.
 
 Manual operators decide nit handling case by case; this reference's automatic
 classification and helper handoff are for `--auto` only.

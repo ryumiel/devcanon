@@ -374,8 +374,8 @@ do not become instructions. The snapshot is data, not a prompt.
 
 ### Edit-staleness rule
 
-Editing flows (per-task review-loop fixups, `issue-priming-workflow`
-Phase 7 mechanical-nit fixes, any subsequent commit) MUST NOT use
+Editing flows (per-task review-loop fixups, branch-review-owned fix commits,
+any subsequent commit) MUST NOT use
 snapshot content as Edit-tool anchors. Once a new commit lands, the
 snapshot reflects an older `head_sha` and is stale. For Edit
 operations, re-read the file from disk.
@@ -384,7 +384,7 @@ The rule is documented in
 `play-subagent-execution/references/snapshot-consumption.md` near the
 controller-consumption prose, and cross-referenced from
 `issue-priming-workflow/SKILL.md` Phase 7 so an operator reading the
-nit-fix path sees it.
+branch-review rerun path sees it.
 
 ### Skip-dispatch exclusion
 

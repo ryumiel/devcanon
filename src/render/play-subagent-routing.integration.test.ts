@@ -148,6 +148,8 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     }
 
     const issuePrimingWorkflow = bodies["issue-priming-workflow:codex"];
+    const normalizedIssuePrimingWorkflow =
+      normalizeWhitespace(issuePrimingWorkflow);
     expect(issuePrimingWorkflow).toContain("Plan:");
     expect(issuePrimingWorkflow).toContain("Auto handoff:");
     expect(issuePrimingWorkflow).toContain("play-subagent-execution");
@@ -155,6 +157,15 @@ describe("play-subagent planning and routing render smoke coverage", () => {
     expect(issuePrimingWorkflow).toContain("scripts/write-research-brief.sh");
     expect(issuePrimingWorkflow).toContain(
       "scripts/write-assumptions-comment.sh",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Phase 7 owns branch review before Phase 8",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Phase 8 must not rely on `play-branch-finish` to run, validate, classify, or complete branch review",
+    );
+    expect(normalizedIssuePrimingWorkflow).toContain(
+      "Pass judgment-required Phase 7 feedback only through `nits_file`",
     );
   });
 
@@ -183,7 +194,7 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "final whole-implementation review passes",
       );
       expect(normalizedHandoff).toContain(
-        "implementation and final review passed",
+        "report implementation status and final review status before any branch-review or finish handoff",
       );
       expect(normalizedHandoff).toContain("invoke `play-branch-finish`");
       expect(normalizedHandoff).toContain(
@@ -196,7 +207,13 @@ describe("play-subagent planning and routing render smoke coverage", () => {
         "they are not terminal workflow states",
       );
       expect(normalizedHandoff).toContain(
-        "After the final whole-implementation review passes, the next action is to resolve the branch-level review status above and then either stop for required branch review or invoke `play-branch-finish`",
+        "After the final whole-implementation review passes, the next action is to resolve the branch-level review status above and then either hand off for required branch review, wait until that review status is resolved, or invoke `play-branch-finish` when branch review is not required",
+      );
+      expect(normalizedHandoff).toContain(
+        "Use `branch-review --fix` as the branch-level gate before finish only when the owning workflow already grants auto-fix authority or the operator explicitly confirms that branch-review may auto-commit fixes",
+      );
+      expect(normalizedHandoff).toContain(
+        "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
       );
       expect(normalizedHandoff).toContain(
         "run `branch-review` before `play-branch-finish` when the active workflow requires branch-level review before PR creation",
