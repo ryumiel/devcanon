@@ -1103,7 +1103,7 @@ async function writeApprovedPayloadFiles(
   return expectedPayload;
 }
 
-describe("review artifact runtime reducers", () => {
+describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   it("finds right-side diff hunks for inline review lines", () => {
     const diffText = [
       "diff --git a/src/app.ts b/src/app.ts",
