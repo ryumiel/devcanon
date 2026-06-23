@@ -268,7 +268,7 @@ describe("play subagent routing source contracts", () => {
       "## Review Artifact Parsing",
       "## Blocker Stop Rules",
       "## Nit Classification",
-      "## Mechanical Nit Commits",
+      "## Branch-Review-Owned Fix Commits",
       "## Judgment-Required Nits Envelope",
       "## Phase 8 Handoff",
     ]) {
