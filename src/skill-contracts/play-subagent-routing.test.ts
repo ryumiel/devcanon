@@ -256,6 +256,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase7).toContain(
       "This runs the full multi-agent review on `git diff <base>...HEAD` where `<base>` is branch-review's selected base: normally the repository's default branch, or the supplied full base SHA for detached issue-base risk signals that use that same base side",
     );
+    expect(normalizedPhase7).toContain(
+      "With `--fix`, `branch-review` attempts eligible `Blocking` auto-fixes and eligible fixable-nit units, and commits branch-review-owned fixes",
+    );
+    expect(normalizedPhase7).not.toContain(
+      "With `--fix`, `branch-review` attempts eligible `Blocking` auto-fixes and commits them",
+    );
     expect(
       issuePrimingWorkflow.indexOf("### Phase 7: Branch Review"),
     ).toBeLessThan(issuePrimingWorkflow.indexOf("### Phase 8: Create PR"));

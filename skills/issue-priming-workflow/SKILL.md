@@ -460,9 +460,10 @@ This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
 use that same base side. With `--fix`, `branch-review` attempts eligible
-`Blocking` auto-fixes and commits them. If any remaining true `Blocking`
-finding is unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop
-`--auto` and report to the user**.
+`Blocking` auto-fixes and eligible fixable-nit units, and commits
+branch-review-owned fixes. If any remaining true `Blocking` finding is
+unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and
+report to the user**.
 
 Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
