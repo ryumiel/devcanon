@@ -14,6 +14,13 @@ import {
 import os from "node:os";
 import path from "node:path";
 import {
+  gitPathPairKey,
+  isRepoPathIdentity,
+  parseGitChangedFilesZ,
+  parseGitNameStatusZ,
+  parseGitNumstatZ,
+} from "./git-diff-parser.js";
+import {
   providerBoundGitArgs,
   providerBoundGitEnv,
   runGit,
@@ -530,7 +537,11 @@ async function validateScopeDecision(
     options.surface === "pr-review"
       ? await providerBoundChangedFiles(selectedExecRange)
       : await changedFiles(selectedExecRange);
-  const actualFiles = stringArrayField(scope, "changed_files").sort();
+  const actualFiles = stringArrayField(scope, "changed_files");
+  if (!actualFiles.every(isRepoPath)) {
+    fail("scope changed files contain invalid path identity");
+  }
+  actualFiles.sort();
   if (!jsonEqual(expectedFiles, actualFiles)) {
     fail("changed files do not match selected range");
   }
@@ -1156,7 +1167,7 @@ function fileEntryKeyFromParts(entry: {
   previousPath: string | null;
   status: string;
 }): string {
-  return [entry.path, entry.previousPath ?? "", entry.status].join("\0");
+  return `${gitPathPairKey(entry)}\0${entry.status}`;
 }
 
 async function normalizedLocalFileEntries(
@@ -1170,7 +1181,7 @@ async function normalizedLocalFileEntries(
       statusEntry.previousPath === null
         ? [statusEntry.path]
         : [statusEntry.previousPath, statusEntry.path];
-    const numstat = numstats.get(filePathPairKey(statusEntry));
+    const numstat = numstats.get(gitPathPairKey(statusEntry));
     if (numstat === undefined) {
       fail("local diff numstat is unavailable");
     }
@@ -1197,53 +1208,15 @@ async function gitDiffNameStatus(
 ): Promise<
   Array<{ path: string; previousPath: string | null; status: string }>
 > {
-  const tokens = (
-    await canonicalGitDiffMetadataText(["--name-status", "-z", range])
-  )
-    .split("\0")
-    .filter(Boolean);
-  const entries: Array<{
-    path: string;
-    previousPath: string | null;
-    status: string;
-  }> = [];
-  for (let index = 0; index < tokens.length; ) {
-    const rawStatus = tokens[index] ?? "";
-    index += 1;
-    const statusCode = rawStatus[0] ?? "";
-    if (statusCode === "R") {
-      const previousPath = tokens[index] ?? "";
-      const currentPath = tokens[index + 1] ?? "";
-      index += 2;
-      entries.push({
-        path: currentPath,
-        previousPath,
-        status: "renamed",
-      });
-      continue;
-    }
-    const currentPath = tokens[index] ?? "";
-    index += 1;
-    entries.push({
-      path: currentPath,
-      previousPath: null,
-      status:
-        statusCode === "A"
-          ? "added"
-          : statusCode === "D"
-            ? "removed"
-            : "modified",
-    });
-  }
-  return entries;
+  return parseGitNameStatusZ(
+    await canonicalGitDiffMetadataRaw(["--name-status", "-z", range]),
+  );
 }
 
-async function canonicalGitDiffMetadataText(
+async function canonicalGitDiffMetadataRaw(
   args: readonly string[],
-): Promise<string> {
-  return (await canonicalGitDiffRawWithArgs(args, { patch: false })).toString(
-    "utf8",
-  );
+): Promise<Buffer> {
+  return canonicalGitDiffRawWithArgs(args, { patch: false });
 }
 
 async function canonicalGitDiffRaw(
@@ -1252,7 +1225,7 @@ async function canonicalGitDiffRaw(
 ): Promise<Buffer> {
   return canonicalGitDiffRawWithArgs(
     [range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])],
-    { patch: true },
+    { patch: true, literalPathspecs: pathspecs.length > 0 },
   );
 }
 
@@ -1268,7 +1241,7 @@ async function canonicalGitDiffSha256(
 
 async function canonicalGitDiffRawWithArgs(
   args: readonly string[],
-  options: { patch: boolean },
+  options: { patch: boolean; literalPathspecs?: boolean },
 ): Promise<Buffer> {
   return canonicalGitDiffOutputWithArgs(args, options, "raw");
 }
@@ -1689,64 +1662,20 @@ async function gitDiffNumstats(
 ): Promise<
   Map<string, { additions: number; deletions: number; patchAvailable: boolean }>
 > {
-  const stdout = await canonicalGitDiffMetadataText(["--numstat", "-z", range]);
-  const tokens = stdout.split("\0").filter(Boolean);
   const entries = new Map<
     string,
     { additions: number; deletions: number; patchAvailable: boolean }
   >();
-  for (let index = 0; index < tokens.length; ) {
-    const header = tokens[index] ?? "";
-    index += 1;
-    const firstTab = header.indexOf("\t");
-    const secondTab = firstTab < 0 ? -1 : header.indexOf("\t", firstTab + 1);
-    if (firstTab < 0 || secondTab < 0) {
-      fail("local diff numstat is unavailable");
-    }
-    const additionsRaw = header.slice(0, firstTab);
-    const deletionsRaw = header.slice(firstTab + 1, secondTab);
-    const simplePath = header.slice(secondTab + 1);
-    if (simplePath === "") {
-      const previousPath = tokens[index] ?? "";
-      const filePath = tokens[index + 1] ?? "";
-      if (previousPath.length === 0 || filePath.length === 0) {
-        fail("local diff numstat is unavailable");
-      }
-      index += 2;
-      entries.set(
-        filePathPairKey({ path: filePath, previousPath }),
-        parseGitDiffNumstat(additionsRaw, deletionsRaw),
-      );
-      continue;
-    }
-    entries.set(
-      filePathPairKey({ path: simplePath, previousPath: null }),
-      parseGitDiffNumstat(additionsRaw, deletionsRaw),
-    );
+  for (const entry of parseGitNumstatZ(
+    await canonicalGitDiffMetadataRaw(["--numstat", "-z", range]),
+  )) {
+    entries.set(gitPathPairKey(entry), {
+      additions: entry.additions,
+      deletions: entry.deletions,
+      patchAvailable: entry.patchAvailable,
+    });
   }
   return entries;
-}
-
-function filePathPairKey(entry: {
-  path: string;
-  previousPath: string | null;
-}): string {
-  return [entry.path, entry.previousPath ?? ""].join("\0");
-}
-
-function parseGitDiffNumstat(
-  additionsRaw: string | undefined,
-  deletionsRaw: string | undefined,
-): { additions: number; deletions: number; patchAvailable: boolean } {
-  if (additionsRaw === "-" && deletionsRaw === "-") {
-    return { additions: 0, deletions: 0, patchAvailable: false };
-  }
-  const additions = Number(additionsRaw);
-  const deletions = Number(deletionsRaw);
-  if (!Number.isInteger(additions) || !Number.isInteger(deletions)) {
-    fail("local diff numstat is unavailable");
-  }
-  return { additions, deletions, patchAvailable: true };
 }
 
 function sha256Buffer(value: Buffer): string {
@@ -2643,7 +2572,6 @@ function validateScopeShapeSchema(
     !isNullableSha(scope.last_reviewed_sha) ||
     typeof scope.is_followup_narrow !== "boolean" ||
     stringField(scope, "selection_reason").length === 0 ||
-    !stringArrayField(scope, "changed_files").every(isRepoPath) ||
     !stringArrayField(scope, "language_hints").every(
       (hint) => hint.length >= 0,
     ) ||
@@ -2652,6 +2580,9 @@ function validateScopeShapeSchema(
     )
   ) {
     fail("scope decision schema mismatch");
+  }
+  if (!stringArrayField(scope, "changed_files").every(isRepoPath)) {
+    fail("scope changed files contain invalid path identity");
   }
 
   if (expectedSchema === "branch-review/scope-decision/v1") {
@@ -3060,17 +2991,15 @@ async function readSingleJsonObject(
 }
 
 async function changedFiles(range: string): Promise<string[]> {
-  const stdout = await git(["diff", "-z", "--name-only", range]);
-  return stdout.split("\0").filter(Boolean).sort();
+  return parseGitChangedFilesZ(
+    await gitRaw(["diff", "-z", "--name-only", range]),
+  ).sort();
 }
 
 async function providerBoundChangedFiles(range: string): Promise<string[]> {
-  const stdout = await canonicalGitDiffMetadataText([
-    "--name-only",
-    "-z",
-    range,
-  ]);
-  return stdout.split("\0").filter(Boolean).sort();
+  return parseGitChangedFilesZ(
+    await canonicalGitDiffMetadataRaw(["--name-only", "-z", range]),
+  ).sort();
 }
 
 function languageHints(files: readonly string[]): string[] {
@@ -3207,6 +3136,15 @@ async function git(args: readonly string[]): Promise<string> {
         ? "failed to determine git repository root"
         : "git command failed",
     );
+  }
+}
+
+async function gitRaw(args: readonly string[]): Promise<Buffer> {
+  try {
+    const { stdout } = await runGitRaw(args, { cwd: process.cwd() });
+    return stdout;
+  } catch {
+    fail("git command failed");
   }
 }
 
@@ -3451,15 +3389,7 @@ function isValidTimestamp(value: string): boolean {
 }
 
 function isRepoPath(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    !value.startsWith("/") &&
-    !value.includes("\0") &&
-    value
-      .split("/")
-      .every((part) => part !== "" && part !== "." && part !== "..")
-  );
+  return isRepoPathIdentity(value);
 }
 
 function isSafeRiskSignalRepoPath(value: string): boolean {

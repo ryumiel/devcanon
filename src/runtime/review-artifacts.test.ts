@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { parseGitNumstatZ } from "./git-diff-parser.js";
 import {
   buildApprovedReviewPayload,
   diffHunkForLine,
@@ -325,6 +326,20 @@ async function gitRaw(
   const { stdout } = await execFileAsync("git", [...args], {
     cwd,
     env: options.env,
+    maxBuffer: options.maxBuffer,
+  });
+  return stdout;
+}
+
+async function gitRawBuffer(
+  cwd: string,
+  args: readonly string[],
+  options: { env?: NodeJS.ProcessEnv; maxBuffer?: number } = {},
+): Promise<Buffer> {
+  const { stdout } = await execFileAsync("git", [...args], {
+    cwd,
+    env: options.env,
+    encoding: "buffer",
     maxBuffer: options.maxBuffer,
   });
   return stdout;
@@ -761,24 +776,26 @@ async function providerRenameEvidenceFileEntry(
   options: { literalPathspecs?: boolean; maxBuffer?: number } = {},
 ): Promise<JsonObject> {
   const range = `${baseSha}..${headSha}`;
-  const numstat = await gitRaw(
-    cwd,
-    [
-      ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
-      "diff",
-      "--numstat",
-      "-z",
-      "--find-renames",
-      range,
-      "--",
-      paths.previousPath,
-      paths.path,
-    ],
-    { maxBuffer: options.maxBuffer },
-  );
-  const [additionsRaw, deletionsRaw] = numstat.split(/\s+/u);
-  const additions = Number(additionsRaw);
-  const deletions = Number(deletionsRaw);
+  const numstat = parseGitNumstatZ(
+    await gitRawBuffer(
+      cwd,
+      [
+        ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
+        "diff",
+        "--numstat",
+        "-z",
+        "--find-renames",
+        range,
+        "--",
+        paths.previousPath,
+        paths.path,
+      ],
+      { maxBuffer: options.maxBuffer },
+    ),
+  )[0];
+  if (numstat === undefined) {
+    throw new Error("missing rename numstat fixture");
+  }
   const patch = await canonicalGitDiffRaw(
     cwd,
     range,
@@ -789,9 +806,9 @@ async function providerRenameEvidenceFileEntry(
     path: paths.path,
     status: "renamed",
     previous_path: paths.previousPath,
-    additions,
-    deletions,
-    changes: additions + deletions,
+    additions: numstat.additions,
+    deletions: numstat.deletions,
+    changes: numstat.additions + numstat.deletions,
     patch_sha256: sha256(patch),
     patch_available: true,
   };
@@ -922,6 +939,19 @@ function providerScopeArgs(
     "5",
     "--provider-scope-evidence-file",
     evidencePath,
+  ];
+}
+
+function providerDiffAnchorArgs(
+  headSha: string,
+  findingsPath = ".ephemeral/topic-findings.json",
+): string[] {
+  const [, ...scopeArgs] = providerScopeArgs(headSha);
+  return [
+    "validate-diff-anchors",
+    ...scopeArgs,
+    "--findings-file",
+    findingsPath,
   ];
 }
 
@@ -1773,6 +1803,64 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
+  it("validates diff anchors for a literal leading-colon finding path", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      const fileEntry = await providerEvidenceFileEntry(
+        cwd,
+        baseSha,
+        headSha,
+        ":(top)README.md",
+        { literalPathspecs: true },
+      );
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [fileEntry],
+          local_files: [fileEntry],
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: [":(top)README.md"],
+          language_hints: ["md"],
+        }),
+      );
+      await writeJson(cwd, ".ephemeral/topic-findings.json", {
+        schema: "play-review/findings/v1",
+        findings: [
+          {
+            path: ":(top)README.md",
+            line: 1,
+            start_line: null,
+            severity: "Blocking",
+            category: "Logic",
+            critic: "VALID",
+            anchor: "natural",
+            why: "why",
+            recommendation: "recommendation",
+            body: "body",
+          },
+        ],
+        carry_forward: [],
+      });
+
+      await expect(
+        runReviewArtifactsCommand(providerDiffAnchorArgs(headSha)),
+      ).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("rejects provider evidence for a leading-colon path when the patch digest is not literal", async () => {
     const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
@@ -2071,6 +2159,34 @@ describe("review artifact runtime reducers", () => {
         };
       },
       stderr: "provider evidence contains duplicate file entries",
+    },
+    {
+      name: "provider file path contains NUL",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const evidence = await providerScopeEvidence(cwd, baseSha, headSha);
+        const entry = {
+          ...(evidence.provider_files as JsonObject[])[0],
+          path: "src/app.ts\0spoof",
+        };
+        return {
+          ...evidence,
+          provider_files: [entry],
+          local_files: [entry],
+        };
+      },
+      stderr: "provider evidence schema mismatch",
+    },
+    {
+      name: "scope changed file path contains NUL",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha, undefined, {
+          changed_files: ["src/app.ts\0spoof"],
+        }),
+      evidence: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeEvidence(cwd, baseSha, headSha),
+      stderr: "scope changed files contain invalid path identity",
     },
     {
       name: "provider/local file mismatch",
