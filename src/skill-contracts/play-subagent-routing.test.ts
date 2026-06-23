@@ -805,6 +805,9 @@ describe("play subagent routing source contracts", () => {
       "After any branch-review-owned fix commit, rerun `branch-review --fix`",
     );
     expect(normalizedPhase7).toContain(
+      "`skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule",
+    );
+    expect(normalizedPhase7).toContain(
       "passing only risk signals regenerated for that `HEAD` when using `--risk-signals`",
     );
     expect(phase7Reference).toContain("Review head: <40-hex-sha>.");
@@ -812,6 +815,9 @@ describe("play subagent routing source contracts", () => {
     expect(phase7Reference).toContain("PLAY_REVIEW_HELPER");
     expect(phase7Reference).toContain("validate the findings path");
     expect(phase7Reference).toContain("prepare-judgment-nits");
+    expect(normalizeWhitespace(phase7Reference)).toContain(
+      "For fixed nit-severity findings, branch-review-owned fix commit bodies include one trailer per addressed nit",
+    );
     expect(phase7Reference).toContain(
       "Reported by branch-review at <path>:<line>",
     );

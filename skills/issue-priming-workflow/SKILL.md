@@ -494,6 +494,11 @@ run reports zero blocking findings auto-fixed, has no unresolved true Blocking
 findings except `INVALID` or `DOWNGRADE`, has a captured final
 approval-summary path, and carries fresh final approval evidence after any
 branch-review-owned fix commits.
+Although Phase 7 does not edit fixable feedback itself, every
+branch-review-owned fix commit makes earlier implementer snapshots stale; use
+`skills/play-subagent-execution/references/snapshot-consumption.md` §
+Edit-Staleness Rule as the rerun-path reminder that edits must use freshly read
+files, not snapshot anchors.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.
 

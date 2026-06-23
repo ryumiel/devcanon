@@ -75,7 +75,8 @@ fixable nit-severity findings. Branch-review may group, edit, and commit those
 fixes according to its own source contract before it emits the final findings
 and approval-summary notices that this workflow consumes.
 
-Branch-review-owned fix commit bodies include one footer per addressed finding:
+For fixed nit-severity findings, branch-review-owned fix commit bodies include
+one trailer per addressed nit:
 
 ```text
 Reported by branch-review at <path>:<line>
