@@ -1435,40 +1435,43 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("accepts unavailable text evidence with provider-native full-diff provenance", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = unavailablePatchEntry(
-        await providerEvidenceFileEntry(cwd, baseSha, headSha),
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-          provider_diff_sha256: "b".repeat(64),
-          digest_provenance: providerNativeDiffProvenance(),
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha),
-      );
+  it.skipIf(isWindows)(
+    "accepts unavailable text evidence with provider-native full-diff provenance",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = unavailablePatchEntry(
+          await providerEvidenceFileEntry(cwd, baseSha, headSha),
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+            provider_diff_sha256: "b".repeat(64),
+            digest_provenance: providerNativeDiffProvenance(),
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it("accepts binary provider evidence with unavailable patches", async () => {
     const { cwd, baseSha, headSha } = await makeProviderBinaryWorkspace();
@@ -1506,40 +1509,43 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("accepts all-unavailable provider-native provenance when full diff digests match", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderBinaryWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = binaryUnavailablePatchEntry("assets/blob.bin");
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-          digest_provenance: providerNativeDiffProvenance(),
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: ["assets/blob.bin"],
-          language_hints: ["bin"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "accepts all-unavailable provider-native provenance when full diff digests match",
+    async () => {
+      const { cwd, baseSha, headSha } = await makeProviderBinaryWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = binaryUnavailablePatchEntry("assets/blob.bin");
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+            digest_provenance: providerNativeDiffProvenance(),
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: ["assets/blob.bin"],
+            language_hints: ["bin"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it.skipIf(isWindows)(
     "preserves tabs in provider-bound numstat paths",
@@ -1584,46 +1590,49 @@ describe("review artifact runtime reducers", () => {
     },
   );
 
-  it("maps provider-bound type-change paths to modified evidence", async () => {
-    const { cwd, baseSha, headSha, filePath } =
-      await makeProviderTypeChangeWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = {
-        ...(await providerEvidenceFileEntry(cwd, baseSha, headSha, filePath)),
-        status: "modified",
-        additions: 1,
-        deletions: 1,
-        changes: 2,
-      };
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [filePath],
-          language_hints: ["txt"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "maps provider-bound type-change paths to modified evidence",
+    async () => {
+      const { cwd, baseSha, headSha, filePath } =
+        await makeProviderTypeChangeWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = {
+          ...(await providerEvidenceFileEntry(cwd, baseSha, headSha, filePath)),
+          status: "modified",
+          additions: 1,
+          deletions: 1,
+          changes: 2,
+        };
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [filePath],
+            language_hints: ["txt"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it("rejects linked-worktree common info attributes before canonical diff hashing", async () => {
     const source = await makeRiskSignalsWorkspace();

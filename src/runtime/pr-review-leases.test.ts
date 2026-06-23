@@ -1926,71 +1926,64 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("rejects stale or mismatched gated result evidence", async () => {
-    const cases: Array<{
-      name: string;
-      mutate?: (workspace: GatedStatusWorkspace) => Promise<void>;
-      env?: (workspace: GatedStatusWorkspace) => void;
-      stderr: string;
-    }> = [
-      {
-        name: "wrong-result-file",
-        env: () => {
-          process.env.RESULT_FILE = ".ephemeral/pr-432-other-result.json";
-        },
-        stderr: "RESULT_FILE must match",
+  for (const testCase of [
+    {
+      name: "wrong-result-file",
+      env: () => {
+        process.env.RESULT_FILE = ".ephemeral/pr-432-other-result.json";
       },
-      {
-        name: "stale-digest",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.sha256 = "0".repeat(64);
-          }),
-        stderr: "digest mismatch",
+      stderr: "RESULT_FILE must match",
+    },
+    {
+      name: "stale-digest",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.sha256 = "0".repeat(64);
+        }),
+      stderr: "digest mismatch",
+    },
+    {
+      name: "stale-timestamp",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.validated_at =
+            "2026-06-11T00:01:00Z";
+        }),
+      stderr: "validation is stale",
+    },
+    {
+      name: "presentation-mismatch",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.presentation.status = "edited";
+        }),
+      stderr: "presentation status mismatch",
+    },
+    {
+      name: "null-presented-at",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.presentation.presented_at = null;
+        }),
+      stderr: "lease schema mismatch",
+    },
+    {
+      name: "missing-digest",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.sha256 = null;
+        }),
+      stderr: "digest missing",
+    },
+    {
+      name: "wrong-review-head",
+      env: () => {
+        process.env.HEAD_SHA = "2222222222222222222222222222222222222222";
       },
-      {
-        name: "stale-timestamp",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.validated_at =
-              "2026-06-11T00:01:00Z";
-          }),
-        stderr: "validation is stale",
-      },
-      {
-        name: "presentation-mismatch",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.presentation.status = "edited";
-          }),
-        stderr: "presentation status mismatch",
-      },
-      {
-        name: "null-presented-at",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.presentation.presented_at = null;
-          }),
-        stderr: "lease schema mismatch",
-      },
-      {
-        name: "missing-digest",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.sha256 = null;
-          }),
-        stderr: "digest missing",
-      },
-      {
-        name: "wrong-review-head",
-        env: () => {
-          process.env.HEAD_SHA = "2222222222222222222222222222222222222222";
-        },
-        stderr: "result review head mismatch",
-      },
-    ];
-
-    for (const testCase of cases) {
+      stderr: "result review head mismatch",
+    },
+  ] as const) {
+    it(`rejects stale or mismatched gated result evidence: ${testCase.name}`, async () => {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-status-${testCase.name}-`,
       );
@@ -1998,7 +1991,7 @@ describe("pr-review lease read-status", () => {
         await testCase.mutate?.(workspace);
         process.chdir(workspace.physicalPrimary);
         setReadStatusEnv(workspace);
-        testCase.env?.(workspace);
+        testCase.env?.();
         const result = await runPrReviewLeasesCommand(["read-status"]);
         expect(result.exitCode, testCase.name).toBe(1);
         expect(result.stdout, testCase.name).toBe("");
@@ -2007,8 +2000,8 @@ describe("pr-review lease read-status", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
-    }
-  });
+    });
+  }
 
   it("fails closed for nested result artifact drift before status success", async () => {
     const workspace = await makeGatedStatusWorkspace(
