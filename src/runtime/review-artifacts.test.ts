@@ -1434,7 +1434,7 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("accepts unavailable text evidence with provider-native full diff drift", async () => {
+  it("rejects unavailable text evidence when canonical git has an available patch", async () => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);
     try {
@@ -1459,10 +1459,11 @@ describe("review artifact runtime reducers", () => {
 
       await expect(
         runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider/local patch evidence mismatch",
+        ),
       });
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
@@ -2718,6 +2719,24 @@ describe("review artifact runtime reducers", () => {
       stderr: "provider/local patch evidence mismatch",
     },
     {
+      name: "provider and local both unavailable while canonical patch is available",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const availableEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        const forgedUnavailableEntry = unavailablePatchEntry(availableEntry);
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedUnavailableEntry],
+          local_files: [forgedUnavailableEntry],
+        });
+      },
+      stderr: "provider/local patch evidence mismatch",
+    },
+    {
       name: "provider and local forged metadata differs from canonical git",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
@@ -2784,7 +2803,7 @@ describe("review artifact runtime reducers", () => {
           provider_diff_sha256: "b".repeat(64),
         });
       },
-      stderr: "provider/local diff digest mismatch",
+      stderr: "provider/local patch evidence mismatch",
     },
     {
       name: "empty provider and local file sets with provider-native diff drift",
@@ -2844,7 +2863,7 @@ describe("review artifact runtime reducers", () => {
         });
       },
       workspace: makeProviderMultiFileWorkspace,
-      stderr: "provider/local diff digest mismatch",
+      stderr: "provider/local patch evidence mismatch",
     },
     {
       name: "self-range provider diff base",
