@@ -55,6 +55,21 @@ describe("git diff parser", () => {
     ]);
   });
 
+  it("parses rename and copy score boundaries", () => {
+    expect(
+      parseGitNameStatusZ(
+        Buffer.from(
+          "R0\0old0\0new0\0R00\0old00\0new00\0R100\0old100\0new100\0C001\0copy-old\0copy-new\0",
+        ),
+      ),
+    ).toEqual([
+      { path: "new0", previousPath: "old0", status: "renamed" },
+      { path: "new00", previousPath: "old00", status: "renamed" },
+      { path: "new100", previousPath: "old100", status: "renamed" },
+      { path: "copy-new", previousPath: "copy-old", status: "copied" },
+    ]);
+  });
+
   it("maps type-change records to modified", () => {
     expect(parseGitNameStatusZ(Buffer.from("T\0src/app.ts\0"))).toEqual([
       { path: "src/app.ts", previousPath: null, status: "modified" },
@@ -100,6 +115,16 @@ describe("git diff parser", () => {
       message: "malformed git name-status output",
     },
     {
+      name: "name-status out-of-range rename score",
+      parse: () => parseGitNameStatusZ(Buffer.from("R999\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status too-wide rename score",
+      parse: () => parseGitNameStatusZ(Buffer.from("R1000\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
       name: "name-status malformed copy score",
       parse: () => parseGitNameStatusZ(Buffer.from("C\0old\0new\0")),
       message: "malformed git name-status output",
@@ -107,6 +132,11 @@ describe("git diff parser", () => {
     {
       name: "name-status non-numeric copy score",
       parse: () => parseGitNameStatusZ(Buffer.from("Cabc\0old\0new\0")),
+      message: "malformed git name-status output",
+    },
+    {
+      name: "name-status out-of-range copy score",
+      parse: () => parseGitNameStatusZ(Buffer.from("C999\0old\0new\0")),
       message: "malformed git name-status output",
     },
     {

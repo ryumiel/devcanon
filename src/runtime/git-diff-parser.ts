@@ -81,13 +81,25 @@ function parseNameStatusHeader(
     default:
       break;
   }
-  if (/^R[0-9]+$/u.test(rawStatus)) {
+  if (isValidNameStatusScore(rawStatus, "R")) {
     return "renamed";
   }
-  if (/^C[0-9]+$/u.test(rawStatus)) {
+  if (isValidNameStatusScore(rawStatus, "C")) {
     return "copied";
   }
   throwMalformed("name-status");
+}
+
+function isValidNameStatusScore(rawStatus: string, prefix: "R" | "C"): boolean {
+  if (!rawStatus.startsWith(prefix)) {
+    return false;
+  }
+  const scoreText = rawStatus.slice(1);
+  if (!/^[0-9]{1,3}$/u.test(scoreText)) {
+    return false;
+  }
+  const score = Number(scoreText);
+  return score >= 0 && score <= 100;
 }
 
 export function parseGitNumstatZ(buffer: Buffer): GitNumstatEntry[] {
