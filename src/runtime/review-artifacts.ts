@@ -3094,6 +3094,9 @@ async function diffHunkForFileLine(
   file: string,
   line: number,
 ): Promise<number | null> {
+  if (!isRepoPath(file) || !isPositiveInteger(line)) {
+    fail("findings envelope validation failed");
+  }
   const diff = (await canonicalGitDiffRaw(range, [file])).toString("utf8");
   return diffHunkForLine(diff, line);
 }
