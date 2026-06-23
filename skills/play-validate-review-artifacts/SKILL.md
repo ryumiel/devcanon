@@ -158,7 +158,9 @@ commit/ref existence, merge-base proof, range existence checks, changed-file
 listing, `--name-status` metadata, `--numstat` metadata, per-file patch
 hashing, full-diff digesting, `validate-diff-anchors` inline anchor hunk
 lookup, `compare-approved-payload` approved payload hunk verification, and
-relevant follow-up scope or `validate-risk-signals` range consumers. Provider
+pr-review follow-up scope range checks. `validate-risk-signals` remains
+branch-review-only and does not consume provider evidence or provider
+merge-base authority. Provider
 and local normalized file metadata must match exactly for `path`,
 `previous_path`, `status`, `additions`, `deletions`, and `changes`, and local
 metadata must match canonical Git evidence for the proven range. When provider

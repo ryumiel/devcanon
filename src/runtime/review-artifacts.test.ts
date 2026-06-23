@@ -960,7 +960,7 @@ async function providerScopeDecision(
 
 function providerScopeArgs(
   headSha: string,
-  baseRef = "main",
+  baseRef: string,
   evidencePath = providerScopeEvidencePath(headSha),
 ) {
   return [
@@ -988,11 +988,24 @@ function providerScopeArgs(
   ];
 }
 
+function withoutFlagValue(args: string[], flag: string): string[] {
+  const next: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === flag) {
+      index += 1;
+      continue;
+    }
+    next.push(args[index] ?? "");
+  }
+  return next;
+}
+
 function providerDiffAnchorArgs(
   headSha: string,
+  baseRef: string,
   findingsPath = ".ephemeral/topic-findings.json",
 ): string[] {
-  const [, ...scopeArgs] = providerScopeArgs(headSha);
+  const [, ...scopeArgs] = providerScopeArgs(headSha, baseRef);
   return [
     "validate-diff-anchors",
     ...scopeArgs,
@@ -1003,11 +1016,12 @@ function providerDiffAnchorArgs(
 
 function providerApprovedPayloadArgs(
   headSha: string,
+  baseRef: string,
   findingsPath = ".ephemeral/topic-findings.json",
   reviewBodyPath = ".ephemeral/topic-review-body.md",
   reviewPayloadPath = ".ephemeral/topic-review-payload.json",
 ): string[] {
-  const [, ...scopeArgs] = providerScopeArgs(headSha);
+  const [, ...scopeArgs] = providerScopeArgs(headSha, baseRef);
   return [
     "compare-approved-payload",
     ...scopeArgs,
@@ -1200,7 +1214,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1230,12 +1244,53 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, "main")),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
         stderr: "",
       });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it("requires pr-review base-ref to be the provider diff-base SHA", async () => {
+    const { cwd, baseSha, advancedBaseSha, headSha } =
+      await makeProviderMovingBaseWorkspace();
+    const evidencePath = providerScopeEvidencePath(headSha);
+    try {
+      await writeJson(
+        cwd,
+        evidencePath,
+        await providerScopeEvidence(cwd, baseSha, headSha, {
+          baseRefOid: advancedBaseSha,
+        }),
+      );
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        await providerScopeDecision(cwd, baseSha, headSha),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(
+          withoutFlagValue(providerScopeArgs(headSha, baseSha), "--base-ref"),
+        ),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("--base-ref is required for pr-review"),
+      });
+      for (const wrongBaseRef of ["main", advancedBaseSha]) {
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, wrongBaseRef)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "pr-review base ref must equal provider PR diff base",
+          ),
+        });
+      }
     } finally {
       await cleanupRiskSignalsWorkspace(cwd);
     }
@@ -1268,7 +1323,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, interiorSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1298,7 +1353,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining("provider baseRefOid does not resolve"),
@@ -1327,7 +1382,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, firstBaseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1367,7 +1422,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, "main")),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, advancedBaseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1403,7 +1458,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1439,7 +1494,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1474,7 +1529,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1514,7 +1569,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1555,7 +1610,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1606,7 +1661,9 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(source.headSha)),
+        runReviewArtifactsCommand(
+          providerScopeArgs(source.headSha, source.baseSha),
+        ),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1707,7 +1764,7 @@ describe("review artifact runtime reducers", () => {
       await poison(cwd);
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1763,7 +1820,7 @@ describe("review artifact runtime reducers", () => {
       await poison(cwd, baseSha, headSha);
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -1797,7 +1854,7 @@ describe("review artifact runtime reducers", () => {
       process.env.GIT_CONFIG_VALUE_0 = "true";
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1855,7 +1912,7 @@ describe("review artifact runtime reducers", () => {
         );
 
         await expect(
-          runReviewArtifactsCommand(providerScopeArgs(headSha)),
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
         ).resolves.toEqual({
           exitCode: 0,
           stdout: "",
@@ -1911,7 +1968,7 @@ describe("review artifact runtime reducers", () => {
       process.env.GIT_CONFIG_VALUE_0 = "false";
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -1966,7 +2023,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -2024,7 +2081,7 @@ describe("review artifact runtime reducers", () => {
       });
 
       await expect(
-        runReviewArtifactsCommand(providerDiffAnchorArgs(headSha)),
+        runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -2075,7 +2132,9 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerApprovedPayloadArgs(headSha)),
+        runReviewArtifactsCommand(
+          providerApprovedPayloadArgs(headSha, baseSha),
+        ),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: `${JSON.stringify(expectedPayload, null, 2)}\n`,
@@ -2107,7 +2166,7 @@ describe("review artifact runtime reducers", () => {
       await writeApprovedPayloadFiles(cwd, headSha, findings);
 
       await expect(
-        runReviewArtifactsCommand(args(headSha)),
+        runReviewArtifactsCommand(args(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining("findings envelope validation failed"),
@@ -2138,7 +2197,7 @@ describe("review artifact runtime reducers", () => {
       await writeApprovedPayloadFiles(cwd, headSha, findings);
 
       await expect(
-        runReviewArtifactsCommand(args(headSha)),
+        runReviewArtifactsCommand(args(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining("findings envelope validation failed"),
@@ -2182,7 +2241,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(args(headSha)),
+        runReviewArtifactsCommand(args(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -2272,7 +2331,7 @@ describe("review artifact runtime reducers", () => {
       await poison(cwd, baseSha, headSha);
 
       await expect(
-        runReviewArtifactsCommand(args(headSha)),
+        runReviewArtifactsCommand(args(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(stderr),
@@ -2320,7 +2379,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -2362,7 +2421,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -2413,7 +2472,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toMatchObject({
         exitCode: 1,
         stderr: expect.stringContaining(
@@ -2461,7 +2520,7 @@ describe("review artifact runtime reducers", () => {
       );
 
       await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha)),
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
       ).resolves.toEqual({
         exitCode: 0,
         stdout: "",
@@ -2479,8 +2538,8 @@ describe("review artifact runtime reducers", () => {
         providerScopeDecision(cwd, baseSha, headSha),
       evidence: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeEvidence(cwd, baseSha, headSha),
-      args: (headSha: string) =>
-        providerScopeArgs(headSha).filter(
+      args: (headSha: string, baseSha: string) =>
+        providerScopeArgs(headSha, baseSha).filter(
           (arg) =>
             ![
               "--provider-scope-evidence-file",
@@ -2501,10 +2560,10 @@ describe("review artifact runtime reducers", () => {
         ),
       evidence: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeEvidence(cwd, baseSha, headSha),
-      args: (_headSha: string) =>
+      args: (_headSha: string, baseSha: string) =>
         providerScopeArgs(
           _headSha,
-          "main",
+          baseSha,
           ".ephemeral/topic-provider-scope-evidence.json",
         ),
       stderr: "provider scope evidence path mismatch",
@@ -2798,6 +2857,7 @@ describe("review artifact runtime reducers", () => {
           provider_files: [],
           local_files: [],
         }),
+      args: (headSha: string) => providerScopeArgs(headSha, headSha),
       stderr: "provider PR diff base must equal single merge base",
     },
     {
@@ -2838,8 +2898,8 @@ describe("review artifact runtime reducers", () => {
       await expect(
         runReviewArtifactsCommand(
           testCase.args === undefined
-            ? providerScopeArgs(headSha)
-            : testCase.args(headSha),
+            ? providerScopeArgs(headSha, baseSha)
+            : testCase.args(headSha, baseSha),
         ),
       ).resolves.toMatchObject({
         exitCode: 1,

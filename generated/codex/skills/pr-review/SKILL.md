@@ -205,8 +205,9 @@ command families include current/head resolution, commit/ref existence,
 merge-base proof, range existence checks, changed-file listing,
 `--name-status` metadata, `--numstat` metadata, per-file patch hashing,
 full-diff digesting, inline anchor hunk lookup, approved payload hunk
-verification, and any follow-up scope or risk-signal checks that consume
-provider-bound ranges. Provider/local file metadata and available
+verification, and pr-review follow-up scope checks that consume provider-bound
+ranges. Branch-review `validate-risk-signals` remains outside provider evidence
+and provider merge-base semantics. Provider/local file metadata and available
 patch digests must match with compatible provenance, except for the
 runtime-defined all-provider-files-unavailable full-diff digest case. In that
 exception, every provider and local file entry in a non-empty complete

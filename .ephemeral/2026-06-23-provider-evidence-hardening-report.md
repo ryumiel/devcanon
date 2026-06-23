@@ -73,3 +73,34 @@ delegated to by `pr-review` manifest/result/approved-review helper flows.
   force-staging.
 - No provider review history, PR comments, or GitHub closeout content was copied
   into durable docs.
+
+## Fixup Verification Evidence
+
+- Fixup base SHA recorded before editing:
+  `2ee2c9457790d82059ab23bd7b62b08519efcd7a`.
+- `pr-review` support validation now requires `--base-ref` for `pr-review` and
+  rejects values other than the proven `provider_pr_diff_base_sha`, including a
+  branch name such as `main` and provider `baseRefOid` when it differs from the
+  provider diff-base.
+- Durable `validate-risk-signals` prose remains branch-review-only and outside
+  provider evidence / provider merge-base semantics.
+- `pnpm exec vitest run --project unit src/runtime/review-artifacts.test.ts`:
+  passed, 101 tests.
+- `pnpm exec vitest run --project integration-posix src/skill-scripts/play-validate-review-artifacts.integration.test.ts -t "requires pr-review base-ref|accepts a valid initial full scope decision"`:
+  passed, 2 selected tests.
+- `pnpm exec vitest run --project integration-posix src/skill-scripts/pr-review-approved-review-artifacts-helper.integration.test.ts -t "BASE_REF values|explicit scope-policy inputs|provider diff-base"`:
+  passed, 3 selected tests.
+- `pnpm run build:runtime`: passed and refreshed packaged runtime JavaScript.
+- `pnpm run dev -- render`: passed and refreshed generated Claude/Codex skill
+  and runtime mirrors.
+- `pnpm run check:runtime`: passed after staging the scoped runtime output.
+- `pnpm exec vitest run --project integration-windows-helper src/skill-scripts/pr-review-manifests-helper.integration.test.ts`:
+  passed, 27 tests.
+- First `pnpm run check` attempt passed checks and all behavioral assertions but
+  timed out one long-running manifest helper integration test at the default
+  10s timeout. The test was given a scoped 20s timeout because provider
+  authority validation now performs repeated Git proof work in that file.
+- Final `pnpm run check`: passed; 83 test files passed, 1404 tests passed, 2
+  skipped.
+- No GitHub push, PR comment, review post, approval, thread resolution, install,
+  or sync side effect was performed during the fixup.

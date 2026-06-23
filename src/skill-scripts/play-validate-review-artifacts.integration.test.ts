@@ -362,7 +362,7 @@ async function runValidator(cwd: string, command: string, args: string[] = []) {
 
 function scopeArgs(
   headSha: string,
-  _baseRef: string,
+  baseRef: string,
   scopeDecision = ".ephemeral/topic-scope-decision.json",
   surface = "branch-review",
   expectedPriorContextKind = "none",
@@ -388,6 +388,8 @@ function scopeArgs(
   ];
   if (surface === "pr-review") {
     args.push(
+      "--base-ref",
+      baseRef,
       "--provider-scope-evidence-file",
       `.ephemeral/main-${headSha}-provider-scope-evidence.json`,
     );
@@ -1712,6 +1714,67 @@ describe("play-validate-review-artifacts validator", () => {
           scopeArgs(headSha, baseSha),
         ),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires pr-review base-ref to equal the provider diff-base SHA", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await execFileAsync("git", ["switch", "-c", "provider-base", baseSha], {
+        cwd,
+      });
+      await writeFile(path.join(cwd, "README.md"), "baseline\nadvanced\n");
+      await execFileAsync("git", ["add", "."], { cwd });
+      await execFileAsync("git", ["commit", "-m", "chore: advance base"], {
+        cwd,
+      });
+      const providerBaseRefOid = await git(cwd, "rev-parse", "HEAD");
+      await execFileAsync("git", ["switch", "main"], { cwd });
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        initialScope(baseSha, headSha, "pr-review"),
+      );
+      const scope = JSON.parse(
+        await readFile(
+          path.join(cwd, ".ephemeral/topic-scope-decision.json"),
+          "utf-8",
+        ),
+      ) as { artifacts: { provider_scope_evidence_file: string } };
+      const evidencePath = scope.artifacts.provider_scope_evidence_file;
+      const evidence = JSON.parse(
+        await readFile(path.join(cwd, evidencePath), "utf-8"),
+      ) as JsonObject;
+      await writeJson(cwd, evidencePath, {
+        ...evidence,
+        baseRefOid: providerBaseRefOid,
+      });
+      const providerScopeEvidenceSha256 = createHash("sha256")
+        .update(await readFile(path.join(cwd, evidencePath)))
+        .digest("hex");
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...scope,
+        artifacts: {
+          provider_scope_evidence_file: evidencePath,
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+
+      for (const wrongBaseRef of ["main", providerBaseRefOid]) {
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              wrongBaseRef,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+          ]),
+          "pr-review base ref must equal provider PR diff base",
+        );
+      }
     } finally {
       await cleanupTempDir(cwd);
     }

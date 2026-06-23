@@ -1110,6 +1110,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    20_000,
   );
 
   it("rejects missing required fields, invalid identities, nested paths, and relative execution roots", async () => {

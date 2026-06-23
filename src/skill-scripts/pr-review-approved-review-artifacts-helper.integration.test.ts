@@ -433,6 +433,7 @@ describe.skipIf(!jqAvailable)(
         const validator = await writeRecordingSupportValidator(cwd);
 
         await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: headSha,
           FINDINGS_FILE: findingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
           REVIEW_PAYLOAD_FILE: payloadFile,
@@ -445,7 +446,7 @@ describe.skipIf(!jqAvailable)(
         );
         expect(args).toContain("compare-approved-payload");
         expect(args).toContain("--base-ref");
-        expect(args).toContain("main");
+        expect(args).toContain(headSha);
         expect(args).toContain("--expected-schema");
         expect(args).toContain("pr-review/scope-decision/v1");
         expect(args).toContain("--expected-prior-context-kind");
@@ -840,6 +841,111 @@ describe.skipIf(!jqAvailable)(
           stderr: expect.stringContaining(
             "full range must use provider PR diff base",
           ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects approved-review BASE_REF values that are not the provider diff-base", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await execFileAsync("git", ["switch", "main"], { cwd });
+        await writeFile(path.join(cwd, "README.md"), "baseline\nadvanced\n");
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "chore: advance base"], {
+          cwd,
+        });
+        const providerBaseRefOid = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await execFileAsync("git", ["switch", "topic"], { cwd });
+
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          realProviderEvidenceFile,
+        );
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, realProviderEvidenceFile), "utf-8"),
+        ) as Record<string, unknown>;
+        await writeJson(cwd, realProviderEvidenceFile, {
+          ...evidence,
+          baseRefOid: providerBaseRefOid,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: await sha256File(
+                cwd,
+                realProviderEvidenceFile,
+              ),
+            },
+          }),
+        );
+
+        for (const wrongBaseRef of ["main", providerBaseRefOid]) {
+          await expect(
+            runHelper(cwd, "freeze-approved-review", {
+              BASE_REF: wrongBaseRef,
+              HEAD_SHA: realHeadSha,
+              FINDINGS_FILE: realFindingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_PAYLOAD_FILE: realPayloadFile,
+              PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "pr-review base ref must equal provider PR diff base",
+            ),
+          });
+        }
+
+        await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: baseSha,
+          HEAD_SHA: realHeadSha,
+          FINDINGS_FILE: realFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: realPayloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
         });
       } finally {
         await cleanupTempDir(cwd);

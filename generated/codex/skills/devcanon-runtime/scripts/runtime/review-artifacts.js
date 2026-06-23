@@ -669,6 +669,12 @@ async function validatePrReviewProviderEvidence(scope, options) {
     const providerBase = stringField(evidence, "baseRefOid");
     const providerDiffBase = stringField(evidence, "provider_pr_diff_base_sha");
     const providerHead = stringField(evidence, "headRefOid");
+    if (options.baseRef.length === 0) {
+        fail("--base-ref is required for pr-review");
+    }
+    if (options.baseRef !== providerDiffBase) {
+        fail("pr-review base ref must equal provider PR diff base");
+    }
     if (stringField(evidence, "full_pr_diff_range") !==
         `${providerDiffBase}..${providerHead}`) {
         fail("provider evidence full range mismatch");
