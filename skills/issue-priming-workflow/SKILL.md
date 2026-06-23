@@ -448,11 +448,12 @@ validates the same full base SHA range. When those risk signals carry
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
 semantic notes into downstream reviewer context.
-If the run commits any auto-fixes, regenerate risk signals for the new `HEAD`
-before rerunning `branch-review --fix --risk-signals <new-path>` with the same
-base-side rule, or rerun `branch-review --fix` while intentionally omitting
-stale risk signals. Continue until a run reports zero blocking findings
-auto-fixed and the remaining findings file contains no unresolved
+If the run creates any branch-review-owned fix commit, regenerate risk signals
+for the new `HEAD` before rerunning
+`branch-review --fix --risk-signals <new-path>` with the same base-side rule, or
+rerun `branch-review --fix` while intentionally omitting stale risk signals.
+Continue until a run reports zero blocking findings auto-fixed and the
+remaining findings file contains no unresolved
 `severity: "Blocking"` entries except findings whose `critic` verdict is
 `INVALID` or `DOWNGRADE`, and captures that final run's approval-summary notice
 path.
