@@ -971,15 +971,20 @@ describe("play subagent routing source contracts", () => {
       "If that workflow does not require branch-level review, then invoke `play-branch-finish`",
     );
 
-    const requiredReviewStopIndex = normalizedDirectManualHandoff.indexOf(
-      "stop before invoking `play-branch-finish`",
+    const branchReviewHandoffIndex = normalizedDirectManualHandoff.indexOf(
+      "hand off to `branch-review` before any `play-branch-finish` handoff",
+    );
+    const approvalEvidenceIndex = normalizedDirectManualHandoff.indexOf(
+      "`branch-review` returns review approval evidence",
     );
     const conditionalFinishHandoffIndex = normalizedDirectManualHandoff.indexOf(
       "then invoke `play-branch-finish`",
     );
-    expect(requiredReviewStopIndex).toBeGreaterThanOrEqual(0);
+    expect(branchReviewHandoffIndex).toBeGreaterThanOrEqual(0);
+    expect(approvalEvidenceIndex).toBeGreaterThanOrEqual(0);
     expect(conditionalFinishHandoffIndex).toBeGreaterThanOrEqual(0);
-    expect(requiredReviewStopIndex).toBeLessThan(conditionalFinishHandoffIndex);
+    expect(branchReviewHandoffIndex).toBeLessThan(approvalEvidenceIndex);
+    expect(approvalEvidenceIndex).toBeLessThan(conditionalFinishHandoffIndex);
 
     for (const branchReviewStatusClaim of [
       "built-in final whole-implementation review passed",
@@ -1012,12 +1017,6 @@ describe("play subagent routing source contracts", () => {
     const normalizedDirectManualHandoff =
       normalizeWhitespace(directManualHandoff);
 
-    expect(normalizedDirectManualHandoff).toContain(
-      "When the active workflow requires branch-level review before PR creation, hand off to `branch-review` before any `play-branch-finish` handoff",
-    );
-    expect(normalizedDirectManualHandoff).toContain(
-      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
-    );
     expect(normalizedDirectManualHandoff).not.toContain(
       "so the operator can run `branch-review` first",
     );
