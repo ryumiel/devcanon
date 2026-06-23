@@ -96,6 +96,11 @@ approval. Branch-review remains the approval-summary producer and review
 judgment owner, while the issue-priming workflow remains responsible for
 requiring and carrying the final branch-review approval evidence into branch
 finish.
+`branch-review --fix` also owns fixable review feedback, including objectively
+fixable nit-severity findings. Issue priming does not create caller-owned
+post-review fix commits after branch review; it reruns branch review after any
+branch-review-owned fix commit and carries only the final approval-summary
+notice path plus any judgment-required remaining nits into branch finish.
 
 ## Consequences
 

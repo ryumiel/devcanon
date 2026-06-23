@@ -816,7 +816,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "a captured final approval-summary notice path",
       );
       expect(normalizedPhase6).toContain(
-        "no additional mechanical nit commits after that review",
+        "fresh final approval-summary evidence after branch-review-owned fix commits",
       );
       expect(normalizedPhase6).toContain(
         "Successful `play-subagent-execution` completion returns control to this owning workflow",
@@ -839,7 +839,7 @@ describe("rendered phase artifact smoke coverage", () => {
         'treat `critic: "DOWNGRADE"` as non-blocking, judgment-required feedback',
       );
       expect(normalizedPhase7).toContain(
-        "After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`",
+        "After any branch-review-owned fix commit, rerun `branch-review --fix`",
       );
       expect(normalizedPhase7).toContain(
         "Phase 8 may start only after the final Phase 7 run reports zero blocking findings auto-fixed",
@@ -854,7 +854,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "A missing approval-summary notice from the final run is a hard stop before Phase 8",
       );
       expect(normalizedPhase7).toContain(
-        "Do not carry an approval-summary path from an earlier review run across an auto-fix rerun or mechanical-nit rerun",
+        "Do not carry an approval-summary path from an earlier review run across a branch-review-owned fix rerun",
       );
       expect(normalizedPhase7).toContain(
         "classification flow is `--auto` only",

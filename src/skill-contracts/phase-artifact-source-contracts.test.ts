@@ -1497,7 +1497,7 @@ describe("phase artifact source contracts", () => {
       "`branch-review --fix` owns fixable review feedback, including objectively fixable nit-severity findings",
     );
     expect(normalizedBranchReview).toContain(
-      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits",
+      "Fixable nits that are resolved by `--fix` are removed from the final findings envelope",
     );
     expect(normalizedBranchReview).toContain(
       "Only judgment-required nits remain for caller handoff",
@@ -1604,7 +1604,7 @@ describe("phase artifact source contracts", () => {
       for (const staleCallerOwnedNitPattern of staleCallerOwnedNitPatterns) {
         expect(
           normalizedSource,
-          `${label} still contains caller-owned mechanical-nit wording`,
+          `${label} still contains obsolete caller-owned nit-fix wording`,
         ).not.toMatch(staleCallerOwnedNitPattern);
       }
     }

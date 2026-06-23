@@ -56,10 +56,14 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
 - **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
 
-## Skipping nit classification in `--auto` mode
+## Passing fixable feedback as Phase 8 nits
 
-- **Problem:** Mechanical nits — typos, truncated sentences, broken cross-references — get posted as PR comments instead of fixed in the worktree, leaking workflow gaps that `--auto` exists to eliminate
-- **Fix:** After `branch-review --fix` returns, classify remaining nits and auto-fix mechanical ones before invoking Phase 8. See Phase 7 prose for the taxonomy
+- **Problem:** Feedback that `branch-review --fix` already resolved, or should
+  own as fixable feedback, gets posted as PR comments instead of staying inside
+  branch-review's fix loop
+- **Fix:** After the final `branch-review --fix` run, pass only
+  judgment-required remaining findings through `nits_file`. Do not create
+  caller-owned fix commits in issue priming
 
 ## Reusing stale approval-summary evidence
 
@@ -67,8 +71,8 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   branch-review run, or proceeds after a rerun without a final approval-summary
   notice path
 - **Fix:** Use only the final Phase 7 run's approval-summary notice path. Any
-  auto-fix commit, mechanical-nit commit, or other rerun invalidates earlier
-  paths for Phase 8 handoff
+  branch-review-owned fix commit or other rerun invalidates earlier paths for
+  Phase 8 handoff
 
 ## Treating out-of-band authorization as merge consent
 

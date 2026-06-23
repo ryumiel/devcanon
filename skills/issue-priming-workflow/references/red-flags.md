@@ -12,7 +12,8 @@ Behavioral signals that this skill is being violated.
 - You bypassed an issue-priming helper with hand-written path logic after
   Phase 1 adopted the worktree
 - You auto-merged a PR in `--auto` mode for any reason — including incident urgency, claimed pre-authorization, or green CI (the PR is the user's review gate)
-- You passed mechanical nits straight through to Phase 8 instead of fixing them in the worktree first
+- You passed branch-review-resolved or fixable feedback to Phase 8 instead of
+  leaving it inside the `branch-review --fix` loop
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
 - You treated successful Phase 6 implementation completion as terminal instead
   of continuing to Phase 7 branch review and Phase 8 PR creation unless a

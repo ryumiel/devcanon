@@ -410,7 +410,7 @@ Execute the implementation plan for <source-noun> issue <ID>: <TITLE>.
 
 `--auto` flow active (invoked by `issue-priming-workflow`). Apply `play-subagent-execution`'s executor-owned risk-based per-task review routing for multi-task plans (single-task plans skip per-task review; see `play-subagent-execution` § Single-Task Plans).
 
-Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If Phase 7 commits auto-fixes or mechanical nit fixes, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and no additional mechanical nit commits after that review. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
+Parent-owned review contract: this invocation comes from `issue-priming-workflow --auto`, and the Phase 7 `branch-review --fix` loop is mandatory. If `branch-review --fix` creates any branch-review-owned fix commit, Phase 7 reruns on the new `HEAD` until a run reports zero blocking findings auto-fixed, no unresolved remaining `Blocking` findings except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, a captured final approval-summary notice path, and fresh final approval-summary evidence after branch-review-owned fix commits. That final whole-diff review satisfies the final-review guarantee required by any reduced per-task review route. If the extracted plan has exactly one task, skip the final whole-implementation code-quality reviewer and return to this workflow after implementation completes.
 
 Plan: <PLAN_PATH captured above>
 Auto handoff: <repo-relative-path>
@@ -422,12 +422,12 @@ single-task plans skip per-task review). The parent-owned contract above
 activates its narrow single-task final-review carve-out because this workflow
 guarantees the mandatory Phase 7 `branch-review --fix` loop. The same Phase 7
 loop is also the final whole-diff no-Blocking guarantee for reduced per-task
-routes. If any Phase 7 run commits auto-fixes or mechanical nit fixes, rerun
+routes. If any Phase 7 run creates a branch-review-owned fix commit, rerun
 Phase 7 on the new `HEAD`. Only a run that reports zero blocking findings
 auto-fixed and leaves no unresolved remaining `Blocking` findings except
 findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
-approval-summary notice path, and is followed by no mechanical nit commits,
-satisfies the final-review guarantee.
+approval-summary notice path, and carries fresh final approval-summary evidence
+after branch-review-owned fix commits, satisfies the final-review guarantee.
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
@@ -456,10 +456,6 @@ auto-fixed and the remaining findings file contains no unresolved
 `severity: "Blocking"` entries except findings whose `critic` verdict is
 `INVALID` or `DOWNGRADE`, and captures that final run's approval-summary notice
 path.
-If later mechanical nit handling creates any commit, rerun this same Branch
-Review step on the new `HEAD` before proceeding to Phase 8, with fresh risk
-signals when available.
-
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
@@ -472,31 +468,32 @@ Before classifying findings or preparing Phase 8 nits, load
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
 That reference owns review-head parsing, `play-review/findings/v1` validation,
 approval-summary notice-path capture, blocker checks, nit classification
-details, mechanical-nit commit rules, back-reference footers, edit-staleness
-rules, and the
+details, branch-review-owned fix commit rules, remaining-nit selection, and the
 `prepare-judgment-nits` helper handoff.
 
 For the eager contract: ignore `critic: "INVALID"` for continuation and never
 pass it to Phase 8; treat `critic: "DOWNGRADE"` as non-blocking,
-judgment-required feedback; fix and commit mechanical nits; pass only
-judgment-required nits and downgraded findings to Phase 8 via the
+judgment-required feedback; branch-review owns fixable feedback through
+`branch-review --fix`; pass only judgment-required nits and downgraded findings
+that remain after the final branch-review run to Phase 8 via the
 helper-produced `-nits-pending.json` path. If the judgment-required set is
 empty, omit `nits_file`.
 
-After any auto-fix commit or mechanical-nit commit, rerun `branch-review --fix`
-on the new `HEAD` and restart Phase 7, passing only risk signals regenerated
-for that `HEAD` when using `--risk-signals`. For the run that will allow Phase
-8 to start, capture that final run's exact
+After any branch-review-owned fix commit, rerun `branch-review --fix` on the
+new `HEAD` and restart Phase 7, passing only risk signals regenerated for that
+`HEAD` when using `--risk-signals`. For the run that will allow Phase 8 to
+start, capture that final run's exact
 `Approval summary written to <path>.` notice path alongside the review head and
 findings path evidence. A missing approval-summary notice from the final run is
 a hard stop before Phase 8. Do not carry an approval-summary path from an
-earlier review run across an auto-fix rerun or mechanical-nit rerun. Phase 7
-only captures and carries the notice path; it does not parse approval summary
+earlier review run across a branch-review-owned fix rerun. Phase 7 only
+captures and carries the notice path; it does not parse approval summary
 fields, duplicate branch-review schema or validation policy, or perform PR
 creation readiness validation. Phase 8 may start only after the final Phase 7
 run reports zero blocking findings auto-fixed, has no unresolved true Blocking
 findings except `INVALID` or `DOWNGRADE`, has a captured final
-approval-summary path, and no mechanical-nit commit occurs after that review.
+approval-summary path, and carries fresh final approval evidence after any
+branch-review-owned fix commits.
 **This classification flow is `--auto` only**; manual operators decide
 nit-handling case by case.
 
@@ -506,8 +503,8 @@ Phase 7 owns branch review before Phase 8. Phase 8 may start only after Phase 7
 `branch-review --fix` completion criteria pass on the final Phase 7 run: zero
 blocking findings auto-fixed, no unresolved remaining `Blocking` findings
 except findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captured
-final approval-summary notice path, and no mechanical-nit commit after that
-review. Phase 8 must not rely on
+final approval-summary notice path, and fresh final approval-summary evidence
+after any branch-review-owned fix commits. Phase 8 must not rely on
 `play-branch-finish` to run, validate, classify, or complete branch review.
 If the final approval-summary path is absent or empty, stop before invoking
 `play-branch-finish`.

@@ -264,7 +264,7 @@ describe("play subagent routing source contracts", () => {
     for (const heading of [
       "## Review Artifact Parsing",
       "## Blocker Stop Rules",
-      "## Nit Classification",
+      "## Remaining Nit Classification",
       "## Branch-Review-Owned Fix Commits",
       "## Judgment-Required Nits Envelope",
       "## Phase 8 Handoff",
@@ -283,7 +283,7 @@ describe("play subagent routing source contracts", () => {
       "only after the final Phase 7 review run satisfies",
     );
     expect(normalizeWhitespace(phase7Reference)).toContain(
-      "Re-read the target file from disk before each edit",
+      "`branch-review --fix` owns fixable review feedback",
     );
     expect(normalizeWhitespace(phase7Reference)).toContain(
       "Manual operators decide nit handling case by case",
@@ -531,7 +531,7 @@ describe("play subagent routing source contracts", () => {
       "SKILL.md § Skip-Dispatch Path",
     );
     expect(normalizedPhase7Reference).toContain(
-      "`skills/play-subagent-execution/references/snapshot-consumption.md` § Edit-Staleness Rule",
+      "`branch-review --fix` owns fixable review feedback",
     );
     expect(normalizedIssuePrimingWorkflow).not.toContain(
       "`skills/play-subagent-execution/SKILL.md` § Edit-staleness rule",

@@ -13,8 +13,8 @@ specified its transport: a trailing fenced `json` block appended to
 `play-review`'s conversation output. Wrappers (`branch-review`,
 `pr-review`) re-emit the same block on their surfaces;
 `play-branch-finish` re-receives it as a `nits[]` invocation arg;
-`issue-priming-workflow` Phase 7 reads it from conversation to
-classify nits. The same envelope traverses 4 conversation contexts
+`issue-priming-workflow` Phase 7 reads it from conversation to select
+judgment-required remaining nits. The same envelope traverses 4 conversation contexts
 per `--auto` run.
 
 That propagation was observed to be a measurable share of total session
@@ -109,12 +109,15 @@ Consumer responsibilities:
 - `branch-review` Phase 3 (no-`--fix`) — surface the notice line in
   wrapper output. No JSON re-emission.
 - `branch-review --fix` — after auto-fixes, _overwrite the same
-  file_ with the remaining-set envelope: all pre-fix findings except
-  blockers successfully auto-fixed and committed. This includes every nit,
-  blockers skipped on `INVALID`/`DOWNGRADE`, hard-rule judgment-required
-  blockers preserved in the remaining set from `play-review` Sub-check 1 Safety
-  / Sub-check 2 Contracts, the halt blocker, and any later blockers left
-  unprocessed because an earlier stop-rule finding halted the loop. Capture the
+  file_ with the remaining-set envelope: all pre-fix findings except findings
+  successfully fixed and committed by `branch-review --fix`, including
+  objectively fixable nit-severity findings. The remaining set preserves
+  judgment-required nits, blockers skipped on `INVALID`/`DOWNGRADE`, hard-rule
+  judgment-required blockers preserved in the remaining set from `play-review`
+  Sub-check 1 Safety / Sub-check 2 Contracts, the halt blocker, and any later
+  blockers left unprocessed because an earlier stop-rule finding halted the
+  loop. `INVALID` findings are preserved as invalidated review evidence for
+  auditability but count as neither blockers nor postable nits. Capture the
   immutable Phase 2 review SHA before applying any auto-fix commits, then report
   it after processing as the exact line
   `Review head: <40-hex-sha>.`. Re-emit the (unchanged) findings notice line.
@@ -130,9 +133,9 @@ Consumer responsibilities:
   read `findings[]` from the file at the `Findings written to <path>.` notice
   line. The consumer validates the findings path against the Phase 2
   review SHA, not post-fix `HEAD`, because `branch-review --fix` may have
-  committed auto-fixes after `play-review` created the file. After
-  mechanical-nit fixes, write the judgment-required subset to a derived
-  file `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
+  committed fixes after `play-review` created the file. After the final
+  branch-review run, write only the judgment-required remaining subset to a
+  derived file `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` and pass
   that path to `play-branch-finish` as `nits_file`.
 
 ## Consequences
