@@ -962,7 +962,10 @@ describe("play subagent routing source contracts", () => {
       "proceeding to `play-branch-finish` is acceptable only when that workflow does not require branch-level review",
     );
     expect(normalizedDirectManualHandoff).toContain(
-      "If the active workflow requires branch-level review before PR creation, stop before invoking `play-branch-finish` so the operator can run `branch-review` first",
+      "When the active workflow requires branch-level review before PR creation, hand off to `branch-review` before any `play-branch-finish` handoff",
+    );
+    expect(normalizedDirectManualHandoff).toContain(
+      "Do not invoke `play-branch-finish` until `branch-review` returns review approval evidence or the active workflow explicitly waives branch-level review",
     );
     expect(normalizedDirectManualHandoff).toContain(
       "If that workflow does not require branch-level review, then invoke `play-branch-finish`",
