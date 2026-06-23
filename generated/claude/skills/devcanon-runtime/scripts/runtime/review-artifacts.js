@@ -871,12 +871,13 @@ function validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalF
         const expectedLocalFile = expectedLocalFiles[index];
         const providerPatchAvailable = booleanField(providerFile, "patch_available");
         const localPatchAvailable = booleanField(localFile, "patch_available");
-        const expectedPatchAvailable = booleanField(expectedLocalFile, "patch_available");
-        if (providerPatchAvailable !== localPatchAvailable ||
-            localPatchAvailable !== expectedPatchAvailable) {
+        if (providerPatchAvailable !== localPatchAvailable) {
             fail("provider/local patch evidence mismatch");
         }
         if (providerPatchAvailable) {
+            if (!booleanField(expectedLocalFile, "patch_available")) {
+                fail("provider/local patch evidence mismatch");
+            }
             if (stringField(providerFile, "patch_sha256") !==
                 stringField(localFile, "patch_sha256") ||
                 stringField(localFile, "patch_sha256") !==
@@ -884,8 +885,8 @@ function validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalF
                 fail("provider/local patch evidence mismatch");
             }
         }
-        else if (!isUnavailablePatchEntry(localFile) ||
-            !isUnavailablePatchEntry(expectedLocalFile)) {
+        else if (!isUnavailablePatchEntry(providerFile) ||
+            !isUnavailablePatchEntry(localFile)) {
             fail("provider/local patch evidence mismatch");
         }
     }
