@@ -1450,13 +1450,16 @@ describe("play subagent routing source contracts", () => {
       "A later refinement to the `spec-and-quality` route named here permits concurrent read-only spec-compliance and code-quality dispatch against the same committed task head while preserving the semantic spec-first gate",
     );
     expect(normalizedAdr0007).toContain(
-      "the final whole-implementation reviewer remains the built-in implementation review before the direct/manual terminal handoff resolves branch-level review status",
+      "the final whole-implementation reviewer remains the built-in implementation review before terminal handoff",
     );
     expect(normalizedAdr0007).toContain(
-      "Workflows that require branch-level review before PR creation must stop for `branch-review` before `play-branch-finish`",
+      "when the active workflow requires branch-level review before PR creation, it hands off to `branch-review` before any `play-branch-finish` handoff and waits for branch-review approval evidence or an explicit waiver",
     );
     expect(normalizedAdr0007).toContain(
-      "only workflows without that requirement treat `branch-review` as optional additional coverage",
+      "only workflows without that requirement invoke `play-branch-finish` without branch-review approval evidence",
+    );
+    expect(normalizedAdr0007).not.toContain(
+      "must stop for `branch-review` before `play-branch-finish`",
     );
     expect(normalizedAdr0007).not.toContain(
       "operators may run `branch-review` manually for additional whole-diff coverage",

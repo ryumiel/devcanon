@@ -114,11 +114,13 @@ notice path plus any judgment-required remaining nits into branch finish.
   `issue-priming-workflow --auto` single-task path.
 - When `play-subagent-execution` is invoked outside that caller-scoped
   `--auto` path on a single-task plan, the final whole-implementation
-  reviewer remains the built-in implementation review before the direct/manual
-  terminal handoff resolves branch-level review status. Workflows that require
-  branch-level review before PR creation must stop for `branch-review` before
-  `play-branch-finish`; only workflows without that requirement treat
-  `branch-review` as optional additional coverage.
+  reviewer remains the built-in implementation review before terminal handoff.
+  Direct/manual terminal handoff then resolves branch-level review status: when
+  the active workflow requires branch-level review before PR creation, it hands
+  off to `branch-review` before any `play-branch-finish` handoff and waits for
+  branch-review approval evidence or an explicit waiver; only workflows without
+  that requirement invoke `play-branch-finish` without branch-review approval
+  evidence.
 - The "Skip reviews (spec compliance OR code quality)" Red Flag in
   `play-subagent-execution` no longer flatly forbids skipping; ADR-0018 later
   narrows it to "skip or weaken the executor-computed review route."
