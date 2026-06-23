@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 import {
   gitPathPairKey,
   isRepoPathIdentity,
@@ -157,6 +158,7 @@ const LOCAL_INTERPRETATION_HARDENING_FAILURE =
   "canonical Git local interpretation hardening failed";
 const OBJECT_GRAPH_HARDENING_FAILURE =
   "canonical Git object graph hardening failed";
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
   "governed_path",
@@ -2973,7 +2975,7 @@ async function readSingleJsonObject(
   failureMessage: string,
 ): Promise<JsonObject> {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf-8")) as unknown;
+    const parsed = JSON.parse(await readUtf8FileStrict(file)) as unknown;
     if (
       parsed === null ||
       typeof parsed !== "object" ||
@@ -2988,6 +2990,10 @@ async function readSingleJsonObject(
     }
     fail(failureMessage);
   }
+}
+
+async function readUtf8FileStrict(file: string): Promise<string> {
+  return UTF8_DECODER.decode(await readFile(file));
 }
 
 async function changedFiles(range: string): Promise<string[]> {

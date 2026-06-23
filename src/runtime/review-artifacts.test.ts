@@ -2121,6 +2121,116 @@ describe("review artifact runtime reducers", () => {
     {
       command: "validate-diff-anchors",
       args: providerDiffAnchorArgs,
+    },
+    {
+      command: "compare-approved-payload",
+      args: providerApprovedPayloadArgs,
+    },
+  ])("rejects non-NUL invalid finding paths for $command", async ({ args }) => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const findings = {
+      schema: "play-review/findings/v1",
+      findings: [inlineFinding("../src/app.ts")],
+      carry_forward: [],
+    };
+    try {
+      await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
+      await writeApprovedPayloadFiles(cwd, headSha, findings);
+
+      await expect(
+        runReviewArtifactsCommand(args(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining("findings envelope validation failed"),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      command: "validate-diff-anchors",
+      args: providerDiffAnchorArgs,
+    },
+    {
+      command: "compare-approved-payload",
+      args: providerApprovedPayloadArgs,
+    },
+  ])("rejects invalid UTF-8 findings files for $command", async ({ args }) => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const findings = {
+      schema: "play-review/findings/v1",
+      findings: [inlineFinding()],
+      carry_forward: [],
+    };
+    try {
+      await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
+      await writeApprovedPayloadFiles(cwd, headSha, findings);
+      await writeFile(
+        path.join(cwd, ".ephemeral/topic-findings.json"),
+        Buffer.from([
+          ...Buffer.from(
+            '{"schema":"play-review/findings/v1","findings":[{"path":"src/',
+          ),
+          0xc3,
+          0x28,
+          ...Buffer.from(
+            '.ts","line":1,"start_line":null,"severity":"Blocking","category":"Logic","critic":"VALID","anchor":"natural","why":"why","recommendation":"recommendation","body":"body"}],"carry_forward":[]}',
+          ),
+        ]),
+      );
+
+      await expect(
+        runReviewArtifactsCommand(args(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "findings envelope JSON validation failed",
+        ),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
+  it.each([
+    {
+      command: "validate-diff-anchors",
+      args: providerDiffAnchorArgs,
+      poisonName: "local diff config poisoning",
+      poison: async (cwd: string, _baseSha: string, _headSha: string) => {
+        await execFileAsync("git", ["config", "diff.poison.binary", "true"], {
+          cwd,
+        });
+      },
+      stderr: "canonical Git local interpretation hardening failed",
+    },
+    {
+      command: "validate-diff-anchors",
+      args: providerDiffAnchorArgs,
+      poisonName: "replacement ref object graph poisoning",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
+      },
+      stderr: "canonical Git object graph hardening failed",
+    },
+    {
+      command: "validate-diff-anchors",
+      args: providerDiffAnchorArgs,
+      poisonName: "graft file object graph poisoning",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await writeFile(
+          path.join(cwd, ".git", "info", "grafts"),
+          `${headSha} ${baseSha}\n`,
+        );
+      },
+      stderr: "canonical Git object graph hardening failed",
+    },
+    {
+      command: "compare-approved-payload",
+      args: providerApprovedPayloadArgs,
+      poisonName: "local diff config poisoning",
       poison: async (cwd: string, _baseSha: string, _headSha: string) => {
         await execFileAsync("git", ["config", "diff.poison.binary", "true"], {
           cwd,
@@ -2131,36 +2241,46 @@ describe("review artifact runtime reducers", () => {
     {
       command: "compare-approved-payload",
       args: providerApprovedPayloadArgs,
+      poisonName: "replacement ref object graph poisoning",
       poison: async (cwd: string, baseSha: string, headSha: string) => {
         await execFileAsync("git", ["replace", baseSha, headSha], { cwd });
       },
       stderr: "canonical Git object graph hardening failed",
     },
-  ])(
-    "rejects poisoned provider-bound Git state for $command",
-    async ({ args, poison, stderr }) => {
-      const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
-      const findings = {
-        schema: "play-review/findings/v1",
-        findings: [inlineFinding()],
-        carry_forward: [],
-      };
-      try {
-        await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
-        await writeApprovedPayloadFiles(cwd, headSha, findings);
-        await poison(cwd, baseSha, headSha);
-
-        await expect(
-          runReviewArtifactsCommand(args(headSha)),
-        ).resolves.toMatchObject({
-          exitCode: 1,
-          stderr: expect.stringContaining(stderr),
-        });
-      } finally {
-        await cleanupRiskSignalsWorkspace(cwd);
-      }
+    {
+      command: "compare-approved-payload",
+      args: providerApprovedPayloadArgs,
+      poisonName: "graft file object graph poisoning",
+      poison: async (cwd: string, baseSha: string, headSha: string) => {
+        await writeFile(
+          path.join(cwd, ".git", "info", "grafts"),
+          `${headSha} ${baseSha}\n`,
+        );
+      },
+      stderr: "canonical Git object graph hardening failed",
     },
-  );
+  ])("rejects $poisonName for $command", async ({ args, poison, stderr }) => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const findings = {
+      schema: "play-review/findings/v1",
+      findings: [inlineFinding()],
+      carry_forward: [],
+    };
+    try {
+      await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
+      await writeApprovedPayloadFiles(cwd, headSha, findings);
+      await poison(cwd, baseSha, headSha);
+
+      await expect(
+        runReviewArtifactsCommand(args(headSha)),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(stderr),
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
 
   it("rejects provider evidence for a leading-colon path when the patch digest is not literal", async () => {
     const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
