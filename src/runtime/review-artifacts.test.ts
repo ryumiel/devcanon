@@ -2740,6 +2740,28 @@ describe("review artifact runtime reducers", () => {
       stderr: "local provider evidence does not match git",
     },
     {
+      name: "provider and local unavailable metadata differs from canonical git",
+      scope: async (cwd: string, baseSha: string, headSha: string) =>
+        providerScopeDecision(cwd, baseSha, headSha),
+      evidence: async (cwd: string, baseSha: string, headSha: string) => {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+        );
+        const forgedEntry = unavailablePatchEntry({
+          ...fileEntry,
+          additions: 2,
+          changes: 2,
+        });
+        return providerScopeEvidence(cwd, baseSha, headSha, {
+          provider_files: [forgedEntry],
+          local_files: [forgedEntry],
+        });
+      },
+      stderr: "local provider evidence does not match git",
+    },
+    {
       name: "available patch digest differs from canonical git",
       scope: async (cwd: string, baseSha: string, headSha: string) =>
         providerScopeDecision(cwd, baseSha, headSha),
