@@ -16,6 +16,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const originalCwd = process.cwd();
+const isWindows = process.platform === "win32";
 
 type JsonObject = Record<string, unknown>;
 
@@ -1540,45 +1541,48 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("preserves tabs in provider-bound numstat paths", async () => {
-    const { cwd, baseSha, headSha, filePath } =
-      await makeProviderTabbedPathWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = await providerEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        filePath,
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [filePath],
-          language_hints: ["ts"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "preserves tabs in provider-bound numstat paths",
+    async () => {
+      const { cwd, baseSha, headSha, filePath } =
+        await makeProviderTabbedPathWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          filePath,
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [filePath],
+            language_hints: ["ts"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it("maps provider-bound type-change paths to modified evidence", async () => {
     const { cwd, baseSha, headSha, filePath } =
@@ -1994,156 +1998,168 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("validates provider evidence for a literal leading-colon path", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = await providerEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        ":(top)README.md",
-        { literalPathspecs: true },
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":(top)README.md"],
-          language_hints: ["md"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "validates provider evidence for a literal leading-colon path",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          ":(top)README.md",
+          { literalPathspecs: true },
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
-  it("validates diff anchors for a literal leading-colon finding path", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = await providerEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        ":(top)README.md",
-        { literalPathspecs: true },
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":(top)README.md"],
-          language_hints: ["md"],
-        }),
-      );
-      await writeJson(cwd, ".ephemeral/topic-findings.json", {
+  it.skipIf(isWindows)(
+    "validates diff anchors for a literal leading-colon finding path",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          ":(top)README.md",
+          { literalPathspecs: true },
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
+        await writeJson(cwd, ".ephemeral/topic-findings.json", {
+          schema: "play-review/findings/v1",
+          findings: [
+            {
+              path: ":(top)README.md",
+              line: 1,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "why",
+              recommendation: "recommendation",
+              body: "body",
+            },
+          ],
+          carry_forward: [],
+        });
+
+        await expect(
+          runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
+
+  it.skipIf(isWindows)(
+    "compares approved payloads for a literal leading-colon finding path",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      const findings = {
         schema: "play-review/findings/v1",
-        findings: [
-          {
-            path: ":(top)README.md",
-            line: 1,
-            start_line: null,
-            severity: "Blocking",
-            category: "Logic",
-            critic: "VALID",
-            anchor: "natural",
-            why: "why",
-            recommendation: "recommendation",
-            body: "body",
-          },
-        ],
+        findings: [inlineFinding(":(top)README.md")],
         carry_forward: [],
-      });
+      };
+      try {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          ":(top)README.md",
+          { literalPathspecs: true },
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [fileEntry],
+            local_files: [fileEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
+        await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+        const expectedPayload = await writeApprovedPayloadFiles(
+          cwd,
+          headSha,
+          findings,
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
-
-  it("compares approved payloads for a literal leading-colon finding path", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    const findings = {
-      schema: "play-review/findings/v1",
-      findings: [inlineFinding(":(top)README.md")],
-      carry_forward: [],
-    };
-    try {
-      const fileEntry = await providerEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        ":(top)README.md",
-        { literalPathspecs: true },
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [fileEntry],
-          local_files: [fileEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":(top)README.md"],
-          language_hints: ["md"],
-        }),
-      );
-      await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
-      const expectedPayload = await writeApprovedPayloadFiles(
-        cwd,
-        headSha,
-        findings,
-      );
-
-      await expect(
-        runReviewArtifactsCommand(
-          providerApprovedPayloadArgs(headSha, baseSha),
-        ),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: `${JSON.stringify(expectedPayload, null, 2)}\n`,
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(
+            providerApprovedPayloadArgs(headSha, baseSha),
+          ),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: `${JSON.stringify(expectedPayload, null, 2)}\n`,
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it.each([
     {
@@ -2341,148 +2357,158 @@ describe("review artifact runtime reducers", () => {
     }
   });
 
-  it("rejects provider evidence for a leading-colon path when the patch digest is not literal", async () => {
-    const { cwd, baseSha, headSha } = await makeProviderLeadingColonWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const fileEntry = await providerEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        ":(top)README.md",
-        { literalPathspecs: true },
-      );
-      const interpretedPatch = await canonicalGitDiffRaw(
-        cwd,
-        `${baseSha}..${headSha}`,
-        [":(top)README.md"],
-      );
-      const forgedEntry = {
-        ...fileEntry,
-        patch_sha256: sha256(interpretedPatch),
-      };
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [forgedEntry],
-          local_files: [forgedEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":(top)README.md"],
-          language_hints: ["md"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "rejects provider evidence for a leading-colon path when the patch digest is not literal",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const fileEntry = await providerEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          ":(top)README.md",
+          { literalPathspecs: true },
+        );
+        const interpretedPatch = await canonicalGitDiffRaw(
+          cwd,
+          `${baseSha}..${headSha}`,
+          [":(top)README.md"],
+        );
+        const forgedEntry = {
+          ...fileEntry,
+          patch_sha256: sha256(interpretedPatch),
+        };
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [forgedEntry],
+            local_files: [forgedEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":(top)README.md"],
+            language_hints: ["md"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toMatchObject({
-        exitCode: 1,
-        stderr: expect.stringContaining(
-          "provider/local patch evidence mismatch",
-        ),
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "provider/local patch evidence mismatch",
+          ),
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
-  it("validates provider evidence for a literal leading-colon rename tuple", async () => {
-    const { cwd, baseSha, headSha } =
-      await makeProviderLeadingColonRenameWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const renameEntry = await providerRenameEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        { previousPath: ":old.ts", path: ":new.ts" },
-        { literalPathspecs: true },
-      );
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [renameEntry],
-          local_files: [renameEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":new.ts"],
-          language_hints: ["ts"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "validates provider evidence for a literal leading-colon rename tuple",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonRenameWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const renameEntry = await providerRenameEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          { previousPath: ":old.ts", path: ":new.ts" },
+          { literalPathspecs: true },
+        );
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [renameEntry],
+            local_files: [renameEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":new.ts"],
+            language_hints: ["ts"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toEqual({
-        exitCode: 0,
-        stdout: "",
-        stderr: "",
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
-  it("rejects leading-colon rename evidence when the patch digest omits one rename side", async () => {
-    const { cwd, baseSha, headSha } =
-      await makeProviderLeadingColonRenameWorkspace();
-    const evidencePath = providerScopeEvidencePath(headSha);
-    try {
-      const renameEntry = await providerRenameEvidenceFileEntry(
-        cwd,
-        baseSha,
-        headSha,
-        { previousPath: ":old.ts", path: ":new.ts" },
-        { literalPathspecs: true },
-      );
-      const currentOnlyPatch = await canonicalGitDiffRaw(
-        cwd,
-        `${baseSha}..${headSha}`,
-        [":new.ts"],
-        { literalPathspecs: true },
-      );
-      const forgedEntry = {
-        ...renameEntry,
-        patch_sha256: sha256(currentOnlyPatch),
-      };
-      await writeJson(
-        cwd,
-        evidencePath,
-        await providerScopeEvidence(cwd, baseSha, headSha, {
-          provider_files: [forgedEntry],
-          local_files: [forgedEntry],
-        }),
-      );
-      await writeJson(
-        cwd,
-        ".ephemeral/topic-scope-decision.json",
-        await providerScopeDecision(cwd, baseSha, headSha, undefined, {
-          changed_files: [":new.ts"],
-          language_hints: ["ts"],
-        }),
-      );
+  it.skipIf(isWindows)(
+    "rejects leading-colon rename evidence when the patch digest omits one rename side",
+    async () => {
+      const { cwd, baseSha, headSha } =
+        await makeProviderLeadingColonRenameWorkspace();
+      const evidencePath = providerScopeEvidencePath(headSha);
+      try {
+        const renameEntry = await providerRenameEvidenceFileEntry(
+          cwd,
+          baseSha,
+          headSha,
+          { previousPath: ":old.ts", path: ":new.ts" },
+          { literalPathspecs: true },
+        );
+        const currentOnlyPatch = await canonicalGitDiffRaw(
+          cwd,
+          `${baseSha}..${headSha}`,
+          [":new.ts"],
+          { literalPathspecs: true },
+        );
+        const forgedEntry = {
+          ...renameEntry,
+          patch_sha256: sha256(currentOnlyPatch),
+        };
+        await writeJson(
+          cwd,
+          evidencePath,
+          await providerScopeEvidence(cwd, baseSha, headSha, {
+            provider_files: [forgedEntry],
+            local_files: [forgedEntry],
+          }),
+        );
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-scope-decision.json",
+          await providerScopeDecision(cwd, baseSha, headSha, undefined, {
+            changed_files: [":new.ts"],
+            language_hints: ["ts"],
+          }),
+        );
 
-      await expect(
-        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
-      ).resolves.toMatchObject({
-        exitCode: 1,
-        stderr: expect.stringContaining(
-          "provider/local patch evidence mismatch",
-        ),
-      });
-    } finally {
-      await cleanupRiskSignalsWorkspace(cwd);
-    }
-  });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toMatchObject({
+          exitCode: 1,
+          stderr: expect.stringContaining(
+            "provider/local patch evidence mismatch",
+          ),
+        });
+      } finally {
+        await cleanupRiskSignalsWorkspace(cwd);
+      }
+    },
+  );
 
   it("validates provider evidence when canonical diff output exceeds the raw stdout cap", async () => {
     const { cwd, baseSha, headSha } = await makeProviderLargeDiffWorkspace();
