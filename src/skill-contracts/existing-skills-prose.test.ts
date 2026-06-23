@@ -768,6 +768,37 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps pr-review provider-scope prose durable and artifact-bound", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const normalizedPrReview = normalizeWhitespace(prReview);
+
+    expect(normalizedPrReview).toContain(
+      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
+    );
+    expect(normalizedPrReview).toContain(
+      "prepare-provider-scope-evidence-write",
+    );
+    expect(normalizedPrReview).toContain(
+      "Write the pr-review/provider-scope-evidence/v2 envelope to",
+    );
+    expect(normalizedPrReview).toContain(
+      "`digest_provenance` using schema `pr-review/digest-provenance/v1`",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider scope evidence file and digest",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider scope evidence artifact through `PROVIDER_SCOPE_EVIDENCE_FILE`",
+    );
+    expect(prReview).not.toContain("### Adjacent Governance Disposition");
+    expect(prReview).not.toMatch(/\bTask [0-9]+\b/u);
+    expect(prReview).not.toContain("Proof:");
+    expect(prReview).not.toContain("pnpm run dev -- render");
+    expect(normalizedPrReview).toContain(
+      "play-review remains provider-agnostic",
+    );
+  });
+
   it("keeps boundary-changing brainstorm designs contract-decision adequate", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const contractDecisions = getMarkdownSection(

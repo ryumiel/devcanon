@@ -8,6 +8,18 @@ the final `active_diff_range`, `full_pr_diff_range`, prior context,
 `last_reviewed_sha`, `is_followup_narrow`, and `language_hints`; do not compute
 `active_diff_range` inside `play-review`.
 
+The active range and full routing/context range are separate facts.
+`active_diff_range` is the selected review range for this invocation. It may be
+the incremental `<last_reviewed_sha>..HEAD` range on a narrow follow-up.
+`full_pr_diff_range` remains the whole PR or branch range used for routing,
+documentation-impact context, and full escalation. For provider-backed PR
+wrappers, the full PR routing/context range must be provider-proven by the
+wrapper before `play-review` is invoked; for GitHub PR review this is the
+provider-proven `<provider_pr_diff_base_sha>..<headRefOid>` range. `play-review`
+consumes explicit final scope facts and must not discover provider scope,
+provider OIDs, provider file lists, provider diffs, or provider PR diff-base
+proof.
+
 Deterministic review-artifact validation belongs to the support skill
 `play-validate-review-artifacts`. PR and branch wrappers use their local
 adapter scripts to pass explicit surface, head SHA, prior-context, governed

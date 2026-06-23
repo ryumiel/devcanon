@@ -27,6 +27,10 @@ const validatorScript = path.join(
 
 type JsonObject = Record<string, unknown>;
 
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+
 async function makeGitWorkspace(): Promise<{
   cwd: string;
   baseSha: string;
@@ -96,15 +100,242 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+async function gitRaw(cwd: string, ...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
+}
+
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  return gitRaw(
+    cwd,
+    "-c",
+    "diff.noprefix=false",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.srcPrefix=a/",
+    "-c",
+    "diff.dstPrefix=b/",
+    "-c",
+    "diff.relative=false",
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.context=3",
+    "-c",
+    "diff.interHunkContext=0",
+    "-c",
+    "diff.algorithm=myers",
+    "-c",
+    "diff.renames=true",
+    "-c",
+    "diff.renameLimit=0",
+    "-c",
+    "diff.color=false",
+    "-c",
+    "color.ui=false",
+    "-c",
+    "core.quotePath=true",
+    "-c",
+    "diff.suppressBlankEmpty=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    range,
+    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+  );
+}
+
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  const writableValue = await withProviderEvidence(cwd, relPath, value);
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(writableValue, null, 2),
+  );
 }
 
 function jsonDigest(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(value, null, 2))
     .digest("hex");
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function withProviderEvidence(
+  cwd: string,
+  relPath: string,
+  value: unknown,
+): Promise<unknown> {
+  if (
+    relPath.endsWith("-scope-decision.json") &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as JsonObject).surface === "pr-review" &&
+    !Object.hasOwn(value as JsonObject, "artifacts")
+  ) {
+    const scope = value as JsonObject;
+    const evidencePath = await providerScopeEvidencePath(cwd, scope);
+    const evidence = await providerScopeEvidence(cwd, scope);
+    const evidenceText = JSON.stringify(evidence, null, 2);
+    await writeFile(path.join(cwd, evidencePath), evidenceText);
+    return {
+      ...scope,
+      artifacts: {
+        provider_scope_evidence_file: evidencePath,
+        provider_scope_evidence_sha256: sha256(evidenceText),
+      },
+    };
+  }
+  return value;
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  scope: JsonObject,
+): Promise<JsonObject> {
+  const headSha = String(scope.head_sha);
+  const fullRange = String(scope.full_range);
+  const baseSha = fullRange.split("..")[0] ?? "";
+  const entries = await providerFileEntries(cwd, `${baseSha}..${headSha}`);
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  return {
+    schema: PROVIDER_EVIDENCE_SCHEMA,
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
+    provider_files: entries,
+    local_files: entries,
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+  };
+}
+
+async function providerScopeEvidencePath(
+  cwd: string,
+  scope: JsonObject,
+): Promise<string> {
+  const rawBranch = await git(cwd, "rev-parse", "--abbrev-ref", "HEAD");
+  const branchSlug =
+    rawBranch === "HEAD" ? "detached" : slugBranchForEvidence(rawBranch);
+  return `.ephemeral/${branchSlug}-${String(scope.head_sha)}-provider-scope-evidence.json`;
+}
+
+function slugBranchForEvidence(branchName: string): string {
+  const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
+  if (
+    slug.length === 0 ||
+    slug === "." ||
+    slug === ".." ||
+    slug.startsWith("-") ||
+    slug.startsWith(".")
+  ) {
+    return "unnamed";
+  }
+  return slug;
+}
+
+async function providerFileEntries(
+  cwd: string,
+  range: string,
+): Promise<JsonObject[]> {
+  const tokens = (
+    await gitRaw(cwd, "diff", "--name-status", "-z", "--find-renames", range)
+  )
+    .split("\0")
+    .filter(Boolean);
+  const entries: JsonObject[] = [];
+  for (let index = 0; index < tokens.length; ) {
+    const rawStatus = tokens[index] ?? "";
+    index += 1;
+    const statusCode = rawStatus[0] ?? "";
+    let previousPath: string | null = null;
+    let filePath = tokens[index] ?? "";
+    if (statusCode === "R") {
+      previousPath = tokens[index] ?? "";
+      filePath = tokens[index + 1] ?? "";
+      index += 2;
+    } else {
+      index += 1;
+    }
+    const pathspecs =
+      previousPath === null ? [filePath] : [previousPath, filePath];
+    const [additionsRaw, deletionsRaw] = (
+      await gitRaw(
+        cwd,
+        "diff",
+        "--numstat",
+        "-z",
+        "--find-renames",
+        range,
+        "--",
+        ...pathspecs,
+      )
+    ).split(/\s+/u);
+    const additions = Number(additionsRaw);
+    const deletions = Number(deletionsRaw);
+    const patch = await canonicalGitDiffRaw(cwd, range, pathspecs);
+    entries.push({
+      path: filePath,
+      status:
+        statusCode === "A"
+          ? "added"
+          : statusCode === "D"
+            ? "removed"
+            : statusCode === "R"
+              ? "renamed"
+              : "modified",
+      previous_path: previousPath,
+      additions,
+      deletions,
+      changes: additions + deletions,
+      patch_sha256: sha256(patch),
+      patch_available: true,
+    });
+  }
+  return entries.sort((left, right) =>
+    [String(left.path), String(left.previous_path ?? ""), String(left.status)]
+      .join("\0")
+      .localeCompare(
+        [
+          String(right.path),
+          String(right.previous_path ?? ""),
+          String(right.status),
+        ].join("\0"),
+      ),
+  );
 }
 
 function approvalFindingsPath(headSha: string, branchName = "main"): string {
@@ -131,13 +362,13 @@ async function runValidator(cwd: string, command: string, args: string[] = []) {
 
 function scopeArgs(
   headSha: string,
-  _baseRef: string,
+  baseRef: string,
   scopeDecision = ".ephemeral/topic-scope-decision.json",
   surface = "branch-review",
   expectedPriorContextKind = "none",
   expectedPriorContextPath = "null",
 ) {
-  return [
+  const args = [
     "--surface",
     surface,
     "--head-sha",
@@ -155,6 +386,15 @@ function scopeArgs(
     "--max-narrow-changed-files",
     "5",
   ];
+  if (surface === "pr-review") {
+    args.push(
+      "--base-ref",
+      baseRef,
+      "--provider-scope-evidence-file",
+      `.ephemeral/main-${headSha}-provider-scope-evidence.json`,
+    );
+  }
+  return args;
 }
 
 function scopeArgsWithBaseRef(
@@ -205,9 +445,12 @@ function initialScope(
     surface,
     mode: "initial",
     head_sha: headSha,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
+    selected_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
+    candidate_narrow_range:
+      surface === "pr-review" ? `${baseSha}..${headSha}` : `${baseSha}...HEAD`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
@@ -279,6 +522,7 @@ function prReviewNarrowScope(
     ...scope,
     schema: "pr-review/scope-decision/v1",
     surface: "pr-review",
+    full_range: `${baseSha}..${headSha}`,
   };
 }
 
@@ -1470,6 +1714,67 @@ describe("play-validate-review-artifacts validator", () => {
           scopeArgs(headSha, baseSha),
         ),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires pr-review base-ref to equal the provider diff-base SHA", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await execFileAsync("git", ["switch", "-c", "provider-base", baseSha], {
+        cwd,
+      });
+      await writeFile(path.join(cwd, "README.md"), "baseline\nadvanced\n");
+      await execFileAsync("git", ["add", "."], { cwd });
+      await execFileAsync("git", ["commit", "-m", "chore: advance base"], {
+        cwd,
+      });
+      const providerBaseRefOid = await git(cwd, "rev-parse", "HEAD");
+      await execFileAsync("git", ["switch", "main"], { cwd });
+      await writeJson(
+        cwd,
+        ".ephemeral/topic-scope-decision.json",
+        initialScope(baseSha, headSha, "pr-review"),
+      );
+      const scope = JSON.parse(
+        await readFile(
+          path.join(cwd, ".ephemeral/topic-scope-decision.json"),
+          "utf-8",
+        ),
+      ) as { artifacts: { provider_scope_evidence_file: string } };
+      const evidencePath = scope.artifacts.provider_scope_evidence_file;
+      const evidence = JSON.parse(
+        await readFile(path.join(cwd, evidencePath), "utf-8"),
+      ) as JsonObject;
+      await writeJson(cwd, evidencePath, {
+        ...evidence,
+        baseRefOid: providerBaseRefOid,
+      });
+      const providerScopeEvidenceSha256 = createHash("sha256")
+        .update(await readFile(path.join(cwd, evidencePath)))
+        .digest("hex");
+      await writeJson(cwd, ".ephemeral/topic-scope-decision.json", {
+        ...scope,
+        artifacts: {
+          provider_scope_evidence_file: evidencePath,
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+
+      for (const wrongBaseRef of ["main", providerBaseRefOid]) {
+        await expectRejectsWith(
+          runValidator(cwd, "validate-scope-decision", [
+            ...scopeArgs(
+              headSha,
+              wrongBaseRef,
+              ".ephemeral/topic-scope-decision.json",
+              "pr-review",
+            ),
+          ]),
+          "pr-review base ref must equal provider PR diff base",
+        );
+      }
     } finally {
       await cleanupTempDir(cwd);
     }
@@ -3271,7 +3576,7 @@ describe("play-validate-review-artifacts validator", () => {
         findings: [finding()],
       });
 
-      await expect(
+      await expectRejectsWith(
         runValidator(cwd, "validate-diff-anchors", [
           ...scopeArgs(
             reviewHeadSha,
@@ -3282,7 +3587,8 @@ describe("play-validate-review-artifacts validator", () => {
           "--findings-file",
           ".ephemeral/topic-findings.json",
         ]),
-      ).resolves.toMatchObject({ stdout: "" });
+        "--head-sha must match current repository HEAD",
+      );
       expect(laterHeadSha).not.toBe(reviewHeadSha);
     } finally {
       await cleanupTempDir(cwd);
@@ -3915,7 +4221,7 @@ describe("play-validate-review-artifacts validator", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
-  });
+  }, 30_000);
 
   it("rejects unsafe paths and missing explicit flags", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();

@@ -46,6 +46,9 @@ const runtimeSkillDir = path.join(process.cwd(), "skills/devcanon-runtime");
 const symlinkAvailable = await canCreateSymlinks();
 const isWindows = process.platform === "win32";
 const prNumber = "390";
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 
 async function makeGitWorkspace() {
   const logicalCwd = await mkdtemp(
@@ -76,6 +79,67 @@ async function git(cwd: string, ...args: string[]) {
   return stdout.trim();
 }
 
+async function gitRaw(cwd: string, ...args: string[]) {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout;
+}
+
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+) {
+  return gitRaw(
+    cwd,
+    "-c",
+    "diff.noprefix=false",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.srcPrefix=a/",
+    "-c",
+    "diff.dstPrefix=b/",
+    "-c",
+    "diff.relative=false",
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.context=3",
+    "-c",
+    "diff.interHunkContext=0",
+    "-c",
+    "diff.algorithm=myers",
+    "-c",
+    "diff.renames=true",
+    "-c",
+    "diff.renameLimit=0",
+    "-c",
+    "diff.color=false",
+    "-c",
+    "color.ui=false",
+    "-c",
+    "core.quotePath=true",
+    "-c",
+    "diff.suppressBlankEmpty=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--find-renames",
+    "--diff-algorithm=myers",
+    "--unified=3",
+    "--inter-hunk-context=0",
+    range,
+    ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+  );
+}
+
 async function bashPhysicalCwd(cwd: string) {
   const { stdout } = await execFileAsync("bash", ["-lc", "pwd -P"], { cwd });
   return stdout.trim();
@@ -103,6 +167,10 @@ function normalizePathText(value: string) {
 
 function scopePath(headSha: string) {
   return `.ephemeral/topic-${headSha}-scope-decision.json`;
+}
+
+function providerScopePath(headSha: string, slug = "topic") {
+  return `.ephemeral/${slug}-${headSha}-provider-scope-evidence.json`;
 }
 
 function priorThreadsPath(headSha: string) {
@@ -139,9 +207,9 @@ function initialScope(
     surface: "pr-review",
     mode: "initial",
     head_sha: headSha,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range: `${baseSha}..${headSha}`,
+    selected_range: `${baseSha}..${headSha}`,
+    candidate_narrow_range: `${baseSha}..${headSha}`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial review uses the full review range.",
@@ -158,6 +226,98 @@ function initialScope(
     semantic_decision: { checked: true, ambiguous: false, notes: "" },
     ...overrides,
   };
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function providerScopeEvidence(
+  cwd: string,
+  baseSha: string,
+  headSha: string,
+) {
+  const range = `${baseSha}..${headSha}`;
+  const fullDiff = await canonicalGitDiffRaw(cwd, `${baseSha}..${headSha}`);
+  const entries = await providerFileEntries(cwd, range);
+  return {
+    schema: PROVIDER_EVIDENCE_SCHEMA,
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: Number(prNumber),
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: `${baseSha}..${headSha}`,
+    evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
+    provider_files: entries,
+    local_files: entries,
+    provider_diff_sha256: sha256(fullDiff),
+    local_diff_sha256: sha256(fullDiff),
+  };
+}
+
+async function providerFileEntries(cwd: string, range: string) {
+  const tokens = (await gitRaw(cwd, "diff", "--name-status", "-z", range))
+    .split("\0")
+    .filter(Boolean);
+  const entries: Record<string, unknown>[] = [];
+  for (let index = 0; index < tokens.length; ) {
+    const rawStatus = tokens[index] ?? "";
+    index += 1;
+    const statusCode = rawStatus[0] ?? "";
+    let previousPath: string | null = null;
+    let filePath = tokens[index] ?? "";
+    if (statusCode === "R") {
+      previousPath = tokens[index] ?? "";
+      filePath = tokens[index + 1] ?? "";
+      index += 2;
+    } else {
+      index += 1;
+    }
+    const [additionsRaw, deletionsRaw] = (
+      await gitRaw(cwd, "diff", "--numstat", "-z", range, "--", filePath)
+    ).split(/\s+/u);
+    const additions = Number(additionsRaw);
+    const deletions = Number(deletionsRaw);
+    const patch = await canonicalGitDiffRaw(cwd, range, [filePath]);
+    entries.push({
+      path: filePath,
+      status:
+        statusCode === "A"
+          ? "added"
+          : statusCode === "D"
+            ? "removed"
+            : statusCode === "R"
+              ? "renamed"
+              : "modified",
+      previous_path: previousPath,
+      additions,
+      deletions,
+      changes: additions + deletions,
+      patch_sha256: sha256(patch),
+      patch_available: true,
+    });
+  }
+  return entries.sort((left, right) =>
+    [String(left.path), String(left.previous_path ?? ""), String(left.status)]
+      .join("\0")
+      .localeCompare(
+        [
+          String(right.path),
+          String(right.previous_path ?? ""),
+          String(right.status),
+        ].join("\0"),
+      ),
+  );
 }
 
 function priorThreadsEnvelope(headSha: string) {
@@ -207,7 +367,50 @@ function findingsEnvelope() {
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  const writableValue = await withProviderEvidence(cwd, relPath, value);
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(writableValue, null, 2),
+  );
+}
+
+async function withProviderEvidence(
+  cwd: string,
+  relPath: string,
+  value: unknown,
+) {
+  if (
+    relPath.endsWith("-scope-decision.json") &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).surface === "pr-review" &&
+    !Object.hasOwn(value as Record<string, unknown>, "artifacts")
+  ) {
+    const scope = value as Record<string, unknown>;
+    const headSha = String(scope.head_sha);
+    const [baseSha, rangeHeadSha] = String(scope.full_range).split("..");
+    const slug =
+      new RegExp(
+        `^\\.ephemeral/(.+)-${headSha}-scope-decision\\.json$`,
+        "u",
+      ).exec(relPath)?.[1] ?? "topic";
+    const evidencePath = providerScopePath(headSha, slug);
+    const evidenceText = JSON.stringify(
+      await providerScopeEvidence(cwd, baseSha ?? "", rangeHeadSha ?? headSha),
+      null,
+      2,
+    );
+    await writeFile(path.join(cwd, evidencePath), evidenceText);
+    return {
+      ...scope,
+      artifacts: {
+        provider_scope_evidence_file: evidencePath,
+        provider_scope_evidence_sha256: sha256(evidenceText),
+      },
+    };
+  }
+  return value;
 }
 
 async function readJson(cwd: string, relPath: string) {
@@ -221,7 +424,20 @@ async function sha256File(cwd: string, relPath: string) {
 }
 
 async function writeValidInputs(cwd: string, baseSha: string, headSha: string) {
-  await writeJson(cwd, scopePath(headSha), initialScope(baseSha, headSha));
+  const evidencePath = providerScopePath(headSha);
+  const evidenceText = JSON.stringify(
+    await providerScopeEvidence(cwd, baseSha, headSha),
+    null,
+    2,
+  );
+  await writeFile(path.join(cwd, evidencePath), evidenceText);
+  await writeJson(cwd, scopePath(headSha), {
+    ...initialScope(baseSha, headSha),
+    artifacts: {
+      provider_scope_evidence_file: evidencePath,
+      provider_scope_evidence_sha256: sha256(evidenceText),
+    },
+  });
   await writeJson(cwd, findingsPath(headSha), findingsEnvelope());
 }
 
@@ -234,8 +450,8 @@ function handoffEnv(cwd: string, baseSha: string, headSha: string) {
     BASE_REF: "main",
     HEAD_REF: "topic",
     REVIEW_SCOPE_BASE_REF: baseSha,
-    ACTIVE_DIFF_RANGE: `${baseSha}...HEAD`,
-    FULL_PR_DIFF_RANGE: `${baseSha}...HEAD`,
+    ACTIVE_DIFF_RANGE: `${baseSha}..${headSha}`,
+    FULL_PR_DIFF_RANGE: `${baseSha}..${headSha}`,
     MODE: "github-post",
     LANGUAGE_HINTS_JSON: '["ts"]',
     FOLLOW_UP_STATE: "initial",
@@ -263,7 +479,12 @@ async function runHelper(
 ) {
   return execFileAsync("bash", [script, command], {
     cwd,
-    env: { ...process.env, PR_NUMBER: prNumber, ...env },
+    env: {
+      ...process.env,
+      PR_NUMBER: prNumber,
+      REPOSITORY: "owner/repo",
+      ...env,
+    },
     maxBuffer: 1024 * 1024,
   });
 }
@@ -463,7 +684,7 @@ describe("pr-review manifest helper", () => {
     }
   });
 
-  it("writes and validates minimal valid handoff and result manifests", async () => {
+  it("writes and validates a minimal valid handoff manifest", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
       await writeValidInputs(cwd, baseSha, headSha);
@@ -488,6 +709,16 @@ describe("pr-review manifest helper", () => {
             .working_directory,
         ),
       );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("writes and validates a minimal valid result manifest", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
 
       await expect(
         runHelper(cwd, "write-result", resultEnv(headSha)),
@@ -518,6 +749,160 @@ describe("pr-review manifest helper", () => {
           findings_validated: true,
           scope_decision_validated: true,
         },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires repository identity for handoff and result validation", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          REPOSITORY: "",
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("REPOSITORY is required"),
+      });
+      await expect(
+        runHelper(cwd, "validate-result", {
+          REPOSITORY: "",
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("REPOSITORY is required"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 30_000);
+
+  it("rejects handoff validation for the wrong repository", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+
+      await expect(
+        runHelper(cwd, "validate-handoff", {
+          REPOSITORY: "other/repo",
+          HEAD_SHA: headSha,
+          HANDOFF_FILE: handoffPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff repository mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects result validation for the wrong repository", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+
+      await expect(
+        runHelper(cwd, "validate-result", {
+          REPOSITORY: "other/repo",
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("result repository mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects review scope base refs that do not match provider evidence", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      const wrongBaseSha = "f".repeat(40);
+
+      await expect(
+        runHelper(cwd, "write-handoff", {
+          ...handoffEnv(cwd, baseSha, headSha),
+          REVIEW_SCOPE_BASE_REF: wrongBaseSha,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "scope decision review scope base mismatch",
+        ),
+      });
+
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const handoff = await readJson(cwd, handoffPath(headSha));
+      await writeJson(cwd, handoffPath(headSha), {
+        ...handoff,
+        review_scope_base_ref: wrongBaseSha,
+      });
+      const result = await readJson(cwd, resultPath(headSha));
+      await writeJson(cwd, resultPath(headSha), {
+        ...result,
+        digests: {
+          ...result.digests,
+          handoff_sha256: await sha256File(cwd, handoffPath(headSha)),
+        },
+      });
+
+      await expect(
+        runHelper(cwd, "validate-result", {
+          HEAD_SHA: headSha,
+          RESULT_FILE: resultPath(headSha),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("handoff review scope base mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 30_000);
+
+  it("rejects shaped provider diff-base evidence that is not derived from baseRefOid", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      const scope = await readJson(cwd, scopePath(headSha));
+      const artifacts = scope.artifacts as Record<string, unknown>;
+      const evidenceFile = String(artifacts.provider_scope_evidence_file);
+      const evidence = await readJson(cwd, evidenceFile);
+      const staleEvidenceText = JSON.stringify(
+        {
+          ...evidence,
+          baseRefOid: headSha,
+        },
+        null,
+        2,
+      );
+      await writeFile(path.join(cwd, evidenceFile), staleEvidenceText);
+      await writeJson(cwd, scopePath(headSha), {
+        ...scope,
+        artifacts: {
+          ...artifacts,
+          provider_scope_evidence_sha256: sha256(staleEvidenceText),
+        },
+      });
+
+      await expect(
+        runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha)),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "provider PR diff base must equal single merge base",
+        ),
       });
     } finally {
       await cleanupTempDir(cwd);
@@ -560,6 +945,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -604,6 +990,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -744,6 +1131,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    20_000,
   );
 
   it("rejects missing required fields, invalid identities, nested paths, and relative execution roots", async () => {
@@ -879,20 +1267,12 @@ describe("pr-review manifest helper", () => {
     }
   });
 
-  it("rejects invalid path identity, optional suffixes, physical roots, and stale worktree HEAD", async () => {
+  it("rejects invalid path identity values", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
-    const other = await makeGitWorkspace();
-    const sameHeadOther = await mkdtemp(
-      path.join(os.tmpdir(), "devcanon-pr-same-head-"),
-    );
     try {
       await writeValidInputs(cwd, baseSha, headSha);
       await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
       await runHelper(cwd, "write-result", resultEnv(headSha));
-      await execFileAsync("git", ["clone", cwd, sameHeadOther]);
-      await execFileAsync("git", ["checkout", "--detach", headSha], {
-        cwd: sameHeadOther,
-      });
 
       const handoff = await readJson(cwd, handoffPath(headSha));
       await writeJson(cwd, handoffPath(headSha), {
@@ -954,6 +1334,26 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("review head mismatch"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects handoff physical roots outside the repository root", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    const other = await makeGitWorkspace();
+    const sameHeadOther = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-pr-same-head-"),
+    );
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await execFileAsync("git", ["clone", cwd, sameHeadOther]);
+      await execFileAsync("git", ["checkout", "--detach", headSha], {
+        cwd: sameHeadOther,
+      });
+
+      const handoff = await readJson(cwd, handoffPath(headSha));
 
       await writeJson(cwd, handoffPath(headSha), {
         ...handoff,
@@ -1002,8 +1402,19 @@ describe("pr-review manifest helper", () => {
           "execution working_directory must equal repository root",
         ),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(other.cwd);
+      await cleanupTempDir(sameHeadOther);
+    }
+  });
 
-      await writeJson(cwd, handoffPath(headSha), handoff);
+  it("rejects nested optional result paths", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+
       await expect(
         runHelper(cwd, "write-result", {
           ...resultEnv(headSha),
@@ -1012,7 +1423,17 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested review body path rejected"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
 
+  it("rejects stale handoff worktree HEAD", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      const handoff = await readJson(cwd, handoffPath(headSha));
       await writeFile(
         path.join(cwd, "src/app.ts"),
         "export const value = 2;\n",
@@ -1030,8 +1451,18 @@ describe("pr-review manifest helper", () => {
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("execution worktree HEAD mismatch"),
       });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
 
-      await execFileAsync("git", ["checkout", "--detach", headSha], { cwd });
+  it("rejects stale result schema fields", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeValidInputs(cwd, baseSha, headSha);
+      await runHelper(cwd, "write-handoff", handoffEnv(cwd, baseSha, headSha));
+      await runHelper(cwd, "write-result", resultEnv(headSha));
+      const result = await readJson(cwd, resultPath(headSha));
       await writeJson(cwd, resultPath(headSha), {
         ...result,
         context_file: ".ephemeral/current.txt",
@@ -1046,8 +1477,6 @@ describe("pr-review manifest helper", () => {
       });
     } finally {
       await cleanupTempDir(cwd);
-      await cleanupTempDir(other.cwd);
-      await cleanupTempDir(sameHeadOther);
     }
   });
 
@@ -1132,7 +1561,9 @@ describe("pr-review manifest helper", () => {
             HANDOFF_FILE: handoffPath(headSha),
           }),
         ).rejects.toMatchObject({
-          stderr: expect.stringContaining("scope decision head mismatch"),
+          stderr: expect.stringContaining(
+            "provider scope evidence path mismatch",
+          ),
         });
         await writeJson(
           cwd,
@@ -1220,6 +1651,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -1297,6 +1729,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(cwd);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(
@@ -1506,6 +1939,7 @@ describe("pr-review manifest helper", () => {
         await cleanupTempDir(external);
       }
     },
+    30_000,
   );
 
   it.skipIf(isWindows)(

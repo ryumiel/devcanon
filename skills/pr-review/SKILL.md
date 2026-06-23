@@ -40,9 +40,19 @@ digraph pr_review {
 
 Run in parallel:
 
-- `gh pr view <N> --json title,body,baseRefName,headRefName,commits,files,reviews,comments,url`
+- `gh pr view <N> --json title,body,baseRefName,baseRefOid,headRefName,headRefOid,commits,files,reviews,comments,url`
 - `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
 - `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
+
+Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
+provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
+diff base. Also gather the complete provider file/diff evidence needed to prove
+full PR scope: paginated provider file metadata, provider diff bytes or digest,
+the provider PR diff-base proof, and the local file list and local diff digest
+for the candidate full range. Here provider PR diff-base proof is shorthand
+for `provider_pr_diff_base_sha` plus bound provider/local file and diff
+evidence. Phase 3 binds those facts into the provider scope evidence artifact
+before any review dispatch.
 
 <!-- Bare body intentional: responses feed Phase 4's prior_threads parsing. -->
 <!-- See docs/guidelines/gh-api-hygiene.md § 3. -->
@@ -60,9 +70,11 @@ git fetch origin <head-ref>
 git worktree add .worktrees/pr-<N>-review origin/<head-ref>
 ```
 
-Both fetches are required: `<head-ref>` for the worktree, `<base-ref>` for `play-review`'s doc-impact summary diff. They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose the `<base-ref>` fetch.
+Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
+They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
+the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still required either way — `play-review`'s doc-impact diff uses the Phase 3 `origin/<base-ref>...HEAD` range, which works for both same-repo and fork PRs because `HEAD` resolves to the checked-out PR tip in either case.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
@@ -151,7 +163,15 @@ wait for fresh user action.
 
 ## Phase 3: Determine diff ranges
 
-`full_pr_diff_range` is **always** `"origin/<base>...HEAD"` (computed in the worktree). Used for `play-review`'s doc-impact summary regardless of mode. Keep the PR base ref name and the full-range left side distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name, while `REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"` is the ref passed to scope-decision and approved-review validators because the canonical full range is `"$REVIEW_SCOPE_BASE_REF...HEAD"`.
+`full_pr_diff_range` is **always** the provider-proven range
+`"<provider_pr_diff_base_sha>..<headRefOid>"` from the explicit provider scope
+evidence artifact. Used for `play-review`'s doc-impact summary regardless of
+mode. Keep the PR base ref name, provider `baseRefOid`, and the provider
+diff-base SHA distinct: `PR_BASE_REF="<base>"` is the GitHub base branch name,
+`baseRefOid` is provider metadata, and `REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"`
+is the immutable SHA passed to scope-decision and approved-review validators
+because the canonical full range is
+`"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"`.
 
 Apply the shared follow-up scope policy in
 `skills/play-review/references/follow-up-scope-policy.md` before invoking
@@ -162,6 +182,65 @@ commands for prior-thread and scope-decision artifacts, then delegates
 deterministic validation to the support validator
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` through
 that support skill's sibling-script contract.
+
+The Phase 3 provider scope evidence artifact is the wrapper-owned authority for
+full PR scope. It must record provider `baseRefOid`, provider `headRefOid`,
+`provider_pr_diff_base_sha`; complete bound provider file/diff evidence;
+normalized local file entries; local diff digest; and
+`digest_provenance` using schema `pr-review/digest-provenance/v1`. Producers
+must compute local file metadata, local diff digests, and local available patch
+digests from the support validator's hardened provider-bound Git evidence
+contract, and must declare whether provider full-diff evidence uses canonical
+Git bytes or `github-provider-diff/v1` bytes. `provider_pr_diff_base_sha` is
+not a shaped caller claim: it must equal the single merge base derived from
+provider `baseRefOid` and `headRefOid` under that hardened provider-bound Git
+executor. `baseRefOid` remains provider base metadata inside provider evidence
+and must not be substituted into `REVIEW_SCOPE_BASE_REF`,
+`review_scope_base_ref`, or helper `BASE_REF`; those fields remain the
+immutable provider diff-base SHA surfaces equal to the proven
+`provider_pr_diff_base_sha`.
+
+Canonical local evidence uses raw Git bytes with inherited `GIT_CONFIG*`
+injection stripped, global/system Git config and attributes disabled,
+replacement refs and graft object-graph overrides disabled and rejected, local
+diff-driver/textconv interpretation rejected, literal path identities preserved
+instead of pathspec language, and valid UTF-8 JSON paths with no NUL. A
+non-empty repository `info/attributes` file fails closed because Git gives it
+highest precedence and does not provide a per-command disable. Provider-bound
+command families include current/head resolution, commit/ref existence,
+merge-base proof, range existence checks, changed-file listing,
+`--name-status` metadata, `--numstat` metadata, per-file patch hashing,
+full-diff digesting, inline anchor hunk lookup, approved payload hunk
+verification, and pr-review follow-up scope checks that consume provider-bound
+ranges. Branch-review `validate-risk-signals` remains outside provider evidence
+and provider merge-base semantics. Provider/local file metadata and available
+patch digests must match with compatible provenance, except for the
+runtime-defined all-provider-files-unavailable full-diff digest case. In that
+exception, every provider and local file entry in a non-empty complete
+changed-file set has `patch_available=false` and `patch_sha256=null`, metadata
+matches exactly, the complete provider file list is still bound, provider
+full-diff provenance is `github-provider-diff/v1`, local full-diff provenance
+is `canonical-git-diff/v1`, and the local digest matches canonical Git
+evidence. Mixed available/unavailable file sets do not qualify for the
+full-diff digest exception. For local ref checks,
+local base refs are allowed only as diagnostics or optimization inputs after
+exact-SHA
+equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven. Wrong-base diagnostics are
+fail-closed: stale base refs, moving local base refs, hidden `HEAD` expansion,
+incomplete provider evidence, missing digest provenance, provider/local file
+metadata drift, available patch digest drift, full-diff digest drift,
+incompatible provenance, stale shaped `provider_pr_diff_base_sha` without
+merge-base proof, replacement/graft presence, local diff-driver influence,
+invalid UTF-8 path evidence, NUL-bearing paths, or any mismatch between
+provider proof and local checkout stop before Phase 4. In other words,
+full-diff digest drift fails closed except for the runtime-defined
+all-provider-files-unavailable case above.
+The wrapper must bind the provider
+scope evidence artifact into every scope-decision, handoff, result, and
+approved-review validation path that consumes full-range authority. Unbound side
+guards or ambient environment variables do not prove full range.
+The key boundary is that play-review remains provider-agnostic and consumes
+only the explicit final scope facts supplied by this wrapper.
 
 `active_diff_range` depends on mode:
 
@@ -184,22 +263,30 @@ with those selected-range facts before invoking `play-review`.
 
 Before invoking `play-review`, prepare, write, validate, and bind the canonical
 Phase 3 scope-decision artifact from the target worktree. `PR_REVIEW_DIR` must
-resolve to the installed `pr-review` skill bundle. The artifact's `full_range`
-must be `"$REVIEW_SCOPE_BASE_REF...HEAD"`, where `REVIEW_SCOPE_BASE_REF` is the
-same left side used in `full_pr_diff_range`; do not store `main...HEAD` when
-Phase 3 selected `origin/main...HEAD`.
+resolve to the installed `pr-review` skill bundle. The adapter must pass an
+explicit provider scope evidence artifact through
+`PROVIDER_SCOPE_EVIDENCE_FILE`; the scope-decision artifact's `full_range` must
+be `"$PROVIDER_PR_DIFF_BASE_SHA..$REVIEW_HEAD_SHA"` from that evidence.
 
 ```bash
 PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
 PR_REVIEW_ARTIFACT_HELPER="$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"
 PR_BASE_REF="<base-ref>"
-REVIEW_SCOPE_BASE_REF="origin/$PR_BASE_REF"
-FULL_PR_DIFF_RANGE="$REVIEW_SCOPE_BASE_REF...HEAD"
+PROVIDER_PR_DIFF_BASE_SHA="<provider_pr_diff_base_sha>"
+REVIEW_SCOPE_BASE_REF="$PROVIDER_PR_DIFF_BASE_SHA"
 REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
 
 bind_scope_decision_artifact() {
   cd "$WORKING_DIRECTORY" || return 1
   HEAD_SHA="$(git rev-parse HEAD)" || return 1
+  FULL_PR_DIFF_RANGE="$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA"
+  PROVIDER_SCOPE_EVIDENCE_FILE=$(
+    HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-provider-scope-evidence-write || return 1
+  ) || return 1
+  # Write the pr-review/provider-scope-evidence/v2 envelope to
+  # "$PROVIDER_SCOPE_EVIDENCE_FILE" using provider PR file and diff evidence.
+  # The full_pr_diff_range must be "$PROVIDER_PR_DIFF_BASE_SHA..$HEAD_SHA".
   SCOPE_DECISION_FILE=$(
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
@@ -212,6 +299,7 @@ bind_scope_decision_artifact() {
   HEAD_SHA="$HEAD_SHA" \
   BASE_REF="$REVIEW_SCOPE_BASE_REF" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
+  PROVIDER_SCOPE_EVIDENCE_FILE="$PROVIDER_SCOPE_EVIDENCE_FILE" \
   PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
@@ -239,10 +327,12 @@ Canonical manifest schemas:
 
 - `pr-review/handoff/v1` records Phase 3 review execution inputs, range choice,
   immutable review head, follow-up classification, language hints, and paths to
-  the validated scope-decision and optional prior-threads artifacts.
+  the validated scope-decision, provider scope evidence file and digest, and
+  optional prior-threads artifacts.
 - `pr-review/result/v1` records the deterministic handoff path, validated
   review findings, optional review body and preview paths, content digests for
-  mutable result inputs, the scope-decision summary, and presentation status.
+  mutable result inputs, the scope-decision summary, provider scope evidence
+  file and digest, and presentation status.
 
 Deterministic manifest paths:
 
@@ -294,7 +384,7 @@ write_pr_review_handoff_manifest() {
     PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-handoff || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || return 1
   printf 'PR review handoff manifest written to %s.\n' "$REVIEW_HANDOFF_FILE"
 }
@@ -327,7 +417,7 @@ approval state, no lease state, and no GitHub review payload.
 (
   cd "$WORKING_DIRECTORY" || exit 1
   : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || exit 1
   CURRENT_WORKTREE_HEAD="$(git rev-parse HEAD)" || exit 1
   [ "$CURRENT_WORKTREE_HEAD" = "$REVIEW_HEAD_SHA" ] || {
@@ -342,7 +432,7 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `working_directory` = absolute path to `.worktrees/pr-<N>-review`
 - `base_ref` = the PR's base ref name (e.g., `main`)
 - `active_diff_range` = computed in Phase 3
-- `full_pr_diff_range` = `"origin/<base>...HEAD"` (always)
+- `full_pr_diff_range` = `"<provider_pr_diff_base_sha>..<headRefOid>"` from explicit provider scope evidence (always)
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)
@@ -388,7 +478,7 @@ write_initial_pr_review_result_manifest() {
     PRESENTATION_STATUS="not-presented" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest written to %s.\n' "$REVIEW_RESULT_FILE"
 }
@@ -430,6 +520,7 @@ read_pr_review_result_manifest_for_preview() {
   : "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
+  REPOSITORY="<owner/repo>" \
   RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result >/dev/null || return 1
   RESULT_JSON=$(mktemp) || return 1
@@ -439,6 +530,7 @@ read_pr_review_result_manifest_for_preview() {
   REVIEW_HANDOFF_FILE="$(jq -r '.artifacts.handoff_file' "$RESULT_JSON")" || return 1
   PR_NUMBER="$PR_NUMBER" \
   HEAD_SHA="$REVIEW_HEAD_SHA" \
+  REPOSITORY="<owner/repo>" \
   HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null || return 1
   REVIEW_HEAD_REF="$(jq -r '.head_ref' "$REVIEW_HANDOFF_FILE")" || return 1
@@ -541,7 +633,7 @@ update_pr_review_result_manifest() {
     PRESENTATION_STATUS="preview-current" \
       bash "$PR_REVIEW_MANIFEST_HELPER" write-result || return 1
   ) || return 1
-  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE" \
+  PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE" \
     bash "$PR_REVIEW_MANIFEST_HELPER" validate-result || return 1
   printf 'PR review result manifest updated at %s.\n' "$REVIEW_RESULT_FILE"
 }

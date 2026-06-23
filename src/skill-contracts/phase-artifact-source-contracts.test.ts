@@ -822,13 +822,13 @@ describe("phase artifact source contracts", () => {
       ': "${REVIEW_HEAD_SHA:?Phase 5 trusted review head missing}"',
     );
     expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" RESULT_FILE="$REVIEW_RESULT_FILE"',
+      'PR_NUMBER="$PR_NUMBER" HEAD_SHA="$REVIEW_HEAD_SHA" REPOSITORY="<owner/repo>" RESULT_FILE="$REVIEW_RESULT_FILE"',
     );
     expect(normalizedPrReview).toContain(
       'REVIEW_HANDOFF_FILE="$(jq -r \'.artifacts.handoff_file\' "$RESULT_JSON")"',
     );
     expect(normalizedPrReview).toContain(
-      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
+      'PR_NUMBER="$PR_NUMBER" \\ HEAD_SHA="$REVIEW_HEAD_SHA" \\ REPOSITORY="<owner/repo>" \\ HANDOFF_FILE="$REVIEW_HANDOFF_FILE" \\ bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff >/dev/null',
     );
     expect(normalizedPrReview).toContain(
       'REVIEW_HEAD_REF="$(jq -r \'.head_ref\' "$REVIEW_HANDOFF_FILE")"',
@@ -1327,6 +1327,15 @@ describe("phase artifact source contracts", () => {
     expect(normalizedValidatorSkill).toContain(
       "The optional `contract_example_discipline` field is accepted only with the exact bounded shape",
     );
+    expect(normalizedValidatorSkill).toContain(
+      "`pr-review` `validate-scope-decision` calls must pass `--provider-scope-evidence-file`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "The provider evidence path must also be recorded in `artifacts.provider_scope_evidence_file`",
+    );
+    expect(normalizedValidatorSkill).toContain(
+      "adapters must not satisfy provider evidence through environment variables, default paths, cached files, or other hidden global state",
+    );
     expect(runtime).toContain('case "validate-risk-signals"');
     expect(runtime).toContain("requireRiskSignalsFlags");
     expect(runtime).toContain("rejectRiskSignalsExtraFlags");
@@ -1548,9 +1557,14 @@ describe("phase artifact source contracts", () => {
     const playReview = await readSkillSource("play-review");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
+    const followUpScopePolicy = await readRepoFile(
+      "skills/play-review/references/follow-up-scope-policy.md",
+    );
     const normalizedPlayReview = normalizeWhitespace(playReview);
     const normalizedPrReview = normalizeWhitespace(prReview);
     const normalizedBranchReview = normalizeWhitespace(branchReview);
+    const normalizedFollowUpScopePolicy =
+      normalizeWhitespace(followUpScopePolicy);
 
     expect(playReview).toContain("play-validate-review-artifacts");
     expect(normalizedPlayReview).toContain(
@@ -1571,6 +1585,63 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain(
       "After final active range selection, compute `language_hints`",
+    );
+    expect(normalizedPrReview).toContain(
+      "Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider `baseRefOid` is metadata, not proof that the base branch ref is the PR diff base",
+    );
+    expect(normalizedPrReview).toContain(
+      "complete bound provider file/diff evidence",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider PR diff-base proof is shorthand for `provider_pr_diff_base_sha` plus bound provider/local file and diff evidence",
+    );
+    expect(normalizedPrReview).toContain(
+      "Provider/local file metadata and available patch digests must match with compatible provenance",
+    );
+    expect(normalizedPrReview).toContain(
+      "`digest_provenance` using schema `pr-review/digest-provenance/v1`",
+    );
+    expect(normalizedPrReview).toContain(
+      "full-diff digest drift fails closed except for the runtime-defined all-provider-files-unavailable case",
+    );
+    expect(normalizedPrReview).toContain(
+      "every provider and local file entry in a non-empty complete changed-file set has `patch_available=false` and `patch_sha256=null`, metadata matches exactly",
+    );
+    expect(normalizedPrReview).toContain(
+      "provider full-diff provenance is `github-provider-diff/v1`, local full-diff provenance is `canonical-git-diff/v1`, and the local digest matches canonical Git evidence",
+    );
+    expect(normalizedPrReview).toContain(
+      "Mixed available/unavailable file sets do not qualify for the full-diff digest exception",
+    );
+    expect(normalizedPrReview).toContain(
+      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
+    );
+    expect(normalizedPrReview).toContain(
+      "local base refs are allowed only as diagnostics or optimization inputs after exact-SHA equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven",
+    );
+    expect(normalizedPrReview).toContain(
+      "Wrong-base diagnostics are fail-closed",
+    );
+    expect(normalizedPrReview).toContain(
+      "bind the provider scope evidence artifact into every scope-decision, handoff, result, and approved-review validation path that consumes full-range authority",
+    );
+    expect(normalizedPrReview).toContain(
+      "play-review remains provider-agnostic",
+    );
+    expect(normalizedPrReview).not.toContain(
+      "origin/<base-ref>` as canonical full PR scope",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "The active range and full routing/context range are separate facts",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "For provider-backed PR wrappers, the full PR routing/context range must be provider-proven by the wrapper",
+    );
+    expect(normalizedFollowUpScopePolicy).toContain(
+      "`play-review` consumes explicit final scope facts and must not discover provider scope, provider OIDs, provider file lists, provider diffs, or provider PR diff-base proof",
     );
 
     expect(branchReview).toContain("references/follow-up-scope-policy.md");
@@ -2069,6 +2140,77 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedBranchReview).toContain(
       "build-github-review-payload` must refuse this surface",
+    );
+  });
+
+  it("keeps play-skill-authoring pressure criteria for pr-review provider scope loopholes", async () => {
+    const prReview = await readSkillSource("pr-review");
+    const normalizedPrReview = normalizeWhitespace(prReview);
+
+    const pressureCriteria = {
+      scenario: [
+        "Design `pr-review` scope handling for a GitHub PR where the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M.",
+        "Pressure condition: a small pre-dispatch `gh pr diff --name-only` guard seems faster than changing artifacts.",
+        "Required lesson: provider-backed PR wrappers must prove full PR scope with provider-bound evidence, not moving local refs or ambient guards.",
+      ],
+      redBaselineCriteria: {
+        vulnerableAuthority:
+          "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope.",
+        observedRationalization:
+          "A pressured agent can claim the moving base ref is current provider scope, treat unproven `baseRefOid` as the diff base, or rely on file-list equality from a quick guard.",
+        expectedViolation:
+          "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
+      },
+      greenCriteria: {
+        requiredSourceSurfaces: [
+          "skills/pr-review/SKILL.md Phase 1",
+          "skills/pr-review/SKILL.md Phase 3",
+          "skills/play-review/references/follow-up-scope-policy.md",
+          "skills/play-validate-review-artifacts/SKILL.md",
+        ],
+        complianceCriteria: [
+          "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
+          "exact-SHA equivalence for any local base ref",
+          "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
+          "provider `baseRefOid` remains metadata unless provider PR diff-base proof binds it to local evidence",
+          "unbound pre-dispatch guards and ambient environment variables do not prove full range",
+        ],
+      },
+    };
+    const criteriaText = normalizeWhitespace(
+      JSON.stringify(pressureCriteria, null, 2),
+    );
+
+    expect(criteriaText).toContain(
+      "the PR branch was created at B, the base branch advanced to M, the PR head is H, and origin/main == M",
+    );
+    expect(criteriaText).toContain(
+      "`origin/<base>` authority wording allows `origin/main..HEAD` to masquerade as full PR scope",
+    );
+    expect(criteriaText).toContain(
+      "FAIL: agent may accept `origin/main..HEAD`, unproven `baseRefOid`, file-list equality without provider diff-base proof, or an unbound pre-dispatch guard",
+    );
+    expect(criteriaText).toContain(
+      "PASS requires `<provider_pr_diff_base_sha>..<headRefOid>`",
+    );
+    expect(criteriaText).toContain(
+      "exact-SHA equivalence for any local base ref",
+    );
+    expect(criteriaText).toContain(
+      "complete provider file/diff evidence bound into the scope-decision, handoff, result, and approved-review validation chain before dispatch",
+    );
+
+    expect(normalizedPrReview).toContain(
+      "provider `baseRefOid` is metadata, not proof that the base branch ref is the PR diff base",
+    );
+    expect(normalizedPrReview).toContain(
+      'provider-proven range `"<provider_pr_diff_base_sha>..<headRefOid>"`',
+    );
+    expect(normalizedPrReview).toContain(
+      "local base refs are allowed only as diagnostics or optimization inputs after exact-SHA equivalence to `PROVIDER_PR_DIFF_BASE_SHA` is proven",
+    );
+    expect(normalizedPrReview).toContain(
+      "Unbound side guards or ambient environment variables do not prove full range",
     );
   });
 

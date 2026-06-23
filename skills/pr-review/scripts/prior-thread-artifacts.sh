@@ -72,6 +72,10 @@ expected_scope_decision_path() {
   printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$HEAD_SHA"
 }
 
+expected_provider_scope_evidence_path() {
+  printf '.ephemeral/%s-%s-provider-scope-evidence.json\n' "$(branch_slug)" "$HEAD_SHA"
+}
+
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
@@ -152,6 +156,16 @@ prepare_scope_decision_write() {
   printf '%s\n' "$file"
 }
 
+prepare_provider_scope_evidence_write() {
+  local file
+  require_repo_root
+  validate_head_sha
+  file="$(expected_provider_scope_evidence_path)"
+  validate_direct_child_path "provider scope evidence" "$file" "-provider-scope-evidence.json"
+  prepare_write_target "provider scope evidence" "$file"
+  printf '%s\n' "$file"
+}
+
 validate_prior_threads() {
   local file expected validator
   require_repo_root
@@ -171,7 +185,7 @@ validate_prior_threads() {
 }
 
 validate_scope_decision() {
-  local file expected validator prior_kind prior_path expected_prior
+  local file expected validator prior_kind prior_path expected_prior provider_evidence
   require_repo_root
   validate_head_sha
   require_env SCOPE_DECISION_FILE
@@ -180,6 +194,11 @@ validate_scope_decision() {
   file="$SCOPE_DECISION_FILE"
   validate_direct_child_path "scope decision" "$file" "-scope-decision.json"
   [ "$file" = "$expected" ] || fail "scope decision path mismatch: $file"
+  require_env PROVIDER_SCOPE_EVIDENCE_FILE
+  provider_evidence="$PROVIDER_SCOPE_EVIDENCE_FILE"
+  validate_direct_child_path "provider scope evidence" "$provider_evidence" "-provider-scope-evidence.json"
+  [ "$provider_evidence" = "$(expected_provider_scope_evidence_path)" ] ||
+    fail "provider scope evidence path mismatch: $provider_evidence"
   expected_prior="$(expected_prior_threads_path)"
   prior_kind="none"
   prior_path="null"
@@ -198,6 +217,7 @@ validate_scope_decision() {
     --head-sha "$HEAD_SHA" \
     --base-ref "$BASE_REF" \
     --scope-decision-file "$file" \
+    --provider-scope-evidence-file "$provider_evidence" \
     --expected-schema pr-review/scope-decision/v1 \
     --expected-prior-context-kind "$prior_kind" \
     --expected-prior-context-path "$prior_path" \
@@ -215,10 +235,13 @@ case "$command_name" in
   prepare-scope-decision-write)
     prepare_scope_decision_write
     ;;
+  prepare-provider-scope-evidence-write)
+    prepare_provider_scope_evidence_write
+    ;;
   validate-scope-decision)
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|validate-scope-decision"
     ;;
 esac

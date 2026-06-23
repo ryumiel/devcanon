@@ -116,6 +116,81 @@ scope-decision path, expected schema, prior-context kind and path, governed path
 pattern, max narrow changed-file count, and optional configured path pattern.
 Scope-consuming commands must not rely on hidden prior validation state.
 
+`pr-review` `validate-scope-decision` calls must pass
+`--provider-scope-evidence-file` in addition to the shared scope-policy inputs.
+The provider evidence path must also be recorded in
+`artifacts.provider_scope_evidence_file` on the scope-decision artifact, with
+`artifacts.provider_scope_evidence_sha256` binding the exact evidence bytes.
+The evidence artifact must use schema
+`pr-review/provider-scope-evidence/v2`, provider `github`, explicit provider
+OIDs, provider PR diff-base proof, normalized provider file entries,
+normalized local file entries, provider/local diff digests, and
+`digest_provenance` with schema `pr-review/digest-provenance/v1`. Digest
+provenance must cover `provider_diff`, `local_diff`, `provider_patches`, and
+`local_patches`; local digests must be `canonical-git-diff/v1`. The validator
+computes canonical Git evidence through the hardened provider-bound Git
+executor. That executor uses raw bytes, strips inherited `GIT_CONFIG*`
+injection and other Git interpretation environment, disables global/system Git
+config and attributes, uses empty explicit order/attributes files, disables and
+rejects replacement refs and graft object-graph overrides, rejects local
+diff-driver/textconv interpretation that can alter provider evidence, preserves
+literal path identity instead of pathspec language, and accepts only valid
+UTF-8 JSON path strings without NUL. Because Git always gives repository
+`info/attributes` precedence and provides no per-command disable for that
+source, non-empty repository `info/attributes` fails closed instead of being
+hashed as canonical evidence.
+
+The validator requires `provider_pr_diff_base_sha` to equal the single merge
+base derived from provider `baseRefOid` and `headRefOid` under the hardened
+provider-bound Git executor. `baseRefOid` remains provider base metadata inside
+provider evidence; it is not a substitute for `review_scope_base_ref`,
+`REVIEW_SCOPE_BASE_REF`, helper `BASE_REF`, or scope `full_range` base. The
+validator requires the full PR range to be
+`<provider_pr_diff_base_sha>..<headRefOid>` and rejects moving local base refs
+such as `origin/main` or hidden `HEAD` expansion for `pr-review` full-range
+proof. `validate-scope-decision` is the authority check for this binding before
+review dispatch, and manifest/result/approved-review helpers must delegate to
+it or prove the same merge-base authority before accepting artifacts.
+
+The same provider-bound command-family semantics apply to scope and range
+consumers that derive or check provider evidence: current/head resolution,
+commit/ref existence, merge-base proof, range existence checks, changed-file
+listing, `--name-status` metadata, `--numstat` metadata, per-file patch
+hashing, full-diff digesting, `validate-diff-anchors` inline anchor hunk
+lookup, `compare-approved-payload` approved payload hunk verification, and
+pr-review follow-up scope range checks. `validate-risk-signals` remains
+branch-review-only and does not consume provider evidence or provider
+merge-base authority. Provider
+and local normalized file metadata must match exactly for `path`,
+`previous_path`, `status`, `additions`, `deletions`, and `changes`, and local
+metadata must match canonical Git evidence for the proven range. When provider
+patch evidence is available, both provider and local file entries must set
+`patch_available=true`, their `patch_sha256` values must match canonical Git
+evidence, and provider/local patch provenance must be compatible. When textual
+patch evidence is unavailable for a file, both provider and local entries must
+represent that file with `patch_available=false` and `patch_sha256=null` while
+metadata still matches.
+Provider/local full diff digest mismatch is allowed only when every provider
+and local file entry in a non-empty complete changed-file set is represented as
+unavailable, provider full-diff provenance is declared
+`github-provider-diff/v1`, local full-diff provenance is
+`canonical-git-diff/v1`, and the local digest matches canonical Git evidence.
+Mixed available/unavailable sets still fail closed on diff digest drift or
+incompatible provenance. Stale heads, missing OIDs, missing or incomplete
+evidence, missing digest provenance, duplicate file entries, unbound paths,
+patch digest drift, file metadata drift, stale shaped
+`provider_pr_diff_base_sha` without merge-base proof, replacement/graft
+presence, local diff-driver influence, malformed Git machine records, invalid
+UTF-8 path evidence, NUL-bearing paths, and provider/local diff identity drift
+outside the all-files-unavailable exception fail closed before review dispatch.
+
+Adapters must pass the evidence path as an explicit support-validator flag.
+They may prepare that path from their own surface-specific inputs, but adapters
+must not satisfy provider evidence through environment variables, default paths,
+cached files, or other hidden global state inside the support validator. A
+scope decision that references provider evidence without the explicit
+`--provider-scope-evidence-file` flag is invalid for `pr-review`.
+
 `validate-approval-summary` requires `--approval-summary-file`, `--head-sha`,
 and `--surface branch-review`. Callers that already captured linked evidence
 may also pass `--expected-findings-file` and

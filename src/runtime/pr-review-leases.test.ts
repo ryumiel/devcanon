@@ -1926,71 +1926,64 @@ describe("pr-review lease read-status", () => {
     }
   });
 
-  it("rejects stale or mismatched gated result evidence", async () => {
-    const cases: Array<{
-      name: string;
-      mutate?: (workspace: GatedStatusWorkspace) => Promise<void>;
-      env?: (workspace: GatedStatusWorkspace) => void;
-      stderr: string;
-    }> = [
-      {
-        name: "wrong-result-file",
-        env: () => {
-          process.env.RESULT_FILE = ".ephemeral/pr-432-other-result.json";
-        },
-        stderr: "RESULT_FILE must match",
+  for (const testCase of [
+    {
+      name: "wrong-result-file",
+      env: () => {
+        process.env.RESULT_FILE = ".ephemeral/pr-432-other-result.json";
       },
-      {
-        name: "stale-digest",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.sha256 = "0".repeat(64);
-          }),
-        stderr: "digest mismatch",
+      stderr: "RESULT_FILE must match",
+    },
+    {
+      name: "stale-digest",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.sha256 = "0".repeat(64);
+        }),
+      stderr: "digest mismatch",
+    },
+    {
+      name: "stale-timestamp",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.validated_at =
+            "2026-06-11T00:01:00Z";
+        }),
+      stderr: "validation is stale",
+    },
+    {
+      name: "presentation-mismatch",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.presentation.status = "edited";
+        }),
+      stderr: "presentation status mismatch",
+    },
+    {
+      name: "null-presented-at",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.presentation.presented_at = null;
+        }),
+      stderr: "lease schema mismatch",
+    },
+    {
+      name: "missing-digest",
+      mutate: (workspace: GatedStatusWorkspace) =>
+        mutateLease(workspace, (lease) => {
+          lease.validation.result_manifest.sha256 = null;
+        }),
+      stderr: "digest missing",
+    },
+    {
+      name: "wrong-review-head",
+      env: () => {
+        process.env.HEAD_SHA = "2222222222222222222222222222222222222222";
       },
-      {
-        name: "stale-timestamp",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.validated_at =
-              "2026-06-11T00:01:00Z";
-          }),
-        stderr: "validation is stale",
-      },
-      {
-        name: "presentation-mismatch",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.presentation.status = "edited";
-          }),
-        stderr: "presentation status mismatch",
-      },
-      {
-        name: "null-presented-at",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.presentation.presented_at = null;
-          }),
-        stderr: "lease schema mismatch",
-      },
-      {
-        name: "missing-digest",
-        mutate: (workspace) =>
-          mutateLease(workspace, (lease) => {
-            lease.validation.result_manifest.sha256 = null;
-          }),
-        stderr: "digest missing",
-      },
-      {
-        name: "wrong-review-head",
-        env: () => {
-          process.env.HEAD_SHA = "2222222222222222222222222222222222222222";
-        },
-        stderr: "result review head mismatch",
-      },
-    ];
-
-    for (const testCase of cases) {
+      stderr: "result review head mismatch",
+    },
+  ] as const) {
+    it(`rejects stale or mismatched gated result evidence: ${testCase.name}`, async () => {
       const workspace = await makeGatedStatusWorkspace(
         `pr-review-status-${testCase.name}-`,
       );
@@ -1998,7 +1991,7 @@ describe("pr-review lease read-status", () => {
         await testCase.mutate?.(workspace);
         process.chdir(workspace.physicalPrimary);
         setReadStatusEnv(workspace);
-        testCase.env?.(workspace);
+        testCase.env?.();
         const result = await runPrReviewLeasesCommand(["read-status"]);
         expect(result.exitCode, testCase.name).toBe(1);
         expect(result.stdout, testCase.name).toBe("");
@@ -2007,8 +2000,8 @@ describe("pr-review lease read-status", () => {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
       }
-    }
-  });
+    });
+  }
 
   it("fails closed for nested result artifact drift before status success", async () => {
     const workspace = await makeGatedStatusWorkspace(
@@ -3077,6 +3070,28 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("treats provider scope evidence referenced by valid result chains as owned", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-owned-provider-evidence-",
+    );
+
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).not.toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      expect(result.stdout).not.toContain("provider-scope-evidence.json");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-cleanup-");
@@ -3657,16 +3672,55 @@ async function writeResultArtifact(
   const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
   const reviewBodyFile = ".ephemeral/review-topic-review-body.md";
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
+  const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;
+  const providerPrDiffRange = `${reviewHead}..${reviewHead}`;
+  await writeFile(
+    path.join(worktree, providerScopeEvidenceFile),
+    `${JSON.stringify(
+      {
+        schema: "pr-review/provider-scope-evidence/v2",
+        provider: "github",
+        repository: "owner/repo",
+        pr_number: 432,
+        baseRefOid: reviewHead,
+        headRefOid: reviewHead,
+        provider_pr_diff_base_sha: reviewHead,
+        local_review_head_sha: reviewHead,
+        full_pr_diff_range: providerPrDiffRange,
+        evidence_complete: true,
+        digest_provenance: {
+          schema: "pr-review/digest-provenance/v1",
+          provider_diff: "canonical-git-diff/v1",
+          local_diff: "canonical-git-diff/v1",
+          provider_patches: "canonical-git-diff/v1",
+          local_patches: "canonical-git-diff/v1",
+        },
+        provider_files: [],
+        local_files: [],
+        provider_diff_sha256: "0".repeat(64),
+        local_diff_sha256: "0".repeat(64),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const providerScopeEvidenceSha256 = await sha256File(
+    path.join(worktree, providerScopeEvidenceFile),
+  );
   const scopeDecision = {
     head_sha: reviewHead,
-    selected_range: "main..HEAD",
-    full_range: "main...HEAD",
+    selected_range: providerPrDiffRange,
+    full_range: providerPrDiffRange,
     language_hints: [],
     mode: "initial",
     is_followup_narrow: false,
     last_reviewed_sha: null,
     selection_reason: "Initial review scope.",
     prior_context: { kind: "none", path: null },
+    artifacts: {
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+    },
   };
   await writeFile(
     path.join(worktree, scopeDecisionFile),
@@ -3687,9 +3741,9 @@ async function writeResultArtifact(
     },
     base_ref: "main",
     head_ref: "topic",
-    review_scope_base_ref: "main",
-    active_diff_range: "main..HEAD",
-    full_pr_diff_range: "main...HEAD",
+    review_scope_base_ref: reviewHead,
+    active_diff_range: providerPrDiffRange,
+    full_pr_diff_range: providerPrDiffRange,
     review_head_sha: reviewHead,
     mode: "github-post",
     language_hints: [],
@@ -3701,6 +3755,8 @@ async function writeResultArtifact(
     artifacts: {
       scope_decision_file: scopeDecisionFile,
       prior_threads_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
   };
   await writeFile(
@@ -3720,6 +3776,7 @@ async function writeResultArtifact(
       scope_decision_file: scopeDecisionFile,
       prior_threads_file: null,
       rendered_preview_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
     },
     digests: {
       handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
@@ -3731,11 +3788,12 @@ async function writeResultArtifact(
       ),
       prior_threads_sha256: null,
       rendered_preview_sha256: null,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
     scope_decision: {
       summary: "Initial review scope.",
-      selected_range: "main..HEAD",
-      full_range: "main...HEAD",
+      selected_range: providerPrDiffRange,
+      full_range: providerPrDiffRange,
       is_followup_narrow: false,
     },
     presentation: { status: presentationStatus, notes: null },

@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -6,13 +5,30 @@ import {
   lstat,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { runGit } from "./git.js";
+import { TextDecoder } from "node:util";
+import {
+  gitPathPairKey,
+  isRepoPathIdentity,
+  parseGitChangedFilesZ,
+  parseGitNameStatusZ,
+  parseGitNumstatZ,
+} from "./git-diff-parser.js";
+import {
+  providerBoundGitArgs,
+  providerBoundGitEnv,
+  runGit,
+  runGitRaw,
+  runGitStatus,
+  runGitStdoutSha256,
+} from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 
 type RuntimeCommandOutcome =
@@ -26,6 +42,7 @@ interface ReviewArtifactOptions {
   headSha: string;
   baseRef: string;
   scopeDecision: string;
+  providerScopeEvidenceFile: string;
   expectedSchema: string;
   priorContextKind: string;
   priorContextPath: string;
@@ -53,6 +70,7 @@ const EMPTY_OPTIONS: ReviewArtifactOptions = {
   headSha: "",
   baseRef: "",
   scopeDecision: "",
+  providerScopeEvidenceFile: "",
   expectedSchema: "",
   priorContextKind: "",
   priorContextPath: "",
@@ -131,6 +149,16 @@ const INITIAL_FULL_ALLOWED_EXTRA_REASONS = new Set([
   ...SEMANTIC_ESCALATION_REASONS,
   "ambiguous-classification",
 ]);
+
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
+const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
+const LOCAL_INTERPRETATION_HARDENING_FAILURE =
+  "canonical Git local interpretation hardening failed";
+const OBJECT_GRAPH_HARDENING_FAILURE =
+  "canonical Git object graph hardening failed";
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 const ACCEPTED_BRANCH_SCOPE_REASON_CODES = new Set([
   "governed_path",
@@ -231,6 +259,9 @@ function parseCommonArgs(args: readonly string[]): ReviewArtifactOptions {
         break;
       case "--scope-decision-file":
         options.scopeDecision = value;
+        break;
+      case "--provider-scope-evidence-file":
+        options.providerScopeEvidenceFile = value;
         break;
       case "--expected-schema":
         options.expectedSchema = value;
@@ -350,6 +381,10 @@ async function validateScopeDecision(
   const changedCount = numberField(mechanicalFacts, "changed_file_count");
   const semanticChecked = booleanField(semanticDecision, "checked");
   const semanticAmbiguous = booleanField(semanticDecision, "ambiguous");
+  const providerEvidence =
+    options.surface === "pr-review"
+      ? await validatePrReviewProviderEvidence(scope, options)
+      : null;
 
   const scopeReasonCodes =
     options.surface === "branch-review" ? branchScopeReasonCodes(scope) : [];
@@ -359,39 +394,66 @@ async function validateScopeDecision(
     fail("semantic decision must be checked");
   }
 
-  const fullRangeBase = fullRange.endsWith("...HEAD")
-    ? fullRange.slice(0, -"...HEAD".length)
-    : "";
-  if (fullRangeBase.length === 0) {
-    fail("full range must end at HEAD");
-  }
-  if (
-    fullRangeBase.startsWith("-") ||
-    fullRangeBase.includes("..") ||
-    /\s/u.test(fullRangeBase)
-  ) {
-    fail("full range base ref is invalid");
-  }
-  if (!(await gitRefExists(`${fullRangeBase}^{commit}`))) {
-    fail("base ref does not resolve");
-  }
-  if (options.baseRef.length > 0) {
-    if (!(await gitRefExists(`${options.baseRef}^{commit}`))) {
+  if (options.surface === "pr-review") {
+    if (providerEvidence === null) {
+      fail("provider evidence is required for pr-review");
+    }
+    const providerDiffBase = stringField(
+      providerEvidence,
+      "provider_pr_diff_base_sha",
+    );
+    const providerHead = stringField(providerEvidence, "headRefOid");
+    const expectedFullRange = `${providerDiffBase}..${providerHead}`;
+    if (fullRange !== expectedFullRange) {
+      fail("full range must use provider PR diff base");
+    }
+  } else {
+    const fullRangeBase = fullRange.endsWith("...HEAD")
+      ? fullRange.slice(0, -"...HEAD".length)
+      : "";
+    if (fullRangeBase.length === 0) {
+      fail("full range must end at HEAD");
+    }
+    if (
+      fullRangeBase.startsWith("-") ||
+      fullRangeBase.includes("..") ||
+      /\s/u.test(fullRangeBase)
+    ) {
+      fail("full range base ref is invalid");
+    }
+    if (!(await gitRefExists(`${fullRangeBase}^{commit}`))) {
       fail("base ref does not resolve");
     }
-    if (fullRange !== `${options.baseRef}...HEAD`) {
+  }
+  if (options.baseRef.length > 0) {
+    if (
+      options.surface !== "pr-review" &&
+      !(await gitRefExists(`${options.baseRef}^{commit}`))
+    ) {
+      fail("base ref does not resolve");
+    }
+    if (
+      options.surface !== "pr-review" &&
+      fullRange !== `${options.baseRef}...HEAD`
+    ) {
       fail("full range does not match caller base ref");
     }
   }
 
   const fullExecRange = gitExecutionRange(fullRange, options.headSha);
-  await requireRangeExists(fullExecRange);
+  await requireRangeExistsForSurface(options.surface, fullExecRange);
 
   let followupUsable = false;
-  if (
+  const lastReviewedExists =
     lastReviewed.length > 0 &&
-    (await gitRefExists(`${lastReviewed}^{commit}`)) &&
-    (await gitMergeBaseIsAncestor(lastReviewed, options.headSha))
+    (options.surface === "pr-review"
+      ? await providerBoundGitRefExists(`${lastReviewed}^{commit}`)
+      : await gitRefExists(`${lastReviewed}^{commit}`));
+  if (
+    lastReviewedExists &&
+    (options.surface === "pr-review"
+      ? await providerBoundGitMergeBaseIsAncestor(lastReviewed, options.headSha)
+      : await gitMergeBaseIsAncestor(lastReviewed, options.headSha))
   ) {
     followupUsable = true;
   }
@@ -430,7 +492,8 @@ async function validateScopeDecision(
       if (candidateRange !== fullRange) {
         fail("initial candidate_narrow_range must equal full_range");
       }
-      await requireRangeExists(
+      await requireRangeExistsForSurface(
+        options.surface,
         gitExecutionRange(candidateRange, options.headSha),
       );
       if (!reasonPresent(escalationReasons, "not-followup")) {
@@ -456,7 +519,7 @@ async function validateScopeDecision(
   }
 
   const selectedExecRange = gitExecutionRange(selectedRange, options.headSha);
-  await requireRangeExists(selectedExecRange);
+  await requireRangeExistsForSurface(options.surface, selectedExecRange);
 
   if (semanticAmbiguous && isNarrow) {
     fail("ambiguous semantic scope requires full review");
@@ -472,8 +535,15 @@ async function validateScopeDecision(
     fail("ambiguous-classification escalation reason missing");
   }
 
-  const expectedFiles = await changedFiles(selectedExecRange);
-  const actualFiles = stringArrayField(scope, "changed_files").sort();
+  const expectedFiles =
+    options.surface === "pr-review"
+      ? await providerBoundChangedFiles(selectedExecRange)
+      : await changedFiles(selectedExecRange);
+  const actualFiles = stringArrayField(scope, "changed_files");
+  if (!actualFiles.every(isRepoPath)) {
+    fail("scope changed files contain invalid path identity");
+  }
+  actualFiles.sort();
   if (!jsonEqual(expectedFiles, actualFiles)) {
     fail("changed files do not match selected range");
   }
@@ -481,11 +551,14 @@ async function validateScopeDecision(
   let expectedCount = expectedFiles.length;
   let countRangeLabel = "selected range";
   if (lastReviewed.length > 0 && followupUsable) {
-    expectedCount = (
-      await changedFiles(
-        gitExecutionRange(`${lastReviewed}..HEAD`, options.headSha),
-      )
-    ).length;
+    const countExecRange = gitExecutionRange(
+      `${lastReviewed}..HEAD`,
+      options.headSha,
+    );
+    expectedCount =
+      options.surface === "pr-review"
+        ? (await providerBoundChangedFiles(countExecRange)).length
+        : (await changedFiles(countExecRange)).length;
     countRangeLabel = "candidate range";
   }
   if (changedCount !== expectedCount) {
@@ -537,9 +610,14 @@ async function validateScopeDecision(
       ) {
         fail("narrow scope must use last-reviewed-sha..HEAD");
       }
-      const candidateFiles = await changedFiles(
-        gitExecutionRange(expectedCandidateRange, options.headSha),
+      const candidateExecRange = gitExecutionRange(
+        expectedCandidateRange,
+        options.headSha,
       );
+      const candidateFiles =
+        options.surface === "pr-review"
+          ? await providerBoundChangedFiles(candidateExecRange)
+          : await changedFiles(candidateExecRange);
       if (candidateFiles.length > Number(options.maxNarrowChangedFiles)) {
         if (isNarrow) {
           fail("file count requires full review");
@@ -705,6 +783,923 @@ async function validatePriorThreads(
     }
     throw err;
   }
+}
+
+async function validatePrReviewProviderEvidence(
+  scope: JsonObject,
+  options: ReviewArtifactOptions,
+): Promise<JsonObject> {
+  if (options.providerScopeEvidenceFile.length === 0) {
+    fail("--provider-scope-evidence-file is required for pr-review");
+  }
+  await assertReadableFile(
+    "--provider-scope-evidence-file",
+    options.providerScopeEvidenceFile,
+  );
+  validateSuffix(
+    "--provider-scope-evidence-file",
+    options.providerScopeEvidenceFile,
+    "-provider-scope-evidence.json",
+  );
+  const expectedEvidenceFile = await expectedProviderScopeEvidencePath(
+    options.headSha,
+  );
+  if (options.providerScopeEvidenceFile !== expectedEvidenceFile) {
+    fail("provider scope evidence path mismatch");
+  }
+
+  const artifacts = objectField(scope, "artifacts");
+  const artifactEvidenceFile = stringField(
+    artifacts,
+    "provider_scope_evidence_file",
+  );
+  if (artifactEvidenceFile !== options.providerScopeEvidenceFile) {
+    fail("provider scope evidence file mismatch");
+  }
+  const evidenceText = await readFile(
+    options.providerScopeEvidenceFile,
+    "utf-8",
+  );
+  const evidenceDigest = createHash("sha256")
+    .update(evidenceText)
+    .digest("hex");
+  if (
+    evidenceDigest !== stringField(artifacts, "provider_scope_evidence_sha256")
+  ) {
+    fail("provider scope evidence digest mismatch");
+  }
+
+  const evidence = await readSingleJsonObject(
+    options.providerScopeEvidenceFile,
+    "provider evidence JSON validation failed",
+  );
+  validateProviderEvidenceShape(evidence);
+
+  if (
+    stringField(evidence, "baseRefOid").length > 0 &&
+    !isSha(stringField(evidence, "baseRefOid"))
+  ) {
+    fail("provider evidence baseRefOid is malformed");
+  }
+  for (const field of [
+    "baseRefOid",
+    "headRefOid",
+    "provider_pr_diff_base_sha",
+    "local_review_head_sha",
+  ]) {
+    if (!isSha(stringField(evidence, field))) {
+      fail(`provider evidence ${field} is malformed`);
+    }
+  }
+
+  if (stringField(evidence, "provider") !== "github") {
+    fail("provider evidence provider must be github");
+  }
+  if (stringField(evidence, "headRefOid") !== options.headSha) {
+    fail("provider evidence head mismatch");
+  }
+  if (stringField(evidence, "local_review_head_sha") !== options.headSha) {
+    fail("provider evidence local head mismatch");
+  }
+  await assertProviderBoundGitPreflight();
+  const currentHead = (await providerBoundGit(["rev-parse", "HEAD"])).trim();
+  if (currentHead !== options.headSha) {
+    fail("--head-sha must match current repository HEAD");
+  }
+  const providerBase = stringField(evidence, "baseRefOid");
+  const providerDiffBase = stringField(evidence, "provider_pr_diff_base_sha");
+  const providerHead = stringField(evidence, "headRefOid");
+  if (options.baseRef.length === 0) {
+    fail("--base-ref is required for pr-review");
+  }
+  if (options.baseRef !== providerDiffBase) {
+    fail("pr-review base ref must equal provider PR diff base");
+  }
+  if (
+    stringField(evidence, "full_pr_diff_range") !==
+    `${providerDiffBase}..${providerHead}`
+  ) {
+    fail("provider evidence full range mismatch");
+  }
+  if (!(await providerBoundGitRefExists(`${providerBase}^{commit}`))) {
+    fail("provider baseRefOid does not resolve");
+  }
+  if (!(await providerBoundGitRefExists(`${providerDiffBase}^{commit}`))) {
+    fail("provider PR diff base does not resolve");
+  }
+  if (!(await providerBoundGitRefExists(`${providerHead}^{commit}`))) {
+    fail("provider head does not resolve");
+  }
+  const providerMergeBases = await providerBoundGitMergeBases(
+    providerBase,
+    providerHead,
+  );
+  if (
+    providerMergeBases.length !== 1 ||
+    providerMergeBases[0] !== providerDiffBase ||
+    providerDiffBase === providerHead
+  ) {
+    fail("provider PR diff base must equal single merge base");
+  }
+
+  const localRange = `${providerDiffBase}..${providerHead}`;
+  await requireProviderBoundRangeExists(localRange);
+  const digestProvenance = digestProvenanceField(evidence);
+  const expectedLocalFiles = await normalizedLocalFileEntries(localRange);
+  const providerFiles = normalizedEvidenceEntries(
+    arrayField(evidence, "provider_files"),
+  );
+  const localFiles = normalizedEvidenceEntries(
+    arrayField(evidence, "local_files"),
+  );
+  validateNoDuplicateFileEntries(providerFiles);
+  validateNoDuplicateFileEntries(localFiles);
+  if (
+    !jsonEqual(fileEntryMetadata(providerFiles), fileEntryMetadata(localFiles))
+  ) {
+    fail("provider/local file evidence mismatch");
+  }
+  if (
+    !jsonEqual(
+      fileEntryMetadata(localFiles),
+      fileEntryMetadata(expectedLocalFiles),
+    )
+  ) {
+    fail("local provider evidence does not match git");
+  }
+  validateProviderPatchEvidence(providerFiles, localFiles, expectedLocalFiles);
+
+  const localDiffDigest = await canonicalGitDiffSha256(localRange);
+  if (stringField(evidence, "local_diff_sha256") !== localDiffDigest) {
+    fail("local diff digest does not match git");
+  }
+  if (
+    stringField(digestProvenance, "local_diff") !== CANONICAL_GIT_DIFF_DIALECT
+  ) {
+    fail("provider evidence schema mismatch");
+  }
+  validatePatchDigestProvenance(digestProvenance);
+  const unavailableOnly =
+    providerFiles.length > 0 &&
+    providerFiles.every(isUnavailablePatchEntry) &&
+    localFiles.every(isUnavailablePatchEntry);
+  if (
+    stringField(evidence, "provider_diff_sha256") !==
+    stringField(evidence, "local_diff_sha256")
+  ) {
+    if (
+      !unavailableOnly ||
+      stringField(digestProvenance, "provider_diff") !==
+        GITHUB_PROVIDER_DIFF_DIALECT
+    ) {
+      fail("provider/local diff digest mismatch");
+    }
+  } else if (!hasCompatibleFullDiffProvenance(digestProvenance)) {
+    if (
+      !unavailableOnly ||
+      stringField(digestProvenance, "provider_diff") !==
+        GITHUB_PROVIDER_DIFF_DIALECT
+    ) {
+      fail("provider/local diff digest mismatch");
+    }
+  }
+
+  return evidence;
+}
+
+function digestProvenanceField(evidence: JsonObject): JsonObject {
+  return objectField(evidence, "digest_provenance");
+}
+
+function hasCompatibleFullDiffProvenance(provenance: JsonObject): boolean {
+  return (
+    stringField(provenance, "provider_diff") === CANONICAL_GIT_DIFF_DIALECT &&
+    stringField(provenance, "local_diff") === CANONICAL_GIT_DIFF_DIALECT
+  );
+}
+
+function validatePatchDigestProvenance(provenance: JsonObject): void {
+  if (
+    stringField(provenance, "provider_patches") !==
+      CANONICAL_GIT_DIFF_DIALECT ||
+    stringField(provenance, "local_patches") !== CANONICAL_GIT_DIFF_DIALECT
+  ) {
+    fail("provider/local patch evidence mismatch");
+  }
+}
+
+function isDigestProvenance(value: unknown): value is JsonObject {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const provenance = value as JsonObject;
+  const validFullDiffDialects = new Set([
+    CANONICAL_GIT_DIFF_DIALECT,
+    GITHUB_PROVIDER_DIFF_DIALECT,
+  ]);
+  return (
+    hasExactKeys(provenance, [
+      "schema",
+      "provider_diff",
+      "local_diff",
+      "provider_patches",
+      "local_patches",
+    ]) &&
+    stringField(provenance, "schema") === DIGEST_PROVENANCE_SCHEMA &&
+    validFullDiffDialects.has(stringField(provenance, "provider_diff")) &&
+    stringField(provenance, "local_diff") === CANONICAL_GIT_DIFF_DIALECT &&
+    stringField(provenance, "provider_patches") ===
+      CANONICAL_GIT_DIFF_DIALECT &&
+    stringField(provenance, "local_patches") === CANONICAL_GIT_DIFF_DIALECT
+  );
+}
+
+function validateProviderEvidenceShape(evidence: JsonObject): void {
+  try {
+    if (
+      !hasExactKeys(evidence, [
+        "schema",
+        "provider",
+        "repository",
+        "pr_number",
+        "baseRefOid",
+        "headRefOid",
+        "provider_pr_diff_base_sha",
+        "local_review_head_sha",
+        "full_pr_diff_range",
+        "evidence_complete",
+        "digest_provenance",
+        "provider_files",
+        "local_files",
+        "provider_diff_sha256",
+        "local_diff_sha256",
+      ]) ||
+      stringField(evidence, "schema") !== PROVIDER_EVIDENCE_SCHEMA ||
+      stringField(evidence, "provider") !== "github" ||
+      stringField(evidence, "repository").trim().length === 0 ||
+      !isPositiveInteger(evidence.pr_number) ||
+      evidence.evidence_complete !== true ||
+      !isDigestProvenance(evidence.digest_provenance) ||
+      !Array.isArray(evidence.provider_files) ||
+      !Array.isArray(evidence.local_files) ||
+      !isSha256(stringField(evidence, "provider_diff_sha256")) ||
+      !isSha256(stringField(evidence, "local_diff_sha256"))
+    ) {
+      fail("provider evidence schema mismatch");
+    }
+    for (const entry of [
+      ...arrayField(evidence, "provider_files"),
+      ...arrayField(evidence, "local_files"),
+    ]) {
+      if (!isProviderFileEntry(entry)) {
+        fail("provider evidence schema mismatch");
+      }
+    }
+  } catch (err) {
+    if (
+      err instanceof ReviewArtifactsError &&
+      err.message === "runtime validation failed"
+    ) {
+      fail("provider evidence schema mismatch");
+    }
+    throw err;
+  }
+}
+
+function isProviderFileEntry(entry: unknown): entry is JsonObject {
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+    return false;
+  }
+  const file = entry as JsonObject;
+  return (
+    hasExactKeys(file, [
+      "path",
+      "status",
+      "previous_path",
+      "additions",
+      "deletions",
+      "changes",
+      "patch_sha256",
+      "patch_available",
+    ]) &&
+    isRepoPath(stringField(file, "path")) &&
+    ["added", "modified", "removed", "renamed"].includes(
+      stringField(file, "status"),
+    ) &&
+    (file.previous_path === null ||
+      isRepoPath(stringField(file, "previous_path"))) &&
+    isNonNegativeInteger(file.additions) &&
+    isNonNegativeInteger(file.deletions) &&
+    isNonNegativeInteger(file.changes) &&
+    numberField(file, "changes") ===
+      numberField(file, "additions") + numberField(file, "deletions") &&
+    typeof file.patch_available === "boolean" &&
+    ((file.patch_available === true &&
+      isSha256(stringField(file, "patch_sha256"))) ||
+      (file.patch_available === false && file.patch_sha256 === null))
+  );
+}
+
+function normalizedEvidenceEntries(entries: readonly unknown[]): JsonObject[] {
+  return entries.map((entry) => entry as JsonObject).sort(compareFileEntries);
+}
+
+function fileEntryMetadata(entries: readonly JsonObject[]): JsonObject[] {
+  return entries.map((entry) => ({
+    path: stringField(entry, "path"),
+    status: stringField(entry, "status"),
+    previous_path: nullableStringField(entry, "previous_path"),
+    additions: numberField(entry, "additions"),
+    deletions: numberField(entry, "deletions"),
+    changes: numberField(entry, "changes"),
+  }));
+}
+
+function validateProviderPatchEvidence(
+  providerFiles: readonly JsonObject[],
+  localFiles: readonly JsonObject[],
+  expectedLocalFiles: readonly JsonObject[],
+): void {
+  for (let index = 0; index < providerFiles.length; index += 1) {
+    const providerFile = providerFiles[index] as JsonObject;
+    const localFile = localFiles[index] as JsonObject;
+    const expectedLocalFile = expectedLocalFiles[index] as JsonObject;
+    const providerPatchAvailable = booleanField(
+      providerFile,
+      "patch_available",
+    );
+    const localPatchAvailable = booleanField(localFile, "patch_available");
+
+    if (providerPatchAvailable !== localPatchAvailable) {
+      fail("provider/local patch evidence mismatch");
+    }
+
+    if (providerPatchAvailable) {
+      if (!booleanField(expectedLocalFile, "patch_available")) {
+        fail("provider/local patch evidence mismatch");
+      }
+      if (
+        stringField(providerFile, "patch_sha256") !==
+          stringField(localFile, "patch_sha256") ||
+        stringField(localFile, "patch_sha256") !==
+          stringField(expectedLocalFile, "patch_sha256")
+      ) {
+        fail("provider/local patch evidence mismatch");
+      }
+    } else if (
+      !isUnavailablePatchEntry(providerFile) ||
+      !isUnavailablePatchEntry(localFile)
+    ) {
+      fail("provider/local patch evidence mismatch");
+    }
+  }
+}
+
+function isUnavailablePatchEntry(entry: JsonObject): boolean {
+  return !booleanField(entry, "patch_available") && entry.patch_sha256 === null;
+}
+
+function validateNoDuplicateFileEntries(entries: readonly JsonObject[]): void {
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const key = fileEntryKey(entry);
+    if (seen.has(key)) {
+      fail("provider evidence contains duplicate file entries");
+    }
+    seen.add(key);
+  }
+}
+
+function compareFileEntries(left: JsonObject, right: JsonObject): number {
+  return fileEntryKey(left).localeCompare(fileEntryKey(right));
+}
+
+function fileEntryKey(entry: JsonObject): string {
+  return fileEntryKeyFromParts({
+    path: stringField(entry, "path"),
+    previousPath: nullableStringField(entry, "previous_path"),
+    status: stringField(entry, "status"),
+  });
+}
+
+function fileEntryKeyFromParts(entry: {
+  path: string;
+  previousPath: string | null;
+  status: string;
+}): string {
+  return `${gitPathPairKey(entry)}\0${entry.status}`;
+}
+
+async function normalizedLocalFileEntries(
+  range: string,
+): Promise<JsonObject[]> {
+  const statusEntries = await gitDiffNameStatus(range);
+  const numstats = await gitDiffNumstats(range);
+  const entries: JsonObject[] = [];
+  for (const statusEntry of statusEntries) {
+    const pathspecs =
+      statusEntry.previousPath === null
+        ? [statusEntry.path]
+        : [statusEntry.previousPath, statusEntry.path];
+    const numstat = numstats.get(gitPathPairKey(statusEntry));
+    if (numstat === undefined) {
+      fail("local diff numstat is unavailable");
+    }
+    const patchAvailable = numstat.patchAvailable;
+    const patchSha256 = patchAvailable
+      ? await canonicalGitDiffSha256(range, pathspecs)
+      : null;
+    entries.push({
+      path: statusEntry.path,
+      status: statusEntry.status,
+      previous_path: statusEntry.previousPath,
+      additions: numstat.additions,
+      deletions: numstat.deletions,
+      changes: numstat.additions + numstat.deletions,
+      patch_sha256: patchSha256,
+      patch_available: patchAvailable,
+    });
+  }
+  return entries.sort(compareFileEntries);
+}
+
+async function gitDiffNameStatus(
+  range: string,
+): Promise<
+  Array<{ path: string; previousPath: string | null; status: string }>
+> {
+  return parseGitNameStatusZ(
+    await canonicalGitDiffMetadataRaw(["--name-status", "-z", range]),
+  );
+}
+
+async function canonicalGitDiffMetadataRaw(
+  args: readonly string[],
+): Promise<Buffer> {
+  return canonicalGitDiffRawWithArgs(args, { patch: false });
+}
+
+async function canonicalGitDiffRaw(
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<Buffer> {
+  return canonicalGitDiffRawWithArgs(
+    [range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])],
+    { patch: true, literalPathspecs: pathspecs.length > 0 },
+  );
+}
+
+async function canonicalGitDiffSha256(
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  return canonicalGitDiffSha256WithArgs(
+    [range, ...(pathspecs.length > 0 ? ["--", ...pathspecs] : [])],
+    { patch: true, literalPathspecs: pathspecs.length > 0 },
+  );
+}
+
+async function canonicalGitDiffRawWithArgs(
+  args: readonly string[],
+  options: { patch: boolean; literalPathspecs?: boolean },
+): Promise<Buffer> {
+  return canonicalGitDiffOutputWithArgs(args, options, "raw");
+}
+
+async function canonicalGitDiffSha256WithArgs(
+  args: readonly string[],
+  options: { patch: boolean; literalPathspecs: boolean },
+): Promise<string> {
+  return canonicalGitDiffOutputWithArgs(args, options, "sha256");
+}
+
+async function canonicalGitDiffOutputWithArgs<T extends "raw" | "sha256">(
+  args: readonly string[],
+  options: { patch: boolean; literalPathspecs?: boolean },
+  output: T,
+): Promise<T extends "raw" ? Buffer : string> {
+  await assertProviderBoundGitPreflight();
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-diff-"));
+  const orderFile = path.join(tempDir, "orderfile");
+  const attributesFile = path.join(tempDir, "attributes");
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(orderFile, "");
+  await writeFile(attributesFile, "");
+  await writeFile(globalConfigFile, "");
+  try {
+    const patchArgs = options.patch
+      ? ["--unified=3", "--inter-hunk-context=0"]
+      : [];
+    const gitArgs = [
+      ...(options.literalPathspecs === true ? ["--literal-pathspecs"] : []),
+      ...canonicalGitConfigArgs(orderFile, attributesFile),
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--find-renames",
+      "--diff-algorithm=myers",
+      ...patchArgs,
+      ...args,
+    ];
+    const providerArgs = providerBoundGitArgs(gitArgs);
+    if (output === "sha256") {
+      const { stdoutSha256 } = await runGitStdoutSha256(providerArgs, {
+        cwd: process.cwd(),
+        env: canonicalGitEnv(globalConfigFile),
+      });
+      return stdoutSha256 as T extends "raw" ? Buffer : string;
+    }
+    const { stdout } = await runGitRaw(providerArgs, {
+      cwd: process.cwd(),
+      env: canonicalGitEnv(globalConfigFile),
+    });
+    return stdout as T extends "raw" ? Buffer : string;
+  } catch {
+    fail("git command failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function canonicalGitConfigArgs(
+  orderFile: string,
+  attributesFile: string,
+): string[] {
+  return [
+    "-c",
+    "diff.noprefix=false",
+    "-c",
+    "diff.mnemonicPrefix=false",
+    "-c",
+    "diff.srcPrefix=a/",
+    "-c",
+    "diff.dstPrefix=b/",
+    "-c",
+    "diff.relative=false",
+    "-c",
+    "core.abbrev=40",
+    "-c",
+    "diff.abbrev=40",
+    "-c",
+    "diff.context=3",
+    "-c",
+    "diff.interHunkContext=0",
+    "-c",
+    "diff.algorithm=myers",
+    "-c",
+    "diff.renames=true",
+    "-c",
+    "diff.renameLimit=0",
+    "-c",
+    "diff.color=false",
+    "-c",
+    "color.ui=false",
+    "-c",
+    "core.quotePath=true",
+    "-c",
+    "diff.suppressBlankEmpty=false",
+    "-c",
+    "diff.indentHeuristic=false",
+    "-c",
+    `diff.orderFile=${orderFile}`,
+    "-c",
+    `core.attributesFile=${attributesFile}`,
+  ];
+}
+
+function canonicalGitEnv(globalConfigFile: string): NodeJS.ProcessEnv {
+  return providerBoundGitEnv(globalConfigFile);
+}
+
+async function providerBoundGit(args: readonly string[]): Promise<string> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-read-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    const { stdout } = await runGit(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+    return stdout;
+  } catch {
+    fail("git command failed");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function providerBoundGitStatus(
+  args: readonly string[],
+): Promise<number> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-status-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    return await runGitStatus(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function providerBoundGitRefExists(ref: string): Promise<boolean> {
+  return (await providerBoundGitStatus(["cat-file", "-e", ref])) === 0;
+}
+
+async function providerBoundGitMergeBases(
+  base: string,
+  head: string,
+): Promise<string[]> {
+  try {
+    const stdout = await providerBoundGit(["merge-base", "--all", base, head]);
+    return stdout.trim().split("\n").filter(Boolean);
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      fail("provider PR diff base must equal single merge base");
+    }
+    throw err;
+  }
+}
+
+async function providerBoundGitMergeBaseIsAncestor(
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  return (
+    (await providerBoundGitStatus([
+      "merge-base",
+      "--is-ancestor",
+      ancestor,
+      descendant,
+    ])) === 0
+  );
+}
+
+async function requireProviderBoundRangeExists(range: string): Promise<void> {
+  if ((await providerBoundGitStatus(["diff", "--quiet", range])) > 1) {
+    fail("review range does not resolve");
+  }
+}
+
+async function assertProviderBoundGitPreflight(): Promise<void> {
+  await assertNoObjectGraphOverrides();
+  await assertNoAmbientInfoAttributes();
+  await assertNoLocalDiffDriverConfig();
+}
+
+async function assertNoAmbientInfoAttributes(): Promise<void> {
+  const gitPathInfoAttributes = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "info/attributes",
+  ]);
+  const gitCommonDir = await providerBoundGit([
+    "rev-parse",
+    "--git-common-dir",
+  ]);
+  const infoAttributePaths = new Set([
+    resolveGitPath(gitPathInfoAttributes.trim()),
+    path.join(resolveGitPath(gitCommonDir.trim()), "info", "attributes"),
+  ]);
+  for (const infoAttributes of infoAttributePaths) {
+    await assertEmptyOrMissingInfoAttributes(infoAttributes);
+  }
+}
+
+async function assertNoObjectGraphOverrides(): Promise<void> {
+  const gitReplacePath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "refs/replace",
+  ]);
+  const gitPackedRefsPath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "packed-refs",
+  ]);
+  const gitGraftsPath = await providerBoundGit([
+    "rev-parse",
+    "--git-path",
+    "info/grafts",
+  ]);
+  const gitCommonDir = await providerBoundGit([
+    "rev-parse",
+    "--git-common-dir",
+  ]);
+  const graftPaths = new Set([
+    resolveGitPath(gitGraftsPath.trim()),
+    path.join(resolveGitPath(gitCommonDir.trim()), "info", "grafts"),
+  ]);
+  await assertNoLooseReplaceRefs(resolveGitPath(gitReplacePath.trim()));
+  await assertNoPackedReplaceRefs(resolveGitPath(gitPackedRefsPath.trim()));
+  for (const graftPath of graftPaths) {
+    await assertEmptyOrMissingObjectGraphFile(graftPath);
+  }
+}
+
+async function assertNoLooseReplaceRefs(
+  replaceRefsPath: string,
+): Promise<void> {
+  try {
+    const replaceStat = await stat(replaceRefsPath);
+    if (!replaceStat.isDirectory()) {
+      return;
+    }
+    const entries = await readdir(replaceRefsPath);
+    if (entries.length > 0) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertNoPackedReplaceRefs(
+  packedRefsPath: string,
+): Promise<void> {
+  try {
+    const packedRefs = await readFile(packedRefsPath, "utf8");
+    if (
+      packedRefs
+        .split("\n")
+        .some((line) => /^\S+\s+refs\/replace\//u.test(line))
+    ) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertEmptyOrMissingObjectGraphFile(
+  filePath: string,
+): Promise<void> {
+  try {
+    const graphStat = await stat(filePath);
+    if (graphStat.size > 0) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail(OBJECT_GRAPH_HARDENING_FAILURE);
+    }
+  }
+}
+
+async function assertNoLocalDiffDriverConfig(): Promise<void> {
+  const localDiffConfig = await gitConfigEntries([
+    "config",
+    "--local",
+    "--includes",
+    "--get-regexp",
+    "^diff\\.",
+  ]);
+  const worktreeDiffConfig = await gitConfigEntries([
+    "config",
+    "--worktree",
+    "--includes",
+    "--get-regexp",
+    "^diff\\.",
+  ]);
+  if (
+    [...localDiffConfig, ...worktreeDiffConfig].some(isUnsafeDiffConfigEntry)
+  ) {
+    fail(LOCAL_INTERPRETATION_HARDENING_FAILURE);
+  }
+}
+
+const CANONICALLY_NEUTRALIZED_DIFF_CONFIG_KEYS = new Set([
+  "diff.abbrev",
+  "diff.algorithm",
+  "diff.color",
+  "diff.context",
+  "diff.dstprefix",
+  "diff.indentheuristic",
+  "diff.interhunkcontext",
+  "diff.mnemonicprefix",
+  "diff.noprefix",
+  "diff.orderfile",
+  "diff.relative",
+  "diff.renamelimit",
+  "diff.renames",
+  "diff.srcprefix",
+  "diff.suppressblankempty",
+]);
+
+function isUnsafeDiffConfigEntry(entry: string): boolean {
+  const key = entry.split(/\s/u, 1)[0]?.toLowerCase() ?? "";
+  return (
+    key.startsWith("diff.") &&
+    !CANONICALLY_NEUTRALIZED_DIFF_CONFIG_KEYS.has(key)
+  );
+}
+
+async function gitConfigEntries(args: readonly string[]): Promise<string[]> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-git-config-"));
+  const globalConfigFile = path.join(tempDir, "global-config");
+  await writeFile(globalConfigFile, "");
+  try {
+    const { stdout } = await runGit(providerBoundGitArgs(args), {
+      cwd: process.cwd(),
+      env: providerBoundGitEnv(globalConfigFile),
+    });
+    return stdout.trim().split("\n").filter(Boolean);
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      Number((err as { code?: unknown }).code) === 1
+    ) {
+      return [];
+    }
+    if (
+      args.includes("--worktree") &&
+      err instanceof Error &&
+      "code" in err &&
+      Number((err as { code?: unknown }).code) === 128
+    ) {
+      return [];
+    }
+    fail(LOCAL_INTERPRETATION_HARDENING_FAILURE);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function resolveGitPath(gitPath: string): string {
+  return path.isAbsolute(gitPath)
+    ? gitPath
+    : path.resolve(process.cwd(), gitPath);
+}
+
+function isNodeErrorCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === code
+  );
+}
+
+async function assertEmptyOrMissingInfoAttributes(
+  infoAttributes: string,
+): Promise<void> {
+  try {
+    const attributesStat = await stat(infoAttributes);
+    if (attributesStat.size > 0) {
+      fail("canonical diff driver discovery failed");
+    }
+  } catch (err) {
+    if (err instanceof ReviewArtifactsError) {
+      throw err;
+    }
+    if (!isNodeErrorCode(err, "ENOENT")) {
+      fail("canonical diff driver discovery failed");
+    }
+  }
+}
+
+async function gitDiffNumstats(
+  range: string,
+): Promise<
+  Map<string, { additions: number; deletions: number; patchAvailable: boolean }>
+> {
+  const entries = new Map<
+    string,
+    { additions: number; deletions: number; patchAvailable: boolean }
+  >();
+  for (const entry of parseGitNumstatZ(
+    await canonicalGitDiffMetadataRaw(["--numstat", "-z", range]),
+  )) {
+    entries.set(gitPathPairKey(entry), {
+      additions: entry.additions,
+      deletions: entry.deletions,
+      patchAvailable: entry.patchAvailable,
+    });
+  }
+  return entries;
+}
+
+function sha256Buffer(value: Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function validatePriorThreadsSchema(
@@ -1568,7 +2563,9 @@ function validateScopeShapeSchema(
   const expectedScopeKeys =
     expectedSchema === "branch-review/scope-decision/v1"
       ? [...baseScopeKeys, "scope_reason_codes", "scope_explanation"]
-      : baseScopeKeys;
+      : expectedSchema === "pr-review/scope-decision/v1"
+        ? [...baseScopeKeys, "artifacts"]
+        : baseScopeKeys;
 
   if (
     expectedSchema === "branch-review/scope-decision/v1" &&
@@ -1595,7 +2592,6 @@ function validateScopeShapeSchema(
     !isNullableSha(scope.last_reviewed_sha) ||
     typeof scope.is_followup_narrow !== "boolean" ||
     stringField(scope, "selection_reason").length === 0 ||
-    !stringArrayField(scope, "changed_files").every(isRepoPath) ||
     !stringArrayField(scope, "language_hints").every(
       (hint) => hint.length >= 0,
     ) ||
@@ -1605,9 +2601,15 @@ function validateScopeShapeSchema(
   ) {
     fail("scope decision schema mismatch");
   }
+  if (!stringArrayField(scope, "changed_files").every(isRepoPath)) {
+    fail("scope changed files contain invalid path identity");
+  }
 
   if (expectedSchema === "branch-review/scope-decision/v1") {
     validateBranchScopeReasonShape(scope);
+  }
+  if (expectedSchema === "pr-review/scope-decision/v1") {
+    validatePrReviewScopeArtifactsShape(scope);
   }
 
   const priorContext = objectField(scope, "prior_context");
@@ -1644,6 +2646,25 @@ function validateScopeShapeSchema(
     typeof semanticDecision.checked !== "boolean" ||
     typeof semanticDecision.ambiguous !== "boolean" ||
     typeof semanticDecision.notes !== "string"
+  ) {
+    fail("scope decision schema mismatch");
+  }
+}
+
+function validatePrReviewScopeArtifactsShape(scope: JsonObject): void {
+  const artifacts = objectField(scope, "artifacts");
+  if (
+    !hasExactKeys(artifacts, [
+      "provider_scope_evidence_file",
+      "provider_scope_evidence_sha256",
+    ]) ||
+    !isDirectEphemeralPath(
+      stringField(artifacts, "provider_scope_evidence_file"),
+    ) ||
+    !stringField(artifacts, "provider_scope_evidence_file").endsWith(
+      "-provider-scope-evidence.json",
+    ) ||
+    !isSha256(stringField(artifacts, "provider_scope_evidence_sha256"))
   ) {
     fail("scope decision schema mismatch");
   }
@@ -1944,6 +2965,15 @@ async function expectedFindingsPath(headSha: string): Promise<string> {
   return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
 }
 
+async function expectedProviderScopeEvidencePath(
+  headSha: string,
+): Promise<string> {
+  const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+  const branchSlug =
+    rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
+  return `.ephemeral/${branchSlug}-${headSha}-provider-scope-evidence.json`;
+}
+
 function slugBranchForFindings(branchName: string): string {
   const slug = branchName.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]/gu, "");
   if (
@@ -1963,7 +2993,7 @@ async function readSingleJsonObject(
   failureMessage: string,
 ): Promise<JsonObject> {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf-8")) as unknown;
+    const parsed = JSON.parse(await readUtf8FileStrict(file)) as unknown;
     if (
       parsed === null ||
       typeof parsed !== "object" ||
@@ -1980,9 +3010,20 @@ async function readSingleJsonObject(
   }
 }
 
+async function readUtf8FileStrict(file: string): Promise<string> {
+  return UTF8_DECODER.decode(await readFile(file));
+}
+
 async function changedFiles(range: string): Promise<string[]> {
-  const stdout = await git(["diff", "-z", "--name-only", range]);
-  return stdout.split("\0").filter(Boolean).sort();
+  return parseGitChangedFilesZ(
+    await gitRaw(["diff", "-z", "--name-only", range]),
+  ).sort();
+}
+
+async function providerBoundChangedFiles(range: string): Promise<string[]> {
+  return parseGitChangedFilesZ(
+    await canonicalGitDiffMetadataRaw(["--name-only", "-z", range]),
+  ).sort();
 }
 
 function languageHints(files: readonly string[]): string[] {
@@ -2061,12 +3102,26 @@ async function requireRangeExists(range: string): Promise<void> {
   }
 }
 
+async function requireRangeExistsForSurface(
+  surface: string,
+  range: string,
+): Promise<void> {
+  if (surface === "pr-review") {
+    await requireProviderBoundRangeExists(range);
+    return;
+  }
+  await requireRangeExists(range);
+}
+
 async function diffHunkForFileLine(
   range: string,
   file: string,
   line: number,
 ): Promise<number | null> {
-  const diff = await git(["diff", range, "--", file]);
+  if (!isRepoPath(file) || !isPositiveInteger(line)) {
+    fail("findings envelope validation failed");
+  }
+  const diff = (await canonicalGitDiffRaw(range, [file])).toString("utf8");
   return diffHunkForLine(diff, line);
 }
 
@@ -2111,6 +3166,15 @@ async function git(args: readonly string[]): Promise<string> {
   }
 }
 
+async function gitRaw(args: readonly string[]): Promise<Buffer> {
+  try {
+    const { stdout } = await runGitRaw(args, { cwd: process.cwd() });
+    return stdout;
+  } catch {
+    fail("git command failed");
+  }
+}
+
 async function gitRefExists(ref: string): Promise<boolean> {
   return (await gitStatus(["cat-file", "-e", ref])) === 0;
 }
@@ -2131,21 +3195,7 @@ async function gitDiffRangeExists(range: string): Promise<boolean> {
 }
 
 async function gitStatus(args: readonly string[]): Promise<number> {
-  return new Promise((resolve) => {
-    const child = execFile(
-      "git",
-      [...args],
-      { cwd: process.cwd(), shell: false, windowsHide: true },
-      (error) => {
-        if (error && typeof error === "object" && "code" in error) {
-          resolve(Number(error.code));
-        } else {
-          resolve(0);
-        }
-      },
-    );
-    child.on("error", () => resolve(128));
-  });
+  return runGitStatus(args, { cwd: process.cwd() });
 }
 
 function validatePattern(label: string, pattern: string): void {
@@ -2366,14 +3416,7 @@ function isValidTimestamp(value: string): boolean {
 }
 
 function isRepoPath(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    !value.startsWith("/") &&
-    value
-      .split("/")
-      .every((part) => part !== "" && part !== "." && part !== "..")
-  );
+  return isRepoPathIdentity(value);
 }
 
 function isSafeRiskSignalRepoPath(value: string): boolean {

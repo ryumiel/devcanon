@@ -33,6 +33,10 @@ const findingsFile = `.ephemeral/topic-${headSha}-findings.json`;
 const reviewBodyFile = ".ephemeral/topic-review-body.md";
 const payloadFile = `.ephemeral/topic-${headSha}-review-payload.json`;
 const scopeDecisionFile = `.ephemeral/topic-${headSha}-scope-decision.json`;
+const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
+const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
+const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const approvedReviewFile = `.ephemeral/topic-${headSha}-approved-review.json`;
 const priorThreadsFile = `.ephemeral/topic-${headSha}-prior-threads.json`;
 
@@ -124,9 +128,9 @@ function prReviewInitialScope(
     surface: "pr-review",
     mode: "initial",
     head_sha: headShaValue,
-    full_range: `${baseSha}...HEAD`,
-    selected_range: `${baseSha}...HEAD`,
-    candidate_narrow_range: `${baseSha}...HEAD`,
+    full_range: `${baseSha}..${headShaValue}`,
+    selected_range: `${baseSha}..${headShaValue}`,
+    candidate_narrow_range: `${baseSha}..${headShaValue}`,
     last_reviewed_sha: null,
     is_followup_narrow: false,
     selection_reason: "Initial PR review uses the full review range.",
@@ -148,12 +152,76 @@ function prReviewInitialScope(
       ambiguous: false,
       notes: "",
     },
+    artifacts: {
+      provider_scope_evidence_file: `.ephemeral/topic-${headShaValue}-provider-scope-evidence.json`,
+      provider_scope_evidence_sha256: "0".repeat(64),
+    },
     ...overrides,
   };
 }
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+}
+
+async function canonicalGitDiffRaw(
+  cwd: string,
+  range: string,
+  pathspecs: readonly string[] = [],
+): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    [
+      "-c",
+      "diff.noprefix=false",
+      "-c",
+      "diff.mnemonicPrefix=false",
+      "-c",
+      "diff.srcPrefix=a/",
+      "-c",
+      "diff.dstPrefix=b/",
+      "-c",
+      "diff.relative=false",
+      "-c",
+      "core.abbrev=40",
+      "-c",
+      "diff.abbrev=40",
+      "-c",
+      "diff.context=3",
+      "-c",
+      "diff.interHunkContext=0",
+      "-c",
+      "diff.algorithm=myers",
+      "-c",
+      "diff.renames=true",
+      "-c",
+      "diff.renameLimit=0",
+      "-c",
+      "diff.color=false",
+      "-c",
+      "color.ui=false",
+      "-c",
+      "core.quotePath=true",
+      "-c",
+      "diff.suppressBlankEmpty=false",
+      "-c",
+      "diff.indentHeuristic=false",
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--find-renames",
+      "--diff-algorithm=myers",
+      "--unified=3",
+      "--inter-hunk-context=0",
+      range,
+      ...(pathspecs.length > 0 ? ["--", ...pathspecs] : []),
+    ],
+    { cwd },
+  );
+  return stdout;
 }
 
 async function sha256File(cwd: string, relPath: string): Promise<string> {
@@ -163,6 +231,9 @@ async function sha256File(cwd: string, relPath: string): Promise<string> {
 }
 
 async function writeInputs(cwd: string) {
+  await writeJson(cwd, providerScopeEvidenceFile, {
+    schema: "pr-review/provider-scope-evidence/v1",
+  });
   await writeJson(cwd, findingsFile, findingsEnvelope());
   await writeFile(path.join(cwd, reviewBodyFile), "Review body\n");
   await writeJson(cwd, payloadFile, payload());
@@ -171,6 +242,54 @@ async function writeInputs(cwd: string) {
     scopeDecisionFile,
     prReviewInitialScope(headSha, headSha),
   );
+}
+
+async function writeRealProviderEvidence(
+  cwd: string,
+  baseSha: string,
+  headShaValue: string,
+  filePath: string,
+) {
+  const patch = await canonicalGitDiffRaw(cwd, `${baseSha}..${headShaValue}`, [
+    "src/example.ts",
+  ]);
+  const fullDiff = await canonicalGitDiffRaw(
+    cwd,
+    `${baseSha}..${headShaValue}`,
+  );
+  const entry = {
+    path: "src/example.ts",
+    status: "added",
+    previous_path: null,
+    additions: 1,
+    deletions: 0,
+    changes: 1,
+    patch_sha256: createHash("sha256").update(patch).digest("hex"),
+    patch_available: true,
+  };
+  await writeJson(cwd, filePath, {
+    schema: PROVIDER_EVIDENCE_SCHEMA,
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 390,
+    baseRefOid: baseSha,
+    headRefOid: headShaValue,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headShaValue,
+    full_pr_diff_range: `${baseSha}..${headShaValue}`,
+    evidence_complete: true,
+    digest_provenance: {
+      schema: DIGEST_PROVENANCE_SCHEMA,
+      provider_diff: CANONICAL_GIT_DIFF_DIALECT,
+      local_diff: CANONICAL_GIT_DIFF_DIALECT,
+      provider_patches: CANONICAL_GIT_DIFF_DIALECT,
+      local_patches: CANONICAL_GIT_DIFF_DIALECT,
+    },
+    provider_files: [entry],
+    local_files: [entry],
+    provider_diff_sha256: createHash("sha256").update(fullDiff).digest("hex"),
+    local_diff_sha256: createHash("sha256").update(fullDiff).digest("hex"),
+  });
 }
 
 async function runHelper(
@@ -314,6 +433,7 @@ describe.skipIf(!jqAvailable)(
         const validator = await writeRecordingSupportValidator(cwd);
 
         await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: headSha,
           FINDINGS_FILE: findingsFile,
           REVIEW_BODY_FILE: reviewBodyFile,
           REVIEW_PAYLOAD_FILE: payloadFile,
@@ -326,7 +446,7 @@ describe.skipIf(!jqAvailable)(
         );
         expect(args).toContain("compare-approved-payload");
         expect(args).toContain("--base-ref");
-        expect(args).toContain("main");
+        expect(args).toContain(headSha);
         expect(args).toContain("--expected-schema");
         expect(args).toContain("pr-review/scope-decision/v1");
         expect(args).toContain("--expected-prior-context-kind");
@@ -552,6 +672,7 @@ describe.skipIf(!jqAvailable)(
         const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
         const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
         const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
         const realApprovedReviewFile = `.ephemeral/topic-${realHeadSha}-approved-review.json`;
         const realValidator = path.join(
           process.cwd(),
@@ -572,6 +693,9 @@ describe.skipIf(!jqAvailable)(
           cwd,
           realScopeDecisionFile,
           prReviewInitialScope(realHeadSha, realHeadSha, {
+            full_range: `${realHeadSha}..${realHeadSha}`,
+            selected_range: `${realHeadSha}..${realHeadSha}`,
+            candidate_narrow_range: `${realHeadSha}..${realHeadSha}`,
             changed_files: [],
             language_hints: [],
             mechanical_facts: {
@@ -579,6 +703,30 @@ describe.skipIf(!jqAvailable)(
               followup_sha_usable: false,
               mechanical_escalate_full: true,
               mechanical_escalation_reason: "not-followup",
+            },
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: "0".repeat(64),
+            },
+          }),
+        );
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          realProviderEvidenceFile,
+        );
+        const providerDigest = await sha256File(cwd, realProviderEvidenceFile);
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            full_range: `${realHeadSha}..${realHeadSha}`,
+            selected_range: `${realHeadSha}..${realHeadSha}`,
+            candidate_narrow_range: `${realHeadSha}..${realHeadSha}`,
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: providerDigest,
             },
           }),
         );
@@ -594,14 +742,19 @@ describe.skipIf(!jqAvailable)(
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
-            "full range does not match caller base ref",
+            "full range must use provider PR diff base",
           ),
         });
 
         await writeJson(
           cwd,
           realScopeDecisionFile,
-          prReviewInitialScope(baseSha, realHeadSha),
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: providerDigest,
+            },
+          }),
         );
         await runHelper(cwd, "freeze-approved-review", {
           BASE_REF: baseSha,
@@ -611,10 +764,49 @@ describe.skipIf(!jqAvailable)(
           REVIEW_PAYLOAD_FILE: realPayloadFile,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
         });
+        const nonContractProviderEvidenceFile =
+          ".ephemeral/topic-provider-scope-evidence.json";
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          nonContractProviderEvidenceFile,
+        );
+        const nonContractProviderDigest = await sha256File(
+          cwd,
+          nonContractProviderEvidenceFile,
+        );
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: nonContractProviderEvidenceFile,
+              provider_scope_evidence_sha256: nonContractProviderDigest,
+            },
+          }),
+        );
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider scope evidence path mismatch",
+          ),
+        });
         await writeJson(
           cwd,
           realScopeDecisionFile,
           prReviewInitialScope(realHeadSha, realHeadSha, {
+            full_range: `${realHeadSha}..${realHeadSha}`,
+            selected_range: `${realHeadSha}..${realHeadSha}`,
+            candidate_narrow_range: `${realHeadSha}..${realHeadSha}`,
             changed_files: [],
             language_hints: [],
             mechanical_facts: {
@@ -622,6 +814,10 @@ describe.skipIf(!jqAvailable)(
               followup_sha_usable: false,
               mechanical_escalate_full: true,
               mechanical_escalation_reason: "not-followup",
+            },
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: providerDigest,
             },
           }),
         );
@@ -643,7 +839,195 @@ describe.skipIf(!jqAvailable)(
           }),
         ).rejects.toMatchObject({
           stderr: expect.stringContaining(
-            "full range does not match caller base ref",
+            "full range must use provider PR diff base",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects approved-review BASE_REF values that are not the provider diff-base", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await execFileAsync("git", ["switch", "main"], { cwd });
+        await writeFile(path.join(cwd, "README.md"), "baseline\nadvanced\n");
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "chore: advance base"], {
+          cwd,
+        });
+        const providerBaseRefOid = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        await execFileAsync("git", ["switch", "topic"], { cwd });
+
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          realProviderEvidenceFile,
+        );
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, realProviderEvidenceFile), "utf-8"),
+        ) as Record<string, unknown>;
+        await writeJson(cwd, realProviderEvidenceFile, {
+          ...evidence,
+          baseRefOid: providerBaseRefOid,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: await sha256File(
+                cwd,
+                realProviderEvidenceFile,
+              ),
+            },
+          }),
+        );
+
+        for (const wrongBaseRef of ["main", providerBaseRefOid]) {
+          await expect(
+            runHelper(cwd, "freeze-approved-review", {
+              BASE_REF: wrongBaseRef,
+              HEAD_SHA: realHeadSha,
+              FINDINGS_FILE: realFindingsFile,
+              REVIEW_BODY_FILE: reviewBodyFile,
+              REVIEW_PAYLOAD_FILE: realPayloadFile,
+              PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+            }),
+          ).rejects.toMatchObject({
+            stderr: expect.stringContaining(
+              "pr-review base ref must equal provider PR diff base",
+            ),
+          });
+        }
+
+        await runHelper(cwd, "freeze-approved-review", {
+          BASE_REF: baseSha,
+          HEAD_SHA: realHeadSha,
+          FINDINGS_FILE: realFindingsFile,
+          REVIEW_BODY_FILE: reviewBodyFile,
+          REVIEW_PAYLOAD_FILE: realPayloadFile,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    });
+
+    it("rejects approved-review freezing when provider diff-base is not derived from baseRefOid", async () => {
+      const cwd = await makeGitWorkspace();
+      try {
+        const baseSha = (
+          await execFileAsync("git", ["rev-parse", "main"], { cwd })
+        ).stdout.trim();
+        await mkdir(path.join(cwd, "src"));
+        await writeFile(
+          path.join(cwd, "src/example.ts"),
+          "export const x = 1;\n",
+        );
+        await execFileAsync("git", ["add", "."], { cwd });
+        await execFileAsync("git", ["commit", "-m", "feat: add example"], {
+          cwd,
+        });
+        const realHeadSha = (
+          await execFileAsync("git", ["rev-parse", "HEAD"], { cwd })
+        ).stdout.trim();
+        const realFindingsFile = `.ephemeral/topic-${realHeadSha}-findings.json`;
+        const realPayloadFile = `.ephemeral/topic-${realHeadSha}-review-payload.json`;
+        const realScopeDecisionFile = `.ephemeral/topic-${realHeadSha}-scope-decision.json`;
+        const realProviderEvidenceFile = `.ephemeral/topic-${realHeadSha}-provider-scope-evidence.json`;
+        const realValidator = path.join(
+          process.cwd(),
+          "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+        );
+        await writeJson(cwd, realFindingsFile, findingsEnvelope());
+        await writeFile(path.join(cwd, reviewBodyFile), "Review body");
+        await writeJson(
+          cwd,
+          realPayloadFile,
+          payload({
+            body: "Review body",
+            commit_id: realHeadSha,
+            comments: [],
+          }),
+        );
+        await writeRealProviderEvidence(
+          cwd,
+          baseSha,
+          realHeadSha,
+          realProviderEvidenceFile,
+        );
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, realProviderEvidenceFile), "utf-8"),
+        ) as Record<string, unknown>;
+        await writeJson(cwd, realProviderEvidenceFile, {
+          ...evidence,
+          baseRefOid: realHeadSha,
+        });
+        await writeJson(
+          cwd,
+          realScopeDecisionFile,
+          prReviewInitialScope(baseSha, realHeadSha, {
+            artifacts: {
+              provider_scope_evidence_file: realProviderEvidenceFile,
+              provider_scope_evidence_sha256: await sha256File(
+                cwd,
+                realProviderEvidenceFile,
+              ),
+            },
+          }),
+        );
+
+        await expect(
+          runHelper(cwd, "freeze-approved-review", {
+            BASE_REF: baseSha,
+            HEAD_SHA: realHeadSha,
+            FINDINGS_FILE: realFindingsFile,
+            REVIEW_BODY_FILE: reviewBodyFile,
+            REVIEW_PAYLOAD_FILE: realPayloadFile,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: realValidator,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "provider PR diff base must equal single merge base",
           ),
         });
       } finally {

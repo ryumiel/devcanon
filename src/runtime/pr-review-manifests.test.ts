@@ -56,6 +56,7 @@ interface ManifestWorkspace {
   worktreeDigest: string;
   findingsFile: string;
   reviewBodyFile: string;
+  providerScopeEvidenceFile: string;
 }
 
 afterEach(async () => {
@@ -94,10 +95,10 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
     expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
     expect(result.stdout).toContain(
-      `Active diff range: \`${workspace.baseSha}..HEAD\``,
+      `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
     );
     expect(result.stdout).toContain(
-      `Full PR diff range: \`${workspace.baseSha}...HEAD\``,
+      `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
     );
     expect(result.stdout).toContain(
       `Result manifest: \`${workspace.resultFile}\``,
@@ -366,6 +367,196 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(outcome.stdout).toBe("");
     expect(outcome.stderr).toContain("result schema mismatch");
   });
+
+  it("rejects provider evidence digest drift during Phase 5 result validation", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-provider-evidence-drift-",
+    );
+    setSummaryEnv(workspace);
+    await writeJson(workspace.worktree, workspace.providerScopeEvidenceFile, {
+      schema: "pr-review/provider-scope-evidence/v2",
+      provider: "github",
+      repository: "owner/repo",
+      pr_number: 432,
+      baseRefOid: workspace.baseSha,
+      headRefOid: workspace.headSha,
+      provider_pr_diff_base_sha: workspace.baseSha,
+      local_review_head_sha: workspace.headSha,
+      full_pr_diff_range: `${workspace.baseSha}..${workspace.headSha}`,
+      evidence_complete: true,
+      digest_provenance: {
+        schema: "pr-review/digest-provenance/v1",
+        provider_diff: "canonical-git-diff/v1",
+        local_diff: "canonical-git-diff/v1",
+        provider_patches: "canonical-git-diff/v1",
+        local_patches: "canonical-git-diff/v1",
+      },
+      provider_files: [],
+      local_files: [],
+      provider_diff_sha256: "0".repeat(64),
+      local_diff_sha256: "1".repeat(64),
+    });
+
+    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("provider scope evidence digest mismatch");
+  });
+
+  it.each([
+    {
+      name: "repository",
+      patch: { repository: "other/repo" },
+      stderr: "provider evidence repository mismatch",
+    },
+    {
+      name: "PR number",
+      patch: { pr_number: 433 },
+      stderr: "provider evidence PR number mismatch",
+    },
+    {
+      name: "schema",
+      patch: { schema: "pr-review/provider-scope-evidence/v1" },
+      stderr: "provider evidence schema mismatch",
+    },
+    {
+      name: "provider",
+      patch: { provider: "gitlab" },
+      stderr: "provider evidence provider must be github",
+    },
+    {
+      name: "baseRefOid",
+      patch: { baseRefOid: "main" },
+      stderr: "provider evidence baseRefOid is malformed",
+    },
+    {
+      name: "full range",
+      patch: { full_pr_diff_range: `${"0".repeat(40)}..${"1".repeat(40)}` },
+      stderr: "provider evidence full range mismatch",
+    },
+  ])(
+    "rejects provider evidence $name mismatch during Phase 5 result validation",
+    async ({ patch, stderr }) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-provider-evidence-identity-",
+      );
+      setSummaryEnv(workspace);
+      const evidence = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.providerScopeEvidenceFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, workspace.providerScopeEvidenceFile, {
+        ...evidence,
+        ...patch,
+      });
+      const providerScopeEvidenceSha256 = await sha256File(
+        path.join(workspace.worktree, workspace.providerScopeEvidenceFile),
+      );
+      const scopeFile = `.ephemeral/topic-${workspace.headSha}-scope-decision.json`;
+      const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+      const scope = JSON.parse(
+        await readFile(path.join(workspace.worktree, scopeFile), "utf8"),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, scopeFile, {
+        ...scope,
+        artifacts: {
+          ...(scope.artifacts as Record<string, unknown>),
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const scopeSha256 = await sha256File(
+        path.join(workspace.worktree, scopeFile),
+      );
+      const handoff = JSON.parse(
+        await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, handoffFile, {
+        ...handoff,
+        artifacts: {
+          ...(handoff.artifacts as Record<string, unknown>),
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const handoffSha256 = await sha256File(
+        path.join(workspace.worktree, handoffFile),
+      );
+      const resultManifest = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.resultFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      await writeJson(workspace.worktree, workspace.resultFile, {
+        ...resultManifest,
+        digests: {
+          ...(resultManifest.digests as Record<string, unknown>),
+          handoff_sha256: handoffSha256,
+          scope_decision_sha256: scopeSha256,
+          provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+        },
+      });
+      const resultSha256 = await sha256File(
+        path.join(workspace.worktree, workspace.resultFile),
+      );
+      const lease = JSON.parse(
+        await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        ),
+      ) as Record<string, unknown>;
+      const validation = lease.validation as Record<string, unknown>;
+      await writeJson(workspace.primary, workspace.leaseFile, {
+        ...lease,
+        validation: {
+          ...validation,
+          result_manifest: {
+            ...(validation.result_manifest as Record<string, unknown>),
+            sha256: resultSha256,
+          },
+        },
+      });
+
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(stderr);
+    },
+  );
+
+  it("requires explicit provider evidence input for adapter scope validation", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-explicit-provider-input-",
+    );
+    const helper = await writeExecutable(
+      path.join(workspace.tempRoot, "pass-validator.sh"),
+      ["#!/usr/bin/env bash", "set -euo pipefail", "exit 0", ""].join("\n"),
+    );
+    const adapter = path.join(
+      originalCwd,
+      "skills/pr-review/scripts/prior-thread-artifacts.sh",
+    );
+
+    await expect(
+      execFileAsync("bash", [adapter, "validate-scope-decision"], {
+        cwd: workspace.worktree,
+        env: {
+          ...process.env,
+          HEAD_SHA: workspace.headSha,
+          BASE_REF: workspace.baseSha,
+          SCOPE_DECISION_FILE: `.ephemeral/topic-${workspace.headSha}-scope-decision.json`,
+          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
+        },
+      }),
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining(
+        "PROVIDER_SCOPE_EVIDENCE_FILE is required",
+      ),
+    });
+  });
 });
 
 async function runManifestCommand(
@@ -424,6 +615,34 @@ async function makeManifestWorkspace(
   const resultFile = `.ephemeral/pr-432-${headSha}-result.json`;
   const reviewBodyFile = `.ephemeral/topic-${headSha}-review-body.md`;
   const previewFile = `.ephemeral/topic-${headSha}-review-preview.md`;
+  const providerScopeEvidenceFile = `.ephemeral/topic-${headSha}-provider-scope-evidence.json`;
+  const providerPrDiffRange = `${baseSha}..${headSha}`;
+  await writeJson(worktree, providerScopeEvidenceFile, {
+    schema: "pr-review/provider-scope-evidence/v2",
+    provider: "github",
+    repository: "owner/repo",
+    pr_number: 432,
+    baseRefOid: baseSha,
+    headRefOid: headSha,
+    provider_pr_diff_base_sha: baseSha,
+    local_review_head_sha: headSha,
+    full_pr_diff_range: providerPrDiffRange,
+    evidence_complete: true,
+    digest_provenance: {
+      schema: "pr-review/digest-provenance/v1",
+      provider_diff: "canonical-git-diff/v1",
+      local_diff: "canonical-git-diff/v1",
+      provider_patches: "canonical-git-diff/v1",
+      local_patches: "canonical-git-diff/v1",
+    },
+    provider_files: [],
+    local_files: [],
+    provider_diff_sha256: "0".repeat(64),
+    local_diff_sha256: "0".repeat(64),
+  });
+  const providerScopeEvidenceSha256 = await sha256File(
+    path.join(worktree, providerScopeEvidenceFile),
+  );
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v1",
@@ -435,13 +654,17 @@ async function makeManifestWorkspace(
   await writeJson(worktree, scopeFile, {
     head_sha: headSha,
     selection_reason: "Initial review covers the full pull request.",
-    selected_range: `${baseSha}..HEAD`,
-    full_range: `${baseSha}...HEAD`,
+    selected_range: providerPrDiffRange,
+    full_range: providerPrDiffRange,
     is_followup_narrow: false,
     language_hints: [],
     mode: "initial",
     last_reviewed_sha: null,
     prior_context: { kind: "none", path: null },
+    artifacts: {
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
+    },
   });
   await writeJson(worktree, handoffFile, {
     schema: "pr-review/handoff/v1",
@@ -454,8 +677,8 @@ async function makeManifestWorkspace(
     base_ref: "main",
     head_ref: "topic",
     review_scope_base_ref: baseSha,
-    active_diff_range: `${baseSha}..HEAD`,
-    full_pr_diff_range: `${baseSha}...HEAD`,
+    active_diff_range: providerPrDiffRange,
+    full_pr_diff_range: providerPrDiffRange,
     review_head_sha: headSha,
     mode: "github-post",
     language_hints: [],
@@ -467,6 +690,8 @@ async function makeManifestWorkspace(
     artifacts: {
       scope_decision_file: scopeFile,
       prior_threads_file: null,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
   });
   const resultManifest = {
@@ -482,6 +707,7 @@ async function makeManifestWorkspace(
       scope_decision_file: scopeFile,
       prior_threads_file: null,
       rendered_preview_file: previewFile,
+      provider_scope_evidence_file: providerScopeEvidenceFile,
     },
     digests: {
       handoff_sha256: await sha256File(path.join(worktree, handoffFile)),
@@ -493,11 +719,12 @@ async function makeManifestWorkspace(
       rendered_preview_sha256: await sha256File(
         path.join(worktree, previewFile),
       ),
+      provider_scope_evidence_sha256: providerScopeEvidenceSha256,
     },
     scope_decision: {
       summary: "Initial review covers the full pull request.",
-      selected_range: `${baseSha}..HEAD`,
-      full_range: `${baseSha}...HEAD`,
+      selected_range: providerPrDiffRange,
+      full_range: providerPrDiffRange,
       is_followup_narrow: false,
     },
     presentation: {
@@ -568,6 +795,7 @@ async function makeManifestWorkspace(
     worktreeDigest,
     findingsFile,
     reviewBodyFile,
+    providerScopeEvidenceFile,
   };
 }
 
