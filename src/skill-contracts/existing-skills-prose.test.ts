@@ -762,6 +762,67 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps PR 491 local evidence and shared reporting boundaries distinct", async () => {
+    const reportDevcanonIssue = await readSkillSource("report-devcanon-issue");
+    const githubIssuePriming = await readSkillSource("github-issue-priming");
+    const linearIssuePriming = await readSkillSource("linear-issue-priming");
+    const sharedSkillReporting = await readRepoFile(
+      "docs/guidelines/shared-skill-reporting-workflow.md",
+    );
+
+    const normalizedReportIssue = normalizeWhitespace(reportDevcanonIssue);
+    const normalizedGithubIssuePriming =
+      normalizeWhitespace(githubIssuePriming);
+    const normalizedLinearIssuePriming =
+      normalizeWhitespace(linearIssuePriming);
+    const normalizedSharedSkillReporting =
+      normalizeWhitespace(sharedSkillReporting);
+
+    expect(normalizedReportIssue).toContain(
+      "Continue toward `MODE=draft` when a sanitized PR-comment follow-up explicitly requests an upstream DevCanon issue",
+    );
+    expect(normalizedReportIssue).toContain(
+      "Never post the issue from a PR-comment follow-up without showing the draft and receiving explicit user confirmation",
+    );
+
+    for (const normalizedIssuePriming of [
+      normalizedGithubIssuePriming,
+      normalizedLinearIssuePriming,
+    ]) {
+      expect(normalizedIssuePriming).toContain(
+        "Local `.ephemeral` comment evidence may preserve exact tracker comment bodies, logs, or stack traces when needed for implementation and safe for the worktree-local audience",
+      );
+      expect(normalizedIssuePriming).toContain(
+        "Later PR comments, shared issue reports, and durable docs must summarize that material instead of quoting it",
+      );
+    }
+
+    expect(normalizedReportIssue).toContain(
+      "Do not quote sanitized individual stack frames, log lines, prompt excerpts, transcript excerpts, validation-log lines, or agent-local artifact excerpts in shared issue bodies",
+    );
+    expect(normalizedReportIssue).not.toContain(
+      "stack traces and log lines: sanitize each frame or line individually",
+    );
+
+    for (const normalizedSharedSurface of [
+      normalizedReportIssue,
+      normalizedSharedSkillReporting,
+    ]) {
+      expect(normalizedSharedSurface).toContain(
+        "Prefer DevCanon version, revision, or commit SHA for shared issue provenance",
+      );
+      expect(normalizedSharedSurface).toContain(
+        "include branch or worktree names only when sanitized and necessary; otherwise omit them",
+      );
+      expect(normalizedSharedSurface).not.toContain(
+        "`DevCanon` revision, branch, or version",
+      );
+      expect(normalizedSharedSurface).not.toContain(
+        "`devcanon` revision/branch/version",
+      );
+    }
+  });
+
   it("keeps executor mirrors narrow for plan-declared Contract Example Discipline", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
