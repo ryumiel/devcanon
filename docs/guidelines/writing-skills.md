@@ -306,7 +306,12 @@ Classify each skill-adjacent change by the source-owned contract it affects:
   schemas, notice lines, authority rules, trust boundaries, or other
   load-bearing prose need focused source-contract coverage under
   `src/skill-contracts/`. Do not use generated-output snapshots to own broad
-  source prose.
+  source prose. When the change introduces or materially changes generated
+  artifacts, derived artifacts, helper I/O files, `.ephemeral` handoffs,
+  cross-skill handoffs, or side-channel data, apply the Side-Channel Artifact
+  Contract Checklist in `docs/guidelines/documentation-checklists.md` before
+  deciding the source-contract, script-runtime, render, or no-generated-output
+  coverage route.
 - **Bundled references:** Changes under `references/`, `assets/`, or
   `examples/` need render coverage only when the mirrored packaging behavior is
   the contract being protected. Otherwise, pin load-bearing reference prose in

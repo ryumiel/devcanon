@@ -535,6 +535,121 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps side-channel artifact contract checklist guidance in source", async () => {
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const playPlanning = await readSkillSource("play-planning");
+    const playReview = await readSkillSource("play-review");
+    const codeReviewGuideline = await readRepoFile(
+      "docs/guidelines/code-review-guideline.md",
+    );
+    const writingSkills = await readRepoFile(
+      "docs/guidelines/writing-skills.md",
+    );
+    const checklist = getMarkdownSection(
+      documentationChecklists,
+      "Side-Channel Artifact Contract Checklist",
+    );
+    const normalizedChecklist = normalizeWhitespace(checklist);
+
+    for (const contractDimension of [
+      "Artifact owner and authority",
+      "Producer and consumer roles",
+      "Schema name/version and shape",
+      "Notice-line contract",
+      "Path shape",
+      "Write-side guards",
+      "Read-side guards",
+      "Missing, absent, unreadable, malformed, stale, and duplicate semantics",
+      "Post-create side-effect failure semantics",
+      "Cleanup and persistence",
+      "Redaction and data residency",
+      "Trust boundary",
+      "Coverage route",
+      "Precedents",
+    ]) {
+      expect(normalizedChecklist).toContain(contractDimension);
+    }
+
+    expect(normalizedChecklist).toContain("direct child of `.ephemeral/`");
+    expect(normalizedChecklist).toContain(
+      "reject duplicate entries before normalization or exact comparison",
+    );
+    expect(normalizedChecklist).toContain(
+      "do not let sorting, normalization, or deduplication hide contradictory producer claims",
+    );
+    expect(normalizedChecklist).toContain(
+      "Concrete artifact schemas, helper mechanics, emitted diagnostics, and runtime validation remain owned",
+    );
+    for (const sideChannelTrigger of [
+      "generated artifact",
+      "derived artifact",
+      "helper I/O file",
+      "`.ephemeral` handoff",
+      "cross-skill handoff",
+      "side-channel data",
+    ]) {
+      expect(normalizedChecklist).toContain(sideChannelTrigger);
+    }
+
+    for (const precedent of [
+      "play-review",
+      "issue-priming phase artifacts",
+      "implementer snapshots",
+      "risk signals",
+      "ADR-0012",
+      "ADR-0013",
+      "ADR-0014",
+      "ADR-0019",
+    ]) {
+      expect(normalizedChecklist).toContain(precedent);
+    }
+
+    for (const consumerSurface of [
+      playPlanning,
+      playReview,
+      codeReviewGuideline,
+      writingSkills,
+    ]) {
+      const normalizedSurface = normalizeWhitespace(consumerSurface);
+      expect(normalizedSurface).toContain(
+        "Side-Channel Artifact Contract Checklist",
+      );
+      expect(normalizedSurface).toContain(
+        "docs/guidelines/documentation-checklists.md",
+      );
+      for (const sideChannelTrigger of [
+        "generated artifacts",
+        "derived artifacts",
+        "helper I/O files",
+        "`.ephemeral` handoffs",
+        "cross-skill handoffs",
+        "side-channel data",
+      ]) {
+        expect(normalizedSurface).toContain(sideChannelTrigger);
+      }
+    }
+
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "plan against the Side-Channel Artifact Contract Checklist",
+    );
+    expect(normalizeWhitespace(playPlanning)).toContain(
+      "include the relevant Side-Channel Artifact Contract Checklist obligations",
+    );
+    for (const reviewSurface of [playReview, codeReviewGuideline]) {
+      expect(normalizeWhitespace(reviewSurface)).toContain(
+        "apply the Side-Channel Artifact Contract Checklist",
+      );
+    }
+    expect(normalizeWhitespace(writingSkills)).toContain(
+      "apply the Side-Channel Artifact Contract Checklist",
+    );
+    expect(normalizeWhitespace(writingSkills)).toContain(
+      "before deciding the source-contract, script-runtime, render, or no-generated-output coverage route",
+    );
+  });
+
   it("keeps executor mirrors narrow for plan-declared Contract Example Discipline", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",

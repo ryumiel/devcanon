@@ -65,6 +65,14 @@ surfaces, and verify that any missing, inapplicable, or intentionally unchanged
 surface is named with a reason instead of inferred from generated output or
 issue/comment evidence.
 
+When a diff introduces or materially changes generated artifacts, derived
+artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill handoffs, or
+side-channel data consumed by another actor, reviewers should also apply the
+Side-Channel Artifact Contract Checklist in
+`docs/guidelines/documentation-checklists.md`. Findings should cite the concrete
+contract gap while preserving the owning source's authority for schemas,
+helpers, validators, and diagnostics.
+
 ### Lifecycle-State Disclosure
 
 When reviewing workflow prose that surfaces subagent lifecycle state to a user

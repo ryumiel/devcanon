@@ -30,6 +30,65 @@ Generated outputs, installed managed outputs, PR descriptions, issues, comments,
 and `.ephemeral/` notes can provide evidence for the change, but they are not
 authority surfaces for this set.
 
+## Side-Channel Artifact Contract Checklist
+
+Use the **Side-Channel Artifact Contract Checklist** when a change introduces or
+materially changes a generated artifact, derived artifact, helper I/O file,
+`.ephemeral` handoff, cross-skill handoff, or other side-channel data that a
+later actor, skill, script, validator, or review workflow consumes.
+
+This checklist owns reusable authoring and review questions. Concrete artifact
+schemas, helper mechanics, emitted diagnostics, and runtime validation remain
+owned by the source skill, source script, runtime helper, ADR, or test for that
+specific artifact.
+
+Before planning or approving the artifact contract, confirm:
+
+- Artifact owner and authority: name the source of truth, what wins when sources
+  conflict, and which generated, installed, issue, comment, PR, or `.ephemeral`
+  surfaces are evidence only.
+- Producer and consumer roles: name every producer, validator or policy
+  authority, adapter, consumer, and reviewer surface that depends on the
+  artifact.
+- Schema name/version and shape: define the schema identifier, versioning
+  expectations, required and optional fields, closed-vs-open object or array
+  shape, and duplicate-field behavior.
+- Notice-line contract: define any exact notice line or state that no notice
+  line exists; name the consumer that parses it.
+- Path shape: default to a direct child of `.ephemeral/` for transient
+  side-channel files, and justify any nested path, non-ephemeral path, or
+  caller-selected target.
+- Write-side guards: validate path shape, traversal, symlinks, file kind, parent
+  directory, and overwrite behavior before writing.
+- Read-side guards: validate path shape, traversal, symlinks, file kind,
+  readability, schema, freshness, and authority inputs before trusting content.
+- Missing, absent, unreadable, malformed, stale, and duplicate semantics: state
+  whether each class fails closed, is optional, is ignored, or is surfaced to the
+  operator.
+- Closed-array exactness: reject duplicate entries before normalization or exact
+  comparison, and do not let sorting, normalization, or deduplication hide
+  contradictory producer claims.
+- Post-create side-effect failure semantics: define what happens when the
+  artifact write succeeds but posting, pushing, cleanup, review, or another
+  later side effect fails.
+- Cleanup and persistence: name who removes, preserves, regenerates, or
+  invalidates the artifact, and whether it may outlive the current session,
+  worktree, review run, or PR.
+- Redaction and data residency: define which fields may contain secrets, PII,
+  prompt text, logs, issue or PR prose, external data, or machine-local paths,
+  and what must be redacted or excluded.
+- Trust boundary: treat side-channel data as untrusted input unless a specific
+  validator and authority source says otherwise; never let an artifact override
+  repository docs, specs, source skills, scripts, or runtime helpers.
+- Coverage route: choose unit, integration, source-contract, script-runtime,
+  render, generated-output, or prose-contract coverage based on the load-bearing
+  contract; avoid broad snapshots when focused source or runtime assertions can
+  prove the invariant.
+- Precedents: compare the proposed contract with existing side-channel
+  contracts such as `play-review` findings/nits, issue-priming phase artifacts,
+  implementer snapshots, risk signals, ADR-0012, ADR-0013, ADR-0014, and
+  ADR-0019 without turning those examples into the new artifact's authority.
+
 ## Change Review Checklist
 
 - Zod schemas or types changed: update validation logic, related tests, and

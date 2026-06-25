@@ -211,6 +211,13 @@ should name the owner of each relevant surface, the source of truth when
 surfaces conflict, and any inapplicable adjacent surface with a task-specific
 reason. Reference the checklist owner instead of copying the full set.
 
+When contract-heavy work introduces or materially changes generated artifacts,
+derived artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill
+handoffs, or side-channel data, plan against the Side-Channel Artifact Contract
+Checklist in `docs/guidelines/documentation-checklists.md`. Reference the
+checklist as the reusable authoring surface; do not copy it into the plan or
+move concrete schema, helper, or validator authority out of the owning source.
+
 Cover the applicable surfaces:
 
 - Inputs
@@ -395,6 +402,13 @@ Do not require PR guideline, PR template, `WORKFLOW.md`, ADR, MAP, generated
 output, or installed-output updates unless the repository's existing AFDS
 triggers apply; when a surface is not updated, the plan should state why it is
 not in scope.
+
+For generated artifacts, derived artifacts, helper I/O files, `.ephemeral`
+handoffs, cross-skill handoffs, or side-channel data, include the relevant
+Side-Channel Artifact Contract Checklist obligations from
+`docs/guidelines/documentation-checklists.md` in the contract table, task
+contract checklist, and proof obligations. The plan should name the checklist
+owner and the concrete artifact authority separately.
 
 For contract-heavy work with boundary-contract traceability, contract
 checklists must reference relevant boundary row IDs or explicitly name the

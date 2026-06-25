@@ -360,6 +360,14 @@ contradictions. This review-time check is a backstop for the earlier
 `play-brainstorm` and `play-planning` gates; it must not replace those gates or
 change the findings schema/output contract.
 
+When the diff introduces or materially changes generated artifacts, derived
+artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill handoffs, or
+side-channel data consumed by another actor, apply the Side-Channel Artifact
+Contract Checklist in `docs/guidelines/documentation-checklists.md`. Treat that
+checklist as reusable review guidance only; concrete schemas, helper mechanics,
+validators, notice lines, and diagnostics remain owned by the changed source
+skill, script, runtime helper, ADR, or test.
+
 Do not load the ADR corpus as discovered guideline content by default. When ADR
 procedure, ADR format, or ADR claims are part of the adjacent governance
 surface, list relevant ADR references in the shared review context instead of
