@@ -27,11 +27,11 @@ gh pr view <N> --json state --jq '.state'
 
 ## Step 1b: Validate PR Title and Description
 
-Use the `pr-authoring` skill workflow in `validate-fix` mode by reading and
-following `skills/pr-authoring/SKILL.md`; apply any repaired title/body it
-returns before proceeding. `pr-authoring` is the shared policy owner for PR
-title/body validation; this step owns the `gh pr edit` side effect only. Do not
-search for or require a callable `pr-authoring` tool.
+Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode
+by reading and following that skill bundle's `SKILL.md`; apply any repaired
+title/body it returns before proceeding. `pr-authoring` is the shared policy
+owner for PR title/body validation; this step owns the `gh pr edit` side effect
+only. Do not search for or require a callable `pr-authoring` tool.
 
 Gather stable PR data for `pr-authoring` up front with `gh pr view`,
 `gh pr diff --name-only`, and PR commit metadata:
@@ -252,7 +252,7 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 | Situation                         | Action                                                                                                                                                |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                      |
-| PR authoring validation           | Use the `pr-authoring` skill workflow through `skills/pr-authoring/SKILL.md` in `validate-fix` mode, then apply repaired title/body with `gh pr edit` |
+| PR authoring validation           | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `gh pr edit`                      |
 | Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `gh pr edit --body-file`                                          |
 | No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
 | CI pending                        | Poll every 3 min (configurable)                                                                                                                       |
