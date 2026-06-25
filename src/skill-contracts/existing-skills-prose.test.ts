@@ -3266,6 +3266,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain("pr-authoring");
     expect(normalizeWhitespace(prMergeValidation)).toContain("validate-fix");
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "available sibling `pr-authoring` skill workflow",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "that skill bundle's `SKILL.md`",
+    );
     expect(normalizeWhitespace(prMergeValidation)).toContain("gh pr edit");
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       ".github/pull_request_template.md",
@@ -3284,6 +3290,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       "Omit flags for unchanged fields",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "Do not search for or require a callable `pr-authoring` tool",
+    );
+    expect(normalizeWhitespace(prMergeValidation)).not.toContain(
+      "skills/pr-authoring/SKILL.md",
     );
     expect(normalizeWhitespace(prMergeValidation)).not.toContain(
       "skip validation",
