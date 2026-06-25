@@ -59,6 +59,12 @@ evidence and lockfile-scope review expectations.
 - Put handoff notes or reviewer-specific context in PR comments unless the
   information changes the durable rationale, impact, or verification for the
   PR.
+- Handoff PR comments that reuse agent-local workflow evidence must follow the
+  `Agent-Local Evidence Reuse Boundary` in
+  `docs/specs/afds-workflow-routing.md`: use sanitized summary-only outcomes
+  and evidence pointers, not raw `.ephemeral` paths or contents, copied
+  retrospectives, internal decision trails, session chronology, transcripts,
+  prompts, logs, validation-log dumps, or stack traces.
 
 ### Breaking Changes
 

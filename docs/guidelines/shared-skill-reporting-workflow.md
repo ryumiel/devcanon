@@ -24,8 +24,17 @@ The Scope rule — including the positive frame, the categories-vs-identity boun
 
 ## 3. Reporting Flow
 
-1. Invoke `report-devcanon-issue` from the consumer repo.
-2. Capture the minimum issue payload:
+1. If the discovery occurs while preparing or updating a PR and the user has
+   not explicitly requested an upstream DevCanon issue, write a sanitized PR
+   comment first. The comment should summarize the reusable shared-skill or
+   shared-agent gap, current validation state, blockers, and follow-up link or
+   requested decision. Do not include raw `.ephemeral` paths, internal decision
+   trails, prompt/transcript/log excerpts, validation-log dumps, stack traces,
+   or unsanitized branch/worktree names.
+2. Invoke `report-devcanon-issue` only when the user explicitly asks to create
+   or draft an upstream DevCanon issue from the reusable discovery, or after the
+   PR-comment path produces an explicit follow-up request to file one.
+3. Capture the minimum issue payload:
    - consumer repo or sanitized project descriptor
    - affected shared skill or agent
    - target (`codex`, `claude`, or both)
@@ -36,12 +45,20 @@ The Scope rule — including the positive frame, the categories-vs-identity boun
    - install mode and sanitized artifact path
    - `devcanon` revision, branch, or version, if known
    - whether the problem still reproduces after `render` and after `sync`
-   - excerpt safety and redaction status
+   - summary-only redaction status for any omitted prompt, transcript, log,
+     stack, or validation material
    - blocker issue IDs, if known
    - optional proposed direction
-3. Apply the § 2 Scope rule to the body. For any quoted material, follow the Redaction Gate in [`skills/report-devcanon-issue/SKILL.md` § Redaction Gate](../../skills/report-devcanon-issue/SKILL.md#redaction-gate). The redaction rules are canonical there.
-4. Search open `ryumiel/devcanon` issues for likely duplicates before opening a new one, using only sanitized shared-component terms rather than raw consumer identifiers or local paths.
-5. Confirm the final draft before posting.
+4. Apply the § 2 Scope rule to the body. Shared-skill reports are shared
+   comments/issues, so also follow the `Agent-Local Evidence Reuse Boundary` in
+   [`../specs/afds-workflow-routing.md`](../specs/afds-workflow-routing.md):
+   summarize prompt, transcript, log, stack, validation, and agent-local
+   context instead of quoting it. For any remaining quoted material, follow the
+   Redaction Gate in
+   [`skills/report-devcanon-issue/SKILL.md` § Redaction Gate](../../skills/report-devcanon-issue/SKILL.md#redaction-gate).
+   The redaction rules are canonical there.
+5. Search open `ryumiel/devcanon` issues for likely duplicates before opening a new one, using only sanitized shared-component terms rather than raw consumer identifiers or local paths.
+6. Confirm the final draft before posting.
 
 If the user declines posting, keep the exact draft available for manual reuse. If posting fails, preserve the drafted title and body and report the failure. If the reproduction is incomplete, draft the issue anyway but mark the missing detail explicitly. If GitHub access to `ryumiel/devcanon` is unavailable, stop at a reusable draft instead of attempting to post.
 
@@ -51,7 +68,7 @@ Use the issue body shape canonically defined in [`../../WORKFLOW.md` § Creating
 
 For title format and `(scope)` rules, see [`../../skills/report-devcanon-issue/SKILL.md` § Issue Draft Shape](../../skills/report-devcanon-issue/SKILL.md#issue-draft-shape).
 
-When filling WORKFLOW.md's "Environment and provenance" body field for a shared-skill or shared-agent report, include target (`codex`, `claude`, or both), install mode (`symlink`, `copy`, or `unknown`), `devcanon` revision/branch/version, and whether the problem still reproduces after `render` and after `sync`. These fields are gathered per § 3 step 2.
+When filling WORKFLOW.md's "Environment and provenance" body field for a shared-skill or shared-agent report, include target (`codex`, `claude`, or both), install mode (`symlink`, `copy`, or `unknown`), `devcanon` revision/branch/version, and whether the problem still reproduces after `render` and after `sync`. These fields are gathered per § 3 step 3.
 
 If blocker issue IDs are known, set the actual GitHub `blocked by` relationship after issue creation instead of only mentioning blockers in the body text.
 

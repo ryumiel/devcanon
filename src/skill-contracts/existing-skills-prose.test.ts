@@ -650,6 +650,118 @@ describe("existing skills source prose contracts", () => {
     );
   });
 
+  it("keeps agent-local evidence reuse summary-only on shared surfaces", async () => {
+    const routingSpec = await readRepoFile(
+      "docs/specs/afds-workflow-routing.md",
+    );
+    const behaviorSpecEvidenceRouting = await readRepoFile(
+      "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    const documentationChecklists = await readRepoFile(
+      "docs/guidelines/documentation-checklists.md",
+    );
+    const portableProcedureMap = await readRepoFile(
+      "docs/guidelines/portable-afds-user-procedure-map.md",
+    );
+    const sharedSkillReporting = await readRepoFile(
+      "docs/guidelines/shared-skill-reporting-workflow.md",
+    );
+    const prGuideline = await readRepoFile("docs/guidelines/pr-guideline.md");
+    const codeReviewGuideline = await readRepoFile(
+      "docs/guidelines/code-review-guideline.md",
+    );
+    const reportDevcanonIssue = await readSkillSource("report-devcanon-issue");
+    const subagentLifecycle = await readSkillSource("subagent-lifecycle");
+    const githubIssuePriming = await readSkillSource("github-issue-priming");
+    const linearIssuePriming = await readSkillSource("linear-issue-priming");
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const playReviewResponse = await readSkillSource("play-review-response");
+
+    const normalizedEvidenceBoundary = normalizeWhitespace(routingSpec);
+
+    for (const phrase of [
+      "session-local",
+      "sanitized shared comments",
+      "durable docs",
+      "raw `.ephemeral` artifact paths or contents",
+      "unsanitized branch or worktree names",
+      "prompt excerpts, transcript excerpts, log excerpts, validation-log dumps, stack-trace excerpts",
+      "summary-only",
+      "stable shared reference visible to the same audience",
+      "shared system, artifact, policy, process, workflow component, or blocker",
+      "explicit user request or confirmation",
+    ]) {
+      expect(normalizedEvidenceBoundary).toContain(phrase);
+    }
+
+    for (const surface of [
+      behaviorSpecEvidenceRouting,
+      documentationChecklists,
+      portableProcedureMap,
+      sharedSkillReporting,
+      prGuideline,
+      codeReviewGuideline,
+      reportDevcanonIssue,
+      subagentLifecycle,
+      githubIssuePriming,
+      linearIssuePriming,
+      issuePrimingWorkflow,
+      playBranchFinish,
+      playReviewResponse,
+    ]) {
+      expect(normalizeWhitespace(surface)).toContain(
+        "Agent-Local Evidence Reuse Boundary",
+      );
+    }
+
+    const normalizedReportIssue = normalizeWhitespace(reportDevcanonIssue);
+    const normalizedSharedSkillReporting =
+      normalizeWhitespace(sharedSkillReporting);
+    expect(normalizedSharedSkillReporting).toContain(
+      "If the discovery occurs while preparing or updating a PR and the user has not explicitly requested an upstream DevCanon issue, write a sanitized PR comment first",
+    );
+    expect(normalizedSharedSkillReporting).toContain(
+      "Invoke `report-devcanon-issue` only when the user explicitly asks to create or draft an upstream DevCanon issue",
+    );
+    expect(normalizedReportIssue).toContain(
+      "summary-only prompt, transcript, log, stack, or validation context",
+    );
+    expect(normalizedReportIssue).toContain(
+      "During PR work, default to a sanitized PR comment first unless the user explicitly requested an upstream DevCanon issue",
+    );
+    expect(normalizedReportIssue).toContain(
+      "Continue toward `MODE=draft` when the user explicitly requested an upstream DevCanon issue",
+    );
+    expect(normalizedReportIssue).toContain(
+      "Never post an issue without showing the exact draft first and receiving explicit confirmation",
+    );
+    expect(normalizedReportIssue).not.toContain(
+      "optional verbatim prompt or transcript excerpt",
+    );
+    expect(normalizedReportIssue).not.toContain(
+      "use verbatim only after the _user_ has pasted or quoted the exact text themselves",
+    );
+
+    expect(normalizeWhitespace(subagentLifecycle)).toContain(
+      "Use summary-only prompt, transcript, log, stack, validation, and captured-state context",
+    );
+    expect(normalizeWhitespace(githubIssuePriming)).toContain(
+      "Write concise summaries by default",
+    );
+    expect(normalizeWhitespace(linearIssuePriming)).toContain(
+      "Write concise summaries by default",
+    );
+    expect(normalizeWhitespace(playBranchFinish)).toContain(
+      "Because this file becomes a shared PR comment",
+    );
+    expect(normalizeWhitespace(playReviewResponse)).toContain(
+      "Do not include raw `.ephemeral` paths, transcripts, prompts, logs, validation-log dumps, stack traces, internal decision trails, or session chronology",
+    );
+  });
+
   it("keeps executor mirrors narrow for plan-declared Contract Example Discipline", async () => {
     const playSubagentExecution = await readSkillSource(
       "play-subagent-execution",
@@ -1559,18 +1671,28 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps DevCanon issue reporting pointed at the DevCanon repository", async () => {
     const skillSource = await readSkillSource("report-devcanon-issue");
+    const normalizedSkillSource = normalizeWhitespace(skillSource);
 
     expect(skillSource).toContain("name: report-devcanon-issue");
     expect(skillSource).toContain("ryumiel/devcanon");
     expect(skillSource).not.toContain("ryumiel/agent-manager");
     expect(skillSource).toContain("consumer repo names, owners, orgs");
     expect(skillSource).toContain("Ask one question at a time");
+    expect(normalizedSkillSource).toContain(
+      "Use this skill when the user explicitly asks to draft or create an upstream DevCanon issue",
+    );
+    expect(normalizedSkillSource).toContain(
+      "During PR work, default to a sanitized PR comment first unless the user explicitly requested an upstream DevCanon issue.",
+    );
     expect(skillSource).toContain(
       "Never post an issue without showing the exact draft first and receiving explicit confirmation.",
     );
     expect(skillSource).toContain("MODE=draft");
     expect(skillSource).toContain(
       "If GitHub access to `ryumiel/devcanon` is unavailable, return `MODE=draft` and stop without attempting to post.",
+    );
+    expect(normalizedSkillSource).toContain(
+      "Continue toward `MODE=draft` when the user explicitly requested an upstream DevCanon issue",
     );
   });
 
@@ -1580,6 +1702,9 @@ describe("existing skills source prose contracts", () => {
     );
     const routingGuideline = await readRepoFile(
       "docs/guidelines/behavior-spec-evidence-routing.md",
+    );
+    const packagedRoutingGuideline = await readRepoFile(
+      "skills/write-product-spec/references/behavior-spec-evidence-routing.md",
     );
 
     expect(procedureMap).toContain("behavior-spec-evidence-routing.md");
@@ -1598,6 +1723,21 @@ describe("existing skills source prose contracts", () => {
     );
     expect(routingGuideline).toContain("blocker or follow-up owner");
     expect(routingGuideline).toContain("contract to behavior-spec authoring");
+    expect(normalizeWhitespace(routingGuideline)).toContain(
+      "Agent-Local Evidence Reuse Boundary",
+    );
+    expect(normalizeWhitespace(routingGuideline)).toContain(
+      "unsanitized branch/worktree names",
+    );
+    expect(normalizeWhitespace(packagedRoutingGuideline)).toContain(
+      "Agent-local planning, review, and validation artifacts remain session-local",
+    );
+    expect(normalizeWhitespace(packagedRoutingGuideline)).toContain(
+      "Shared comments may use sanitized summary-only outcomes and evidence pointers",
+    );
+    expect(normalizeWhitespace(packagedRoutingGuideline)).toContain(
+      "unsanitized branch/worktree names",
+    );
 
     for (const section of [
       "Evidence Pointers",
@@ -1605,6 +1745,7 @@ describe("existing skills source prose contracts", () => {
       "Storage Boundary",
     ]) {
       expect(routingGuideline).toContain(section);
+      expect(packagedRoutingGuideline).toContain(section);
     }
   });
 
@@ -4321,6 +4462,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(writeProductSpecRouting).not.toContain(
       "docs/specs/afds-workflow-routing.md",
+    );
+    expect(normalizeWhitespace(writeProductSpecRouting)).toContain(
+      "Agent-local planning, review, and validation artifacts remain session-local",
+    );
+    expect(normalizeWhitespace(writeProductSpecRouting)).toContain(
+      "Shared comments may use sanitized summary-only outcomes and evidence pointers",
     );
     expect(writeProductSpecRouting).not.toContain("EVID-001");
     expect(writeProductSpecRouting).not.toContain("source of origin");

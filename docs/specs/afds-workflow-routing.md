@@ -145,6 +145,40 @@ depends on the unavailable evidence. The owning artifact may record the blocker
 and evidence pointer, but it must not copy private evidence or invent a local
 summary as substitute evidence.
 
+### EVID-004: Agent-Local Evidence Reuse Boundary
+
+Agent-local artifacts, including `.ephemeral/` notes, plans, research briefs,
+subagent ledgers, review scratch files, and validation scratch files, are
+session-local execution evidence. They may inform the active workflow, but they
+are not shared records or durable authority.
+
+Shared PR, issue, tracker, or review comments may reuse only sanitized shared
+comments: summary-only outcomes and minimum evidence-pointer fields. Allowed
+fields are the evidence system, stable shared reference visible to the same
+audience, repo-relative source file path, checked requirement or durable shared
+owner, result state, blocker, follow-up owner expressed as a shared system,
+artifact, policy, process, workflow component, or blocker, and sanitized
+follow-up title, component, policy, artifact, or process reference.
+
+Shared comments must not include raw `.ephemeral` artifact paths or contents,
+absolute local paths, unsanitized branch or worktree names, copied
+retrospectives, internal decision trails, session chronology, prompt excerpts,
+transcript excerpts, log excerpts, validation-log dumps, stack-trace excerpts,
+private issue/PR/tracker/CI text copied from another system, assignees,
+schedules, live tracker status, sprint or cycle data, identities, secrets,
+credentials, tokens, environment values, machine identifiers, or network
+identifiers.
+
+Durable docs may record only promoted durable truth and evidence pointers under
+EVID-001 through EVID-003. They must not copy session-local artifacts or use
+invented summaries as substitutes for missing private evidence.
+
+When a session discovery should become an upstream DevCanon issue, creation
+requires an explicit user request or confirmation and the accepted shared
+skill-reporting workflow. The shared owner should be a shared system, artifact,
+policy, process, workflow component, or blocker, not a private person, live
+tracker assignment, or schedule.
+
 ### DRIFT-001: Drift and Conflict Classification
 
 The toolkit must classify drift and conflict cases before changing durable
@@ -243,6 +277,9 @@ disposable.
   validation, or agent-local history into repository docs.
 - Missing, private, inaccessible, or incomplete evidence is represented as a
   blocker under EVID-003.
+- Agent-local evidence reuse follows EVID-004: session-local artifacts stay
+  local, shared comments use sanitized summary-only evidence pointers, and
+  durable docs record only promoted durable truth.
 - Generated-output and installed-output drift are routed under DRIFT-001 and
   TARGET-001 without making derived outputs authoritative.
 - The spec identifies follow-up workflow surfaces without approving them before
