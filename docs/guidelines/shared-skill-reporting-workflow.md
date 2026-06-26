@@ -43,7 +43,9 @@ The Scope rule — including the positive frame, the categories-vs-identity boun
    - minimal reproduction summary
    - user impact or severity
    - install mode and sanitized artifact path
-   - `devcanon` revision, branch, or version, if known
+   - Prefer DevCanon version, revision, or commit SHA for shared issue
+     provenance; include branch or worktree names only when sanitized and
+     necessary; otherwise omit them
    - whether the problem still reproduces after `render` and after `sync`
    - summary-only redaction status for any omitted prompt, transcript, log,
      stack, or validation material
@@ -68,7 +70,13 @@ Use the issue body shape canonically defined in [`../../WORKFLOW.md` § Creating
 
 For title format and `(scope)` rules, see [`../../skills/report-devcanon-issue/SKILL.md` § Issue Draft Shape](../../skills/report-devcanon-issue/SKILL.md#issue-draft-shape).
 
-When filling WORKFLOW.md's "Environment and provenance" body field for a shared-skill or shared-agent report, include target (`codex`, `claude`, or both), install mode (`symlink`, `copy`, or `unknown`), `devcanon` revision/branch/version, and whether the problem still reproduces after `render` and after `sync`. These fields are gathered per § 3 step 3.
+When filling WORKFLOW.md's "Environment and provenance" body field for a
+shared-skill or shared-agent report, include target (`codex`, `claude`, or
+both), install mode (`symlink`, `copy`, or `unknown`), whether the problem still
+reproduces after `render` and after `sync`, and sanitized provenance. Prefer
+DevCanon version, revision, or commit SHA for shared issue provenance; include
+branch or worktree names only when sanitized and necessary; otherwise omit them.
+These fields are gathered per § 3 step 3.
 
 If blocker issue IDs are known, set the actual GitHub `blocked by` relationship after issue creation instead of only mentioning blockers in the body text.
 

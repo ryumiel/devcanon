@@ -22,9 +22,11 @@ shared `DevCanon` agent, or when a sanitized PR-comment follow-up explicitly
 requests filing one.
 
 During PR work, default to a sanitized PR comment first unless the user
-explicitly requested an upstream DevCanon issue. Do not use this skill for
-project-local prompt tweaks, domain-specific wording, or issues that would make
-the shared skill worse for general use.
+explicitly requested an upstream DevCanon issue. A sanitized PR-comment
+follow-up that explicitly requests a reusable upstream DevCanon issue draft can
+also continue through this skill. Do not use this skill for project-local prompt
+tweaks, domain-specific wording, or issues that would make the shared skill
+worse for general use.
 
 ## Goal
 
@@ -87,7 +89,9 @@ Capture:
 - user impact or severity
 - install mode: `symlink`, `copy`, or `unknown`
 - sanitized artifact path, if known
-- `DevCanon` revision, branch, or version, if known
+- Prefer DevCanon version, revision, or commit SHA for shared issue provenance;
+  include branch or worktree names only when sanitized and necessary; otherwise
+  omit them
 - whether the problem still reproduces after `render`: `yes`, `no`, `not-tried`, or `unknown`
 - whether the problem still reproduces after `sync`: `yes`, `no`, `not-tried`, or `unknown`
 - redaction and safety status for any summarized or omitted material
@@ -103,10 +107,12 @@ incomplete issue draft and explicitly call out what is still missing.
 
 The `Scope` rule above is the primary defense — if the body only describes `DevCanon`-side facts, most leak vectors do not apply. Before posting, sweep any quoted material for these specific risks:
 
-- stack traces and log lines: sanitize each frame or line individually — one frame can leak a path or hostname
 - prompt, transcript, log, stack, validation-log, and agent-local artifact
   content: use summary-only context for this workflow boundary, even when a
   user pasted the original text
+- Do not quote sanitized individual stack frames, log lines, prompt excerpts,
+  transcript excerpts, validation-log lines, or agent-local artifact excerpts in
+  shared issue bodies.
 - error messages: strip env vars, request/trace/correlation IDs, internal URLs and hostnames, IP addresses, file paths, tokens (`Bearer …`, `?token=…`), cloud account/project/tenant IDs, customer/user IDs, and any embedded JSON keys ending in `_id`, `_token`, `_secret`, or `_key`; when in doubt, summarize the error class instead of quoting the message
 
 For prompt, transcript, log, stack, validation-log, or agent-local artifact
@@ -179,6 +185,8 @@ At the end of every invocation, surface exactly one of these `MODE=...` tokens t
   - produce the exact title, body, and labels
   - report the result of the § Interaction Rules sweep, calling out any categories that required active redaction
   - ask for confirmation before posting
+  - Never post the issue from a PR-comment follow-up without showing the draft
+    and receiving explicit user confirmation
 - `MODE=posted`
   - the issue was created successfully
   - return the created issue URL and number
@@ -195,6 +203,9 @@ title/body draft in the conversation for manual reuse.
 - Continue toward `MODE=draft` when the user explicitly requested an upstream
   DevCanon issue and the problem comes from shared instructions, shared render
   or install behavior, or a reusable missing capability.
+- Continue toward `MODE=draft` when a sanitized PR-comment follow-up explicitly
+  requests an upstream DevCanon issue for a reusable shared-skill or
+  shared-agent problem.
 - Use `MODE=needs-input` when reusability is plausible but not yet clear.
 
 If the report touches process, policy, schema, or spec behavior, note that

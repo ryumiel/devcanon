@@ -205,11 +205,14 @@ path inside `WORKTREE_PATH`: `.ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`
 (today's date; GitHub issue number without `#`). Write concise summaries by
 default. Include a comment body only when it was already intentionally shared
 with the same audience and is safe under the `Agent-Local Evidence Reuse
-Boundary` in `docs/specs/afds-workflow-routing.md`; never preserve raw
-agent-local artifacts, transcripts, prompts, logs, validation-log dumps, or
-stack traces as comment evidence. Each included comment entry must include
-author, timestamp, source URL or permalink, evidence reason, and the
-substantive concise summary or safe body.
+Boundary` in `docs/specs/afds-workflow-routing.md`. Local `.ephemeral` comment
+evidence may preserve exact tracker comment bodies, logs, or stack traces when
+needed for implementation and safe for the worktree-local audience; never
+preserve raw agent-local artifacts, transcripts, prompts, logs, validation-log
+dumps, or stack traces as comment evidence. Later PR comments, shared issue
+reports, and durable docs must summarize that material instead of quoting it.
+Each included comment entry must include author, timestamp, source URL or
+permalink, evidence reason, and the substantive concise summary or safe body.
 
 Validate the repo-relative path before writing. POSIX shell example:
 
