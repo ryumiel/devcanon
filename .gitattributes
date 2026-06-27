@@ -22,3 +22,5 @@
 
 # Scripts and hooks — force LF
 scripts/hooks/* text eol=lf
+skills/*/scripts/*.sh text eol=lf
+skills/*/scripts/**/*.sh text eol=lf

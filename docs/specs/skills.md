@@ -229,8 +229,12 @@ A skill may also contain:
 - `references/`
 - `scripts/`
 
-These subdirectories are mirrored per target into
-`generated/<target>/skills/<name>/` as-is.
+These subdirectories are packaged per target into
+`generated/<target>/skills/<name>/`. Packaging preserves non-shell file bytes,
+symlinks, and executable permission bits. Shell scripts under a skill's
+top-level `scripts/**/*.sh` tree are normalized from CRLF to LF before hashing
+and writing generated output so generated skill adapters remain executable from
+Windows-hosted agent sessions that invoke Bash.
 
 Keep `SKILL.md` focused on the always-loaded instructions needed to
 route and execute the skill. Move non-eager material into the optional

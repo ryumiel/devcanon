@@ -1,8 +1,17 @@
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
+  canMutateExecutableMode,
   cleanupTempDir,
   createAgentFixture,
   createSkillFixture,
@@ -20,6 +29,7 @@ import { loadAndValidateSkills } from "../validate/skills.js";
 import { renderAll, renderLoaded } from "./pipeline.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+const executableModeMutable = await canMutateExecutableMode();
 
 describe("renderAll", () => {
   let tempDir: string;
@@ -824,6 +834,88 @@ describe("renderAll", () => {
     expect(await pathExists(codexFile)).toBe(true);
     expect(await readFile(claudeFile, "utf-8")).toBe("hello\n");
     expect(await readFile(codexFile, "utf-8")).toBe("hello\n");
+  });
+
+  it("packages mirrored shell scripts as LF while preserving binary payloads", async () => {
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "packaged-skill",
+      [
+        "---",
+        "name: packaged-skill",
+        "description: A test skill.",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+      ["scripts"],
+    );
+    const scriptPath = path.join(skillDir, "scripts", "helper.sh");
+    const binaryPath = path.join(skillDir, "scripts", "payload.bin");
+    const crlfScript = Buffer.from(
+      "#!/usr/bin/env bash\r\nset -euo pipefail\r\necho ok\r\n",
+      "utf-8",
+    );
+    const binaryPayload = Buffer.from([0, 0xff, 0x0d, 0x0a, 0x80, 0x41]);
+
+    await writeFile(scriptPath, crlfScript);
+    await writeFile(binaryPath, binaryPayload);
+    if (executableModeMutable) {
+      await chmod(scriptPath, 0o755);
+    }
+
+    const crlfRender = await renderAll(config, true);
+    const renderedSkill = crlfRender.outputs.find(
+      (output) =>
+        output.type === "skill" &&
+        output.target === "codex" &&
+        output.name === "packaged-skill",
+    );
+    expect(renderedSkill).toBeDefined();
+
+    const generatedScript = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "packaged-skill",
+      "scripts",
+      "helper.sh",
+    );
+    const generatedBinary = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "packaged-skill",
+      "scripts",
+      "payload.bin",
+    );
+
+    expect(await readFile(generatedScript, "utf-8")).toBe(
+      "#!/usr/bin/env bash\nset -euo pipefail\necho ok\n",
+    );
+    expect(await readFile(generatedBinary)).toEqual(binaryPayload);
+    if (executableModeMutable) {
+      expect(((await stat(generatedScript)).mode & 0o111) !== 0).toBe(true);
+    }
+
+    await writeFile(
+      scriptPath,
+      "#!/usr/bin/env bash\nset -euo pipefail\necho ok\n",
+      "utf-8",
+    );
+    if (executableModeMutable) {
+      await chmod(scriptPath, 0o755);
+    }
+    const lfRender = await renderAll(config, false);
+    const lfRenderedSkill = lfRender.outputs.find(
+      (output) =>
+        output.type === "skill" &&
+        output.target === "codex" &&
+        output.name === "packaged-skill",
+    );
+
+    expect(lfRenderedSkill?.contentHash).toBe(renderedSkill?.contentHash);
   });
 
   it("omits unknown top-level skill directories from generated target dirs", async () => {

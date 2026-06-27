@@ -28,6 +28,20 @@ TARGET_REPO="<path-to-target-repo-or-worktree>"
 bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --dry-run
 ```
 
+### Windows PowerShell With Bash
+
+When the active shell is Windows PowerShell but the cleanup script is invoked
+through Bash, do not pass raw `D:\...` paths directly to Bash. Convert both
+`SKILL_DIR` and `TARGET_REPO` to paths readable by the Bash environment first.
+
+- Git Bash/MSYS: use `cygpath -u "<windows-path>"` when available. These paths
+  commonly look like `/d/workspace/...`.
+- WSL Bash: use `wslpath -u "<windows-path>"`. These paths commonly look like
+  `/mnt/d/workspace/...`.
+
+Use the converted Bash-readable paths in the required dry-run command. The
+same dry-run first, report, and explicit approval rules still apply.
+
 Approved execution:
 
 ```bash
