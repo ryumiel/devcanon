@@ -54,7 +54,9 @@ describe("issue-batch-routing skill contract", () => {
       "source_issue_state_snapshot_digest",
       "last_owner_thread_report_digest",
       "last_routed_review_thread_set_digest",
+      "last_routed_review_response_route_key",
       "last_routed_ci_run_check_identifier",
+      "last_routed_ci_fix_route_key",
       "last_routed_merge_conflict_key",
       "last_routed_bot_review_signal_key",
       "last_routed_approval_gate_key",
@@ -156,6 +158,7 @@ describe("issue-batch-routing skill contract", () => {
       skill,
       "Provider And Workflow Boundaries",
     );
+    const normalizedBoundaries = normalizeWhitespace(boundaries);
     const prGates = getMarkdownSection(skill, "PR Gate Precedence");
 
     for (const boundary of [
@@ -164,13 +167,14 @@ describe("issue-batch-routing skill contract", () => {
       "`issue-priming-workflow` owns gate, research, brainstorming, planning, implementation, branch review, and Phase 8 PR-creation handoff and preconditions",
       "`play-review-response` owns review-thread replies and resolution behavior",
       "`github:gh-fix-ci` owns investigation and fixes for routed failing GitHub checks",
+      "If no provider-specific CI-fix workflow is available for the PR provider, failing CI waits",
       "`pr-merge` owns GitHub PR CI polling inside the merge path, final merge execution, and merge-result reporting",
       "`branch-review` is used only when the owning workflow requires a local branch-review gate before PR update or merge",
       "`play-branch-finish` owns pushing branches, running PR creation side effects, posting caller-supplied assumptions or nits, and preserving the branch and worktree after PR creation",
       "`pr-authoring` owns PR title/body policy, title/body composition, and pre-merge title/body validation, but must not create, edit, comment on, or merge PRs",
       "source-issue status updates remain provider-specific delegated work",
     ]) {
-      expect(boundaries).toContain(boundary);
+      expect(normalizedBoundaries).toContain(boundary);
     }
 
     for (const precedence of [
@@ -181,10 +185,80 @@ describe("issue-batch-routing skill contract", () => {
       "Merge conflicts route to the owner thread",
       "Unresolved inline review threads route to the review-response workflow",
       "Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope",
+      "CI-fix routing also requires a provider-specific CI-fix workflow to be available",
+      "When that workflow is unavailable, report waiting with the missing workflow",
       "Merge-ready PRs route to `pr-merge` only when all configured gates pass",
     ]) {
       expect(prGates).toContain(precedence);
     }
+  });
+
+  it("requires source-state classification before missing-owner priming", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const monitorLoop = normalizeWhitespace(
+      getMarkdownSection(skill, "Monitor Loop"),
+    );
+    const fixtures = normalizeWhitespace(
+      getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    const sourceStateIndex = monitorLoop.indexOf("Classify source-issue state");
+    const missingOwnerIndex = monitorLoop.indexOf(
+      "If `owner_thread_id` is missing",
+    );
+
+    expect(sourceStateIndex).toBeGreaterThanOrEqual(0);
+    expect(missingOwnerIndex).toBeGreaterThanOrEqual(0);
+    expect(sourceStateIndex).toBeLessThan(missingOwnerIndex);
+    expect(monitorLoop).toContain(
+      "Only active source issues with missing owner threads route to source-specific issue priming",
+    );
+    expect(monitorLoop).toContain(
+      "Terminal, duplicate, abandoned, blocked, or unknown no-owner states wait or report",
+    );
+
+    expect(fixtures).toContain(
+      "Active GitHub source issue with missing `owner_thread_id`",
+    );
+    expect(fixtures).toContain("Route to `github-issue-priming`");
+    expect(fixtures).toContain(
+      "Closed/completed source issue with missing `owner_thread_id`",
+    );
+    expect(fixtures).toContain(
+      "Report waiting or terminal disposition; do not create an owner thread",
+    );
+  });
+
+  it("pins replay-safe route-key persistence for review-response and CI-fix", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const ledger = getMarkdownSection(skill, "Batch Ledger");
+    const normalizedLedger = normalizeWhitespace(ledger);
+    const duplicateRoutes = getMarkdownSection(skill, "Duplicate Route Keys");
+    const normalizedDuplicateRoutes = normalizeWhitespace(duplicateRoutes);
+    const fixtures = normalizeWhitespace(
+      getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    expect(ledger).toContain("`last_routed_review_response_route_key`");
+    expect(ledger).toContain("Full replay-sensitive review-response route key");
+    expect(ledger).toContain("`last_routed_ci_fix_route_key`");
+    expect(ledger).toContain("Full replay-sensitive CI-fix route key");
+    expect(normalizedLedger).toContain(
+      "`last_routed_ci_run_check_identifier` is diagnostic only and is not authoritative for de-duplication",
+    );
+
+    expect(normalizedDuplicateRoutes).toContain(
+      "Persist the complete route key after routing; partial fields such as only the unresolved-thread-set digest or only the check identifier are diagnostic hints, not replay authority",
+    );
+    expect(fixtures).toContain(
+      "Route CI-fix once for check run `A`, keyed by source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`",
+    );
+    expect(fixtures).toContain(
+      "No provider-specific CI-fix workflow is available for failing check run `A`",
+    );
+    expect(fixtures).toContain(
+      "Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair",
+    );
   });
 
   it("defines owner reports, safe approvals, archival, monitor reports, and automation resume behavior", async () => {
