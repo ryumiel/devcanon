@@ -404,7 +404,7 @@ describe("issue-batch-routing skill contract", () => {
       "Wait for bot review; do not merge",
       "PR has approving bot signal from old head SHA",
       "Treat the approval as stale",
-      "Repository policy requires explicit human merge approval",
+      "Repository policy requires explicit human merge approval and PR is otherwise merge-ready",
       "Wait until matching human merge approval evidence is present",
       "PR has failing check run `A`",
       "Route CI-fix once for check run `A`",
