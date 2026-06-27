@@ -11,6 +11,7 @@ import {
   type TestLoggerResult,
   installTestLogger,
 } from "../../__test-helpers__/logger.js";
+import { buildSkillContentHash } from "../../render/skill.js";
 import { UserError } from "../../utils/errors.js";
 import { pathExists } from "../../utils/fs.js";
 import { uninstallAction } from "./uninstall.js";
@@ -38,6 +39,13 @@ describe("uninstallAction", () => {
         "  generatedDir: ./generated",
         "manifest:",
         `  path: ${manifestPath}`,
+        "targets:",
+        "  claude:",
+        `    skillsHome: ${path.join(tempDir, "home", "claude", "skills")}`,
+        `    agentsHome: ${path.join(tempDir, "home", "claude", "agents")}`,
+        "  codex:",
+        `    skillsHome: ${path.join(tempDir, "home", "codex", "skills")}`,
+        `    agentsHome: ${path.join(tempDir, "home", "codex", "agents")}`,
       ].join("\n"),
     );
     const installed = installTestLogger();
@@ -101,7 +109,7 @@ describe("uninstallAction", () => {
           generatedPath: null,
           installedPath,
           installMode: "copy",
-          contentHash: "abc123",
+          contentHash: skillCopyHash("content", installedPath),
           timestamp: new Date().toISOString(),
         },
       ]),
@@ -143,7 +151,7 @@ describe("uninstallAction", () => {
           generatedPath: null,
           installedPath,
           installMode: "copy",
-          contentHash: "abc123",
+          contentHash: skillCopyHash("content", installedPath),
           timestamp: new Date().toISOString(),
         },
       ]),
@@ -188,7 +196,7 @@ describe("uninstallAction", () => {
           generatedPath: null,
           installedPath,
           installMode: "copy",
-          contentHash: "abc123",
+          contentHash: skillCopyHash("content", installedPath),
           timestamp: new Date().toISOString(),
         },
       ]),
@@ -238,7 +246,7 @@ describe("uninstallAction", () => {
             generatedPath: null,
             installedPath,
             installMode: "copy",
-            contentHash: "abc123",
+            contentHash: skillCopyHash("content", installedPath),
             timestamp: new Date().toISOString(),
           },
         ]),
@@ -268,3 +276,7 @@ describe("uninstallAction", () => {
     },
   );
 });
+
+function skillCopyHash(content: string, installedPath: string): string {
+  return buildSkillContentHash(content, new Map(), installedPath);
+}

@@ -1,7 +1,16 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  readlink,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  canCreateSymlinks,
   cleanupTempDir,
   createAgentFixture,
   createSkillFixture,
@@ -14,9 +23,12 @@ import {
   type TestLoggerResult,
   installTestLogger,
 } from "../__test-helpers__/logger.js";
+import { buildSkillContentHash } from "../render/skill.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
+
+const symlinkAvailable = await canCreateSymlinks();
 
 describe("uninstall", () => {
   let tempDir: string;
@@ -246,6 +258,536 @@ describe("uninstall", () => {
     expect(testLogger.infos).toContain("Nothing to remove.");
   });
 
+  it("skips uninstall removal when copied agent content no longer matches the manifest", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const claudeAgentPath = path.join(
+      config.targets.claude.agentsHome,
+      "helper.md",
+    );
+    await writeFile(claudeAgentPath, "tampered installed content", "utf-8");
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { target: "claude", dryRun: false });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(await readFile(claudeAgentPath, "utf-8")).toBe(
+      "tampered installed content",
+    );
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+  });
+
+  it("skips uninstall removal when copied skill directory content no longer matches the manifest", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "skill-a",
+      "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+      ["scripts"],
+    );
+    await writeFile(
+      path.join(skillDir, "scripts", "helper.sh"),
+      "#!/bin/sh\necho helper\n",
+      "utf-8",
+    );
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const claudeSkillPath = path.join(
+      config.targets.claude.skillsHome,
+      "skill-a",
+    );
+    await writeFile(
+      path.join(claudeSkillPath, "scripts", "helper.sh"),
+      "tampered helper\n",
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { target: "claude", dryRun: false });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(
+      await readFile(
+        path.join(claudeSkillPath, "scripts", "helper.sh"),
+        "utf-8",
+      ),
+    ).toBe("tampered helper\n");
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+  });
+
+  it("reports copy identity failure when installed skill kind changes before uninstall", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "skill-a");
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const claudeSkillPath = path.join(
+      config.targets.claude.skillsHome,
+      "skill-a",
+    );
+    await rm(claudeSkillPath, { recursive: true });
+    await writeFile(claudeSkillPath, "not a directory", "utf-8");
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { target: "claude", dryRun: false });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("Managed output identity failure"),
+    ]);
+    expect(result.errors[0]).toContain("installed skill is not a directory");
+    expect(await readFile(claudeSkillPath, "utf-8")).toBe("not a directory");
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "uninstalls a copied skill when copied symlink target spelling was rewritten",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLinkTarget = "../target-a/payload.txt";
+      await symlink(
+        sourceLinkTarget,
+        path.join(skillDir, "scripts", "link.txt"),
+      );
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const claudeSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(claudeSkillPath, "scripts", "link.txt");
+      const generatedLink = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      const rewrittenTarget = path.resolve(
+        path.dirname(generatedLink),
+        sourceLinkTarget,
+      );
+      await rm(installedLink);
+      await symlink(rewrittenTarget, installedLink, "file");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(await pathExists(claudeSkillPath)).toBe(false);
+      const manifest = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips copied skill uninstall when copied symlink resolves elsewhere",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await symlink(
+        "../target-a/payload.txt",
+        path.join(skillDir, "scripts", "link.txt"),
+      );
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const claudeSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(claudeSkillPath, "scripts", "link.txt");
+      const foreignTarget = path.join(tempDir, "outside", "payload.txt");
+      await mkdir(path.dirname(foreignTarget), { recursive: true });
+      await writeFile(foreignTarget, "foreign", "utf-8");
+      await rm(installedLink);
+      await symlink(foreignTarget, installedLink, "file");
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed copy content hash mismatch"),
+      ]);
+      expect(await readlink(installedLink)).toBe(foreignTarget);
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "uninstalls a copied skill with an absolute mirrored symlink",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const absoluteTarget = path.join(
+        tempDir,
+        "absolute-target",
+        "payload.txt",
+      );
+      await mkdir(path.dirname(absoluteTarget), { recursive: true });
+      await writeFile(absoluteTarget, "payload", "utf-8");
+      await symlink(absoluteTarget, path.join(skillDir, "scripts", "link.txt"));
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      const manifest = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "uninstalls a copied skill when a dot-relative symlink was rewritten absolute",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "payload.txt"),
+        "payload",
+        "utf-8",
+      );
+      await symlink(
+        "./payload.txt",
+        path.join(skillDir, "scripts", "link.txt"),
+      );
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      const rewrittenTarget = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+        "scripts",
+        "payload.txt",
+      );
+      await rm(installedLink);
+      await symlink(rewrittenTarget, installedLink, "file");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      const manifest = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it("clears a contained manifest record when the installed output is already missing", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    const claudeAgentPath = path.join(
+      config.targets.claude.agentsHome,
+      "helper.md",
+    );
+    await rm(claudeAgentPath);
+
+    const result = await uninstall(config, { target: "claude", dryRun: false });
+
+    expect(result.removed).toBe(1);
+    expect(result.errors).toEqual([]);
+    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
+    expect(manifest.records).toEqual([]);
+  });
+
+  it("keeps a missing manifest record when the installed path is outside the target home", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const outsidePath = path.join(tempDir, "outside", "missing.md");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson([
+        {
+          target: "claude",
+          type: "agent",
+          sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
+          generatedPath: path.join(
+            config.library.generatedDir,
+            "claude",
+            "agents",
+            "missing.md",
+          ),
+          installedPath: outsidePath,
+          installMode: "copy",
+          contentHash: "wrong-hash",
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { dryRun: false });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("outside configured claude agent home"),
+    ]);
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "keeps a missing manifest record when the installed path crosses a symlinked parent",
+    async () => {
+      const config = makeResolvedConfig(tempDir);
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      const outsideDir = path.join(tempDir, "outside");
+      const linkParent = path.join(config.targets.claude.agentsHome, "alias");
+      const installedPath = path.join(linkParent, "missing.md");
+      await mkdir(config.targets.claude.agentsHome, { recursive: true });
+      await mkdir(outsideDir, { recursive: true });
+      await symlink(outsideDir, linkParent, "dir");
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson([
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "missing.yaml"),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "agents",
+              "missing.md",
+            ),
+            installedPath,
+            installMode: "copy",
+            contentHash: "wrong-hash",
+            timestamp: new Date().toISOString(),
+          },
+        ]),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, { dryRun: false });
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("crosses symlinked parent component"),
+      ]);
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips uninstall removal when an installed symlink points elsewhere",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { enabled: false },
+        defaults: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "helper",
+        makeAgentYaml("helper"),
+      );
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "helper.md",
+      );
+      await rm(claudeAgentPath);
+      const foreignTarget = path.join(tempDir, "outside", "foreign.md");
+      await mkdir(path.dirname(foreignTarget), { recursive: true });
+      await writeFile(foreignTarget, "foreign", "utf-8");
+      await symlink(foreignTarget, claudeAgentPath, "file");
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("symlink target mismatch"),
+      ]);
+      expect(await readlink(claudeAgentPath)).toBe(foreignTarget);
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+    },
+  );
+
+  it("skips uninstall removal when manifest installed path is outside the target home", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const outsidePath = path.join(tempDir, "outside", "sentinel.md");
+    await mkdir(path.dirname(outsidePath), { recursive: true });
+    await writeFile(outsidePath, "sentinel", "utf-8");
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson([
+        {
+          target: "claude",
+          type: "agent",
+          sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
+          generatedPath: path.join(
+            config.library.generatedDir,
+            "claude",
+            "agents",
+            "sentinel.md",
+          ),
+          installedPath: outsidePath,
+          installMode: "copy",
+          contentHash: "wrong-hash",
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+      "utf-8",
+    );
+    const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+    const result = await uninstall(config, { dryRun: false });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("outside configured claude agent home"),
+    ]);
+    expect(await readFile(outsidePath, "utf-8")).toBe("sentinel");
+    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "skips uninstall removal when the configured target home crosses a symlinked ancestor",
+    async () => {
+      const realParent = path.join(tempDir, "outside-parent");
+      const linkedParent = path.join(tempDir, "linked-parent");
+      const agentsHome = path.join(linkedParent, "agents");
+      const config = makeResolvedConfig(tempDir, {
+        claude: { agentsHome },
+      });
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await mkdir(path.join(realParent, "agents"), { recursive: true });
+      await symlink(realParent, linkedParent, "dir");
+      const installedPath = path.join(agentsHome, "sentinel.md");
+      const realInstalledPath = path.join(realParent, "agents", "sentinel.md");
+      await writeFile(realInstalledPath, "sentinel", "utf-8");
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson([
+          {
+            target: "claude",
+            type: "agent",
+            sourcePath: path.join(config.library.agentsDir, "sentinel.yaml"),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "agents",
+              "sentinel.md",
+            ),
+            installedPath,
+            installMode: "copy",
+            contentHash: "wrong-hash",
+            timestamp: new Date().toISOString(),
+          },
+        ]),
+        "utf-8",
+      );
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, { dryRun: false });
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("crosses symlinked ancestor"),
+      ]);
+      expect(await readFile(realInstalledPath, "utf-8")).toBe("sentinel");
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+    },
+  );
+
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "continues past per-record failures and updates manifest with successful removals",
     async () => {
@@ -280,7 +822,7 @@ describe("uninstall", () => {
             generatedPath: null,
             installedPath: skillAPath,
             installMode: "copy",
-            contentHash: "a",
+            contentHash: buildSkillContentHash("a", new Map(), skillAPath),
             timestamp,
           },
           {
@@ -290,7 +832,7 @@ describe("uninstall", () => {
             generatedPath: null,
             installedPath: skillBPath,
             installMode: "copy",
-            contentHash: "b",
+            contentHash: buildSkillContentHash("b", new Map(), skillBPath),
             timestamp,
           },
         ]),

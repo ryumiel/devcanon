@@ -9,6 +9,7 @@ import { renderAll } from "../render/pipeline.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
 import { copyDirectory, copyFile } from "./copy.js";
+import { verifyManagedOutputIdentity } from "./identity.js";
 import { loadManifest, saveManifest, updateManifest } from "./manifest.js";
 import { computePlan } from "./plan.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
@@ -69,10 +70,31 @@ export async function sync(
   // Execute plan
   const newRecords: ManagedRecord[] = [];
   const removedPaths: string[] = [];
+  const manifestRecords = new Map(
+    manifest.records.map((record) => [record.installedPath, record]),
+  );
 
   for (const action of plan) {
     try {
-      await executeAction(action, config, options);
+      const record = manifestRecords.get(action.installedPath);
+      if (
+        action.kind === "update" ||
+        action.kind === "remove" ||
+        action.kind === "skip-up-to-date" ||
+        (action.kind === "install" && record)
+      ) {
+        if (!record) {
+          throw new Error("manifest record missing for managed action");
+        }
+        await verifyManagedOutputIdentity({
+          config,
+          record,
+          output: action.kind === "remove" ? undefined : action,
+          allowMissing: action.kind === "install",
+        });
+      }
+
+      const actualInstallMode = await executeAction(action, config, options);
 
       switch (action.kind) {
         case "install":
@@ -84,8 +106,7 @@ export async function sync(
             sourcePath: action.sourcePath,
             generatedPath: action.generatedPath,
             installedPath: action.installedPath,
-            installMode:
-              options.mode ?? config.targets[action.target].installMode,
+            installMode: actualInstallMode,
             contentHash: action.contentHash,
             timestamp: new Date().toISOString(),
           });
@@ -112,13 +133,19 @@ export async function sync(
   }
 
   // Update manifest
-  try {
-    const updatedManifest = updateManifest(manifest, newRecords, removedPaths);
-    await saveManifest(config.manifest.path, updatedManifest);
-  } catch (err) {
-    totalResult.errors.push(
-      `Failed to save manifest: ${(err as Error).message}`,
-    );
+  if (newRecords.length > 0 || removedPaths.length > 0) {
+    try {
+      const updatedManifest = updateManifest(
+        manifest,
+        newRecords,
+        removedPaths,
+      );
+      await saveManifest(config.manifest.path, updatedManifest);
+    } catch (err) {
+      totalResult.errors.push(
+        `Failed to save manifest: ${(err as Error).message}`,
+      );
+    }
   }
 
   return totalResult;
@@ -128,7 +155,7 @@ async function executeAction(
   action: PlanAction,
   config: ResolvedConfig,
   options: SyncOptions,
-): Promise<void> {
+): Promise<InstallMode> {
   const logger = getLogger();
 
   switch (action.kind) {
@@ -137,6 +164,7 @@ async function executeAction(
     case "force-overwrite": {
       const installMode: InstallMode =
         options.mode ?? config.targets[action.target].installMode;
+      let actualInstallMode = installMode;
 
       await ensureDir(path.dirname(action.installedPath));
 
@@ -154,6 +182,7 @@ async function executeAction(
               config.platform.windowsSymlinkFallback === "copy"
             ) {
               await copyFile(action.generatedPath, action.installedPath);
+              actualInstallMode = "copy";
             } else {
               throw err;
             }
@@ -172,6 +201,7 @@ async function executeAction(
               config.platform.windowsSymlinkFallback === "copy"
             ) {
               await copyDirectory(sourceDir, action.installedPath);
+              actualInstallMode = "copy";
             } else {
               throw err;
             }
@@ -184,22 +214,22 @@ async function executeAction(
       logger.info(
         `  ${action.kind === "install" ? "+" : "~"} ${action.target}/${action.type}/${action.name}`,
       );
-      break;
+      return actualInstallMode;
     }
     case "remove": {
       await executeRemove(action);
-      break;
+      return config.targets[action.target].installMode;
     }
     case "skip-up-to-date":
       logger.verbose(
         `  = ${action.target}/${action.type}/${action.name} (up to date)`,
       );
-      break;
+      return config.targets[action.target].installMode;
     case "skip-conflict":
       logger.warn(
         `  ! ${action.target}/${action.type}/${action.name}: ${action.reason}`,
       );
-      break;
+      return config.targets[action.target].installMode;
   }
 }
 
