@@ -16,7 +16,12 @@ codex_sidecar:
 
 # GitHub Issue Priming
 
-Fetch a GitHub issue, provision or reuse the issue worktree, write the fetched issue body and any substantive comment evidence to `.ephemeral/`, and hand off to the shared `issue-priming-workflow` skill. This entrypoint owns the GitHub-specific fetch, worktree setup, issue-body persistence, and comment-evidence persistence; everything after handoff lives in the shared workflow.
+Fetch a GitHub issue, provision or reuse the issue worktree, write the fetched
+issue body and any substantive comment evidence to `.ephemeral/`, and hand off
+to the shared `issue-priming-workflow` skill. This entrypoint owns the
+GitHub-specific fetch, worktree setup, issue-body persistence, and
+comment-evidence persistence; everything after handoff lives in the shared
+workflow.
 
 ## Arguments
 
@@ -197,10 +202,17 @@ and omit `comment-evidence-path` from the normalized payload.
 
 When substantive comments are present, compute the comment-evidence artifact
 path inside `WORKTREE_PATH`: `.ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`
-(today's date; GitHub issue number without `#`). Write source-specific
-evidence in a concise normalized form. Each included comment entry must include
-author, timestamp, source URL or permalink, evidence reason, and the substantive
-comment body or concise summary.
+(today's date; GitHub issue number without `#`). Write concise summaries by
+default. Include a comment body only when it was already intentionally shared
+with the same audience and is safe under the `Agent-Local Evidence Reuse
+Boundary` in `docs/specs/afds-workflow-routing.md`. Local `.ephemeral` comment
+evidence may preserve exact tracker comment bodies, logs, or stack traces when
+needed for implementation and safe for the worktree-local audience; never
+preserve raw agent-local artifacts, transcripts, prompts, logs, validation-log
+dumps, or stack traces as comment evidence. Later PR comments, shared issue
+reports, and durable docs must summarize that material instead of quoting it.
+Each included comment entry must include author, timestamp, source URL or
+permalink, evidence reason, and the substantive concise summary or safe body.
 
 Validate the repo-relative path before writing. POSIX shell example:
 

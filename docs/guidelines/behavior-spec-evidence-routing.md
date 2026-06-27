@@ -88,3 +88,13 @@ Keep evidence in the system that owns it:
 Repository docs may link to those systems when durable truth changes. They must
 not become validation-history stores, execution ledgers, postmortem archives, or
 copied issue/PR transcripts.
+
+For agent-local planning, review, and validation artifacts, apply
+`docs/specs/afds-workflow-routing.md` `EVID-004: Agent-Local Evidence Reuse
+Boundary`. Shared comments may use sanitized summary-only outcomes and evidence
+pointers, but not raw `.ephemeral` paths or contents, copied session chronology,
+internal decision trails, transcripts, prompts, logs, validation-log dumps,
+stack traces, or unsanitized branch/worktree names. Durable behavior specs may
+record only promoted durable truth and evidence pointers whose owner is a
+durable artifact, shared system, policy, process, workflow component, or
+blocker.

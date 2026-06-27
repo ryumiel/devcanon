@@ -487,7 +487,13 @@ describe("phase artifact source contracts", () => {
         "comment-evidence artifact path inside `worktree_path`",
       );
       expect(normalizedSkillSource).toContain(
-        "Write source-specific evidence in a concise normalized form",
+        "Write concise summaries by default",
+      );
+      expect(normalizedSkillSource).toContain(
+        "Include a comment body only when it was already intentionally shared with the same audience and is safe under the `Agent-Local Evidence Reuse Boundary`",
+      );
+      expect(normalizedSkillSource).toContain(
+        "never preserve raw agent-local artifacts, transcripts, prompts, logs, validation-log dumps, or stack traces as comment evidence",
       );
       expect(skillSource).toContain(
         '[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"',

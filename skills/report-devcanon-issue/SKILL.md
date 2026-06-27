@@ -1,6 +1,6 @@
 ---
 name: report-devcanon-issue
-description: Drafts an upstream DevCanon issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when a reusable shared skill or shared agent problem is discovered in a consumer repository, or for requests for new shared skills or shared agents whose need is reusable across repositories.
+description: Drafts an upstream DevCanon issue for a reusable shared-skill or shared-agent need surfaced from a consumer repo. Use when the user explicitly asks to draft or create an upstream DevCanon issue for a reusable shared skill or shared agent problem, or when a sanitized PR-comment follow-up explicitly requests filing one.
 codex:
   license: MIT
   metadata:
@@ -16,9 +16,17 @@ codex_sidecar:
 
 # Report Shared Issue
 
-Use this skill when working in a consumer repository and you discover a reusable problem or gap in a shared `DevCanon` skill or shared `DevCanon` agent.
+Use this skill when the user explicitly asks to draft or create an upstream
+DevCanon issue for a reusable problem or gap in a shared `DevCanon` skill or
+shared `DevCanon` agent, or when a sanitized PR-comment follow-up explicitly
+requests filing one.
 
-Do not use this skill for project-local prompt tweaks, domain-specific wording, or issues that would make the shared skill worse for general use.
+During PR work, default to a sanitized PR comment first unless the user
+explicitly requested an upstream DevCanon issue. A sanitized PR-comment
+follow-up that explicitly requests a reusable upstream DevCanon issue draft can
+also continue through this skill. Do not use this skill for project-local prompt
+tweaks, domain-specific wording, or issues that would make the shared skill
+worse for general use.
 
 ## Goal
 
@@ -54,7 +62,11 @@ The following are never required and must not appear in the issue body or title:
 ## Interaction Rules
 
 - Ask one question at a time until the minimum payload is complete.
-- Prefer summarized reproductions over verbatim transcript excerpts.
+- Apply the `Agent-Local Evidence Reuse Boundary` in
+  `docs/specs/afds-workflow-routing.md` for shared issue drafts.
+- Use summarized reproductions; do not include verbatim prompt, transcript,
+  log, stack, validation-log, or agent-local artifact excerpts in this workflow
+  boundary.
 - Before showing the final draft for confirmation, sweep the title, body, and labels one last time against the negative list under § Scope: What to Describe, and re-check any quoted material against § Redaction Gate.
 - Never post an issue without showing the exact draft first and receiving explicit confirmation.
 - If the user declines posting, keep the exact draft available for manual reuse.
@@ -72,14 +84,17 @@ Capture:
 - observed behavior
 - expected behavior
 - minimal reproduction summary
-- optional verbatim prompt or transcript excerpt only after explicit safety confirmation
+- summary-only prompt, transcript, log, stack, or validation context when needed
+  to explain the shared problem
 - user impact or severity
 - install mode: `symlink`, `copy`, or `unknown`
 - sanitized artifact path, if known
-- `DevCanon` revision, branch, or version, if known
+- Prefer DevCanon version, revision, or commit SHA for shared issue provenance;
+  include branch or worktree names only when sanitized and necessary; otherwise
+  omit them
 - whether the problem still reproduces after `render`: `yes`, `no`, `not-tried`, or `unknown`
 - whether the problem still reproduces after `sync`: `yes`, `no`, `not-tried`, or `unknown`
-- redaction and safety status for any quoted material
+- redaction and safety status for any summarized or omitted material
 - blocker issue IDs, if known
 - optional proposed direction
 
@@ -92,11 +107,16 @@ incomplete issue draft and explicitly call out what is still missing.
 
 The `Scope` rule above is the primary defense — if the body only describes `DevCanon`-side facts, most leak vectors do not apply. Before posting, sweep any quoted material for these specific risks:
 
-- stack traces and log lines: sanitize each frame or line individually — one frame can leak a path or hostname
-- transcript excerpts: prefer summary; use verbatim only after the _user_ has pasted or quoted the exact text themselves — a "yes" to an agent-proposed excerpt is not sufficient; re-confirm if the excerpt is edited after the user supplied it
+- prompt, transcript, log, stack, validation-log, and agent-local artifact
+  content: use summary-only context for this workflow boundary, even when a
+  user pasted the original text
+- Do not quote sanitized individual stack frames, log lines, prompt excerpts,
+  transcript excerpts, validation-log lines, or agent-local artifact excerpts in
+  shared issue bodies.
 - error messages: strip env vars, request/trace/correlation IDs, internal URLs and hostnames, IP addresses, file paths, tokens (`Bearer …`, `?token=…`), cloud account/project/tenant IDs, customer/user IDs, and any embedded JSON keys ending in `_id`, `_token`, `_secret`, or `_key`; when in doubt, summarize the error class instead of quoting the message
 
-If a safe verbatim excerpt is not possible, use a summary-only reproduction and say what was omitted.
+For prompt, transcript, log, stack, validation-log, or agent-local artifact
+material, use a summary-only reproduction and say what was omitted.
 
 ## Duplicate Check
 
@@ -165,6 +185,8 @@ At the end of every invocation, surface exactly one of these `MODE=...` tokens t
   - produce the exact title, body, and labels
   - report the result of the § Interaction Rules sweep, calling out any categories that required active redaction
   - ask for confirmation before posting
+  - Never post the issue from a PR-comment follow-up without showing the draft
+    and receiving explicit user confirmation
 - `MODE=posted`
   - the issue was created successfully
   - return the created issue URL and number
@@ -178,7 +200,12 @@ title/body draft in the conversation for manual reuse.
 ## Classification Rules
 
 - Use `MODE=local` when the requested behavior depends on one repository's domain language, private data, or one-off workflow.
-- Continue toward `MODE=draft` when the problem comes from shared instructions, shared render or install behavior, or a reusable missing capability.
+- Continue toward `MODE=draft` when the user explicitly requested an upstream
+  DevCanon issue and the problem comes from shared instructions, shared render
+  or install behavior, or a reusable missing capability.
+- Continue toward `MODE=draft` when a sanitized PR-comment follow-up explicitly
+  requests an upstream DevCanon issue for a reusable shared-skill or
+  shared-agent problem.
 - Use `MODE=needs-input` when reusability is plausible but not yet clear.
 
 If the report touches process, policy, schema, or spec behavior, note that

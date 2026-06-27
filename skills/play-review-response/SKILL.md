@@ -743,7 +743,11 @@ Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.
 Each reply should state the behavioral fix or no-code disposition, regression
 coverage or reason no code change was needed, and a concise verification
-summary. Follow `Pushed-Fix Inline Thread Closure` before resolving any thread.
+summary. Because replies are shared comments, apply the `Agent-Local Evidence
+Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Do not include raw
+`.ephemeral` paths, transcripts, prompts, logs, validation-log dumps, stack
+traces, internal decision trails, or session chronology. Follow `Pushed-Fix
+Inline Thread Closure` before resolving any thread.
 Do not resolve continuity by replacing reviewed history unless the user
 explicitly asked for that cleanup or the repository workflow requires rewritten
 history.

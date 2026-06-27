@@ -80,6 +80,13 @@ boundary. Do not copy issue bodies, comment evidence, research briefs, designs,
 plans, review envelopes, or passing verification logs into controller
 conversation once a durable path exists.
 
+When using agent-local artifacts to draft PR, issue, tracker, or review
+comments, apply the `Agent-Local Evidence Reuse Boundary` in
+`docs/specs/afds-workflow-routing.md`: shared comments get sanitized
+summary-only outcomes and evidence pointers, not raw `.ephemeral` paths or
+contents, internal decision trails, session chronology, transcripts, prompts,
+logs, validation-log dumps, or stack traces.
+
 Review-agent outputs default to concise `PASS` or `FAIL with gaps`. Gaps must
 be specific enough to act on, but agents should not dump raw artifact bodies or
 unrelated commentary. Passing verification is summarized as command/result/gap;

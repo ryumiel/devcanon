@@ -128,7 +128,7 @@ interpretation to `play-validate-review-artifacts`. It validates the
 caller-supplied `nits_file` separately as a PR review comment posting input, and
 only at posting time for path, readability, and envelope schema.
 
-**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`.
+**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`. Because this file becomes a shared PR comment, callers must prepare it under the `Agent-Local Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`: sanitized summary-only outcomes and evidence pointers only, with no raw `.ephemeral` paths or contents, transcripts, prompts, logs, validation-log dumps, stack traces, internal decision trails, or session chronology. This skill validates path and shape before posting; it does not sanitize caller-provided comment prose.
 
 **Optional input — assignee.** Callers may pass an `assignee=<value>` argument
 to assign the new PR, for example `issue-priming-workflow` passes

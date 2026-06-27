@@ -88,6 +88,11 @@ Before planning or approving the artifact contract, confirm:
   contracts such as `play-review` findings/nits, issue-priming phase artifacts,
   implementer snapshots, risk signals, ADR-0012, ADR-0013, ADR-0014, and
   ADR-0019 without turning those examples into the new artifact's authority.
+- Agent-local evidence reuse: apply the `Agent-Local Evidence Reuse Boundary`
+  in `docs/specs/afds-workflow-routing.md` before using side-channel artifact
+  evidence in shared comments or durable docs. Shared comments get sanitized
+  summary-only outcomes and evidence pointers; durable docs get promoted
+  durable truth only.
 
 ## Change Review Checklist
 

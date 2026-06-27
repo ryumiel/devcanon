@@ -231,6 +231,15 @@ Use this path to decide whether a code, docs, or review change alters durable
 truth. Do not copy issue comments, PR review history, validation logs, or
 agent-local plans into repository docs.
 
+When agent-local artifacts inform shared follow-up, apply the
+`Agent-Local Evidence Reuse Boundary` in
+[`../specs/afds-workflow-routing.md`](../specs/afds-workflow-routing.md).
+Session-local `.ephemeral/` artifacts can support the current workflow, but PR,
+issue, tracker, or review comments should carry only sanitized summary-only
+outcomes and evidence pointers. Durable docs record promoted durable truth, not
+raw artifact paths, transcripts, prompts, logs, validation dumps, stack traces,
+internal decision trails, or session chronology.
+
 ### Knowledge Gardening
 
 ```mermaid
