@@ -127,9 +127,11 @@ producer notice line, not by guessing a path, so mixed schemes inside
 
 Every consumer that reads a path-referenced artifact MUST run a guard before
 opening the file. ADR-0013 owns the generic phase-artifact guard below.
-`skills/play-review/SKILL.md` § Output defines the stricter findings-file
-variant: it recomputes `.ephemeral/<branch_slug>-<head_sha>-findings.json`,
-rejects nested paths, and is used for findings-file consumers. Derived nits
+`skills/play-review/references/findings-envelope-contract.md` defines the
+stricter findings-file variant: it recomputes
+`.ephemeral/<branch_slug>-<head_sha>-findings.json`, rejects nested paths, and
+is used for findings-file consumers. `skills/play-review/SKILL.md` retains the
+workflow and notice-line hook. Derived nits
 envelopes use their own direct-child `nits_file` guard because they may end in
 `-nits-pending.json`. Generic phase artifacts narrow the guard to their expected
 suffix, reject symlinked `.ephemeral` and symlinked leaf files, require a regular
@@ -182,9 +184,9 @@ The canonical `.ephemeral` write guard baseline — reject a symlinked
 `.ephemeral` directory, `mkdir -p .ephemeral`, remove a symlink at the target
 file path where the producer follows the legacy replace-before-`Write` pattern,
 and reject directories or other non-regular existing paths — was introduced by
-`skills/play-review/SKILL.md` § Output → Write rules and is required by
-ADR-0012. Each phase-artifact producer owns its deterministic mechanics at its
-own boundary: `issue-priming-workflow` uses
+`skills/play-review/references/findings-envelope-contract.md` and is required
+by ADR-0012. Each phase-artifact producer owns its deterministic mechanics at
+its own boundary: `issue-priming-workflow` uses
 `scripts/write-research-brief.sh` when it persists the research brief, and that
 helper intentionally uses a stricter target-leaf policy by rejecting symlinked
 research-brief paths instead of removing them. This stricter research-helper

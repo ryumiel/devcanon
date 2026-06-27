@@ -1878,16 +1878,24 @@ describe("phase artifact source contracts", () => {
   });
 
   it("keeps play-review branch follow-up context, carry-forward, and fail-closed helper contracts", async () => {
-    const playReview = await readSkillSource("play-review");
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const sharedContextContract = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const playReview = [
+      playReviewSource,
+      envelopeContract,
+      sharedContextContract,
+    ].join("\n");
     const normalizedPlayReview = normalizeWhitespace(playReview);
     const phase25 = getMarkdownSection(
-      playReview,
+      playReviewSource,
       "Phase 2.5: Compose shared review context",
     );
-    const activeSharedContextContract = phase25.slice(
-      0,
-      phase25.indexOf("Do not fall back to the legacy context-only check"),
-    );
+    const activeSharedContextContract = sharedContextContract;
     expect(activeSharedContextContract.length).toBeGreaterThan(0);
 
     expect(playReview).toContain("`prior_branch_findings`");
@@ -1956,14 +1964,14 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain(
       "Do not fall back to the legacy context-only check as the guard",
     );
-    expect(playReview).toContain(
-      "do NOT dispatch Phase 3 agents — they would read an absent file",
+    expect(normalizedPlayReview).toContain(
+      "do not dispatch Phase 3 reviewers when the bounded shared-context file is absent, stale, or unreadable",
     );
-    expect(playReview).toContain(
-      "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
+    expect(normalizedPlayReview).toContain(
+      "| `active_diff_range` | git diff spec | Phase 3 agents review this",
     );
-    expect(playReview).toContain(
-      "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
+    expect(normalizedPlayReview).toContain(
+      "| `full_pr_diff_range` | git diff spec | Doc-impact summary always uses this",
     );
     expect(normalizedPlayReview).toContain(
       "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
@@ -1986,8 +1994,103 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps play-review Phase 2 derivation and findings write ownership contracts explicit", async () => {
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const sharedContextContract = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const phase2 = getMarkdownSection(
+      playReviewSource,
+      "Phase 2: Doc-impact summary",
+    );
+    const normalizedPhase2 = normalizeWhitespace(phase2);
+    const normalizedSharedContext = normalizeWhitespace(sharedContextContract);
+    const normalizedEnvelope = normalizeWhitespace(envelopeContract);
+
+    expect(normalizedPhase2).toContain(
+      "Detailed derivation rules live in `references/shared-review-context.md`",
+    );
+    expect(normalizedPhase2).toContain(
+      "do not restore the derivation matrix inline",
+    );
+    expect(normalizedSharedContext).toContain(
+      "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
+    );
+    for (const manifestField of [
+      "`arch_files`",
+      "`new_adrs`",
+      "`modified_adrs`",
+      "`architecture_routing_risks`",
+      "`spec_routing_risks`",
+      "`mechanical_path_signals`",
+      "`semantic_classification_notes`",
+    ]) {
+      expect(sharedContextContract).toContain(manifestField);
+    }
+    expect(normalizedSharedContext).toContain(
+      "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
+    );
+    expect(normalizedSharedContext).toContain(
+      "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
+    );
+    for (const stableField of [
+      "`ARCH_FILES`",
+      "`NEW_ADRS`",
+      "`MODIFIED_ADRS`",
+      "`ARCHITECTURE_ROUTING_RISKS`",
+      "`SPEC_ROUTING_RISKS`",
+    ]) {
+      expect(sharedContextContract).toContain(stableField);
+    }
+    for (const derivationDetail of [
+      "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
+      "`new_adrs` / `NEW_ADRS`: mechanical path-signal array",
+      "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified existing `docs/adr/adr-*.md` paths only",
+      "`architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk object",
+      "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
+      "Mechanical path-signal arrays",
+      "Semantic classification notes",
+      "Deleted ADR paths are not modified-ADR coverage evidence",
+      "route deleted ADR paths through `architecture_routing_risks`",
+      "Do not treat the architecture path examples as an exhaustive allowlist",
+      "module-boundary changes",
+      "3+ changed modules",
+      "files referenced by existing docs",
+      "prose that changes a documented pattern's canonical direction",
+    ]) {
+      expect(normalizedSharedContext).toContain(derivationDetail);
+    }
+
+    expect(normalizedEnvelope).toContain(
+      "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
+    );
+    expect(normalizedEnvelope).toContain(
+      "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+    );
+    expect(normalizedEnvelope).toContain(
+      "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
+    );
+    expect(normalizedEnvelope).not.toContain(
+      "The path is computed and written by the installed helper",
+    );
+  });
+
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
-    const playReview = await readSkillSource("play-review");
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const wrapperHelperContract = await readRepoFile(
+      "skills/play-review/references/wrapper-helper-contracts.md",
+    );
+    const playReview = [
+      playReviewSource,
+      envelopeContract,
+      wrapperHelperContract,
+    ].join("\n");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
     const codeReviewGuideline = await readRepoFile(
@@ -1998,7 +2101,7 @@ describe("phase artifact source contracts", () => {
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedCodeReviewGuideline =
       normalizeWhitespace(codeReviewGuideline);
-    const envelopeShapeStart = playReview.indexOf("#### Envelope shape");
+    const envelopeShapeStart = playReview.indexOf("### Envelope Shape");
     const envelopeShapeEnd = playReview.indexOf("Per-field contract:");
     expect(envelopeShapeStart).toBeGreaterThanOrEqual(0);
     expect(envelopeShapeEnd).toBeGreaterThan(envelopeShapeStart);
@@ -2016,6 +2119,10 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain("REVIEW_BODY_FILE");
     expect(playReview).toContain("REVIEW_EVENT");
     expect(playReview).toContain("APPROVE`, `REQUEST_CHANGES`, or `COMMENT");
+    expect(playReview).toContain("validate-nits-file");
+    expect(normalizedPlayReview).toContain(
+      "Callers treat any nonzero exit as a contract failure and stop before posting nits",
+    );
     expect(normalizedPlayReview).toContain(
       "Run them from the target repository root with `HEAD_SHA` bound to the immutable review head",
     );
@@ -2027,6 +2134,12 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPlayReview).toContain(
       "refuses `REVIEW_SURFACE=branch-review` with `build-github-review-payload requires REVIEW_SURFACE=pr-review",
+    );
+    expect(normalizedPlayReview).toContain(
+      'every natural or missing-file inline comment includes `side: "RIGHT"`',
+    );
+    expect(normalizedPlayReview).toContain(
+      'only ranged inline comments add `start_side: "RIGHT"`',
     );
     expect(normalizedPlayReview).toContain(
       "Phase 5.5: Finding Pattern Synthesis",

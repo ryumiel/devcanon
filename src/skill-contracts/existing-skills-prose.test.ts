@@ -46,6 +46,23 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("recovery");
 }
 
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      currentIndex,
+      `substring out of order: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-agent-dispatch",
   "play-brainstorm",
@@ -219,6 +236,126 @@ describe("existing skills source prose contracts", () => {
     expect(branchReview).toContain("WRAPPER_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).toContain("FINAL_SEMANTIC_ESCALATION_REASON");
     expect(branchReview).not.toContain("prior_findings_validation");
+  });
+
+  it("keeps play-review slim while preserving eager gates and progressive reference discovery", async () => {
+    const playReview = await readSkillSource("play-review");
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+    const lines = playReview.split("\n").length;
+
+    const referencePaths = [
+      "references/findings-envelope-contract.md",
+      "references/wrapper-helper-contracts.md",
+      "references/shared-review-context.md",
+      "references/reviewer-routing-policy.md",
+      "references/reviewer-sub-checks.md",
+    ] as const;
+
+    expect(lines).toBeLessThan(500);
+    expect(normalizedPlayReview).toContain(
+      "Always spawn the Code-quality reviewer",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Always run critic verification for blocking findings",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Dispatch risk-triggered Architecture and Spec reviewers fail-closed",
+    );
+    expect(playReview).toContain("Findings written to <repo-relative-path>.");
+    expect(playReview).toContain("play-review/findings/v1");
+    expect(playReview).toContain("prepare-findings-write");
+    expect(playReview).toContain("validate-findings");
+    expect(playReview).toContain("validate-nits-file");
+    expect(playReview).toContain("write-review-context-input");
+    expect(playReview).toContain("build-review-context");
+
+    for (const referencePath of referencePaths) {
+      expect(playReview).toContain(referencePath);
+      const reference = await readRepoFile(
+        `skills/play-review/${referencePath}`,
+      );
+      expect(reference.trim()).not.toHaveLength(0);
+    }
+
+    for (const nonEagerDetail of [
+      "safe tiny diff example",
+      "Sub-check 1: Substitution audit — worked example",
+      "Budget or cap",
+      "Per-field contract:",
+    ]) {
+      expect(playReview).not.toContain(nonEagerDetail);
+    }
+
+    const envelopeReference = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    expect(envelopeReference).toContain("Per-field contract:");
+    expect(envelopeReference).toContain("play-review/findings/v1");
+    expect(normalizeWhitespace(envelopeReference)).toContain(
+      "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
+    );
+    expect(normalizeWhitespace(envelopeReference)).toContain(
+      "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
+    );
+
+    const helperReference = await readRepoFile(
+      "skills/play-review/references/wrapper-helper-contracts.md",
+    );
+    expect(helperReference).toContain("render-review-preview");
+    expect(helperReference).toContain("build-github-review-payload");
+    expect(normalizeWhitespace(helperReference)).toContain(
+      'every natural or missing-file inline comment includes `side: "RIGHT"`',
+    );
+    expect(normalizeWhitespace(helperReference)).toContain(
+      'only ranged inline comments add `start_side: "RIGHT"`',
+    );
+
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    expect(sharedContextReference).toContain("Budget or cap");
+    expect(sharedContextReference).toContain("write-review-context-input");
+    expect(normalizeWhitespace(playReview)).toContain(
+      "Detailed derivation rules live in `references/shared-review-context.md`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "helper-facing manifest object with `arch_files`, `new_adrs`, `modified_adrs`, `architecture_routing_risks`, `spec_routing_risks`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified existing `docs/adr/adr-*.md` paths only",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "Deleted ADR paths are not modified-ADR coverage evidence",
+    );
+
+    const routingReference = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
+    expect(routingReference).toContain("safe tiny diff example");
+    expect(routingReference).toContain("Architecture override");
+
+    const subCheckReference = await readRepoFile(
+      "skills/play-review/references/reviewer-sub-checks.md",
+    );
+    expect(subCheckReference).toContain(
+      "Sub-check 1: Substitution audit — worked example",
+    );
+    expect(subCheckReference).toContain("DOCUMENTED-BEHAVIOR MISMATCH");
   });
 
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
@@ -1924,24 +2061,30 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Phase 2.75: Guarded tiny-diff mode",
     );
+    const routingPolicy = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
     const redFlags = await readRepoFile(
       "skills/play-review/references/red-flags.md",
     );
+    const normalizedRoutingPolicy = normalizeWhitespace(routingPolicy);
 
     for (const phrase of [
       "Guarded tiny-diff mode",
       "at most 2 files",
       "at most 20 total lines",
-      "safe tiny diff example",
-      "small-but-risky diff example",
       "`is_followup_narrow` is **false**",
-      "docs/specs/**",
-      "reviewer-routing policy",
-      "docs/guidelines/*.md",
-      "references/red-flags.md",
     ]) {
-      expect(tinyDiffSection).toContain(phrase);
+      expect(
+        normalizeWhitespace(`${tinyDiffSection}\n${routingPolicy}`),
+      ).toContain(phrase);
     }
+    expect(routingPolicy).toContain("safe tiny diff example");
+    expect(routingPolicy).toContain("Small-but-risky example");
+    expect(routingPolicy).toContain("docs/specs/**");
+    expect(normalizedRoutingPolicy).toContain("reviewer-routing policy");
+    expect(routingPolicy).toContain("docs/guidelines/*.md");
+    expect(routingPolicy).toContain("references/red-flags.md");
 
     expect(tinyDiffSection).not.toContain("skills/**/SKILL.md");
     expect(redFlags).toContain("line count alone");
@@ -1957,11 +2100,16 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Phase 2.5: Compose shared review context",
     );
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
     const phase3 = getMarkdownSection(skillSource, "Phase 3: Spawn agents");
     const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
     const hardRules = getMarkdownSection(skillSource, "Hard Rules");
     const normalizedPhase2 = normalizeWhitespace(phase2);
-    const normalizedSharedContext = normalizeWhitespace(phase2SharedContext);
+    const normalizedSharedContext = normalizeWhitespace(
+      `${phase2SharedContext}\n${sharedContextReference}`,
+    );
     const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedPhase4 = normalizeWhitespace(phase4);
     const normalizedHardRules = normalizeWhitespace(hardRules);
@@ -2045,6 +2193,12 @@ describe("existing skills source prose contracts", () => {
     const briefingTemplate = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
     );
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const branchReview = await readSkillSource("branch-review");
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const prReview = await readSkillSource("pr-review");
     const redFlags = await readRepoFile(
       "skills/play-review/references/red-flags.md",
     );
@@ -2060,7 +2214,9 @@ describe("existing skills source prose contracts", () => {
     const hardRules = getMarkdownSection(skillSource, "Hard Rules");
     const errorHandling = getMarkdownSection(skillSource, "Error Handling");
     const normalizedPhase2 = normalizeWhitespace(phase2);
-    const normalizedPhase25 = normalizeWhitespace(phase25);
+    const normalizedPhase25 = normalizeWhitespace(
+      `${phase25}\n${sharedContextReference}`,
+    );
     const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedBriefing = normalizeWhitespace(briefingTemplate);
 
@@ -2088,12 +2244,56 @@ describe("existing skills source prose contracts", () => {
       "pass it to the installed helper in `REVIEW_CONTEXT_INPUT_JSON`",
     );
     expect(normalizedPhase25).toContain(
+      "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
+    );
+    expect(normalizedPhase25).toContain(
+      "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
+    expect(normalizedPhase25).toContain(
+      "Before invoking `write-review-context-input`, bind `FINDINGS_FILE` by running `prepare-findings-write`",
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      "prepare-findings-write || exit 1",
+    );
+    expect(normalizedPhase25).toContain(
       "must not write findings, review-context output, wrapper artifacts, source files, or external state",
     );
     expect(normalizedPhase25).toContain(
       "The helper owns the deterministic write mechanics",
     );
     expect(normalizedPhase25).toContain("atomically renames it into place");
+    expectSubstringsInOrder(sharedContextReference, [
+      'cd "$WORKING_DIRECTORY" || exit 1',
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+      "FINDINGS_FILE=$(",
+      "prepare-findings-write || exit 1",
+      'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
+      "REVIEW_CONTEXT_INPUT_FILE=$(",
+      "write-review-context-input",
+      "REVIEW_CONTEXT_FILE=$(",
+      "build-review-context",
+    ]);
+    expect(phase25).not.toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
+    expect(phase25).not.toContain(
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+    );
+    expect(phase25).not.toContain("FINDINGS_FILE=$(");
+    expect(phase25).not.toContain("PLAY_REVIEW_SHARED_CONTEXT_HELPER=");
+    for (const wrapperSource of [branchReview, playBranchFinish, prReview]) {
+      expect(wrapperSource).not.toContain("PLAY_REVIEW_SHARED_CONTEXT_HELPER");
+      expect(wrapperSource).not.toContain("shared-review-context.sh");
+      expect(wrapperSource).not.toContain("write-review-context-input");
+      expect(wrapperSource).not.toContain("build-review-context");
+    }
 
     for (const field of [
       "working_directory",
@@ -2110,8 +2310,11 @@ describe("existing skills source prose contracts", () => {
       "output_format.markdown",
       "prior_review_context.records",
     ]) {
-      expect(phase25).toContain(field);
+      expect(`${phase25}\n${sharedContextReference}`).toContain(field);
     }
+    expect(normalizedPhase25).toContain(
+      "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
+    );
 
     for (const phrase of [
       "non-empty `summary`",
@@ -2147,8 +2350,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase25).toContain(
       "summary/reference overflow entries with targeted reread instructions",
     );
+    expect(normalizedPhase25).toContain("do not silently drop them");
     expect(normalizedPhase25).toContain(
-      "fail closed before Phase 3; do not silently drop them",
+      "when their required summaries fit the rendered-context budgets",
+    );
+    expect(normalizedPhase25).toContain(
+      "Required core context, record summaries, and overflow references that cannot fit fail closed before Phase 3",
     );
     expect(normalizedPhase25).toContain(
       "when a summary, omitted excerpt, overflow record, ADR reference, or prior-review record affects a possible finding or carry-forward decision",
@@ -2215,8 +2422,11 @@ describe("existing skills source prose contracts", () => {
 
   it("requires covering ADR changes for durable play-review Architecture decisions", async () => {
     const skillSource = await readSkillSource("play-review");
+    const routingPolicy = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
     const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
-    const normalizedPhase4 = normalizeWhitespace(phase4);
+    const normalizedPhase4 = normalizeWhitespace(`${phase4}\n${routingPolicy}`);
 
     expect(normalizedPhase4).toContain(
       "Durable decision + new covering `docs/adr/adr-NNNN-*.md` added",
@@ -2226,6 +2436,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPhase4).toContain(
       "Durable decision + no new/modified covering ADR",
+    );
+    expect(normalizedPhase4).toContain(
+      "Deleted ADRs are never coverage evidence",
+    );
+    expect(normalizedPhase4).toContain(
+      "require a new or modified successor ADR when the diff makes or removes a durable decision",
     );
   });
 
@@ -3359,6 +3575,9 @@ describe("existing skills source prose contracts", () => {
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
     );
+    const adr0010 = await readRepoFile(
+      "docs/adr/adr-0010-structured-review-findings-schema.md",
+    );
     const map = await readRepoFile("MAP.md");
 
     const normalizedPrAuthoring = normalizeWhitespace(prAuthoring);
@@ -3658,11 +3877,23 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(adr0013)).not.toContain(
       "Options 1 (merge), 2 (PR), and 4 (discard)",
     );
+    for (const adr of [adr0010, adr0012, adr0013]) {
+      expect(normalizeWhitespace(adr)).toContain(
+        "skills/play-review/references/findings-envelope-contract.md",
+      );
+      expect(normalizeWhitespace(adr)).not.toContain(
+        "skills/play-review/SKILL.md` § Output",
+      );
+      expect(normalizeWhitespace(adr)).not.toContain(
+        "play-review/SKILL.md` § Output",
+      );
+    }
     expect(map).toContain("skills/pr-authoring/SKILL.md");
   });
 
   it("keeps play-branch-finish out of branch-review ownership while posting caller-supplied nits", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
+    const branchReview = await readSkillSource("branch-review");
     const option2 = sliceBetween(
       skillSource,
       "#### Option 2: Push and Create PR",
@@ -3679,6 +3910,12 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizedOption2).toContain("nits_file");
     expect(normalizedOption2).toContain("caller-supplied `nits_file`");
+    expect(normalizedOption2).toContain(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    expect(normalizedOption2).toContain(
+      "skills/play-review/SKILL.md` owns the workflow",
+    );
     expect(normalizedOption2).toContain("validate-nits-file");
     expect(normalizedOption2).toContain(
       "path MUST be a direct child of `.ephemeral/`",
@@ -3711,8 +3948,25 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
     );
+    expect(option2).toContain("ANCHORABLE_NITS_JSON");
+    expect(option2).toContain('"side": "RIGHT"');
+    expect(option2).toContain('start_side: "RIGHT"');
+    expect(normalizedOption2).toContain(
+      'only ranged anchorable nit comments add `start_side: "RIGHT"`',
+    );
     expect(normalizedOption2).toContain(
       "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
+    );
+    for (const consumer of [skillSource, branchReview]) {
+      expect(normalizeWhitespace(consumer)).not.toContain(
+        "skills/play-review/SKILL.md` § Output",
+      );
+      expect(normalizeWhitespace(consumer)).not.toContain(
+        "play-review/SKILL.md` § Output",
+      );
+    }
+    expect(normalizeWhitespace(branchReview)).toContain(
+      "skills/play-review/references/findings-envelope-contract.md",
     );
     expect(normalizedIntegrationSection).toContain(
       "**play-subagent-execution** - After tasks complete and review status is resolved",

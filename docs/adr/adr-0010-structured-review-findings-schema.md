@@ -13,7 +13,10 @@ file) is overridden. The Decision § paragraphs about positional rules
 ("the JSON block is the last fenced block in the report" and the
 empty-block-still-emitted rule) and the wrapper re-emission paragraphs
 are no longer authoritative — see ADR-0012 § Decision for the current
-contract. The Alternatives § entry that originally rejected
+contract. The detailed current findings-envelope contract is maintained in
+`skills/play-review/references/findings-envelope-contract.md`, with
+`skills/play-review/SKILL.md` retaining workflow and notice-line ownership.
+The Alternatives § entry that originally rejected
 `.ephemeral/findings.json` is preserved here as historical record;
 ADR-0012 § Context engages with it directly.
 
@@ -55,8 +58,10 @@ schema implicit and untested.
 
 Append a stable, versioned **structured-finding JSON block** to
 `play-review`'s output. Schema name: `play-review/findings/v1`.
-Documented authoritatively in `skills/play-review/SKILL.md` § Output;
-all consumers cite it by reference rather than re-defining the shape.
+Historically this ADR documented the schema in the main `play-review` output
+section; the current detailed contract lives in
+`skills/play-review/references/findings-envelope-contract.md`, and all
+consumers cite it by reference rather than re-defining the shape.
 
 Positional rules:
 
@@ -92,8 +97,9 @@ between consumer renderings.
 ## Consequences
 
 - Single source of truth for review findings — schema definition lives
-  in one place (`play-review/SKILL.md` § Output); all consumers cite
-  it by reference.
+  in one place (`skills/play-review/references/findings-envelope-contract.md`);
+  `play-review/SKILL.md` retains the workflow and notice-line hook, and all
+  consumers cite the detailed contract by reference.
 - Future schema changes go through versioned-schema discipline: bump
   the major version (`v1` → `v2`) on incompatible changes.
 - The user-visible markdown surfaces of `pr-review` Phase 5 and
