@@ -59,6 +59,29 @@ partial input set without treating omitted skills or agents as stale.
 Generated outputs are not intended to be hand-edited. Managed-state is tracked
 by the install manifest; generated files do not embed a managed header.
 
+### Tracked generated support output
+
+Most files under `generated/` are disposable previews, and new local preview
+churn remains ignored. Some generated support files are intentionally tracked so
+reviewers can inspect the runtime and review-support artifacts that DevCanon
+ships for Claude and Codex targets.
+
+Tracked generated support files do not become source of truth. Source skills,
+source agent definitions, source runtime TypeScript, renderer code, tests, and
+the install manifest remain authoritative for their respective contracts.
+Packaged runtime JavaScript under `skills/devcanon-runtime/scripts/runtime/`
+is also derived support output: it is tracked because installed skill bundles
+need version-aligned helper files, while `src/runtime/` owns the deterministic
+runtime behavior.
+
+The repository can ignore `generated/` and still track selected generated
+support files. Ignore rules keep additional untracked preview output out of
+ordinary diffs; they do not remove files that are already tracked. When a source
+change intentionally affects tracked generated support output, review the
+source or runtime change first, regenerate or run the relevant check, then
+commit the tracked derived diff as evidence of the same change. Do not hand-edit
+tracked generated support files to change behavior.
+
 ### Normalization
 
 Renderer should normalize:

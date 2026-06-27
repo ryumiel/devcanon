@@ -170,6 +170,14 @@ writes managed outputs into user-wide target homes.
 Generated preview output and installed managed output are disposable and should
 not be edited as authoritative source.
 
+Some DevCanon generated support files are intentionally tracked for review and
+packaging evidence, including selected files under ignored `generated/`
+previews and packaged runtime JavaScript under
+`skills/devcanon-runtime/scripts/runtime/`. Before deciding whether generated
+output should be ignored, regenerated, reviewed, or committed, use the
+[target mapping generated output rules](../specs/target-mapping.md#generated-output-rules)
+as the owner.
+
 ## Checklists
 
 New project checklist:
