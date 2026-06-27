@@ -14,6 +14,7 @@ export interface ManagedOutputIdentityOptions {
   config: ResolvedConfig;
   record: ManagedRecord;
   output?: ManagedIdentityOutput;
+  allowMissing?: boolean;
 }
 
 interface ManagedIdentityOutput {
@@ -25,18 +26,37 @@ interface ManagedIdentityOutput {
   installMode?: InstallMode;
 }
 
+type InstalledSkillFiles = Map<string, readonly string[]>;
+
+const MAX_EXHAUSTIVE_SKILL_HASH_CANDIDATES = 1024;
+
 export async function verifyManagedOutputIdentity({
   config,
   record,
   output,
+  allowMissing = false,
 }: ManagedOutputIdentityOptions): Promise<void> {
   assertRecordMatchesOutput(record, output);
   await assertInstalledPathContained(config, record);
+
+  if (allowMissing && !(await installedPathExists(record.installedPath))) {
+    return;
+  }
 
   if (record.installMode === "symlink") {
     await assertSymlinkIdentity(record, output);
   } else {
     await assertCopyIdentity(record);
+  }
+}
+
+async function installedPathExists(installedPath: string): Promise<boolean> {
+  try {
+    await lstat(installedPath);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
   }
 }
 
@@ -208,12 +228,12 @@ async function assertSymlinkIdentity(
 }
 
 async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
-  let actualHash: string;
+  let actualHashes: string[];
   try {
-    actualHash =
+    actualHashes =
       record.type === "agent"
-        ? await hashInstalledAgent(record.installedPath)
-        : await hashInstalledSkill(record.installedPath);
+        ? [await hashInstalledAgent(record.installedPath)]
+        : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
       record,
@@ -221,7 +241,7 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
     );
   }
 
-  if (actualHash !== record.contentHash) {
+  if (!actualHashes.includes(record.contentHash)) {
     throw identityError(record, "installed copy content hash mismatch");
   }
 }
@@ -234,7 +254,8 @@ async function hashInstalledAgent(installedPath: string): Promise<string> {
   return sha256(await readFile(installedPath, "utf-8"));
 }
 
-async function hashInstalledSkill(installedPath: string): Promise<string> {
+async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
+  const installedPath = record.installedPath;
   const stat = await lstat(installedPath);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`installed skill is not a directory: ${installedPath}`);
@@ -242,18 +263,20 @@ async function hashInstalledSkill(installedPath: string): Promise<string> {
 
   const skillMdPath = path.join(installedPath, "SKILL.md");
   const content = await readFile(skillMdPath, "utf-8");
-  const extraFiles = new Map<string, string>();
+  const extraFiles: InstalledSkillFiles = new Map();
   await assertExpectedSkillTopLevelEntries(installedPath);
   await collectInstalledSkillFiles(installedPath, "agents", extraFiles, "raw");
+  const expectedRoot = record.generatedPath ?? record.sourcePath;
   for (const subdir of KNOWN_SUBDIRS) {
     await collectInstalledSkillFiles(
       installedPath,
       subdir,
       extraFiles,
       "mirrored",
+      expectedRoot,
     );
   }
-  return buildSkillContentHash(content, extraFiles, installedPath);
+  return buildSkillContentHashCandidates(content, extraFiles, installedPath);
 }
 
 async function assertExpectedSkillTopLevelEntries(
@@ -278,8 +301,9 @@ async function assertExpectedSkillTopLevelEntries(
 async function collectInstalledSkillFiles(
   root: string,
   base: string,
-  files: Map<string, string>,
+  files: InstalledSkillFiles,
   mode: "raw" | "mirrored",
+  expectedRoot?: string,
 ): Promise<void> {
   const currentDir = path.join(root, ...base.split("/").filter(Boolean));
   const entries = await readdir(currentDir, { withFileTypes: true }).catch(
@@ -296,7 +320,13 @@ async function collectInstalledSkillFiles(
     const absolutePath = path.join(root, ...relPath.split("/"));
 
     if (entry.isDirectory()) {
-      await collectInstalledSkillFiles(root, relPath, files, mode);
+      await collectInstalledSkillFiles(
+        root,
+        relPath,
+        files,
+        mode,
+        expectedRoot,
+      );
       continue;
     }
 
@@ -305,14 +335,218 @@ async function collectInstalledSkillFiles(
         mode === "raw"
           ? await readFile(absolutePath, "utf-8")
           : `file:${(await readFile(absolutePath)).toString("base64")}`;
-      files.set(absolutePath, content);
+      files.set(absolutePath, [content]);
       continue;
     }
 
     if (entry.isSymbolicLink()) {
-      files.set(absolutePath, `symlink:${await readlink(absolutePath)}`);
+      files.set(
+        absolutePath,
+        (
+          await normalizedInstalledSymlinkTargets(
+            absolutePath,
+            relPath,
+            mode,
+            expectedRoot,
+          )
+        ).map((target) => `symlink:${target}`),
+      );
     }
   }
+}
+
+function buildSkillContentHashCandidates(
+  content: string,
+  extraFiles: InstalledSkillFiles,
+  installedPath: string,
+): string[] {
+  const extraEntries = Array.from(extraFiles.entries()).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  const exhaustiveCandidateCount = extraEntries.reduce(
+    (total, [, contents]) => total * new Set(contents).size,
+    1,
+  );
+
+  if (exhaustiveCandidateCount <= MAX_EXHAUSTIVE_SKILL_HASH_CANDIDATES) {
+    return buildExhaustiveSkillContentHashCandidates(
+      content,
+      extraEntries,
+      installedPath,
+    );
+  }
+
+  // The manifest records one aggregate hash, not per-symlink target spelling.
+  // Once the generated/source symlink is gone, arbitrary mixed historical
+  // spellings cannot be proven without exponential guessing, so large
+  // ambiguous copies are checked only against bounded common legacy profiles.
+  return buildBoundedSkillContentHashCandidates(
+    content,
+    extraEntries,
+    installedPath,
+  );
+}
+
+function buildExhaustiveSkillContentHashCandidates(
+  content: string,
+  extraEntries: Array<[string, readonly string[]]>,
+  installedPath: string,
+): string[] {
+  let candidateFiles = [new Map<string, string>()];
+
+  for (const [filePath, contents] of extraEntries) {
+    const uniqueContents = Array.from(new Set(contents));
+    candidateFiles = candidateFiles.flatMap((files) =>
+      uniqueContents.map((fileContent) => {
+        const next = new Map(files);
+        next.set(filePath, fileContent);
+        return next;
+      }),
+    );
+  }
+
+  return uniqueHashes(
+    candidateFiles.map((files) =>
+      buildSkillContentHash(content, files, installedPath),
+    ),
+  );
+}
+
+function buildBoundedSkillContentHashCandidates(
+  content: string,
+  extraEntries: Array<[string, readonly string[]]>,
+  installedPath: string,
+): string[] {
+  const primary = buildCandidateMap(extraEntries, () => 0);
+  const allAlternates = buildCandidateMap(
+    extraEntries,
+    (contents) => contents.length - 1,
+  );
+  const candidates = [primary, allAlternates];
+
+  for (let i = 0; i < extraEntries.length; i += 1) {
+    const [, contents] = extraEntries[i];
+    if (new Set(contents).size <= 1) continue;
+    candidates.push(
+      buildCandidateMap(extraEntries, (_contents, entryIndex) =>
+        entryIndex === i ? contents.length - 1 : 0,
+      ),
+    );
+  }
+
+  return uniqueHashes(
+    candidates.map((files) =>
+      buildSkillContentHash(content, files, installedPath),
+    ),
+  );
+}
+
+function buildCandidateMap(
+  extraEntries: Array<[string, readonly string[]]>,
+  chooseIndex: (contents: string[], entryIndex: number) => number,
+): Map<string, string> {
+  const files = new Map<string, string>();
+  for (let entryIndex = 0; entryIndex < extraEntries.length; entryIndex += 1) {
+    const [filePath, contents] = extraEntries[entryIndex];
+    const uniqueContents = Array.from(new Set(contents));
+    const selectedIndex = Math.min(
+      chooseIndex(uniqueContents, entryIndex),
+      uniqueContents.length - 1,
+    );
+    files.set(filePath, uniqueContents[selectedIndex]);
+  }
+  return files;
+}
+
+function uniqueHashes(hashes: string[]): string[] {
+  return Array.from(new Set(hashes));
+}
+
+async function normalizedInstalledSymlinkTargets(
+  installedPath: string,
+  relPath: string,
+  mode: "raw" | "mirrored",
+  expectedRoot: string | undefined,
+): Promise<string[]> {
+  const actualTarget = await readlink(installedPath);
+  if (mode !== "mirrored" || !expectedRoot || !path.isAbsolute(actualTarget)) {
+    return [actualTarget];
+  }
+
+  const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
+  const expectedTarget = await readExpectedSymlinkTarget(expectedPath);
+  if (expectedTarget === null) {
+    return normalizeAbsoluteTargetsInsideRoot(
+      actualTarget,
+      expectedRoot,
+      expectedPath,
+    );
+  }
+  if (path.isAbsolute(expectedTarget)) {
+    return [actualTarget];
+  }
+
+  const expectedResolved = path.resolve(
+    path.dirname(expectedPath),
+    expectedTarget,
+  );
+  if (actualTarget === expectedResolved) {
+    return [expectedTarget];
+  }
+
+  return [toPosixPath(path.relative(path.dirname(expectedPath), actualTarget))];
+}
+
+function normalizeAbsoluteTargetsInsideRoot(
+  actualTarget: string,
+  expectedRoot: string,
+  expectedPath: string,
+): string[] {
+  const relativeToRoot = path.relative(
+    path.resolve(expectedRoot),
+    actualTarget,
+  );
+  if (
+    relativeToRoot === "" ||
+    relativeToRoot.startsWith("..") ||
+    path.isAbsolute(relativeToRoot)
+  ) {
+    return [actualTarget];
+  }
+
+  const relativeTarget = toPosixPath(
+    path.relative(path.dirname(expectedPath), actualTarget),
+  );
+  return relativeSymlinkTargetCandidates(relativeTarget);
+}
+
+function relativeSymlinkTargetCandidates(relativeTarget: string): string[] {
+  const candidates = [relativeTarget];
+  if (!relativeTarget.startsWith(".")) {
+    candidates.push(`./${relativeTarget}`);
+  }
+  return candidates;
+}
+
+async function readExpectedSymlinkTarget(
+  expectedPath: string,
+): Promise<string | null> {
+  try {
+    const expectedStat = await lstat(expectedPath);
+    if (!expectedStat.isSymbolicLink()) {
+      return null;
+    }
+    return readlink(expectedPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw err;
+  }
+}
+
+function toPosixPath(filePath: string): string {
+  return filePath.split(path.sep).join("/");
 }
 
 function identityError(record: ManagedRecord, reason: string): UserError {

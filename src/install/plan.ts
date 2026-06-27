@@ -25,8 +25,10 @@ export async function computePlan(
     : overwritePolicy;
 
   for (const output of outputs) {
-    const exists = await pathExists(output.installedPath);
     const record = manifestMap.get(output.installedPath);
+    const exists = record
+      ? await pathOrSymlinkExists(output.installedPath)
+      : await pathExists(output.installedPath);
 
     if (!exists) {
       actions.push({

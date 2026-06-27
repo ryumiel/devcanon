@@ -77,17 +77,20 @@ export async function sync(
   for (const action of plan) {
     try {
       const record = manifestRecords.get(action.installedPath);
-      if (action.kind === "update" || action.kind === "remove") {
+      if (
+        action.kind === "update" ||
+        action.kind === "remove" ||
+        action.kind === "skip-up-to-date" ||
+        (action.kind === "install" && record)
+      ) {
         if (!record) {
           throw new Error("manifest record missing for managed action");
         }
-        const installMode: InstallMode =
-          options.mode ?? config.targets[action.target].installMode;
         await verifyManagedOutputIdentity({
           config,
           record,
-          output:
-            action.kind === "update" ? { ...action, installMode } : undefined,
+          output: action.kind === "remove" ? undefined : action,
+          allowMissing: action.kind === "install",
         });
       }
 

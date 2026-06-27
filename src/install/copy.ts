@@ -13,6 +13,6 @@ export async function copyDirectory(src: string, dst: string): Promise<void> {
   } catch {
     // Does not exist
   }
-  await cp(src, dst, { recursive: true, force: true });
+  await cp(src, dst, { recursive: true, force: true, verbatimSymlinks: true });
   getLogger().verbose(`  Copied directory ${src} -> ${dst}`);
 }

@@ -64,7 +64,7 @@ export async function uninstall(
       if (!record) {
         throw new Error("manifest record missing for uninstall action");
       }
-      await verifyManagedOutputIdentity({ config, record });
+      await verifyManagedOutputIdentity({ config, record, allowMissing: true });
       await executeRemove(action);
       removedPaths.push(action.installedPath);
       result.removed += 1;

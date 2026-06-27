@@ -326,6 +326,138 @@ describe("sync", () => {
     expect(manifestAfter.records).toEqual(manifestBefore.records);
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "updates copy-installed skills when a mirrored symlink target changes",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link.txt");
+      await symlink("../target-a/payload.txt", sourceLink);
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      await rm(sourceLink);
+      await symlink("../target-b/payload.txt", sourceLink);
+
+      const result = await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      expect(result.updated).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(await readlink(installedLink)).toBe("../target-b/payload.txt");
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "updates copy-installed skills with absolute mirrored symlinks",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const absoluteTarget = path.join(
+        tempDir,
+        "absolute-target",
+        "payload.txt",
+      );
+      await mkdir(path.dirname(absoluteTarget), { recursive: true });
+      await writeFile(absoluteTarget, "payload", "utf-8");
+      await symlink(absoluteTarget, path.join(skillDir, "scripts", "link.txt"));
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      await writeFile(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n\nUpdated.\n",
+        "utf-8",
+      );
+
+      const result = await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      expect(result.updated).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(await readlink(installedLink)).toBe(absoluteTarget);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "updates copy-installed skills when rewritten absolute symlinks came from dot-relative links",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "payload.txt"),
+        "payload",
+        "utf-8",
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link.txt");
+      await symlink("./payload.txt", sourceLink);
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      const rewrittenTarget = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+        "scripts",
+        "payload.txt",
+      );
+      await rm(installedLink);
+      await symlink(rewrittenTarget, installedLink, "file");
+      await writeFile(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n\nUpdated.\n",
+        "utf-8",
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.updated).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(await readlink(installedLink)).toBe("./payload.txt");
+    },
+  );
+
   it("dry run makes no changes and returns zero counts", async () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
@@ -486,6 +618,245 @@ describe("sync", () => {
   );
 
   it.skipIf(!symlinkAvailable)(
+    "removes stale copy-installed skills when a copied relative symlink was rewritten absolute",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await mkdir(path.join(skillDir, "target-a"), { recursive: true });
+      await writeFile(
+        path.join(skillDir, "target-a", "payload.txt"),
+        "payload",
+        "utf-8",
+      );
+      await symlink(
+        "../target-a/payload.txt",
+        path.join(skillDir, "scripts", "link.txt"),
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      const rewrittenTarget = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+        "target-a",
+        "payload.txt",
+      );
+      await rm(installedLink);
+      await symlink(rewrittenTarget, installedLink, "file");
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(
+        await pathExists(
+          path.join(config.targets.claude.skillsHome, "skill-a"),
+        ),
+      ).toBe(false);
+      const manifest = JSON.parse(await readTextFile(config.manifest.path));
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "removes stale copy-installed skills when a copied dot-relative symlink was rewritten absolute",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "payload.txt"),
+        "payload",
+        "utf-8",
+      );
+      await symlink(
+        "./payload.txt",
+        path.join(skillDir, "scripts", "link.txt"),
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedLink = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+        "scripts",
+        "link.txt",
+      );
+      const rewrittenTarget = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+        "scripts",
+        "payload.txt",
+      );
+      await rm(installedLink);
+      await symlink(rewrittenTarget, installedLink, "file");
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(
+        await pathExists(
+          path.join(config.targets.claude.skillsHome, "skill-a"),
+        ),
+      ).toBe(false);
+      const manifest = JSON.parse(await readTextFile(config.manifest.path));
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "removes stale copy-installed skills when many copied dot-relative symlinks were rewritten absolute",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      for (let i = 0; i < 20; i += 1) {
+        await writeFile(
+          path.join(skillDir, "scripts", `payload-${i}.txt`),
+          `payload ${i}`,
+          "utf-8",
+        );
+        await symlink(
+          `./payload-${i}.txt`,
+          path.join(skillDir, "scripts", `link-${i}.txt`),
+        );
+      }
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      for (let i = 0; i < 20; i += 1) {
+        const installedLink = path.join(
+          config.targets.claude.skillsHome,
+          "skill-a",
+          "scripts",
+          `link-${i}.txt`,
+        );
+        const rewrittenTarget = path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "skill-a",
+          "scripts",
+          `payload-${i}.txt`,
+        );
+        await rm(installedLink);
+        await symlink(rewrittenTarget, installedLink, "file");
+      }
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(
+        await pathExists(
+          path.join(config.targets.claude.skillsHome, "skill-a"),
+        ),
+      ).toBe(false);
+      const manifest = JSON.parse(await readTextFile(config.manifest.path));
+      expect(manifest.records).toEqual([]);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "keeps stale copy-installed skills when many rewritten symlink spellings cannot be reconstructed",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      for (let i = 0; i < 20; i += 1) {
+        await writeFile(
+          path.join(skillDir, "scripts", `payload-${i}.txt`),
+          `payload ${i}`,
+          "utf-8",
+        );
+        await symlink(
+          i < 2 ? `./payload-${i}.txt` : `payload-${i}.txt`,
+          path.join(skillDir, "scripts", `link-${i}.txt`),
+        );
+      }
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      for (let i = 0; i < 20; i += 1) {
+        const installedLink = path.join(
+          config.targets.claude.skillsHome,
+          "skill-a",
+          "scripts",
+          `link-${i}.txt`,
+        );
+        const rewrittenTarget = path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "skill-a",
+          "scripts",
+          `payload-${i}.txt`,
+        );
+        await rm(installedLink);
+        await symlink(rewrittenTarget, installedLink, "file");
+      }
+      await rm(skillDir, { recursive: true });
+      const manifestBefore = await readTextFile(config.manifest.path);
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed copy content hash mismatch"),
+      ]);
+      expect(
+        await pathExists(
+          path.join(config.targets.claude.skillsHome, "skill-a"),
+        ),
+      ).toBe(true);
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
     "skips symlink-mode update when the installed symlink points elsewhere",
     async () => {
       const config = makeResolvedConfig(tempDir, {
@@ -534,6 +905,139 @@ describe("sync", () => {
         await readTextFile(config.manifest.path),
       );
       expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips symlink-mode update when the managed path is a broken symlink to another target",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { enabled: false },
+        defaults: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const agentPath = await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "a1.md",
+      );
+      await rm(claudeAgentPath);
+      const foreignTarget = path.join(tempDir, "outside", "missing.md");
+      await mkdir(path.dirname(foreignTarget), { recursive: true });
+      await symlink(foreignTarget, claudeAgentPath, "file");
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+
+      await writeFile(
+        agentPath,
+        makeAgentYaml("a1", { instructions: "Updated instructions v2" }),
+        "utf-8",
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.updated).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("symlink target mismatch"),
+      ]);
+      expect(await readlink(claudeAgentPath)).toBe(foreignTarget);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips up-to-date symlink-mode output when the managed path is a broken symlink to another target",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { enabled: false },
+        defaults: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "a1.md",
+      );
+      await rm(claudeAgentPath);
+      const foreignTarget = path.join(tempDir, "outside", "missing.md");
+      await mkdir(path.dirname(foreignTarget), { recursive: true });
+      await symlink(foreignTarget, claudeAgentPath, "file");
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.skipped).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("symlink target mismatch"),
+      ]);
+      expect(await readlink(claudeAgentPath)).toBe(foreignTarget);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "skips reinstalling a missing managed output when the target home became a symlink",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "a1",
+        makeAgentYaml("a1"),
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const claudeAgentPath = path.join(
+        config.targets.claude.agentsHome,
+        "a1.md",
+      );
+      const manifestBefore = await readTextFile(config.manifest.path);
+      await rm(config.targets.claude.agentsHome, { recursive: true });
+      const outsideHome = path.join(tempDir, "outside-agents");
+      await mkdir(outsideHome, { recursive: true });
+      await symlink(outsideHome, config.targets.claude.agentsHome, "dir");
+
+      const result = await sync(config, opts);
+
+      expect(result.installed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("configured claude agent home is a symlink"),
+      ]);
+      expect(await pathExists(claudeAgentPath)).toBe(false);
+      expect(await pathExists(path.join(outsideHome, "a1.md"))).toBe(false);
+      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
     },
   );
 
@@ -993,23 +1497,6 @@ describe("sync", () => {
     );
     expect(claudeAgentRecord.installMode).toBe("copy");
 
-    await writeFile(claudeAgentPath, "tampered fallback copy", "utf-8");
-    symlinkFailure.enabled = false;
-    const manifestBefore = JSON.parse(await readTextFile(config.manifest.path));
-
-    const uninstallResult = await uninstall(config, {
-      target: "claude",
-      dryRun: false,
-    });
-
-    expect(uninstallResult.removed).toBe(0);
-    expect(uninstallResult.errors).toEqual([
-      expect.stringContaining("installed copy content hash mismatch"),
-    ]);
-    expect(await readTextFile(claudeAgentPath)).toBe("tampered fallback copy");
-    let manifestAfter = JSON.parse(await readTextFile(config.manifest.path));
-    expect(manifestAfter.records).toEqual(manifestBefore.records);
-
     await writeFile(
       path.join(config.library.agentsDir, "a1.yaml"),
       makeAgentYaml("a1", { instructions: "Updated instructions v2" }),
@@ -1023,13 +1510,54 @@ describe("sync", () => {
       strict: false,
     });
 
-    expect(second.updated).toBe(0);
-    expect(second.errors).toEqual([
-      expect.stringContaining("manifest install mode mismatch"),
+    expect(second.updated).toBe(1);
+    expect(second.errors).toEqual([]);
+    expect(await readTextFile(claudeAgentPath)).toContain(
+      "Updated instructions v2",
+    );
+    let manifestAfter = JSON.parse(await readTextFile(config.manifest.path));
+    const updatedRecord = manifestAfter.records.find(
+      (record: { installedPath: string }) =>
+        record.installedPath === claudeAgentPath,
+    );
+    expect(updatedRecord.installMode).toBe("copy");
+
+    await writeFile(claudeAgentPath, "tampered fallback copy", "utf-8");
+    symlinkFailure.enabled = false;
+    const manifestBeforeTamperedUpdate = JSON.parse(
+      await readTextFile(config.manifest.path),
+    );
+    await writeFile(
+      path.join(config.library.agentsDir, "a1.yaml"),
+      makeAgentYaml("a1", { instructions: "Updated instructions v3" }),
+      "utf-8",
+    );
+
+    const third = await sync(config, {
+      target: "claude",
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(third.updated).toBe(0);
+    expect(third.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
     ]);
     expect(await readTextFile(claudeAgentPath)).toBe("tampered fallback copy");
     manifestAfter = JSON.parse(await readTextFile(config.manifest.path));
-    expect(manifestAfter.records).toEqual(manifestBefore.records);
+    expect(manifestAfter.records).toEqual(manifestBeforeTamperedUpdate.records);
+
+    const uninstallResult = await uninstall(config, {
+      target: "claude",
+      dryRun: false,
+    });
+
+    expect(uninstallResult.removed).toBe(0);
+    expect(uninstallResult.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(await readTextFile(claudeAgentPath)).toBe("tampered fallback copy");
   });
 
   it("collects errors without throwing when an action fails", async () => {

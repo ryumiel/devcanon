@@ -39,6 +39,7 @@ function makeManifest(records: Manifest["records"] = []): Manifest {
 describe("computePlan", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
   });
 
   it("outputs install action when path does not exist", async () => {
@@ -106,6 +107,39 @@ describe("computePlan", () => {
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("update");
+  });
+
+  it("outputs update for a managed current output when only a broken symlink object exists", async () => {
+    mockedPathExists.mockResolvedValue(false);
+    mockedPathOrSymlinkExists.mockResolvedValue(true);
+    const output = makeOutput({ contentHash: "new-hash" });
+    const manifest = makeManifest([
+      {
+        target: "claude",
+        type: "agent",
+        sourcePath: output.sourcePath,
+        generatedPath: output.generatedPath,
+        installedPath: output.installedPath,
+        installMode: "symlink",
+        contentHash: "old-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [output],
+      manifest,
+      "overwrite-managed",
+      false,
+      false,
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].kind).toBe("update");
+    expect(mockedPathExists).not.toHaveBeenCalledWith(output.installedPath);
+    expect(mockedPathOrSymlinkExists).toHaveBeenCalledWith(
+      output.installedPath,
+    );
   });
 
   it("outputs skip-conflict for unmanaged existing file (overwrite-managed)", async () => {
