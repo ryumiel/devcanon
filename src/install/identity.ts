@@ -44,7 +44,7 @@ export async function verifyManagedOutputIdentity({
   }
 
   if (record.installMode === "symlink") {
-    await assertSymlinkIdentity(record, output);
+    await assertSymlinkIdentity(record);
   } else {
     await assertCopyIdentity(record);
   }
@@ -69,10 +69,6 @@ function assertRecordMatchesOutput(
   const mismatches: string[] = [];
   if (record.target !== output.target) mismatches.push("target");
   if (record.type !== output.type) mismatches.push("type");
-  if (record.sourcePath !== output.sourcePath) mismatches.push("source path");
-  if (record.generatedPath !== output.generatedPath) {
-    mismatches.push("generated path");
-  }
   if (record.installedPath !== output.installedPath) {
     mismatches.push("installed path");
   }
@@ -191,10 +187,7 @@ async function assertNoSymlinkParents(
   }
 }
 
-async function assertSymlinkIdentity(
-  record: ManagedRecord,
-  output: ManagedIdentityOutput | undefined,
-): Promise<void> {
+async function assertSymlinkIdentity(record: ManagedRecord): Promise<void> {
   let stat: Awaited<ReturnType<typeof lstat>>;
   try {
     stat = await lstat(record.installedPath);
@@ -209,9 +202,7 @@ async function assertSymlinkIdentity(
     throw identityError(record, "installed path is not a symlink");
   }
 
-  const expectedTarget = output
-    ? (output.generatedPath ?? output.sourcePath)
-    : (record.generatedPath ?? record.sourcePath);
+  const expectedTarget = record.generatedPath ?? record.sourcePath;
   const actualTarget = await readlink(record.installedPath);
   const actualResolved = path.resolve(
     path.dirname(record.installedPath),
@@ -418,18 +409,26 @@ function buildBoundedSkillContentHashCandidates(
   installedPath: string,
 ): string[] {
   const primary = buildCandidateMap(extraEntries, () => 0);
-  const allAlternates = buildCandidateMap(
-    extraEntries,
-    (contents) => contents.length - 1,
+  const candidates = [primary];
+  const maxContents = extraEntries.reduce(
+    (max, [, contents]) => Math.max(max, new Set(contents).size),
+    0,
   );
-  const candidates = [primary, allAlternates];
+
+  for (let contentIndex = 1; contentIndex < maxContents; contentIndex += 1) {
+    candidates.push(
+      buildCandidateMap(extraEntries, (contents) =>
+        Math.min(contentIndex, contents.length - 1),
+      ),
+    );
+  }
 
   for (let i = 0; i < extraEntries.length; i += 1) {
     const [, contents] = extraEntries[i];
     if (new Set(contents).size <= 1) continue;
     candidates.push(
       buildCandidateMap(extraEntries, (_contents, entryIndex) =>
-        entryIndex === i ? contents.length - 1 : 0,
+        entryIndex === i ? 1 : 0,
       ),
     );
   }
@@ -491,7 +490,11 @@ async function normalizedInstalledSymlinkTargets(
     expectedTarget,
   );
   if (actualTarget === expectedResolved) {
-    return [expectedTarget];
+    return normalizeAbsoluteTargetsInsideRoot(
+      actualTarget,
+      expectedRoot,
+      expectedPath,
+    );
   }
 
   return [toPosixPath(path.relative(path.dirname(expectedPath), actualTarget))];
@@ -521,11 +524,24 @@ function normalizeAbsoluteTargetsInsideRoot(
 }
 
 function relativeSymlinkTargetCandidates(relativeTarget: string): string[] {
-  const candidates = [relativeTarget];
-  if (!relativeTarget.startsWith(".")) {
-    candidates.push(`./${relativeTarget}`);
+  const candidates = new Set<string>();
+  for (const spelling of separatorSpellingCandidates(relativeTarget)) {
+    candidates.add(spelling);
+    if (!spelling.startsWith(".") && !path.isAbsolute(spelling)) {
+      candidates.add(`.${path.sep}${spelling}`);
+      candidates.add(`./${toPosixPath(spelling)}`);
+      candidates.add(`.\\${toWindowsPath(spelling)}`);
+    }
   }
-  return candidates;
+  return Array.from(candidates);
+}
+
+function separatorSpellingCandidates(relativeTarget: string): string[] {
+  return uniqueStrings([
+    relativeTarget,
+    toPosixPath(relativeTarget),
+    toWindowsPath(relativeTarget),
+  ]);
 }
 
 async function readExpectedSymlinkTarget(
@@ -546,7 +562,15 @@ async function readExpectedSymlinkTarget(
 }
 
 function toPosixPath(filePath: string): string {
-  return filePath.split(path.sep).join("/");
+  return filePath.replaceAll("\\", "/").split(path.sep).join("/");
+}
+
+function toWindowsPath(filePath: string): string {
+  return filePath.replaceAll("/", "\\");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function identityError(record: ManagedRecord, reason: string): UserError {
