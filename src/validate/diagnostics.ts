@@ -1,7 +1,8 @@
 export type ValidationDiagnosticCode =
   | "skill.prompt-size"
   | "skill.drift-token"
-  | "skill.stray-file";
+  | "skill.stray-file"
+  | "skill.unknown-subdir";
 
 export type ValidationDiagnosticArea = "skill";
 
@@ -46,6 +47,7 @@ export function formatValidationDiagnostic(
     case "skill.drift-token":
       return formatDriftTokenDiagnostic(diagnostic);
     case "skill.stray-file":
+    case "skill.unknown-subdir":
       return formatStrayFileDiagnostic(diagnostic);
     default: {
       const _exhaustive: never = diagnostic.code;
@@ -70,6 +72,7 @@ function formatValidationDiagnosticBlock(
       return [heading, ...formatPromptSizeDiagnosticBlock(diagnostic)];
     case "skill.drift-token":
     case "skill.stray-file":
+    case "skill.unknown-subdir":
       return [heading, ...formatBasicDiagnosticBlock(diagnostic)];
     default: {
       const _exhaustive: never = diagnostic.code;
