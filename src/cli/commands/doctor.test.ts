@@ -127,6 +127,54 @@ describe("doctorAction", () => {
       ),
     ).toBe(true);
   });
+
+  it("reports primary checkout managed-worktree drift when invoked from a managed worktree", async () => {
+    await initRepo(tempDir);
+    const linkedWorktree = path.join(tempDir, ".worktrees", "linked");
+    await runGit(["worktree", "add", "-b", "linked", linkedWorktree, "HEAD"], {
+      cwd: tempDir,
+    });
+    await mkdir(path.join(linkedWorktree, "skills"), { recursive: true });
+    await mkdir(path.join(linkedWorktree, "agents"), { recursive: true });
+    const linkedConfigPath = await createConfigFile(
+      linkedWorktree,
+      [
+        "version: 1",
+        "library:",
+        "  skillsDir: ./skills",
+        "  agentsDir: ./agents",
+        "  generatedDir: ./generated",
+      ].join("\n"),
+    );
+    const orphan = path.join(tempDir, ".worktrees", "orphan");
+    await mkdir(orphan, { recursive: true });
+    await writeFile(
+      path.join(orphan, ".git"),
+      "gitdir: ../../.git/worktrees/orphan\n",
+      "utf-8",
+    );
+
+    await doctorAction(
+      {},
+      {
+        parent: {
+          opts: () => ({ config: linkedConfigPath, json: false }),
+        },
+      },
+    );
+
+    expect(
+      infos.some(
+        (entry) =>
+          entry.includes(
+            "managed-worktrees: Managed worktree drift detected",
+          ) &&
+          entry.includes(
+            ".worktrees/orphan is not registered in git worktree metadata.",
+          ),
+      ),
+    ).toBe(true);
+  });
 });
 
 async function initRepo(repoDir: string): Promise<void> {

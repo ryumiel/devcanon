@@ -181,6 +181,37 @@ describe("managed worktree diagnostics", () => {
     );
   });
 
+  it("ignores ambient Git environment variables when inspecting the intended checkout", async () => {
+    await initRepo(tempDir);
+    const poisonRepo = path.join(tempDir, "poison");
+    await initRepo(poisonRepo);
+    const orphan = path.join(tempDir, ".worktrees", "orphan");
+    await mkdir(orphan, { recursive: true });
+    await writeFile(
+      path.join(orphan, ".git"),
+      "gitdir: ../../.git/worktrees/orphan\n",
+      "utf-8",
+    );
+
+    const result = await withEnv(
+      {
+        GIT_DIR: path.join(poisonRepo, ".git"),
+        GIT_WORK_TREE: poisonRepo,
+        GIT_CEILING_DIRECTORIES: poisonRepo,
+        GIT_DISCOVERY_ACROSS_FILESYSTEM: "false",
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "core.bare",
+        GIT_CONFIG_VALUE_0: "true",
+      },
+      () => diagnoseManagedWorktrees(tempDir),
+    );
+
+    expect(result.status).toBe("warn");
+    expect(result.findings).toContain(
+      ".worktrees/orphan is not registered in git worktree metadata.",
+    );
+  });
+
   it("reports non-directory managed worktree roots", async () => {
     await initRepo(tempDir);
     await writeFile(path.join(tempDir, ".worktrees"), "not a directory\n");
@@ -257,16 +288,33 @@ describe("managed worktree diagnostics", () => {
       return;
     }
     await initRepo(tempDir);
+    await runGit(
+      ["worktree", "add", "-b", "symlinked", ".worktrees/symlinked", "HEAD"],
+      { cwd: tempDir },
+    );
+    await rm(path.join(tempDir, ".worktrees"), {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
     const linkedRoot = path.join(tempDir, "linked-root");
-    await mkdir(linkedRoot);
+    await mkdir(path.join(linkedRoot, "symlinked"), { recursive: true });
+    const targetOnlyDrift = path.join(linkedRoot, "target-only");
+    await mkdir(targetOnlyDrift, { recursive: true });
+    await writeFile(
+      path.join(targetOnlyDrift, ".git"),
+      "gitdir: ../../.git/worktrees/target-only\n",
+      "utf-8",
+    );
     await symlink(linkedRoot, path.join(tempDir, ".worktrees"), "dir");
 
-    await expect(diagnoseManagedWorktrees(tempDir)).resolves.toMatchObject({
-      status: "warn",
-      findings: [
-        ".worktrees is a symlink; inspect it manually before cleanup.",
-      ],
-    });
+    const result = await diagnoseManagedWorktrees(tempDir);
+
+    expect(result.status).toBe("warn");
+    expect(result.findings).toEqual([
+      ".worktrees is a symlink; inspect it manually before cleanup.",
+    ]);
   });
 
   it("reports symlinked child entries and .git paths without following them", async () => {
@@ -305,4 +353,26 @@ async function initRepo(repoDir: string): Promise<void> {
   await writeFile(path.join(repoDir, "README.md"), "test\n");
   await runGit(["add", "README.md"], { cwd: repoDir });
   await runGit(["commit", "-m", "test: initial"], { cwd: repoDir });
+}
+
+async function withEnv<T>(
+  values: Record<string, string>,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(values)) {
+    previous.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+  try {
+    return await callback();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        Reflect.deleteProperty(process.env, key);
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 }

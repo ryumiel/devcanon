@@ -20,18 +20,23 @@ interface GitResult {
 export async function diagnoseManagedWorktrees(
   libraryRoot: string,
 ): Promise<ManagedWorktreeDiagnostics> {
-  const worktreesDir = path.join(libraryRoot, ".worktrees");
-  const managedWorktreeNamespaces = await getManagedWorktreeNamespaces(
-    libraryRoot,
-    worktreesDir,
-  );
+  const gitDiscovery = await loadGitDiscovery(libraryRoot);
+  const diagnosticRoot =
+    gitDiscovery.status === "ok"
+      ? gitDiscovery.primaryWorktreePath
+      : libraryRoot;
+  const worktreesDir = path.join(diagnosticRoot, ".worktrees");
   const worktreesStat = await lstat(worktreesDir).catch(() => null);
   if (worktreesStat === null) {
-    const gitContext = await loadGitContext(libraryRoot);
-    if (gitContext.status === "ok") {
+    if (gitDiscovery.status === "ok") {
+      const registeredWorktrees = await loadRegisteredWorktrees(gitDiscovery);
+      const managedWorktreeNamespaces = await getManagedWorktreeNamespaces(
+        diagnosticRoot,
+        worktreesDir,
+      );
       const missingRegistered = await findMissingRegisteredManagedWorktrees({
         managedWorktreeNamespaces,
-        registeredWorktreePaths: gitContext.registeredWorktreePaths,
+        registeredWorktreePaths: registeredWorktrees.worktreePaths,
       });
       if (missingRegistered.length > 0) {
         return warn(missingRegistered);
@@ -48,10 +53,14 @@ export async function diagnoseManagedWorktrees(
     return warn([".worktrees exists but is not a directory."]);
   }
 
-  const gitContext = await loadGitContext(libraryRoot);
-  if (gitContext.status === "warn") {
-    return warn([gitContext.message]);
+  if (gitDiscovery.status === "warn") {
+    return warn([gitDiscovery.message]);
   }
+  const registeredWorktrees = await loadRegisteredWorktrees(gitDiscovery);
+  const managedWorktreeNamespaces = await getManagedWorktreeNamespaces(
+    diagnosticRoot,
+    worktreesDir,
+  );
 
   let entries: string[];
   try {
@@ -66,15 +75,15 @@ export async function diagnoseManagedWorktrees(
       ...(await inspectWorktreeEntry({
         entry,
         entryPath: path.join(worktreesDir, entry),
-        metadataNamespaces: gitContext.metadataNamespaces,
-        registeredWorktrees: gitContext.registeredWorktrees,
+        metadataNamespaces: gitDiscovery.metadataNamespaces,
+        registeredWorktrees: registeredWorktrees.metadataByWorktree,
       })),
     );
   }
   findings.push(
     ...(await findMissingRegisteredManagedWorktrees({
       managedWorktreeNamespaces,
-      registeredWorktreePaths: gitContext.registeredWorktreePaths,
+      registeredWorktreePaths: registeredWorktrees.worktreePaths,
     })),
   );
 
@@ -185,12 +194,12 @@ function parseGitdir(content: string): string | null {
   return gitdir && gitdir.length > 0 ? gitdir : null;
 }
 
-async function loadGitContext(libraryRoot: string): Promise<
+async function loadGitDiscovery(libraryRoot: string): Promise<
   | {
       status: "ok";
+      primaryWorktreePath: string;
       metadataNamespaces: string[];
-      registeredWorktrees: Map<string, string | null>;
-      registeredWorktreePaths: string[];
+      worktreeListOutput: string;
     }
   | { status: "warn"; message: string }
 > {
@@ -244,17 +253,53 @@ async function loadGitContext(libraryRoot: string): Promise<
     };
   }
 
-  const registeredWorktrees = await parseRegisteredWorktrees(
+  const primaryWorktreePath = parsePrimaryWorktreePath(
     worktreeList.stdout,
-    metadataNamespaces[0],
+    libraryRoot,
   );
+  if (primaryWorktreePath === undefined) {
+    return {
+      status: "warn",
+      message:
+        ".worktrees exists, but the primary Git worktree could not be determined.",
+    };
+  }
 
   return {
     status: "ok",
+    primaryWorktreePath,
     metadataNamespaces,
-    registeredWorktrees: registeredWorktrees.metadataByWorktree,
-    registeredWorktreePaths: registeredWorktrees.worktreePaths,
+    worktreeListOutput: worktreeList.stdout,
   };
+}
+
+async function loadRegisteredWorktrees(discovery: {
+  metadataNamespaces: string[];
+  worktreeListOutput: string;
+}): Promise<{
+  metadataByWorktree: Map<string, string | null>;
+  worktreePaths: string[];
+}> {
+  return parseRegisteredWorktrees(
+    discovery.worktreeListOutput,
+    discovery.metadataNamespaces[0],
+  );
+}
+
+function parsePrimaryWorktreePath(
+  output: string,
+  libraryRoot: string,
+): string | undefined {
+  for (const field of output.split("\0")) {
+    if (!field.startsWith("worktree ")) {
+      continue;
+    }
+    const worktreePath = field.slice("worktree ".length);
+    return path.isAbsolute(worktreePath)
+      ? path.normalize(worktreePath)
+      : path.resolve(libraryRoot, worktreePath);
+  }
+  return undefined;
 }
 
 async function parseRegisteredWorktrees(
@@ -365,6 +410,7 @@ async function git(
   try {
     const { stdout, stderr } = await execFileAsync("git", [...args], {
       cwd,
+      env: sanitizedGitEnv(),
       encoding: "utf8",
       shell: false,
       windowsHide: true,
@@ -389,6 +435,36 @@ async function git(
     }
     throw new Error(result.stderr.trim() || error.message);
   }
+}
+
+function sanitizedGitEnv(): NodeJS.ProcessEnv {
+  const blockedNames = new Set([
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_ATTR_SOURCE",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_DIFF_OPTS",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_DIR",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+    "GIT_INDEX_FILE",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_NAMESPACE",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_WORK_TREE",
+  ]);
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) =>
+        !key.startsWith("GIT_CONFIG") &&
+        key !== "GIT_CONFIG_PARAMETERS" &&
+        !blockedNames.has(key),
+    ),
+  );
 }
 
 function warn(findings: string[]): ManagedWorktreeDiagnostics {
