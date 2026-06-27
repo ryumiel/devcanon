@@ -31,11 +31,18 @@ Required fields:
 - `changed_files`: **Changed files (active diff)** from `git diff --name-status`
   against the active diff, including count, truncation flag, and structured
   records.
-- `doc_impact_summary`: `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`,
-  `ARCHITECTURE_ROUTING_RISKS`, `SPEC_ROUTING_RISKS`, optional notes, and any
-  sanitized `contract_example_discipline_context_path:` pointer.
-  This carries architecture-routing risks, spec-routing risks, mechanical path
-  signals, and semantic classification notes.
+- `doc_impact_summary`: helper-facing manifest object with `arch_files`,
+  `new_adrs`, `modified_adrs`, `architecture_routing_risks`,
+  `spec_routing_risks`, optional `notes`, and any sanitized
+  `contract_example_discipline_context_path:` pointer in semantic notes. The
+  two routing-risk objects use the exact nested shape
+  `{ "mechanical_path_signals": string[], "semantic_classification_notes": string[] }`.
+  These snake_case keys are the executable `play-review/shared-context-input/v1`
+  contract validated by `write-review-context-input`.
+  The rendered shared context may present reviewer-visible routing labels
+  `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`, `ARCHITECTURE_ROUTING_RISKS`, and
+  `SPEC_ROUTING_RISKS`, but manifest authors must not replace the helper-facing
+  keys with those labels.
 - `adr_references`: repo-relative ADR paths with short relevance reasons.
 - `discovered_guidelines.records`: one record per relevant guideline with path,
   UTF-8 bytes, non-empty summary, optional priority, and optional minimized
@@ -71,7 +78,7 @@ active review scope is incremental.
 
 Populate these stable fields:
 
-- `ARCH_FILES`: mechanical path-signal array of full-PR changed paths that
+- `arch_files` / `ARCH_FILES`: mechanical path-signal array of full-PR changed paths that
   directly touch architecture or workflow authority, including `docs/adr/**`,
   `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow
   policy, dependency manifests, config, major entry points, generated/source
@@ -80,20 +87,26 @@ Populate these stable fields:
   an unlisted source path carries module-boundary, ownership, generated/source,
   or responsibility risk, record the path evidence or semantic risk rather than
   classifying it as low-risk by omission.
-- `NEW_ADRS`: mechanical path-signal array of full-PR added
+- `new_adrs` / `NEW_ADRS`: mechanical path-signal array of full-PR added
   `docs/adr/adr-*.md` paths.
-- `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified or deleted
+- `modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified or deleted
   `docs/adr/adr-*.md` paths.
-- `ARCHITECTURE_ROUTING_RISKS`: semantic classification notes for full-PR
-  architecture risk that is not fully captured by path membership, including
-  architecture-routing risks, module-boundary changes, 3+ changed modules,
-  durable decision indicators, generated/source ownership drift,
-  responsibility drift, or ambiguous architectural impact.
-- `SPEC_ROUTING_RISKS`: semantic classification notes for full-PR spec or
-  documented-behavior risk, including spec-routing risks, docs/spec/API or
-  user-facing behavior changes, CLI/operator guidance changes, examples,
-  public config schemas, files referenced by existing docs, prose that changes
-  a documented pattern's canonical direction, or ambiguous spec impact.
+- `architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk
+  object whose `mechanical_path_signals` array records full-PR changed paths
+  that mechanically trigger architecture review and whose
+  `semantic_classification_notes` array records architecture risk that is not
+  fully captured by path membership, including architecture-routing risks,
+  module-boundary changes, 3+ changed modules, durable decision indicators,
+  generated/source ownership drift, responsibility drift, or ambiguous
+  architectural impact.
+- `spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object whose
+  `mechanical_path_signals` array records full-PR changed paths that
+  mechanically trigger spec review and whose `semantic_classification_notes`
+  array records spec or documented-behavior risk, including spec-routing risks,
+  docs/spec/API or user-facing behavior changes, CLI/operator guidance changes,
+  examples, public config schemas, files referenced by existing docs, prose
+  that changes a documented pattern's canonical direction, or ambiguous spec
+  impact.
 
 Mechanical path-signal arrays are path evidence from the full PR diff. Semantic
 classification notes are concise reason strings derived from the full PR scope,

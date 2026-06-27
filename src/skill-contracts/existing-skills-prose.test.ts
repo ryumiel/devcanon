@@ -299,10 +299,16 @@ describe("existing skills source prose contracts", () => {
       "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
     );
     expect(normalizeWhitespace(sharedContextReference)).toContain(
-      "`ARCH_FILES`: mechanical path-signal array",
+      "helper-facing manifest object with `arch_files`, `new_adrs`, `modified_adrs`, `architecture_routing_risks`, `spec_routing_risks`",
     );
     expect(normalizeWhitespace(sharedContextReference)).toContain(
-      "`SPEC_ROUTING_RISKS`: semantic classification notes",
+      "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
     );
 
     const routingReference = await readRepoFile(

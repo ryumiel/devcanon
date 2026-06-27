@@ -2019,6 +2019,20 @@ describe("phase artifact source contracts", () => {
     expect(normalizedSharedContext).toContain(
       "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
     );
+    for (const manifestField of [
+      "`arch_files`",
+      "`new_adrs`",
+      "`modified_adrs`",
+      "`architecture_routing_risks`",
+      "`spec_routing_risks`",
+      "`mechanical_path_signals`",
+      "`semantic_classification_notes`",
+    ]) {
+      expect(sharedContextContract).toContain(manifestField);
+    }
+    expect(normalizedSharedContext).toContain(
+      "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
+    );
     for (const stableField of [
       "`ARCH_FILES`",
       "`NEW_ADRS`",
@@ -2029,11 +2043,11 @@ describe("phase artifact source contracts", () => {
       expect(sharedContextContract).toContain(stableField);
     }
     for (const derivationDetail of [
-      "`ARCH_FILES`: mechanical path-signal array",
-      "`NEW_ADRS`: mechanical path-signal array",
-      "`MODIFIED_ADRS`: mechanical path-signal array",
-      "`ARCHITECTURE_ROUTING_RISKS`: semantic classification notes",
-      "`SPEC_ROUTING_RISKS`: semantic classification notes",
+      "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
+      "`new_adrs` / `NEW_ADRS`: mechanical path-signal array",
+      "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array",
+      "`architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk object",
+      "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
       "Mechanical path-signal arrays",
       "Semantic classification notes",
       "Do not treat the architecture path examples as an exhaustive allowlist",
