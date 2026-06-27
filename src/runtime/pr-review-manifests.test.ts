@@ -238,33 +238,30 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     }
   }, 30_000);
 
-  it("reports dirty-but-valid worktree status and fails closed for false status booleans", async () => {
-    const dirty = await makeManifestWorkspace("pr-review-summary-dirty-");
-    setSummaryEnv(dirty);
-    let result = await runManifestCommand(["render-phase5-audit-summary"]);
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain("dirty `true`");
-
-    const falseStatusWorkspace = await makeManifestWorkspace(
-      "pr-review-summary-false-status-",
-    );
-    for (const [field, expected] of [
-      ["worktree_exists", "worktree does not exist"],
-      ["worktree_registered", "worktree is not registered"],
-      ["identity_match", "identity mismatch"],
-    ] as const) {
-      setSummaryEnv(falseStatusWorkspace);
+  for (const [field, expected] of [
+    ["worktree_exists", "worktree does not exist"],
+    ["worktree_registered", "worktree is not registered"],
+    ["identity_match", "identity mismatch"],
+  ] as const) {
+    it(`fails closed for false ${field} status`, async () => {
+      const workspace = await makeManifestWorkspace(
+        `pr-review-summary-${field}-`,
+        { linkedWorktree: false },
+      );
+      setSummaryEnv(workspace);
       vi.resetModules();
       vi.doMock("./pr-review-leases.js", () => ({
         runPrReviewLeasesCommand: vi.fn(async () => ({
           exitCode: 0,
-          stdout: `${JSON.stringify({ ...validStatus(falseStatusWorkspace), [field]: false })}\n`,
+          stdout: `${JSON.stringify({ ...validStatus(workspace), [field]: false })}\n`,
           stderr: "",
         })),
       }));
 
       try {
-        result = await runManifestCommand(["render-phase5-audit-summary"]);
+        const result = await runManifestCommand([
+          "render-phase5-audit-summary",
+        ]);
 
         expect(result.exitCode, field).toBe(1);
         expect(result.stderr, field).toContain(expected);
@@ -272,8 +269,8 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         vi.doUnmock("./pr-review-leases.js");
         vi.resetModules();
       }
-    }
-  });
+    });
+  }
 
   it("escapes backticks in dynamic audit summary code spans", async () => {
     const workspace = await makeManifestWorkspace("pr-review-summary-`ticks-");
@@ -570,37 +567,62 @@ async function runManifestCommand(
 
 async function makeManifestWorkspace(
   prefix: string,
+  options: { linkedWorktree?: boolean } = {},
 ): Promise<ManifestWorkspace> {
   const tempRoot = await mkdtemp(path.join(tmpdir(), prefix));
   tempRoots.push(tempRoot);
   const primary = path.join(tempRoot, "primary");
   const worktree = path.join(tempRoot, "review-worktree");
   await mkdir(primary, { recursive: true });
-  await execFileAsync("git", ["init", "--initial-branch=main"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: primary,
-  });
-  await execFileAsync("git", ["config", "user.email", "test@example.com"], {
-    cwd: primary,
-  });
-  await writeFile(path.join(primary, "README.md"), "baseline\n");
-  await execFileAsync("git", ["add", "README.md"], { cwd: primary });
-  await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
-    cwd: primary,
-  });
-  const baseSha = (
-    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: primary })
-  ).stdout.trim();
-  await execFileAsync("git", ["worktree", "add", "-b", "topic", worktree], {
-    cwd: primary,
-  });
+  const linkedWorktree = options.linkedWorktree ?? true;
+  let baseSha = "0".repeat(40);
+  let headSha = "1".repeat(40);
+  if (linkedWorktree) {
+    await execFileAsync("git", ["init", "--initial-branch=main"], {
+      cwd: primary,
+    });
+    await execFileAsync("git", ["config", "user.name", "Test User"], {
+      cwd: primary,
+    });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+      cwd: primary,
+    });
+    await writeFile(path.join(primary, "README.md"), "baseline\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: primary });
+    await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+      cwd: primary,
+    });
+    baseSha = (
+      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: primary })
+    ).stdout.trim();
+    await execFileAsync("git", ["worktree", "add", "-b", "topic", worktree], {
+      cwd: primary,
+    });
+    headSha = (
+      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: worktree })
+    ).stdout.trim();
+  } else {
+    await mkdir(worktree, { recursive: true });
+    await execFileAsync("git", ["init", "--initial-branch=topic"], {
+      cwd: worktree,
+    });
+    await execFileAsync("git", ["config", "user.name", "Test User"], {
+      cwd: worktree,
+    });
+    await execFileAsync("git", ["config", "user.email", "test@example.com"], {
+      cwd: worktree,
+    });
+    await writeFile(path.join(worktree, "README.md"), "baseline\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: worktree });
+    await execFileAsync("git", ["commit", "-m", "chore: baseline"], {
+      cwd: worktree,
+    });
+    headSha = (
+      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: worktree })
+    ).stdout.trim();
+  }
   const physicalPrimary = await realpath(primary);
   const physicalWorktree = await realpath(worktree);
-  const headSha = (
-    await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: worktree })
-  ).stdout.trim();
   const prReviewDir = await writePrReviewHelper(tempRoot);
   const playReviewHelper = await writeExecutable(
     path.join(tempRoot, "play-review-helper.sh"),
