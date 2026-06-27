@@ -1,4 +1,4 @@
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -116,6 +116,15 @@ describe("managed worktree diagnostics", () => {
     await runGit(["worktree", "add", "-b", "b", ".worktrees/b", "HEAD"], {
       cwd: tempDir,
     });
+    // Recreate the fixture directory instead of overwriting Git's .git file,
+    // which can be protected by Windows filesystem semantics.
+    await rm(path.join(tempDir, ".worktrees", "a"), {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+    await mkdir(path.join(tempDir, ".worktrees", "a"), { recursive: true });
     await writeFile(
       path.join(tempDir, ".worktrees", "a", ".git"),
       "gitdir: ../../.git/worktrees/b\n",
@@ -127,6 +136,48 @@ describe("managed worktree diagnostics", () => {
     expect(result.status).toBe("warn");
     expect(result.findings).toContain(
       ".worktrees/a/.git points to different registered worktree metadata.",
+    );
+  });
+
+  it("reports registered managed worktrees whose directory is missing", async () => {
+    await initRepo(tempDir);
+    await runGit(
+      ["worktree", "add", "-b", "missing", ".worktrees/missing", "HEAD"],
+      { cwd: tempDir },
+    );
+    await rm(path.join(tempDir, ".worktrees", "missing"), {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+
+    const result = await diagnoseManagedWorktrees(tempDir);
+
+    expect(result.status).toBe("warn");
+    expect(result.findings).toContain(
+      ".worktrees/missing is registered in git worktree metadata but the directory is missing.",
+    );
+  });
+
+  it("reports stale registered managed worktrees when the root is absent", async () => {
+    await initRepo(tempDir);
+    await runGit(
+      ["worktree", "add", "-b", "feature", ".worktrees/feature", "HEAD"],
+      { cwd: tempDir },
+    );
+    await rm(path.join(tempDir, ".worktrees"), {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+
+    const result = await diagnoseManagedWorktrees(tempDir);
+
+    expect(result.status).toBe("warn");
+    expect(result.findings).toContain(
+      ".worktrees/feature is registered in git worktree metadata but the directory is missing.",
     );
   });
 

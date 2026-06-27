@@ -21,8 +21,22 @@ export async function diagnoseManagedWorktrees(
   libraryRoot: string,
 ): Promise<ManagedWorktreeDiagnostics> {
   const worktreesDir = path.join(libraryRoot, ".worktrees");
+  const managedWorktreeNamespaces = await getManagedWorktreeNamespaces(
+    libraryRoot,
+    worktreesDir,
+  );
   const worktreesStat = await lstat(worktreesDir).catch(() => null);
   if (worktreesStat === null) {
+    const gitContext = await loadGitContext(libraryRoot);
+    if (gitContext.status === "ok") {
+      const missingRegistered = await findMissingRegisteredManagedWorktrees({
+        managedWorktreeNamespaces,
+        registeredWorktreePaths: gitContext.registeredWorktreePaths,
+      });
+      if (missingRegistered.length > 0) {
+        return warn(missingRegistered);
+      }
+    }
     return ok("No managed .worktrees directory found.");
   }
   if (worktreesStat.isSymbolicLink()) {
@@ -57,6 +71,12 @@ export async function diagnoseManagedWorktrees(
       })),
     );
   }
+  findings.push(
+    ...(await findMissingRegisteredManagedWorktrees({
+      managedWorktreeNamespaces,
+      registeredWorktreePaths: gitContext.registeredWorktreePaths,
+    })),
+  );
 
   if (findings.length === 0) {
     return ok(`Managed worktrees healthy: ${entries.length} checked.`);
@@ -170,6 +190,7 @@ async function loadGitContext(libraryRoot: string): Promise<
       status: "ok";
       metadataNamespaces: string[];
       registeredWorktrees: Map<string, string | null>;
+      registeredWorktreePaths: string[];
     }
   | { status: "warn"; message: string }
 > {
@@ -223,27 +244,35 @@ async function loadGitContext(libraryRoot: string): Promise<
     };
   }
 
+  const registeredWorktrees = await parseRegisteredWorktrees(
+    worktreeList.stdout,
+    metadataNamespaces[0],
+  );
+
   return {
     status: "ok",
     metadataNamespaces,
-    registeredWorktrees: await parseRegisteredWorktrees(
-      worktreeList.stdout,
-      metadataNamespaces[0],
-    ),
+    registeredWorktrees: registeredWorktrees.metadataByWorktree,
+    registeredWorktreePaths: registeredWorktrees.worktreePaths,
   };
 }
 
 async function parseRegisteredWorktrees(
   output: string,
   metadataNamespace: string,
-): Promise<Map<string, string | null>> {
+): Promise<{
+  metadataByWorktree: Map<string, string | null>;
+  worktreePaths: string[];
+}> {
   const worktrees = new Map<string, string | null>();
+  const worktreePaths: string[] = [];
   for (const field of output.split("\0")) {
     if (field.startsWith("worktree ")) {
       const worktreePath = field.slice("worktree ".length);
-      const canonicalWorktree = await realpath(worktreePath).catch(
-        () => worktreePath,
+      const canonicalWorktree = await realpath(worktreePath).catch(() =>
+        path.normalize(worktreePath),
       );
+      worktreePaths.push(canonicalWorktree);
       worktrees.set(toComparablePath(canonicalWorktree), null);
     }
   }
@@ -254,7 +283,46 @@ async function parseRegisteredWorktrees(
       worktrees.set(worktreePath, metadataPath);
     }
   }
-  return worktrees;
+  return { metadataByWorktree: worktrees, worktreePaths };
+}
+
+async function findMissingRegisteredManagedWorktrees(input: {
+  managedWorktreeNamespaces: string[];
+  registeredWorktreePaths: string[];
+}): Promise<string[]> {
+  const findings: string[] = [];
+  for (const registeredPath of input.registeredWorktreePaths) {
+    const managedNamespace = input.managedWorktreeNamespaces.find((namespace) =>
+      isInsidePath(namespace, registeredPath),
+    );
+    if (managedNamespace === undefined) {
+      continue;
+    }
+    const registeredStat = await lstat(registeredPath).catch(() => null);
+    if (registeredStat !== null) {
+      continue;
+    }
+    findings.push(
+      `${formatWorktreeLabel(managedNamespace, registeredPath)} is registered in git worktree metadata but the directory is missing.`,
+    );
+  }
+  return findings;
+}
+
+async function getManagedWorktreeNamespaces(
+  libraryRoot: string,
+  worktreesDir: string,
+): Promise<string[]> {
+  const namespaces = new Set([worktreesDir]);
+  const libraryRootReal = await realpath(libraryRoot).catch(() => null);
+  if (libraryRootReal !== null) {
+    namespaces.add(path.join(libraryRootReal, ".worktrees"));
+  }
+  const worktreesDirReal = await realpath(worktreesDir).catch(() => null);
+  if (worktreesDirReal !== null) {
+    namespaces.add(worktreesDirReal);
+  }
+  return [...namespaces];
 }
 
 async function readWorktreeMetadataMap(
@@ -336,7 +404,10 @@ function ok(message: string): ManagedWorktreeDiagnostics {
 }
 
 function isInsidePath(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
+  const relative = path.relative(
+    toComparablePath(root),
+    toComparablePath(candidate),
+  );
   return (
     relative.length > 0 &&
     relative !== ".." &&
@@ -348,4 +419,20 @@ function isInsidePath(root: string, candidate: string): boolean {
 function toComparablePath(value: string): string {
   const normalized = path.normalize(value);
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function formatWorktreeLabel(
+  managedWorktreeNamespace: string,
+  worktreePath: string,
+): string {
+  const relative = path.relative(managedWorktreeNamespace, worktreePath);
+  if (
+    relative.length > 0 &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  ) {
+    return [".worktrees", ...relative.split(path.sep)].join("/");
+  }
+  return worktreePath;
 }
