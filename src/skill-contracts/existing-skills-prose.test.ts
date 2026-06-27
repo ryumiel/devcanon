@@ -3829,6 +3829,7 @@ describe("existing skills source prose contracts", () => {
 
   it("keeps play-branch-finish out of branch-review ownership while posting caller-supplied nits", async () => {
     const skillSource = await readSkillSource("play-branch-finish");
+    const branchReview = await readSkillSource("branch-review");
     const option2 = sliceBetween(
       skillSource,
       "#### Option 2: Push and Create PR",
@@ -3845,6 +3846,12 @@ describe("existing skills source prose contracts", () => {
 
     expect(normalizedOption2).toContain("nits_file");
     expect(normalizedOption2).toContain("caller-supplied `nits_file`");
+    expect(normalizedOption2).toContain(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    expect(normalizedOption2).toContain(
+      "skills/play-review/SKILL.md` owns the workflow",
+    );
     expect(normalizedOption2).toContain("validate-nits-file");
     expect(normalizedOption2).toContain(
       "path MUST be a direct child of `.ephemeral/`",
@@ -3885,6 +3892,17 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedOption2).toContain(
       "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
+    );
+    for (const consumer of [skillSource, branchReview]) {
+      expect(normalizeWhitespace(consumer)).not.toContain(
+        "skills/play-review/SKILL.md` § Output",
+      );
+      expect(normalizeWhitespace(consumer)).not.toContain(
+        "play-review/SKILL.md` § Output",
+      );
+    }
+    expect(normalizeWhitespace(branchReview)).toContain(
+      "skills/play-review/references/findings-envelope-contract.md",
     );
     expect(normalizedIntegrationSection).toContain(
       "**play-subagent-execution** - After tasks complete and review status is resolved",

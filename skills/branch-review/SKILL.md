@@ -420,8 +420,9 @@ document with optional pre-findings presentation such as
 `## Root-Cause Synthesis`, followed by a `## Findings` section, plus a
 side-channel `play-review/findings/v1` envelope file at
 `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line
-`Findings written to <path>.` notice (see `skills/play-review/SKILL.md` § Output
-for the contract).
+`Findings written to <path>.` notice. The detailed envelope and transport
+contract lives in `skills/play-review/references/findings-envelope-contract.md`;
+`skills/play-review/SKILL.md` owns the workflow and notice-line hook.
 
 In `--fix` mode, `branch-review --fix` owns fixable review feedback, including
 objectively fixable nit-severity findings. Capture the Phase 2 `head_sha` and
@@ -483,7 +484,7 @@ use the helper-rendered preview for findings and evidence snippets; do not
 manually reshape finding entries.
 Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
-After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/SKILL.md` § Output) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
+After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v1` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
 Then write and validate the approval summary using the finalized scope-decision
 artifact and this original present-mode findings envelope:
@@ -606,7 +607,7 @@ Then report:
   1 Safety or Sub-check 2 Contracts)
 - Follow-up `carry_forward[]` entries preserved from `play-review`, if any
 
-Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, see `skills/play-review/SKILL.md` § Output. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`; that command fails closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head. Immediately before overwriting, run the same helper with `prepare-findings-write`; that command prepares the write target but is not a substitute for read/schema validation. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root.
+Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, as specified by `skills/play-review/references/findings-envelope-contract.md`. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`; that command fails closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head. Immediately before overwriting, run the same helper with `prepare-findings-write`; that command prepares the write target but is not a substitute for read/schema validation. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root.
 
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
