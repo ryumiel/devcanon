@@ -184,6 +184,7 @@ describe("issue-batch-routing skill contract", () => {
       "Stale approval signals tied to an older head SHA do not count",
       "Merge conflicts route to the owner thread",
       "Unresolved inline review threads route to the review-response workflow",
+      "same complete review-response route key, including source issue, PR provider, PR identifier, head SHA, and unresolved-thread-set digest",
       "Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope",
       "CI-fix routing also requires a provider-specific CI-fix workflow to be available",
       "When that workflow is unavailable, report waiting with the missing workflow",

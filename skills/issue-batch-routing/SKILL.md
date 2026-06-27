@@ -171,7 +171,7 @@ For PR providers that expose these signals, evaluate gates in this order:
 3. Active blocking review-bot signals block merge.
 4. Stale approval signals tied to an older head SHA do not count.
 5. Merge conflicts route to the owner thread for normal `origin/main` merge and in-scope conflict resolution.
-6. Unresolved inline review threads route to the review-response workflow unless already routed for the same unresolved-thread-set digest.
+6. Unresolved inline review threads route to the review-response workflow unless already routed for the same complete review-response route key, including source issue, PR provider, PR identifier, head SHA, and unresolved-thread-set digest.
 7. Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope. CI-fix routing also requires a provider-specific CI-fix workflow to be available. When that workflow is unavailable, report waiting with the missing workflow.
 8. Merge-ready PRs route to `pr-merge` only when all configured gates pass: non-draft, CI-green, conflict-free, no unresolved review threads, no active blocking bot signal, branch protection permits merge, any required human merge approval is present, and any configured approving bot signal is fresh for the current head SHA.
 
