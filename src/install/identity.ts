@@ -253,6 +253,10 @@ async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
   }
 
   const skillMdPath = path.join(installedPath, "SKILL.md");
+  const skillMdStat = await lstat(skillMdPath);
+  if (!skillMdStat.isFile()) {
+    throw new Error(`installed skill SKILL.md is not a file: ${skillMdPath}`);
+  }
   const content = await readFile(skillMdPath, "utf-8");
   const extraFiles: InstalledSkillFiles = new Map();
   await assertExpectedSkillTopLevelEntries(installedPath);
@@ -342,7 +346,10 @@ async function collectInstalledSkillFiles(
           )
         ).map((target) => `symlink:${target}`),
       );
+      continue;
     }
+
+    throw new Error(`installed skill contains unsupported entry: ${relPath}`);
   }
 }
 

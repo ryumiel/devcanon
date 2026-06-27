@@ -107,8 +107,10 @@ Identity verification checks:
   parent path components under the target home do not cross symlink escapes
 - symlink installs are still symlinks to the expected generated or source path
 - copy installs still hash to the manifest record's content hash
-- update actions still match the manifest record's target, type, source path,
-  generated path, and installed path
+- update actions still match the manifest record's target, type, installed
+  path, and recorded install mode; source and generated path drift alone does
+  not fail identity, because the manifest record verifies the existing
+  installed artifact before current rendered paths replace the record
 
 Identity failures skip the destructive update or removal, report an actionable
 error, and keep the manifest record intact. Force overwrite behavior does not

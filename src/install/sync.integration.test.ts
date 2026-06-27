@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   lstat,
   mkdir,
@@ -7,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
@@ -44,6 +46,22 @@ vi.mock("./symlink.js", async (importOriginal) => {
 });
 
 const symlinkAvailable = await canCreateSymlinks();
+const execFileAsync = promisify(execFile);
+
+async function canCreateFifo(): Promise<boolean> {
+  if (process.platform === "win32") return false;
+  const dir = await createTempDir();
+  try {
+    await execFileAsync("mkfifo", [path.join(dir, "probe")]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await cleanupTempDir(dir);
+  }
+}
+
+const fifoAvailable = await canCreateFifo();
 
 async function expectRelativeSymlinkTarget(
   linkPath: string,
@@ -1369,6 +1387,88 @@ describe("sync", () => {
     const manifestAfter = JSON.parse(await readTextFile(config.manifest.path));
     expect(manifestAfter.records).toEqual(manifestBefore.records);
   });
+
+  it.skipIf(!fifoAvailable)(
+    "skips stale copy removal when an installed copied skill contains an unsupported entry",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "stale-skill",
+        "---\nname: stale-skill\ndescription: A skill.\n---\n\n# Stale Skill\n",
+        ["scripts"],
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "stale-skill",
+      );
+      const fifoPath = path.join(installedSkillPath, "scripts", "probe.fifo");
+      await execFileAsync("mkfifo", [fifoPath]);
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed skill contains unsupported entry"),
+      ]);
+      expect((await lstat(fifoPath)).isFIFO()).toBe(true);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!fifoAvailable)(
+    "skips stale copy removal when an installed copied skill SKILL.md is unsupported",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "stale-skill",
+        "---\nname: stale-skill\ndescription: A skill.\n---\n\n# Stale Skill\n",
+      );
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "stale-skill",
+      );
+      const skillMdPath = path.join(installedSkillPath, "SKILL.md");
+      await rm(skillMdPath);
+      await execFileAsync("mkfifo", [skillMdPath]);
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      await rm(skillDir, { recursive: true });
+
+      const result = await sync(config, opts);
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed skill SKILL.md is not a file"),
+      ]);
+      expect((await lstat(skillMdPath)).isFIFO()).toBe(true);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
 
   it.skipIf(!symlinkAvailable)(
     "skips stale symlink removal when the installed symlink points elsewhere",
