@@ -93,6 +93,27 @@ Default:
 - deleted managed outputs may be cleaned up if manifest tracking confirms
   ownership
 
+## Managed Output Identity
+
+Before replacing or removing a manifest-managed output, DevCanon verifies that
+the installed path still matches the manifest record for the configured target
+home and install mode.
+
+Identity verification checks:
+
+- the installed path is a strict child of the configured target home for the
+  record's target and type
+- user-controlled ancestors of the target home, the target home itself, and
+  parent path components under the target home do not cross symlink escapes
+- symlink installs are still symlinks to the expected generated or source path
+- copy installs still hash to the manifest record's content hash
+- update actions still match the manifest record's target, type, install mode,
+  source path, generated path, and installed path
+
+Identity failures skip the destructive update or removal, report an actionable
+error, and keep the manifest record intact. Force overwrite behavior does not
+turn a managed-output identity failure into an unmanaged overwrite.
+
 ---
 
 ## Partial Failure Policy

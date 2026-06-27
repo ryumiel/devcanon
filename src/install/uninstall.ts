@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { PlanAction, UninstallOptions } from "../models/types.js";
 import { getLogger } from "../utils/output.js";
+import { verifyManagedOutputIdentity } from "./identity.js";
 import { loadManifest, saveManifest, updateManifest } from "./manifest.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 
@@ -57,6 +58,13 @@ export async function uninstall(
   const removedPaths: string[] = [];
   for (const action of plan) {
     try {
+      const record = records.find(
+        (item) => item.installedPath === action.installedPath,
+      );
+      if (!record) {
+        throw new Error("manifest record missing for uninstall action");
+      }
+      await verifyManagedOutputIdentity({ config, record });
       await executeRemove(action);
       removedPaths.push(action.installedPath);
       result.removed += 1;
@@ -68,11 +76,13 @@ export async function uninstall(
   }
 
   // Update manifest with whatever we successfully removed
-  try {
-    const updated = updateManifest(manifest, [], removedPaths);
-    await saveManifest(config.manifest.path, updated);
-  } catch (err) {
-    result.errors.push(`Failed to save manifest: ${(err as Error).message}`);
+  if (removedPaths.length > 0) {
+    try {
+      const updated = updateManifest(manifest, [], removedPaths);
+      await saveManifest(config.manifest.path, updated);
+    } catch (err) {
+      result.errors.push(`Failed to save manifest: ${(err as Error).message}`);
+    }
   }
 
   return result;
