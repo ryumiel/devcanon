@@ -45,7 +45,9 @@ using Claude Code or Codex outputs.
 - Defining reusable workflow procedure or contributor policy.
 - Performing new capability-classification approvals for workflow skills, new
   agent wrappers, or capability-governance artifacts; approved surfaces may be
-  recorded only after the owning acceptance path exists.
+  recorded only after the
+  [AFDS Workflow Capability Governance](../guidelines/afds-workflow-capability-governance.md)
+  acceptance path exists.
 - Duplicating provider-specific issue APIs, PR APIs, CI APIs, source schemas, or
   validation implementation details.
 - Creating repository-local logbooks, work journals, validation summaries,
@@ -197,9 +199,11 @@ artifacts:
 ### FOLLOW-001: Follow-Up Surface Identification
 
 This spec distinguishes approved follow-up surfaces from candidate follow-up
-surfaces that still need capability classification. Candidate identification is
-not approval; additional skills, agents, or governance artifacts require an
-accepted owner update before moving to the approved list.
+surfaces that still need
+[AFDS Workflow Capability Governance](../guidelines/afds-workflow-capability-governance.md).
+Candidate identification is not approval; additional skills, agents, or
+governance artifacts require an accepted owner update before moving to the
+approved list.
 
 Approved follow-up surfaces:
 
@@ -210,19 +214,23 @@ Approved follow-up surfaces:
   skill. It drafts executable issue bodies from owning durable artifact
   evidence for GitHub Issues or Linear, but it does not create live issues,
   assign users, set status, mutate labels, or duplicate live tracker state.
+- [AFDS workflow capability governance](../guidelines/afds-workflow-capability-governance.md)
+  is approved as the reusable guideline for classifying whether a workflow need
+  should use the ordinary execution fast path, update an existing asset, create
+  a guideline, create a skill, create an agent, add source/runtime support,
+  defer, or be rejected.
 
-Candidate surfaces for the owning capability-classification pass include:
+Candidate surfaces for AFDS workflow capability governance include:
 
 - `doc-impact-review`;
 - `post-merge-gardener`;
-- AFDS workflow capability governance;
 - updates to existing shaping, planning, verification, issue-priming, and
   review skills.
 
-No new agent wrapper is identified as approved by this spec. The owning
-capability-classification pass should still evaluate whether existing agents
-such as `spec-compliance-reviewer` need updated instructions or whether any
-future wrapper meets the stable-role and target-constraint threshold.
+No new agent wrapper is identified as approved by this spec. AFDS workflow
+capability governance should still evaluate whether existing agents such as
+`spec-compliance-reviewer` need updated instructions or whether any future
+wrapper meets the stable-role and target-constraint threshold.
 
 ### TARGET-001: Source and Target Authority
 
@@ -283,7 +291,7 @@ disposable.
 - Generated-output and installed-output drift are routed under DRIFT-001 and
   TARGET-001 without making derived outputs authoritative.
 - The spec identifies follow-up workflow surfaces without approving them before
-  the owning capability-classification pass.
+  AFDS workflow capability governance.
 
 ## Verification Expectations
 

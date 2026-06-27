@@ -1084,6 +1084,8 @@ exit 1
           ? "shasum"
           : "sha256sum";
         const requiredCommands = [
+          "bash",
+          "dirname",
           "git",
           "awk",
           "wc",
@@ -1176,6 +1178,8 @@ exit 1
         const fakeBin = path.join(tempDir, "fake-bin");
         await mkdir(fakeBin);
         const requiredCommands = [
+          "bash",
+          "dirname",
           "git",
           "jq",
           "awk",
@@ -1238,6 +1242,8 @@ exit 1
         const fakeBin = path.join(tempDir, "fake-bin");
         await mkdir(fakeBin);
         const requiredExceptJq = [
+          "bash",
+          "dirname",
           "git",
           "awk",
           "wc",

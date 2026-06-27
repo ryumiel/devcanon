@@ -126,10 +126,10 @@ specs, guidelines, source files, or follow-up issues.
 For first-slice derivation, deterministic routing and evidence behavior are
 owned by
 [`docs/specs/afds-workflow-routing.md`](../specs/afds-workflow-routing.md).
-Reusable capability classification should be owned by the planned
-`docs/guidelines/afds-workflow-capability-governance.md` guideline. This
-roadmap only depends on those owners being available enough to pilot the slice;
-it does not define their exact behavior.
+Reusable capability classification is owned by the
+[AFDS Workflow Capability Governance](../guidelines/afds-workflow-capability-governance.md)
+guideline. This roadmap only depends on those owners being available enough to
+pilot the slice; it does not define their exact behavior.
 
 ### Sequencing
 
@@ -174,5 +174,6 @@ it does not define their exact behavior.
 - Generated Claude Code and Codex outputs continue to come from the same source
   skills and agent role definitions.
 - Proposed workflow additions discovered during pilots are routed through the
-  owning capability-governance path before becoming new skills, agents, docs,
-  or source behavior.
+  owning
+  [capability-governance path](../guidelines/afds-workflow-capability-governance.md)
+  before becoming new skills, agents, docs, or source behavior.
