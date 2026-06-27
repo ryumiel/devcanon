@@ -1300,6 +1300,61 @@ describe("rendered phase artifact smoke coverage", () => {
     }
   });
 
+  it("mirrors the play-review shared-context reference required by rendered Phase 2.5 contracts", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(path.join(tmpdir(), "devcanon-render-"));
+    const referencePath = path.join("references", "shared-review-context.md");
+    const sourceReference = await readFile(
+      path.join(repoRoot, "skills", "play-review", referencePath),
+      "utf-8",
+    );
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: {
+            ...config.library,
+            generatedDir,
+          },
+        },
+        true,
+      );
+
+      for (const target of ["claude", "codex"] as const) {
+        const generatedReference = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills",
+            "play-review",
+            referencePath,
+          ),
+          "utf-8",
+        );
+
+        expect(generatedReference).toBe(sourceReference);
+        expectSubstringsInOrder(generatedReference, [
+          'cd "$WORKING_DIRECTORY" || exit 1',
+          'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+          'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+          "FINDINGS_FILE=$(",
+          "prepare-findings-write || exit 1",
+          'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
+          "REVIEW_CONTEXT_INPUT_FILE=$(",
+          "write-review-context-input",
+          "REVIEW_CONTEXT_FILE=$(",
+          "build-review-context",
+        ]);
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
   it("mirrors the pr-review helper scripts required by rendered contracts", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
