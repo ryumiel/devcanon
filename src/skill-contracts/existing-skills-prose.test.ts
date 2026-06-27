@@ -2227,6 +2227,12 @@ describe("existing skills source prose contracts", () => {
       "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
     );
     expect(normalizedPhase25).toContain(
+      "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
+    expect(normalizedPhase25).toContain(
       "must not write findings, review-context output, wrapper artifacts, source files, or external state",
     );
     expect(normalizedPhase25).toContain(

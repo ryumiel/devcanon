@@ -1575,6 +1575,12 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
         "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
       );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "`PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle",
+      );
+      expect(playReviewWithFollowUpReferences).toContain(
+        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+      );
       for (const manifestDetail of [
         "`arch_files`",
         "`new_adrs`",
