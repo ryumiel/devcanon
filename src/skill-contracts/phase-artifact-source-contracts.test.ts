@@ -1878,16 +1878,24 @@ describe("phase artifact source contracts", () => {
   });
 
   it("keeps play-review branch follow-up context, carry-forward, and fail-closed helper contracts", async () => {
-    const playReview = await readSkillSource("play-review");
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const sharedContextContract = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const playReview = [
+      playReviewSource,
+      envelopeContract,
+      sharedContextContract,
+    ].join("\n");
     const normalizedPlayReview = normalizeWhitespace(playReview);
     const phase25 = getMarkdownSection(
-      playReview,
+      playReviewSource,
       "Phase 2.5: Compose shared review context",
     );
-    const activeSharedContextContract = phase25.slice(
-      0,
-      phase25.indexOf("Do not fall back to the legacy context-only check"),
-    );
+    const activeSharedContextContract = sharedContextContract;
     expect(activeSharedContextContract.length).toBeGreaterThan(0);
 
     expect(playReview).toContain("`prior_branch_findings`");
@@ -1959,11 +1967,11 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain(
       "do NOT dispatch Phase 3 agents — they would read an absent file",
     );
-    expect(playReview).toContain(
-      "| `active_diff_range`  | git diff spec                             | Phase 3 agents review this",
+    expect(normalizedPlayReview).toContain(
+      "| `active_diff_range` | git diff spec | Phase 3 agents review this",
     );
-    expect(playReview).toContain(
-      "| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this",
+    expect(normalizedPlayReview).toContain(
+      "| `full_pr_diff_range` | git diff spec | Doc-impact summary always uses this",
     );
     expect(normalizedPlayReview).toContain(
       "**Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower",
@@ -1987,7 +1995,18 @@ describe("phase artifact source contracts", () => {
   });
 
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
-    const playReview = await readSkillSource("play-review");
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const wrapperHelperContract = await readRepoFile(
+      "skills/play-review/references/wrapper-helper-contracts.md",
+    );
+    const playReview = [
+      playReviewSource,
+      envelopeContract,
+      wrapperHelperContract,
+    ].join("\n");
     const prReview = await readSkillSource("pr-review");
     const branchReview = await readSkillSource("branch-review");
     const codeReviewGuideline = await readRepoFile(
@@ -1998,7 +2017,7 @@ describe("phase artifact source contracts", () => {
     const normalizedBranchReview = normalizeWhitespace(branchReview);
     const normalizedCodeReviewGuideline =
       normalizeWhitespace(codeReviewGuideline);
-    const envelopeShapeStart = playReview.indexOf("#### Envelope shape");
+    const envelopeShapeStart = playReview.indexOf("### Envelope Shape");
     const envelopeShapeEnd = playReview.indexOf("Per-field contract:");
     expect(envelopeShapeStart).toBeGreaterThanOrEqual(0);
     expect(envelopeShapeEnd).toBeGreaterThan(envelopeShapeStart);
@@ -2016,6 +2035,10 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain("REVIEW_BODY_FILE");
     expect(playReview).toContain("REVIEW_EVENT");
     expect(playReview).toContain("APPROVE`, `REQUEST_CHANGES`, or `COMMENT");
+    expect(playReview).toContain("validate-nits-file");
+    expect(normalizedPlayReview).toContain(
+      "Callers treat any nonzero exit as a contract failure and stop before posting nits",
+    );
     expect(normalizedPlayReview).toContain(
       "Run them from the target repository root with `HEAD_SHA` bound to the immutable review head",
     );

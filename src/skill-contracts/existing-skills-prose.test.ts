@@ -221,6 +221,87 @@ describe("existing skills source prose contracts", () => {
     expect(branchReview).not.toContain("prior_findings_validation");
   });
 
+  it("keeps play-review slim while preserving eager gates and progressive reference discovery", async () => {
+    const playReview = await readSkillSource("play-review");
+    const normalizedPlayReview = normalizeWhitespace(playReview);
+    const lines = playReview.split("\n").length;
+
+    const referencePaths = [
+      "references/findings-envelope-contract.md",
+      "references/wrapper-helper-contracts.md",
+      "references/shared-review-context.md",
+      "references/reviewer-routing-policy.md",
+      "references/reviewer-sub-checks.md",
+    ] as const;
+
+    expect(lines).toBeLessThan(500);
+    expect(normalizedPlayReview).toContain(
+      "Always spawn the Code-quality reviewer",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Always run critic verification for blocking findings",
+    );
+    expect(normalizedPlayReview).toContain(
+      "Dispatch risk-triggered Architecture and Spec reviewers fail-closed",
+    );
+    expect(playReview).toContain("Findings written to <repo-relative-path>.");
+    expect(playReview).toContain("play-review/findings/v1");
+    expect(playReview).toContain("prepare-findings-write");
+    expect(playReview).toContain("validate-findings");
+    expect(playReview).toContain("validate-nits-file");
+    expect(playReview).toContain("write-review-context-input");
+    expect(playReview).toContain("build-review-context");
+
+    for (const referencePath of referencePaths) {
+      expect(playReview).toContain(referencePath);
+      const reference = await readRepoFile(
+        `skills/play-review/${referencePath}`,
+      );
+      expect(reference.trim()).not.toHaveLength(0);
+    }
+
+    for (const nonEagerDetail of [
+      "safe tiny diff example",
+      "Sub-check 1: Substitution audit — worked example",
+      "Budget or cap",
+      "Per-field contract:",
+    ]) {
+      expect(playReview).not.toContain(nonEagerDetail);
+    }
+
+    const envelopeReference = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    expect(envelopeReference).toContain("Per-field contract:");
+    expect(envelopeReference).toContain("play-review/findings/v1");
+
+    const helperReference = await readRepoFile(
+      "skills/play-review/references/wrapper-helper-contracts.md",
+    );
+    expect(helperReference).toContain("render-review-preview");
+    expect(helperReference).toContain("build-github-review-payload");
+
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    expect(sharedContextReference).toContain("Budget or cap");
+    expect(sharedContextReference).toContain("write-review-context-input");
+
+    const routingReference = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
+    expect(routingReference).toContain("safe tiny diff example");
+    expect(routingReference).toContain("Architecture override");
+
+    const subCheckReference = await readRepoFile(
+      "skills/play-review/references/reviewer-sub-checks.md",
+    );
+    expect(subCheckReference).toContain(
+      "Sub-check 1: Substitution audit — worked example",
+    );
+    expect(subCheckReference).toContain("DOCUMENTED-BEHAVIOR MISMATCH");
+  });
+
   it("keeps design-to-plan requirement traceability contracts in source", async () => {
     const playBrainstorm = await readSkillSource("play-brainstorm");
     const playPlanning = await readSkillSource("play-planning");
@@ -1924,24 +2005,30 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Phase 2.75: Guarded tiny-diff mode",
     );
+    const routingPolicy = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
     const redFlags = await readRepoFile(
       "skills/play-review/references/red-flags.md",
     );
+    const normalizedRoutingPolicy = normalizeWhitespace(routingPolicy);
 
     for (const phrase of [
       "Guarded tiny-diff mode",
       "at most 2 files",
       "at most 20 total lines",
-      "safe tiny diff example",
-      "small-but-risky diff example",
       "`is_followup_narrow` is **false**",
-      "docs/specs/**",
-      "reviewer-routing policy",
-      "docs/guidelines/*.md",
-      "references/red-flags.md",
     ]) {
-      expect(tinyDiffSection).toContain(phrase);
+      expect(
+        normalizeWhitespace(`${tinyDiffSection}\n${routingPolicy}`),
+      ).toContain(phrase);
     }
+    expect(routingPolicy).toContain("safe tiny diff example");
+    expect(routingPolicy).toContain("Small-but-risky example");
+    expect(routingPolicy).toContain("docs/specs/**");
+    expect(normalizedRoutingPolicy).toContain("reviewer-routing policy");
+    expect(routingPolicy).toContain("docs/guidelines/*.md");
+    expect(routingPolicy).toContain("references/red-flags.md");
 
     expect(tinyDiffSection).not.toContain("skills/**/SKILL.md");
     expect(redFlags).toContain("line count alone");
@@ -1957,11 +2044,16 @@ describe("existing skills source prose contracts", () => {
       skillSource,
       "Phase 2.5: Compose shared review context",
     );
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
     const phase3 = getMarkdownSection(skillSource, "Phase 3: Spawn agents");
     const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
     const hardRules = getMarkdownSection(skillSource, "Hard Rules");
     const normalizedPhase2 = normalizeWhitespace(phase2);
-    const normalizedSharedContext = normalizeWhitespace(phase2SharedContext);
+    const normalizedSharedContext = normalizeWhitespace(
+      `${phase2SharedContext}\n${sharedContextReference}`,
+    );
     const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedPhase4 = normalizeWhitespace(phase4);
     const normalizedHardRules = normalizeWhitespace(hardRules);
@@ -2045,6 +2137,9 @@ describe("existing skills source prose contracts", () => {
     const briefingTemplate = await readRepoFile(
       "skills/play-review/references/agent-briefing-template.md",
     );
+    const sharedContextReference = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
     const redFlags = await readRepoFile(
       "skills/play-review/references/red-flags.md",
     );
@@ -2060,7 +2155,9 @@ describe("existing skills source prose contracts", () => {
     const hardRules = getMarkdownSection(skillSource, "Hard Rules");
     const errorHandling = getMarkdownSection(skillSource, "Error Handling");
     const normalizedPhase2 = normalizeWhitespace(phase2);
-    const normalizedPhase25 = normalizeWhitespace(phase25);
+    const normalizedPhase25 = normalizeWhitespace(
+      `${phase25}\n${sharedContextReference}`,
+    );
     const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedBriefing = normalizeWhitespace(briefingTemplate);
 
@@ -2110,7 +2207,7 @@ describe("existing skills source prose contracts", () => {
       "output_format.markdown",
       "prior_review_context.records",
     ]) {
-      expect(phase25).toContain(field);
+      expect(`${phase25}\n${sharedContextReference}`).toContain(field);
     }
 
     for (const phrase of [
@@ -2147,8 +2244,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase25).toContain(
       "summary/reference overflow entries with targeted reread instructions",
     );
+    expect(normalizedPhase25).toContain("do not silently drop them");
     expect(normalizedPhase25).toContain(
-      "fail closed before Phase 3; do not silently drop them",
+      "when their required summaries fit the rendered-context budgets",
+    );
+    expect(normalizedPhase25).toContain(
+      "Required core context, record summaries, and overflow references that cannot fit fail closed before Phase 3",
     );
     expect(normalizedPhase25).toContain(
       "when a summary, omitted excerpt, overflow record, ADR reference, or prior-review record affects a possible finding or carry-forward decision",
@@ -2215,8 +2316,11 @@ describe("existing skills source prose contracts", () => {
 
   it("requires covering ADR changes for durable play-review Architecture decisions", async () => {
     const skillSource = await readSkillSource("play-review");
+    const routingPolicy = await readRepoFile(
+      "skills/play-review/references/reviewer-routing-policy.md",
+    );
     const phase4 = getMarkdownSection(skillSource, "Phase 4: Sub-checks");
-    const normalizedPhase4 = normalizeWhitespace(phase4);
+    const normalizedPhase4 = normalizeWhitespace(`${phase4}\n${routingPolicy}`);
 
     expect(normalizedPhase4).toContain(
       "Durable decision + new covering `docs/adr/adr-NNNN-*.md` added",
