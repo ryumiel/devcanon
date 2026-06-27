@@ -127,6 +127,56 @@ const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
   ...CODEX_SKILL_OVERRIDE_FIELDS,
 ]);
 
+const GITHUB_CLI_PLACEHOLDER = "{{tool:github-cli}}";
+const WORKFLOW_GUIDE_PLACEHOLDER = "{{file:workflow-guide}}";
+
+const SKILLS_WITH_GITHUB_CLI_PLACEHOLDER = [
+  "branch-review",
+  "github-issue-priming",
+  "play-brainstorm",
+  "play-branch-finish",
+  "play-review",
+  "play-review-response",
+  "pr-authoring",
+  "pr-merge",
+  "pr-review",
+] as const;
+
+const SKILLS_WITH_WORKFLOW_GUIDE_PLACEHOLDER = [
+  "doc-gardening",
+  "play-branch-finish",
+  "play-planning",
+  "play-review",
+  "pr-authoring",
+  "pr-merge",
+  "report-devcanon-issue",
+  "write-product-requirements",
+  "write-product-spec",
+] as const;
+
+function renderDogfoodGlossaryPlaceholders(value: string): string {
+  return value
+    .replaceAll(GITHUB_CLI_PLACEHOLDER, "gh")
+    .replaceAll(WORKFLOW_GUIDE_PLACEHOLDER, "WORKFLOW.md");
+}
+
+function expectPlaceholderLinesRendered(
+  source: string,
+  output: string,
+  placeholder: string,
+): void {
+  const expectedLines = source
+    .split("\n")
+    .filter((line) => line.includes(placeholder))
+    .map(renderDogfoodGlossaryPlaceholders);
+
+  expect(expectedLines.length).toBeGreaterThan(0);
+
+  for (const expectedLine of expectedLines) {
+    expect(output).toContain(expectedLine);
+  }
+}
+
 describe("existing skills render cleanly", () => {
   it("dogfoods tool and file glossary placeholders in selected skills", async () => {
     const repoRoot = process.cwd();
@@ -143,24 +193,69 @@ describe("existing skills render cleanly", () => {
       codex: "WORKFLOW.md",
     });
 
-    for (const skillName of ["pr-authoring", "pr-merge"] as const) {
-      const source = await readFile(
-        path.join(repoRoot, "skills", skillName, "SKILL.md"),
-        "utf-8",
-      );
-      expect(source).toContain("{{tool:github-cli}}");
-      expect(source).toContain("{{file:workflow-guide}}");
+    const skillDirs = (await readdir(path.join(repoRoot, "skills")))
+      .filter((entry) => !entry.startsWith("."))
+      .sort();
+    const skillSources = new Map<string, string>(
+      await Promise.all(
+        skillDirs.map(
+          async (skillName): Promise<[string, string]> => [
+            skillName,
+            await readFile(
+              path.join(repoRoot, "skills", skillName, "SKILL.md"),
+              "utf-8",
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(
+      skillDirs.filter((skillName) =>
+        skillSources.get(skillName)?.includes(GITHUB_CLI_PLACEHOLDER),
+      ),
+    ).toEqual([...SKILLS_WITH_GITHUB_CLI_PLACEHOLDER]);
+    expect(
+      skillDirs.filter((skillName) =>
+        skillSources.get(skillName)?.includes(WORKFLOW_GUIDE_PLACEHOLDER),
+      ),
+    ).toEqual([...SKILLS_WITH_WORKFLOW_GUIDE_PLACEHOLDER]);
+
+    for (const skillName of SKILLS_WITH_GITHUB_CLI_PLACEHOLDER) {
+      const source = skillSources.get(skillName);
+      expect(source).toContain(GITHUB_CLI_PLACEHOLDER);
+    }
+
+    for (const skillName of SKILLS_WITH_WORKFLOW_GUIDE_PLACEHOLDER) {
+      const source = skillSources.get(skillName);
+      expect(source).toContain(WORKFLOW_GUIDE_PLACEHOLDER);
     }
 
     const { outputs } = await renderAll(config, false);
 
     for (const target of ["claude", "codex"] as const) {
-      for (const skillName of ["pr-authoring", "pr-merge"] as const) {
+      for (const skillName of SKILLS_WITH_GITHUB_CLI_PLACEHOLDER) {
+        const source = skillSources.get(skillName);
+        expect(source).toBeDefined();
         const output = getSkillOutput(outputs, skillName, target);
-        expect(output.content).toContain("gh");
-        expect(output.content).toContain("WORKFLOW.md");
-        expect(output.content).not.toContain("{{tool:github-cli}}");
-        expect(output.content).not.toContain("{{file:workflow-guide}}");
+        expectPlaceholderLinesRendered(
+          source ?? "",
+          output.content,
+          GITHUB_CLI_PLACEHOLDER,
+        );
+        expect(output.content).not.toContain(GITHUB_CLI_PLACEHOLDER);
+      }
+
+      for (const skillName of SKILLS_WITH_WORKFLOW_GUIDE_PLACEHOLDER) {
+        const source = skillSources.get(skillName);
+        expect(source).toBeDefined();
+        const output = getSkillOutput(outputs, skillName, target);
+        expectPlaceholderLinesRendered(
+          source ?? "",
+          output.content,
+          WORKFLOW_GUIDE_PLACEHOLDER,
+        );
+        expect(output.content).not.toContain(WORKFLOW_GUIDE_PLACEHOLDER);
       }
     }
   });

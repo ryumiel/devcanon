@@ -868,7 +868,7 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrReview).toContain("Refuse stale heads before posting");
     expect(normalizedPrReview).toContain(
-      "Only invoke `gh api` after validation exits zero",
+      "Only invoke `{{tool:github-cli}} api` after validation exits zero",
     );
     expect(normalizedPrReview).toContain(
       "Do not call `build-github-review-payload` again after user approval",
@@ -1860,7 +1860,7 @@ describe("phase artifact source contracts", () => {
     );
 
     expect(prReview).toContain(
-      "`prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses",
+      "`prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses",
     );
     expect(branchReview).toContain(
       "prior_branch_findings` = the validated `--prior-findings` envelope path",
@@ -2177,7 +2177,7 @@ describe("phase artifact source contracts", () => {
       "Do not manually construct a `jq` payload here",
     );
     expect(normalizedPrReview).toContain(
-      "do not fetch `commit_id` from live `gh pr view` for posting",
+      "do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting",
     );
     expect(prReview).not.toContain(
       "**Create review with inline comments** (primary posting method)",
@@ -2190,7 +2190,7 @@ describe("phase artifact source contracts", () => {
     expect(branchReview).toContain('REVIEW_SURFACE="branch-review"');
     expect(branchReview).toContain("Findings written to <path>.");
     expect(branchReview).toContain("no GitHub posting");
-    expect(branchReview).toContain("no `gh` commands");
+    expect(branchReview).toContain("no `{{tool:github-cli}}` commands");
     expect(branchReview).toContain("no GitHub schema");
     expect(branchReview).toContain("build-github-review-payload");
     expect(normalizedBranchReview).toContain(

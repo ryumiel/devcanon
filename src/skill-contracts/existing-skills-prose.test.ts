@@ -3690,7 +3690,7 @@ describe("existing skills source prose contracts", () => {
       "MUST carry schema `play-review/findings/v1`",
     );
     expect(normalizedOption2).toContain(
-      "posts them as PR review comments after `gh pr create` succeeds",
+      "posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds",
     );
     expect(normalizedOption2).toContain(
       "they MUST NOT be embedded in the PR description body",
@@ -3858,7 +3858,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "`pr-authoring` still owns PR title/body policy",
     );
-    expect(normalizedOption2).toContain("invoked before `gh pr create`");
+    expect(normalizedOption2).toContain(
+      "invoked before `{{tool:github-cli}} pr create`",
+    );
     expect(normalizedOption2).toContain("do not duplicate PR body policy");
     expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
     expect(normalizedOption2).toContain("headRefOid");
