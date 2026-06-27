@@ -167,7 +167,7 @@ Examples (only if the target standard endorses these splits):
 - Navigation in `README.md` (should be in `MAP.md`).
 - Transient task notes in `docs/adr/` (ADRs are durable decisions).
 - Contributor workflow embedded in the agent entry point (should be in
-  `WORKFLOW.md` or `CONTRIBUTING.md`).
+  `{{file:workflow-guide}}` or `CONTRIBUTING.md`).
 
 Each boundary finding cites the section number/heading of the standard it
 violates. If you cannot cite, the finding is speculation — drop it.

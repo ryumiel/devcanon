@@ -24,15 +24,15 @@ rather than proceeding with defaults.
 
 **Required:**
 
-| Input                | Type                                      | Used by                                                   |
-| -------------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `working_directory`  | absolute path                             | Phase 1 guideline glob; Phase 3 agent dispatch            |
-| `base_ref`           | string (e.g., `main`, `origin/main`)      | Doc-impact summary; agent briefings                       |
-| `active_diff_range`  | git diff spec                             | Phase 3 agents review this                                |
-| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this                       |
-| `head_sha`           | string                                    | Briefings; reused by `pr-review` for `gh api` `commit_id` |
-| `mode`               | `"present"` \| `"fix"` \| `"github-post"` | Activates conditional sub-checks                          |
-| `language_hints`     | derived file-extension set                | Code-quality checks and routing context                   |
+| Input                | Type                                      | Used by                                                                    |
+| -------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `working_directory`  | absolute path                             | Phase 1 guideline glob; Phase 3 agent dispatch                             |
+| `base_ref`           | string (e.g., `main`, `origin/main`)      | Doc-impact summary; agent briefings                                        |
+| `active_diff_range`  | git diff spec                             | Phase 3 agents review this                                                 |
+| `full_pr_diff_range` | git diff spec                             | Doc-impact summary always uses this                                        |
+| `head_sha`           | string                                    | Briefings; reused by `pr-review` for `{{tool:github-cli}} api` `commit_id` |
+| `mode`               | `"present"` \| `"fix"` \| `"github-post"` | Activates conditional sub-checks                                           |
+| `language_hints`     | derived file-extension set                | Code-quality checks and routing context                                    |
 
 **Optional (follow-up review):**
 
@@ -230,7 +230,7 @@ Per-field contract:
 | `anchor`         | `"natural"` \| `"missing-file"` \| `"out-of-diff"`                                                                    | Verbatim from the markdown `Anchor:` value.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `why`            | non-empty string, plain text                                                                                          | The why-clause from the markdown finding (no markdown wrappers). Empty why-clauses are invalid because `body` is rendered directly from this field.                                                                                                                                                                                                                                                                                                                      |
 | `recommendation` | non-empty string, plain text                                                                                          | The concrete suggestion from the markdown finding (no markdown wrappers). Empty recommendations are invalid because `body` is rendered directly from this field.                                                                                                                                                                                                                                                                                                         |
-| `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `gh api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through.                                                                                                           |
+| `body`           | string, ready-to-post markdown                                                                                        | Pre-rendered as `**<severity> \| <category>** — <why>\n\n**Recommendation:** <recommendation>`. Suitable for direct use as `{{tool:github-cli}} api .../reviews` `comments[].body`. Newlines, quotes, and backslashes inside this string follow standard JSON string-escaping (`\n`, `\"`, `\\`); consumers MUST NOT post-process the unescaped form before passing it through.                                                                                          |
 
 The schema omits a `side` field (all findings are HEAD-side; consumers default themselves) and the markdown finding's evidence code (consumers re-read the file using `path` + `line` + `start_line`).
 
@@ -348,7 +348,7 @@ read them, don't just list paths:
 - `**/error-handling*.md` — error discipline
 - `**/documentation-standard*.md`, `**/documentation-checklists*.md` — documentation policy and ADR coverage rules
 - `**/pr-guideline.md`, `.github/pull_request_template.md` — PR authoring and review policy
-- `WORKFLOW.md`, `AGENTS.md`, `CONTRIBUTING.md` — root workflow and project conventions
+- `{{file:workflow-guide}}`, `AGENTS.md`, `CONTRIBUTING.md` — root workflow and project conventions
 
 No guidelines found? Proceed with agents' built-in knowledge, note it in
 the report.
@@ -711,7 +711,7 @@ still run.
 
 **small-but-risky diff example:** a 6-line edit in
 `skills/play-review/SKILL.md` that changes a path-validation guard or a
-`gh` command example. Result: full risk-triggered path, because the line
+`{{tool:github-cli}}` command example. Result: full risk-triggered path, because the line
 count is small but the change class is risky.
 
 ## Phase 3: Spawn agents
@@ -869,8 +869,8 @@ file directly in conversation.
 
 Fires when the active diff replaces one external invocation token with a
 sibling at the same call site (e.g., `git branch -d` → `git branch -D`,
-`fs.writeFileSync` → `fs.writeFile`, `gh pr review --body ...` →
-`gh api .../reviews --input ...`). "External invocation" means a CLI
+`fs.writeFileSync` → `fs.writeFile`, `{{tool:github-cli}} pr review --body ...` →
+`{{tool:github-cli}} api .../reviews --input ...`). "External invocation" means a CLI
 flag/subcommand swap, a method swap on an external SDK, a system
 primitive swap (`unlink` ↔ `rm -rf`), or a flag-set rearrangement on
 the same call.
@@ -893,7 +893,7 @@ See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-ch
 Fires when the active diff adds a new external invocation, or modifies an
 existing one's flags / body shape / query parameters. Substitutions
 (Sub-check 1's trigger) are a subset; Sub-check 2 is the broader case.
-Examples in scope: any new `gh api` / `gh pr` invocation, any `git`
+Examples in scope: any new `{{tool:github-cli}} api` / `{{tool:github-cli}} pr` invocation, any `git`
 invocation with a non-trivial flag combination, any new `fetch(` /
 `axios.` / HTTP-client call, any new child_process / subprocess
 invocation, any new file-system primitive (`fs.*`, `unlink`, etc.).
@@ -911,7 +911,7 @@ Procedure:
 
 **Disposition:** judgment-required. Even a flag-swap fix is rarely a 1–3 line mechanical change in practice. Findings surface as `Blocking`, category `Contracts`. Wrappers' auto-fix paths must NOT auto-fix Sub-check 2 findings.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (`gh api -f` vs `--input`).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#sub-check-2-documented-behavior-verification--worked-example) for a worked example (`{{tool:github-cli}} api -f` vs `--input`).
 
 ### Code-quality reviewer — Data-safety, language, and tests
 
@@ -960,7 +960,7 @@ When the trigger fires:
 - **Bounding rule:** only grep for patterns the diff explicitly changes the direction of. Do not grep for every backticked identifier in the diff.
 - **Wrapper disposition:** report-only. Wrappers' `--fix` paths do not auto-fix files outside the diff. The new direction may not always be canonical, or the unchanged file may represent intentional asymmetry — Sub-check B findings surface for human judgment.
 
-See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `gh api -f` vs `--input` mismatch).
+See [`references/sub-check-examples.md`](references/sub-check-examples.md#spec-reviewer--sub-check-b-cross-document-identifier-drift--illustrative-scenario) for an illustrative scenario (hypothetical, modeled on a `{{tool:github-cli}} api -f` vs `--input` mismatch).
 
 ### Spec reviewer — Documentation guidance checks
 
@@ -1054,7 +1054,7 @@ does not add fields to the `play-review/findings/v1` envelope.
 4. **Always include evidence code** (3-7 lines) in findings.
 5. **Cite specific lines.** No generic warnings without code references.
 6. **Verify every concrete reference in the critic phase.** No assumptions.
-7. **Never invoke `gh` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
+7. **Never invoke `{{tool:github-cli}}` commands.** GitHub interaction is the wrapper's job; this skill operates only on local git state in `working_directory`.
 8. **Never auto-fix.** Disposition (present, fix, post) is the wrapper's job; this skill emits findings.
 9. **Never create or remove worktrees.** The wrapper sets up `working_directory` and tears it down.
 10. **Always write the `play-review/findings/v1` envelope** to the deterministic file path defined in § Output, even when both `findings` and `carry_forward` are empty. Always emit the literal `Findings written to <repo-relative-path>.` notice line in the conversation output. The file is the consumer contract; consumers must never encounter an absent file or a missing notice line.
