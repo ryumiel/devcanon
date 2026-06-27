@@ -179,10 +179,9 @@ manifest schema, trusted bindings, byte budgets, item caps, and output
 readability. Treat any nonzero helper exit, malformed stdout, unreadable output
 file, empty output file, or output path that is not the derived direct-child
 `.ephemeral/*-review-context.md` as a hard stop before Phase 3.
-Do not fall back to the legacy context-only check as the guard; do NOT dispatch
-Phase 3 agents — they would read an absent file, stale context, or unbounded
-context; do not dispatch Phase 3 reviewers.
-do NOT dispatch Phase 3 agents — they would read an absent file.
+Do not fall back to the legacy context-only check as the guard, and do not
+dispatch Phase 3 reviewers when the bounded shared-context file is absent,
+stale, or unreadable.
 
 ## Internal Rationale
 

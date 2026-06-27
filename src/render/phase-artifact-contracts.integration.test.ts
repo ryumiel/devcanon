@@ -1201,6 +1201,10 @@ describe("rendered phase artifact smoke coverage", () => {
       );
       expect(option2).toContain("ANCHORABLE_NITS_JSON");
       expect(option2).toContain('"side": "RIGHT"');
+      expect(option2).toContain('start_side: "RIGHT"');
+      expect(normalizedOption2).toContain(
+        'only ranged anchorable nit comments add `start_side: "RIGHT"`',
+      );
       expect(option2).toContain("gh api repos/{owner}/{repo}/pulls/");
       expect(option2).toContain(
         'gh pr review "$PR_NUMBER" --comment --body-file -',

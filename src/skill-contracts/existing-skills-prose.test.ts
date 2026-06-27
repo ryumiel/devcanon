@@ -3855,6 +3855,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "validates the caller-supplied `nits_file` separately as a PR review comment posting input",
     );
+    expect(option2).toContain("ANCHORABLE_NITS_JSON");
+    expect(option2).toContain('"side": "RIGHT"');
+    expect(option2).toContain('start_side: "RIGHT"');
+    expect(normalizedOption2).toContain(
+      'only ranged anchorable nit comments add `start_side: "RIGHT"`',
+    );
     expect(normalizedOption2).toContain(
       "does not invoke `branch-review`, produce branch-review artifacts, judge branch-review findings, or decide review completeness",
     );

@@ -1964,8 +1964,8 @@ describe("phase artifact source contracts", () => {
     expect(playReview).toContain(
       "Do not fall back to the legacy context-only check as the guard",
     );
-    expect(playReview).toContain(
-      "do NOT dispatch Phase 3 agents — they would read an absent file",
+    expect(normalizedPlayReview).toContain(
+      "do not dispatch Phase 3 reviewers when the bounded shared-context file is absent, stale, or unreadable",
     );
     expect(normalizedPlayReview).toContain(
       "| `active_diff_range` | git diff spec | Phase 3 agents review this",

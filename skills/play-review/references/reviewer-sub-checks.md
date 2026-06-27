@@ -27,7 +27,7 @@ literal renames, or mechanical formatting changes.
 Disposition: judgment-required. Wrappers' auto-fix paths must not auto-fix
 Sub-check 1 findings.
 
-## Sub-check 1: Substitution audit — worked example
+#### Sub-check 1: Substitution audit — worked example
 
 Worked example: a diff replaces `git branch -d` with `git branch -D` to silence
 a spurious squash-merge warning. The old primitive rejects deletion when the
