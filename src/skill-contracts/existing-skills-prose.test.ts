@@ -2373,6 +2373,12 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedPhase4).toContain(
       "Durable decision + no new/modified covering ADR",
     );
+    expect(normalizedPhase4).toContain(
+      "Deleted ADRs are never coverage evidence",
+    );
+    expect(normalizedPhase4).toContain(
+      "require a new or modified successor ADR when the diff makes or removes a durable decision",
+    );
   });
 
   it("records ADR-0022 as the successor for stale play-review fanout claims", async () => {

@@ -93,6 +93,9 @@ summary in its briefing:
 
 - Durable decision plus new covering `docs/adr/adr-NNNN-*.md`: pass.
 - Durable decision plus existing covering ADR modified: pass.
+- Deleted ADRs are never coverage evidence. Route deleted ADR paths as
+  architecture risk, and require a new or modified successor ADR when the diff
+  makes or removes a durable decision.
 - Durable decision with no new or modified covering ADR:
   `Blocking | Documentation` recommending a covering ADR per
   `docs/adr/adr-template.md`.
