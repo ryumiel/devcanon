@@ -173,13 +173,35 @@ describe("issue-batch-routing skill contract", () => {
       "`play-branch-finish` owns pushing branches, running PR creation side effects, posting caller-supplied assumptions or nits, and preserving the branch and worktree after PR creation",
       "`pr-authoring` owns PR title/body policy, title/body composition, and pre-merge title/body validation, but must not create, edit, comment on, or merge PRs",
       "source-issue status updates remain provider-specific delegated work",
+      "If no provider-specific source-issue reporting workflow is available for the source provider and requested source-specific side effect, report waiting or manual action with the missing workflow and next safe action",
+      "do not mutate the source issue directly",
+      "do not route to a generic fallback workflow",
     ]) {
       expect(normalizedBoundaries).toContain(boundary);
     }
 
+    const mergeConflictIndex = prGates.indexOf("Merge conflicts route");
+    const reviewResponseIndex = prGates.indexOf(
+      "Unresolved inline review threads route",
+    );
+    const ciFixIndex = prGates.indexOf("Failing CI routes");
+    const humanApprovalIndex = prGates.indexOf(
+      "Otherwise merge-ready PRs that require explicit human merge approval wait",
+    );
+    const mergeReadyIndex = prGates.indexOf("Merge-ready PRs route");
+
+    expect(mergeConflictIndex).toBeGreaterThanOrEqual(0);
+    expect(reviewResponseIndex).toBeGreaterThanOrEqual(0);
+    expect(ciFixIndex).toBeGreaterThanOrEqual(0);
+    expect(humanApprovalIndex).toBeGreaterThanOrEqual(0);
+    expect(mergeReadyIndex).toBeGreaterThanOrEqual(0);
+    expect(mergeConflictIndex).toBeLessThan(humanApprovalIndex);
+    expect(reviewResponseIndex).toBeLessThan(humanApprovalIndex);
+    expect(ciFixIndex).toBeLessThan(humanApprovalIndex);
+    expect(humanApprovalIndex).toBeLessThan(mergeReadyIndex);
+
     for (const precedence of [
       "Draft PRs wait unless the owner thread reports that draft status is stale",
-      "Repository or branch policy requiring explicit human merge approval blocks merge routing until that approval is present",
       "Active blocking review-bot signals block merge",
       "Stale approval signals tied to an older head SHA do not count",
       "Merge conflicts route to the owner thread",
@@ -188,6 +210,7 @@ describe("issue-batch-routing skill contract", () => {
       "Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope",
       "CI-fix routing also requires a provider-specific CI-fix workflow to be available",
       "When that workflow is unavailable, report waiting with the missing workflow",
+      "Otherwise merge-ready PRs that require explicit human merge approval wait until matching human merge approval evidence is present",
       "Merge-ready PRs route to `pr-merge` only when all configured gates pass",
     ]) {
       expect(prGates).toContain(precedence);
@@ -393,6 +416,12 @@ describe("issue-batch-routing skill contract", () => {
       "Send approval only when parent approval evidence matches",
       "Owner thread reports source-issue reporting gate `E`",
       "Route only to a provider-specific workflow that owns that source-issue side effect",
+      "Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available",
+      "Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow",
+      "PR has unresolved review-thread digest `B` and lacks required human merge approval",
+      "Route review-response before waiting for human merge approval",
+      "PR is otherwise merge-ready but lacks required human merge approval",
+      "Wait for matching human merge approval evidence; do not route to `pr-merge`",
       "PR is non-draft, green, conflict-free, no unresolved threads",
       "Route `pr-merge` once with `last_routed_merge_routing_key`",
       "PR merged and owner thread reports terminal state",
