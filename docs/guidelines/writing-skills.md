@@ -34,10 +34,10 @@ local loop is:
 2. Edit `skills/<name>/SKILL.md`, plus optional `assets/`, `examples/`,
    `references/`, or `scripts/` subdirectories. These mirror per target
    into `generated/<target>/skills/<name>/` as-is. Anything else at the
-   skill root (other than hidden files) is flagged by `validate`; move
+   skill root (other than hidden entries) is flagged by `validate`; move
    supporting material under `references/`.
 3. Validate: `pnpm run dev -- validate`. Use `validate --strict` to
-   promote shared-prose drift warnings (see § 6) into errors before
+   promote strictable warnings, including drift and unknown root entries, into errors before
    committing. Oversized `SKILL.md` prompt diagnostics remain advisory
    warnings even in strict mode.
 4. Render: `pnpm run dev -- render`. Inspect both

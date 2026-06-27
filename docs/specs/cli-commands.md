@@ -72,9 +72,10 @@ Current behavior:
   when the raw file is estimated above the `5,000` GPT-token soft upper
   bound with the `o200k_base` encoding or reaches `500` lines; the warning
   also reports UTF-8 bytes and lines
-- stray top-level files inside skill folders are flagged with the same
-  warn/strict promotion behavior; hidden files and stray subdirectories
-  are not flagged
+- stray top-level files and unknown non-hidden support directories inside skill
+  folders are flagged with the same warn/strict promotion behavior; unknown
+  support directories are not rendered or mirrored into generated skills;
+  hidden entries are not flagged
 - `validate --strict` promotes those warnings to validation failures
   except for the oversized `SKILL.md` prompt diagnostic, which remains
   warning-only in this first implementation

@@ -194,6 +194,13 @@ describe("validateAction", () => {
     const straySkillDir = await createSkillFixture(skillsDir, "stray-skill");
     await mkdir(path.join(straySkillDir, "references"), { recursive: true });
     await writeFile(path.join(straySkillDir, "notes.md"), "# notes\n", "utf-8");
+    const unknownDirSkillDir = await createSkillFixture(
+      skillsDir,
+      "unknown-dir-skill",
+    );
+    await mkdir(path.join(unknownDirSkillDir, "referneces"), {
+      recursive: true,
+    });
 
     await withRecordingLogger(async ({ warnings, infos }) => {
       await expect(
@@ -201,13 +208,20 @@ describe("validateAction", () => {
       ).resolves.toBeUndefined();
 
       expect(warnings).toEqual([]);
-      expect(infos).toContain("Skills: 2 valid, 2 warnings");
-      expect(infos).toContain("Warnings (2)");
+      expect(infos).toContain("Skills: 3 valid, 3 warnings");
+      expect(infos).toContain("Warnings (3)");
 
       const output = infos.join("\n");
       expect(output).toContain("[skill.prompt-size] large-skill (advisory)");
       expect(output).toContain("[skill.stray-file] stray-skill (strictable)");
       expect(output).toContain('stray top-level file "notes.md"');
+      expect(output).toContain(
+        "[skill.unknown-subdir] unknown-dir-skill (strictable)",
+      );
+      expect(output).toContain(
+        'unknown top-level support directory "referneces"',
+      );
+      expect(output).toContain("not rendered or mirrored");
       expect(output).toContain(
         "allowed subdirs: assets/, examples/, references/, scripts/",
       );
@@ -239,6 +253,25 @@ describe("validateAction", () => {
       await expect(
         validateAction({ strict: true }, makeCommand(false, false)),
       ).rejects.toThrow(/strict-skill/i);
+
+      expect(warnings).toEqual([]);
+    });
+  });
+
+  it("fails in strict validate mode when unknown skill subdirectories are present", async () => {
+    const skillDir = await createSkillFixture(skillsDir, "strict-unknown-dir");
+    await mkdir(path.join(skillDir, "referneces"), { recursive: true });
+
+    await withRecordingLogger(async ({ warnings }) => {
+      await expect(
+        validateAction({ strict: true }, makeCommand(false, false)),
+      ).rejects.toThrow(UserError);
+      await expect(
+        validateAction({ strict: true }, makeCommand(false, false)),
+      ).rejects.toThrow(/strict-unknown-dir/i);
+      await expect(
+        validateAction({ strict: true }, makeCommand(false, false)),
+      ).rejects.toThrow(/referneces/i);
 
       expect(warnings).toEqual([]);
     });
