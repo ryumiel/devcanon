@@ -59,6 +59,25 @@ partial input set without treating omitted skills or agents as stale.
 Generated outputs are not intended to be hand-edited. Managed-state is tracked
 by the install manifest; generated files do not embed a managed header.
 
+### Generated output rules
+
+Files under `generated/` are disposable previews and remain ignored by Git.
+Do not commit generated preview output as review evidence, even when a source
+change intentionally affects rendered Claude or Codex skill output. Review the
+authoritative source or runtime change first, then regenerate or run the
+relevant check locally when generated output needs inspection.
+
+Source skills, source agent definitions, source runtime TypeScript, renderer
+code, tests, and the install manifest remain authoritative for their
+respective contracts. Packaged runtime JavaScript under
+`skills/devcanon-runtime/scripts/runtime/` is derived support output that stays
+tracked because installed skill bundles need version-aligned helper files,
+while `src/runtime/` owns the deterministic runtime behavior.
+
+Do not hand-edit generated preview files to change behavior. If generated
+preview drift appears in a worktree, regenerate from source or fix the
+authoritative source/renderer behavior, but keep `generated/` out of commits.
+
 ### Normalization
 
 Renderer should normalize:

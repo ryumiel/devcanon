@@ -9,6 +9,7 @@ import { isWritable, pathExists } from "../../utils/fs.js";
 import { getLogger } from "../../utils/output.js";
 import { loadAndValidateAgents } from "../../validate/agents.js";
 import { loadAndValidateSkills } from "../../validate/skills.js";
+import { diagnoseManagedWorktrees } from "./worktree-diagnostics.js";
 
 interface CheckResult {
   name: string;
@@ -145,7 +146,15 @@ export async function doctorAction(
       });
     }
 
-    // 9. Skills valid
+    // 9. Managed worktrees
+    const managedWorktrees = await diagnoseManagedWorktrees(config.configDir);
+    results.push({
+      name: "managed-worktrees",
+      status: managedWorktrees.status,
+      message: managedWorktrees.message,
+    });
+
+    // 10. Skills valid
     try {
       const skills = await loadAndValidateSkills(config.library.skillsDir);
       results.push({
@@ -154,7 +163,7 @@ export async function doctorAction(
         message: `${skills.length} skill(s) valid`,
       });
 
-      // 10. Agents valid
+      // 11. Agents valid
       try {
         const agents = await loadAndValidateAgents(
           config.library.agentsDir,

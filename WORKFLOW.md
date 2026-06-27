@@ -50,7 +50,12 @@ This document is the procedural guide for contributing to the repository. For po
 1. Branch from `main` using the branch naming convention from [CONTRIBUTING.md](CONTRIBUTING.md#branch-naming): `<type>/<scope>-<short-description>` or `<type>/<short-description>`
 2. Read the issue body and any linked docs before writing code
 3. Confirm the workflow path and spec need using [docs/guidelines/ai-assisted-product-workflow-guideline.md](docs/guidelines/ai-assisted-product-workflow-guideline.md). If no spec is needed, record the reason in the PR body or documentation review checklist.
-4. Run local validation before committing: `pnpm run check`
+4. Run local validation before committing: `pnpm run check`. For staged
+   pre-commit checks, default passing output stays concise; set
+   `DEVCANON_PRECOMMIT_VERBOSE=1` when invoking `pnpm run check:staged` to show
+   full child-tool output while debugging. See
+   [CONTRIBUTING.md § Pre-commit Checks](CONTRIBUTING.md#pre-commit-checks) for
+   shell-specific command forms.
 5. Commit using Conventional Commits (see [CONTRIBUTING.md § Commit Policy](CONTRIBUTING.md#commit-policy))
 6. Keep scope tight: one issue, one PR. Do not bundle unrelated changes.
 

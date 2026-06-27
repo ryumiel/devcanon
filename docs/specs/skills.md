@@ -241,10 +241,11 @@ policy and other project-local detail should usually live in
 `references/` or in the owning project documentation rather than in the
 always-loaded skill prompt.
 
-Only `SKILL.md` and these four subdirs are part of the installed bundle —
-any other top-level _file_ is flagged by `validate` (and rejected under
-`validate --strict`). Hidden files (e.g. `.DS_Store`) are ignored. Stray
-top-level subdirectories are not flagged.
+Only `SKILL.md` and these four subdirs are part of the installed bundle.
+Any other non-hidden top-level file or directory is flagged by `validate`
+(and rejected under `validate --strict`). Unknown support directories are not
+rendered or mirrored into generated skills. Hidden entries (e.g. `.DS_Store`
+or `.cache/`) are ignored.
 
 ---
 
@@ -273,8 +274,8 @@ top-level subdirectories are not flagged.
   and baseline mechanics are not implemented.
 - Top-level entries other than `SKILL.md` and the four optional subdirs
   (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
-  files emit warnings (errors under `--strict`); hidden files and stray
-  subdirectories are not flagged.
+  files and unknown non-hidden support directories emit warnings (errors under
+  `--strict`). Hidden entries are not flagged.
 
 ---
 

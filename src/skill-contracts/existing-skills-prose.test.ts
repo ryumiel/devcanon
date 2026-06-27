@@ -3425,7 +3425,7 @@ describe("existing skills source prose contracts", () => {
       /MODE=safe-direct\|cd-primary\|remote-only\|stop/i,
     );
     expect(normalizedMergeSection).toMatch(
-      /safe-direct.*gh pr merge <N> --squash/i,
+      /safe-direct.*\{\{tool:github-cli\}\} pr merge <N> --squash/i,
     );
     expect(normalizedMergeSection).toMatch(/cd-primary.*PRIMARY_WORKTREE/i);
     expect(normalizedMergeSection).toMatch(
@@ -3433,7 +3433,7 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedMergeSection).toMatch(/stop.*Do not merge/i);
     expect(normalizedMergeSection).toContain(
-      "No mode may use `gh pr merge --delete-branch`",
+      "No mode may use `{{tool:github-cli}} pr merge --delete-branch`",
     );
     expect(normalizedMergeSection).toMatch(
       /Do not retry an execution-context failure unless.*changed directory.*changed mode.*new evidence/i,
@@ -3620,7 +3620,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       "that skill bundle's `SKILL.md`",
     );
-    expect(normalizeWhitespace(prMergeValidation)).toContain("gh pr edit");
+    expect(normalizeWhitespace(prMergeValidation)).toContain(
+      "{{tool:github-cli}} pr edit",
+    );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       ".github/pull_request_template.md",
     );
@@ -3628,7 +3630,7 @@ describe("existing skills source prose contracts", () => {
       "otherwise let `pr-authoring` discover and read the policy surfaces",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
-      "apply only changed fields with `gh pr edit`",
+      "apply only changed fields with `{{tool:github-cli}} pr edit`",
     );
     expect(normalizeWhitespace(prMergeValidation)).toContain(
       "For body repairs, use `--body-file`",
@@ -3834,7 +3836,7 @@ describe("existing skills source prose contracts", () => {
       "MUST carry schema `play-review/findings/v1`",
     );
     expect(normalizedOption2).toContain(
-      "posts them as PR review comments after `gh pr create` succeeds",
+      "posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds",
     );
     expect(normalizedOption2).toContain(
       "they MUST NOT be embedded in the PR description body",
@@ -4008,7 +4010,9 @@ describe("existing skills source prose contracts", () => {
     expect(normalizedOption2).toContain(
       "`pr-authoring` still owns PR title/body policy",
     );
-    expect(normalizedOption2).toContain("invoked before `gh pr create`");
+    expect(normalizedOption2).toContain(
+      "invoked before `{{tool:github-cli}} pr create`",
+    );
     expect(normalizedOption2).toContain("do not duplicate PR body policy");
     expect(normalizedOption2).toContain("APPROVED_HEAD_SHA");
     expect(normalizedOption2).toContain("headRefOid");

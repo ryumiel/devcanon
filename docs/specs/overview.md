@@ -41,7 +41,9 @@ These boundaries apply across DevCanon behavior specs:
 - DevCanon is user-wide only.
 - Source artifacts under `skills/`, `agents/`, `docs/`, and `src/` are the
   authoring surfaces.
-- Generated outputs under `generated/<target>/` are disposable render results.
+- Generated outputs under `generated/<target>/` are disposable render results
+  and stay untracked; see
+  [Target mapping](target-mapping.md#generated-output-rules).
 - Installed managed outputs are target-home files or directories installed by
   `devcanon sync` and tracked by the install manifest.
 - DevCanon does not make generated or installed outputs authoritative source
@@ -98,7 +100,8 @@ Notes:
 
 - `skills/` is the shared source of truth for reusable skills.
 - `agents/` contains neutral agent role definitions in YAML.
-- `generated/` is a render preview/debug directory and is not authoritative.
+- `generated/` is a render preview/debug directory and is not authoritative or
+  tracked.
 
 ## Installed Target Layout Context
 

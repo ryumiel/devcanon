@@ -826,6 +826,53 @@ describe("renderAll", () => {
     expect(await readFile(codexFile, "utf-8")).toBe("hello\n");
   });
 
+  it("omits unknown top-level skill directories from generated target dirs", async () => {
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "unknown-subdir-skill",
+      [
+        "---",
+        "name: unknown-subdir-skill",
+        "description: A test skill.",
+        "---",
+        "",
+        "# body",
+        "",
+      ].join("\n"),
+      ["references"],
+    );
+    await writeFile(
+      path.join(skillDir, "references", "notes.md"),
+      "hello\n",
+      "utf-8",
+    );
+    await mkdir(path.join(skillDir, "referneces"), { recursive: true });
+    await writeFile(
+      path.join(skillDir, "referneces", "draft.md"),
+      "draft\n",
+      "utf-8",
+    );
+
+    await renderAll(config, true);
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedSkillDir = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "unknown-subdir-skill",
+      );
+      expect(
+        await pathExists(
+          path.join(generatedSkillDir, "references", "notes.md"),
+        ),
+      ).toBe(true);
+      expect(await pathExists(path.join(generatedSkillDir, "referneces"))).toBe(
+        false,
+      );
+    }
+  });
+
   it("purges stale orphans inside a per-skill generated dir on re-render", async () => {
     // First render: skill with codex_sidecar and a mirrored scripts/ subdir.
     await createSkillFixture(

@@ -17,8 +17,9 @@ review and emits a local findings envelope.
 
 `play-review` remains provider-agnostic: it consumes explicit final scope facts
 and must not discover provider scope, provider OIDs, provider file lists,
-provider diffs, or provider PR diff-base proof. It never invokes `gh`, never
-posts GitHub reviews, never auto-fixes, and never creates or removes worktrees.
+provider diffs, or provider PR diff-base proof. It never invokes
+`{{tool:github-cli}}`, never posts GitHub reviews, never auto-fixes, and never
+creates or removes worktrees.
 
 ## Reference Map
 
@@ -136,7 +137,7 @@ Search `working_directory` for review guidelines and read them, not just paths:
 - `**/error-handling*.md`
 - `**/documentation-standard*.md`, `**/documentation-checklists*.md`
 - `**/pr-guideline.md`, `.github/pull_request_template.md`
-- `WORKFLOW.md`, `AGENTS.md`, `CONTRIBUTING.md`
+- `{{file:workflow-guide}}`, `AGENTS.md`, `CONTRIBUTING.md`
 
 No guidelines found? Proceed with agents' built-in knowledge and note it in the
 report.
@@ -375,7 +376,7 @@ not authorize grouped fixes, and does not weaken line-grounded evidence.
 4. Always include evidence code, 3-7 lines, in findings.
 5. Cite specific lines. No generic warnings without code references.
 6. Verify every concrete reference in the critic phase. No assumptions.
-7. Never invoke `gh` commands.
+7. Never invoke `{{tool:github-cli}}` commands.
 8. Never auto-fix.
 9. Never create or remove worktrees.
 10. Always write the `play-review/findings/v1` envelope to the deterministic

@@ -512,7 +512,7 @@ validator, and prints only the exact approval-summary notice after validation su
 Treat any nonzero exit as a contract failure; preserve the findings evidence
 and do not imply approval.
 
-Branch review is a local surface: no GitHub posting, no `gh` commands, no GitHub schema or Reviews API payload construction.
+Branch review is a local surface: no GitHub posting, no `{{tool:github-cli}}` commands, no GitHub schema or Reviews API payload construction.
 `REVIEW_SURFACE=branch-review` is intentionally accepted only by `render-review-preview`;
 `build-github-review-payload` must refuse this surface.
 
@@ -705,9 +705,9 @@ discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Common Mistakes
 
-### Using `gh pr diff` instead of `git diff`
+### Using `{{tool:github-cli}} pr diff` instead of `git diff`
 
-- **Problem:** No PR exists yet — `gh` commands will fail
+- **Problem:** No PR exists yet — `{{tool:github-cli}}` commands will fail
 - **Fix:** Always use `git diff <base>...HEAD`
 
 ### Posting findings to GitHub
@@ -717,7 +717,7 @@ discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Red Flags — You Are Violating This Skill
 
-- You called any `gh` command — no PR exists
+- You called any `{{tool:github-cli}}` command — no PR exists
 - You posted a review to GitHub
 - You auto-fixed a finding tagged `Anchor: out-of-diff`
 - You auto-fixed a `Blocking | Safety` Sub-check 1 finding (substitution audit) — these are design work

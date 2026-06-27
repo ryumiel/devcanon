@@ -53,7 +53,7 @@ evidence, not durable authority. Do not copy live state into the PRD.
    - Exact behavior, acceptance-ready scenarios, and verification
      expectations belong in `docs/specs/<topic>.md` via `write-product-spec`.
    - Repeatable procedure, contributor policy, and workflow rules belong in
-     `docs/guidelines/`, `WORKFLOW.md`, or `CONTRIBUTING.md`.
+     `docs/guidelines/`, `{{file:workflow-guide}}`, or `CONTRIBUTING.md`.
    - Roadmap-scale direction and sequencing belong in `docs/roadmap/`.
    - Durable decisions, rationale, consequences, and major alternatives
      belong in `docs/adr/`.

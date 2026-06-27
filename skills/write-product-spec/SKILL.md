@@ -75,7 +75,7 @@ ownership.
    - Durable decisions, rationale, consequences, and major alternatives
      belong in `docs/adr/`.
    - Repeatable procedure, contributor policy, and workflow rules belong in
-     `docs/guidelines/`, `WORKFLOW.md`, or `CONTRIBUTING.md`.
+     `docs/guidelines/`, `{{file:workflow-guide}}`, or `CONTRIBUTING.md`.
    - Roadmap-scale target output belongs in `docs/roadmap/`.
    - Exact interface fields belong with their contract authority.
    - Live work state belongs in the issue tracker, PR system, or

@@ -115,7 +115,7 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
-**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). When `nits_file` is set, this skill reads the envelope, iterates `findings[]`, partitions anchorable from unanchorable, and posts them as PR review comments after `gh pr create` succeeds — they MUST NOT be embedded in the PR description body.
+**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v1` envelope (schema and side-channel transport: `skills/play-review/SKILL.md` § Output). When `nits_file` is set, this skill reads the envelope, iterates `findings[]`, partitions anchorable from unanchorable, and posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
 The file is a `play-review/findings/v1` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default, adding `start_side: "RIGHT"` only for ranged inline comments, and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
 
@@ -128,12 +128,12 @@ interpretation to `play-validate-review-artifacts`. It validates the
 caller-supplied `nits_file` separately as a PR review comment posting input, and
 only at posting time for path, readability, and envelope schema.
 
-**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `gh pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`. Because this file becomes a shared PR comment, callers must prepare it under the `Agent-Local Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`: sanitized summary-only outcomes and evidence pointers only, with no raw `.ephemeral` paths or contents, transcripts, prompts, logs, validation-log dumps, stack traces, internal decision trails, or session chronology. This skill validates path and shape before posting; it does not sanitize caller-provided comment prose.
+**Optional input — auto-mode assumptions.** Callers may pass an `assumptions_comment_file` argument: a repo-relative `.ephemeral/*-assumptions-comment.md` Markdown file that is a direct child of `.ephemeral/`. When set, this skill posts that file as a regular top-level PR comment after `{{tool:github-cli}} pr create` succeeds. It MUST NOT be embedded in the PR description body, and it is independent of `nits_file`. Because this file becomes a shared PR comment, callers must prepare it under the `Agent-Local Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`: sanitized summary-only outcomes and evidence pointers only, with no raw `.ephemeral` paths or contents, transcripts, prompts, logs, validation-log dumps, stack traces, internal decision trails, or session chronology. This skill validates path and shape before posting; it does not sanitize caller-provided comment prose.
 
 **Optional input — assignee.** Callers may pass an `assignee=<value>` argument
 to assign the new PR, for example `issue-priming-workflow` passes
 `assignee=@me`. When set, bind the caller's `assignee` argument to `ASSIGNEE`
-before running `gh pr create`, then append `--assignee "$ASSIGNEE"` to the
+before running `{{tool:github-cli}} pr create`, then append `--assignee "$ASSIGNEE"` to the
 command.
 
 **Optional input — branch-review approval gate.** Callers may pass
@@ -275,19 +275,19 @@ git push -u origin <feature-branch>
 bodies for `<base-branch>..HEAD`, and diff file list for
 `<base-branch>..HEAD`. Include any already-read PR policy contents from
 `**/pr-guideline*.md`, `docs/guidelines/pr-guideline.md`,
-`.github/pull_request_template.md`, `CONTRIBUTING.md`, and `WORKFLOW.md` when
+`.github/pull_request_template.md`, `CONTRIBUTING.md`, and `{{file:workflow-guide}}` when
 available; otherwise `pr-authoring` discovers those surfaces itself.
 
 `pr-authoring` owns the title/body policy: title format, required sections,
 anti-patterns, and content-vs-diff validation. It returns a final-state PR title
-and body for `gh pr create`. Do not embed assumptions comments, unaddressed
+and body for `{{tool:github-cli}} pr create`. Do not embed assumptions comments, unaddressed
 nits, commit-history narration, autosquash chronology, review-history notes,
 originally/now wording, or file-by-file diff restatement in the PR body.
 `pr-authoring` still owns PR title/body policy and is invoked before
-`gh pr create`; do not duplicate PR body policy in Option 2.
+`{{tool:github-cli}} pr create`; do not duplicate PR body policy in Option 2.
 
 Option 2 accepts an optional `assignee` argument. When set, pass it through to
-`gh pr create --assignee`; callers such as `issue-priming-workflow` pass
+`{{tool:github-cli}} pr create --assignee`; callers such as `issue-priming-workflow` pass
 `assignee=@me` so the PR is assigned to the active operator. Set `ASSIGNEE`
 from the caller's `assignee` argument before running the PR creation snippet.
 
@@ -309,7 +309,7 @@ ASSIGNEE_FLAG=()
 gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 ```
 
-**After `gh pr create` succeeds, verify the approved head when the gate was enabled.** Skip this step entirely when the gate was disabled or the adapter did not report `APPROVED_HEAD_SHA`. When `APPROVED_HEAD_SHA` is present, compare it to the created PR's `headRefOid` and report the result as a match, mismatch, or unavailable:
+**After `{{tool:github-cli}} pr create` succeeds, verify the approved head when the gate was enabled.** Skip this step entirely when the gate was disabled or the adapter did not report `APPROVED_HEAD_SHA`. When `APPROVED_HEAD_SHA` is present, compare it to the created PR's `headRefOid` and report the result as a match, mismatch, or unavailable:
 
 ```bash
 if [ -n "${APPROVED_HEAD_SHA:-}" ]; then
@@ -331,7 +331,7 @@ created PR head differs from the approved head and must be reported distinctly.
 Do not automatically close or delete the PR on mismatch. The PR remains an
 external side effect; preserve the branch and worktree for follow-up.
 
-**After `gh pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
+**After `{{tool:github-cli}} pr create` succeeds, post caller-supplied assumptions as a top-level PR comment.** Skip this step entirely if the `assumptions_comment_file` input was unset. An `assumptions_comment_file` that is set but missing or unreadable is a contract failure — surface the path and stop.
 
 1. Resolve the new PR number if needed:
 
@@ -359,11 +359,11 @@ external side effect; preserve the branch and worktree for follow-up.
    gh pr comment "$PR_NUMBER" --body-file "$ASSUMPTIONS_COMMENT_FILE"
    ```
 
-4. If `gh pr comment` fails after `gh pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting the assumptions manually.
+4. If `{{tool:github-cli}} pr comment` fails after `{{tool:github-cli}} pr create` succeeded, surface the error and the unposted assumptions to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting the assumptions manually.
 
-**After `gh pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset. A `nits_file` that is set but missing or unreadable is a contract failure (not a "no nits" signal) — surface the path and stop. If `nits_file` is set, points at a readable file, and the file's `findings[]` array is empty, also skip — posting an empty review is noise.
+**After `{{tool:github-cli}} pr create` succeeds, route caller-supplied nits to PR review comments.** Skip this step entirely if the `nits_file` input was unset. A `nits_file` that is set but missing or unreadable is a contract failure (not a "no nits" signal) — surface the path and stop. If `nits_file` is set, points at a readable file, and the file's `findings[]` array is empty, also skip — posting an empty review is noise.
 
-1. Resolve the new PR number. The most robust form works regardless of whether `gh pr create`'s stdout was captured:
+1. Resolve the new PR number. The most robust form works regardless of whether `{{tool:github-cli}} pr create`'s stdout was captured:
 
    ```bash
    PR_NUMBER=$(gh pr view --json number --jq .number)
@@ -378,7 +378,7 @@ external side effect; preserve the branch and worktree for follow-up.
      bash "$PLAY_REVIEW_HELPER" validate-nits-file
    ```
 
-   Then extract `findings[]` (e.g., `jq -c '.findings' "$NITS_FILE"`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `gh pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `gh pr review --comment --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `gh pr diff` parsing varies by environment (awk, python, jq, gh built-ins). Before serialization, validate the anchorable entries expose only the field types needed by GitHub review comments, then build each API comment from an allowlist (`path`, `line`, optional `start_line`, `body`) and force `"side": "RIGHT"` on every comment; only ranged anchorable nit comments add `start_side: "RIGHT"` when `start_line` is present. Never pass through unexpected envelope fields such as `side`, `start_side`, or GitHub API keys. Drop any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range). Serialize into `$ANCHORABLE_NITS_JSON`:
+   Then extract `findings[]` (e.g., `jq -c '.findings' "$NITS_FILE"`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `{{tool:github-cli}} pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `{{tool:github-cli}} pr review --comment --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `{{tool:github-cli}} pr diff` parsing varies by environment (awk, python, jq, {{tool:github-cli}} built-ins). Before serialization, validate the anchorable entries expose only the field types needed by GitHub review comments, then build each API comment from an allowlist (`path`, `line`, optional `start_line`, `body`) and force `"side": "RIGHT"` on every comment; only ranged anchorable nit comments add `start_side: "RIGHT"` when `start_line` is present. Never pass through unexpected envelope fields such as `side`, `start_side`, or GitHub API keys. Drop any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range). Serialize into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
    jq -e 'all(.[]; (.path | type == "string") and (.body | type == "string") and (.line | type == "number") and ((has("start_line") | not) or .start_line == null or (.start_line | type == "number")))' <<<"$ANCHORABLE_NITS" >/dev/null || { echo "invalid nits payload fields" >&2; exit 1; }
@@ -387,9 +387,9 @@ external side effect; preserve the branch and worktree for follow-up.
 
 3. Post anchorable nits as a single review with `event: "COMMENT"`. Skip this step entirely if `$ANCHORABLE_NITS_JSON` is empty or `[]` — posting an empty review is noise.
 
-   For the `gh api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
+   For the `{{tool:github-cli}} api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
 
-   `gh api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
+   `{{tool:github-cli}} api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
 
    ```bash
    gh api repos/{owner}/{repo}/pulls/"$PR_NUMBER"/reviews \
@@ -403,18 +403,18 @@ external side effect; preserve the branch and worktree for follow-up.
 
    Each single-line comment object: `{ "path": "<file>", "line": <int>, "side": "RIGHT", "body": "<text>" }`. Ranged comments add both `start_line` and `start_side: "RIGHT"`. This pattern matches the review-posting flow in `pr-review/SKILL.md` Phase 6: Post.
 
-4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean. A top-level review comment is chosen over `gh pr comment` so all branch-review feedback lives in the Reviews tab.
+4. Post unanchorable nits (file outside the diff or line outside the changed range) as a single top-level review comment so the description body stays clean. A top-level review comment is chosen over `{{tool:github-cli}} pr comment` so all branch-review feedback lives in the Reviews tab.
 
-   Render `$UNANCHORABLE_NITS` directly into a single review-comment body and pipe it to `gh pr review --comment --body-file -`. Each entry produces a `- path:line` header followed by its rendered `body` field, separated by blank lines. The schema's `body` field is multi-line markdown (`**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>`), so going through a bash array would split each entry across multiple elements at the embedded `\n\n`; piping `jq -r` directly to `gh` keeps the bytes intact:
+   Render `$UNANCHORABLE_NITS` directly into a single review-comment body and pipe it to `{{tool:github-cli}} pr review --comment --body-file -`. Each entry produces a `- path:line` header followed by its rendered `body` field, separated by blank lines. The schema's `body` field is multi-line markdown (`**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>`), so going through a bash array would split each entry across multiple elements at the embedded `\n\n`; piping `jq -r` directly to `{{tool:github-cli}}` keeps the bytes intact:
 
    ```bash
    jq -r '.[] | "- \(.path):\(.line)\n\n\(.body)\n"' <<<"$UNANCHORABLE_NITS" \
      | gh pr review "$PR_NUMBER" --comment --body-file -
    ```
 
-   Nit bodies may contain backticks, `$`, embedded newlines, and `"` — passing through `--body-file -` (rather than a `-b` argument) prevents the shell from expanding command substitutions or word-splitting before `gh` sees the bytes.
+   Nit bodies may contain backticks, `$`, embedded newlines, and `"` — passing through `--body-file -` (rather than a `-b` argument) prevents the shell from expanding command substitutions or word-splitting before `{{tool:github-cli}}` sees the bytes.
 
-5. If anchorable nit posting through `gh api` or unanchorable nit posting through `gh pr review --comment --body-file -` fails after `gh pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
+5. If anchorable nit posting through `{{tool:github-cli}} api` or unanchorable nit posting through `{{tool:github-cli}} pr review --comment --body-file -` fails after `{{tool:github-cli}} pr create` succeeded, surface the command error and the relevant unposted nit content to the user, and stop before cleanup while preserving the branch and worktree. Do **not** delete or edit the PR — the PR is authoritative; missing comments are recoverable by re-running posting or pasting nits manually.
 
 Report: "Created PR <url>. Branch <name> and worktree <path> preserved for review follow-up."
 

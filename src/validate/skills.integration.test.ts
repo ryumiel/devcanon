@@ -1708,6 +1708,70 @@ describe("loadAndValidateSkills", () => {
       ]);
     });
 
+    it("warns on an unknown top-level support directory in non-strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(skillsDir, "unknown-dir-warn");
+      await mkdir(path.join(skillDir, "referneces"), { recursive: true });
+      await writeFile(
+        path.join(skillDir, "referneces", "draft.md"),
+        "# draft\n",
+        "utf-8",
+      );
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: false },
+        });
+
+        expect(result).toHaveLength(1);
+        expectWarningLine(
+          warnings,
+          /unknown-dir-warn/,
+          /referneces/,
+          /not rendered or mirrored/,
+        );
+      });
+    });
+
+    it("reports structured unknown-subdir diagnostics when a reporter is supplied", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "reported-unknown-dir",
+      );
+      await mkdir(path.join(skillDir, "prompts"), { recursive: true });
+      const diagnostics: ValidationDiagnostic[] = [];
+
+      await captureWarnings(async (warnings) => {
+        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: {
+            enabled: true,
+            strict: false,
+            reporter: (diagnostic) => diagnostics.push(diagnostic),
+          },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(warnings).toEqual([]);
+      });
+
+      expect(diagnostics).toEqual([
+        {
+          code: "skill.unknown-subdir",
+          area: "skill",
+          subject: "reported-unknown-dir",
+          strictBehavior: "strictable",
+          summary: 'unknown top-level support directory "prompts"',
+          details: [
+            "directory: prompts/",
+            "allowed subdirs: assets/, examples/, references/, scripts/",
+            "unknown support directories are not rendered or mirrored into generated skills.",
+          ],
+          hint: "unknown support directories are not rendered or mirrored; only SKILL.md and the assets/, examples/, references/, scripts/ subdirs are installed. Rename it or move material under one of those subdirs (typically references/).",
+        },
+      ]);
+    });
+
     it("fails on a stray top-level file in strict validate mode", async () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "stray-strict");
@@ -1728,6 +1792,31 @@ describe("loadAndValidateSkills", () => {
           diagnostics: { enabled: true, strict: true },
         }),
       ).rejects.toThrow(/stray\.md/);
+    });
+
+    it("fails on an unknown top-level support directory in strict validate mode", async () => {
+      await mkdir(skillsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        skillsDir,
+        "unknown-dir-strict",
+      );
+      await mkdir(path.join(skillDir, "referneces"), { recursive: true });
+
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(UserError);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/unknown-dir-strict/);
+      await expect(
+        loadAndValidateSkillsWithDiagnostics(skillsDir, {
+          diagnostics: { enabled: true, strict: true },
+        }),
+      ).rejects.toThrow(/referneces/);
     });
 
     it("reports strictable stray-file diagnostics before failing in strict mode", async () => {
@@ -1764,6 +1853,8 @@ describe("loadAndValidateSkills", () => {
       const skillDir = await createSkillFixture(skillsDir, "hidden-allowed");
       await writeFile(path.join(skillDir, ".DS_Store"), "", "utf-8");
       await writeFile(path.join(skillDir, ".gitkeep"), "", "utf-8");
+      await mkdir(path.join(skillDir, ".cache"), { recursive: true });
+      await writeFile(path.join(skillDir, ".cache", "scratch.md"), "", "utf-8");
 
       await captureWarnings(async (warnings) => {
         const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
@@ -1832,6 +1923,7 @@ describe("loadAndValidateSkills", () => {
       await mkdir(skillsDir, { recursive: true });
       const skillDir = await createSkillFixture(skillsDir, "no-diagnostics");
       await writeFile(path.join(skillDir, "stray.md"), "# stray\n", "utf-8");
+      await mkdir(path.join(skillDir, "prompts"), { recursive: true });
 
       await captureWarnings(async (warnings) => {
         // No `diagnostics` option at all — same call shape as render/sync use.
@@ -1839,26 +1931,6 @@ describe("loadAndValidateSkills", () => {
 
         expect(result).toHaveLength(1);
         expect(warnings.some((w) => /no-diagnostics/.test(w))).toBe(false);
-      });
-    });
-
-    it("does not flag stray top-level directories", async () => {
-      await mkdir(skillsDir, { recursive: true });
-      const skillDir = await createSkillFixture(skillsDir, "stray-dir");
-      await mkdir(path.join(skillDir, "prompts"), { recursive: true });
-      await writeFile(
-        path.join(skillDir, "prompts", "draft.md"),
-        "# draft\n",
-        "utf-8",
-      );
-
-      await captureWarnings(async (warnings) => {
-        const result = await loadAndValidateSkillsWithDiagnostics(skillsDir, {
-          diagnostics: { enabled: true, strict: false },
-        });
-
-        expect(result).toHaveLength(1);
-        expect(warnings.some((w) => /stray-dir/.test(w))).toBe(false);
       });
     });
   });

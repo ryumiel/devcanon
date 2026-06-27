@@ -176,16 +176,16 @@ export async function loadAndValidateSkills(
     if (diagnostics?.enabled) {
       const childEntries = await readdir(dirPath, { withFileTypes: true });
       const allowedList = KNOWN_SUBDIRS.map((sub) => `${sub}/`).join(", ");
+      const knownSubdirs = new Set<string>(KNOWN_SUBDIRS);
       for (const child of childEntries) {
         if (child.name.startsWith(".")) continue;
-        // Stray top-level directories are intentionally out of scope (#98).
-        if (child.isDirectory()) continue;
         if (child.name === "SKILL.md") continue;
-        const validationDiagnostic = createStrayFileDiagnostic(
-          name,
-          child.name,
-          allowedList,
-        );
+        const validationDiagnostic = child.isDirectory()
+          ? knownSubdirs.has(child.name)
+            ? undefined
+            : createUnknownSubdirDiagnostic(name, child.name, allowedList)
+          : createStrayFileDiagnostic(name, child.name, allowedList);
+        if (!validationDiagnostic) continue;
         const message = formatValidationDiagnostic(validationDiagnostic);
         if (diagnostics.strict) {
           diagnostics.reporter?.(validationDiagnostic);
@@ -343,6 +343,26 @@ function createStrayFileDiagnostic(
     summary: `stray top-level file "${fileName}"`,
     details: [`file: ${fileName}`, `allowed subdirs: ${allowedList}`],
     hint: `only SKILL.md and the ${allowedList} subdirs are installed. Move it under one of those subdirs (typically references/).`,
+  };
+}
+
+function createUnknownSubdirDiagnostic(
+  skillName: string,
+  dirName: string,
+  allowedList: string,
+): ValidationDiagnostic {
+  return {
+    code: "skill.unknown-subdir",
+    area: "skill",
+    subject: skillName,
+    strictBehavior: "strictable",
+    summary: `unknown top-level support directory "${dirName}"`,
+    details: [
+      `directory: ${dirName}/`,
+      `allowed subdirs: ${allowedList}`,
+      "unknown support directories are not rendered or mirrored into generated skills.",
+    ],
+    hint: `unknown support directories are not rendered or mirrored; only SKILL.md and the ${allowedList} subdirs are installed. Rename it or move material under one of those subdirs (typically references/).`,
   };
 }
 

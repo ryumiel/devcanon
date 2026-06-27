@@ -98,7 +98,7 @@ Capture:
 - blocker issue IDs, if known
 - optional proposed direction
 
-This is the data to gather. The body shape it maps into is canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/WORKFLOW.md#creating-an-issue).
+This is the data to gather. The body shape it maps into is canonically defined in [`{{file:workflow-guide}}` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/{{file:workflow-guide}}#creating-an-issue).
 
 If the reporter cannot provide a complete reproduction, continue with an
 incomplete issue draft and explicitly call out what is still missing.
@@ -141,7 +141,7 @@ Title:
 - `new agent` -> `feat(agent): ...` with `enhancement`
 - the `(scope)` slot must reference an upstream `DevCanon` component (`skill`, `agent`, `render`, `install`, `docs`, `cli`) — never a consumer repo, customer, codename, or ticket ID
 
-Body sections: use the body shape canonically defined in [`WORKFLOW.md` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/WORKFLOW.md#creating-an-issue).
+Body sections: use the body shape canonically defined in [`{{file:workflow-guide}}` § Creating an Issue](https://github.com/ryumiel/devcanon/blob/main/{{file:workflow-guide}}#creating-an-issue).
 
 If blocker issue IDs are known, apply the GitHub `blocked by` relationship after issue creation instead of only mentioning blockers in the body text.
 

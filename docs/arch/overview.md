@@ -9,7 +9,7 @@ truth.
 ## Design Principles
 
 Defined in [`docs/specs/core-concepts.md`](../specs/core-concepts.md). The
-architecture implements all seven design principles defined there.
+architecture implements all eight design principles defined there.
 
 ---
 
@@ -31,22 +31,38 @@ src/
 
 ### Dependency Direction
 
+Current production source imports use this top-level dependency shape
+(test-only helpers excluded):
+
 ```
 cli -> config, diff, install, models, render, utils, validate
 render -> config, models, utils, validate
-install -> config, models, render, utils
-validate -> config, models, utils
+install -> config, models, render, utils, validate
+validate -> config, models, render, utils
 diff -> config, install, models, render, utils
 config -> utils
 runtime -> (node built-ins, zod)
-models -> (none)
+models -> config
 utils -> (none)
 ```
 
-`cli/` has the broadest dependency fan-out. `models/` and `utils/` are leaf
-modules with no internal dependencies.
+`cli/` has the broadest dependency fan-out. `utils/` is the only internal leaf
+module.
 `runtime/` is also isolated from CLI/render/install workflow authority; it owns
 only deterministic helper mechanics used by packaged support skill entrypoints.
+
+Some current dependencies are intentionally documented as implementation state,
+not as a claim that the dependency direction is ideal:
+
+- `models/` currently imports source schema types from `config/`, so schema
+  ownership remains with `config/schema.ts` while shared domain types live in
+  `models/types.ts`.
+- `validate/` currently consumes frontmatter parsing from `render/`; the
+  parser and serializer live in `render/frontmatter.ts`.
+- `render/` currently imports validation loaders for `renderAll()` and
+  `KNOWN_SUBDIRS` for generated skill mirroring.
+- `install/` currently imports `KNOWN_SUBDIRS` from `validate/skills.ts` when
+  checking mirrored skill subdirectories for copy-mode executable drift.
 
 ### Render Pipeline Boundary
 
