@@ -14,6 +14,7 @@ import {
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
+import { normalizeBashScriptEnvPaths, toBashPath } from "./bash-paths.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
@@ -1429,11 +1430,18 @@ async function runBashHelper(
   env: NodeJS.ProcessEnv,
 ) {
   try {
-    await execFileAsync("bash", [helper, command], {
-      cwd: process.cwd(),
-      env,
-      maxBuffer: 1024 * 1024,
-    });
+    const helperEnv = await normalizeBashScriptEnvPaths(env, [
+      "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+    ]);
+    await execFileAsync(
+      "bash",
+      [await toBashPath(helper, helperEnv), command],
+      {
+        cwd: process.cwd(),
+        env: helperEnv,
+        maxBuffer: 1024 * 1024,
+      },
+    );
   } catch (err) {
     const stderr =
       err && typeof err === "object" && "stderr" in err
