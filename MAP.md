@@ -255,11 +255,9 @@ Quick navigation index for the DevCanon repository.
 - Where is the spec-compliance-reviewer agent role? -> [`agents/spec-compliance-reviewer.yaml`](agents/spec-compliance-reviewer.yaml)
 - Where is the code-quality-reviewer agent role? -> [`agents/code-quality-reviewer.yaml`](agents/code-quality-reviewer.yaml)
 - Where is the research-agent role? -> [`agents/research-agent.yaml`](agents/research-agent.yaml)
-- Where are generated preview outputs and tracked generated support files
-  described? ->
+- Where are generated preview output rules described? ->
   [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md) (`generated/`
-  is an ignored render preview directory; selected support files are tracked as
-  derived review evidence)
+  is an ignored, untracked render preview directory)
 
 ---
 

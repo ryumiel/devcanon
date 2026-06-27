@@ -59,28 +59,24 @@ partial input set without treating omitted skills or agents as stale.
 Generated outputs are not intended to be hand-edited. Managed-state is tracked
 by the install manifest; generated files do not embed a managed header.
 
-### Tracked generated support output
+### Generated output rules
 
-Most files under `generated/` are disposable previews, and new local preview
-churn remains ignored. Some generated support files are intentionally tracked so
-reviewers can inspect the runtime and review-support artifacts that DevCanon
-ships for Claude and Codex targets.
+Files under `generated/` are disposable previews and remain ignored by Git.
+Do not commit generated preview output as review evidence, even when a source
+change intentionally affects rendered Claude or Codex skill output. Review the
+authoritative source or runtime change first, then regenerate or run the
+relevant check locally when generated output needs inspection.
 
-Tracked generated support files do not become source of truth. Source skills,
-source agent definitions, source runtime TypeScript, renderer code, tests, and
-the install manifest remain authoritative for their respective contracts.
-Packaged runtime JavaScript under `skills/devcanon-runtime/scripts/runtime/`
-is also derived support output: it is tracked because installed skill bundles
-need version-aligned helper files, while `src/runtime/` owns the deterministic
-runtime behavior.
+Source skills, source agent definitions, source runtime TypeScript, renderer
+code, tests, and the install manifest remain authoritative for their
+respective contracts. Packaged runtime JavaScript under
+`skills/devcanon-runtime/scripts/runtime/` is derived support output that stays
+tracked because installed skill bundles need version-aligned helper files,
+while `src/runtime/` owns the deterministic runtime behavior.
 
-The repository can ignore `generated/` and still track selected generated
-support files. Ignore rules keep additional untracked preview output out of
-ordinary diffs; they do not remove files that are already tracked. When a source
-change intentionally affects tracked generated support output, review the
-source or runtime change first, regenerate or run the relevant check, then
-commit the tracked derived diff as evidence of the same change. Do not hand-edit
-tracked generated support files to change behavior.
+Do not hand-edit generated preview files to change behavior. If generated
+preview drift appears in a worktree, regenerate from source or fix the
+authoritative source/renderer behavior, but keep `generated/` out of commits.
 
 ### Normalization
 

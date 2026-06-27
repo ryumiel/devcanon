@@ -168,13 +168,12 @@ after reviewing changed `skills/`, `agents/`, and rendered output, because sync
 writes managed outputs into user-wide target homes.
 
 Generated preview output and installed managed output are disposable and should
-not be edited as authoritative source.
-
-Some DevCanon generated support files are intentionally tracked for review and
-packaging evidence, including selected files under ignored `generated/`
-previews and packaged runtime JavaScript under
-`skills/devcanon-runtime/scripts/runtime/`. Before deciding whether generated
-output should be ignored, regenerated, reviewed, or committed, use the
+not be edited as authoritative source. Generated preview output under
+`generated/` stays ignored and untracked; regenerate it locally when inspection
+is useful, but keep commits on source, renderer, tests, and tracked packaged
+support files such as `skills/devcanon-runtime/scripts/runtime/`. Before
+deciding whether generated output should be ignored, regenerated, reviewed, or
+committed, use the
 [target mapping generated output rules](../specs/target-mapping.md#generated-output-rules)
 as the owner.
 
