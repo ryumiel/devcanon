@@ -8,7 +8,8 @@ Accepted
 
 ADR-0010 introduced the `play-review/findings/v1` JSON schema (a
 top-level envelope with `schema`, `findings`, and `carry_forward`
-fields, defined in `skills/play-review/SKILL.md` § Output) and
+fields, now detailed in
+`skills/play-review/references/findings-envelope-contract.md`) and
 specified its transport: a trailing fenced `json` block appended to
 `play-review`'s conversation output. Wrappers (`branch-review`,
 `pr-review`) re-emit the same block on their surfaces;
@@ -39,7 +40,7 @@ prior reasoning:
 1. **The "no-I/O boundary" framing is a paraphrase of ADR-0009 that
    ADR-0009 itself does not assert.** ADR-0009's actual constraints
    on `play-review` (mirrored in `skills/play-review/SKILL.md` Hard
-   Rules 5-7 and the closing paragraph of § Output) are: "this skill
+   Rules) are: "this skill
    never touches GitHub, never auto-fixes, never creates or removes
    worktrees." That is a constraint on _side-effectful disposition_
    (posting, fixing, cleanup), not on bytes-on-disk. `play-review`
@@ -87,10 +88,14 @@ Path scheme:
   stripping, bare `.`/`..`, or starting with `-`/`.`).
 
 The path scheme and consumer responsibilities in this ADR remain authoritative.
+The detailed `play-review/findings/v1` envelope, write-target guard, validation,
+and derived nits-file contract lives in
+`skills/play-review/references/findings-envelope-contract.md`;
+`skills/play-review/SKILL.md` retains the workflow and notice-line contract.
 Per ADR-0019, reusable executable mechanics for findings and derived nits
 artifacts should move to the owning `play-review` helper script when this
-contract is extracted from prompt-embedded shell. `SKILL.md` carries the
-invocation contract and workflow policy.
+contract is extracted from prompt-embedded shell. `SKILL.md` carries workflow
+policy and points consumers to the detailed reference.
 
 The path is computed and written by `play-review` itself, not by the
 wrapper. The envelope is always written, even for empty findings (the
@@ -186,9 +191,9 @@ Consumer responsibilities:
   pre-staged symlink at `.ephemeral` itself or at
   `.ephemeral/<…>-findings.json`. Because the `Write` tool follows
   symlinks, an unguarded write would land attacker-chosen content at
-  the link's target. `play-review`'s Write rules (see
-  `skills/play-review/SKILL.md` § Output) now require a write-target
-  preflight before writing: reject a symlinked `.ephemeral`
+  the link's target. `play-review`'s detailed findings-envelope contract (see
+  `skills/play-review/references/findings-envelope-contract.md`) now requires a
+  write-target preflight before writing: reject a symlinked `.ephemeral`
   directory, `mkdir -p .ephemeral`, remove any symlink at the target
   file path, and reject directories or other non-regular existing
   paths. `branch-review --fix` and `issue-priming-workflow` Phase 7

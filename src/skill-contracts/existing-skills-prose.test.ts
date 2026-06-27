@@ -3511,6 +3511,9 @@ describe("existing skills source prose contracts", () => {
     const adr0013 = await readRepoFile(
       "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
     );
+    const adr0010 = await readRepoFile(
+      "docs/adr/adr-0010-structured-review-findings-schema.md",
+    );
     const map = await readRepoFile("MAP.md");
 
     const normalizedPrAuthoring = normalizeWhitespace(prAuthoring);
@@ -3810,6 +3813,17 @@ describe("existing skills source prose contracts", () => {
     expect(normalizeWhitespace(adr0013)).not.toContain(
       "Options 1 (merge), 2 (PR), and 4 (discard)",
     );
+    for (const adr of [adr0010, adr0012, adr0013]) {
+      expect(normalizeWhitespace(adr)).toContain(
+        "skills/play-review/references/findings-envelope-contract.md",
+      );
+      expect(normalizeWhitespace(adr)).not.toContain(
+        "skills/play-review/SKILL.md` § Output",
+      );
+      expect(normalizeWhitespace(adr)).not.toContain(
+        "play-review/SKILL.md` § Output",
+      );
+    }
     expect(map).toContain("skills/pr-authoring/SKILL.md");
   });
 
