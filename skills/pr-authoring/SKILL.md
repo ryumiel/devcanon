@@ -16,10 +16,11 @@ automation do not drift.
 
 Wrappers keep GitHub side effects:
 
-- `play-branch-finish` owns pushing branches, running `gh pr create`, posting
-  assumptions comments, posting nits as PR review comments, and preserving the
-  branch/worktree after PR creation.
-- `pr-merge` owns `gh pr edit`, CI polling, merge, and post-merge cleanup.
+- `play-branch-finish` owns pushing branches, running
+  `{{tool:github-cli}} pr create`, posting assumptions comments, posting nits
+  as PR review comments, and preserving the branch/worktree after PR creation.
+- `pr-merge` owns `{{tool:github-cli}} pr edit`, CI polling, merge, and
+  post-merge cleanup.
 
 ## Inputs
 
@@ -40,8 +41,9 @@ Use before creating a PR. The caller provides:
 - already-read repository PR guideline/template contents, when the caller has
   them.
 
-Return a compliant PR title and body for the caller to pass to `gh pr create`.
-Do not create, edit, comment on, merge, or clean up the PR.
+Return a compliant PR title and body for the caller to pass to
+`{{tool:github-cli}} pr create`. Do not create, edit, comment on, merge, or
+clean up the PR.
 
 ### `validate-fix`
 
@@ -55,8 +57,9 @@ Use before polling CI or merging an existing PR. The caller provides:
   them.
 
 Return `VALID` when the title and body already comply. When they do not comply,
-return the repaired title and/or body for the caller to apply with `gh pr edit`.
-Do not run `gh pr edit` yourself.
+return the repaired title and/or body for the caller to apply with
+`{{tool:github-cli}} pr edit`. Do not run
+`{{tool:github-cli}} pr edit` yourself.
 
 ## Guideline Discovery
 
@@ -68,13 +71,13 @@ otherwise, from the repository root, check for PR authoring policy:
 - `docs/guidelines/pr-guideline.md`
 - `.github/pull_request_template.md`
 - `CONTRIBUTING.md`
-- `WORKFLOW.md`
+- `{{file:workflow-guide}}`
 
 The PR guideline is the primary policy when present. The GitHub PR template
 defines the required body shape when it exists. `CONTRIBUTING.md` and
-`WORKFLOW.md` provide supporting policy such as issue linkage and required
-verification. If no project-specific guideline or template is found, use
-Conventional Commits for the title and an expanded final-state body with
+`{{file:workflow-guide}}` provide supporting policy such as issue linkage and
+required verification. If no project-specific guideline or template is found,
+use Conventional Commits for the title and an expanded final-state body with
 summary, rationale, implementation or behavior changes, impact and risk,
 verification, breaking changes, and related issue linkage.
 

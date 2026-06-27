@@ -128,6 +128,43 @@ const CODEX_ALLOWED_FRONTMATTER_KEYS = new Set([
 ]);
 
 describe("existing skills render cleanly", () => {
+  it("dogfoods tool and file glossary placeholders in selected skills", async () => {
+    const repoRoot = process.cwd();
+    const config = await loadConfig(
+      path.join(repoRoot, "devcanon.config.yaml"),
+    );
+
+    expect(config.toolNames?.["github-cli"]).toEqual({
+      claude: "gh",
+      codex: "gh",
+    });
+    expect(config.fileArtifacts?.["workflow-guide"]).toEqual({
+      claude: "WORKFLOW.md",
+      codex: "WORKFLOW.md",
+    });
+
+    for (const skillName of ["pr-authoring", "pr-merge"] as const) {
+      const source = await readFile(
+        path.join(repoRoot, "skills", skillName, "SKILL.md"),
+        "utf-8",
+      );
+      expect(source).toContain("{{tool:github-cli}}");
+      expect(source).toContain("{{file:workflow-guide}}");
+    }
+
+    const { outputs } = await renderAll(config, false);
+
+    for (const target of ["claude", "codex"] as const) {
+      for (const skillName of ["pr-authoring", "pr-merge"] as const) {
+        const output = getSkillOutput(outputs, skillName, target);
+        expect(output.content).toContain("gh");
+        expect(output.content).toContain("WORKFLOW.md");
+        expect(output.content).not.toContain("{{tool:github-cli}}");
+        expect(output.content).not.toContain("{{file:workflow-guide}}");
+      }
+    }
+  });
+
   it("renders every shipped skill to both targets without error", async () => {
     const repoRoot = process.cwd();
     const config = await loadConfig(
