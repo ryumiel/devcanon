@@ -199,6 +199,9 @@ Checks:
 - write permission
 - symlink capability
 - manifest accessibility
+- managed `.worktrees/` drift diagnostics, including orphaned entries,
+  cross-repo Git metadata pointers, and unsafe symlink or path-containment
+  shapes; this check is read-only and reports manual cleanup guidance
 
 ---
 
