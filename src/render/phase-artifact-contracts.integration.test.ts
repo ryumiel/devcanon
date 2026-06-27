@@ -65,6 +65,23 @@ const sliceRenderedSection = (
   return body.slice(startIndex, endIndex);
 };
 
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      currentIndex,
+      `substring out of order: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 describe("rendered phase artifact smoke coverage", () => {
   let bodies: RenderedBodies;
   let skillDirs: Record<string, string>;
@@ -1590,6 +1607,18 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReviewWithFollowUpReferences).toContain(
         "prepare-findings-write || exit 1",
       );
+      expectSubstringsInOrder(playReviewWithFollowUpReferences, [
+        'cd "$WORKING_DIRECTORY" || exit 1',
+        'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+        "FINDINGS_FILE=$(",
+        "prepare-findings-write || exit 1",
+        'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
+        "REVIEW_CONTEXT_INPUT_FILE=$(",
+        "write-review-context-input",
+        "REVIEW_CONTEXT_FILE=$(",
+        "build-review-context",
+      ]);
       for (const manifestDetail of [
         "`arch_files`",
         "`new_adrs`",

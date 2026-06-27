@@ -46,6 +46,23 @@ function expectSharedLifecycleReference(section: string): void {
   expect(section).toContain("recovery");
 }
 
+function expectSubstringsInOrder(content: string, substrings: string[]): void {
+  let previousIndex = -1;
+
+  for (const substring of substrings) {
+    const currentIndex = content.indexOf(substring, previousIndex + 1);
+    expect(
+      currentIndex,
+      `missing ordered substring: ${substring}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      currentIndex,
+      `substring out of order: ${substring}`,
+    ).toBeGreaterThan(previousIndex);
+    previousIndex = currentIndex;
+  }
+}
+
 const PUBLIC_EXPLICIT_PLAY_SKILLS = [
   "play-agent-dispatch",
   "play-brainstorm",
@@ -2179,6 +2196,9 @@ describe("existing skills source prose contracts", () => {
     const sharedContextReference = await readRepoFile(
       "skills/play-review/references/shared-review-context.md",
     );
+    const branchReview = await readSkillSource("branch-review");
+    const playBranchFinish = await readSkillSource("play-branch-finish");
+    const prReview = await readSkillSource("pr-review");
     const redFlags = await readRepoFile(
       "skills/play-review/references/red-flags.md",
     );
@@ -2248,6 +2268,32 @@ describe("existing skills source prose contracts", () => {
       "The helper owns the deterministic write mechanics",
     );
     expect(normalizedPhase25).toContain("atomically renames it into place");
+    expectSubstringsInOrder(sharedContextReference, [
+      'cd "$WORKING_DIRECTORY" || exit 1',
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+      "FINDINGS_FILE=$(",
+      "prepare-findings-write || exit 1",
+      'PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"',
+      "REVIEW_CONTEXT_INPUT_FILE=$(",
+      "write-review-context-input",
+      "REVIEW_CONTEXT_FILE=$(",
+      "build-review-context",
+    ]);
+    expect(phase25).not.toContain(
+      'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
+    );
+    expect(phase25).not.toContain(
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+    );
+    expect(phase25).not.toContain("FINDINGS_FILE=$(");
+    expect(phase25).not.toContain("PLAY_REVIEW_SHARED_CONTEXT_HELPER=");
+    for (const wrapperSource of [branchReview, playBranchFinish, prReview]) {
+      expect(wrapperSource).not.toContain("PLAY_REVIEW_SHARED_CONTEXT_HELPER");
+      expect(wrapperSource).not.toContain("shared-review-context.sh");
+      expect(wrapperSource).not.toContain("write-review-context-input");
+      expect(wrapperSource).not.toContain("build-review-context");
+    }
 
     for (const field of [
       "working_directory",
