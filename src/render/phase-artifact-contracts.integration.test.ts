@@ -1572,6 +1572,9 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(normalizedPlayReviewWithFollowUpReferences).toContain(
         "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
       );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
+      );
       for (const manifestDetail of [
         "`arch_files`",
         "`new_adrs`",

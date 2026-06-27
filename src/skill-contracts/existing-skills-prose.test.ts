@@ -2224,6 +2224,9 @@ describe("existing skills source prose contracts", () => {
       "pass it to the installed helper in `REVIEW_CONTEXT_INPUT_JSON`",
     );
     expect(normalizedPhase25).toContain(
+      "Run the helper flow from `$WORKING_DIRECTORY`, the target repository root",
+    );
+    expect(normalizedPhase25).toContain(
       "must not write findings, review-context output, wrapper artifacts, source files, or external state",
     );
     expect(normalizedPhase25).toContain(

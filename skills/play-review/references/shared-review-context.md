@@ -153,11 +153,16 @@ before relying on it.
 Assemble the manifest object in memory, encode compact JSON, and pass it to the
 installed helper in `REVIEW_CONTEXT_INPUT_JSON`. Do not write the manifest with
 a prompt-controlled `Write` or shell redirect.
+Run the helper flow from `$WORKING_DIRECTORY`, the target repository root,
+before deriving helper-bound paths or invoking `shared-review-context.sh`; if
+that `cd` fails, stop before Phase 3.
 Preparing the input manifest must not write findings, review-context output,
 wrapper artifacts, source files, or external state. The helper owns the
 deterministic write mechanics and atomically renames it into place.
 
 ```bash
+cd "$WORKING_DIRECTORY" || exit 1
+
 PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"
 REVIEW_CONTEXT_INPUT_FILE=$(
   HEAD_SHA="$HEAD_SHA" \
