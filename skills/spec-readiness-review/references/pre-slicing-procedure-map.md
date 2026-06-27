@@ -39,9 +39,9 @@ does not draft tracker text or mutate tracker state.
 2. Build or verify a minimum evidence pointer for each needed claim.
 3. If the evidence describes reusable workflow or role-boundary work, ask
    whether this is a reusable capability gap.
-4. If a reusable capability gap is suspected, route to capability
-   classification instead of approving a new or changed reusable asset inside
-   readiness review.
+4. If a reusable capability gap is suspected, route to AFDS workflow
+   capability governance instead of approving a new or changed reusable asset
+   inside readiness review.
 5. Review readiness: scope, boundaries, non-goals, acceptance criteria,
    verification expectations, evidence pointers, and unresolved owner links.
 6. Return `Ready`, `Needs revision`, or `Blocked`. Include slicing notes only
@@ -99,10 +99,10 @@ install/sync ownership.
 
 ## Follow-Up Surface and Gap Handling
 
-Follow-up workflow surfaces are candidates for later capability classification.
-Do not automatically convert them into implementation backlog and do not approve
-new skills, agents, source behavior, provider automation, or governance assets
-from readiness review alone.
+Follow-up workflow surfaces are candidates for later AFDS workflow capability
+governance. Do not automatically convert them into implementation backlog and
+do not approve new skills, agents, source behavior, provider automation, or
+governance assets from readiness review alone.
 
 Revisit a follow-up surface only when at least one condition is true:
 

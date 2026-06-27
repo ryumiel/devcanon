@@ -56,8 +56,9 @@ guidance.
   `docs/specs/afds-workflow-routing.md` that owns exact routing and evidence
   behavior for the Portable AFDS Toolkit.
 - **AFDS workflow capability governance**: the reusable governance procedure,
-  planned for `docs/guidelines/afds-workflow-capability-governance.md`, that
-  maps AFDS workflow needs to existing skills, agent roles, docs, source
+  owned by
+  [`docs/guidelines/afds-workflow-capability-governance.md`](../guidelines/afds-workflow-capability-governance.md),
+  that maps AFDS workflow needs to existing skills, agent roles, docs, source
   behavior, or explicit non-goals before new workflow assets are approved.
 
 ## Problem
@@ -542,11 +543,11 @@ event narrative in repository documentation.
 - `docs/specs/afds-workflow-routing.md` owns exact evidence pointer behavior,
   including how the toolkit handles private or inaccessible tracker, PR, or CI
   evidence without copying that evidence into repository documentation.
-- `docs/guidelines/afds-workflow-capability-governance.md` should own the
-  reusable capability-classification procedure for deciding whether a workflow
-  need should be handled by updating an existing asset, creating a new skill,
-  creating a new agent role, changing source behavior, creating follow-up work,
-  deferring, or rejecting the need.
+- [`docs/guidelines/afds-workflow-capability-governance.md`](../guidelines/afds-workflow-capability-governance.md)
+  owns the reusable capability-classification procedure for deciding whether a
+  workflow need should be handled by updating an existing asset, creating a new
+  skill, creating a new agent role, changing source behavior, creating follow-up
+  work, deferring, or rejecting the need.
 - Provider-specific issue behavior should stay with provider entrypoints,
   provider integration specs, or focused source behavior rather than this PRD.
 
@@ -614,8 +615,9 @@ The Portable AFDS Toolkit is product-valid when pilot use demonstrates that:
 - pilots reduce or remove duplicated durable claims found during the pilot
   instead of preserving them as parallel summaries;
 - at least one proposed workflow addition is evaluated through the owning
-  capability-governance path and results in an explicit update, creation,
-  deferral, or rejection decision with evidence linked from the owning artifact;
+  [capability-governance path](../guidelines/afds-workflow-capability-governance.md)
+  and results in an explicit update, creation, deferral, or rejection decision
+  with evidence linked from the owning artifact;
 - pilot notes identify missing behavior specs, guidelines, skills, or source
   behavior as follow-up artifacts rather than embedding those procedures in
   this PRD.

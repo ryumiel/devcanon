@@ -19,6 +19,9 @@ state, and active agent sessions for temporary execution detail.
 - [AFDS Pilot Checklist](afds-pilot-checklist.md) - shared readiness,
   evidence, validation, and follow-up checklist for GitHub Issues-backed and
   Linear-backed AFDS pilot repositories.
+- [AFDS Workflow Capability Governance](afds-workflow-capability-governance.md)
+  - how reusable workflow needs are classified as existing-asset updates, new
+    skills, new agents, source/runtime support, deferrals, or rejections.
 - [AI-Assisted Product Workflow Guideline](ai-assisted-product-workflow-guideline.md)
   - how DevCanon applies AFDS to product, documentation, issue, and PR work.
 - [Behavior Spec Evidence Routing](behavior-spec-evidence-routing.md) -

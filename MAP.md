@@ -21,6 +21,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the roadmap? -> [`docs/roadmap/`](docs/roadmap/)
 - Where is the Portable AFDS Toolkit direction? -> [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
 - Where are the Portable AFDS Toolkit product requirements? -> [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
+- Where is AFDS workflow capability governance defined? ->
+  [`docs/guidelines/afds-workflow-capability-governance.md`](docs/guidelines/afds-workflow-capability-governance.md)
 - Where is AFDS setup and migration guidance? ->
   [`docs/guidelines/afds-setup-and-migration.md`](docs/guidelines/afds-setup-and-migration.md)
 - Where is the AFDS pilot checklist for target repositories? ->
@@ -95,6 +97,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/guidelines/afds-pilot-checklist.md`](docs/guidelines/afds-pilot-checklist.md)
 - Where is the documentation standard? -> [`docs/guidelines/documentation-standard.md`](docs/guidelines/documentation-standard.md)
 - Where is the AI-assisted product workflow guide? -> [`docs/guidelines/ai-assisted-product-workflow-guideline.md`](docs/guidelines/ai-assisted-product-workflow-guideline.md)
+- Where is AFDS workflow capability governance defined? ->
+  [`docs/guidelines/afds-workflow-capability-governance.md`](docs/guidelines/afds-workflow-capability-governance.md)
 - Where is the shared skill reporting workflow? -> [`docs/guidelines/shared-skill-reporting-workflow.md`](docs/guidelines/shared-skill-reporting-workflow.md)
 - Where is guidance on choosing an agent vs. a skill? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)
 - Where is policy for promoting prompt templates into agents? -> [`docs/guidelines/agent-authoring-guide.md`](docs/guidelines/agent-authoring-guide.md)

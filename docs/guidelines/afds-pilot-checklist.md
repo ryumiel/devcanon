@@ -28,9 +28,13 @@ history, or agent-local execution detail.
 - [AFDS mechanical documentation checks spec](../specs/afds-mechanical-documentation-checks.md)
   owns the boundary between deterministic repository-documentation checks and
   judgment-heavy review.
+- [AFDS workflow capability governance](afds-workflow-capability-governance.md)
+  owns reusable capability classification before new shared workflow assets,
+  source/runtime support, deferrals, or rejections are accepted.
 - [Writing skills](writing-skills.md) and
   [agent authoring guide](agent-authoring-guide.md) own skill and agent
-  availability decisions.
+  authoring thresholds after capability classification identifies the right
+  asset type.
 - [Portable AFDS Toolkit product requirements](../product-requirements/portable-afds-toolkit.md)
   and [roadmap](../roadmap/portable-afds-toolkit.md) own pilot validation
   targets and product-level success criteria.
@@ -137,8 +141,9 @@ Do not create empty conditional directories just to satisfy this checklist.
       explicitly blocked with an owner.
 - [ ] Required agent roles are installed, available from the source library, or
       explicitly blocked with an owner.
-- [ ] Capability gaps route through the shared skill or agent reporting
-      workflow instead of being patched into a target repo ad hoc.
+- [ ] Capability gaps route through AFDS workflow capability governance before
+      any shared skill, agent, source/runtime support, deferral, or rejection is
+      accepted.
 - [ ] Generated and installed managed outputs are treated as derived from
       source, not authoritative.
 
@@ -187,4 +192,6 @@ After each pilot:
 - route review state to PR comments or reviews;
 - route validation evidence to CI, checks, source tests, or linked command
   output;
-- route reusable skill or agent gaps through the shared reporting workflow.
+- route reusable skill or agent gaps through AFDS workflow capability governance
+  and use the shared reporting workflow when the gap should be reported
+  upstream.

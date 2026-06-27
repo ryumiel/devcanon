@@ -34,6 +34,10 @@ projects.
   impact, and PR workflow.
 - [Portable AFDS user procedure map](portable-afds-user-procedure-map.md) owns
   lifecycle procedure routing.
+- [AFDS workflow capability governance](afds-workflow-capability-governance.md)
+  owns reusable capability classification when repeated workflow needs may
+  require existing-asset updates, new skills, new agents, source/runtime
+  support, deferrals, or rejections.
 - [Writing skills](writing-skills.md) owns source skill authoring.
 - [Agent authoring guide](agent-authoring-guide.md) owns when stable agent roles
   are justified.
@@ -104,8 +108,9 @@ checks.
 9. Route repeated procedures before extraction: keep project-local policy in
    `WORKFLOW.md` or `docs/guidelines/`, create a source skill only for portable
    reusable method, create an agent role only when stable delegate identity or
-   target-supported constraints justify it, and use the capability-gap path when
-   ownership is unclear.
+   target-supported constraints justify it, and use
+   [AFDS workflow capability governance](afds-workflow-capability-governance.md)
+   when reusable capability ownership is unclear.
 10. Sync DevCanon managed outputs only after source ownership is clear.
 
 ## Choosing GitHub Issues Or Linear
@@ -199,5 +204,6 @@ Existing project checklist:
 - [ ] Legacy docs are gardened incrementally when touched or when ownership is
       wrong.
 - [ ] Repeated procedures are routed to local workflow docs, portable source
-      skills, agent roles, or capability-gap blockers before extraction.
+      skills, agent roles, or AFDS workflow capability governance blockers
+      before extraction.
 - [ ] DevCanon managed outputs are synced only after source ownership is clear.
