@@ -398,7 +398,7 @@ adjacent governance surfaces named by `play-brainstorm` and reconcile them
 against the Adjacent Governance Policy Set owned by
 `docs/guidelines/documentation-checklists.md`. Include relevant adjacent
 surfaces in contract tables, task contract checklists, and proof obligations.
-Do not require PR guideline, PR template, `WORKFLOW.md`, ADR, MAP, generated
+Do not require PR guideline, PR template, `{{file:workflow-guide}}`, ADR, MAP, generated
 output, or installed-output updates unless the repository's existing AFDS
 triggers apply; when a surface is not updated, the plan should state why it is
 not in scope.

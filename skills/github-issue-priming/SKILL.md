@@ -45,7 +45,7 @@ Present a one-line summary to the user:
 
 > Issue 153: refactor(kiki-dcs): replace DcsError::Io #[from] io::Error (tech-debt)
 
-If the issue cannot be fetched (`gh` not authenticated, issue not found), stop and report the error.
+If the issue cannot be fetched (`{{tool:github-cli}}` not authenticated, issue not found), stop and report the error.
 
 ### Derive branch and worktree names
 
@@ -180,7 +180,7 @@ if ($IssueBodyItem -and $IssueBodyItem.PSIsContainer) { throw "issue body path i
 if ($IssueBodyItem -and -not ($IssueBodyItem -is [System.IO.FileInfo])) { throw "issue body path exists but is not a regular file: $IssueBodyFullPath" }
 ```
 
-Write the fetched `gh issue view` `.body` text verbatim to
+Write the fetched `{{tool:github-cli}} issue view` `.body` text verbatim to
 `$WORKTREE_PATH/$ISSUE_BODY_PATH`.
 
 ### Persist substantive comment evidence
@@ -285,10 +285,10 @@ not duplicate workflow logic here.
 
 ## Error Handling
 
-| Scenario               | Action                            |
-| ---------------------- | --------------------------------- |
-| `gh` not authenticated | Stop, suggest `! gh auth login`   |
-| Issue not found        | Stop, verify number/URL           |
-| Issue already closed   | Warn user, ask whether to proceed |
+| Scenario                                | Action                                           |
+| --------------------------------------- | ------------------------------------------------ |
+| `{{tool:github-cli}}` not authenticated | Stop, suggest `! {{tool:github-cli}} auth login` |
+| Issue not found                         | Stop, verify number/URL                          |
+| Issue already closed                    | Warn user, ask whether to proceed                |
 
 (Workflow-level errors — gate agent failures, research timeouts, missing `docs/adr/` — are handled inside `issue-priming-workflow`. See its Error Handling section.)

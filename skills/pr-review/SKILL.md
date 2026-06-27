@@ -40,9 +40,9 @@ digraph pr_review {
 
 Run in parallel:
 
-- `gh pr view <N> --json title,body,baseRefName,baseRefOid,headRefName,headRefOid,commits,files,reviews,comments,url`
-- `gh api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
-- `gh api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
+- `{{tool:github-cli}} pr view <N> --json title,body,baseRefName,baseRefOid,headRefName,headRefOid,commits,files,reviews,comments,url`
+- `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/comments` — inline review threads
+- `{{tool:github-cli}} api repos/{owner}/{repo}/pulls/<N>/reviews` — review states
 
 Phase 1 must fetch and record provider `baseRefOid` and `headRefOid`, but
 provider `baseRefOid` is metadata, not proof that the base branch ref is the PR
@@ -74,7 +74,7 @@ Fetch `<head-ref>` for the worktree and `<base-ref>` for GitHub PR context.
 They run as separate commands so a fork-PR failure on `<head-ref>` doesn't lose
 the `<base-ref>` fetch.
 
-**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `gh pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
+**Fork PRs:** if `git fetch origin <head-ref>` fails or `origin/<head-ref>` doesn't exist, use `{{tool:github-cli}} pr checkout <N> --detach` in a fresh worktree instead (this populates `HEAD` without needing `origin/<head-ref>`), or add the fork as a remote and re-fetch. The `<base-ref>` fetch is still useful for local context, but Phase 3 review scope must use the provider-proven PR diff base SHA from explicit provider scope evidence, not a moving `origin/<base-ref>` ref.
 
 Use the repo root as the base for `.worktrees/` to avoid cwd issues across bash
 calls.
@@ -436,7 +436,7 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)
-- `prior_threads` = parsed from the `gh api .../comments` and `.../reviews` responses (follow-up only)
+- `prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
@@ -915,7 +915,7 @@ Only after user approval:
 
 5. **Post exactly the validated approved payload.** After the stale-head guard
    passes, call `validate-approved-review` into a guarded direct-child
-   `.ephemeral` payload file first. Only invoke `gh api` after validation exits
+   `.ephemeral` payload file first. Only invoke `{{tool:github-cli}} api` after validation exits
    zero. Do not call `build-github-review-payload` again after user approval.
    Do not edit, reformat, filter, or reconstruct the payload between validation
    and posting.
@@ -982,16 +982,16 @@ fields, and message for manual recovery. Do not run a broad `.ephemeral` sweep.
 
 ## GitHub API Reference
 
-For the `gh api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
+For the `{{tool:github-cli}} api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
 
 **Posting boundary reference:** the only review-creation path in this skill is
 Phase 6's explicitly user-approved artifact flow: after approval,
 `prepare-review-payload-write`, `build-github-review-payload`,
 `freeze-approved-review`, stale-head refusal, `validate-approved-review` into the
-guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `gh api --input
+guarded `VALIDATED_REVIEW_PAYLOAD_FILE`, and then `{{tool:github-cli}} api --input
 "$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload
-here, do not fetch `commit_id` from live `gh pr view` for posting, and do not
-call `gh api` until the approved artifact has validated successfully.
+here, do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting, and do not
+call `{{tool:github-cli}} api` until the approved artifact has validated successfully.
 
 The sealed payload uses `line` (absolute file line in HEAD), not `position`
 (diff offset). `side` is `"RIGHT"` for PR head lines.
@@ -1026,29 +1026,29 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Red Flags — You Are Violating This Skill
 
-- You called `gh pr review` or `resolveReviewThread` before presenting findings to the user
+- You called `{{tool:github-cli}} pr review` or `resolveReviewThread` before presenting findings to the user
 - You posted a review "since it looked clean" without the gate
 - You skipped delegating to `play-review` and tried to spawn agents yourself
 - You showed findings as a table with file:line but no code snippets
 - You resolved threads "since they were obviously addressed"
 - You posted all findings in the review body instead of as inline comments on specific lines
-- You used `gh pr review --body` with findings instead of the reviews API with `comments` array
+- You used `{{tool:github-cli}} pr review --body` with findings instead of the reviews API with `comments` array
 - You posted `Anchor: out-of-diff` findings as inline comments with fabricated line numbers — they belong in the review body
 
 **All of these mean: STOP. You skipped the user gate or a required step. Go back.**
 
 ## Error Handling
 
-| Scenario                              | Action                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------- |
-| `gh` not authenticated                | Fail, suggest `gh auth login`                                                   |
-| PR not found                          | Fail, verify number/URL                                                         |
-| PR already merged/closed              | Warn user of state, ask whether to proceed                                      |
-| Fork PR (head ref not on origin)      | Use `gh pr checkout <N> --detach` or add fork remote                            |
-| Worktree exists                       | Inspect lease; resume valid leases or use lease-gated cleanup before recreating |
-| `play-review` reports a missing input | Stop; this means the wrapper has a bug                                          |
-| API returns non-2xx                   | Report failure, stop                                                            |
-| Worktree cleanup fails                | Report lease path, worktree path, and helper message                            |
+| Scenario                                | Action                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------- |
+| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                  |
+| PR not found                            | Fail, verify number/URL                                                         |
+| PR already merged/closed                | Warn user of state, ask whether to proceed                                      |
+| Fork PR (head ref not on origin)        | Use `{{tool:github-cli}} pr checkout <N> --detach` or add fork remote           |
+| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating |
+| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                          |
+| API returns non-2xx                     | Report failure, stop                                                            |
+| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                            |
 
 ## Integration
 

@@ -30,19 +30,21 @@ gh pr view <N> --json state --jq '.state'
 Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode
 by reading and following that skill bundle's `SKILL.md`; apply any repaired
 title/body it returns before proceeding. `pr-authoring` is the shared policy
-owner for PR title/body validation; this step owns the `gh pr edit` side effect
-only. Do not search for or require a callable `pr-authoring` tool.
+owner for PR title/body validation; this step owns the
+`{{tool:github-cli}} pr edit` side effect only. Do not search for or require a
+callable `pr-authoring` tool.
 
-Gather stable PR data for `pr-authoring` up front with `gh pr view`,
-`gh pr diff --name-only`, and PR commit metadata:
+Gather stable PR data for `pr-authoring` up front with
+`{{tool:github-cli}} pr view`, `{{tool:github-cli}} pr diff --name-only`, and
+PR commit metadata:
 
 - current PR title and body;
 - PR diff file list;
 - PR commit headlines and bodies;
 - any already-read PR policy contents from `**/pr-guideline*.md`,
   `docs/guidelines/pr-guideline.md`, `.github/pull_request_template.md`,
-  `CONTRIBUTING.md`, and `WORKFLOW.md` when available; otherwise let
-  `pr-authoring` discover and read the policy surfaces.
+  `CONTRIBUTING.md`, and `{{file:workflow-guide}}` when available; otherwise
+  let `pr-authoring` discover and read the policy surfaces.
 
 `pr-authoring` always validates title format, required sections,
 anti-patterns, and content-vs-diff. When no project-specific guideline or
@@ -50,9 +52,9 @@ template exists, it applies its default fallback contract instead of bypassing
 validation.
 
 If `pr-authoring` returns `VALID`, proceed to CI. If it returns a repaired title
-and/or body, apply only changed fields with `gh pr edit`. For body repairs, use
-`--body-file` so multiline Markdown and shell-sensitive characters are
-preserved. Omit flags for unchanged fields.
+and/or body, apply only changed fields with `{{tool:github-cli}} pr edit`. For
+body repairs, use `--body-file` so multiline Markdown and shell-sensitive
+characters are preserved. Omit flags for unchanged fields.
 
 Do not skip `pr-authoring` because the description "looks close enough." The
 shared procedure exists so PR creation and PR merge enforce the same policy.
@@ -60,7 +62,7 @@ shared procedure exists so PR creation and PR merge enforce the same policy.
 ## Step 2: Poll CI
 
 **Default interval: 3 minutes.** User can override via args (e.g., `5m`, `1m`).
-Poll with `gh pr checks <N>`.
+Poll with `{{tool:github-cli}} pr checks <N>`.
 
 Classify output:
 
@@ -101,24 +103,24 @@ Preflight output:
 
 Mode routing:
 
-| Mode          | Action                                                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------- |
-| `safe-direct` | Run `gh pr merge <N> --squash` from the current directory.                                                     |
-| `cd-primary`  | Change to `PRIMARY_WORKTREE`, then run `gh pr merge <N> --squash`.                                             |
-| `remote-only` | Run `gh pr merge <N> --squash` without local cleanup delegation, verify `MERGED`, then use the cleanup helper. |
-| `stop`        | Do not merge. Report `REASON` and one remediation.                                                             |
+| Mode          | Action                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `safe-direct` | Run `{{tool:github-cli}} pr merge <N> --squash` from the current directory.                                                     |
+| `cd-primary`  | Change to `PRIMARY_WORKTREE`, then run `{{tool:github-cli}} pr merge <N> --squash`.                                             |
+| `remote-only` | Run `{{tool:github-cli}} pr merge <N> --squash` without local cleanup delegation, verify `MERGED`, then use the cleanup helper. |
+| `stop`        | Do not merge. Report `REASON` and one remediation.                                                                              |
 
-No mode may use `gh pr merge --delete-branch`. Local worktree cleanup, local
-branch deletion, and same-repository remote branch deletion are owned by
-`skills/pr-merge/scripts/post-merge-cleanup.sh`.
+No mode may use `{{tool:github-cli}} pr merge --delete-branch`. Local worktree
+cleanup, local branch deletion, and same-repository remote branch deletion are
+owned by `skills/pr-merge/scripts/post-merge-cleanup.sh`.
 
 If a preflighted merge command exits nonzero, immediately check
-`gh pr view <N> --json state`. If state is `MERGED`, treat the remote merge as
-successful and continue to cleanup. If state is not `MERGED`, report the merge
-failure using the existing merge-conflict, missing-review, or branch-protection
-classification. Do not retry an execution-context failure unless you changed
-directory, changed mode, or collected new evidence that invalidates the
-preflight result.
+`{{tool:github-cli}} pr view <N> --json state`. If state is `MERGED`, treat the
+remote merge as successful and continue to cleanup. If state is not `MERGED`,
+report the merge failure using the existing merge-conflict, missing-review, or
+branch-protection classification. Do not retry an execution-context failure
+unless you changed directory, changed mode, or collected new evidence that
+invalidates the preflight result.
 
 ## Step 3b: Post-Merge Cleanup
 
@@ -198,7 +200,7 @@ Dispatch a **dedicated investigation agent**. The investigation agent:
 
 1. Reads `.github/workflows/*.yml` to understand what CI runs and what commands to reproduce locally
 2. Reads the failed log output
-3. Reads the PR diff (`gh pr diff <N>`) to understand what changed
+3. Reads the PR diff (`{{tool:github-cli}} pr diff <N>`) to understand what changed
 4. Uses `play-debug` to diagnose root cause
 5. Determines if the failure is **in scope** (see below)
 6. If fixable: fixes the issue, reproduces CI steps locally, uses `play-verification` before pushing
@@ -251,12 +253,12 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 | Situation                         | Action                                                                                                                                                |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given                | Auto-detect from current branch via `gh pr view`                                                                                                      |
-| PR authoring validation           | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `gh pr edit`                      |
-| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `gh pr edit --body-file`                                          |
+| No PR number given                | Auto-detect from current branch via `{{tool:github-cli}} pr view`                                                                                     |
+| PR authoring validation           | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `{{tool:github-cli}} pr edit`     |
+| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `{{tool:github-cli}} pr edit --body-file`                         |
 | No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
 | CI pending                        | Poll every 3 min (configurable)                                                                                                                       |
-| CI passes                         | Run worktree preflight → `gh pr merge --squash` → verify `MERGED` → cleanup helper                                                                    |
+| CI passes                         | Run worktree preflight → `{{tool:github-cli}} pr merge --squash` → verify `MERGED` → cleanup helper                                                   |
 | Post-merge cleanup                | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
 | CI fails (1st time)               | Investigate → fix if in scope → push → re-poll                                                                                                        |
 | CI fails (2nd time)               | Report and stop                                                                                                                                       |
