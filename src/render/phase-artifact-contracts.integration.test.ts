@@ -1581,6 +1581,15 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReviewWithFollowUpReferences).toContain(
         'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
       );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "Before invoking `write-review-context-input`, bind `FINDINGS_FILE` by running `prepare-findings-write`",
+      );
+      expect(playReviewWithFollowUpReferences).toContain(
+        'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+      );
+      expect(playReviewWithFollowUpReferences).toContain(
+        "prepare-findings-write || exit 1",
+      );
       for (const manifestDetail of [
         "`arch_files`",
         "`new_adrs`",

@@ -158,6 +158,9 @@ before deriving helper-bound paths or invoking `shared-review-context.sh`; if
 that `cd` fails, stop before Phase 3.
 `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle,
 not the repository under review.
+Before invoking `write-review-context-input`, bind `FINDINGS_FILE` by running
+`prepare-findings-write`; this derives, validates, and prepares the
+deterministic path but does not write the findings envelope JSON.
 Preparing the input manifest must not write findings, review-context output,
 wrapper artifacts, source files, or external state. The helper owns the
 deterministic write mechanics and atomically renames it into place.
@@ -166,6 +169,12 @@ deterministic write mechanics and atomically renames it into place.
 cd "$WORKING_DIRECTORY" || exit 1
 
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
+FINDINGS_FILE=$(
+  HEAD_SHA="$HEAD_SHA" \
+    bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
+) || exit 1
+
 PLAY_REVIEW_SHARED_CONTEXT_HELPER="$PLAY_REVIEW_DIR/scripts/shared-review-context.sh"
 REVIEW_CONTEXT_INPUT_FILE=$(
   HEAD_SHA="$HEAD_SHA" \

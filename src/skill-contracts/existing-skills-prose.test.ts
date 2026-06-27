@@ -2233,6 +2233,15 @@ describe("existing skills source prose contracts", () => {
       'PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"',
     );
     expect(normalizedPhase25).toContain(
+      "Before invoking `write-review-context-input`, bind `FINDINGS_FILE` by running `prepare-findings-write`",
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      'PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"',
+    );
+    expect(`${phase25}\n${sharedContextReference}`).toContain(
+      "prepare-findings-write || exit 1",
+    );
+    expect(normalizedPhase25).toContain(
       "must not write findings, review-context output, wrapper artifacts, source files, or external state",
     );
     expect(normalizedPhase25).toContain(
