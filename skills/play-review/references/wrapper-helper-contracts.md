@@ -63,8 +63,10 @@ Output is one JSON object containing `commit_id`, `event`, `body`, and
 - appends out-of-diff findings to the top-level body;
 - converts natural and missing-file findings into inline comments;
 - prefixes missing-file comment bodies;
+- every natural or missing-file inline comment includes `side: "RIGHT"`;
 - omits `start_line` and `start_side` when `start_line` is `null`;
-- adds `"side": "RIGHT"` and `start_side: "RIGHT"` when a range is present;
+- only ranged inline comments add `start_side: "RIGHT"` when `start_line` is
+  present;
 - refuses `REVIEW_SURFACE=branch-review` with
   `build-github-review-payload requires REVIEW_SURFACE=pr-review`.
 

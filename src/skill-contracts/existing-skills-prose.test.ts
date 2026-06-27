@@ -286,6 +286,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(helperReference).toContain("render-review-preview");
     expect(helperReference).toContain("build-github-review-payload");
+    expect(normalizeWhitespace(helperReference)).toContain(
+      'every natural or missing-file inline comment includes `side: "RIGHT"`',
+    );
+    expect(normalizeWhitespace(helperReference)).toContain(
+      'only ranged inline comments add `start_side: "RIGHT"`',
+    );
 
     const sharedContextReference = await readRepoFile(
       "skills/play-review/references/shared-review-context.md",
@@ -302,6 +308,9 @@ describe("existing skills source prose contracts", () => {
       "helper-facing manifest object with `arch_files`, `new_adrs`, `modified_adrs`, `architecture_routing_risks`, `spec_routing_risks`",
     );
     expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
       "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
     );
     expect(normalizeWhitespace(sharedContextReference)).toContain(
@@ -309,6 +318,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizeWhitespace(sharedContextReference)).toContain(
       "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified existing `docs/adr/adr-*.md` paths only",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "Deleted ADR paths are not modified-ADR coverage evidence",
     );
 
     const routingReference = await readRepoFile(
@@ -2233,6 +2248,9 @@ describe("existing skills source prose contracts", () => {
     ]) {
       expect(`${phase25}\n${sharedContextReference}`).toContain(field);
     }
+    expect(normalizedPhase25).toContain(
+      "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
+    );
 
     for (const phrase of [
       "non-empty `summary`",

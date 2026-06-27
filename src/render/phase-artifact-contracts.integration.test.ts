@@ -279,6 +279,12 @@ describe("rendered phase artifact smoke coverage", () => {
     expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
       "review-head source, not the mutable working tree",
     );
+    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
+      'every natural or missing-file inline comment includes `side: "RIGHT"`',
+    );
+    expect(normalizeRenderedWhitespace(playReviewWithWrapperHelpers)).toContain(
+      'only ranged inline comments add `start_side: "RIGHT"`',
+    );
     expect(playReviewWithEnvelopeContract).toContain("validate-nits-file");
     expect(
       normalizeRenderedWhitespace(playReviewWithEnvelopeContract),
@@ -1571,6 +1577,7 @@ describe("rendered phase artifact smoke coverage", () => {
         "`mechanical_path_signals`",
         "`semantic_classification_notes`",
         "These snake_case keys are the executable `play-review/shared-context-input/v1` contract",
+        "`changed_files`: **Changed files (active diff)** object containing required `command`, `total_count`, `truncated`, and `records`",
       ]) {
         expect(normalizedPlayReviewWithFollowUpReferences).toContain(
           manifestDetail,
@@ -1579,11 +1586,13 @@ describe("rendered phase artifact smoke coverage", () => {
       for (const derivationDetail of [
         "`arch_files` / `ARCH_FILES`: mechanical path-signal array",
         "`new_adrs` / `NEW_ADRS`: mechanical path-signal array",
-        "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array",
+        "`modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified existing `docs/adr/adr-*.md` paths only",
         "`architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk object",
         "`spec_routing_risks` / `SPEC_ROUTING_RISKS`: routing-risk object",
         "Mechanical path-signal arrays",
         "Semantic classification notes",
+        "Deleted ADR paths are not modified-ADR coverage evidence",
+        "route deleted ADR paths through `architecture_routing_risks`",
         "Do not treat the architecture path examples as an exhaustive allowlist",
       ]) {
         expect(normalizedPlayReviewWithFollowUpReferences).toContain(

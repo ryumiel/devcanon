@@ -28,9 +28,11 @@ Required fields:
 
 - `header`: physical `working_directory`, `base_ref`, `head_sha`,
   `active_diff_range`, `full_pr_diff_range`, `mode`, and `language_hints`.
-- `changed_files`: **Changed files (active diff)** from `git diff --name-status`
-  against the active diff, including count, truncation flag, and structured
-  records.
+- `changed_files`: **Changed files (active diff)** object containing required
+  `command`, `total_count`, `truncated`, and `records`. `command` is the exact
+  active-diff command string used to derive the records; manifests missing
+  `changed_files.command` are invalid even when count, truncation, and records
+  are present.
 - `doc_impact_summary`: helper-facing manifest object with `arch_files`,
   `new_adrs`, `modified_adrs`, `architecture_routing_risks`,
   `spec_routing_risks`, optional `notes`, and any sanitized
@@ -89,8 +91,11 @@ Populate these stable fields:
   classifying it as low-risk by omission.
 - `new_adrs` / `NEW_ADRS`: mechanical path-signal array of full-PR added
   `docs/adr/adr-*.md` paths.
-- `modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified or deleted
-  `docs/adr/adr-*.md` paths.
+- `modified_adrs` / `MODIFIED_ADRS`: mechanical path-signal array of full-PR
+  modified existing `docs/adr/adr-*.md` paths only. Deleted ADR paths are not
+  modified-ADR coverage evidence; route deleted ADR paths through
+  `architecture_routing_risks` mechanical path signals or semantic
+  classification notes.
 - `architecture_routing_risks` / `ARCHITECTURE_ROUTING_RISKS`: routing-risk
   object whose `mechanical_path_signals` array records full-PR changed paths
   that mechanically trigger architecture review and whose
