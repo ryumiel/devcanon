@@ -61,6 +61,49 @@ or prior summaries for records affecting dispatch context, prior records without
 `untrusted: true`, stale `head_sha`, or stale physical `working_directory`
 blocks helper invocation.
 
+## Phase 2 Doc-Impact Derivation
+
+Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed
+`active_diff_range`. The summary is the stable routing surface for Phase 3
+risk-triggered reviewers and follow-up overrides, so it must include the full
+PR's mechanical path signals and semantic classification notes even when the
+active review scope is incremental.
+
+Populate these stable fields:
+
+- `ARCH_FILES`: mechanical path-signal array of full-PR changed paths that
+  directly touch architecture or workflow authority, including `docs/adr/**`,
+  `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**` workflow
+  policy, dependency manifests, config, major entry points, generated/source
+  ownership, or other durable decision surfaces.
+  Do not treat the architecture path examples as an exhaustive allowlist; when
+  an unlisted source path carries module-boundary, ownership, generated/source,
+  or responsibility risk, record the path evidence or semantic risk rather than
+  classifying it as low-risk by omission.
+- `NEW_ADRS`: mechanical path-signal array of full-PR added
+  `docs/adr/adr-*.md` paths.
+- `MODIFIED_ADRS`: mechanical path-signal array of full-PR modified or deleted
+  `docs/adr/adr-*.md` paths.
+- `ARCHITECTURE_ROUTING_RISKS`: semantic classification notes for full-PR
+  architecture risk that is not fully captured by path membership, including
+  architecture-routing risks, module-boundary changes, 3+ changed modules,
+  durable decision indicators, generated/source ownership drift,
+  responsibility drift, or ambiguous architectural impact.
+- `SPEC_ROUTING_RISKS`: semantic classification notes for full-PR spec or
+  documented-behavior risk, including spec-routing risks, docs/spec/API or
+  user-facing behavior changes, CLI/operator guidance changes, examples,
+  public config schemas, files referenced by existing docs, prose that changes
+  a documented pattern's canonical direction, or ambiguous spec impact.
+
+Mechanical path-signal arrays are path evidence from the full PR diff. Semantic
+classification notes are concise reason strings derived from the full PR scope,
+the changed content, discovered guideline/docs references, and supplied
+`branch_review_semantic_decision_notes` when present. Keep the two kinds of
+evidence distinguishable: path arrays explain what changed; semantic notes
+explain why the change affects reviewer routing. If a semantic classification
+note is ambiguous, record the ambiguity in the relevant routing field and treat
+that field as non-empty so reviewer dispatch fails closed.
+
 ## Budget or cap
 
 | Budget or cap           | Value        |

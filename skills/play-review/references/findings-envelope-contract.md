@@ -43,7 +43,11 @@ matching `^[0-9a-f]{40}$`. `<branch_slug>` is derived by the canonical helper
 from actual git state; detached HEAD maps to `detached`, and unsafe or empty
 slugs map to `unnamed`.
 
-The path is computed and written by the installed helper, not by the wrapper:
+`prepare-findings-write` derives, validates, and prepares the deterministic
+findings target, then prints the repo-relative path. It does not write the
+`play-review/findings/v1` envelope JSON. `play-review` writes the envelope JSON
+to the prepared path before emitting
+`Findings written to <repo-relative-path>.`:
 
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
@@ -119,6 +123,11 @@ The schema omits evidence code and a `side` field. Consumers re-read source via
 - Overwrite on each invocation. Do not append.
 - Run `prepare-findings-write` immediately before writing the findings file and
   before `branch-review --fix` overwrites it with the remaining-set envelope.
+- `prepare-findings-write` does not write the `play-review/findings/v1`
+  envelope JSON; it only derives, validates, prepares, and prints the guarded
+  target path.
+- `play-review` writes the envelope JSON to the prepared path before emitting
+  `Findings written to <repo-relative-path>.`.
 - `Write` follows symlinks, so rely on the helper's symlink and file-kind
   guards before any write.
 

@@ -274,6 +274,12 @@ describe("existing skills source prose contracts", () => {
     );
     expect(envelopeReference).toContain("Per-field contract:");
     expect(envelopeReference).toContain("play-review/findings/v1");
+    expect(normalizeWhitespace(envelopeReference)).toContain(
+      "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
+    );
+    expect(normalizeWhitespace(envelopeReference)).toContain(
+      "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
+    );
 
     const helperReference = await readRepoFile(
       "skills/play-review/references/wrapper-helper-contracts.md",
@@ -286,6 +292,18 @@ describe("existing skills source prose contracts", () => {
     );
     expect(sharedContextReference).toContain("Budget or cap");
     expect(sharedContextReference).toContain("write-review-context-input");
+    expect(normalizeWhitespace(playReview)).toContain(
+      "Detailed derivation rules live in `references/shared-review-context.md`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`ARCH_FILES`: mechanical path-signal array",
+    );
+    expect(normalizeWhitespace(sharedContextReference)).toContain(
+      "`SPEC_ROUTING_RISKS`: semantic classification notes",
+    );
 
     const routingReference = await readRepoFile(
       "skills/play-review/references/reviewer-routing-policy.md",

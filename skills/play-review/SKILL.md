@@ -171,6 +171,9 @@ Stable field names:
 - `ARCHITECTURE_ROUTING_RISKS`
 - `SPEC_ROUTING_RISKS`
 
+Detailed derivation rules live in `references/shared-review-context.md`; do not
+restore the derivation matrix inline here.
+
 Include both Mechanical path signals and Semantic classification notes,
 including architecture-routing risks, spec-routing risks, module-boundary
 changes, 3+ changed modules, files referenced by existing docs, and prose that

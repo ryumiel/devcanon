@@ -1553,6 +1553,38 @@ describe("rendered phase artifact smoke coverage", () => {
       expect(playReviewWithFollowUpReferences).toContain(
         "Findings-file consumers fail closed",
       );
+      expect(normalizedPlayReview).toContain(
+        "Detailed derivation rules live in `references/shared-review-context.md`",
+      );
+      expect(normalizedPlayReview).toContain(
+        "do not restore the derivation matrix inline",
+      );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
+      );
+      for (const derivationDetail of [
+        "`ARCH_FILES`: mechanical path-signal array",
+        "`NEW_ADRS`: mechanical path-signal array",
+        "`MODIFIED_ADRS`: mechanical path-signal array",
+        "`ARCHITECTURE_ROUTING_RISKS`: semantic classification notes",
+        "`SPEC_ROUTING_RISKS`: semantic classification notes",
+        "Mechanical path-signal arrays",
+        "Semantic classification notes",
+        "Do not treat the architecture path examples as an exhaustive allowlist",
+      ]) {
+        expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+          derivationDetail,
+        );
+      }
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
+      );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+      );
+      expect(normalizedPlayReviewWithFollowUpReferences).toContain(
+        "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
+      );
     }
   });
 });

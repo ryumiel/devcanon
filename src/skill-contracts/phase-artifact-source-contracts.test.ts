@@ -1994,6 +1994,71 @@ describe("phase artifact source contracts", () => {
     );
   });
 
+  it("keeps play-review Phase 2 derivation and findings write ownership contracts explicit", async () => {
+    const playReviewSource = await readSkillSource("play-review");
+    const envelopeContract = await readRepoFile(
+      "skills/play-review/references/findings-envelope-contract.md",
+    );
+    const sharedContextContract = await readRepoFile(
+      "skills/play-review/references/shared-review-context.md",
+    );
+    const phase2 = getMarkdownSection(
+      playReviewSource,
+      "Phase 2: Doc-impact summary",
+    );
+    const normalizedPhase2 = normalizeWhitespace(phase2);
+    const normalizedSharedContext = normalizeWhitespace(sharedContextContract);
+    const normalizedEnvelope = normalizeWhitespace(envelopeContract);
+
+    expect(normalizedPhase2).toContain(
+      "Detailed derivation rules live in `references/shared-review-context.md`",
+    );
+    expect(normalizedPhase2).toContain(
+      "do not restore the derivation matrix inline",
+    );
+    expect(normalizedSharedContext).toContain(
+      "Derive `doc_impact_summary` from `full_pr_diff_range`, not from the narrowed `active_diff_range`",
+    );
+    for (const stableField of [
+      "`ARCH_FILES`",
+      "`NEW_ADRS`",
+      "`MODIFIED_ADRS`",
+      "`ARCHITECTURE_ROUTING_RISKS`",
+      "`SPEC_ROUTING_RISKS`",
+    ]) {
+      expect(sharedContextContract).toContain(stableField);
+    }
+    for (const derivationDetail of [
+      "`ARCH_FILES`: mechanical path-signal array",
+      "`NEW_ADRS`: mechanical path-signal array",
+      "`MODIFIED_ADRS`: mechanical path-signal array",
+      "`ARCHITECTURE_ROUTING_RISKS`: semantic classification notes",
+      "`SPEC_ROUTING_RISKS`: semantic classification notes",
+      "Mechanical path-signal arrays",
+      "Semantic classification notes",
+      "Do not treat the architecture path examples as an exhaustive allowlist",
+      "module-boundary changes",
+      "3+ changed modules",
+      "files referenced by existing docs",
+      "prose that changes a documented pattern's canonical direction",
+    ]) {
+      expect(normalizedSharedContext).toContain(derivationDetail);
+    }
+
+    expect(normalizedEnvelope).toContain(
+      "`prepare-findings-write` derives, validates, and prepares the deterministic findings target, then prints the repo-relative path",
+    );
+    expect(normalizedEnvelope).toContain(
+      "`prepare-findings-write` does not write the `play-review/findings/v1` envelope JSON",
+    );
+    expect(normalizedEnvelope).toContain(
+      "`play-review` writes the envelope JSON to the prepared path before emitting `Findings written to <repo-relative-path>.`",
+    );
+    expect(normalizedEnvelope).not.toContain(
+      "The path is computed and written by the installed helper",
+    );
+  });
+
   it("keeps wrapper review preview, approved payload, and no-GitHub source contracts", async () => {
     const playReviewSource = await readSkillSource("play-review");
     const envelopeContract = await readRepoFile(
