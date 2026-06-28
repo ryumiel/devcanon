@@ -69,7 +69,12 @@ evidence, not durable authority. Do not copy live state into the PRD.
 5. Dogfood against the Portable AFDS Toolkit PRD at
    `docs/product-requirements/portable-afds-toolkit.md` when this workflow
    itself changes.
-6. Verify the PRD against the boundary checklist before finishing.
+6. Optionally use `write-prose` as a local wording pass after this skill has
+   established the PRD path, product intent, evidence boundary, headings, and
+   readiness criteria. The prose pass must preserve product requirements
+   authority and must not add goals, outcomes, validation claims, follow-up
+   artifacts, or requirement IDs.
+7. Verify the PRD against the boundary checklist before finishing.
 
 ## Product Requirements Shape
 

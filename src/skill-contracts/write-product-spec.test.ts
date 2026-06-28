@@ -59,6 +59,25 @@ describe("write-product-spec source contracts", () => {
     expect(procedure.indexOf("spec-readiness-review")).toBeLessThan(
       procedure.indexOf("issue-slicing"),
     );
+    expect(procedure).toContain("write-prose");
+    expect(procedure).toContain("after this skill has established");
+    expect(procedure).toContain("behavior requirements");
+    expect(procedure).toContain("must preserve behavior-spec authority");
+    expect(procedure).toContain("must not add, remove, or strengthen");
+    expect(procedure).toContain("Verify the final edited spec");
+    expect(procedure).toContain(
+      "If `write-prose` was used, this verification must cover the prose-polished spec",
+    );
+
+    const prosePassIndex = procedure.indexOf("Optionally use `write-prose`");
+    const finalBoundaryCheckIndex = procedure.indexOf(
+      "Verify the final edited spec",
+    );
+    const readinessReviewIndex = procedure.indexOf("spec-readiness-review");
+
+    expect(prosePassIndex).toBeGreaterThanOrEqual(0);
+    expect(finalBoundaryCheckIndex).toBeGreaterThan(prosePassIndex);
+    expect(readinessReviewIndex).toBeGreaterThan(finalBoundaryCheckIndex);
 
     for (const boundary of [
       "live issue status",

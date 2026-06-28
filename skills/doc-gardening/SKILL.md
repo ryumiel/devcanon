@@ -289,8 +289,10 @@ If any fix would require drafting new prose (e.g., writing a missing
 spec section, rewording an awkward paragraph), **stop**. Tell the user:
 
 > Finding <id> requires drafting prose. This skill does not draft new
-> documentation content. Please draft it yourself, or use a different
-> skill.
+> documentation content. Route missing owner documentation through the owning
+> authoring workflow first. Use `write-prose` only for wording polish on
+> existing text or after that owning workflow has supplied a draft and
+> authority boundaries.
 
 ## Out of Scope
 
@@ -407,5 +409,14 @@ This skill does **not**:
   skills do not.
 - `play-branch-finish` — natural pairing: run `doc-gardening --diff`
   before finishing a branch.
+- `write-prose` — optional follow-up for user-requested wording polish on
+  existing text, or for a prose pass after the owning documentation workflow
+  has supplied the draft and authority boundaries. Do not call `write-prose`
+  during the audit phases, to invent missing documentation, to draft missing
+  owner artifacts, or to bypass the user-selected gated-edit model. Missing
+  owner documentation routes to the owning authoring workflow first.
 
-**Does not call other skills.** Findings → user → optional gated edits.
+**Does not call other skills during audit or finding generation.**
+Findings → user → optional gated edits. Prose drafting or style rewrites are
+separate work and must preserve the target repository's documentation
+standard and the owning artifact's authority.

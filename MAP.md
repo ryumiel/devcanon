@@ -220,6 +220,8 @@ Quick navigation index for the DevCanon repository.
   [`skills/write-product-requirements/SKILL.md`](skills/write-product-requirements/SKILL.md)
 - Where is the behavior-spec authoring skill? ->
   [`skills/write-product-spec/SKILL.md`](skills/write-product-spec/SKILL.md)
+- Where is the shared prose writing and review support skill? ->
+  [`skills/write-prose/SKILL.md`](skills/write-prose/SKILL.md)
 - Where is the pre-slicing readiness review skill? ->
   [`skills/spec-readiness-review/SKILL.md`](skills/spec-readiness-review/SKILL.md)
 - Where is the Linear project update writing skill? ->
