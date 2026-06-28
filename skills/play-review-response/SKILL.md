@@ -760,7 +760,7 @@ pre-push approval gates, PR-update or review-response closeout blockers, pushed
 head and verification result reports, and review-thread disposition reports.
 
 Every report should include the source issue or PR identity when known, current
-feedback-source state, owner/controller thread identity when known, branch,
+feedback-source state, delegated owner-thread identity when known, branch,
 PR provider and identifier, head SHA, gate kind, blocking evidence, intended or
 completed external actions, thread dispositions, verification result, requested
 parent action, and next safe command or workflow.

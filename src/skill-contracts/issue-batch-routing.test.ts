@@ -445,6 +445,9 @@ describe("issue-batch-routing skill contract", () => {
         "produces issue-batch-routing reports only for source-specific fetch, comment-evidence capture, worktree setup, and handoff blockers before `issue-priming-workflow` starts",
       );
       expect(entrypoint).toContain(
+        "delegated owner-thread identity when known",
+      );
+      expect(entrypoint).toContain(
         "After successful handoff, `issue-priming-workflow` owns post-entrypoint implementation, approval, branch-review, PR creation, and terminal owner-thread reports",
       );
     }
@@ -462,6 +465,7 @@ describe("issue-batch-routing skill contract", () => {
     ]) {
       expect(workflow).toContain(obligation);
     }
+    expect(workflow).toContain("delegated owner-thread identity when known");
 
     for (const obligation of [
       "review-response plan approval gates",
@@ -473,6 +477,12 @@ describe("issue-batch-routing skill contract", () => {
     ]) {
       expect(reviewResponse).toContain(obligation);
     }
+    expect(reviewResponse).toContain(
+      "delegated owner-thread identity when known",
+    );
+    expect(`${github} ${linear} ${workflow} ${reviewResponse}`).not.toContain(
+      "owner/controller thread identity",
+    );
 
     for (const obligation of [
       "merge approval waits",

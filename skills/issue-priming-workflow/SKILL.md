@@ -593,7 +593,7 @@ current head result reports; terminal owner-thread state; and source-issue
 reporting gates surfaced from implementation.
 
 Every report should include the source provider and identifier from the
-payload, owner/controller thread identity when known, branch name when known,
+payload, delegated owner-thread identity when known, branch name when known,
 PR provider and identifier when known, head SHA when known, gate kind, blocking
 evidence, requested parent action, source-specific side effects requested, and
 the next safe command or workflow.

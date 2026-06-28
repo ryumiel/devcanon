@@ -279,8 +279,8 @@ not duplicate workflow logic here.
 When invoked by `issue-batch-routing`, this entrypoint produces
 issue-batch-routing reports only for source-specific fetch, comment-evidence
 capture, worktree setup, and handoff blockers before `issue-priming-workflow`
-starts. Report the source provider, source issue identifier, owner/controller
-thread identity when known, branch/worktree evidence when known, gate kind,
+starts. Report the source provider, source issue identifier, delegated
+owner-thread identity when known, branch/worktree evidence when known, gate kind,
 blocking evidence, requested parent action, and next safe command or workflow.
 
 After successful handoff, `issue-priming-workflow` owns post-entrypoint
