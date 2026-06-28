@@ -131,12 +131,21 @@ describe("write-linear-project-update source contracts", () => {
     expect(workflow).toContain(
       "Put issue IDs, PR links, counts, and raw evidence in a separate evidence appendix file, not in the postable body.",
     );
+    expect(workflow).toContain("Optionally use `write-prose`");
+    expect(workflow).toContain("after this skill has established health");
+    expect(workflow).toContain("action mode");
+    expect(workflow).toContain(
+      "must not change health, action mode, issue-evidence placement, mutation target, or the create/update decision.",
+    );
     expect(workflow).toContain("Do not modify Linear.");
     expect(workflow).toContain("Do not change lifecycle status.");
     expect(writingRules).toContain(
       "Separate confirmed facts from inference in dry-run explanations.",
     );
     expect(writingRules).toContain("Do not hide blockers or failing checks.");
+    expect(writingRules).toContain("When using `write-prose` as support");
+    expect(writingRules).toContain("evidence appendix boundaries");
+    expect(writingRules).toContain("approved body semantics");
     expect(reference).toContain(
       "Do not include Linear issue IDs in this body.",
     );

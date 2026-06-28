@@ -86,6 +86,13 @@ describe("write-linear-project-description source contracts", () => {
     expect(workflow).toContain(
       "Call the bundled draft helper before writing draft bodies.",
     );
+    expect(workflow).toContain("Optionally use `write-prose`");
+    expect(workflow).toContain("after this skill has established");
+    expect(workflow).toContain("target field");
+    expect(workflow).toContain("mutation mode");
+    expect(workflow).toContain(
+      "must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.",
+    );
     expect(helperContract).toContain(
       'WRITE_LINEAR_PROJECT_DESCRIPTION_DIR="<installed-write-linear-project-description-skill-bundle>"',
     );
@@ -156,6 +163,10 @@ describe("write-linear-project-description source contracts", () => {
     expect(writingRules).toContain(
       "Keep raw issue IDs, PR links, counts, and audit evidence out of the postable field body by default.",
     );
+    expect(writingRules).toContain("When using `write-prose` as support");
+    expect(writingRules).toContain("target field");
+    expect(writingRules).toContain("mutation gates");
+    expect(writingRules).toContain("approved body semantics");
   });
 
   it("forbids unrelated Linear mutations", async () => {

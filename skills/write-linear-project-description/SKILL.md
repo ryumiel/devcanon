@@ -44,6 +44,7 @@ This skill must not create project updates, mutate project lifecycle status, cre
    - Draft mode must not modify Linear.
    - Call the bundled draft helper before writing draft bodies.
    - Write the short description draft, detailed content draft, or both draft files using the helper-returned paths.
+   - Optionally use `write-prose` as a local wording pass after this skill has established the target field, source evidence boundary, draft body, and mutation mode. The prose pass must not change the selected field, issue-evidence separation, style-reference treatment, or apply/draft decision.
    - Report the exact field or fields that would be applied.
 
 5. Apply only on explicit mutation intent.
@@ -113,6 +114,7 @@ Do not use Linear project-update create or update commands; those commands belon
 - Do not mutate a referenced project update when it was provided as a style reference.
 - Match user-provided style references only for useful tone, structure, density, and formatting conventions.
 - Separate confirmed facts from inference in draft explanations.
+- When using `write-prose` as support, preserve Linear project-description authority: target field, existing-field continuity, evidence separation, mutation gates, and approved body semantics stay owned by this skill.
 
 ## Evidence Commands
 

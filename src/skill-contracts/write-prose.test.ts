@@ -59,7 +59,9 @@ describe("write-prose source contracts", () => {
     expect(routing).toContain("references/korean-prose.md");
     expect(routing).toContain("references/bilingual-prose.md");
     expect(routing).toContain("references/prose-review-findings.md");
-    expect(routing).toContain("Do not open or require any external writing vault");
+    expect(routing).toContain(
+      "Do not open or require any external writing vault",
+    );
 
     expect(skillSource).not.toContain("../obsidian-work");
     expect(skillSource).not.toContain("/Users/ryumiel/Workspace/obsidian-work");
@@ -123,5 +125,26 @@ describe("write-prose source contracts", () => {
       "leave the owner-controlled text unchanged or recommend restoring it",
     );
     expect(findings).toContain("Do not rewrite through the owner contract.");
+  });
+
+  it("keeps doc-gardening prose support separate from audit authority", async () => {
+    const docGardening = await readSkillSource("doc-gardening");
+    const gatedEdits = normalizeWhitespace(
+      getMarkdownSection(docGardening, "Phase 8: Gated edits"),
+    );
+    const integration = normalizeWhitespace(
+      getMarkdownSection(docGardening, "Integration"),
+    );
+
+    expect(gatedEdits).toContain("Finding <id> requires drafting prose");
+    expect(gatedEdits).toContain("owning authoring workflow or `write-prose`");
+    expect(integration).toContain("write-prose");
+    expect(integration).toContain(
+      "Do not call `write-prose` during the audit phases",
+    );
+    expect(integration).toContain("user-selected gated-edit model");
+    expect(integration).toContain(
+      "Does not call other skills during audit or finding generation.",
+    );
   });
 });

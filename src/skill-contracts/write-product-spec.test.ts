@@ -59,6 +59,11 @@ describe("write-product-spec source contracts", () => {
     expect(procedure.indexOf("spec-readiness-review")).toBeLessThan(
       procedure.indexOf("issue-slicing"),
     );
+    expect(procedure).toContain("write-prose");
+    expect(procedure).toContain("after this skill has established");
+    expect(procedure).toContain("behavior requirements");
+    expect(procedure).toContain("must preserve behavior-spec authority");
+    expect(procedure).toContain("must not add, remove, or strengthen");
 
     for (const boundary of [
       "live issue status",

@@ -2027,6 +2027,7 @@ describe("existing skills source prose contracts", () => {
     const skillSource = await readSkillSource("write-product-requirements");
     const overview = getMarkdownSection(skillSource, "Overview");
     const procedure = getMarkdownSection(skillSource, "Procedure");
+    const normalizedProcedure = normalizeWhitespace(procedure);
     const shape = getMarkdownSection(skillSource, "Product Requirements Shape");
     const boundaryChecklist = getMarkdownSection(
       skillSource,
@@ -2053,6 +2054,11 @@ describe("existing skills source prose contracts", () => {
     expect(shape).toContain("line-number references");
     expect(procedure).toContain("write-product-spec");
     expect(procedure).toContain("docs/specs/<topic>.md");
+    expect(procedure).toContain("write-prose");
+    expect(normalizedProcedure).toContain("after this skill has established");
+    expect(normalizedProcedure).toContain("product intent");
+    expect(normalizedProcedure).toContain("must not add goals");
+    expect(procedure).toContain("requirement IDs");
   });
 
   it("keeps guarded tiny-diff review routing constraints in play-review source", async () => {

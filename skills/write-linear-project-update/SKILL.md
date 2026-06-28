@@ -50,6 +50,7 @@ This skill must not create issues, bulk-edit issues, or change project lifecycle
    - Do not use Linear issue IDs in the update body. Describe status in plain product/feature language.
    - Focus on major features and their status, not a changelog dump.
    - Use bullets and line breaks for readability.
+   - Optionally use `write-prose` as a local wording pass after this skill has established health, evidence separation, update body, and action mode. The prose pass must not change health, action mode, issue-evidence placement, mutation target, or the create/update decision.
    - Put issue IDs, PR links, counts, and raw evidence in a separate evidence appendix file, not in the postable body.
 
 6. Determine action mode.
@@ -116,3 +117,4 @@ linear-cli pu update <UPDATE_ID> --health <HEALTH> --body "$BODY"
 - Do not hide blockers or failing checks.
 - Do not call normal review activity a blocker unless it blocks the target date or core scope.
 - If applying, use the exact body from the draft file or the user-approved revision.
+- When using `write-prose` as support, preserve Linear project-update authority: health, action mode, evidence appendix boundaries, style-reference treatment, mutation gates, and approved body semantics stay owned by this skill.
