@@ -283,6 +283,19 @@ The workflow handles every subsequent phase (gate, research,
 brainstorming, planning, implementation, branch review, PR creation). Do
 not duplicate workflow logic here.
 
+## Issue Batch Routing Reports
+
+When invoked by `issue-batch-routing`, this entrypoint produces
+issue-batch-routing reports only for source-specific fetch, comment-evidence
+capture, worktree setup, and handoff blockers before `issue-priming-workflow`
+starts. Report the source provider, source issue identifier, owner/controller
+thread identity when known, branch/worktree evidence when known, gate kind,
+blocking evidence, requested parent action, and next safe command or workflow.
+
+After successful handoff, `issue-priming-workflow` owns post-entrypoint
+implementation, approval, branch-review, PR creation, and terminal
+owner-thread reports.
+
 ## Error Handling
 
 | Scenario                                | Action                                           |

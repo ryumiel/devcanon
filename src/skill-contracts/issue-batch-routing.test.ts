@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getMarkdownSection,
   normalizeWhitespace,
+  readRepoFile,
   readSkillSource,
 } from "../__test-helpers__/skill-contracts.js";
 
@@ -220,7 +221,9 @@ describe("issue-batch-routing skill contract", () => {
       "`linear-issue-priming` owns Linear issue fetching",
       "`issue-priming-workflow` owns gate, research, brainstorming, planning, implementation, branch review, and Phase 8 PR-creation handoff and preconditions",
       "`play-review-response` owns review-thread replies and resolution behavior",
-      "`github:gh-fix-ci` owns investigation and fixes for routed failing GitHub checks",
+      "CI-fix routing uses an available provider-specific CI-failure repair skill or workflow capability for the PR provider",
+      "Availability requires observable capability evidence from the current session skill/workflow catalog or an explicit parent-provided provider-specific CI-fix workflow name",
+      "`github:gh-fix-ci` is allowed only when it appears as observed session-provided capability evidence",
       "If no provider-specific CI-fix workflow is available for the PR provider, failing CI waits",
       "`pr-merge` owns GitHub PR CI polling inside the merge path, final merge execution, and merge-result reporting",
       "`branch-review` is used only when the owning workflow requires a local branch-review gate before PR update or merge",
@@ -269,6 +272,231 @@ describe("issue-batch-routing skill contract", () => {
     ]) {
       expect(prGates).toContain(precedence);
     }
+
+    expect(normalizedBoundaries).not.toContain(
+      "`github:gh-fix-ci` owns investigation and fixes for routed failing GitHub checks",
+    );
+  });
+
+  it("requires observable CI-fix capability evidence and fails closed when missing", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const normalized = normalizeWhitespace(skill);
+    const boundaries = normalizeWhitespace(
+      getMarkdownSection(skill, "Provider And Workflow Boundaries"),
+    );
+    const fixtures = normalizeWhitespace(
+      getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    expect(boundaries).toContain(
+      "CI-fix routing uses an available provider-specific CI-failure repair skill or workflow capability for the PR provider",
+    );
+    expect(boundaries).toContain(
+      "Availability requires observable capability evidence from the current session skill/workflow catalog or an explicit parent-provided provider-specific CI-fix workflow name",
+    );
+    expect(boundaries).toContain(
+      "`github:gh-fix-ci` is allowed only when it appears as observed session-provided capability evidence",
+    );
+    expect(boundaries).toContain(
+      "the router must not name it as a source-owned required workflow",
+    );
+    expect(boundaries).toContain(
+      "Missing provider-specific CI-fix capability fails closed to waiting or manual action",
+    );
+    expect(boundaries).toContain(
+      "do not rerun CI directly and do not fall back to `pr-merge` for repair outside the merge path",
+    );
+
+    expect(fixtures).toContain(
+      "PR has failing check run `A` at head `H`, source issue `S`, PR provider `github`, PR `P`, and observable provider-specific GitHub CI-failure repair capability evidence",
+    );
+    expect(fixtures).toContain(
+      "Route CI-fix once using that observed capability evidence",
+    );
+    expect(fixtures).toContain(
+      "The same PR with no observable provider-specific CI-fix capability",
+    );
+    expect(fixtures).toContain(
+      "Report waiting or manual action with the missing provider-specific CI-fix capability; do not name `github:gh-fix-ci` as a required source workflow",
+    );
+
+    expect(normalized).not.toContain(
+      "`github:gh-fix-ci` owns investigation and fixes for routed failing GitHub checks",
+    );
+  });
+
+  it("keeps shared router prose target-neutral across parent/controller thread wording", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const normalized = normalizeWhitespace(skill);
+    const ledger = getMarkdownSection(skill, "Batch Ledger");
+
+    expect(normalized).toContain(
+      "Use this skill when a parent or controller thread is responsible",
+    );
+    expect(ledger).toContain(
+      "Parent/controller thread that owns implementation or source-specific follow-up",
+    );
+    expect(normalized).toContain("parent/controller thread");
+    expect(normalized).not.toContain("parent Codex thread");
+    expect(normalized).not.toContain(
+      "`owner_thread_id` | Codex thread that owns implementation",
+    );
+  });
+
+  it("uses current or configured base evidence for merge-conflict routing", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const duplicateRoutes = normalizeWhitespace(
+      getMarkdownSection(skill, "Duplicate Route Keys"),
+    );
+    const prGates = normalizeWhitespace(
+      getMarkdownSection(skill, "PR Gate Precedence"),
+    );
+    const approvalTemplates = normalizeWhitespace(
+      getMarkdownSection(skill, "Safe Approval Templates"),
+    );
+    const fixtures = normalizeWhitespace(
+      getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    expect(duplicateRoutes).toContain(
+      "`merge-conflict` | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state, proven base branch or base evidence digest",
+    );
+    expect(prGates).toContain(
+      "Merge conflicts route to the owner thread for the PR's current base branch when a PR exists, or for configured/default base evidence when no PR base is known",
+    );
+    expect(prGates).toContain(
+      "Unknown base evidence waits instead of assuming `origin/main`",
+    );
+    expect(approvalTemplates).toContain(
+      "Approve only the named owner thread to merge the PR's current base branch, or the configured/default base only when no PR base is known",
+    );
+    expect(approvalTemplates).toContain(
+      "Do not assume `origin/main` unless that branch is proven as the current or configured base",
+    );
+    expect(fixtures).toContain(
+      "PR is merge-conflicted at head `C` against proven base `release/1.x`",
+    );
+    expect(fixtures).toContain(
+      "Route owner thread once by PR, head SHA, mergeability state, and proven base branch or base evidence digest",
+    );
+    expect(fixtures).toContain(
+      "PR base changes after prior merge-conflict routing",
+    );
+    expect(fixtures).toContain(
+      "Treat the changed base evidence as a new `merge-conflict` route key",
+    );
+    expect(fixtures).toContain("Merge-conflicted PR has unknown base evidence");
+    expect(fixtures).toContain(
+      "Report waiting with missing base evidence; do not assume `origin/main`",
+    );
+  });
+
+  it("documents producer-owned owner-thread report obligations", async () => {
+    const router = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("issue-batch-routing"),
+        "Owner-Thread Gate Reports",
+      ),
+    );
+    const github = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("github-issue-priming"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+    const linear = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("linear-issue-priming"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+    const workflow = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("issue-priming-workflow"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+    const reviewResponse = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("play-review-response"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+    const prMerge = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("pr-merge"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+
+    expect(router).toContain(
+      "If a named delegated workflow does not own a gate family or cannot produce the route-specific report fields, the router waits or reports manual action instead of assuming a report exists",
+    );
+    expect(router).toContain("Source entrypoints report only pre-handoff");
+    expect(router).toContain(
+      "`issue-priming-workflow` is the producer after source-entrypoint handoff",
+    );
+
+    for (const entrypoint of [github, linear]) {
+      expect(entrypoint).toContain(
+        "produces issue-batch-routing reports only for source-specific fetch, comment-evidence capture, worktree setup, and handoff blockers before `issue-priming-workflow` starts",
+      );
+      expect(entrypoint).toContain(
+        "After successful handoff, `issue-priming-workflow` owns post-entrypoint implementation, approval, branch-review, PR creation, and terminal owner-thread reports",
+      );
+    }
+
+    for (const obligation of [
+      "research, brainstorming, or design ambiguity stops",
+      "user or parent approval gates",
+      "implementation blockers",
+      "branch-review blockers",
+      "Phase 8 PR readiness, creation, or update blockers",
+      "created PR and current head result reports",
+      "terminal owner-thread state",
+      "source-issue reporting gates surfaced from implementation",
+      "Source-issue reporting without an available provider-specific workflow becomes a parent/manual-action report",
+    ]) {
+      expect(workflow).toContain(obligation);
+    }
+
+    for (const obligation of [
+      "review-response plan approval gates",
+      "pre-push approval gates",
+      "PR-update or review-response closeout blockers",
+      "pushed head and verification result reports",
+      "review-thread disposition reports",
+      "does not own merge, source-issue status mutation, or generic CI repair outside review-response scope",
+    ]) {
+      expect(reviewResponse).toContain(obligation);
+    }
+
+    for (const obligation of [
+      "merge approval waits",
+      "CI polling timeout or failure",
+      "in-scope CI investigation result",
+      "merge-conflict blockers",
+      "missing-review blockers",
+      "missing-protection blockers",
+      "merge result",
+      "post-merge cleanup outcome",
+      "terminal merge-path reports",
+      "does not perform pre-merge review-response work or source-issue status mutation",
+    ]) {
+      expect(prMerge).toContain(obligation);
+    }
+  });
+
+  it("keeps issue-batch-routing discoverable from navigation surfaces", async () => {
+    const map = await readRepoFile("MAP.md");
+    const agents = await readRepoFile("AGENTS.md");
+
+    expect(map).toContain(
+      "Where is provider-neutral issue batch routing? -> [`skills/issue-batch-routing/SKILL.md`](skills/issue-batch-routing/SKILL.md)",
+    );
+    expect(agents).toContain(
+      "- `issue-batch-routing`: provider-neutral controller workflow for routing mixed GitHub and Linear issue batches across owner threads, PR gates, CI/review handoffs, merge routing, reporting, and archival.",
+    );
   });
 
   it("requires source-state classification before missing-owner priming", async () => {
