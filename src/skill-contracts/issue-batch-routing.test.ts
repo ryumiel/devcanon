@@ -162,11 +162,32 @@ describe("issue-batch-routing skill contract", () => {
 
   it("routes missing owner threads through provider-specific issue priming", async () => {
     const skill = await readSkillSource("issue-batch-routing");
+    const ledger = normalizeWhitespace(
+      getMarkdownSection(skill, "Batch Ledger"),
+    );
+    const duplicateRoutes = normalizeWhitespace(
+      getMarkdownSection(skill, "Duplicate Route Keys"),
+    );
     const monitorLoop = normalizeWhitespace(
       getMarkdownSection(skill, "Monitor Loop"),
     );
     const fixtures = normalizeWhitespace(
       getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    expect(ledger).toContain("`last_routed_issue_priming_route_key`");
+    expect(ledger).toContain(
+      "Full replay-sensitive issue-priming route key last sent",
+    );
+
+    expect(duplicateRoutes).toContain(
+      "`issue-priming` | source provider, source issue identifier, source-issue state digest, provider-native entrypoint argument, missing-owner state",
+    );
+    expect(duplicateRoutes).toContain(
+      "`issue-priming` route keys suppress duplicate source-specific priming while `owner_thread_id` remains missing for the same complete key",
+    );
+    expect(duplicateRoutes).toContain(
+      "Missing source-state digest or provider-native entrypoint argument makes the issue-priming key incomplete and must fail closed to waiting or manual action",
     );
 
     expect(monitorLoop).toContain("If `owner_thread_id` is missing");
@@ -184,6 +205,15 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(monitorLoop).toContain(
       "If provider-native conversion cannot be proven, report waiting instead of guessing",
+    );
+    expect(monitorLoop).toContain(
+      "Before routing source-specific issue priming, compute the complete `issue-priming` route key from source provider, source issue identifier, source-state digest, provider-native entrypoint argument, and missing-owner state",
+    );
+    expect(monitorLoop).toContain(
+      "If `last_routed_issue_priming_route_key` already matches that complete key and `owner_thread_id` is still missing, wait, inspect, or report instead of routing another source-specific priming entrypoint",
+    );
+    expect(monitorLoop).toContain(
+      "Record `last_routed_issue_priming_route_key` before or at handoff",
     );
     expect(monitorLoop).toContain(
       "Record the created or located owner-thread mapping before continuing the item",
@@ -204,6 +234,18 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(fixtures).toContain(
       "Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key",
+    );
+    expect(fixtures).toContain(
+      "Active GitHub source issue `github:owner/repo#511` at source-state digest `S1` has missing `owner_thread_id`, provider-native entrypoint argument `https://github.com/owner/repo/issues/511`, and matching `last_routed_issue_priming_route_key` already recorded",
+    );
+    expect(fixtures).toContain(
+      "Wait, inspect, or report instead of routing another `github-issue-priming` call while `owner_thread_id` remains missing",
+    );
+    expect(fixtures).toContain(
+      "Missing source-state digest or provider-native entrypoint argument for an issue-priming route key",
+    );
+    expect(fixtures).toContain(
+      "Report waiting or manual action; do not route source-specific issue priming with an incomplete replay key",
     );
   });
 
@@ -275,6 +317,42 @@ describe("issue-batch-routing skill contract", () => {
 
     expect(normalizedBoundaries).not.toContain(
       "`github:gh-fix-ci` owns investigation and fixes for routed failing GitHub checks",
+    );
+  });
+
+  it("routes pending-but-otherwise-ready CI into pr-merge while preserving CI-fix repair routing", async () => {
+    const skill = await readSkillSource("issue-batch-routing");
+    const prGates = normalizeWhitespace(
+      getMarkdownSection(skill, "PR Gate Precedence"),
+    );
+    const fixtures = normalizeWhitespace(
+      getMarkdownSection(skill, "Routing Fixtures"),
+    );
+
+    expect(prGates).toContain(
+      "Pending CI routes to `pr-merge` for polling only after every non-CI merge gate is satisfied",
+    );
+    expect(prGates).toContain(
+      "Non-CI merge gates include non-draft status, conflict-free or mergeable state, no unresolved review threads, no active blocking bot signal, branch protection and review state compatible with waiting for CI, required human merge approval when policy requires it, and any configured approving bot signal fresh for the current head SHA",
+    );
+    expect(prGates).toContain(
+      "`pr-merge` may merge only after pending CI becomes green and current merge protections still pass",
+    );
+    expect(prGates).toContain(
+      "Failing CI that requires repair is not pending merge-path polling",
+    );
+
+    expect(fixtures).toContain(
+      "PR is non-draft, pending CI, conflict-free, no unresolved threads, no active blocking bot signal, branch protection and review state allow waiting for CI, required human approval is present, and fresh required approval signal is present",
+    );
+    expect(fixtures).toContain(
+      "Route `pr-merge` once with `last_routed_merge_routing_key` for CI polling; `pr-merge` may merge only after CI becomes green and protections still pass",
+    );
+    expect(fixtures).toContain(
+      "PR has failing CI that requires repair while non-CI merge gates are otherwise satisfied",
+    );
+    expect(fixtures).toContain(
+      "Route to provider-specific CI-fix when available, or wait/manual action when unavailable; do not treat failing CI as pending `pr-merge` polling",
     );
   });
 
@@ -498,6 +576,63 @@ describe("issue-batch-routing skill contract", () => {
     ]) {
       expect(prMerge).toContain(obligation);
     }
+  });
+
+  it("requires pr-merge reports to be source-attributable for router reconciliation", async () => {
+    const prMerge = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("pr-merge"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+
+    for (const requiredField of [
+      "source provider",
+      "source issue identifier",
+      "PR provider and identifier",
+      "head SHA",
+      "gate kind",
+      "relevant complete route key",
+      "merge/CI/protection evidence",
+    ]) {
+      expect(prMerge).toContain(requiredField);
+    }
+
+    expect(prMerge).toContain(
+      "Reports missing source provider, source issue identifier, gate kind, or the relevant complete route key are incomplete for router reconciliation",
+    );
+    expect(prMerge).toContain(
+      "the router should wait or request manual action instead of inferring the source item from PR-only identity",
+    );
+  });
+
+  it("requires review-response reports to be source-attributable for router reconciliation", async () => {
+    const reviewResponse = normalizeWhitespace(
+      getMarkdownSection(
+        await readSkillSource("play-review-response"),
+        "Issue Batch Routing Reports",
+      ),
+    );
+
+    for (const requiredField of [
+      "source provider",
+      "source issue identifier",
+      "PR provider and identifier",
+      "head SHA",
+      "gate kind",
+      "relevant complete review-response route key",
+      "thread disposition",
+      "verification result",
+    ]) {
+      expect(reviewResponse).toContain(requiredField);
+    }
+
+    expect(reviewResponse).toContain(
+      "Reports that name only a source issue or PR identity without provider-tagged source identity are incomplete for mixed-batch reconciliation",
+    );
+    expect(reviewResponse).toContain(
+      "the router or owning workflow should wait or request manual action instead of accepting PR-only disposition",
+    );
   });
 
   it("keeps issue-batch-routing discoverable from navigation surfaces", async () => {

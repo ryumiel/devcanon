@@ -185,11 +185,18 @@ failure, in-scope CI investigation result, merge-conflict blockers,
 missing-review blockers, missing-protection blockers, merge result, post-merge
 cleanup outcome, and terminal merge-path reports.
 
-Every report should include the PR provider and identifier, head SHA, base
-branch evidence when known, mergeability state when known, branch protection or
-review state when relevant, CI run/check identifiers when relevant, blocking
-evidence, requested parent action, cleanup outcome when attempted, manual
-action when needed, and next safe command or workflow.
+Every report should include the source provider, source issue identifier, PR
+provider and identifier, head SHA, gate kind, relevant complete route key,
+base branch evidence when known, mergeability state when known, branch
+protection or review state when relevant, CI run/check identifiers when
+relevant, merge/CI/protection evidence, blocking evidence, requested parent
+action, cleanup outcome when attempted, manual action when needed, and next
+safe command or workflow.
+
+Reports missing source provider, source issue identifier, gate kind, or the
+relevant complete route key are incomplete for router reconciliation; the router
+should wait or request manual action instead of inferring the source item from
+PR-only identity.
 
 This workflow does not perform pre-merge review-response work or source-issue
 status mutation. Those cases become parent/manual-action reports or routes to
