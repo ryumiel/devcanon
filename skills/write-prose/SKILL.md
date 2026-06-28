@@ -37,8 +37,8 @@ Route owner artifacts before prose polish:
 When supporting an owner workflow, preserve its headings, required fields,
 evidence appendix boundaries, status labels, action mode, health decision,
 acceptance criteria, mutation gates, and no-external-mutation rules. If a
-style improvement conflicts with source evidence or an owner contract, report
-the conflict instead of rewriting through it.
+style improvement conflicts with source evidence, claim authority, or an owner
+contract, report the conflict instead of rewriting through it.
 
 Example: a request to polish a Linear project update draft may use
 `write-prose` only after the Linear update workflow has established the draft,
@@ -110,8 +110,8 @@ Do not normalize owner-owned field values for style.
 
 4. Draft, rewrite, adapt, or review locally.
    Improve only the prose surface in scope. Remove, ground, or flag
-   unsupported significance claims instead of making them sound more
-   persuasive.
+   unsupported significance claims. Do not replace a strong unsupported claim
+   with a softer unsupported claim.
 
 5. Audit meaning.
    Compare before and after for protected spans, facts, claim strength,
@@ -119,15 +119,19 @@ Do not normalize owner-owned field values for style.
    and information added or lost.
 
 6. Report conflicts and residual risk.
-   If the prose can be improved only by changing meaning, source authority, or
-   an owner contract, leave the source-controlled text intact and report the
-   issue.
+   If the prose can be improved only by changing meaning, source authority,
+   claim support, or an owner contract, leave the source-controlled text intact
+   and report the issue.
 
 ## Output Rules
 
 For rewrites, return the revised prose plus a concise note only when useful or
 requested. If the user asks for "only the rewritten passage," return only the
-passage unless a protected-span or authority conflict prevents a safe rewrite.
+passage unless a protected-span, source-grounding, claim-support, or authority
+conflict prevents a safe rewrite. Unsupported significance, value, scale,
+future-impact, or generic benefit claims are claim-support conflicts when the
+source does not establish them; remove them if a meaning-preserving rewrite is
+possible, otherwise report the conflict instead of polishing the claim.
 
 For reviews, use the finding format in
 [references/prose-review-findings.md](references/prose-review-findings.md).

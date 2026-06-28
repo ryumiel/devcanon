@@ -36,6 +36,14 @@ If the source does not establish a claim, do not make the sentence merely more
 executive-ready. Say the claim is unsupported, or rewrite to the supported
 fact.
 
+Pressure to sound confident, polished, strategic, human, or stakeholder-ready
+does not lower the evidence bar. Do not replace a claim like "pivotal",
+"groundbreaking", or "transformative" with softer unsupported claims such as
+"strengthens the workflow", "gives teams a practical path", "creates durable
+communication", or "improves collaboration" unless the source establishes that
+effect. If only the artifact's existence is supported, say only that the
+artifact exists or report the unsupported claim.
+
 ## Source Grounding
 
 Preserve the source boundary:

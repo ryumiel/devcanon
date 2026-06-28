@@ -119,8 +119,9 @@ For a draft produced by another workflow, check:
 - Did it reinterpret a style/tone reference as a mutation target?
 - Did it alter field capitalization or values that may be parsed or compared?
 
-If yes, restore the owner-controlled text and report a blocking or major
-finding. Do not rewrite through the owner contract.
+If yes, leave the owner-controlled text unchanged or recommend restoring it,
+then report a blocking or major finding. Do not rewrite through the owner
+contract.
 
 ## False-Positive Checks
 
