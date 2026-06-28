@@ -86,13 +86,16 @@ ownership.
    criteria, verification expectations, and durable team, system, role, or
    artifact owner links without copying live issue, PR, CI, or agent-local state
    into the spec.
-6. Verify the spec against the boundary checklist before finishing.
-7. Optionally use `write-prose` as a local wording pass after this skill has
+6. Optionally use `write-prose` as a local wording pass after this skill has
    established the spec path, behavior requirements, evidence pointers,
    acceptance criteria, verification expectations, and agent context. The
    prose pass must preserve behavior-spec authority and must not add, remove,
    or strengthen requirements, scenarios, acceptance criteria, evidence
    results, verification expectations, or slicing readiness.
+7. Verify the final edited spec against the boundary checklist before
+   finishing, readiness review, or issue slicing. If `write-prose` was used,
+   this verification must cover the prose-polished spec, not only the earlier
+   draft.
 8. When the spec is ready to become executable work, route through
    `spec-readiness-review` for readiness review before handing the spec,
    readiness evidence, or evidence pointers to `issue-slicing` to draft

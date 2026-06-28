@@ -1,6 +1,6 @@
 ---
 name: write-prose
-description: Drafts, revises, adapts, and reviews prose while preserving meaning, evidence, terminology, and artifact-owner contracts. Use when writing or polishing English, Korean, bilingual, technical, stakeholder, or publication prose, including naturalization, anti-AI cleanup, tone adjustment, and style findings. Do not use to decide product intent, behavior requirements, Linear mutation policy, or documentation audit scope.
+description: Drafts, revises, adapts, and reviews prose while preserving meaning, evidence, terminology, and artifact-owner contracts. Use for direct prose work or post-owner polish after an owning workflow has established artifact type, evidence, structure, and mutation boundaries. Do not use for owner-artifact drafting, product intent, behavior requirements, Linear mutation policy, documentation audit scope, or missing owner documentation.
 ---
 
 # Write Prose

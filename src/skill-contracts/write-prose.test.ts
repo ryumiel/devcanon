@@ -21,6 +21,15 @@ describe("write-prose source contracts", () => {
     expect(skillSource).toContain(
       "description: Drafts, revises, adapts, and reviews prose while preserving meaning, evidence, terminology, and artifact-owner contracts.",
     );
+    expect(skillSource).toContain(
+      "Use for direct prose work or post-owner polish after an owning workflow has established artifact type, evidence, structure, and mutation boundaries.",
+    );
+    expect(skillSource).toContain(
+      "Do not use for owner-artifact drafting, product intent, behavior requirements, Linear mutation policy, documentation audit scope, or missing owner documentation.",
+    );
+    expect(skillSource).not.toContain(
+      "Use when writing or polishing English, Korean, bilingual, technical, stakeholder, or publication prose",
+    );
     expect(normalizedSkillSource).toContain(
       "This skill may also be used as a support pass inside another authoring workflow",
     );
@@ -145,10 +154,25 @@ describe("write-prose source contracts", () => {
     );
 
     expect(gatedEdits).toContain("Finding <id> requires drafting prose");
-    expect(gatedEdits).toContain("owning authoring workflow or `write-prose`");
+    expect(gatedEdits).toContain(
+      "Route missing owner documentation through the owning",
+    );
+    expect(gatedEdits).toContain(
+      "authoring workflow first. Use `write-prose` only for wording polish",
+    );
+    expect(gatedEdits).toContain(
+      "after that owning workflow has supplied a draft",
+    );
+    expect(gatedEdits).not.toContain(
+      "owning authoring workflow or `write-prose`",
+    );
     expect(integration).toContain("write-prose");
     expect(integration).toContain(
       "Do not call `write-prose` during the audit phases",
+    );
+    expect(integration).toContain("to draft missing owner artifacts");
+    expect(integration).toContain(
+      "Missing owner documentation routes to the owning authoring workflow first.",
     );
     expect(integration).toContain("user-selected gated-edit model");
     expect(integration).toContain(

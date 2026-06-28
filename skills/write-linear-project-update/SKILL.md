@@ -50,7 +50,6 @@ This skill must not create issues, bulk-edit issues, or change project lifecycle
    - Do not use Linear issue IDs in the update body. Describe status in plain product/feature language.
    - Focus on major features and their status, not a changelog dump.
    - Use bullets and line breaks for readability.
-   - Optionally use `write-prose` as a local wording pass after this skill has established health, evidence separation, update body, and action mode. The prose pass must not change health, action mode, issue-evidence placement, mutation target, or the create/update decision.
    - Put issue IDs, PR links, counts, and raw evidence in a separate evidence appendix file, not in the postable body.
 
 6. Determine action mode.
@@ -60,7 +59,12 @@ This skill must not create issues, bulk-edit issues, or change project lifecycle
    - If an update ID is ambiguous between a mutation target and a style/tone reference, treat it as non-mutating style evidence unless the user confirms explicit update intent.
    - If explicit `update` mode lacks a target update ID or single confirmed mutation target, stop and ask for the target instead of creating or updating.
 
-7. Dry-run output.
+7. Optionally polish wording.
+   - Optionally use `write-prose` as a local wording pass only after this skill has established health, evidence separation, update body, action mode, and mutation target handling.
+   - The prose pass must not change health, action mode, issue-evidence placement, mutation target, or the create/update decision.
+   - If the prose pass reveals a conflict with evidence, health, action mode, mutation target, or issue-evidence separation, preserve this skill's decisions and report the conflict.
+
+8. Dry-run output.
    - Do not modify Linear.
    - Output current latest health, recommended health, proposed update body, evidence used, action mode (`create` or `update`), and the exact write action that would be performed.
    - When useful, write local drafts under `.ephemeral/`.
@@ -72,7 +76,7 @@ This skill must not create issues, bulk-edit issues, or change project lifecycle
    - In `create` mode, the proposed write action must create a new project update.
    - In `update` mode, the proposed write action must update the confirmed target update ID.
 
-8. Apply output.
+9. Apply output.
    - In `create` mode, create a new project update with the recommended health and update body.
    - In `update` mode, update only the confirmed target update ID with the recommended health and update body.
    - Re-read project updates after writing and report final health, the created or updated update ID/URL, and a concise summary.
