@@ -74,13 +74,17 @@ require an explicit provider boundary.
 | `last_routed_ci_fix_route_key`          | Full replay-sensitive CI-fix route key last sent.                                                                                              |
 | `last_routed_merge_conflict_key`        | Merge-conflict route key last sent.                                                                                                            |
 | `last_routed_bot_review_signal_key`     | Review-bot signal route key last handled.                                                                                                      |
-| `last_routed_approval_gate_key`         | Approval-gate route key last approved or reported.                                                                                             |
+| `last_reported_approval_waiting_key`    | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                      |
+| `last_routed_approval_gate_key`         | Approval-gate route key last sent after matching approval evidence is present.                                                                 |
 | `last_routed_merge_routing_key`         | Merge-ready route key last sent to `pr-merge`.                                                                                                 |
 | `last_routed_archival_key`              | Terminal archival route key last confirmed or sent.                                                                                            |
 
 `last_routed_ci_run_check_identifier` is diagnostic only and is not
 authoritative for de-duplication. Replay-sensitive review-response and CI-fix
 deduplication must use the full route-key fields.
+`last_routed_approval_gate_key` records only actual approval routes sent after
+matching approval evidence is present. Report-only waiting state uses
+`last_reported_approval_waiting_key` instead.
 
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
@@ -123,6 +127,13 @@ For each open batch item:
 3. If `owner_thread_id` is missing, route only active source issues to the
    matching source-specific issue-priming entrypoint: GitHub items route to
    `github-issue-priming`, Linear items route to `linear-issue-priming`.
+   Convert provider-prefixed `source_issue_identifier` values into
+   provider-native entrypoint arguments before invoking source-specific issue
+   priming. GitHub conversion must preserve repository identity as a full issue
+   URL, or as a bare issue number only when current repository context is
+   explicitly proven. Linear conversion must pass an accepted Linear identifier
+   such as `ENG-123` or a Linear issue URL. If provider-native conversion
+   cannot be proven, report waiting instead of guessing.
    Record the created or located owner-thread mapping before continuing the
    item. Only active source issues with missing owner threads route to
    source-specific issue priming. Terminal, duplicate, abandoned, blocked, or
@@ -165,6 +176,9 @@ as still current.
 Persist the complete route key after routing; partial fields such as only the
 unresolved-thread-set digest or only the check identifier are diagnostic hints,
 not replay authority.
+Report-only waiting state must not update `last_routed_approval_gate_key`.
+Approval-gate duplicate suppression uses `last_routed_approval_gate_key` only
+after matching approval evidence has been routed to the owner thread.
 
 ## PR Gate Precedence
 
@@ -204,29 +218,31 @@ source-specific workflow or explicitly authorized provider workflow.
 
 Use these concrete fixture outcomes to self-check monitor decisions:
 
-| Fixture state                                                                                                                             | Required outcome                                                                                                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub issue and Linear issue are in the same batch                                                                                       | Normalize both into provider-tagged batch items; preserve `source_provider: github` and `source_provider: linear`.                                                                              |
-| Missing `owner_thread_id` for a GitHub item                                                                                               | If active, route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                    |
-| Active GitHub source issue with missing `owner_thread_id`                                                                                 | Route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                               |
-| Missing `owner_thread_id` for a Linear item                                                                                               | If active, route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                    |
-| Active Linear source issue with missing `owner_thread_id`                                                                                 | Route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                               |
-| Closed/completed source issue with missing `owner_thread_id`                                                                              | Report waiting or terminal disposition; do not create an owner thread.                                                                                                                          |
-| Source issue state is unknown to the generic workflow                                                                                     | Report waiting; do not mutate source issue status and do not coerce provider terminology.                                                                                                       |
-| PR has active blocking bot signal                                                                                                         | Wait for bot review; do not merge.                                                                                                                                                              |
-| PR has approving bot signal from old head SHA                                                                                             | Treat the approval as stale; wait for a fresh review signal for the current head SHA.                                                                                                           |
-| PR has failing check run `A` at head `H`, source issue `S`, PR provider `github`, PR `P`, and available GitHub CI-fix workflow            | Route CI-fix once for check run `A`, keyed by source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`.                                                               |
-| No provider-specific CI-fix workflow is available for failing check run `A`                                                               | Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair.                                                                        |
-| PR has unresolved review-thread digest `B` at head `H`, source issue `S`, PR provider `github`, and PR `P`                                | Route review-response once for the complete key: source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`.                                            |
-| PR has unresolved review-thread digest `B` and lacks required human merge approval                                                        | Route review-response before waiting for human merge approval.                                                                                                                                  |
-| PR is merge-conflicted at head `C`                                                                                                        | Route owner thread once by PR, head SHA, and mergeability state.                                                                                                                                |
-| Owner thread reports approval gate `D`                                                                                                    | Send approval only when parent approval evidence matches the source issue or PR, head SHA/current state, gate kind, route key, and allowed side effect.                                         |
-| Owner thread reports source-issue reporting gate `E`                                                                                      | Route only to a provider-specific workflow that owns that source-issue side effect.                                                                                                             |
-| Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available               | Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow. |
-| Repository policy requires explicit human merge approval and PR is otherwise merge-ready                                                  | Wait until matching human merge approval evidence is present.                                                                                                                                   |
-| PR is otherwise merge-ready but lacks required human merge approval                                                                       | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                    |
-| PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                     |
-| PR merged and owner thread reports terminal state                                                                                         | Archive only after terminal PR or source state, no active gate, no pending work, and `last_routed_archival_key` recording.                                                                      |
+| Fixture state                                                                                                                             | Required outcome                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub issue and Linear issue are in the same batch                                                                                       | Normalize both into provider-tagged batch items; preserve `source_provider: github` and `source_provider: linear`.                                                                                                                |
+| Missing `owner_thread_id` for a GitHub item                                                                                               | If active, route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                      |
+| Active GitHub source issue with missing `owner_thread_id`                                                                                 | Route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
+| Active GitHub source issue `github:owner/repo#123` with missing `owner_thread_id`                                                         | Convert to the full issue URL before routing to `github-issue-priming`; use a bare issue number only when current repository context is explicitly proven, and do not pass the prefixed ledger key or `owner/repo#123` shorthand. |
+| Missing `owner_thread_id` for a Linear item                                                                                               | If active, route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                      |
+| Active Linear source issue with missing `owner_thread_id`                                                                                 | Route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
+| Active Linear source issue `linear:ENG-123` with missing `owner_thread_id`                                                                | Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key.                                                                                                         |
+| Closed/completed source issue with missing `owner_thread_id`                                                                              | Report waiting or terminal disposition; do not create an owner thread.                                                                                                                                                            |
+| Source issue state is unknown to the generic workflow                                                                                     | Report waiting; do not mutate source issue status and do not coerce provider terminology.                                                                                                                                         |
+| PR has active blocking bot signal                                                                                                         | Wait for bot review; do not merge.                                                                                                                                                                                                |
+| PR has approving bot signal from old head SHA                                                                                             | Treat the approval as stale; wait for a fresh review signal for the current head SHA.                                                                                                                                             |
+| PR has failing check run `A` at head `H`, source issue `S`, PR provider `github`, PR `P`, and available GitHub CI-fix workflow            | Route CI-fix once for check run `A`, keyed by source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`.                                                                                                 |
+| No provider-specific CI-fix workflow is available for failing check run `A`                                                               | Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair.                                                                                                          |
+| PR has unresolved review-thread digest `B` at head `H`, source issue `S`, PR provider `github`, and PR `P`                                | Route review-response once for the complete key: source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`.                                                                              |
+| PR has unresolved review-thread digest `B` and lacks required human merge approval                                                        | Route review-response before waiting for human merge approval.                                                                                                                                                                    |
+| PR is merge-conflicted at head `C`                                                                                                        | Route owner thread once by PR, head SHA, and mergeability state.                                                                                                                                                                  |
+| Owner thread reports approval gate `D`                                                                                                    | Send approval only when parent approval evidence matches the source issue or PR, head SHA/current state, gate kind, route key, and allowed side effect.                                                                           |
+| Owner thread reports source-issue reporting gate `E`                                                                                      | Route only to a provider-specific workflow that owns that source-issue side effect.                                                                                                                                               |
+| Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available               | Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow.                                   |
+| Repository policy requires explicit human merge approval and PR is otherwise merge-ready                                                  | Wait until matching human merge approval evidence is present.                                                                                                                                                                     |
+| PR is otherwise merge-ready but lacks required human merge approval                                                                       | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                                                      |
+| PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                                                       |
+| PR merged and owner thread reports terminal state                                                                                         | Archive only after terminal PR or source state, no active gate, no pending work, and `last_routed_archival_key` recording.                                                                                                        |
 
 ## Owner-Thread Gate Reports
 
@@ -273,7 +289,12 @@ Approval expires when any of these changes:
 
 When approval evidence is missing, stale, or broader than the requested side
 effect, report waiting and request parent/user approval instead of routing the
-side effect.
+side effect. Missing, stale, or broad approval evidence may update only
+`last_reported_approval_waiting_key`; it must not consume the actual approval
+route key that suppresses sending a later matching approval. When matching
+approval evidence later arrives, re-evaluate the current owner thread, head,
+route key, and allowed side effect before routing approval and updating
+`last_routed_approval_gate_key`.
 
 ## Safe Approval Templates
 

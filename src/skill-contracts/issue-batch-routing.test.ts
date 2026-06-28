@@ -75,11 +75,15 @@ describe("issue-batch-routing skill contract", () => {
   it("pins route de-duplication and current-state approval evidence", async () => {
     const skill = await readSkillSource("issue-batch-routing");
     const normalized = normalizeWhitespace(skill);
+    const ledger = getMarkdownSection(skill, "Batch Ledger");
+    const normalizedLedger = normalizeWhitespace(ledger);
     const duplicateRoutes = getMarkdownSection(skill, "Duplicate Route Keys");
+    const normalizedDuplicateRoutes = normalizeWhitespace(duplicateRoutes);
     const approvalEvidence = getMarkdownSection(
       skill,
       "Parent Approval Evidence",
     );
+    const normalizedApprovalEvidence = normalizeWhitespace(approvalEvidence);
 
     for (const routeKey of [
       "review-response",
@@ -113,6 +117,22 @@ describe("issue-batch-routing skill contract", () => {
     expect(approvalEvidence).toContain(
       "same source issue or PR, gate kind, route key, and allowed side effect",
     );
+    expect(ledger).toContain("`last_reported_approval_waiting_key`");
+    expect(normalizedLedger).toContain(
+      "Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad",
+    );
+    expect(normalizedLedger).toContain(
+      "`last_routed_approval_gate_key` records only actual approval routes sent after matching approval evidence is present",
+    );
+    expect(normalizedDuplicateRoutes).toContain(
+      "Report-only waiting state must not update `last_routed_approval_gate_key`",
+    );
+    expect(normalizedApprovalEvidence).toContain(
+      "Missing, stale, or broad approval evidence may update only `last_reported_approval_waiting_key`",
+    );
+    expect(normalizedApprovalEvidence).toContain(
+      "it must not consume the actual approval route key that suppresses sending a later matching approval",
+    );
 
     for (const expiry of [
       "PR head changes",
@@ -143,13 +163,37 @@ describe("issue-batch-routing skill contract", () => {
       "GitHub items route to `github-issue-priming`, Linear items route to `linear-issue-priming`",
     );
     expect(monitorLoop).toContain(
+      "Convert provider-prefixed `source_issue_identifier` values into provider-native entrypoint arguments before invoking source-specific issue priming",
+    );
+    expect(monitorLoop).toContain(
+      "GitHub conversion must preserve repository identity as a full issue URL, or as a bare issue number only when current repository context is explicitly proven",
+    );
+    expect(monitorLoop).toContain(
+      "Linear conversion must pass an accepted Linear identifier such as `ENG-123` or a Linear issue URL",
+    );
+    expect(monitorLoop).toContain(
+      "If provider-native conversion cannot be proven, report waiting instead of guessing",
+    );
+    expect(monitorLoop).toContain(
       "Record the created or located owner-thread mapping before continuing the item",
     );
 
     expect(fixtures).toContain("Missing `owner_thread_id` for a GitHub item");
     expect(fixtures).toContain("Route to `github-issue-priming`");
+    expect(fixtures).toContain(
+      "Active GitHub source issue `github:owner/repo#123` with missing `owner_thread_id`",
+    );
+    expect(fixtures).toContain(
+      "Convert to the full issue URL before routing to `github-issue-priming`; use a bare issue number only when current repository context is explicitly proven, and do not pass the prefixed ledger key or `owner/repo#123` shorthand",
+    );
     expect(fixtures).toContain("Missing `owner_thread_id` for a Linear item");
     expect(fixtures).toContain("Route to `linear-issue-priming`");
+    expect(fixtures).toContain(
+      "Active Linear source issue `linear:ENG-123` with missing `owner_thread_id`",
+    );
+    expect(fixtures).toContain(
+      "Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key",
+    );
   });
 
   it("keeps existing workflow boundaries and PR gate precedence explicit", async () => {
