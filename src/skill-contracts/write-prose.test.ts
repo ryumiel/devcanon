@@ -24,6 +24,9 @@ describe("write-prose source contracts", () => {
     expect(normalizedSkillSource).toContain(
       "This skill may also be used as a support pass inside another authoring workflow",
     );
+    expect(normalizedSkillSource).toContain(
+      "other prose surfaces where the user supplies enough source and target-language context",
+    );
     expect(authority).toContain("preserve its headings, required fields");
     expect(authority).toContain("action mode");
     expect(authority).toContain("health decision");
@@ -59,6 +62,11 @@ describe("write-prose source contracts", () => {
     expect(routing).toContain("references/korean-prose.md");
     expect(routing).toContain("references/bilingual-prose.md");
     expect(routing).toContain("references/prose-review-findings.md");
+    expect(routing).toContain(
+      "For languages or bilingual pairs without a bundled language-specific reference",
+    );
+    expect(routing).toContain("Do not invent language-specific grammar");
+    expect(routing).toContain("preserve the text or report a finding");
     expect(routing).toContain(
       "Do not open or require any external writing vault",
     );

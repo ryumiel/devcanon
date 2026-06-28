@@ -7,7 +7,9 @@ description: Drafts, revises, adapts, and reviews prose while preserving meaning
 
 Use this skill for meaning-preserving prose work: drafting, rewriting,
 polishing, translation/adaptation, Korean naturalization, English anti-AI
-cleanup, tone adjustment, bilingual alignment, and prose-quality review.
+cleanup, tone adjustment, bilingual alignment, other prose surfaces where the
+user supplies enough source and target-language context, and prose-quality
+review.
 
 This skill may also be used as a support pass inside another authoring
 workflow, but only after that owner workflow has selected the artifact type,
@@ -75,6 +77,13 @@ Load only the bundled reference files needed for the current task:
   when the output is findings, when a rewrite is risky, or when the task
   needs severity, evidence, mandatory-vs-heuristic labeling, false-positive
   checks, or baseline-failure coverage.
+- For languages or bilingual pairs without a bundled language-specific
+  reference, use the core workflow, protected-span rules, source-grounding
+  rules, and any user-provided style or register evidence. Do not invent
+  language-specific grammar, idiom, publication, or terminology authority. If
+  the requested edit depends on language-specific knowledge you cannot verify
+  from the provided source, preserve the text or report a finding instead of
+  overcorrecting.
 
 Do not open or require any external writing vault at runtime. The bundled
 references are the portable prose guidance for this skill.
@@ -101,8 +110,9 @@ Do not normalize owner-owned field values for style.
    route there first.
 
 2. Select language surface and references.
-   Determine whether the target is English, Korean, bilingual, or findings.
-   Read only the relevant bundled reference files.
+   Determine whether the target is English, Korean, English/Korean bilingual,
+   another language surface, or findings. Read only the relevant bundled
+   reference files.
 
 3. Mark protected spans and constraints.
    Preserve source claims, technical identifiers, terminology, register,
