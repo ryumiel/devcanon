@@ -34,7 +34,7 @@ Route owner artifacts before prose polish:
   first.
 - Linear project descriptions and project updates belong to the relevant
   Linear owner workflow first.
-- Documentation health checks and audits belong to the documentation-audit
+- Documentation health checks and audits belong to the `doc-gardening`
   owner workflow first.
 
 When supporting an owner workflow, preserve its headings, required fields,

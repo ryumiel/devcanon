@@ -41,8 +41,12 @@ describe("write-prose source contracts", () => {
     expect(authority).toContain("health decision");
     expect(authority).toContain("no-external-mutation rules");
     expect(authority).toContain(
+      "Documentation health checks and audits belong to the `doc-gardening` owner workflow first.",
+    );
+    expect(authority).toContain(
       "style improvement conflicts with source evidence, claim authority, or an owner contract",
     );
+    expect(skillSource).not.toContain("documentation-audit");
     expect(sideEffects).toContain("Do not mutate external systems");
     expect(sideEffects).toContain("Linear writes");
     expect(sideEffects).toContain("GitHub writes");
