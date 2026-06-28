@@ -6,10 +6,11 @@ description: Drafts, revises, adapts, and reviews prose while preserving meaning
 # Write Prose
 
 Use this skill for meaning-preserving prose work: drafting, rewriting,
-polishing, translation/adaptation, Korean naturalization, English anti-AI
-cleanup, tone adjustment, bilingual alignment, other prose surfaces where the
-user supplies enough source and target-language context, and prose-quality
-review.
+polishing, translation/adaptation, tone adjustment, and prose-quality review.
+
+It has first-class guidance for English, Korean, and English/Korean bilingual
+work. It can also support other prose surfaces when the user supplies enough
+source and target-language context.
 
 This skill may also be used as a support pass inside another authoring
 workflow, but only after that owner workflow has selected the artifact type,

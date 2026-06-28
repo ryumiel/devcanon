@@ -25,7 +25,7 @@ describe("write-prose source contracts", () => {
       "This skill may also be used as a support pass inside another authoring workflow",
     );
     expect(normalizedSkillSource).toContain(
-      "other prose surfaces where the user supplies enough source and target-language context",
+      "support other prose surfaces when the user supplies enough source and target-language context",
     );
     expect(authority).toContain("preserve its headings, required fields");
     expect(authority).toContain("action mode");
