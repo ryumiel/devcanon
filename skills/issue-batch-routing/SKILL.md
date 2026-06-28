@@ -60,7 +60,7 @@ require an explicit provider boundary.
 | `source_provider`                              | Provider family for the source issue record.                                                                                                   |
 | `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                           |
 | `source_issue_title`                           | Latest known source issue title.                                                                                                               |
-| `owner_thread_id`                              | Parent/controller thread that owns implementation or source-specific follow-up.                                                                |
+| `owner_thread_id`                              | Delegated owner thread that owns implementation or source-specific follow-up.                                                                  |
 | `branch_name`                                  | Current owner branch, when known.                                                                                                              |
 | `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                   |
 | `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                       |

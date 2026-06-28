@@ -334,6 +334,9 @@ describe("issue-batch-routing skill contract", () => {
       "Use this skill when a parent or controller thread is responsible",
     );
     expect(ledger).toContain(
+      "Delegated owner thread that owns implementation or source-specific follow-up",
+    );
+    expect(ledger).not.toContain(
       "Parent/controller thread that owns implementation or source-specific follow-up",
     );
     expect(normalized).toContain("parent/controller thread");
