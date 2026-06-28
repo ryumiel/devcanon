@@ -131,10 +131,23 @@ async function writePackagedMirroredTree(
 
     if (entry.isSymbolicLink()) {
       await mkdir(path.dirname(generatedPath), { recursive: true });
-      const sourceTargetStat = await stat(sourcePath);
-      const symlinkType = sourceTargetStat.isDirectory() ? "dir" : "file";
+      const symlinkType = await getSourceSymlinkType(sourcePath);
       await symlink(await readlink(sourcePath), generatedPath, symlinkType);
     }
+  }
+}
+
+async function getSourceSymlinkType(
+  sourcePath: string,
+): Promise<"dir" | "file"> {
+  try {
+    const sourceTargetStat = await stat(sourcePath);
+    return sourceTargetStat.isDirectory() ? "dir" : "file";
+  } catch (error) {
+    if (isNodeErrorCode(error, "ENOENT")) {
+      return "file";
+    }
+    throw error;
   }
 }
 
@@ -176,4 +189,13 @@ function normalizeCrLfToLf(sourceBytes: Buffer): Buffer {
 
 function compareDirentNames(a: { name: string }, b: { name: string }): number {
   return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
 }
