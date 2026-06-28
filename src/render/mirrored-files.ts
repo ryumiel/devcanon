@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   readlink,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -130,7 +131,9 @@ async function writePackagedMirroredTree(
 
     if (entry.isSymbolicLink()) {
       await mkdir(path.dirname(generatedPath), { recursive: true });
-      await symlink(await readlink(sourcePath), generatedPath);
+      const sourceTargetStat = await stat(sourcePath);
+      const symlinkType = sourceTargetStat.isDirectory() ? "dir" : "file";
+      await symlink(await readlink(sourcePath), generatedPath, symlinkType);
     }
   }
 }

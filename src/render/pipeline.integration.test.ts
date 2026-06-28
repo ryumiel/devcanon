@@ -2,6 +2,7 @@ import {
   chmod,
   mkdir,
   readFile,
+  readlink,
   rm,
   stat,
   symlink,
@@ -917,6 +918,47 @@ describe("renderAll", () => {
 
     expect(lfRenderedSkill?.contentHash).toBe(renderedSkill?.contentHash);
   });
+
+  it.skipIf(!symlinkAvailable)(
+    "preserves mirrored directory symlink kind before generated target exists",
+    async () => {
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "linked-skill",
+        [
+          "---",
+          "name: linked-skill",
+          "description: A test skill.",
+          "---",
+          "",
+          "# body",
+          "",
+        ].join("\n"),
+        ["scripts"],
+      );
+      const scriptsDir = path.join(skillDir, "scripts");
+      const targetDir = path.join(scriptsDir, "z-dir");
+      const linkPath = path.join(scriptsDir, "a-link");
+      await mkdir(targetDir, { recursive: true });
+      await writeFile(path.join(targetDir, "payload.txt"), "linked\n", "utf-8");
+      await symlink("z-dir", linkPath, "dir");
+
+      await renderAll(config, true);
+
+      const generatedLink = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        "linked-skill",
+        "scripts",
+        "a-link",
+      );
+      expect(await readlink(generatedLink)).toBe("z-dir");
+      await expect(
+        readFile(path.join(generatedLink, "payload.txt"), "utf-8"),
+      ).resolves.toBe("linked\n");
+    },
+  );
 
   it("omits unknown top-level skill directories from generated target dirs", async () => {
     const skillDir = await createSkillFixture(
