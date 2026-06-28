@@ -55,29 +55,30 @@ passes and automation resumes when possible.
 Allowed values: `source_provider: github | linear`. Additional providers
 require an explicit provider boundary.
 
-| Field                                   | Meaning                                                                                                                                        |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source_provider`                       | Provider family for the source issue record.                                                                                                   |
-| `source_issue_identifier`               | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                           |
-| `source_issue_title`                    | Latest known source issue title.                                                                                                               |
-| `owner_thread_id`                       | Codex thread that owns implementation or source-specific follow-up.                                                                            |
-| `branch_name`                           | Current owner branch, when known.                                                                                                              |
-| `pr_provider`                           | PR provider, initially `github`; optional until a PR exists.                                                                                   |
-| `pr_identifier`                         | Provider-native PR identity, optional until a PR exists.                                                                                       |
-| `current_head_sha`                      | Current branch or PR head SHA, optional until known.                                                                                           |
-| `current_gate_kind`                     | Waiting gate such as `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
-| `source_issue_state_snapshot_digest`    | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                       |
-| `last_owner_thread_report_digest`       | Digest of the last owner-thread gate report integrated by the parent.                                                                          |
-| `last_routed_review_thread_set_digest`  | Digest for the last unresolved review-thread set routed.                                                                                       |
-| `last_routed_review_response_route_key` | Full replay-sensitive review-response route key last sent.                                                                                     |
-| `last_routed_ci_run_check_identifier`   | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                        |
-| `last_routed_ci_fix_route_key`          | Full replay-sensitive CI-fix route key last sent.                                                                                              |
-| `last_routed_merge_conflict_key`        | Merge-conflict route key last sent.                                                                                                            |
-| `last_routed_bot_review_signal_key`     | Review-bot signal route key last handled.                                                                                                      |
-| `last_reported_approval_waiting_key`    | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                      |
-| `last_routed_approval_gate_key`         | Approval-gate route key last sent after matching approval evidence is present.                                                                 |
-| `last_routed_merge_routing_key`         | Merge-ready route key last sent to `pr-merge`.                                                                                                 |
-| `last_routed_archival_key`              | Terminal archival route key last confirmed or sent.                                                                                            |
+| Field                                          | Meaning                                                                                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source_provider`                              | Provider family for the source issue record.                                                                                                   |
+| `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                           |
+| `source_issue_title`                           | Latest known source issue title.                                                                                                               |
+| `owner_thread_id`                              | Codex thread that owns implementation or source-specific follow-up.                                                                            |
+| `branch_name`                                  | Current owner branch, when known.                                                                                                              |
+| `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                   |
+| `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                       |
+| `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                           |
+| `current_gate_kind`                            | Waiting gate such as `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`. |
+| `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                       |
+| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                          |
+| `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                       |
+| `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                     |
+| `last_routed_ci_run_check_identifier`          | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                        |
+| `last_routed_ci_fix_route_key`                 | Full replay-sensitive CI-fix route key last sent.                                                                                              |
+| `last_routed_merge_conflict_key`               | Merge-conflict route key last sent.                                                                                                            |
+| `last_routed_bot_review_signal_key`            | Review-bot signal route key last handled.                                                                                                      |
+| `last_routed_source_issue_reporting_route_key` | Full replay-sensitive source-issue reporting route key last sent.                                                                              |
+| `last_reported_approval_waiting_key`           | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                      |
+| `last_routed_approval_gate_key`                | Approval-gate route key last sent after matching approval evidence is present.                                                                 |
+| `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                 |
+| `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                            |
 
 `last_routed_ci_run_check_identifier` is diagnostic only and is not
 authoritative for de-duplication. Replay-sensitive review-response and CI-fix
@@ -157,16 +158,17 @@ Every route key is scoped to the source provider and source issue identifier,
 then narrowed by the current state identifier that makes the route unique.
 Never reuse a prior route when the head SHA or relevant state digest changed.
 
-| Route type           | Required key components                                                                                                                                                |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `review-response`    | source provider, source issue identifier, PR provider, PR identifier, head SHA, unresolved-thread-set digest.                                                          |
-| `ci-fix`             | source provider, source issue identifier, PR provider, PR identifier, head SHA, check run ID or failing run/check identifier.                                          |
-| `merge-conflict`     | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state.                                                                    |
-| `source-issue-state` | source provider, source issue identifier, source-issue state digest.                                                                                                   |
-| `approval-gate`      | source provider, source issue identifier, owner thread ID, gate kind, approval-gate digest, head SHA when known.                                                       |
-| `bot-review-signal`  | source provider, source issue identifier, PR provider, PR identifier, head SHA, bot signal digest.                                                                     |
-| `merge-routing`      | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state, branch-protection/review state, bot signal digest when configured. |
-| `archival`           | source provider, source issue identifier, owner thread ID, terminal PR or source-state digest.                                                                         |
+| Route type               | Required key components                                                                                                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-response`        | source provider, source issue identifier, PR provider, PR identifier, head SHA, unresolved-thread-set digest.                                                                                                                    |
+| `ci-fix`                 | source provider, source issue identifier, PR provider, PR identifier, head SHA, check run ID or failing run/check identifier.                                                                                                    |
+| `merge-conflict`         | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state.                                                                                                                              |
+| `source-issue-state`     | source provider, source issue identifier, source-issue state digest.                                                                                                                                                             |
+| `source-issue-reporting` | source provider, source issue identifier, owner thread ID, gate kind, owner-thread report digest or source-issue reporting gate digest, requested provider-specific side effect, source-issue state digest, head SHA when known. |
+| `approval-gate`          | source provider, source issue identifier, owner thread ID, gate kind, approval-gate digest, source-issue state digest, head SHA when known.                                                                                      |
+| `bot-review-signal`      | source provider, source issue identifier, PR provider, PR identifier, head SHA, bot signal digest.                                                                                                                               |
+| `merge-routing`          | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state, branch-protection/review state, bot signal digest when configured.                                                           |
+| `archival`               | source provider, source issue identifier, owner thread ID, terminal PR or source-state digest.                                                                                                                                   |
 
 The route key prevents duplicate routes after monitor resumes, context
 compaction, repeated polling, or owner-thread re-reporting. A changed key means
@@ -176,6 +178,11 @@ as still current.
 Persist the complete route key after routing; partial fields such as only the
 unresolved-thread-set digest or only the check identifier are diagnostic hints,
 not replay authority.
+`source-issue-reporting` is distinct from `source-issue-state` and must not
+reuse the source-state monitoring key for provider-specific reporting side
+effects.
+`approval-gate` route keys include the source-issue state digest so source-state
+changes invalidate pre-PR approval routing.
 Report-only waiting state must not update `last_routed_approval_gate_key`.
 Approval-gate duplicate suppression uses `last_routed_approval_gate_key` only
 after matching approval evidence has been routed to the owner thread.
@@ -202,14 +209,14 @@ make the route safe; unknown required merge evidence means wait.
 
 Normalize only the generic state category:
 
-| Generic state      | Routing behavior                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| `active`           | Continue monitoring owner thread and PR state.                                       |
-| `blocked`          | Report waiting unless an owner workflow owns the unblocking action.                  |
-| `duplicate`        | Report waiting for provider-specific disposition or delegated source-issue handling. |
-| `abandoned`        | Route archival only after PR/source terminal checks and no pending work.             |
-| `closed/completed` | Verify linked PR or owner-thread terminal state before archival.                     |
-| `unknown`          | Report waiting; do not mutate or coerce into provider-specific terminology.          |
+| Generic state      | Routing behavior                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `active`           | Continue monitoring owner thread and PR state.                                                              |
+| `blocked`          | Report waiting unless an owner workflow owns the unblocking action.                                         |
+| `duplicate`        | Report waiting for provider-specific disposition or delegated source-issue handling.                        |
+| `abandoned`        | Route archival only after PR/source terminal checks and no pending work.                                    |
+| `closed/completed` | Verify linked PR, or when no PR exists verify source state and owner-thread terminal state before archival. |
+| `unknown`          | Report waiting; do not mutate or coerce into provider-specific terminology.                                 |
 
 Provider-specific issue status updates are delegated to the matching
 source-specific workflow or explicitly authorized provider workflow.
@@ -238,7 +245,9 @@ Use these concrete fixture outcomes to self-check monitor decisions:
 | PR is merge-conflicted at head `C`                                                                                                        | Route owner thread once by PR, head SHA, and mergeability state.                                                                                                                                                                  |
 | Owner thread reports approval gate `D`                                                                                                    | Send approval only when parent approval evidence matches the source issue or PR, head SHA/current state, gate kind, route key, and allowed side effect.                                                                           |
 | Owner thread reports source-issue reporting gate `E`                                                                                      | Route only to a provider-specific workflow that owns that source-issue side effect.                                                                                                                                               |
+| Owner thread reports source-issue reporting gate `E` at source-state digest `S1` with requested side effect `close-as-completed`          | Route source-issue reporting once for the complete `source-issue-reporting` key including source issue, owner thread, gate/report digest, requested side effect, source-state digest `S1`, and head SHA when known.               |
 | Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available               | Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow.                                   |
+| Source issue is verified closed/completed without a PR and owner thread reports terminal state                                            | Archive only after verified closed/completed source state, terminal owner-thread state, no active gate, no pending work, no unresolved follow-up, and `last_routed_archival_key` recording.                                       |
 | Repository policy requires explicit human merge approval and PR is otherwise merge-ready                                                  | Wait until matching human merge approval evidence is present.                                                                                                                                                                     |
 | PR is otherwise merge-ready but lacks required human merge approval                                                                       | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                                                      |
 | PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                                                       |
@@ -373,7 +382,8 @@ thread-management tools when available.
 Do not archive an owner thread until all of these are true:
 
 - the PR is verified merged, or the source issue/PR is closed as intentionally
-  abandoned;
+  abandoned, or verified closed/completed source issue state without a PR is
+  terminal evidence;
 - the owner thread reports terminal owner-thread state;
 - the owner thread has no active gate;
 - no pending user or agent work remains;

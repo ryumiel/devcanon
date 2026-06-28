@@ -59,6 +59,7 @@ describe("issue-batch-routing skill contract", () => {
       "last_routed_ci_fix_route_key",
       "last_routed_merge_conflict_key",
       "last_routed_bot_review_signal_key",
+      "last_routed_source_issue_reporting_route_key",
       "last_routed_approval_gate_key",
       "last_routed_merge_routing_key",
       "last_routed_archival_key",
@@ -90,6 +91,7 @@ describe("issue-batch-routing skill contract", () => {
       "ci-fix",
       "merge-conflict",
       "source-issue-state",
+      "source-issue-reporting",
       "approval-gate",
       "bot-review-signal",
       "merge-routing",
@@ -110,6 +112,8 @@ describe("issue-batch-routing skill contract", () => {
       "source-issue state digest",
       "bot signal digest",
       "approval-gate digest",
+      "owner-thread report digest",
+      "requested provider-specific side effect",
     ]) {
       expect(duplicateRoutes).toContain(stateIdentifier);
     }
@@ -126,6 +130,12 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(normalizedDuplicateRoutes).toContain(
       "Report-only waiting state must not update `last_routed_approval_gate_key`",
+    );
+    expect(normalizedDuplicateRoutes).toContain(
+      "`source-issue-reporting` is distinct from `source-issue-state` and must not reuse the source-state monitoring key for provider-specific reporting side effects",
+    );
+    expect(normalizedDuplicateRoutes).toContain(
+      "`approval-gate` route keys include the source-issue state digest so source-state changes invalidate pre-PR approval routing",
     );
     expect(normalizedApprovalEvidence).toContain(
       "Missing, stale, or broad approval evidence may update only `last_reported_approval_waiting_key`",
@@ -311,6 +321,10 @@ describe("issue-batch-routing skill contract", () => {
     expect(ledger).toContain("Full replay-sensitive review-response route key");
     expect(ledger).toContain("`last_routed_ci_fix_route_key`");
     expect(ledger).toContain("Full replay-sensitive CI-fix route key");
+    expect(ledger).toContain("`last_routed_source_issue_reporting_route_key`");
+    expect(ledger).toContain(
+      "Full replay-sensitive source-issue reporting route key last sent",
+    );
     expect(normalizedLedger).toContain(
       "`last_routed_ci_run_check_identifier` is diagnostic only and is not authoritative for de-duplication",
     );
@@ -326,6 +340,12 @@ describe("issue-batch-routing skill contract", () => {
     );
     expect(fixtures).toContain(
       "Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair",
+    );
+    expect(fixtures).toContain(
+      "Owner thread reports source-issue reporting gate `E` at source-state digest `S1` with requested side effect `close-as-completed`",
+    );
+    expect(fixtures).toContain(
+      "Route source-issue reporting once for the complete `source-issue-reporting` key including source issue, owner thread, gate/report digest, requested side effect, source-state digest `S1`, and head SHA when known",
     );
   });
 
@@ -371,6 +391,9 @@ describe("issue-batch-routing skill contract", () => {
 
     expect(archival).toContain("Do not archive an owner thread until");
     expect(archival).toContain("PR is verified merged");
+    expect(archival).toContain(
+      "verified closed/completed source issue state without a PR",
+    );
     expect(archival).toContain("terminal owner-thread state");
     expect(archival).toContain("no pending user or agent work remains");
 
@@ -460,8 +483,12 @@ describe("issue-batch-routing skill contract", () => {
       "Send approval only when parent approval evidence matches",
       "Owner thread reports source-issue reporting gate `E`",
       "Route only to a provider-specific workflow that owns that source-issue side effect",
+      "Owner thread reports source-issue reporting gate `E` at source-state digest `S1` with requested side effect `close-as-completed`",
+      "Route source-issue reporting once for the complete `source-issue-reporting` key including source issue, owner thread, gate/report digest, requested side effect, source-state digest `S1`, and head SHA when known",
       "Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available",
       "Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow",
+      "Source issue is verified closed/completed without a PR and owner thread reports terminal state",
+      "Archive only after verified closed/completed source state, terminal owner-thread state, no active gate, no pending work, no unresolved follow-up, and `last_routed_archival_key` recording",
       "PR has unresolved review-thread digest `B` and lacks required human merge approval",
       "Route review-response before waiting for human merge approval",
       "PR is otherwise merge-ready but lacks required human merge approval",
