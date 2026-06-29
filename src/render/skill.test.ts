@@ -342,7 +342,7 @@ describe("renderSkillForTarget contentHash", () => {
   });
 
   it.skipIf(!symlinkAvailable)(
-    "hashes mirrored symlinks by link target without traversing them",
+    "hashes mirrored symlinks by link target and kind without traversing them",
     async () => {
       const tempDir = mkdtempSync(path.join(os.tmpdir(), "am-skill-symlink-"));
       try {
@@ -392,6 +392,67 @@ describe("renderSkillForTarget contentHash", () => {
         );
         expect(baseRendered.contentHash).not.toBe(
           retargetedRendered.contentHash,
+        );
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
+    "changes when a mirrored symlink kind changes with the same target spelling",
+    async () => {
+      const tempDir = mkdtempSync(
+        path.join(os.tmpdir(), "am-skill-symlink-kind-"),
+      );
+      try {
+        const skillDir = path.join(tempDir, "skills", "issue-worktree-setup");
+        const scriptsDir = path.join(skillDir, "scripts");
+        const externalDir = path.join(tempDir, "external");
+        const externalTarget = path.join(externalDir, "target");
+        const linkPath = path.join(scriptsDir, "tool-link");
+        const targetSpelling = path.relative(scriptsDir, externalTarget);
+        mkdirSync(scriptsDir, { recursive: true });
+        mkdirSync(externalDir, { recursive: true });
+
+        const source: SkillSource = {
+          name: "issue-worktree-setup",
+          description: "d",
+        };
+        const config = makeResolvedConfig(tempDir);
+        config.modelTiers = TIERS;
+
+        writeFileSync(externalTarget, "alpha\n");
+        symlinkSync(targetSpelling, linkPath, "file");
+
+        const baseRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
+
+        writeFileSync(externalTarget, "changed\n");
+        const changedTargetContentRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
+
+        rmSync(externalTarget, { force: true });
+        mkdirSync(externalTarget, { recursive: true });
+        rmSync(linkPath);
+        symlinkSync(targetSpelling, linkPath, "dir");
+        const changedKindRendered = renderSkillForTarget(
+          makeLoadedWithDir(source, skillDir, "# body\n", ["scripts"]),
+          "claude",
+          config,
+        ).rendered;
+
+        expect(baseRendered.contentHash).toBe(
+          changedTargetContentRendered.contentHash,
+        );
+        expect(baseRendered.contentHash).not.toBe(
+          changedKindRendered.contentHash,
         );
       } finally {
         rmSync(tempDir, { recursive: true, force: true });

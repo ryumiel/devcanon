@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import {
   chmod,
   lstat,
@@ -13,6 +13,7 @@ import {
 import path from "node:path";
 
 type MirroredFileHashEntries = Map<string, string>;
+export type PackagedSymlinkType = "dir" | "file";
 
 export function collectPackagedMirroredFilesForHash(
   skillDir: string,
@@ -88,10 +89,13 @@ function walkPackagedMirroredFilesForHash(
     }
 
     if (entry.isSymbolicLink()) {
-      const linkedStat = lstatSync(sourcePath);
-      if (linkedStat.isSymbolicLink()) {
-        mirroredFiles.set(generatedPath, `symlink:${readlinkSync(sourcePath)}`);
-      }
+      mirroredFiles.set(
+        generatedPath,
+        formatPackagedSymlinkHashEntry(
+          readlinkSync(sourcePath),
+          getSourceSymlinkTypeSync(sourcePath),
+        ),
+      );
     }
   }
 }
@@ -137,11 +141,30 @@ async function writePackagedMirroredTree(
   }
 }
 
+export function formatPackagedSymlinkHashEntry(
+  target: string,
+  symlinkType: PackagedSymlinkType,
+): string {
+  return `symlink:${symlinkType}:${target}`;
+}
+
 async function getSourceSymlinkType(
   sourcePath: string,
-): Promise<"dir" | "file"> {
+): Promise<PackagedSymlinkType> {
   try {
     const sourceTargetStat = await stat(sourcePath);
+    return sourceTargetStat.isDirectory() ? "dir" : "file";
+  } catch (error) {
+    if (isNodeErrorCode(error, "ENOENT") || isNodeErrorCode(error, "ELOOP")) {
+      return "file";
+    }
+    throw error;
+  }
+}
+
+function getSourceSymlinkTypeSync(sourcePath: string): PackagedSymlinkType {
+  try {
+    const sourceTargetStat = statSync(sourcePath);
     return sourceTargetStat.isDirectory() ? "dir" : "file";
   } catch (error) {
     if (isNodeErrorCode(error, "ENOENT") || isNodeErrorCode(error, "ELOOP")) {

@@ -81,9 +81,10 @@ export function renderSkillForTarget(
  *
  * The hash includes SKILL.md, any extra files (e.g. the Codex
  * `agents/openai.yaml` sidecar), and all mirrored skill subdirectory files
- * (e.g. `scripts/`, `references/`, `assets/`, `examples/`). Without this,
- * plan computation emits skip-up-to-date and copy-mode installs can leave
- * bundled helper files stale.
+ * (e.g. `scripts/`, `references/`, `assets/`, `examples/`). Mirrored symlink
+ * entries include the preserved target spelling and generated symlink kind,
+ * without hashing the target contents. Without this, plan computation emits
+ * skip-up-to-date and copy-mode installs can leave bundled helper files stale.
  * Extra-file basenames (relative to the skill's generated dir) are folded
  * in alongside their content. We use basenames rather than absolute paths
  * so the hash stays stable across machines / users.

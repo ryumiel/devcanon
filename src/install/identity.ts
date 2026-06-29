@@ -1,10 +1,14 @@
-import { lstat, readFile, readdir, readlink } from "node:fs/promises";
+import { lstat, readFile, readdir, readlink, stat } from "node:fs/promises";
 import path from "node:path";
 import type {
   InstallMode,
   ManagedRecord,
   ResolvedConfig,
 } from "../config/schema.js";
+import {
+  type PackagedSymlinkType,
+  formatPackagedSymlinkHashEntry,
+} from "../render/mirrored-files.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
@@ -15,6 +19,7 @@ export interface ManagedOutputIdentityOptions {
   record: ManagedRecord;
   output?: ManagedIdentityOutput;
   allowMissing?: boolean;
+  allowHistoricalSymlinkKinds?: boolean;
 }
 
 interface ManagedIdentityOutput {
@@ -27,6 +32,10 @@ interface ManagedIdentityOutput {
 }
 
 type InstalledSkillFiles = Map<string, readonly string[]>;
+type NormalizedInstalledSymlinkTarget = {
+  target: string;
+  allowLegacyTargetOnlyHash: boolean;
+};
 
 const MAX_EXHAUSTIVE_SKILL_HASH_CANDIDATES = 1024;
 
@@ -35,6 +44,7 @@ export async function verifyManagedOutputIdentity({
   record,
   output,
   allowMissing = false,
+  allowHistoricalSymlinkKinds = false,
 }: ManagedOutputIdentityOptions): Promise<void> {
   assertRecordMatchesOutput(record, output);
   await assertInstalledPathContained(config, record);
@@ -46,7 +56,7 @@ export async function verifyManagedOutputIdentity({
   if (record.installMode === "symlink") {
     await assertSymlinkIdentity(record);
   } else {
-    await assertCopyIdentity(record);
+    await assertCopyIdentity(record, { allowHistoricalSymlinkKinds });
   }
 }
 
@@ -218,13 +228,16 @@ async function assertSymlinkIdentity(record: ManagedRecord): Promise<void> {
   }
 }
 
-async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
+async function assertCopyIdentity(
+  record: ManagedRecord,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<void> {
   let actualHashes: string[];
   try {
     actualHashes =
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
-        : await hashInstalledSkill(record);
+        : await hashInstalledSkill(record, options);
   } catch (err) {
     throw identityError(
       record,
@@ -245,7 +258,10 @@ async function hashInstalledAgent(installedPath: string): Promise<string> {
   return sha256(await readFile(installedPath, "utf-8"));
 }
 
-async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
+async function hashInstalledSkill(
+  record: ManagedRecord,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<string[]> {
   const installedPath = record.installedPath;
   const stat = await lstat(installedPath);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
@@ -269,6 +285,7 @@ async function hashInstalledSkill(record: ManagedRecord): Promise<string[]> {
       extraFiles,
       "mirrored",
       expectedRoot,
+      options,
     );
   }
   return buildSkillContentHashCandidates(content, extraFiles, installedPath);
@@ -299,6 +316,9 @@ async function collectInstalledSkillFiles(
   files: InstalledSkillFiles,
   mode: "raw" | "mirrored",
   expectedRoot?: string,
+  options: { allowHistoricalSymlinkKinds: boolean } = {
+    allowHistoricalSymlinkKinds: false,
+  },
 ): Promise<void> {
   const currentDir = path.join(root, ...base.split("/").filter(Boolean));
   const entries = await readdir(currentDir, { withFileTypes: true }).catch(
@@ -321,6 +341,7 @@ async function collectInstalledSkillFiles(
         files,
         mode,
         expectedRoot,
+        options,
       );
       continue;
     }
@@ -337,19 +358,81 @@ async function collectInstalledSkillFiles(
     if (entry.isSymbolicLink()) {
       files.set(
         absolutePath,
-        (
-          await normalizedInstalledSymlinkTargets(
-            absolutePath,
-            relPath,
-            mode,
-            expectedRoot,
-          )
-        ).map((target) => `symlink:${target}`),
+        await installedSymlinkHashEntryCandidates(
+          absolutePath,
+          relPath,
+          mode,
+          expectedRoot,
+          options,
+        ),
       );
       continue;
     }
 
     throw new Error(`installed skill contains unsupported entry: ${relPath}`);
+  }
+}
+
+async function installedSymlinkHashEntryCandidates(
+  installedPath: string,
+  relPath: string,
+  mode: "raw" | "mirrored",
+  expectedRoot: string | undefined,
+  options: { allowHistoricalSymlinkKinds: boolean },
+): Promise<string[]> {
+  const targets = await normalizedInstalledSymlinkTargets(
+    installedPath,
+    relPath,
+    mode,
+    expectedRoot,
+  );
+  if (mode !== "mirrored") {
+    return targets.map(({ target }) => `symlink:${target}`);
+  }
+
+  const symlinkTypes = await getInstalledSymlinkTypes(
+    installedPath,
+    options.allowHistoricalSymlinkKinds,
+  );
+  return uniqueStrings(
+    targets.flatMap(({ target, allowLegacyTargetOnlyHash }) => {
+      const candidates = allowLegacyTargetOnlyHash ? [`symlink:${target}`] : [];
+      candidates.unshift(
+        ...symlinkTypes.map((symlinkType) =>
+          formatPackagedSymlinkHashEntry(target, symlinkType),
+        ),
+      );
+      return candidates;
+    }),
+  );
+}
+
+async function getInstalledSymlinkTypes(
+  installedPath: string,
+  allowHistoricalSymlinkKinds: boolean,
+): Promise<readonly PackagedSymlinkType[]> {
+  try {
+    const targetStat = await stat(installedPath);
+    const currentKind = targetStat.isDirectory() ? "dir" : "file";
+    if (allowHistoricalSymlinkKinds) {
+      return currentKind === "dir" ? ["dir", "file"] : ["file", "dir"];
+    }
+    return [currentKind];
+  } catch (err) {
+    if (
+      isNodeErrorCode(err, "ENOENT") ||
+      isNodeErrorCode(err, "ELOOP") ||
+      isNodeErrorCode(err, "EPERM")
+    ) {
+      if (allowHistoricalSymlinkKinds) {
+        // Some copied symlinks cannot be followed once the external target kind
+        // changes, especially on Windows. Update verification may accept the
+        // previous kind so sync can rewrite the stale output.
+        return ["file", "dir"];
+      }
+      return ["file"];
+    }
+    throw err;
   }
 }
 
@@ -473,23 +556,42 @@ async function normalizedInstalledSymlinkTargets(
   relPath: string,
   mode: "raw" | "mirrored",
   expectedRoot: string | undefined,
-): Promise<string[]> {
+): Promise<NormalizedInstalledSymlinkTarget[]> {
   const actualTarget = await readlink(installedPath);
-  if (mode !== "mirrored" || !expectedRoot || !path.isAbsolute(actualTarget)) {
-    return [actualTarget];
+  if (mode !== "mirrored" || !expectedRoot) {
+    return [allowLegacySymlinkTarget(actualTarget)];
   }
 
   const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
   const expectedTarget = await readExpectedSymlinkTarget(expectedPath);
+
+  if (!path.isAbsolute(actualTarget)) {
+    return [
+      {
+        target: actualTarget,
+        allowLegacyTargetOnlyHash:
+          expectedTarget === null ||
+          (!path.isAbsolute(expectedTarget) &&
+            path.resolve(path.dirname(expectedPath), actualTarget) ===
+              path.resolve(path.dirname(expectedPath), expectedTarget)),
+      },
+    ];
+  }
+
   if (expectedTarget === null) {
     return normalizeAbsoluteTargetsInsideRoot(
       actualTarget,
       expectedRoot,
       expectedPath,
-    );
+    ).map(allowLegacySymlinkTarget);
   }
   if (path.isAbsolute(expectedTarget)) {
-    return [actualTarget];
+    return [
+      {
+        target: actualTarget,
+        allowLegacyTargetOnlyHash: actualTarget === expectedTarget,
+      },
+    ];
   }
 
   const expectedResolved = path.resolve(
@@ -501,10 +603,23 @@ async function normalizedInstalledSymlinkTargets(
       actualTarget,
       expectedRoot,
       expectedPath,
-    );
+    ).map(allowLegacySymlinkTarget);
   }
 
-  return [toPosixPath(path.relative(path.dirname(expectedPath), actualTarget))];
+  return [
+    {
+      target: toPosixPath(
+        path.relative(path.dirname(expectedPath), actualTarget),
+      ),
+      allowLegacyTargetOnlyHash: false,
+    },
+  ];
+}
+
+function allowLegacySymlinkTarget(
+  target: string,
+): NormalizedInstalledSymlinkTarget {
+  return { target, allowLegacyTargetOnlyHash: true };
 }
 
 function normalizeAbsoluteTargetsInsideRoot(
@@ -578,6 +693,15 @@ function toWindowsPath(filePath: string): string {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
 }
 
 function identityError(record: ManagedRecord, reason: string): UserError {

@@ -1,10 +1,14 @@
-import { lstat, readdir } from "node:fs/promises";
+import { lstat, readdir, readlink, stat } from "node:fs/promises";
 import path from "node:path";
 import type { OverwritePolicy } from "../config/schema.js";
 import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
+import type { PackagedSymlinkType } from "../render/mirrored-files.js";
 import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
+
+type DetectedSymlinkType = PackagedSymlinkType | "unknown";
+type SymlinkKindEntry = { target: string; kind: PackagedSymlinkType };
 
 export async function computePlan(
   outputs: RenderedOutput[],
@@ -49,7 +53,11 @@ export async function computePlan(
     if (record) {
       // Managed file
       if (record.contentHash === output.contentHash) {
-        if (await hasCopyModeExecutableDrift(output, record.installMode)) {
+        const copyModeDrift = await getCopyModeDriftReason(
+          output,
+          record.installMode,
+        );
+        if (copyModeDrift !== null) {
           actions.push({
             kind: "update",
             target: output.target,
@@ -59,7 +67,7 @@ export async function computePlan(
             generatedPath: output.generatedPath,
             installedPath: output.installedPath,
             contentHash: output.contentHash,
-            reason: "Executable file metadata changed since last sync.",
+            reason: copyModeDrift,
           });
         } else {
           actions.push({
@@ -156,6 +164,21 @@ export async function computePlan(
   return actions;
 }
 
+async function getCopyModeDriftReason(
+  output: RenderedOutput,
+  installMode: string,
+): Promise<string | null> {
+  if (await hasCopyModeExecutableDrift(output, installMode)) {
+    return "Executable file metadata changed since last sync.";
+  }
+
+  if (await hasCopyModeSymlinkKindDrift(output, installMode)) {
+    return "Symlink kind metadata changed since last sync.";
+  }
+
+  return null;
+}
+
 async function hasCopyModeExecutableDrift(
   output: RenderedOutput,
   installMode: string,
@@ -197,6 +220,67 @@ async function hasCopyModeExecutableDrift(
   return false;
 }
 
+async function hasCopyModeSymlinkKindDrift(
+  output: RenderedOutput,
+  installMode: string,
+): Promise<boolean> {
+  if (
+    output.type !== "skill" ||
+    installMode !== "copy" ||
+    !output.generatedPath
+  ) {
+    return false;
+  }
+
+  if (!(await pathExists(output.sourcePath))) {
+    return false;
+  }
+
+  const symlinks = await collectMirroredSymlinkKinds(output.sourcePath);
+  for (const [relPath, desiredSymlink] of symlinks) {
+    const installedPath = path.join(
+      output.installedPath,
+      ...relPath.split("/"),
+    );
+
+    try {
+      const installedStat = await lstat(installedPath);
+      if (!installedStat.isSymbolicLink()) {
+        return true;
+      }
+      if ((await readlink(installedPath)) !== desiredSymlink.target) {
+        return true;
+      }
+      const installedKind = await getSymlinkKind(installedPath);
+      if (
+        installedKind === "unknown" ||
+        installedKind !== desiredSymlink.kind
+      ) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function collectMirroredSymlinkKinds(
+  root: string,
+): Promise<Map<string, SymlinkKindEntry>> {
+  const symlinks = new Map<string, SymlinkKindEntry>();
+  for (const subdir of KNOWN_SUBDIRS) {
+    const subdirPath = path.join(root, subdir);
+    if (!(await isRealDirectory(subdirPath))) continue;
+
+    for (const [relPath, symlink] of await collectSymlinkKinds(root, subdir)) {
+      symlinks.set(relPath, symlink);
+    }
+  }
+  return symlinks;
+}
+
 async function collectMirroredFileExecutableModes(
   root: string,
 ): Promise<Map<string, boolean>> {
@@ -213,6 +297,84 @@ async function collectMirroredFileExecutableModes(
     }
   }
   return executableModes;
+}
+
+async function collectSymlinkKinds(
+  root: string,
+  base: string,
+): Promise<Map<string, SymlinkKindEntry>> {
+  const currentDir = path.join(root, ...base.split("/").filter(Boolean));
+  const symlinks = new Map<string, SymlinkKindEntry>();
+  const entries = await readdir(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const relPath = `${base}/${entry.name}`;
+    const absolutePath = path.join(root, ...relPath.split("/"));
+
+    if (entry.isDirectory()) {
+      for (const [childPath, symlink] of await collectSymlinkKinds(
+        root,
+        relPath,
+      )) {
+        symlinks.set(childPath, symlink);
+      }
+      continue;
+    }
+
+    if (entry.isSymbolicLink()) {
+      symlinks.set(relPath, {
+        target: await readlink(absolutePath),
+        kind: await getPackagedSymlinkKind(absolutePath),
+      });
+    }
+  }
+
+  return symlinks;
+}
+
+async function getPackagedSymlinkKind(
+  symlinkPath: string,
+): Promise<PackagedSymlinkType> {
+  const symlinkKind = await getSymlinkKind(symlinkPath);
+  return symlinkKind === "dir" ? "dir" : "file";
+}
+
+async function getSymlinkKind(
+  symlinkPath: string,
+): Promise<DetectedSymlinkType> {
+  try {
+    const targetStat = await stat(symlinkPath);
+    return targetStat.isDirectory() ? "dir" : "file";
+  } catch (err) {
+    if (isNodeErrorCode(err, "ELOOP")) {
+      return "file";
+    }
+
+    if (isNodeErrorCode(err, "ENOENT") || isNodeErrorCode(err, "EPERM")) {
+      return getUnfollowableSymlinkKind(symlinkPath);
+    }
+
+    throw err;
+  }
+}
+
+async function getUnfollowableSymlinkKind(
+  symlinkPath: string,
+): Promise<DetectedSymlinkType> {
+  const target = await readlink(symlinkPath);
+  const resolvedTarget = path.resolve(path.dirname(symlinkPath), target);
+  try {
+    await stat(resolvedTarget);
+    return "unknown";
+  } catch (err) {
+    if (isNodeErrorCode(err, "ENOENT") || isNodeErrorCode(err, "ELOOP")) {
+      return "file";
+    }
+    if (isNodeErrorCode(err, "EPERM")) {
+      return "unknown";
+    }
+    throw err;
+  }
 }
 
 async function isRealDirectory(targetPath: string): Promise<boolean> {
@@ -254,4 +416,13 @@ async function collectFileExecutableModes(
   }
 
   return executableModes;
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
 }
