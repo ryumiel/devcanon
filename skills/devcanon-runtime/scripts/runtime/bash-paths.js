@@ -14,6 +14,10 @@ export async function toBashPath(nativePath, env) {
     if (process.platform !== "win32") {
         return nativePath;
     }
+    const fallback = fallbackWindowsBashPath(nativePath);
+    if (fallback !== nativePath) {
+        return fallback;
+    }
     const cacheKey = cacheKeyFor(nativePath, env);
     const cached = bashPathCache.get(cacheKey);
     if (cached !== undefined) {
@@ -22,8 +26,7 @@ export async function toBashPath(nativePath, env) {
     const converter = await getBashPathConverter(env);
     const converted = (converter === null
         ? null
-        : await convertPathWithBash(nativePath, converter, env)) ??
-        fallbackWindowsBashPath(nativePath);
+        : await convertPathWithBash(nativePath, converter, env)) ?? fallback;
     bashPathCache.set(cacheKey, converted);
     return converted;
 }

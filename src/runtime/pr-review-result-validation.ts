@@ -12,7 +12,6 @@ import {
 import { requireDirectEphemeralChild } from "./paths.js";
 
 const execFileAsync = promisify(execFile);
-const BASH_HELPER_TIMEOUT_MS = 1000;
 
 type JsonObject = Record<string, unknown>;
 
@@ -885,7 +884,6 @@ async function runBashHelper(
         cwd: process.cwd(),
         env: helperEnv,
         maxBuffer: 1024 * 1024,
-        timeout: BASH_HELPER_TIMEOUT_MS,
       },
     );
   } catch (err) {
@@ -893,18 +891,7 @@ async function runBashHelper(
       err && typeof err === "object" && "stderr" in err
         ? String((err as { stderr?: unknown }).stderr).trim()
         : "";
-    const timedOut =
-      err &&
-      typeof err === "object" &&
-      "signal" in err &&
-      (err as { signal?: unknown }).signal === "SIGTERM";
-    fail(
-      stderr.length > 0
-        ? stderr
-        : timedOut
-          ? "helper command timed out"
-          : "helper command failed",
-    );
+    fail(stderr.length > 0 ? stderr : "helper command failed");
   }
 }
 

@@ -10,7 +10,6 @@ import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { validatePrReviewResultCommandAuthority, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
-const BASH_HELPER_TIMEOUT_MS = 1000;
 const FORBIDDEN_KEYS = new Set([
     "approval",
     "approved_review",
@@ -941,22 +940,13 @@ async function runBashHelper(helper, command, env) {
             cwd: process.cwd(),
             env: helperEnv,
             maxBuffer: 1024 * 1024,
-            timeout: BASH_HELPER_TIMEOUT_MS,
         });
     }
     catch (err) {
         const stderr = err && typeof err === "object" && "stderr" in err
             ? String(err.stderr).trim()
             : "";
-        const timedOut = err &&
-            typeof err === "object" &&
-            "signal" in err &&
-            err.signal === "SIGTERM";
-        fail(stderr.length > 0
-            ? stderr
-            : timedOut
-                ? "helper command timed out"
-                : "helper command failed");
+        fail(stderr.length > 0 ? stderr : "helper command failed");
     }
 }
 async function resolveScopeHelper() {
