@@ -592,11 +592,14 @@ blockers; Phase 8 PR readiness, creation, or update blockers; created PR and
 current head result reports; terminal owner-thread state; and source-issue
 reporting gates surfaced from implementation.
 
-Every report should include the source provider and identifier from the
-payload, delegated owner-thread identity when known, branch name when known,
-PR provider and identifier when known, head SHA when known, gate kind, blocking
-evidence, requested parent action, source-specific side effects requested, and
-the next safe command or workflow.
+Every report should include the source provider and source issue identifier
+from the payload, delegated owner-thread identity when known, branch name when
+known, PR provider and identifier when known, head SHA when known, gate kind,
+the relevant complete route key when known or applicable, blocking evidence,
+requested parent action, source-specific side effects requested, and the next
+safe command or workflow. Reports missing or unable to produce the relevant
+complete route key are incomplete for router reconciliation and must report
+waiting or manual action instead of asking the router to infer the route key.
 
 This workflow does not directly mutate source issue status unless an explicitly
 available provider-specific workflow owns that side effect. Source-issue

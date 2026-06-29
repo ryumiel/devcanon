@@ -309,7 +309,7 @@ describe("issue-batch-routing skill contract", () => {
       "Stale approval signals tied to an older head SHA do not count",
       "Merge conflicts route to the owner thread",
       "Unresolved inline review threads route to the review-response workflow",
-      "same complete review-response route key, including source issue, PR provider, PR identifier, head SHA, and unresolved-thread-set digest",
+      "same complete review-response route key, including source provider, source issue identifier, PR provider, PR identifier, head SHA, and unresolved-thread-set digest",
       "Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope",
       "CI-fix routing also requires a provider-specific CI-fix workflow to be available",
       "When that workflow is unavailable, report waiting with the missing workflow",
@@ -406,7 +406,7 @@ describe("issue-batch-routing skill contract", () => {
     );
 
     expect(fixtures).toContain(
-      "PR has failing check run `A` at head `H`, source issue `S`, PR provider `github`, PR `P`, and observable provider-specific GitHub CI-failure repair capability evidence",
+      "PR has failing check run `A` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, and observable provider-specific GitHub CI-failure repair capability evidence",
     );
     expect(fixtures).toContain(
       "Route CI-fix once using that observed capability evidence",
@@ -570,6 +570,14 @@ describe("issue-batch-routing skill contract", () => {
       expect(workflow).toContain(obligation);
     }
     expect(workflow).toContain("delegated owner-thread identity when known");
+    expect(workflow).toContain("source provider");
+    expect(workflow).toContain("source issue identifier");
+    expect(workflow).toContain(
+      "relevant complete route key when known or applicable",
+    );
+    expect(workflow).toContain(
+      "Reports missing or unable to produce the relevant complete route key are incomplete for router reconciliation",
+    );
 
     for (const obligation of [
       "review-response plan approval gates",
@@ -735,7 +743,7 @@ describe("issue-batch-routing skill contract", () => {
       "Persist the complete route key after routing; partial fields such as only the unresolved-thread-set digest or only the check identifier are diagnostic hints, not replay authority",
     );
     expect(fixtures).toContain(
-      "Route CI-fix once for check run `A`, keyed by source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`",
+      "Route CI-fix once for check run `A`, keyed by source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`",
     );
     expect(fixtures).toContain(
       "No provider-specific CI-fix workflow is available for failing check run `A`",
@@ -878,8 +886,8 @@ describe("issue-batch-routing skill contract", () => {
       "Wait until matching human merge approval evidence is present",
       "PR has failing check run `A`",
       "Route CI-fix once for check run `A`",
-      "PR has unresolved review-thread digest `B` at head `H`, source issue `S`, PR provider `github`, and PR `P`",
-      "Route review-response once for the complete key: source issue `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`",
+      "PR has unresolved review-thread digest `B` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, and PR `P`",
+      "Route review-response once for the complete key: source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`",
       "PR is merge-conflicted at head `C`",
       "Route owner thread once by PR, head SHA, and mergeability state",
       "Owner thread reports approval gate `D`",
