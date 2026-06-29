@@ -29,6 +29,35 @@ exports[`existing skills render cleanly > renders shipped per-target metadata fo
 }
 `;
 
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-batch-routing-claude-frontmatter 1`] = `
+{
+  "description": "Provider-neutral batch routing for GitHub and Linear issue work across owner threads, PR gates, approvals, merges, and archival. Use when monitoring or routing a mixed batch of issue-provider records through existing issue, review, CI, PR, and thread workflows.",
+  "model": "claude-opus-4-7",
+  "name": "issue-batch-routing",
+}
+`;
+
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-batch-routing-codex-frontmatter 1`] = `
+{
+  "description": "Provider-neutral batch routing for GitHub and Linear issue work across owner threads, PR gates, approvals, merges, and archival. Use when monitoring or routing a mixed batch of issue-provider records through existing issue, review, CI, PR, and thread workflows.",
+  "license": "MIT",
+  "metadata": {
+    "short-description": "Route mixed issue batches across owner threads and PR gates",
+  },
+  "name": "issue-batch-routing",
+}
+`;
+
+exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-batch-routing-sidecar 1`] = `
+{
+  "interface": {
+    "brand_color": "#2563eb",
+    "display_name": "Issue Batch Routing (devcanon)",
+    "short_description": "Route issue batches without owning implementation side effects",
+  },
+}
+`;
+
 exports[`existing skills render cleanly > renders shipped per-target metadata for the priming and review skills > issue-priming-workflow-claude-frontmatter 1`] = `
 {
   "description": "Continues a normalized issue-priming workflow into design and implementation readiness, with optional autonomous execution to a reviewable PR. Use when \`linear-issue-priming\` or \`github-issue-priming\` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.",

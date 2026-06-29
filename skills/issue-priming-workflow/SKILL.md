@@ -583,6 +583,29 @@ For a visual phase-flow map only, see
 procedures, helper contracts, notice lines, auto-mode rules, review rules, and
 PR handoff rules above remain authoritative.
 
+## Issue Batch Routing Reports
+
+When invoked after a source entrypoint handoff, this workflow produces
+issue-batch-routing reports for research, brainstorming, or design ambiguity
+stops; user or parent approval gates; implementation blockers; branch-review
+blockers; Phase 8 PR readiness, creation, or update blockers; created PR and
+current head result reports; terminal owner-thread state; and source-issue
+reporting gates surfaced from implementation.
+
+Every report should include the source provider and source issue identifier
+from the payload, delegated owner-thread identity when known, branch name when
+known, PR provider and identifier when known, head SHA when known, gate kind,
+the relevant complete route key when known or applicable, blocking evidence,
+requested parent action, source-specific side effects requested, and the next
+safe command or workflow. Reports missing or unable to produce the relevant
+complete route key are incomplete for router reconciliation and must report
+waiting or manual action instead of asking the router to infer the route key.
+
+This workflow does not directly mutate source issue status unless an explicitly
+available provider-specific workflow owns that side effect. Source-issue
+reporting without an available provider-specific workflow becomes a
+parent/manual-action report.
+
 ## Common Mistakes
 
 See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, skipping the gate / brainstorming / nit classification, shared PR authoring bypass, and treating out-of-band authorization as merge consent).

@@ -16,16 +16,19 @@ import { renderAll } from "./pipeline.js";
 const SKILLS_WITH_METADATA = {
   claudeFrontmatter: [
     "github-issue-priming",
+    "issue-batch-routing",
     "issue-priming-workflow",
     "linear-issue-priming",
   ] as const,
   codexFrontmatter: [
     "github-issue-priming",
+    "issue-batch-routing",
     "linear-issue-priming",
     "report-devcanon-issue",
   ] as const,
   sidecar: [
     "github-issue-priming",
+    "issue-batch-routing",
     "linear-issue-priming",
     "pr-review",
     "report-devcanon-issue",
@@ -55,6 +58,8 @@ const PUBLIC_EXPLICIT_PLAY_SKILLS = [
 
 const TOUCHED_SKILL_COVERAGE = {
   "github-issue-priming":
+    "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
+  "issue-batch-routing":
     "explicit metadata expectations cover Claude model, Codex metadata, and Codex sidecar packaging",
   "issue-priming-workflow":
     "explicit metadata expectations cover Claude model and Codex policy sidecar packaging",

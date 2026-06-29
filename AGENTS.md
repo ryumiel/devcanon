@@ -209,6 +209,7 @@ entry points:
   [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Portable AFDS Toolkit roadmap:
   [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
+- `issue-batch-routing`: provider-neutral controller workflow for routing mixed GitHub and Linear issue batches across owner threads, PR gates, CI/review handoffs, merge routing, reporting, and archival.
 
 ---
 
