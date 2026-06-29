@@ -14,7 +14,11 @@ import {
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
-import { normalizeBashScriptEnvPaths, toBashPath } from "./bash-paths.js";
+import {
+  BASH_HELPER_PATH_ENV_KEYS,
+  normalizeBashScriptEnvPaths,
+  toBashPath,
+} from "./bash-paths.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
@@ -23,6 +27,7 @@ import {
 } from "./pr-review-result-validation.js";
 
 const execFileAsync = promisify(execFile);
+const BASH_HELPER_TIMEOUT_MS = 1000;
 
 type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
@@ -1430,9 +1435,10 @@ async function runBashHelper(
   env: NodeJS.ProcessEnv,
 ) {
   try {
-    const helperEnv = await normalizeBashScriptEnvPaths(env, [
-      "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
-    ]);
+    const helperEnv = await normalizeBashScriptEnvPaths(
+      env,
+      BASH_HELPER_PATH_ENV_KEYS,
+    );
     await execFileAsync(
       "bash",
       [await toBashPath(helper, helperEnv), command],
@@ -1440,6 +1446,7 @@ async function runBashHelper(
         cwd: process.cwd(),
         env: helperEnv,
         maxBuffer: 1024 * 1024,
+        timeout: BASH_HELPER_TIMEOUT_MS,
       },
     );
   } catch (err) {
@@ -1447,7 +1454,18 @@ async function runBashHelper(
       err && typeof err === "object" && "stderr" in err
         ? String((err as { stderr?: unknown }).stderr).trim()
         : "";
-    fail(stderr.length > 0 ? stderr : "helper command failed");
+    const timedOut =
+      err &&
+      typeof err === "object" &&
+      "signal" in err &&
+      (err as { signal?: unknown }).signal === "SIGTERM";
+    fail(
+      stderr.length > 0
+        ? stderr
+        : timedOut
+          ? "helper command timed out"
+          : "helper command failed",
+    );
   }
 }
 

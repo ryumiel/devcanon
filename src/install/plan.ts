@@ -253,7 +253,7 @@ async function hasCopyModeSymlinkKindDrift(
       }
       const installedKind = await getSymlinkKind(installedPath);
       if (
-        installedKind === "unknown" ||
+        installedKind !== "unknown" &&
         installedKind !== desiredSymlink.kind
       ) {
         return true;
@@ -368,7 +368,7 @@ async function getUnfollowableSymlinkKind(
     return "unknown";
   } catch (err) {
     if (isNodeErrorCode(err, "ENOENT") || isNodeErrorCode(err, "ELOOP")) {
-      return "file";
+      return "unknown";
     }
     if (isNodeErrorCode(err, "EPERM")) {
       return "unknown";

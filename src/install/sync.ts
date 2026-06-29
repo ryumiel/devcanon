@@ -91,7 +91,8 @@ export async function sync(
           record,
           output: action.kind === "remove" ? undefined : action,
           allowMissing: action.kind === "install",
-          allowHistoricalSymlinkKinds: action.kind === "update",
+          allowHistoricalSymlinkKinds:
+            action.kind === "update" || action.kind === "remove",
         });
       }
 

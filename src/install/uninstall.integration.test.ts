@@ -484,6 +484,46 @@ describe("uninstall", () => {
   );
 
   it.skipIf(!symlinkAvailable)(
+    "uninstalls a copied skill when a mirrored symlink target changes historical kind",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const externalTarget = path.join(tempDir, "external", "target");
+      await mkdir(path.dirname(externalTarget), { recursive: true });
+      await writeFile(externalTarget, "payload", "utf-8");
+      await symlink(
+        externalTarget,
+        path.join(skillDir, "scripts", "link"),
+        "file",
+      );
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const claudeSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      await rm(externalTarget);
+      await mkdir(externalTarget, { recursive: true });
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(1);
+      expect(result.errors).toEqual([]);
+      expect(await pathExists(claudeSkillPath)).toBe(false);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
     "skips copied skill uninstall when copied symlink resolves elsewhere",
     async () => {
       const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });

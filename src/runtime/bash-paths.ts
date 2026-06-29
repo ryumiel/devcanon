@@ -3,7 +3,15 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const bashPathCache = new Map<string, string>();
-const bashScriptPathCache = new Map<string, boolean>();
+const bashPathConverterCache = new Map<string, "wslpath" | "cygpath" | null>();
+
+export const BASH_HELPER_PATH_ENV_KEYS = [
+  "FINDINGS_FILE",
+  "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
+  "PRIOR_THREADS_FILE",
+  "PROVIDER_SCOPE_EVIDENCE_FILE",
+  "SCOPE_DECISION_FILE",
+] as const;
 
 export async function toBashPath(
   nativePath: string,
@@ -18,10 +26,12 @@ export async function toBashPath(
     return cached;
   }
 
+  const converter = await getBashPathConverter(env);
   const converted =
-    (await convertPathWithBash(nativePath, "wslpath", env)) ??
-    (await convertPathWithBash(nativePath, "cygpath", env)) ??
-    (await fallbackWindowsBashPath(nativePath, env));
+    (converter === null
+      ? null
+      : await convertPathWithBash(nativePath, converter, env)) ??
+    fallbackWindowsBashPath(nativePath);
   bashPathCache.set(cacheKey, converted);
   return converted;
 }
@@ -58,43 +68,63 @@ async function convertPathWithBash(
           DEVCANON_BASH_PATH_COMMAND: command,
           DEVCANON_BASH_PATH_INPUT: nativePath,
         },
+        timeout: 1000,
       },
     );
     const converted = stdout.trim();
-    return isUsableConvertedPath(converted) &&
-      (await bashCanOpenScript(converted, env))
-      ? converted
-      : null;
+    return isUsableConvertedPath(converted) ? converted : null;
   } catch {
     return null;
   }
 }
 
-async function bashCanOpenScript(
-  bashPath: string,
+async function getBashPathConverter(
   env: NodeJS.ProcessEnv | undefined,
-): Promise<boolean> {
-  const cacheKey = cacheKeyFor(bashPath, env);
-  const cached = bashScriptPathCache.get(cacheKey);
-  if (cached !== undefined) {
-    return cached;
+): Promise<"wslpath" | "cygpath" | null> {
+  const key = envPath(env) ?? "";
+  if (bashPathConverterCache.has(key)) {
+    return bashPathConverterCache.get(key) ?? null;
   }
 
-  const exists = await execFileAsync("bash", ["-n", bashPath], { env })
-    .then(() => true)
-    .catch(() => false);
-  bashScriptPathCache.set(cacheKey, exists);
-  return exists;
+  const converter = (await bashHasCommand("wslpath", env))
+    ? "wslpath"
+    : (await bashHasCommand("cygpath", env))
+      ? "cygpath"
+      : null;
+  bashPathConverterCache.set(key, converter);
+  return converter;
+}
+
+async function bashHasCommand(
+  command: "wslpath" | "cygpath",
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<boolean> {
+  try {
+    await execFileAsync(
+      "bash",
+      [
+        "-lc",
+        'case "$DEVCANON_BASH_PATH_COMMAND" in wslpath|cygpath) command -v "$DEVCANON_BASH_PATH_COMMAND" >/dev/null 2>&1 ;; *) exit 127 ;; esac',
+      ],
+      {
+        env: {
+          ...env,
+          DEVCANON_BASH_PATH_COMMAND: command,
+        },
+        timeout: 1000,
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isUsableConvertedPath(converted: string): boolean {
   return converted.length > 1 && converted !== "." && converted !== "/";
 }
 
-async function fallbackWindowsBashPath(
-  nativePath: string,
-  env: NodeJS.ProcessEnv | undefined,
-): Promise<string> {
+function fallbackWindowsBashPath(nativePath: string): string {
   const match = /^([A-Za-z]):[\\/](.*)$/u.exec(nativePath);
   if (match === null) {
     return nativePath;
@@ -102,10 +132,6 @@ async function fallbackWindowsBashPath(
 
   const drive = match[1].toLowerCase();
   const rest = match[2].replace(/\\/gu, "/");
-  const wslPath = `/mnt/${drive}/${rest}`;
-  if (await bashCanOpenScript(wslPath, env)) {
-    return wslPath;
-  }
   return `/${drive}/${rest}`;
 }
 

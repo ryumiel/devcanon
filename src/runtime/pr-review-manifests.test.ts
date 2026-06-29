@@ -65,6 +65,7 @@ afterEach(async () => {
     delete process.env[key];
   }
   vi.doUnmock("./pr-review-leases.js");
+  vi.doUnmock("./pr-review-result-validation.js");
   vi.resetModules();
   for (const tempRoot of tempRoots.splice(0)) {
     await rm(tempRoot, rmTempRootOptions);
@@ -80,13 +81,15 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
-    const workspace = await makeManifestWorkspace(
+    const workspace = await makeMockedStatusWorkspace(
       "pr-review-manifest-summary-",
     );
     setSummaryEnv(workspace);
     process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommandWithLeaseStatus(workspace, [
+      "render-phase5-audit-summary",
+    ]);
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
@@ -115,11 +118,15 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("uses WORKTREE_PATH for result artifacts and PRIMARY_REPOSITORY_ROOT for lease status", async () => {
-    const workspace = await makeManifestWorkspace("pr-review-distinct-roots-");
+    const workspace = await makeMockedStatusWorkspace(
+      "pr-review-distinct-roots-",
+    );
     setSummaryEnv(workspace);
     process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommandWithLeaseStatus(workspace, [
+      "render-phase5-audit-summary",
+    ]);
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain(
@@ -131,7 +138,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("does not mutate the lease file or result artifacts", async () => {
-    const workspace = await makeManifestWorkspace(
+    const workspace = await makeMockedStatusWorkspace(
       "pr-review-summary-readonly-",
     );
     setSummaryEnv(workspace);
@@ -144,7 +151,9 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       body: await readFile(bodyPath, "utf8"),
     };
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommandWithLeaseStatus(workspace, [
+      "render-phase5-audit-summary",
+    ]);
 
     expect(result.exitCode, result.stderr).toBe(0);
     await expect(readFile(leasePath, "utf8")).resolves.toBe(before.lease);
@@ -213,8 +222,13 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     for (const testCase of cases) {
       const workspace = await makeManifestWorkspace(
         `pr-review-summary-${testCase.name}-`,
+        { linkedWorktree: false },
       );
       setSummaryEnv(workspace);
+      vi.resetModules();
+      vi.doMock("./pr-review-result-validation.js", () => ({
+        validatePrReviewResultCommandAuthority: vi.fn(async () => {}),
+      }));
       vi.doMock("./pr-review-leases.js", () => ({
         runPrReviewLeasesCommand: vi.fn(async () => ({
           exitCode: testCase.stderr === undefined ? 0 : 1,
@@ -233,6 +247,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         expect(result.stderr, testCase.name).toContain(testCase.expectStderr);
       } finally {
         vi.doUnmock("./pr-review-leases.js");
+        vi.doUnmock("./pr-review-result-validation.js");
         vi.resetModules();
       }
     }
@@ -250,6 +265,9 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       );
       setSummaryEnv(workspace);
       vi.resetModules();
+      vi.doMock("./pr-review-result-validation.js", () => ({
+        validatePrReviewResultCommandAuthority: vi.fn(async () => {}),
+      }));
       vi.doMock("./pr-review-leases.js", () => ({
         runPrReviewLeasesCommand: vi.fn(async () => ({
           exitCode: 0,
@@ -267,13 +285,16 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         expect(result.stderr, field).toContain(expected);
       } finally {
         vi.doUnmock("./pr-review-leases.js");
+        vi.doUnmock("./pr-review-result-validation.js");
         vi.resetModules();
       }
     });
   }
 
   it("escapes backticks in dynamic audit summary code spans", async () => {
-    const workspace = await makeManifestWorkspace("pr-review-summary-`ticks-");
+    const workspace = await makeMockedStatusWorkspace(
+      "pr-review-summary-`ticks-",
+    );
     const resultPath = path.join(workspace.worktree, workspace.resultFile);
     const resultManifest = JSON.parse(
       await readFile(resultPath, "utf8"),
@@ -320,7 +341,11 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     });
     setSummaryEnv(workspace);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommandWithLeaseStatus(
+      workspace,
+      ["render-phase5-audit-summary"],
+      { result_sha256: await sha256File(resultPath) },
+    );
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain(
@@ -332,10 +357,14 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("uses only Phase 5-safe cleanup wording", async () => {
-    const workspace = await makeManifestWorkspace("pr-review-cleanup-wording-");
+    const workspace = await makeMockedStatusWorkspace(
+      "pr-review-cleanup-wording-",
+    );
     setSummaryEnv(workspace);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+    const result = await runManifestCommandWithLeaseStatus(workspace, [
+      "render-phase5-audit-summary",
+    ]);
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain("cleanup pending");
@@ -346,7 +375,9 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("keeps pr-review/result/v1 forbidden lease and approval fields rejected", async () => {
-    const workspace = await makeManifestWorkspace("pr-review-forbidden-field-");
+    const workspace = await makeMockedStatusWorkspace(
+      "pr-review-forbidden-field-",
+    );
     setSummaryEnv(workspace);
     const resultPath = path.join(workspace.worktree, workspace.resultFile);
     const result = JSON.parse(await readFile(resultPath, "utf8")) as Record<
@@ -366,7 +397,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   });
 
   it("rejects provider evidence digest drift during Phase 5 result validation", async () => {
-    const workspace = await makeManifestWorkspace(
+    const workspace = await makeMockedStatusWorkspace(
       "pr-review-provider-evidence-drift-",
     );
     setSummaryEnv(workspace);
@@ -437,6 +468,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     async ({ patch, stderr }) => {
       const workspace = await makeManifestWorkspace(
         "pr-review-provider-evidence-identity-",
+        { linkedWorktree: false },
       );
       setSummaryEnv(workspace);
       const evidence = JSON.parse(
@@ -525,8 +557,15 @@ describe("pr-review Phase 5 audit summary renderer", () => {
   );
 
   it("requires explicit provider evidence input for adapter scope validation", async () => {
+    const usableBash = await hasUsableBash();
+    if (!usableBash) {
+      expect(usableBash).toBe(false);
+      return;
+    }
+
     const workspace = await makeManifestWorkspace(
       "pr-review-explicit-provider-input-",
+      { linkedWorktree: false },
     );
     const helper = await writeExecutable(
       path.join(workspace.tempRoot, "pass-validator.sh"),
@@ -540,6 +579,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     await expect(
       execFileAsync("bash", [adapter, "validate-scope-decision"], {
         cwd: workspace.worktree,
+        timeout: 1000,
         env: {
           ...process.env,
           HEAD_SHA: workspace.headSha,
@@ -563,6 +603,56 @@ async function runManifestCommand(
     "./pr-review-manifests.js"
   );
   return runPrReviewManifestsCommand(args);
+}
+
+let usableBash: boolean | undefined;
+
+async function hasUsableBash(): Promise<boolean> {
+  if (usableBash !== undefined) {
+    return usableBash;
+  }
+
+  try {
+    await execFileAsync("bash", ["-lc", "exit 0"], { timeout: 1000 });
+    usableBash = true;
+  } catch {
+    usableBash = false;
+  }
+  return usableBash;
+}
+
+async function makeMockedStatusWorkspace(
+  prefix: string,
+): Promise<ManifestWorkspace> {
+  return makeManifestWorkspace(prefix, {
+    linkedWorktree: false,
+  });
+}
+
+async function runManifestCommandWithLeaseStatus(
+  workspace: ManifestWorkspace,
+  args: readonly string[],
+  statusPatch: Record<string, unknown> = {},
+): Promise<RuntimeCommandOutcome> {
+  vi.resetModules();
+  vi.doMock("./pr-review-result-validation.js", () => ({
+    validatePrReviewResultCommandAuthority: vi.fn(async () => {}),
+  }));
+  vi.doMock("./pr-review-leases.js", () => ({
+    runPrReviewLeasesCommand: vi.fn(async () => ({
+      exitCode: 0,
+      stdout: `${JSON.stringify({ ...validStatus(workspace), ...statusPatch })}\n`,
+      stderr: "",
+    })),
+  }));
+
+  try {
+    return await runManifestCommand(args);
+  } finally {
+    vi.doUnmock("./pr-review-leases.js");
+    vi.doUnmock("./pr-review-result-validation.js");
+    vi.resetModules();
+  }
 }
 
 async function makeManifestWorkspace(

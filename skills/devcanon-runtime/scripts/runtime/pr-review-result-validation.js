@@ -4,9 +4,10 @@ import { constants } from "node:fs";
 import { access, lstat, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { normalizeBashScriptEnvPaths, toBashPath } from "./bash-paths.js";
+import { BASH_HELPER_PATH_ENV_KEYS, normalizeBashScriptEnvPaths, toBashPath, } from "./bash-paths.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 const execFileAsync = promisify(execFile);
+const BASH_HELPER_TIMEOUT_MS = 1000;
 const FORBIDDEN_KEYS = new Set([
     "approval",
     "approved_review",
@@ -516,20 +517,27 @@ async function validateFindingsAuthority(findingsFile, input) {
 }
 async function runBashHelper(helper, command, env) {
     try {
-        const helperEnv = await normalizeBashScriptEnvPaths(env, [
-            "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
-        ]);
+        const helperEnv = await normalizeBashScriptEnvPaths(env, BASH_HELPER_PATH_ENV_KEYS);
         await execFileAsync("bash", [await toBashPath(helper, helperEnv), command], {
             cwd: process.cwd(),
             env: helperEnv,
             maxBuffer: 1024 * 1024,
+            timeout: BASH_HELPER_TIMEOUT_MS,
         });
     }
     catch (err) {
         const stderr = err && typeof err === "object" && "stderr" in err
             ? String(err.stderr).trim()
             : "";
-        fail(stderr.length > 0 ? stderr : "helper command failed");
+        const timedOut = err &&
+            typeof err === "object" &&
+            "signal" in err &&
+            err.signal === "SIGTERM";
+        fail(stderr.length > 0
+            ? stderr
+            : timedOut
+                ? "helper command timed out"
+                : "helper command failed");
     }
 }
 async function resolveScopeHelper(input) {

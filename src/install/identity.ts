@@ -426,11 +426,11 @@ async function getInstalledSymlinkTypes(
     ) {
       if (allowHistoricalSymlinkKinds) {
         // Some copied symlinks cannot be followed once the external target kind
-        // changes, especially on Windows. Update verification may accept the
-        // previous kind so sync can rewrite the stale output.
+        // changes, especially on Windows. Updating or removing may accept the
+        // previous kind so sync can rewrite or clean up the stale output.
         return ["file", "dir"];
       }
-      return ["file"];
+      return ["file", "dir"];
     }
     throw err;
   }
@@ -566,16 +566,9 @@ async function normalizedInstalledSymlinkTargets(
   const expectedTarget = await readExpectedSymlinkTarget(expectedPath);
 
   if (!path.isAbsolute(actualTarget)) {
-    return [
-      {
-        target: actualTarget,
-        allowLegacyTargetOnlyHash:
-          expectedTarget === null ||
-          (!path.isAbsolute(expectedTarget) &&
-            path.resolve(path.dirname(expectedPath), actualTarget) ===
-              path.resolve(path.dirname(expectedPath), expectedTarget)),
-      },
-    ];
+    return separatorSpellingCandidates(actualTarget).map(
+      allowLegacySymlinkTarget,
+    );
   }
 
   if (expectedTarget === null) {
@@ -589,7 +582,7 @@ async function normalizedInstalledSymlinkTargets(
     return [
       {
         target: actualTarget,
-        allowLegacyTargetOnlyHash: actualTarget === expectedTarget,
+        allowLegacyTargetOnlyHash: true,
       },
     ];
   }
@@ -611,7 +604,7 @@ async function normalizedInstalledSymlinkTargets(
       target: toPosixPath(
         path.relative(path.dirname(expectedPath), actualTarget),
       ),
-      allowLegacyTargetOnlyHash: false,
+      allowLegacyTargetOnlyHash: true,
     },
   ];
 }
