@@ -960,6 +960,41 @@ describe("renderAll", () => {
     },
   );
 
+  it.skipIf(!symlinkAvailable)(
+    "preserves mirrored cyclic symlink target spelling",
+    async () => {
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "cyclic-linked-skill",
+        [
+          "---",
+          "name: cyclic-linked-skill",
+          "description: A test skill.",
+          "---",
+          "",
+          "# body",
+          "",
+        ].join("\n"),
+        ["scripts"],
+      );
+      const scriptsDir = path.join(skillDir, "scripts");
+      const linkPath = path.join(scriptsDir, "self-link");
+      await symlink("self-link", linkPath, "file");
+
+      await renderAll(config, true);
+
+      const generatedLink = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        "cyclic-linked-skill",
+        "scripts",
+        "self-link",
+      );
+      expect(await readlink(generatedLink)).toBe("self-link");
+    },
+  );
+
   it("omits unknown top-level skill directories from generated target dirs", async () => {
     const skillDir = await createSkillFixture(
       config.library.skillsDir,

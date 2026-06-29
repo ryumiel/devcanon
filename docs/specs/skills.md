@@ -235,6 +235,9 @@ symlinks, and executable permission bits. Shell scripts under a skill's
 top-level `scripts/**/*.sh` tree are normalized from CRLF to LF before hashing
 and writing generated output so generated skill adapters remain executable from
 Windows-hosted agent sessions that invoke Bash.
+When a symlink target kind cannot be resolved during packaging, such as a
+dangling or cyclic link, generated output still preserves the symlink target
+spelling instead of resolving the target.
 
 Keep `SKILL.md` focused on the always-loaded instructions needed to
 route and execute the skill. Move non-eager material into the optional

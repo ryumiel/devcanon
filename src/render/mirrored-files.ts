@@ -144,7 +144,7 @@ async function getSourceSymlinkType(
     const sourceTargetStat = await stat(sourcePath);
     return sourceTargetStat.isDirectory() ? "dir" : "file";
   } catch (error) {
-    if (isNodeErrorCode(error, "ENOENT")) {
+    if (isNodeErrorCode(error, "ENOENT") || isNodeErrorCode(error, "ELOOP")) {
       return "file";
     }
     throw error;
