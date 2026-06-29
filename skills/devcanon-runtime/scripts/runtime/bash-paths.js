@@ -1,8 +1,11 @@
 import { execFile } from "node:child_process";
+import { access } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const bashPathCache = new Map();
 const bashPathConverterCache = new Map();
+const gitBashCache = new Map();
 export const BASH_HELPER_PATH_ENV_KEYS = [
     "FINDINGS_FILE",
     "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
@@ -15,7 +18,7 @@ export async function toBashPath(nativePath, env) {
         return nativePath;
     }
     const fallback = fallbackWindowsBashPath(nativePath);
-    if (fallback !== nativePath) {
+    if (fallback !== nativePath && (await usesGitBash(env))) {
         return fallback;
     }
     const cacheKey = cacheKeyFor(nativePath, env);
@@ -90,6 +93,37 @@ async function bashHasCommand(command, env) {
     catch {
         return false;
     }
+}
+async function usesGitBash(env) {
+    const key = envPath(env) ?? "";
+    const cached = gitBashCache.get(key);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const found = await findFirstBashOnPath(env);
+    const isGitBash = found !== null &&
+        /[\\/]git[\\/]((usr[\\/]bin)|(bin))[\\/]bash\.exe$/iu.test(found);
+    gitBashCache.set(key, isGitBash);
+    return isGitBash;
+}
+async function findFirstBashOnPath(env) {
+    for (const entry of pathEntries(env)) {
+        const candidate = path.join(entry, "bash.exe");
+        try {
+            await access(candidate);
+            return candidate;
+        }
+        catch {
+            // Keep scanning PATH; missing or inaccessible entries are normal.
+        }
+    }
+    return null;
+}
+function pathEntries(env) {
+    return (envPath(env) ?? "")
+        .split(path.delimiter)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
 }
 function isUsableConvertedPath(converted) {
     return converted.length > 1 && converted !== "." && converted !== "/";

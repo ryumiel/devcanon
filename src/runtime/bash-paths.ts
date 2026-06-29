@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process";
+import { access } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const bashPathCache = new Map<string, string>();
 const bashPathConverterCache = new Map<string, "wslpath" | "cygpath" | null>();
+const gitBashCache = new Map<string, boolean>();
 
 export const BASH_HELPER_PATH_ENV_KEYS = [
   "FINDINGS_FILE",
@@ -21,7 +24,7 @@ export async function toBashPath(
     return nativePath;
   }
   const fallback = fallbackWindowsBashPath(nativePath);
-  if (fallback !== nativePath) {
+  if (fallback !== nativePath && (await usesGitBash(env))) {
     return fallback;
   }
   const cacheKey = cacheKeyFor(nativePath, env);
@@ -121,6 +124,45 @@ async function bashHasCommand(
   } catch {
     return false;
   }
+}
+
+async function usesGitBash(
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<boolean> {
+  const key = envPath(env) ?? "";
+  const cached = gitBashCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const found = await findFirstBashOnPath(env);
+  const isGitBash =
+    found !== null &&
+    /[\\/]git[\\/]((usr[\\/]bin)|(bin))[\\/]bash\.exe$/iu.test(found);
+  gitBashCache.set(key, isGitBash);
+  return isGitBash;
+}
+
+async function findFirstBashOnPath(
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<string | null> {
+  for (const entry of pathEntries(env)) {
+    const candidate = path.join(entry, "bash.exe");
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // Keep scanning PATH; missing or inaccessible entries are normal.
+    }
+  }
+  return null;
+}
+
+function pathEntries(env: NodeJS.ProcessEnv | undefined): string[] {
+  return (envPath(env) ?? "")
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 function isUsableConvertedPath(converted: string): boolean {

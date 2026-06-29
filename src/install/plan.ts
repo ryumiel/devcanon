@@ -8,7 +8,7 @@ import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
 
 type DetectedSymlinkType = PackagedSymlinkType | "unknown";
-type SymlinkKindEntry = { target: string; kind: PackagedSymlinkType };
+type SymlinkKindEntry = { target: string; kind: DetectedSymlinkType };
 
 export async function computePlan(
   outputs: RenderedOutput[],
@@ -254,6 +254,7 @@ async function hasCopyModeSymlinkKindDrift(
       const installedKind = await getSymlinkKind(installedPath);
       if (
         installedKind !== "unknown" &&
+        desiredSymlink.kind !== "unknown" &&
         installedKind !== desiredSymlink.kind
       ) {
         return true;
@@ -324,19 +325,12 @@ async function collectSymlinkKinds(
     if (entry.isSymbolicLink()) {
       symlinks.set(relPath, {
         target: await readlink(absolutePath),
-        kind: await getPackagedSymlinkKind(absolutePath),
+        kind: await getSymlinkKind(absolutePath),
       });
     }
   }
 
   return symlinks;
-}
-
-async function getPackagedSymlinkKind(
-  symlinkPath: string,
-): Promise<PackagedSymlinkType> {
-  const symlinkKind = await getSymlinkKind(symlinkPath);
-  return symlinkKind === "dir" ? "dir" : "file";
 }
 
 async function getSymlinkKind(
