@@ -185,7 +185,7 @@ Never reuse a prior route when the head SHA or relevant state digest changed.
 | `source-issue-reporting` | source provider, source issue identifier, owner thread ID, gate kind, owner-thread report digest or source-issue reporting gate digest, requested provider-specific side effect, source-issue state digest, head SHA when known. |
 | `approval-gate`          | source provider, source issue identifier, owner thread ID, gate kind, approval-gate digest, source-issue state digest, head SHA when known.                                                                                      |
 | `bot-review-signal`      | source provider, source issue identifier, PR provider, PR identifier, head SHA, bot signal digest.                                                                                                                               |
-| `merge-routing`          | source provider, source issue identifier, PR provider, PR identifier, head SHA, mergeability state, branch-protection/review state, bot signal digest when configured.                                                           |
+| `merge-routing`          | source provider, source issue identifier, PR provider, PR identifier, head SHA, CI state, mergeability state, branch-protection/review state, bot signal digest when configured.                                                 |
 | `archival`               | source provider, source issue identifier, owner thread ID, terminal PR or source-state digest.                                                                                                                                   |
 
 The route key prevents duplicate routes after monitor resumes, context
@@ -205,6 +205,8 @@ reuse the source-state monitoring key for provider-specific reporting side
 effects.
 `approval-gate` route keys include the source-issue state digest so source-state
 changes invalidate pre-PR approval routing.
+`merge-routing` route keys include CI state so pending, timed-out pending, and
+green merge-path states do not suppress each other as duplicates.
 Report-only waiting state must not update `last_routed_approval_gate_key`.
 Approval-gate duplicate suppression uses `last_routed_approval_gate_key` only
 after matching approval evidence has been routed to the owner thread.
@@ -293,6 +295,7 @@ Use these concrete fixture outcomes to self-check monitor decisions:
 | PR is otherwise merge-ready but lacks required human merge approval                                                                                                                                                                                               | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                                                      |
 | PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present                                                                                                                         | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                                                       |
 | PR is non-draft, pending CI, conflict-free, no unresolved threads, no active blocking bot signal, branch protection and review state allow waiting for CI, required human approval is present, and fresh required approval signal is present                      | Route `pr-merge` once with `last_routed_merge_routing_key` for CI polling; `pr-merge` may merge only after CI becomes green and protections still pass.                                                                           |
+| PR previously routed to `pr-merge` with pending CI later becomes CI-green at the same head SHA                                                                                                                                                                    | Treat the green CI state as a new `merge-routing` route key; do not suppress it with the prior pending-CI merge-routing key.                                                                                                      |
 | PR has failing CI that requires repair while non-CI merge gates are otherwise satisfied                                                                                                                                                                           | Route to provider-specific CI-fix when available, or wait/manual action when unavailable; do not treat failing CI as pending `pr-merge` polling.                                                                                  |
 | PR merged and owner thread reports terminal state                                                                                                                                                                                                                 | Archive only after terminal PR or source state, no active gate, no pending work, and `last_routed_archival_key` recording.                                                                                                        |
 
@@ -308,6 +311,9 @@ blockers. `issue-priming-workflow` is the producer after source-entrypoint
 handoff. If a named delegated workflow does not own a gate family or cannot
 produce the route-specific report fields, the router waits or reports manual
 action instead of assuming a report exists.
+Delegated reports must include the relevant complete route key when known or
+applicable. Reports missing the relevant complete route key are incomplete and
+fail closed to waiting or manual action.
 
 Each report must include:
 
@@ -318,14 +324,16 @@ Each report must include:
 - PR provider and identifier when known
 - head SHA when known
 - gate kind
+- relevant complete route key when known or applicable
 - requested parent action
 - evidence that the thread is blocked
 - source-specific side effects requested
 - next safe command or workflow to route
 
 Record a digest of the report before sending approvals or re-routing work. If
-the report omits the current head SHA or route-specific state needed for the
-gate, ask the owner thread to refetch and resend rather than approving.
+the report omits the current head SHA, relevant complete route key, or
+route-specific state needed for the gate, ask the owner thread to refetch and
+resend rather than approving.
 
 ## Parent Approval Evidence
 
