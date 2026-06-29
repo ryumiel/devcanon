@@ -390,10 +390,12 @@ async function installedSymlinkHashEntryCandidates(
     return targets.map(({ target }) => `symlink:${target}`);
   }
 
-  const symlinkTypes = await getInstalledSymlinkTypes(
-    installedPath,
-    options.allowHistoricalSymlinkKinds,
-  );
+  const symlinkTypes =
+    (await getExpectedUnobservableSymlinkTypes(expectedRoot, relPath)) ??
+    (await getInstalledSymlinkTypes(
+      installedPath,
+      options.allowHistoricalSymlinkKinds,
+    ));
   return uniqueStrings(
     targets.flatMap(({ target, allowLegacyTargetOnlyHash }) => {
       const candidates = allowLegacyTargetOnlyHash ? [`symlink:${target}`] : [];
@@ -405,6 +407,38 @@ async function installedSymlinkHashEntryCandidates(
       return candidates;
     }),
   );
+}
+
+async function getExpectedUnobservableSymlinkTypes(
+  expectedRoot: string | undefined,
+  relPath: string,
+): Promise<readonly PackagedSymlinkType[] | null> {
+  if (!expectedRoot) return null;
+
+  const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
+  let expectedStat: Awaited<ReturnType<typeof lstat>>;
+  try {
+    expectedStat = await lstat(expectedPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+
+  if (!expectedStat.isSymbolicLink()) return null;
+
+  try {
+    await stat(expectedPath);
+    return null;
+  } catch (err) {
+    if (
+      isNodeErrorCode(err, "ENOENT") ||
+      isNodeErrorCode(err, "ELOOP") ||
+      isNodeErrorCode(err, "EPERM")
+    ) {
+      return ["file", "dir"];
+    }
+    throw err;
+  }
 }
 
 async function getInstalledSymlinkTypes(

@@ -577,6 +577,51 @@ describe("sync", () => {
   );
 
   it.skipIf(!symlinkAvailable)(
+    "rejects retargeted copied skills when source symlink kind is unobservable",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      const sourceLink = path.join(skillDir, "scripts", "link");
+      await symlink("../../optional-dir", sourceLink, "dir");
+
+      const opts = { dryRun: false, force: false, strict: false } as const;
+      await sync(config, opts);
+
+      const installedSkillDir = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const installedLink = path.join(installedSkillDir, "scripts", "link");
+      const tamperedTarget = "../../other-dir";
+      await mkdir(path.join(config.targets.claude.skillsHome, "other-dir"));
+      await rm(installedLink);
+      await symlink(tamperedTarget, installedLink, "dir");
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+
+      const result = await sync(config, opts);
+
+      expect(result.updated).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed copy content hash mismatch"),
+      ]);
+      await expectRelativeSymlinkTarget(installedLink, tamperedTarget);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(manifestAfter.records).toEqual(manifestBefore.records);
+    },
+  );
+
+  it.skipIf(!symlinkAvailable)(
     "updates copy-installed skills with absolute mirrored symlinks",
     async () => {
       const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
