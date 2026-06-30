@@ -1,8 +1,8 @@
-import { lstatSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { LoadedSkill, RenderedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
+import { collectPackagedMirroredFilesForHash } from "./mirrored-files.js";
 import { buildGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 import { renderCodexSkill } from "./skill-codex.js";
@@ -51,7 +51,7 @@ export function renderSkillForTarget(
   }
 
   const hashFiles = new Map(extraFiles);
-  const mirroredFiles = collectMirroredFilesForHash(
+  const mirroredFiles = collectPackagedMirroredFilesForHash(
     skill.dirPath,
     skill.subdirs,
     generatedDir,
@@ -81,9 +81,10 @@ export function renderSkillForTarget(
  *
  * The hash includes SKILL.md, any extra files (e.g. the Codex
  * `agents/openai.yaml` sidecar), and all mirrored skill subdirectory files
- * (e.g. `scripts/`, `references/`, `assets/`, `examples/`). Without this,
- * plan computation emits skip-up-to-date and copy-mode installs can leave
- * bundled helper files stale.
+ * (e.g. `scripts/`, `references/`, `assets/`, `examples/`). Mirrored symlink
+ * entries include the preserved target spelling and generated symlink kind,
+ * without hashing the target contents. Without this, plan computation emits
+ * skip-up-to-date and copy-mode installs can leave bundled helper files stale.
  * Extra-file basenames (relative to the skill's generated dir) are folded
  * in alongside their content. We use basenames rather than absolute paths
  * so the hash stays stable across machines / users.
@@ -109,55 +110,4 @@ export function buildSkillContentHash(
     hashParts.push(posixRelPath, fileContent);
   }
   return sha256(hashParts.join("\0"));
-}
-
-function collectMirroredFilesForHash(
-  skillDir: string,
-  subdirs: readonly string[],
-  generatedDir: string,
-): Map<string, string> {
-  const mirroredFiles = new Map<string, string>();
-
-  for (const subdir of subdirs) {
-    const sourceRoot = path.join(skillDir, subdir);
-    const generatedRoot = path.join(generatedDir, subdir);
-    walkMirroredFilesForHash(sourceRoot, generatedRoot, mirroredFiles);
-  }
-
-  return mirroredFiles;
-}
-
-function walkMirroredFilesForHash(
-  sourceDir: string,
-  generatedDir: string,
-  mirroredFiles: Map<string, string>,
-): void {
-  const entries = readdirSync(sourceDir, { withFileTypes: true }).sort(
-    (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-  );
-
-  for (const entry of entries) {
-    const sourcePath = path.join(sourceDir, entry.name);
-    const generatedPath = path.join(generatedDir, entry.name);
-
-    if (entry.isDirectory()) {
-      walkMirroredFilesForHash(sourcePath, generatedPath, mirroredFiles);
-      continue;
-    }
-
-    if (entry.isFile()) {
-      mirroredFiles.set(
-        generatedPath,
-        `file:${readFileSync(sourcePath).toString("base64")}`,
-      );
-      continue;
-    }
-
-    if (entry.isSymbolicLink()) {
-      const linkedStat = lstatSync(sourcePath);
-      if (linkedStat.isSymbolicLink()) {
-        mirroredFiles.set(generatedPath, `symlink:${readlinkSync(sourcePath)}`);
-      }
-    }
-  }
 }

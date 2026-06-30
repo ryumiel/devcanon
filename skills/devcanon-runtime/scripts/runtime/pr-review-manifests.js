@@ -5,6 +5,7 @@ import { access, lstat, mkdir, readFile, realpath, rm, stat, } from "node:fs/pro
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
+import { BASH_HELPER_PATH_ENV_KEYS, normalizeBashScriptEnvPaths, toBashPath, } from "./bash-paths.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import { validatePrReviewResultCommandAuthority, } from "./pr-review-result-validation.js";
@@ -934,9 +935,10 @@ async function validateFindingsAuthority(findingsFile) {
 }
 async function runBashHelper(helper, command, env) {
     try {
-        await execFileAsync("bash", [helper, command], {
+        const helperEnv = await normalizeBashScriptEnvPaths(env, BASH_HELPER_PATH_ENV_KEYS);
+        await execFileAsync("bash", [await toBashPath(helper, helperEnv), command], {
             cwd: process.cwd(),
-            env,
+            env: helperEnv,
             maxBuffer: 1024 * 1024,
         });
     }

@@ -198,13 +198,37 @@ export async function resolveRuntimeEntrypoint(
 }
 
 export async function toBashPath(nativePath: string): Promise<string> {
-  const { stdout } = await execFileAsync("bash", [
+  const cygpath = await convertWithCommand("cygpath", ["-u", nativePath]);
+  if (cygpath !== null) return cygpath;
+
+  const wslpath = await convertWithCommand("wslpath", ["-u", nativePath]);
+  if (wslpath !== null) return wslpath;
+
+  const match = /^([A-Za-z]):[\\/](.*)$/u.exec(nativePath);
+  if (!match) return nativePath;
+
+  const drive = match[1].toLowerCase();
+  const rest = match[2].replace(/\\/gu, "/");
+  const hasMntDrive = await execFileAsync("bash", [
     "-lc",
-    'if command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf "%s\\n" "$1"; fi',
-    "bash",
-    nativePath,
-  ]);
-  return stdout.trim();
+    `[ -d /mnt/${drive} ]`,
+  ])
+    .then(() => true)
+    .catch(() => false);
+
+  return hasMntDrive ? `/mnt/${drive}/${rest}` : `/${drive}/${rest}`;
+}
+
+async function convertWithCommand(
+  command: string,
+  args: string[],
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(command, args);
+    return stdout.trim();
+  } catch {
+    return null;
+  }
 }
 
 export function normalizePathText(value: string): string {

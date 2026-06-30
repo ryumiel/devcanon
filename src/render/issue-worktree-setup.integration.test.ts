@@ -10,7 +10,7 @@ import { pathExists } from "../utils/fs.js";
 import { renderAll } from "./pipeline.js";
 
 describe("issue-worktree-setup render packaging", () => {
-  it("mirrors the setup-worktree helper scripts byte-for-byte", async () => {
+  it("packages the shell adapter and preserves the Node helper bytes", async () => {
     const rootDir = await createTempDir();
     try {
       const repoRoot = process.cwd();
@@ -47,9 +47,12 @@ describe("issue-worktree-setup render packaging", () => {
         "utf-8",
       );
       for (const [scriptName, sourceScript] of sourceScripts) {
+        const fixtureScript = scriptName.endsWith(".sh")
+          ? sourceScript.replace(/\n/gu, "\r\n")
+          : sourceScript;
         await writeFile(
           path.join(fixtureScriptsDir, scriptName),
-          sourceScript,
+          fixtureScript,
           "utf-8",
         );
       }
@@ -77,8 +80,11 @@ describe("issue-worktree-setup render packaging", () => {
           );
 
           expect(await pathExists(generatedScriptPath)).toBe(true);
+          const expectedScript = scriptName.endsWith(".sh")
+            ? sourceScript.replace(/\r\n/gu, "\n")
+            : sourceScript;
           expect(await readFile(generatedScriptPath, "utf-8")).toBe(
-            sourceScript,
+            expectedScript,
           );
         }
       }
