@@ -89,4 +89,22 @@ export async function atomicWriteFile(
   }
 }
 
+export function isNodeErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
+}
+
+export function isUnobservableSymlinkTargetError(error: unknown): boolean {
+  return (
+    isNodeErrorCode(error, "ENOENT") ||
+    isNodeErrorCode(error, "ELOOP") ||
+    isNodeErrorCode(error, "EPERM") ||
+    isNodeErrorCode(error, "EACCES")
+  );
+}
+
 export { readdir, readFile, lstat, access, mkdir };

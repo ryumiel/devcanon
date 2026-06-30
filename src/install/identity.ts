@@ -11,6 +11,7 @@ import {
 } from "../render/mirrored-files.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
+import { isUnobservableSymlinkTargetError } from "../utils/fs.js";
 import { sha256 } from "../utils/hash.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
 
@@ -396,17 +397,42 @@ async function installedSymlinkHashEntryCandidates(
       installedPath,
       options.allowHistoricalSymlinkKinds,
     ));
+  const allowLegacyKindedHash =
+    options.allowHistoricalSymlinkKinds &&
+    (await expectedSymlinkExists(expectedRoot, relPath));
   return uniqueStrings(
     targets.flatMap(({ target, allowLegacyTargetOnlyHash }) => {
-      const candidates = allowLegacyTargetOnlyHash ? [`symlink:${target}`] : [];
+      const candidates =
+        allowLegacyTargetOnlyHash && !isAmbiguousLegacySymlinkTarget(target)
+          ? [`symlink:${target}`]
+          : [];
       candidates.unshift(
-        ...symlinkTypes.map((symlinkType) =>
-          formatPackagedSymlinkHashEntry(target, symlinkType),
-        ),
+        ...symlinkTypes.flatMap((symlinkType) => {
+          const kindedCandidates = [
+            formatPackagedSymlinkHashEntry(target, symlinkType),
+          ];
+          if (allowLegacyKindedHash) {
+            kindedCandidates.push(
+              formatLegacyPackagedSymlinkHashEntry(target, symlinkType),
+            );
+          }
+          return kindedCandidates;
+        }),
       );
       return candidates;
     }),
   );
+}
+
+function formatLegacyPackagedSymlinkHashEntry(
+  target: string,
+  symlinkType: PackagedSymlinkType,
+): string {
+  return `symlink:${symlinkType}:${target}`;
+}
+
+function isAmbiguousLegacySymlinkTarget(target: string): boolean {
+  return target.startsWith("file:") || target.startsWith("dir:");
 }
 
 async function getExpectedUnobservableSymlinkTypes(
@@ -430,13 +456,24 @@ async function getExpectedUnobservableSymlinkTypes(
     await stat(expectedPath);
     return null;
   } catch (err) {
-    if (
-      isNodeErrorCode(err, "ENOENT") ||
-      isNodeErrorCode(err, "ELOOP") ||
-      isNodeErrorCode(err, "EPERM")
-    ) {
+    if (isUnobservableSymlinkTargetError(err)) {
       return ["file", "dir"];
     }
+    throw err;
+  }
+}
+
+async function expectedSymlinkExists(
+  expectedRoot: string | undefined,
+  relPath: string,
+): Promise<boolean> {
+  if (!expectedRoot) return false;
+
+  const expectedPath = path.join(expectedRoot, ...relPath.split("/"));
+  try {
+    return (await lstat(expectedPath)).isSymbolicLink();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw err;
   }
 }
@@ -453,11 +490,7 @@ async function getInstalledSymlinkTypes(
     }
     return [currentKind];
   } catch (err) {
-    if (
-      isNodeErrorCode(err, "ENOENT") ||
-      isNodeErrorCode(err, "ELOOP") ||
-      isNodeErrorCode(err, "EPERM")
-    ) {
+    if (isUnobservableSymlinkTargetError(err)) {
       if (allowHistoricalSymlinkKinds) {
         // Some copied symlinks cannot be followed once the external target kind
         // changes, especially on Windows. Updating or removing may accept the
@@ -720,15 +753,6 @@ function toWindowsPath(filePath: string): string {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
-}
-
-function isNodeErrorCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === code
-  );
 }
 
 function identityError(record: ManagedRecord, reason: string): UserError {

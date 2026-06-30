@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
+const BASH_PATH_CONVERSION_TIMEOUT_MS = 1000;
 const bashPathCache = new Map();
 const bashPathConverterCache = new Map();
 const gitBashCache = new Map();
@@ -54,12 +55,15 @@ async function convertPathWithBash(nativePath, command, env) {
                 DEVCANON_BASH_PATH_COMMAND: command,
                 DEVCANON_BASH_PATH_INPUT: nativePath,
             },
-            timeout: 1000,
+            timeout: BASH_PATH_CONVERSION_TIMEOUT_MS,
         });
         const converted = stdout.trim();
         return isUsableConvertedPath(converted) ? converted : null;
     }
-    catch {
+    catch (err) {
+        if (isExecTimeoutError(err)) {
+            throw new Error(`Timed out converting Windows path for Bash with ${command}: ${nativePath}`);
+        }
         return null;
     }
 }
@@ -86,11 +90,14 @@ async function bashHasCommand(command, env) {
                 ...env,
                 DEVCANON_BASH_PATH_COMMAND: command,
             },
-            timeout: 1000,
+            timeout: BASH_PATH_CONVERSION_TIMEOUT_MS,
         });
         return true;
     }
-    catch {
+    catch (err) {
+        if (isExecTimeoutError(err)) {
+            throw new Error(`Timed out probing Bash path converter: ${command}`);
+        }
         return false;
     }
 }
@@ -127,6 +134,12 @@ function pathEntries(env) {
 }
 function isUsableConvertedPath(converted) {
     return converted.length > 1 && converted !== "." && converted !== "/";
+}
+function isExecTimeoutError(error) {
+    return (typeof error === "object" &&
+        error !== null &&
+        "killed" in error &&
+        error.killed === true);
 }
 function fallbackWindowsBashPath(nativePath) {
     const match = /^([A-Za-z]):[\\/](.*)$/u.exec(nativePath);

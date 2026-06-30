@@ -4,7 +4,11 @@ import type { OverwritePolicy } from "../config/schema.js";
 import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
 import type { PackagedSymlinkType } from "../render/mirrored-files.js";
-import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
+import {
+  isUnobservableSymlinkTargetError,
+  pathExists,
+  pathOrSymlinkExists,
+} from "../utils/fs.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
 
 type DetectedSymlinkType = PackagedSymlinkType | "unknown";
@@ -340,33 +344,10 @@ async function getSymlinkKind(
     const targetStat = await stat(symlinkPath);
     return targetStat.isDirectory() ? "dir" : "file";
   } catch (err) {
-    if (isNodeErrorCode(err, "ELOOP")) {
-      return "file";
-    }
-
-    if (isNodeErrorCode(err, "ENOENT") || isNodeErrorCode(err, "EPERM")) {
-      return getUnfollowableSymlinkKind(symlinkPath);
-    }
-
-    throw err;
-  }
-}
-
-async function getUnfollowableSymlinkKind(
-  symlinkPath: string,
-): Promise<DetectedSymlinkType> {
-  const target = await readlink(symlinkPath);
-  const resolvedTarget = path.resolve(path.dirname(symlinkPath), target);
-  try {
-    await stat(resolvedTarget);
-    return "unknown";
-  } catch (err) {
-    if (isNodeErrorCode(err, "ENOENT") || isNodeErrorCode(err, "ELOOP")) {
+    if (isUnobservableSymlinkTargetError(err)) {
       return "unknown";
     }
-    if (isNodeErrorCode(err, "EPERM")) {
-      return "unknown";
-    }
+
     throw err;
   }
 }
@@ -410,13 +391,4 @@ async function collectFileExecutableModes(
   }
 
   return executableModes;
-}
-
-function isNodeErrorCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === code
-  );
 }

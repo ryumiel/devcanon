@@ -15,6 +15,7 @@ import {
 import type { ModelTiers, SkillSource } from "../config/schema.js";
 import type { LoadedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
+import { formatPackagedSymlinkHashEntry } from "./mirrored-files.js";
 import { buildSkillContentHash, renderSkillForTarget } from "./skill.js";
 
 const TIERS: ModelTiers = {
@@ -459,6 +460,18 @@ describe("renderSkillForTarget contentHash", () => {
       }
     },
   );
+
+  it("uses a distinct namespace for typed mirrored symlink hashes", () => {
+    expect(formatPackagedSymlinkHashEntry("payload", "file")).not.toBe(
+      "symlink:file:payload",
+    );
+    expect(formatPackagedSymlinkHashEntry("file:payload", "file")).not.toBe(
+      "symlink:file:payload",
+    );
+    expect(formatPackagedSymlinkHashEntry("dir:payload", "dir")).not.toBe(
+      "symlink:dir:payload",
+    );
+  });
 });
 
 describe("buildSkillContentHash", () => {

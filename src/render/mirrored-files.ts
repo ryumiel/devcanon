@@ -11,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { isUnobservableSymlinkTargetError } from "../utils/fs.js";
 
 type MirroredFileHashEntries = Map<string, string>;
 export type PackagedSymlinkType = "dir" | "file";
@@ -145,7 +146,10 @@ export function formatPackagedSymlinkHashEntry(
   target: string,
   symlinkType: PackagedSymlinkType,
 ): string {
-  return `symlink:${symlinkType}:${target}`;
+  return `mirrored-symlink:v2:${symlinkType}:${Buffer.from(
+    target,
+    "utf-8",
+  ).toString("base64url")}`;
 }
 
 async function getSourceSymlinkType(
@@ -155,7 +159,7 @@ async function getSourceSymlinkType(
     const sourceTargetStat = await stat(sourcePath);
     return sourceTargetStat.isDirectory() ? "dir" : "file";
   } catch (error) {
-    if (isNodeErrorCode(error, "ENOENT") || isNodeErrorCode(error, "ELOOP")) {
+    if (isUnobservableSymlinkTargetError(error)) {
       return "file";
     }
     throw error;
@@ -167,7 +171,7 @@ function getSourceSymlinkTypeSync(sourcePath: string): PackagedSymlinkType {
     const sourceTargetStat = statSync(sourcePath);
     return sourceTargetStat.isDirectory() ? "dir" : "file";
   } catch (error) {
-    if (isNodeErrorCode(error, "ENOENT") || isNodeErrorCode(error, "ELOOP")) {
+    if (isUnobservableSymlinkTargetError(error)) {
       return "file";
     }
     throw error;
@@ -212,13 +216,4 @@ function normalizeCrLfToLf(sourceBytes: Buffer): Buffer {
 
 function compareDirentNames(a: { name: string }, b: { name: string }): number {
   return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
-}
-
-function isNodeErrorCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === code
-  );
 }

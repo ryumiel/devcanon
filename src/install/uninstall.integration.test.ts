@@ -483,6 +483,88 @@ describe("uninstall", () => {
     },
   );
 
+  it.skipIf(!symlinkAvailable || process.platform === "win32")(
+    "skips uninstall when a retargeted symlink collides with legacy hash spelling",
+    async () => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      const skillDir = await createSkillFixture(
+        config.library.skillsDir,
+        "skill-a",
+        "---\nname: skill-a\ndescription: A skill.\n---\n\n# Skill A\n",
+        ["scripts"],
+      );
+      await writeFile(
+        path.join(skillDir, "scripts", "payload"),
+        "payload",
+        "utf-8",
+      );
+      await symlink("payload", path.join(skillDir, "scripts", "link"));
+      await sync(config, { dryRun: false, force: false, strict: false });
+
+      const claudeSkillPath = path.join(
+        config.targets.claude.skillsHome,
+        "skill-a",
+      );
+      const generatedSkillDir = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "skill-a",
+      );
+      const installedSkillContent = await readFile(
+        path.join(claudeSkillPath, "SKILL.md"),
+        "utf-8",
+      );
+      const manifest = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      const claudeRecord = manifest.records.find(
+        (record: { installedPath: string }) =>
+          record.installedPath === claudeSkillPath,
+      );
+      claudeRecord.contentHash = buildSkillContentHash(
+        installedSkillContent,
+        new Map([
+          [
+            path.join(generatedSkillDir, "scripts", "payload"),
+            `file:${Buffer.from("payload").toString("base64")}`,
+          ],
+          [
+            path.join(generatedSkillDir, "scripts", "link"),
+            "symlink:file:payload",
+          ],
+        ]),
+        generatedSkillDir,
+      );
+      await writeFile(
+        config.manifest.path,
+        `${JSON.stringify(manifest, null, 2)}\n`,
+        "utf-8",
+      );
+
+      const installedLink = path.join(claudeSkillPath, "scripts", "link");
+      await rm(installedLink);
+      await symlink("file:payload", installedLink);
+      const manifestBefore = await readFile(config.manifest.path, "utf-8");
+
+      const result = await uninstall(config, {
+        target: "claude",
+        dryRun: false,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("installed copy content hash mismatch"),
+      ]);
+      expect(await readlink(installedLink)).toBe("file:payload");
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(
+        manifestBefore,
+      );
+    },
+  );
+
   it.skipIf(!symlinkAvailable)(
     "uninstalls a copied skill when a mirrored symlink target changes historical kind",
     async () => {
