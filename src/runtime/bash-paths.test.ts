@@ -146,7 +146,7 @@ describe("bash path normalization", () => {
   });
 
   it("uses the Git Bash fallback without probing Bash", async () => {
-    const gitBashDir = path.join("C:", "Program Files", "Git", "bin");
+    const gitBashDir = path.join("/", "Program Files", "Git", "bin");
     await withMockedWin32BashPaths(
       {
         pathEntries: [gitBashDir],
@@ -165,7 +165,7 @@ describe("bash path normalization", () => {
   });
 
   it("uses wslpath for non-Git Bash paths", async () => {
-    const bashDir = path.join("C:", "Windows", "System32");
+    const bashDir = path.join("/", "Windows", "System32");
     await withMockedWin32BashPaths(
       {
         pathEntries: [bashDir],
@@ -187,7 +187,7 @@ describe("bash path normalization", () => {
   });
 
   it("does not return the Git Bash fallback after non-Git Bash probe timeout", async () => {
-    const bashDir = path.join("C:", "Windows", "System32");
+    const bashDir = path.join("/", "Windows", "System32");
     await withMockedWin32BashPaths(
       {
         pathEntries: [bashDir],
