@@ -31,7 +31,7 @@ A single literal line of the form:
 Issue body: <repo-relative-path>
 ```
 
-For example: `Issue body: .ephemeral/<YYYY-MM-DD>-<issue-key>-issue-body.md`.
+For example: `Issue body: .ephemeral/<YYYY-MM-DD>-<id>-issue-body.md`.
 
 When this line is present, validate the path before reading:
 
@@ -78,7 +78,7 @@ Research brief: <repo-relative-path>
 ```
 
 For example:
-`Research brief: .ephemeral/<YYYY-MM-DD>-<issue-key>-research.md`.
+`Research brief: .ephemeral/<YYYY-MM-DD>-<id>-research.md`.
 
 When this line is present, validate the path before reading:
 
@@ -132,7 +132,7 @@ Comment evidence: <repo-relative-path>
 ```
 
 For example:
-`Comment evidence: .ephemeral/<YYYY-MM-DD>-<issue-key>-comment-evidence.md`.
+`Comment evidence: .ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`.
 
 When this line is present, validate the path before reading:
 
