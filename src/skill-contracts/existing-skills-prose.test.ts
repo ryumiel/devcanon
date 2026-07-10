@@ -4894,6 +4894,8 @@ describe("existing skills source prose contracts", () => {
     expect(adr0013).not.toContain("## Amendment");
     expect(adr0013).not.toMatch(/issue\s+#?\d+/i);
     expect(adr0013).not.toMatch(/PR\s+#?\d+/);
+    expect(adr0013).not.toMatch(/#\d+\b/);
+    expect(adr0013).not.toMatch(/\b(?!ADR-\d+\b)[A-Z][A-Z0-9]*-\d+\b/);
     expect(adr0013).not.toContain("fix/517");
     expect(adr0013).not.toContain("`research-agent` (via Phase 3)");
 

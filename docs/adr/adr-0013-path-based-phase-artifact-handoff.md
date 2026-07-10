@@ -52,7 +52,7 @@ shapes inside its invocation prose:
 
 1. **Path reference** (controller-preferred): a single literal line of the
    form `<Artifact label>: <repo-relative-path>`
-   (e.g., `Research brief: .ephemeral/2026-05-06-167-research.md`).
+   (e.g., `Research brief: .ephemeral/<YYYY-MM-DD>-<id>-research.md`).
 2. **Inline content**: the existing `## <Artifact label>` heading + body,
    unchanged from prior behavior.
 
@@ -123,9 +123,9 @@ owning documentation contract, never raw issue-local history or agent reports.
 | Design         | `.ephemeral/<YYYY-MM-DD>-<topic>-design.md`      |
 | Plan           | `.ephemeral/<YYYY-MM-DD>-<feature-name>-plan.md` |
 
-`<id>` is the slugged form of `payload.identifier` (`#167` → `167`,
-`ENG-123` → `eng-123`). The authoritative slug and research-brief path
-computation lives in
+`<id>` is the slugged form of `payload.identifier`: a hash-prefixed numeric
+identifier becomes its digits, while an uppercase provider key becomes
+lowercase. The authoritative slug and research-brief path computation lives in
 `skills/issue-priming-workflow/scripts/write-research-brief.sh`: lowercase the
 identifier, convert `/` to `-`, retain only alphanumerics, `.`, `_`, and `-`,
 and reject unsafe derived paths through the script's write-target guard.
