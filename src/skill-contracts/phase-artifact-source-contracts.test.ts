@@ -54,6 +54,245 @@ function shellFunctionBody(content: string, functionName: string): string {
   return content.slice(start, end);
 }
 
+type ResearchPromptTuple = {
+  source: string;
+  id: string;
+  title: string;
+  issueBodyPath: string;
+  commentEvidencePathOrNone: string;
+  gateReason: string;
+  repoRoot: string;
+  researchScope: string;
+  externalNecessityOrNone: string;
+  externalQuestionOrNone: string;
+};
+
+const INTERNAL_RESEARCH_TUPLE: ResearchPromptTuple = {
+  source: "github",
+  id: "#517",
+  title: "Make issue research depth safe",
+  issueBodyPath: ".ephemeral/2026-07-10-517-issue-body.md",
+  commentEvidencePathOrNone: "(none)",
+  gateReason: "cross-module workflow change",
+  repoRoot: "/worktrees/devcanon",
+  researchScope: "internal",
+  externalNecessityOrNone: "(none)",
+  externalQuestionOrNone: "(none)",
+};
+
+const EXTERNAL_RESEARCH_QUESTION =
+  "What current runtime behavior constrains depth-1 research dispatch?";
+
+const EXTERNAL_RESEARCH_TUPLE: ResearchPromptTuple = {
+  ...INTERNAL_RESEARCH_TUPLE,
+  researchScope: "external",
+  externalNecessityOrNone: "required",
+  externalQuestionOrNone: EXTERNAL_RESEARCH_QUESTION,
+};
+
+const RESEARCH_PROMPT_KEYS = [
+  "source",
+  "id",
+  "title",
+  "issueBodyPath",
+  "commentEvidencePathOrNone",
+  "gateReason",
+  "repoRoot",
+  "researchScope",
+  "externalNecessityOrNone",
+  "externalQuestionOrNone",
+] as const satisfies ReadonlyArray<keyof ResearchPromptTuple>;
+
+function validateResearchPromptTuple(
+  tuple: Partial<ResearchPromptTuple>,
+): string[] {
+  const errors: string[] = [];
+
+  for (const key of RESEARCH_PROMPT_KEYS) {
+    if (!(key in tuple) || tuple[key] === undefined) {
+      errors.push(`missing:${key}`);
+      continue;
+    }
+
+    const value = tuple[key];
+    if (value === "") {
+      errors.push(`empty:${key}`);
+    }
+    if (value?.includes("\n") || value?.includes("\r")) {
+      errors.push(`multiline:${key}`);
+    }
+  }
+
+  if (
+    tuple.source !== undefined &&
+    !["github", "linear"].includes(tuple.source)
+  ) {
+    errors.push("invalid:source");
+  }
+  if (
+    tuple.researchScope !== undefined &&
+    !["internal", "external"].includes(tuple.researchScope)
+  ) {
+    errors.push("invalid:scope");
+  }
+  if (tuple.researchScope === "internal") {
+    if (tuple.externalNecessityOrNone !== "(none)") {
+      errors.push("invalid:necessity-pairing");
+    }
+    if (tuple.externalQuestionOrNone !== "(none)") {
+      errors.push("invalid:question-pairing");
+    }
+  }
+  if (tuple.researchScope === "external") {
+    if (!["required", "useful"].includes(tuple.externalNecessityOrNone ?? "")) {
+      errors.push("invalid:necessity-pairing");
+    }
+    if (
+      tuple.externalQuestionOrNone === undefined ||
+      tuple.externalQuestionOrNone === "" ||
+      tuple.externalQuestionOrNone === "(none)"
+    ) {
+      errors.push("invalid:question-pairing");
+    }
+  }
+  if ((tuple.externalQuestionOrNone?.length ?? 0) > 500) {
+    errors.push("over-limit:externalQuestionOrNone");
+  }
+
+  return errors;
+}
+
+const INTERNAL_REPORT = `## Internal Research Report
+
+### Policy Constraints
+- AGENTS.md — preserve root-owned lifecycle policy.
+
+### Existing Patterns
+- skills/subagent-lifecycle/SKILL.md — wait before retry.
+
+### External Uncertainties
+None
+
+### Recommended Approaches
+1. Keep direct depth-1 leaves.`;
+
+const EXTERNAL_REPORT = `## External Research Report
+
+### External Precedent
+- ${EXTERNAL_RESEARCH_QUESTION} Current runtime documentation requires direct depth-1 dispatch. https://example.test/runtime
+
+### Primary Sources
+- https://example.test/runtime — current runtime documentation.
+
+### Trade-offs
+- Direct siblings use one additional slot.
+
+### Implications
+- ${EXTERNAL_RESEARCH_QUESTION} Use root-owned sibling dispatch.`;
+
+const INTERNAL_REPORT_HEADINGS = [
+  "## Internal Research Report",
+  "### Policy Constraints",
+  "### Existing Patterns",
+  "### External Uncertainties",
+  "### Recommended Approaches",
+] as const;
+
+const EXTERNAL_REPORT_HEADINGS = [
+  "## External Research Report",
+  "### External Precedent",
+  "### Primary Sources",
+  "### Trade-offs",
+  "### Implications",
+] as const;
+
+function reportSection(
+  report: string,
+  heading: string,
+  nextHeading?: string,
+): string {
+  const start = report.indexOf(heading);
+  if (start < 0) {
+    return "";
+  }
+  const bodyStart = start + heading.length;
+  const end = nextHeading
+    ? report.indexOf(nextHeading, bodyStart)
+    : report.length;
+  return report.slice(bodyStart, end < 0 ? report.length : end);
+}
+
+function validateResearchReport(
+  scope: "internal" | "external",
+  report: string,
+  externalQuestion = "(none)",
+): string[] {
+  if (report.trim() === "") {
+    return ["blank"];
+  }
+
+  const errors: string[] = [];
+  const hasInternalFamily = report.includes("## Internal Research Report");
+  const hasExternalFamily = report.includes("## External Research Report");
+
+  if (hasInternalFamily && hasExternalFamily) {
+    errors.push("combined-family");
+  } else if (
+    (scope === "internal" && hasExternalFamily) ||
+    (scope === "external" && hasInternalFamily)
+  ) {
+    errors.push("wrong-scope");
+  }
+
+  const requiredHeadings =
+    scope === "internal" ? INTERNAL_REPORT_HEADINGS : EXTERNAL_REPORT_HEADINGS;
+  for (const heading of requiredHeadings) {
+    if (!report.includes(heading)) {
+      errors.push(`missing-heading:${heading}`);
+    }
+  }
+
+  if (scope === "external") {
+    const precedent = reportSection(
+      report,
+      "### External Precedent",
+      "### Primary Sources",
+    );
+    const primarySources = reportSection(
+      report,
+      "### Primary Sources",
+      "### Trade-offs",
+    );
+    const implications = reportSection(report, "### Implications");
+    if (
+      !precedent.includes(externalQuestion) ||
+      !precedent.includes("https://") ||
+      !primarySources.includes("https://") ||
+      !implications.includes(externalQuestion)
+    ) {
+      errors.push("question-unanswered");
+    }
+  }
+
+  return errors;
+}
+
+type InternalPartialEvidence = {
+  sourceReferenced: boolean;
+  issueRelevant: boolean;
+  repositoryGrounded: boolean;
+  authorityContradicted: boolean;
+};
+
+function isUsableInternalPartial(evidence: InternalPartialEvidence): boolean {
+  return (
+    evidence.sourceReferenced &&
+    evidence.issueRelevant &&
+    evidence.repositoryGrounded &&
+    !evidence.authorityContradicted
+  );
+}
+
 describe("phase artifact source contracts", () => {
   it("keeps issue-priming helper extraction contracts and static RED fallback checks in source", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -573,6 +812,176 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPrompt).toContain(
       "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
     );
+  });
+
+  it("accepts canonical internal and external research prompt tuples", () => {
+    expect(validateResearchPromptTuple(INTERNAL_RESEARCH_TUPLE)).toEqual([]);
+    expect(validateResearchPromptTuple(EXTERNAL_RESEARCH_TUPLE)).toEqual([]);
+  });
+
+  it.each([
+    {
+      family: "missing required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, title: undefined },
+      error: "missing:title",
+    },
+    {
+      family: "empty required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, id: "" },
+      error: "empty:id",
+    },
+    {
+      family: "multiline required value",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        gateReason: "first line\nsecond line",
+      },
+      error: "multiline:gateReason",
+    },
+    {
+      family: "over-limit external question",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: "q".repeat(501),
+      },
+      error: "over-limit:externalQuestionOrNone",
+    },
+    {
+      family: "invalid source",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, source: "jira" },
+      error: "invalid:source",
+    },
+    {
+      family: "invalid scope",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, researchScope: "combined" },
+      error: "invalid:scope",
+    },
+    {
+      family: "internal plus required necessity",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        externalNecessityOrNone: "required",
+      },
+      error: "invalid:necessity-pairing",
+    },
+    {
+      family: "internal plus external question",
+      tuple: {
+        ...INTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: EXTERNAL_RESEARCH_QUESTION,
+      },
+      error: "invalid:question-pairing",
+    },
+    {
+      family: "external without classification",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalNecessityOrNone: "(none)",
+      },
+      error: "invalid:necessity-pairing",
+    },
+    {
+      family: "external without question",
+      tuple: {
+        ...EXTERNAL_RESEARCH_TUPLE,
+        externalQuestionOrNone: "(none)",
+      },
+      error: "invalid:question-pairing",
+    },
+  ])(
+    "rejects a one-dimension-invalid prompt tuple: $family",
+    ({ tuple, error }) => {
+      expect(validateResearchPromptTuple(tuple)).toContain(error);
+    },
+  );
+
+  it("accepts canonical internal and external research report families", () => {
+    expect(validateResearchReport("internal", INTERNAL_REPORT)).toEqual([]);
+    expect(
+      validateResearchReport(
+        "external",
+        EXTERNAL_REPORT,
+        EXTERNAL_RESEARCH_QUESTION,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    {
+      family: "blank report",
+      scope: "internal" as const,
+      report: "  \n",
+      question: "(none)",
+      error: "blank",
+    },
+    {
+      family: "one missing internal heading",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "Existing Patterns",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "wrong-scope report",
+      scope: "internal" as const,
+      report: EXTERNAL_REPORT,
+      question: "(none)",
+      error: "wrong-scope",
+    },
+    {
+      family: "combined internal and external families",
+      scope: "internal" as const,
+      report: `${INTERNAL_REPORT}\n\n${EXTERNAL_REPORT}`,
+      question: "(none)",
+      error: "combined-family",
+    },
+    {
+      family: "external precedent does not answer its question",
+      scope: "external" as const,
+      report: EXTERNAL_REPORT.replace(
+        `- ${EXTERNAL_RESEARCH_QUESTION} Current runtime documentation`,
+        "- A different question. Current runtime documentation",
+      ),
+      question: EXTERNAL_RESEARCH_QUESTION,
+      error: "question-unanswered",
+    },
+    {
+      family: "external implications do not answer its question",
+      scope: "external" as const,
+      report: EXTERNAL_REPORT.replace(
+        `- ${EXTERNAL_RESEARCH_QUESTION} Use root-owned sibling dispatch.`,
+        "- A different question. Use root-owned sibling dispatch.",
+      ),
+      question: EXTERNAL_RESEARCH_QUESTION,
+      error: "question-unanswered",
+    },
+  ])(
+    "rejects a one-dimension-invalid research report: $family",
+    ({ scope, report, question, error }) => {
+      expect(validateResearchReport(scope, report, question)).toContain(error);
+    },
+  );
+
+  it("accepts only the canonical usable internal partial evidence tuple", () => {
+    const validPartial: InternalPartialEvidence = {
+      sourceReferenced: true,
+      issueRelevant: true,
+      repositoryGrounded: true,
+      authorityContradicted: false,
+    };
+
+    expect(isUsableInternalPartial(validPartial)).toBe(true);
+    for (const invalidPartial of [
+      { ...validPartial, sourceReferenced: false },
+      { ...validPartial, issueRelevant: false },
+      { ...validPartial, repositoryGrounded: false },
+      { ...validPartial, authorityContradicted: true },
+    ]) {
+      expect(isUsableInternalPartial(invalidPartial)).toBe(false);
+    }
   });
 
   it("rejects missing issue-research prompt inputs before every side effect", async () => {

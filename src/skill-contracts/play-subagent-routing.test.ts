@@ -93,6 +93,230 @@ const COPIED_BRANCH_FINISH_CHOICE_PATTERNS = [
   /^#{2,6}\s+Option 4: Discard\s*$/m,
 ] as const;
 
+type ResearchOutcomeRoute =
+  | "skipped-inline"
+  | "full-success"
+  | "useful-bounded"
+  | "internal-partial"
+  | "internal-no-partial"
+  | "blocked-required";
+
+type ResearchOutcomeExample = {
+  researchSkipped: boolean;
+  internalStarted: boolean;
+  internalSettled: boolean;
+  internalValid: boolean;
+  internalUsablePartial: boolean;
+  externalCriterionMet: boolean;
+  externalStarted: boolean;
+  externalSettled: boolean;
+  externalNecessity: "(none)" | "required" | "useful";
+  externalValid: boolean;
+  uncoveredMaterialExternalEvidence: boolean;
+  boundedUncertainty: boolean;
+  childSpawnedChild: boolean;
+  childWroteArtifact: boolean;
+  childEmittedNotice: boolean;
+  claimedRoute: ResearchOutcomeRoute;
+  helperInvoked: boolean;
+  artifactCreated: boolean;
+  noticeEmitted: boolean;
+  phase4Invoked: boolean;
+};
+
+const FULL_RESEARCH_SUCCESS: ResearchOutcomeExample = {
+  researchSkipped: false,
+  internalStarted: true,
+  internalSettled: true,
+  internalValid: true,
+  internalUsablePartial: false,
+  externalCriterionMet: true,
+  externalStarted: true,
+  externalSettled: true,
+  externalNecessity: "useful",
+  externalValid: true,
+  uncoveredMaterialExternalEvidence: false,
+  boundedUncertainty: false,
+  childSpawnedChild: false,
+  childWroteArtifact: false,
+  childEmittedNotice: false,
+  claimedRoute: "full-success",
+  helperInvoked: true,
+  artifactCreated: true,
+  noticeEmitted: true,
+  phase4Invoked: true,
+};
+
+const NOT_APPLICABLE_RESEARCH_SUCCESS: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  externalCriterionMet: false,
+  externalStarted: false,
+  externalSettled: false,
+  externalNecessity: "(none)",
+  externalValid: false,
+};
+
+const SKIPPED_RESEARCH: ResearchOutcomeExample = {
+  ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+  researchSkipped: true,
+  internalStarted: false,
+  internalSettled: false,
+  internalValid: false,
+  claimedRoute: "skipped-inline",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+};
+
+const INTERNAL_PARTIAL: ResearchOutcomeExample = {
+  ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+  internalValid: false,
+  internalUsablePartial: true,
+  claimedRoute: "internal-partial",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+};
+
+const INTERNAL_NO_PARTIAL: ResearchOutcomeExample = {
+  ...INTERNAL_PARTIAL,
+  internalUsablePartial: false,
+  claimedRoute: "internal-no-partial",
+};
+
+const USEFUL_EXTERNAL_FAILURE: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  externalValid: false,
+  boundedUncertainty: true,
+  claimedRoute: "useful-bounded",
+};
+
+const REQUIRED_EXTERNAL_FAILURE: ResearchOutcomeExample = {
+  ...FULL_RESEARCH_SUCCESS,
+  internalValid: false,
+  internalUsablePartial: true,
+  externalNecessity: "required",
+  externalValid: false,
+  claimedRoute: "blocked-required",
+  helperInvoked: false,
+  artifactCreated: false,
+  noticeEmitted: false,
+  phase4Invoked: false,
+};
+
+function expectedResearchRoute(
+  example: ResearchOutcomeExample,
+): ResearchOutcomeRoute {
+  if (example.researchSkipped) {
+    return "skipped-inline";
+  }
+
+  const externalFailed =
+    example.externalStarted &&
+    (!example.externalValid || example.uncoveredMaterialExternalEvidence);
+  if (externalFailed && example.externalNecessity === "required") {
+    return "blocked-required";
+  }
+  if (!example.internalValid) {
+    return example.internalUsablePartial
+      ? "internal-partial"
+      : "internal-no-partial";
+  }
+  if (externalFailed && example.externalNecessity === "useful") {
+    return "useful-bounded";
+  }
+  return "full-success";
+}
+
+function expectedResearchSideEffects(route: ResearchOutcomeRoute) {
+  switch (route) {
+    case "skipped-inline":
+    case "internal-partial":
+    case "internal-no-partial":
+      return {
+        helperInvoked: false,
+        artifactCreated: false,
+        noticeEmitted: false,
+        phase4Invoked: true,
+      };
+    case "blocked-required":
+      return {
+        helperInvoked: false,
+        artifactCreated: false,
+        noticeEmitted: false,
+        phase4Invoked: false,
+      };
+    case "full-success":
+    case "useful-bounded":
+      return {
+        helperInvoked: true,
+        artifactCreated: true,
+        noticeEmitted: true,
+        phase4Invoked: true,
+      };
+  }
+}
+
+function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
+  const errors: string[] = [];
+
+  if (example.childSpawnedChild) {
+    errors.push("child-spawned-child");
+  }
+  if (example.childWroteArtifact) {
+    errors.push("child-wrote-artifact");
+  }
+  if (example.childEmittedNotice) {
+    errors.push("child-emitted-notice");
+  }
+  if (
+    example.researchSkipped &&
+    (example.internalStarted || example.externalStarted)
+  ) {
+    errors.push("skipped-research-dispatched-child");
+  }
+  if (example.externalCriterionMet && !example.externalStarted) {
+    errors.push("met-criterion-skipped");
+  }
+  if (
+    example.externalStarted &&
+    !["required", "useful"].includes(example.externalNecessity)
+  ) {
+    errors.push("missing-external-classification");
+  }
+
+  const hasActiveSibling =
+    (example.internalStarted && !example.internalSettled) ||
+    (example.externalStarted && !example.externalSettled);
+  if (
+    hasActiveSibling &&
+    (example.helperInvoked || example.noticeEmitted || example.phase4Invoked)
+  ) {
+    errors.push("routed-before-siblings-settled");
+  }
+
+  const expectedRoute = expectedResearchRoute(example);
+  if (example.claimedRoute !== expectedRoute) {
+    errors.push(`wrong-route:${expectedRoute}`);
+  }
+  const expectedEffects = expectedResearchSideEffects(expectedRoute);
+  for (const key of [
+    "helperInvoked",
+    "artifactCreated",
+    "noticeEmitted",
+    "phase4Invoked",
+  ] as const) {
+    if (example[key] !== expectedEffects[key]) {
+      errors.push(`wrong-side-effect:${key}`);
+    }
+  }
+  if (expectedRoute === "useful-bounded" && !example.boundedUncertainty) {
+    errors.push("missing-bounded-uncertainty");
+  }
+
+  return errors;
+}
+
 describe("play subagent routing source contracts", () => {
   it("keeps issue-priming mode, model, lifecycle, and review contracts visible while helpers own mechanics", async () => {
     const issuePrimingWorkflow = await readSkillSource(
@@ -396,6 +620,136 @@ describe("play subagent routing source contracts", () => {
       "Never cancel or abandon an already-started sibling and never route early",
     );
   });
+
+  it.each([
+    {
+      route: "full success",
+      example: FULL_RESEARCH_SUCCESS,
+    },
+    {
+      route: "full success with external research not applicable",
+      example: NOT_APPLICABLE_RESEARCH_SUCCESS,
+    },
+    {
+      route: "research skipped inline",
+      example: SKIPPED_RESEARCH,
+    },
+    {
+      route: "internal usable partial",
+      example: INTERNAL_PARTIAL,
+    },
+    {
+      route: "internal failure without partial",
+      example: INTERNAL_NO_PARTIAL,
+    },
+    {
+      route: "useful external bounded uncertainty",
+      example: USEFUL_EXTERNAL_FAILURE,
+    },
+    {
+      route: "required external hard stop wins over internal partial",
+      example: REQUIRED_EXTERNAL_FAILURE,
+    },
+  ])("accepts a canonical research outcome: $route", ({ example }) => {
+    expect(validateResearchOutcome(example)).toEqual([]);
+  });
+
+  it.each([
+    {
+      family: "met external criterion skipped",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        externalCriterionMet: true,
+      },
+      error: "met-criterion-skipped",
+    },
+    {
+      family: "missing external classification",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        externalNecessity: "(none)" as const,
+      },
+      error: "missing-external-classification",
+    },
+    {
+      family: "research child spawns a child",
+      example: { ...FULL_RESEARCH_SUCCESS, childSpawnedChild: true },
+      error: "child-spawned-child",
+    },
+    {
+      family: "research child writes an artifact",
+      example: { ...FULL_RESEARCH_SUCCESS, childWroteArtifact: true },
+      error: "child-wrote-artifact",
+    },
+    {
+      family: "research child emits the notice",
+      example: { ...FULL_RESEARCH_SUCCESS, childEmittedNotice: true },
+      error: "child-emitted-notice",
+    },
+    {
+      family: "internal sibling still active",
+      example: { ...FULL_RESEARCH_SUCCESS, internalSettled: false },
+      error: "routed-before-siblings-settled",
+    },
+    {
+      family: "external sibling still active",
+      example: { ...FULL_RESEARCH_SUCCESS, externalSettled: false },
+      error: "routed-before-siblings-settled",
+    },
+    {
+      family: "required external failure loses precedence",
+      example: {
+        ...REQUIRED_EXTERNAL_FAILURE,
+        claimedRoute: "internal-partial" as const,
+      },
+      error: "wrong-route:blocked-required",
+    },
+    {
+      family: "skipped route invokes helper",
+      example: {
+        ...SKIPPED_RESEARCH,
+        helperInvoked: true,
+      },
+      error: "wrong-side-effect:helperInvoked",
+    },
+    {
+      family: "internal failure creates artifact",
+      example: {
+        ...INTERNAL_PARTIAL,
+        artifactCreated: true,
+      },
+      error: "wrong-side-effect:artifactCreated",
+    },
+    {
+      family: "required failure invokes Phase 4",
+      example: {
+        ...REQUIRED_EXTERNAL_FAILURE,
+        phase4Invoked: true,
+      },
+      error: "wrong-side-effect:phase4Invoked",
+    },
+    {
+      family: "useful external failure omits bounded uncertainty",
+      example: {
+        ...USEFUL_EXTERNAL_FAILURE,
+        boundedUncertainty: false,
+      },
+      error: "missing-bounded-uncertainty",
+    },
+    {
+      family: "uncovered material evidence claims full success",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        uncoveredMaterialExternalEvidence: true,
+      },
+      error: "wrong-route:useful-bounded",
+    },
+  ])(
+    "rejects a one-dimension-invalid research outcome: $family",
+    ({ example, error }) => {
+      expect(validateResearchOutcome(example)).toContain(error);
+    },
+  );
 
   it("derives one bounded question for an immediate external sibling", async () => {
     const phase3 = sliceBetween(
