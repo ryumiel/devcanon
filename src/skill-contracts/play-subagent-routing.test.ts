@@ -638,7 +638,9 @@ describe("play subagent routing source contracts", () => {
 
     for (const phrase of [
       "Root dispatches exactly one required internal research-agent",
-      "Root dispatches zero or one conditional external research-agent",
+      "Root dispatches zero or one conditional external research-agent total",
+      "Immediate external criterion met before internal report?",
+      "Late external criterion met after internal External Uncertainties?",
       "Join all applicable direct children",
       "Root synthesizes final research brief",
       "Root persists final research brief",
@@ -646,13 +648,32 @@ describe("play subagent routing source contracts", () => {
       expect(normalizedDiagram).toContain(phrase);
     }
     expect(diagram).toContain("decide -> internal_research");
-    expect(diagram).toContain("decide -> external_decide");
-    expect(diagram).toContain("internal_research -> research_join");
-    expect(diagram).toContain("external_research -> research_join");
+    expect(diagram).toContain("external_policy -> immediate_external_decide");
+    expect(diagram).toContain(
+      'immediate_external_decide -> late_external_wait [label="no: wait for internal report"]',
+    );
+    expect(diagram).toContain(
+      'internal_research -> late_external_wait [label="initial no: internal report"]',
+    );
+    expect(diagram).toContain("late_external_wait -> late_external_decide");
+    expect(diagram).toContain(
+      'late_external_decide -> late_external_research [label="yes: one late leaf"]',
+    );
+    expect(diagram).toContain(
+      'late_external_decide -> research_join [label="no"]',
+    );
+    expect(diagram).toContain("immediate_external_research -> immediate_join");
+    expect(diagram).toContain("internal_research -> immediate_join");
+    expect(diagram).toContain("late_external_research -> research_join");
     expect(diagram).toContain(
       "research_join -> research_synthesize -> research_persist",
     );
-    expect(diagram).not.toContain("internal_research -> external_research");
+    expect(diagram).not.toContain(
+      "internal_research -> immediate_external_research",
+    );
+    expect(diagram).not.toContain(
+      "internal_research -> late_external_research",
+    );
   });
 
   it("keeps brainstorming research-brief provenance caller-owned and untrusted", async () => {
