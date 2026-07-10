@@ -117,7 +117,7 @@ classes reported by the CLI and regular public API prices published on
 2026-07-10. Baseline prices come from the
 [OpenAI model catalog](https://developers.openai.com/api/docs/models); GPT-5.6
 prices and the 90% cache-read discount come from the
-[GPT-5.6 preview pricing notice](https://help.openai.com/en/articles/20001325-a-preview-of-gpt-5-6-sol-terra-and-luna).
+[GPT-5.6 preview announcement](https://openai.com/index/previewing-gpt-5-6-sol/).
 For each run, the proxy is:
 
 ```text
