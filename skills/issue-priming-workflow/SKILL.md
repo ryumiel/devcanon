@@ -335,10 +335,11 @@ outcome.
 If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
-lifecycle ledger, and repository anchors across that shared recovery procedure,
-then apply the research outcome precedence below after recovery completes or
-escalates. This shared recovery applies to internal, immediate external, and
-late external spawn failures.
+lifecycle ledger, and repository anchors across that shared recovery procedure.
+Resume research outcome routing only when the shared recovery procedure
+succeeds. Repeated slot failure or escalation stops under that shared policy
+without research persistence or Phase 4. This shared recovery applies to
+internal, immediate external, and late external spawn failures.
 
 Every started immediate sibling must reach completion, timeout, or failure and
 have its complete captured tuple before continuation. Never cancel or abandon
@@ -396,9 +397,11 @@ independently:
 - **Off-scope report:** classify prose that does not perform the assigned scope
   as failure.
 
-For an external report, also verify that its sourced findings and
-`Implications` directly answer the supplied external question. A non-answer is
-external failure even when every heading is present.
+For an external report, the root makes the semantic judgment that its sourced
+findings and `Implications` directly answer the supplied external question.
+Do not infer that judgment from exact question wording: a supported paraphrase
+may answer it, while verbatim repetition may still be a non-answer. A
+root-judged non-answer is external failure even when every heading is present.
 
 After immediate siblings settle, compare every material internal external
 uncertainty with the supplied external question and the external report's

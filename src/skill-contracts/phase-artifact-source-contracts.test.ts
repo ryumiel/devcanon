@@ -224,7 +224,7 @@ function structuralReportLines(report: string): string[] {
 function validateResearchReport(
   scope: "internal" | "external",
   report: string,
-  externalQuestion = "(none)",
+  externalQuestionAnswered = true,
   issueTerms: readonly string[] = ["depth-1", "root-owned"],
 ): string[] {
   if (report.trim() === "") {
@@ -304,13 +304,13 @@ function validateResearchReport(
       "### Primary Sources",
       "### Trade-offs",
     );
-    const implications = reportSection("### Implications");
     if (
-      !precedent.includes(externalQuestion) ||
       !precedent.includes("https://") ||
-      !primarySources.includes("https://") ||
-      !implications.includes(externalQuestion)
+      !primarySources.includes("https://")
     ) {
+      errors.push("missing-primary-source");
+    }
+    if (!externalQuestionAnswered) {
       errors.push("question-unanswered");
     }
   }
@@ -804,6 +804,12 @@ describe("phase artifact source contracts", () => {
     expect(normalizedPhase3).toContain(
       "not contradicted by owning repository authority",
     );
+    expect(normalizedPhase3).toContain(
+      "the root makes the semantic judgment that its sourced findings and `Implications` directly answer the supplied external question",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not infer that judgment from exact question wording",
+    );
     expect(normalizedPrompt).toContain(
       "Put primary-source URLs near the claims they support",
     );
@@ -948,13 +954,16 @@ describe("phase artifact source contracts", () => {
 
   it("accepts canonical internal and external research report families", () => {
     expect(validateResearchReport("internal", INTERNAL_REPORT)).toEqual([]);
-    expect(
-      validateResearchReport(
-        "external",
-        EXTERNAL_REPORT,
-        EXTERNAL_RESEARCH_QUESTION,
-      ),
-    ).toEqual([]);
+    expect(validateResearchReport("external", EXTERNAL_REPORT, true)).toEqual(
+      [],
+    );
+    const paraphrasedAnswer = EXTERNAL_REPORT.replaceAll(
+      EXTERNAL_RESEARCH_QUESTION,
+      "Current depth limits require root-dispatched leaf siblings.",
+    );
+    expect(validateResearchReport("external", paraphrasedAnswer, true)).toEqual(
+      [],
+    );
   });
 
   it.each([
@@ -1059,31 +1068,31 @@ None
       error: "off-scope",
     },
     {
-      family: "external precedent does not answer its question",
+      family: "verbatim question text is still judged a non-answer",
       scope: "external" as const,
-      report: EXTERNAL_REPORT.replace(
-        `- ${EXTERNAL_RESEARCH_QUESTION} Current runtime documentation`,
-        "- A different question. Current runtime documentation",
-      ),
+      report: EXTERNAL_REPORT,
       question: EXTERNAL_RESEARCH_QUESTION,
+      answeredQuestion: false,
       error: "question-unanswered",
     },
     {
-      family: "external implications do not answer its question",
+      family: "external report lacks primary-source URLs",
       scope: "external" as const,
       report: EXTERNAL_REPORT.replace(
-        `- ${EXTERNAL_RESEARCH_QUESTION} Use root-owned sibling dispatch.`,
-        "- A different question. Use root-owned sibling dispatch.",
+        /https:\/\/example\.test\/runtime/gu,
+        "official runtime documentation",
       ),
       question: EXTERNAL_RESEARCH_QUESTION,
-      error: "question-unanswered",
+      answeredQuestion: true,
+      error: "missing-primary-source",
     },
-  ])(
-    "rejects a one-dimension-invalid research report: $family",
-    ({ scope, report, question, error }) => {
-      expect(validateResearchReport(scope, report, question)).toContain(error);
-    },
-  );
+  ])("rejects a one-dimension-invalid research report: $family", (example) => {
+    const answeredQuestion =
+      "answeredQuestion" in example ? example.answeredQuestion : true;
+    expect(
+      validateResearchReport(example.scope, example.report, answeredQuestion),
+    ).toContain(example.error);
+  });
 
   it("accepts only the canonical usable internal partial evidence tuple", () => {
     const validPartial: InternalPartialEvidence = {

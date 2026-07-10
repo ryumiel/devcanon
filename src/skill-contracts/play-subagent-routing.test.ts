@@ -675,6 +675,12 @@ describe("play subagent routing source contracts", () => {
     expect(normalizedPhase3).toContain(
       "applies to internal, immediate external, and late external spawn failures",
     );
+    expect(normalizedPhase3).toContain(
+      "Resume research outcome routing only when the shared recovery procedure succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Repeated slot failure or escalation stops under that shared policy without research persistence or Phase 4",
+    );
     expect(normalizedPhase3).not.toContain("retry exactly once");
 
     expect(normalizedPhase3).toContain(
@@ -1210,6 +1216,12 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase3).toContain(
       "applies to internal, immediate external, and late external spawn failures",
+    );
+    expect(normalizedPhase3).toContain(
+      "Resume research outcome routing only when the shared recovery procedure succeeds",
+    );
+    expect(normalizedPhase3).toContain(
+      "Repeated slot failure or escalation stops under that shared policy without research persistence or Phase 4",
     );
     for (const copiedGenericMechanic of [
       "surface explicit manual cleanup guidance",
