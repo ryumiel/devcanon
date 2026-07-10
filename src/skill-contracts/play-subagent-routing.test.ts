@@ -103,12 +103,12 @@ type ResearchOutcomeRoute =
 
 type ResearchOutcomeExample = {
   researchSkipped: boolean;
-  internalStarted: boolean;
+  internalDispatchCount: number;
   internalSettled: boolean;
   internalValid: boolean;
   internalUsablePartial: boolean;
   externalCriterionMet: boolean;
-  externalStarted: boolean;
+  externalDispatchCount: number;
   externalSettled: boolean;
   externalNecessity: "(none)" | "required" | "useful";
   externalValid: boolean;
@@ -126,12 +126,12 @@ type ResearchOutcomeExample = {
 
 const FULL_RESEARCH_SUCCESS: ResearchOutcomeExample = {
   researchSkipped: false,
-  internalStarted: true,
+  internalDispatchCount: 1,
   internalSettled: true,
   internalValid: true,
   internalUsablePartial: false,
   externalCriterionMet: true,
-  externalStarted: true,
+  externalDispatchCount: 1,
   externalSettled: true,
   externalNecessity: "useful",
   externalValid: true,
@@ -150,7 +150,7 @@ const FULL_RESEARCH_SUCCESS: ResearchOutcomeExample = {
 const NOT_APPLICABLE_RESEARCH_SUCCESS: ResearchOutcomeExample = {
   ...FULL_RESEARCH_SUCCESS,
   externalCriterionMet: false,
-  externalStarted: false,
+  externalDispatchCount: 0,
   externalSettled: false,
   externalNecessity: "(none)",
   externalValid: false,
@@ -159,7 +159,7 @@ const NOT_APPLICABLE_RESEARCH_SUCCESS: ResearchOutcomeExample = {
 const SKIPPED_RESEARCH: ResearchOutcomeExample = {
   ...NOT_APPLICABLE_RESEARCH_SUCCESS,
   researchSkipped: true,
-  internalStarted: false,
+  internalDispatchCount: 0,
   internalSettled: false,
   internalValid: false,
   claimedRoute: "skipped-inline",
@@ -212,7 +212,7 @@ function expectedResearchRoute(
   }
 
   const externalFailed =
-    example.externalStarted &&
+    example.externalDispatchCount > 0 &&
     (!example.externalValid || example.uncoveredMaterialExternalEvidence);
   if (externalFailed && example.externalNecessity === "required") {
     return "blocked-required";
@@ -269,25 +269,34 @@ function validateResearchOutcome(example: ResearchOutcomeExample): string[] {
   if (example.childEmittedNotice) {
     errors.push("child-emitted-notice");
   }
-  if (
-    example.researchSkipped &&
-    (example.internalStarted || example.externalStarted)
-  ) {
+  if (example.researchSkipped && example.internalDispatchCount !== 0) {
+    errors.push("skipped-research-dispatched-internal-child");
+  }
+  if (example.researchSkipped && example.externalDispatchCount !== 0) {
     errors.push("skipped-research-dispatched-child");
   }
-  if (example.externalCriterionMet && !example.externalStarted) {
+  if (!example.researchSkipped && example.internalDispatchCount !== 1) {
+    errors.push("invalid-internal-dispatch-count");
+  }
+  if (example.externalDispatchCount > 1) {
+    errors.push("too-many-external-dispatches");
+  }
+  if (example.externalCriterionMet && example.externalDispatchCount !== 1) {
     errors.push("met-criterion-skipped");
   }
+  if (!example.externalCriterionMet && example.externalDispatchCount !== 0) {
+    errors.push("unmet-criterion-dispatched");
+  }
   if (
-    example.externalStarted &&
+    example.externalDispatchCount > 0 &&
     !["required", "useful"].includes(example.externalNecessity)
   ) {
     errors.push("missing-external-classification");
   }
 
   const hasActiveSibling =
-    (example.internalStarted && !example.internalSettled) ||
-    (example.externalStarted && !example.externalSettled);
+    (example.internalDispatchCount > 0 && !example.internalSettled) ||
+    (example.externalDispatchCount > 0 && !example.externalSettled);
   if (
     hasActiveSibling &&
     (example.helperInvoked || example.noticeEmitted || example.phase4Invoked)
@@ -621,6 +630,62 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
+  it("keeps the Phase 3 diagram aligned with root-owned sibling dispatch and synthesis", async () => {
+    const diagram = await readRepoFile(
+      "skills/issue-priming-workflow/references/workflow-diagram.md",
+    );
+    const normalizedDiagram = normalizeWhitespace(diagram);
+
+    for (const phrase of [
+      "Root dispatches exactly one required internal research-agent",
+      "Root dispatches zero or one conditional external research-agent",
+      "Join all applicable direct children",
+      "Root synthesizes final research brief",
+      "Root persists final research brief",
+    ]) {
+      expect(normalizedDiagram).toContain(phrase);
+    }
+    expect(diagram).toContain("decide -> internal_research");
+    expect(diagram).toContain("decide -> external_decide");
+    expect(diagram).toContain("internal_research -> research_join");
+    expect(diagram).toContain("external_research -> research_join");
+    expect(diagram).toContain(
+      "research_join -> research_synthesize -> research_persist",
+    );
+    expect(diagram).not.toContain("internal_research -> external_research");
+  });
+
+  it("keeps brainstorming research-brief provenance caller-owned and untrusted", async () => {
+    const playBrainstorm = await readSkillSource("play-brainstorm");
+    const pathSection = sliceBetween(
+      playBrainstorm,
+      "### Research brief path reference (preferred for controllers)",
+      "### Inline research brief content (preserved for direct invocations)",
+    );
+    const inlineSection = sliceBetween(
+      playBrainstorm,
+      "### Inline research brief content (preserved for direct invocations)",
+      "### Comment evidence path reference (optional)",
+    );
+
+    for (const section of [pathSection, inlineSection]) {
+      const normalized = normalizeWhitespace(section);
+      expect(normalized).toContain(
+        "caller-produced synthesis from possibly untrusted issue prose and scoped child reports",
+      );
+      expect(normalized).toContain(
+        "does not imply that the final brief originated from a `research-agent`",
+      );
+      expect(normalized).toContain("untrusted prose");
+    }
+    expect(playBrainstorm).not.toMatch(
+      /brief originated from a research-agent run against an external issue body/i,
+    );
+    expect(playBrainstorm).not.toMatch(
+      /\.ephemeral\/\d{4}-\d{2}-\d{2}-\d+-research\.md/,
+    );
+  });
+
   it.each([
     {
       route: "full success",
@@ -655,6 +720,82 @@ describe("play subagent routing source contracts", () => {
   });
 
   it.each([
+    {
+      family: "non-skipped research dispatches no internal child",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        internalDispatchCount: 0,
+      },
+      error: "invalid-internal-dispatch-count",
+    },
+    {
+      family: "non-skipped research dispatches two internal children",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        internalDispatchCount: 2,
+      },
+      error: "invalid-internal-dispatch-count",
+    },
+    {
+      family: "external criterion dispatches two external children",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        externalDispatchCount: 2,
+      },
+      error: "too-many-external-dispatches",
+    },
+    {
+      family: "unmet external criterion dispatches a child",
+      example: {
+        ...NOT_APPLICABLE_RESEARCH_SUCCESS,
+        externalDispatchCount: 1,
+        externalSettled: true,
+        externalNecessity: "useful" as const,
+        externalValid: true,
+      },
+      error: "unmet-criterion-dispatched",
+    },
+    {
+      family: "skipped research dispatches its required internal child",
+      example: {
+        ...SKIPPED_RESEARCH,
+        internalDispatchCount: 1,
+        internalSettled: true,
+      },
+      error: "skipped-research-dispatched-internal-child",
+    },
+    {
+      family: "skipped research claims full success",
+      example: {
+        ...SKIPPED_RESEARCH,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:skipped-inline",
+    },
+    {
+      family: "full success claims the skipped route",
+      example: {
+        ...FULL_RESEARCH_SUCCESS,
+        claimedRoute: "skipped-inline" as const,
+      },
+      error: "wrong-route:full-success",
+    },
+    {
+      family: "internal failure claims full success",
+      example: {
+        ...INTERNAL_PARTIAL,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:internal-partial",
+    },
+    {
+      family: "useful external failure claims full success",
+      example: {
+        ...USEFUL_EXTERNAL_FAILURE,
+        claimedRoute: "full-success" as const,
+      },
+      error: "wrong-route:useful-bounded",
+    },
     {
       family: "met external criterion skipped",
       example: {
