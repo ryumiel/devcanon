@@ -97,27 +97,28 @@ lists the three independent run scores. `PASS` means all three runs satisfied
 the complete run gate; `FAIL` records a strict rubric failure rather than a
 runtime failure.
 
-| Tier and configuration            | Run scores | Passing runs | Median input | Median cached | Median output | Median reasoning | Median wall time | API-equivalent cost | Disposition                                             |
-| --------------------------------- | ---------- | -----------: | -----------: | ------------: | ------------: | ---------------: | ---------------: | ------------------: | ------------------------------------------------------- |
-| Fast `gpt-5.5` / `low`            | 4, 4, 4    |          3/3 |       82,131 |        50,816 |           702 |               95 |           22.4 s |             $0.1947 | PASS                                                    |
-| Fast `gpt-5.4-mini` / omitted     | 4, 4, 4    |          3/3 |      118,530 |        90,624 |         1,615 |              605 |           34.7 s |             $0.0351 | PASS                                                    |
-| Fast `gpt-5.6-terra` / `low`      | 4, 4, 4    |          3/3 |       66,957 |        49,920 |           449 |               72 |           34.7 s |             $0.0618 | PASS                                                    |
-| Standard `gpt-5.5` / `medium`     | 4, 4, 4    |          3/3 |      124,877 |        93,696 |         2,025 |              473 |           56.5 s |             $0.2539 | PASS                                                    |
-| Standard `gpt-5.4` / `medium`     | 4, 4, 4    |          3/3 |       89,268 |        48,128 |         2,164 |              332 |           46.9 s |             $0.1473 | PASS                                                    |
-| Standard `gpt-5.6-sol` / `high`   | 4, 4, 4    |          3/3 |      109,671 |        88,832 |         1,984 |              705 |           53.3 s |             $0.2081 | PASS                                                    |
-| Standard `gpt-5.6-sol` / `medium` | 4, 4, 4    |          3/3 |       85,154 |        65,536 |         1,348 |              272 |           35.3 s |             $0.1867 | PASS                                                    |
-| Deep `gpt-5.5` / `high`           | 3, 3, 3    |          0/3 |      467,129 |       366,464 |         5,227 |            1,460 |          129.8 s |             $0.7883 | FAIL: incomplete shared-consumer boundary               |
-| Deep `gpt-5.4` / `high`           | 4, 3, 3    |          1/3 |    1,181,188 |     1,090,304 |        10,289 |            4,685 |          221.4 s |             $0.6653 | FAIL: incomplete boundary or invalid support citation   |
-| Deep `gpt-5.6-sol` / `xhigh`      | 4, 4, 4    |          3/3 |      675,774 |       609,792 |         5,735 |            2,610 |          130.6 s |             $0.8069 | PASS                                                    |
-| Deep `gpt-5.6-sol` / `high`       | 4, 4, 3    |          2/3 |      302,232 |       253,952 |         3,681 |            1,509 |           99.3 s |             $0.4739 | FAIL: one response lacked path-backed reviewer evidence |
+| Tier and configuration            | Run scores | Passing runs | Median input | Median cached | Median output | Median reasoning | Median wall time | Simplified API proxy | Disposition                                             |
+| --------------------------------- | ---------- | -----------: | -----------: | ------------: | ------------: | ---------------: | ---------------: | -------------------: | ------------------------------------------------------- |
+| Fast `gpt-5.5` / `low`            | 4, 4, 4    |          3/3 |       82,131 |        50,816 |           702 |               95 |           22.4 s |              $0.1947 | PASS                                                    |
+| Fast `gpt-5.4-mini` / omitted     | 4, 4, 4    |          3/3 |      118,530 |        90,624 |         1,615 |              605 |           34.7 s |              $0.0351 | PASS                                                    |
+| Fast `gpt-5.6-terra` / `low`      | 4, 4, 4    |          3/3 |       66,957 |        49,920 |           449 |               72 |           34.7 s |              $0.0618 | PASS                                                    |
+| Standard `gpt-5.5` / `medium`     | 4, 4, 4    |          3/3 |      124,877 |        93,696 |         2,025 |              473 |           56.5 s |              $0.2539 | PASS                                                    |
+| Standard `gpt-5.4` / `medium`     | 4, 4, 4    |          3/3 |       89,268 |        48,128 |         2,164 |              332 |           46.9 s |              $0.1473 | PASS                                                    |
+| Standard `gpt-5.6-sol` / `high`   | 4, 4, 4    |          3/3 |      109,671 |        88,832 |         1,984 |              705 |           53.3 s |              $0.2081 | PASS                                                    |
+| Standard `gpt-5.6-sol` / `medium` | 4, 4, 4    |          3/3 |       85,154 |        65,536 |         1,348 |              272 |           35.3 s |              $0.1867 | PASS                                                    |
+| Deep `gpt-5.5` / `high`           | 3, 3, 3    |          0/3 |      467,129 |       366,464 |         5,227 |            1,460 |          129.8 s |              $0.7883 | FAIL: incomplete shared-consumer boundary               |
+| Deep `gpt-5.4` / `high`           | 4, 3, 3    |          1/3 |    1,181,188 |     1,090,304 |        10,289 |            4,685 |          221.4 s |              $0.6653 | FAIL: incomplete boundary or invalid support citation   |
+| Deep `gpt-5.6-sol` / `xhigh`      | 4, 4, 4    |          3/3 |      675,774 |       609,792 |         5,735 |            2,610 |          130.6 s |              $0.8069 | PASS                                                    |
+| Deep `gpt-5.6-sol` / `high`       | 4, 4, 3    |          2/3 |      302,232 |       253,952 |         3,681 |            1,509 |           99.3 s |              $0.4739 | FAIL: one response lacked path-backed reviewer evidence |
 
-The API-equivalent cost column is an estimate, not a charged Codex subscription
-cost. It uses the token classes reported by the CLI and regular public API
-prices published on 2026-07-10. Baseline prices come from the
+The simplified API proxy column is an API-equivalent comparison aid, not an
+exact cost estimate or a charged Codex subscription cost. It uses the token
+classes reported by the CLI and regular public API prices published on
+2026-07-10. Baseline prices come from the
 [OpenAI model catalog](https://developers.openai.com/api/docs/models); GPT-5.6
 prices and the 90% cache-read discount come from the
 [GPT-5.6 preview pricing notice](https://help.openai.com/en/articles/20001325-a-preview-of-gpt-5-6-sol-terra-and-luna).
-For each run, the estimate is:
+For each run, the proxy is:
 
 ```text
 ((input - cached input) * input rate
@@ -126,15 +127,21 @@ For each run, the estimate is:
 ```
 
 Reasoning tokens are retained as a reported comparison class and are not added
-again to the output class in the estimate. The table reports the median of the
-three per-run estimates. It does not represent an invoice, subscription debit,
-or guaranteed API bill.
+again to the output class in the proxy. The CLI token classes do not distinguish
+cache-write tokens from cache reads and do not report the per-request context
+lengths needed to identify long-context pricing adjustments. The proxy therefore
+treats every reported cached-input token at the public cache-read rate and uses
+the base input and output rates. Cache-write charges and long-context uplifts
+are explicitly unmeasurable from the recorded evidence and are excluded rather
+than invented. The table reports the median of the three per-run proxies and is
+only a directional comparison for this fixed protocol; it does not represent
+an invoice, subscription debit, or guaranteed API bill.
 
 The selected candidates all passed 3/3 at 4/4. Fast tied both baselines on
 quality and was the least expensive selected tier. Standard/high tied both
 baselines and standard/medium on quality. Deep/xhigh exceeded both baseline
 medians and tied deep/high on quality. The predetermined quality-first rule
-therefore accepts the ties; latency, tokens, and estimated cost remain visible
+therefore accepts the ties; latency, tokens, and proxy cost remain visible
 tradeoffs but do not override the passing quality decision.
 
 ### Runtime smoke and availability boundary
