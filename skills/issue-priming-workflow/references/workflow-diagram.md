@@ -20,6 +20,9 @@ digraph priming {
   late_external_decide [label="Late external criterion met after internal External Uncertainties?", shape=diamond];
   late_external_research [label="3b. Root dispatches the sole external research-agent\nas a late direct sibling"];
   research_join [label="Join all applicable direct children"];
+  research_outcome [label="Apply research outcome precedence", shape=diamond];
+  research_required_stop [label="STOP\nRequired external blocker\nNo artifact, notice, or Phase 4", shape=doublecircle];
+  research_internal_inline [label="Internal failure\nInline handoff to brainstorming\nNo artifact or notice"];
   research_synthesize [label="Root synthesizes final research brief"];
   research_persist [label="Root persists final research brief"];
   brainstorm [label="4. Brainstorm\nInvoke skill with\nissue-body path + brief"];
@@ -46,7 +49,12 @@ digraph priming {
   late_external_decide -> late_external_research [label="yes: one late leaf"];
   late_external_decide -> research_join [label="no"];
   late_external_research -> research_join;
-  research_join -> research_synthesize -> research_persist;
+  research_join -> research_outcome;
+  research_outcome -> research_required_stop [label="required external failure"];
+  research_outcome -> research_internal_inline [label="internal failure"];
+  research_outcome -> research_synthesize [label="full success or useful external failure\nwith bounded uncertainty"];
+  research_internal_inline -> brainstorm;
+  research_synthesize -> research_persist;
   research_persist -> brainstorm;
   brainstorm -> referral_check;
   referral_check -> cleanup [label="yes"];

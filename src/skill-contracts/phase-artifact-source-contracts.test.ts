@@ -115,7 +115,7 @@ function validateResearchPromptTuple(
     }
 
     const value = tuple[key];
-    if (value === "") {
+    if (value?.trim() === "") {
       errors.push(`empty:${key}`);
     }
     if (value?.includes("\n") || value?.includes("\r")) {
@@ -149,7 +149,7 @@ function validateResearchPromptTuple(
     }
     if (
       tuple.externalQuestionOrNone === undefined ||
-      tuple.externalQuestionOrNone === "" ||
+      tuple.externalQuestionOrNone.trim() === "" ||
       tuple.externalQuestionOrNone === "(none)"
     ) {
       errors.push("invalid:question-pairing");
@@ -206,20 +206,19 @@ const EXTERNAL_REPORT_HEADINGS = [
   "### Implications",
 ] as const;
 
-function reportSection(
-  report: string,
-  heading: string,
-  nextHeading?: string,
-): string {
-  const start = report.indexOf(heading);
-  if (start < 0) {
-    return "";
+function structuralReportLines(report: string): string[] {
+  const lines: string[] = [];
+  let fenced = false;
+  for (const line of report.split(/\r?\n/u)) {
+    if (/^\s*```/u.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (!fenced && !/^\s*>/u.test(line)) {
+      lines.push(line);
+    }
   }
-  const bodyStart = start + heading.length;
-  const end = nextHeading
-    ? report.indexOf(nextHeading, bodyStart)
-    : report.length;
-  return report.slice(bodyStart, end < 0 ? report.length : end);
+  return lines;
 }
 
 function validateResearchReport(
@@ -233,8 +232,9 @@ function validateResearchReport(
   }
 
   const errors: string[] = [];
-  const hasInternalFamily = report.includes("## Internal Research Report");
-  const hasExternalFamily = report.includes("## External Research Report");
+  const lines = structuralReportLines(report);
+  const hasInternalFamily = lines.includes("## Internal Research Report");
+  const hasExternalFamily = lines.includes("## External Research Report");
 
   if (hasInternalFamily && hasExternalFamily) {
     errors.push("combined-family");
@@ -247,11 +247,41 @@ function validateResearchReport(
 
   const requiredHeadings =
     scope === "internal" ? INTERNAL_REPORT_HEADINGS : EXTERNAL_REPORT_HEADINGS;
-  for (const heading of requiredHeadings) {
-    if (!report.includes(heading)) {
+  const positions = requiredHeadings.map((heading) =>
+    lines.flatMap((line, index) => (line === heading ? [index] : [])),
+  );
+  for (const [index, heading] of requiredHeadings.entries()) {
+    if (positions[index].length === 0) {
       errors.push(`missing-heading:${heading}`);
+    } else if (positions[index].length > 1) {
+      errors.push(`duplicate-heading:${heading}`);
     }
   }
+  if (
+    positions.every((matches) => matches.length === 1) &&
+    positions.some(
+      (matches, index) => index > 0 && matches[0] <= positions[index - 1][0],
+    )
+  ) {
+    errors.push("headings-out-of-order");
+  }
+  for (const [index, heading] of requiredHeadings.entries()) {
+    if (index === 0 || positions[index].length !== 1) continue;
+    const start = positions[index][0] + 1;
+    const end = positions[index + 1]?.[0] ?? lines.length;
+    if (lines.slice(start, end).every((line) => line.trim() === "")) {
+      errors.push(`empty-section:${heading}`);
+    }
+  }
+
+  const reportSection = (heading: string, nextHeading?: string): string => {
+    const start = lines.indexOf(heading);
+    if (start < 0) return "";
+    const end = nextHeading
+      ? lines.indexOf(nextHeading, start + 1)
+      : lines.length;
+    return lines.slice(start + 1, end < 0 ? lines.length : end).join("\n");
+  };
 
   if (scope === "internal") {
     const hasRepositoryEvidence =
@@ -267,16 +297,14 @@ function validateResearchReport(
 
   if (scope === "external") {
     const precedent = reportSection(
-      report,
       "### External Precedent",
       "### Primary Sources",
     );
     const primarySources = reportSection(
-      report,
       "### Primary Sources",
       "### Trade-offs",
     );
-    const implications = reportSection(report, "### Implications");
+    const implications = reportSection("### Implications");
     if (
       !precedent.includes(externalQuestion) ||
       !precedent.includes("https://") ||
@@ -844,6 +872,16 @@ describe("phase artifact source contracts", () => {
       error: "empty:id",
     },
     {
+      family: "whitespace-only required value",
+      tuple: { ...INTERNAL_RESEARCH_TUPLE, title: " \t " },
+      error: "empty:title",
+    },
+    {
+      family: "whitespace-only external question",
+      tuple: { ...EXTERNAL_RESEARCH_TUPLE, externalQuestionOrNone: "   " },
+      error: "empty:externalQuestionOrNone",
+    },
+    {
       family: "multiline required value",
       tuple: {
         ...INTERNAL_RESEARCH_TUPLE,
@@ -936,6 +974,56 @@ describe("phase artifact source contracts", () => {
       ),
       question: "(none)",
       error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "heading only appears in a fenced example",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.",
+        "```md\n### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.\n```",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "heading only appears in a quote",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "> ### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "missing-heading:### Existing Patterns",
+    },
+    {
+      family: "duplicate required heading",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns",
+        "### Existing Patterns\n- skills/example.md — first.\n\n### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "duplicate-heading:### Existing Patterns",
+    },
+    {
+      family: "required headings out of order",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        /### Policy Constraints[\s\S]*?### External Uncertainties/u,
+        "### Existing Patterns\n- skills/example.md — root-owned depth-1.\n\n### Policy Constraints\n- AGENTS.md — policy.\n\n### External Uncertainties",
+      ),
+      question: "(none)",
+      error: "headings-out-of-order",
+    },
+    {
+      family: "empty required section",
+      scope: "internal" as const,
+      report: INTERNAL_REPORT.replace(
+        "### Existing Patterns\n- skills/subagent-lifecycle/SKILL.md — wait before retry.",
+        "### Existing Patterns",
+      ),
+      question: "(none)",
+      error: "empty-section:### Existing Patterns",
     },
     {
       family: "wrong-scope report",
@@ -1034,7 +1122,7 @@ None
     );
 
     expect(normalizeWhitespace(phase3)).toContain(
-      "**Empty input:** reject an empty required scalar or external question",
+      "**Empty input:** reject an empty or whitespace-only required scalar or external question",
     );
   });
 
@@ -1104,7 +1192,7 @@ None
     );
 
     expect(researchPrompt).toContain(
-      "external requires one nonempty single-line question of at most 500 characters; internal uses exactly `(none)`",
+      "external requires one nonblank single-line question of at most 500 characters; internal uses exactly `(none)`",
     );
   });
 

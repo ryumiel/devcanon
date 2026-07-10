@@ -238,18 +238,18 @@ Prepare the complete prompt tuple for every child:
 - `EXTERNAL_NECESSITY_OR_NONE`: exactly `(none)` for `internal`, or the
   root-recorded `required` or `useful` classification for `external`
 - `EXTERNAL_QUESTION_OR_NONE`: exactly `(none)` for `internal`, or one
-  root-curated nonempty single-line question of at most 500 characters for
+  root-curated nonblank single-line question of at most 500 characters for
   `external`
 
 Validate the worktree and guarded issue-body/comment-evidence inputs first,
 using the Phase 1 path guards again before research consumes them. Then
 validate every scalar and closed value before creating lifecycle state. Every
-required scalar must be nonempty and single-line. Source, scope, necessity, and
+required scalar must be nonblank after trimming and single-line. Source, scope, necessity, and
 question must satisfy their closed values, pairings, and question length above.
 Reject these input families independently:
 
 - **Missing input:** reject any tuple with an absent required placeholder.
-- **Empty input:** reject an empty required scalar or external question.
+- **Empty input:** reject an empty or whitespace-only required scalar or external question.
 - **Multiline input:** reject a required scalar or external-only value
   containing a line break.
 - **Over-limit input:** reject an external question longer than 500 characters.
@@ -332,15 +332,13 @@ or route selection. Record `closed=yes` only when the current target actually
 closes the stable session; otherwise record the honest `close-unavailable`
 outcome.
 
-If a spawn fails because slots are exhausted, record orchestration resource
-exhaustion and run the cleanup gate for completed or superseded sessions. When
-automatic cleanup is unavailable, surface explicit manual cleanup guidance and
-sanitized inventory when available, then wait for operator confirmation that
-manual cleanup completed before reconstructing workflow or repository state.
-Only after automatic cleanup or that confirmation may the root reconstruct the
-lifecycle ledger and repository anchors and retry exactly once. Stop and
-escalate if the retry fails. This wait applies to internal, immediate external,
-and late external spawn failures.
+If any internal, immediate external, or late external spawn fails because slots
+are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
+captured research scope, report result, source references, blocker state,
+lifecycle ledger, and repository anchors across that shared recovery procedure,
+then apply the research outcome precedence below after recovery completes or
+escalates. This shared recovery applies to internal, immediate external, and
+late external spawn failures.
 
 Every started immediate sibling must reach completion, timeout, or failure and
 have its complete captured tuple before continuation. Never cancel or abandon

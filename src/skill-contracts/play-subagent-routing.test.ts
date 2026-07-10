@@ -667,8 +667,15 @@ describe("play subagent routing source contracts", () => {
       "capture scope, report result, source references, and blocker state before cleanup",
     );
     expect(normalizedPhase3).toContain(
-      "reconstruct the lifecycle ledger and repository anchors and retry exactly once",
+      "follow `subagent-lifecycle` § Slot-Limit Recovery",
     );
+    expect(normalizedPhase3).toContain(
+      "captured research scope, report result, source references, blocker state, lifecycle ledger, and repository anchors",
+    );
+    expect(normalizedPhase3).toContain(
+      "applies to internal, immediate external, and late external spawn failures",
+    );
+    expect(normalizedPhase3).not.toContain("retry exactly once");
 
     expect(normalizedPhase3).toContain(
       "If internal becomes terminal while external remains active, do not invoke the helper, emit the notice, or enter Phase 4",
@@ -758,6 +765,11 @@ describe("play subagent routing source contracts", () => {
       "late_external_research",
     ]);
     expect(dotNeighbors(edges, "research_join", "successors")).toEqual([
+      "research_outcome",
+    ]);
+    expect(dotNeighbors(edges, "research_outcome", "successors")).toEqual([
+      "research_internal_inline",
+      "research_required_stop",
       "research_synthesize",
     ]);
     expect(dotNeighbors(edges, "research_synthesize", "successors")).toEqual([
@@ -766,6 +778,21 @@ describe("play subagent routing source contracts", () => {
     expect(dotNeighbors(edges, "research_persist", "successors")).toEqual([
       "brainstorm",
     ]);
+    expect(
+      dotNeighbors(edges, "research_internal_inline", "successors"),
+    ).toEqual(["brainstorm"]);
+    expect(dotNeighbors(edges, "research_required_stop", "successors")).toEqual(
+      [],
+    );
+    expect(
+      dotCanReach(edges, "research_required_stop", "research_persist"),
+    ).toBe(false);
+    expect(dotCanReach(edges, "research_required_stop", "brainstorm")).toBe(
+      false,
+    );
+    expect(
+      dotCanReach(edges, "research_internal_inline", "research_persist"),
+    ).toBe(false);
     expect(
       dotCanReach(
         edges,
@@ -1167,7 +1194,7 @@ describe("play subagent routing source contracts", () => {
     );
   });
 
-  it("waits for manual cleanup confirmation before slot-recovery reconstruction", async () => {
+  it("delegates slot recovery to the lifecycle owner and keeps research-local state", async () => {
     const phase3 = sliceBetween(
       await readSkillSource("issue-priming-workflow"),
       "## Phase 3: Research (Conditional)",
@@ -1176,11 +1203,21 @@ describe("play subagent routing source contracts", () => {
     const normalizedPhase3 = normalizeWhitespace(phase3);
 
     expect(normalizedPhase3).toContain(
-      "wait for operator confirmation that manual cleanup completed before reconstructing workflow or repository state",
+      "follow `subagent-lifecycle` § Slot-Limit Recovery",
     );
     expect(normalizedPhase3).toContain(
-      "This wait applies to internal, immediate external, and late external spawn failures",
+      "captured research scope, report result, source references, blocker state, lifecycle ledger, and repository anchors",
     );
+    expect(normalizedPhase3).toContain(
+      "applies to internal, immediate external, and late external spawn failures",
+    );
+    for (const copiedGenericMechanic of [
+      "surface explicit manual cleanup guidance",
+      "wait for operator confirmation",
+      "retry exactly once",
+    ]) {
+      expect(normalizedPhase3).not.toContain(copiedGenericMechanic);
+    }
   });
 
   it("blocks routing when internal settles before immediate external", async () => {

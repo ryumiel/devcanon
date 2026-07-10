@@ -18,16 +18,17 @@ placeholder substitution. The role identity is already promoted; per
 Before creating lifecycle state or dispatching this template, the root
 validates the worktree and guarded artifact paths, then validates the complete
 placeholder tuple. `SOURCE` is exactly `github` or `linear`. `ID`, `TITLE`,
-`ISSUE_BODY_PATH`, `GATE_REASON`, and `REPO_ROOT` are required, nonempty, and
+`ISSUE_BODY_PATH`, `GATE_REASON`, and `REPO_ROOT` are required, nonblank, and
 single-line.
 `COMMENT_EVIDENCE_PATH_OR_NONE` is a guarded comment-evidence path or exactly
-`(none)`. `RESEARCH_SCOPE` is exactly `internal` or `external`.
+`(none)`. Every required scalar is nonblank after trimming and single-line.
+`RESEARCH_SCOPE` is exactly `internal` or `external`.
 `EXTERNAL_NECESSITY_OR_NONE` is scope-paired: external uses exactly `required`
 or `useful`; internal uses exactly `(none)`. `EXTERNAL_QUESTION_OR_NONE` is
-scope-paired: external requires one nonempty single-line question of at most
+scope-paired: external requires one nonblank single-line question of at most
 500 characters; internal uses exactly `(none)`.
 
-A missing, empty, multiline, over-limit, invalid, or incompletely substituted
+A missing, empty, whitespace-only, multiline, over-limit, invalid, or incompletely substituted
 value stops Phase 3 before lifecycle dispatch, helper invocation, artifact
 creation, notice emission, or Phase 4. The root creates a fresh, fully
 populated prompt for each sibling; a child never infers its source, scope,
