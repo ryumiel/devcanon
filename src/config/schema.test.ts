@@ -713,13 +713,32 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects invalid codex tier reasoning_effort enum values", () => {
+  it("accepts max codex tier reasoning_effort", () => {
     const result = ConfigSchema.safeParse({
       version: 1,
       modelTiers: {
         standard: {
           claude: { model: "sonnet" },
-          codex: { model: "gpt-5.4", reasoning_effort: "max" },
+          codex: { model: "gpt-5.6-sol", reasoning_effort: "max" },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.modelTiers?.standard.codex).toEqual({
+        model: "gpt-5.6-sol",
+        reasoning_effort: "max",
+      });
+    }
+  });
+
+  it("rejects ultra as a codex tier reasoning_effort", () => {
+    const result = ConfigSchema.safeParse({
+      version: 1,
+      modelTiers: {
+        standard: {
+          claude: { model: "sonnet" },
+          codex: { model: "gpt-5.6-sol", reasoning_effort: "ultra" },
         },
       },
     });
