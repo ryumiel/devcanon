@@ -380,7 +380,7 @@ describe("play subagent routing source contracts", () => {
       "capture scope, report result, source references, and blocker state before cleanup",
     );
     expect(normalizedPhase3).toContain(
-      "reconstruct the workflow and repository anchors, retry exactly once",
+      "reconstruct the lifecycle ledger and repository anchors and retry exactly once",
     );
 
     expect(normalizedPhase3).toContain(
@@ -394,6 +394,163 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase3).toContain(
       "Never cancel or abandon an already-started sibling and never route early",
+    );
+  });
+
+  it("derives one bounded question for an immediate external sibling", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "For immediate external dispatch, derive one root-curated question from issue-body, comment-evidence, and gate evidence",
+    );
+  });
+
+  it("validates artifact inputs and the complete tuple before lifecycle state", async () => {
+    const phase3 = normalizeWhitespace(
+      sliceBetween(
+        await readSkillSource("issue-priming-workflow"),
+        "## Phase 3: Research (Conditional)",
+        "## Phase 4: Invoke Brainstorming",
+      ),
+    );
+    const artifactValidation = phase3.indexOf(
+      "Validate the worktree and guarded issue-body/comment-evidence inputs first",
+    );
+    const tupleValidation = phase3.indexOf(
+      "Then validate every scalar and closed value before creating lifecycle state",
+    );
+    const pendingLedger = phase3.indexOf(
+      "Before every internal or external spawn, add an `agent_id=pending` ledger row",
+    );
+
+    expect(artifactValidation).toBeGreaterThanOrEqual(0);
+    expect(tupleValidation).toBeGreaterThan(artifactValidation);
+    expect(pendingLedger).toBeGreaterThan(tupleValidation);
+  });
+
+  it("derives a late external question from captured internal uncertainty without raw copying", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "For late external dispatch, summarize the captured internal `External Uncertainties` question without copying raw report prose",
+    );
+  });
+
+  it("requires an external report to answer its supplied question", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "Answer `<EXTERNAL_QUESTION_OR_NONE>` directly in sourced `External Precedent` findings and in `Implications`",
+    );
+  });
+
+  it("routes uncovered immediate-sibling uncertainty as classified external failure", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "compare every material internal external uncertainty with the supplied external question and the external report's sourced answer",
+    );
+    expect(normalizedPhase3).toContain(
+      "classify the uncovered uncertainty `required` or `useful` and apply that external-failure route",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not dispatch a second external child and never select full success with uncovered material external evidence",
+    );
+  });
+
+  it("requires classification before every external dispatch", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing classification:** never spawn an external child until `required` or `useful` and its one-sentence reason are recorded",
+    );
+  });
+
+  it("never skips external dispatch when a criterion is met", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Met criterion:** dispatch external research; recording not applicable is invalid",
+    );
+  });
+
+  it("keeps research children from spawning, writing, or announcing", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(researchPrompt).toContain(
+      "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
+    );
+  });
+
+  it("waits for manual cleanup confirmation before slot-recovery reconstruction", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "wait for operator confirmation that manual cleanup completed before reconstructing workflow or repository state",
+    );
+    expect(normalizedPhase3).toContain(
+      "This wait applies to internal, immediate external, and late external spawn failures",
+    );
+  });
+
+  it("blocks routing when internal settles before immediate external", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "If internal becomes terminal while external remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+  });
+
+  it("blocks routing when immediate external settles before internal", async () => {
+    const phase3 = sliceBetween(
+      await readSkillSource("issue-priming-workflow"),
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "If external becomes terminal while internal remains active, do not invoke the helper, emit the notice, or enter Phase 4",
     );
   });
 

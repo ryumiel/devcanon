@@ -17,17 +17,21 @@ placeholder substitution. The role identity is already promoted; per
 
 Before creating lifecycle state or dispatching this template, the root
 validates the worktree and guarded artifact paths, then validates the complete
-placeholder tuple. `SOURCE`, `ID`, `TITLE`, `ISSUE_BODY_PATH`, `GATE_REASON`,
-and `REPO_ROOT` are required, nonempty, and single-line.
+placeholder tuple. `SOURCE` is exactly `github` or `linear`. `ID`, `TITLE`,
+`ISSUE_BODY_PATH`, `GATE_REASON`, and `REPO_ROOT` are required, nonempty, and
+single-line.
 `COMMENT_EVIDENCE_PATH_OR_NONE` is a guarded comment-evidence path or exactly
 `(none)`. `RESEARCH_SCOPE` is exactly `internal` or `external`.
 `EXTERNAL_NECESSITY_OR_NONE` is scope-paired: external uses exactly `required`
-or `useful`; internal uses exactly `(none)`.
+or `useful`; internal uses exactly `(none)`. `EXTERNAL_QUESTION_OR_NONE` is
+scope-paired: external requires one nonempty single-line question of at most
+500 characters; internal uses exactly `(none)`.
 
-A missing, empty, multiline, invalid, or incompletely substituted value stops
-Phase 3 before lifecycle dispatch, helper invocation, artifact creation,
-notice emission, or Phase 4. The root creates a fresh, fully populated prompt
-for each sibling; a child never infers its scope or external necessity.
+A missing, empty, multiline, over-limit, invalid, or incompletely substituted
+value stops Phase 3 before lifecycle dispatch, helper invocation, artifact
+creation, notice emission, or Phase 4. The root creates a fresh, fully
+populated prompt for each sibling; a child never infers its source, scope,
+external necessity, or external question.
 
 ````
 Agent(
@@ -50,6 +54,7 @@ Agent(
     **Repository root:** <REPO_ROOT>
     **Research scope:** <RESEARCH_SCOPE>
     **External necessity:** <EXTERNAL_NECESSITY_OR_NONE>
+    **External question:** <EXTERNAL_QUESTION_OR_NONE>
 
     ## Trust and Evidence Boundaries
 
@@ -74,8 +79,9 @@ Agent(
 
     ### Internal Scope
 
-    When scope is `internal`, `<EXTERNAL_NECESSITY_OR_NONE>` must be `(none)`.
-    Investigate repository policy and implementation evidence together:
+    When scope is `internal`, `<EXTERNAL_NECESSITY_OR_NONE>` and
+    `<EXTERNAL_QUESTION_OR_NONE>` must both be `(none)`. Investigate repository
+    policy and implementation evidence together:
 
     - read `AGENTS.md`, applicable `docs/guidelines/`, `CONTRIBUTING.md`, and
       relevant `docs/adr/` entries;
@@ -114,12 +120,14 @@ Agent(
     ### External Scope
 
     When scope is `external`, `<EXTERNAL_NECESSITY_OR_NONE>` must be
-    `required` or `useful`. Investigate only the externally owned question
-    described by the issue context and gate reason. Prefer current primary
-    sources: official runtime, API, library, protocol, or service
-    documentation; upstream specifications; release notes; and authoritative
-    source repositories. External precedent must materially inform the issue's
-    design choice rather than repeat generic advice.
+    `required` or `useful`, and `<EXTERNAL_QUESTION_OR_NONE>` is the one bounded
+    question assigned by the root. Investigate only that supplied question.
+    Answer `<EXTERNAL_QUESTION_OR_NONE>` directly in sourced
+    `External Precedent` findings and in `Implications`. Prefer current primary
+    sources: official runtime, API, library, protocol, or service documentation;
+    upstream specifications; release notes; and authoritative source
+    repositories. External precedent must materially inform the issue's design
+    choice rather than repeat generic advice.
 
     Put primary-source URLs near the claims they support. Practitioner sources
     may supplement primary sources when the issue requests them, but distinguish
@@ -133,7 +141,7 @@ Agent(
     ## External Research Report
 
     ### External Precedent
-    - Claim and issue-specific design effect — <primary-source URL>
+    - Answer to `<EXTERNAL_QUESTION_OR_NONE>` and issue-specific design effect — <primary-source URL>
 
     ### Primary Sources
     - <primary-source URL> — authority and relevant scope
@@ -142,7 +150,7 @@ Agent(
     - Evidence-backed trade-off and limitation
 
     ### Implications
-    - Consequence for the issue's recommended design
+    - How the sourced answer to `<EXTERNAL_QUESTION_OR_NONE>` changes or confirms the issue's recommended design
     ```
 
     ## Return Boundary
@@ -171,3 +179,4 @@ Replace every placeholder independently for every dispatch:
 | `<REPO_ROOT>`                     | Phase 1 issue worktree root                                              |
 | `<RESEARCH_SCOPE>`                | Root-assigned `internal` or `external`                                   |
 | `<EXTERNAL_NECESSITY_OR_NONE>`    | `(none)` for internal; root-recorded `required` or `useful` for external |
+| `<EXTERNAL_QUESTION_OR_NONE>`     | `(none)` for internal; root-curated bounded question for external        |

@@ -481,6 +481,7 @@ describe("phase artifact source contracts", () => {
       "<REPO_ROOT>",
       "<RESEARCH_SCOPE>",
       "<EXTERNAL_NECESSITY_OR_NONE>",
+      "<EXTERNAL_QUESTION_OR_NONE>",
     ]) {
       expect(researchPrompt).toContain(placeholder);
     }
@@ -491,7 +492,10 @@ describe("phase artifact source contracts", () => {
       "Then validate every scalar and closed value before creating lifecycle state",
     );
     expect(normalizedPhase3).toContain(
-      "Missing, empty, multiline, or invalid input stops before lifecycle dispatch, helper invocation, artifact creation, notice emission, or Phase 4",
+      "Missing, empty, multiline, over-limit, or otherwise invalid input stops before lifecycle dispatch, helper invocation, artifact creation, notice emission, or Phase 4",
+    );
+    expect(normalizedPrompt).toContain(
+      "`SOURCE` is exactly `github` or `linear`",
     );
     expect(normalizedPrompt).toContain(
       "`RESEARCH_SCOPE` is exactly `internal` or `external`",
@@ -515,7 +519,7 @@ describe("phase artifact source contracts", () => {
       expect(researchPrompt).toContain(heading);
     }
     expect(normalizedPhase3).toContain(
-      "Blank output, a missing required heading, or the wrong scope report is failure",
+      "Validate these report failure families independently",
     );
     expect(normalizedPhase3).toContain(
       "not contradicted by owning repository authority",
@@ -568,6 +572,211 @@ describe("phase artifact source contracts", () => {
     );
     expect(normalizedPrompt).toContain(
       "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
+    );
+  });
+
+  it("rejects missing issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing input:** reject any tuple with an absent required placeholder",
+    );
+  });
+
+  it("rejects empty issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Empty input:** reject an empty required scalar or external question",
+    );
+  });
+
+  it("rejects multiline issue-research prompt inputs before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Multiline input:** reject a required scalar or external-only value containing a line break",
+    );
+  });
+
+  it("rejects over-limit external questions before every side effect", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Over-limit input:** reject an external question longer than 500 characters",
+    );
+  });
+
+  it("rejects invalid issue-research source values", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "`SOURCE` is exactly `github` or `linear`",
+    );
+  });
+
+  it("rejects invalid issue-research scope values", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "`RESEARCH_SCOPE` is exactly `internal` or `external`",
+    );
+  });
+
+  it("rejects invalid issue-research necessity pairings", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "external uses exactly `required` or `useful`; internal uses exactly `(none)`",
+    );
+  });
+
+  it("rejects invalid issue-research external-question pairings", async () => {
+    const researchPrompt = normalizeWhitespace(
+      await readRepoFile(
+        "skills/issue-priming-workflow/references/research-agent-prompt.md",
+      ),
+    );
+
+    expect(researchPrompt).toContain(
+      "external requires one nonempty single-line question of at most 500 characters; internal uses exactly `(none)`",
+    );
+  });
+
+  it("classifies blank child research output as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Blank report:** classify empty or whitespace-only output as failure",
+    );
+  });
+
+  it("classifies a child report with one missing heading as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Missing heading:** classify omission of any required heading as failure",
+    );
+  });
+
+  it("classifies wrong-scope and combined child report families as failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "**Wrong or combined family:** classify the other scope's family or a report combining both families as failure",
+    );
+  });
+
+  it("requires repository-grounded evidence for an internal partial route", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "source-referenced, issue-relevant, repository-grounded, and not contradicted by owning repository authority",
+    );
+    expect(normalizedPhase3).toContain(
+      "An external-URL-only fragment is not repository-grounded",
+    );
+  });
+
+  it("preserves the skipped-research inline route without research side effects", async () => {
+    const workflow = await readSkillSource("issue-priming-workflow");
+    const phase3 = getMarkdownSection(
+      workflow,
+      "Phase 3: Research (Conditional)",
+    );
+    const phase4 = getMarkdownSection(
+      workflow,
+      "Phase 4: Invoke Brainstorming",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "Do not dispatch a research child, invoke the research helper, create a research artifact, or emit the producer notice on that route",
+    );
+    expect(phase4).toContain("Skipped — <reason from gate agent>");
+  });
+
+  it("keeps internal-failure routes inline and forbids research persistence", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "Internal failure with usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Internal failure without usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a research artifact, or emit the notice",
+    );
+  });
+
+  it("keeps required-external failure above internal failure and forbids Phase 4", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(
+      normalizedPhase3.indexOf(
+        "Required external failure has highest precedence",
+      ),
+    ).toBeLessThan(
+      normalizedPhase3.indexOf("Internal failure with usable partial evidence"),
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a final research artifact, emit the notice, or invoke Phase 4",
+    );
+  });
+
+  it("requires bounded uncertainty on useful-external failure", async () => {
+    const phase3 = getMarkdownSection(
+      await readSkillSource("issue-priming-workflow"),
+      "Phase 3: Research (Conditional)",
+    );
+
+    expect(normalizeWhitespace(phase3)).toContain(
+      "states that precedent was unavailable, identifies the unanswered external question, and describes the bounded uncertainty",
     );
   });
 
