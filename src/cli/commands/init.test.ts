@@ -63,6 +63,27 @@ describe("initAction", () => {
     );
   });
 
+  it("emits the selected Codex tiers without changing the initialized Claude tiers", async () => {
+    await initAction();
+
+    const config = await loadConfig(path.join(tempDir, "devcanon.config.yaml"));
+
+    expect(config.modelTiers).toEqual({
+      fast: {
+        claude: { model: "claude-haiku-4-5" },
+        codex: { model: "gpt-5.6-terra", reasoning_effort: "low" },
+      },
+      standard: {
+        claude: { model: "claude-sonnet-4-6", effort: "medium" },
+        codex: { model: "gpt-5.6-sol", reasoning_effort: "high" },
+      },
+      deep: {
+        claude: { model: "claude-opus-4-7", effort: "high" },
+        codex: { model: "gpt-5.6-sol", reasoning_effort: "xhigh" },
+      },
+    });
+  });
+
   it("preserves an existing matching runtime support skill path", async () => {
     await mkdir(path.join(tempDir, "skills"), { recursive: true });
     await copyBundledRuntimeTo(

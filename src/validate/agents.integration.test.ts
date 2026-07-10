@@ -495,6 +495,24 @@ describe("loadAndValidateAgents", () => {
     });
   });
 
+  it("accepts model_reasoning_effort max", async () => {
+    const yaml = makeAgentYaml("max-reasoning-effort", {
+      codex: {
+        model: "gpt-5.6-sol",
+        model_reasoning_effort: "max",
+      },
+    });
+    await createAgentFixture(agentsDir, "max-reasoning-effort", yaml);
+
+    const result = await loadAndValidateAgents(agentsDir, noSkills, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].source.codex).toEqual({
+      model: "gpt-5.6-sol",
+      model_reasoning_effort: "max",
+    });
+  });
+
   it("accepts all supported target-specific fields in strict mode", async () => {
     const yaml = makeAgentYaml("all-target-fields-strict", {
       claude: {
@@ -595,6 +613,26 @@ describe("loadAndValidateAgents", () => {
       },
     });
     await createAgentFixture(agentsDir, "bad-reasoning-effort", yaml);
+
+    await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(UserError);
+        expect((err as UserError).message).toContain(
+          "codex.model_reasoning_effort",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("throws UserError for model_reasoning_effort ultra", async () => {
+    const yaml = makeAgentYaml("ultra-reasoning-effort", {
+      codex: {
+        model: "gpt-5.6-sol",
+        model_reasoning_effort: "ultra",
+      },
+    });
+    await createAgentFixture(agentsDir, "ultra-reasoning-effort", yaml);
 
     await expect(loadAndValidateAgents(agentsDir, noSkills)).rejects.toSatisfy(
       (err: unknown) => {

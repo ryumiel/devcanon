@@ -47,21 +47,22 @@ modelTiers:
     claude:
       model: claude-haiku-4-5
     codex:
-      model: gpt-5.4-mini
+      model: gpt-5.6-terra
+      reasoning_effort: low
   standard:
     claude:
       model: claude-sonnet-4-6
       effort: medium
     codex:
-      model: gpt-5.4
-      reasoning_effort: medium
+      model: gpt-5.6-sol
+      reasoning_effort: high
   deep:
     claude:
       model: claude-opus-4-7
       effort: high
     codex:
-      model: gpt-5.4
-      reasoning_effort: high
+      model: gpt-5.6-sol
+      reasoning_effort: xhigh
 
 toolNames:
   task-tracker:
@@ -120,7 +121,8 @@ through the `{{model:<tier>}}` placeholder.
 - `claude.effort` is optional and must be one of `low`, `medium`, `high`,
   `xhigh`, or `max`.
 - `codex.reasoning_effort` is optional and must be one of `none`, `minimal`,
-  `low`, `medium`, `high`, or `xhigh`.
+  `low`, `medium`, `high`, `xhigh`, or `max`. `ultra` is an orchestration mode,
+  not a reasoning-effort value, and is rejected.
 - In skill prose and skill-side overrides, `{{model:<tier>}}` resolves to the
   model ID for the active target: `{{model:deep}}` becomes
   `modelTiers.deep.claude.model` for Claude output and
@@ -131,6 +133,27 @@ through the `{{model:<tier>}}` placeholder.
   sets `codex.model_reasoning_effort`.
 - An empty `modelTiers: {}` is rejected; either omit the key entirely or
   define at least one tier.
+
+### Codex defaults and availability
+
+The active repository config and newly initialized libraries use the same
+Codex defaults:
+
+| Tier       | Model           | Reasoning effort |
+| ---------- | --------------- | ---------------- |
+| `fast`     | `gpt-5.6-terra` | `low`            |
+| `standard` | `gpt-5.6-sol`   | `high`           |
+| `deep`     | `gpt-5.6-sol`   | `xhigh`          |
+
+These defaults pin named family members. DevCanon does not use the moving
+`gpt-5.6` alias or automatically select a different family member, model, or
+effort. This pinning keeps the intended tier stable if an alias is retargeted.
+
+Configuration validation is local and syntactic. Acceptance of a model and
+effort does not prove that a Codex client version recognizes the model or that
+an account can run it. An incompatible client or unavailable account
+entitlement must fail closed at runtime; DevCanon does not substitute a
+fallback model, alias, family member, or effort.
 
 See [Skills](skills.md) for skill-frontmatter overrides that consume tier
 placeholders.

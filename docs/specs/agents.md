@@ -112,7 +112,7 @@ Within `claude`:
 Within `codex`:
 
 - `model`
-- `model_reasoning_effort` (see `docs/specs/configuration.md` for allowed values)
+- `model_reasoning_effort` (allowed values are listed below)
 - `sandbox_mode`
 - `nickname_candidates`
 - `approval_policy`
@@ -123,6 +123,9 @@ here.
 
 Field constraints:
 
+- `model_reasoning_effort` is optional and must be one of `none`, `minimal`,
+  `low`, `medium`, `high`, `xhigh`, or `max`. `ultra` is not a reasoning-effort
+  value in this contract; it is an orchestration mode and is rejected here.
 - `sandbox_mode` is optional and must be one of `read-only`,
   `workspace-write`, or `danger-full-access`.
 - `nickname_candidates` is optional. When present, it must be a non-empty list
@@ -142,7 +145,13 @@ When an agent target uses `model: "{{model:<tier>}}"`, the renderer resolves
 that placeholder against `modelTiers.<tier>.<target>`. For Claude, the tier's
 `effort` is emitted unless the agent explicitly sets `claude.effort`. For
 Codex, the tier's `model_reasoning_effort` is emitted unless the agent
-explicitly sets `codex.model_reasoning_effort`.
+explicitly sets `codex.model_reasoning_effort`; an explicit value takes
+precedence over the inherited tier value. When neither source supplies an
+effort, the field remains omitted.
+
+Effort validation is local and syntactic. Accepting an effort such as `max`
+does not prove that a particular Codex client, model, or account can run it;
+operators must establish runtime availability separately.
 
 ---
 

@@ -85,6 +85,7 @@ const CodexReasoningEffortSchema = z.enum([
   "medium",
   "high",
   "xhigh",
+  "max",
 ]);
 
 const TargetEntrySchema = z.object({
