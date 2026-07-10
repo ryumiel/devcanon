@@ -36,8 +36,8 @@ const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
       effort: "high",
     },
     codex: {
-      model: "gpt-5.5",
-      model_reasoning_effort: "medium",
+      model: "gpt-5.6-sol",
+      model_reasoning_effort: "high",
       sandbox_mode: "workspace-write",
     },
   },
@@ -47,8 +47,8 @@ const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
       effort: "xhigh",
     },
     codex: {
-      model: "gpt-5.5",
-      model_reasoning_effort: "high",
+      model: "gpt-5.6-sol",
+      model_reasoning_effort: "xhigh",
       sandbox_mode: "read-only",
     },
   },
@@ -58,8 +58,8 @@ const SHIPPED_AGENT_EXPECTATIONS: ShippedAgentExpectations = {
       effort: "xhigh",
     },
     codex: {
-      model: "gpt-5.5",
-      model_reasoning_effort: "high",
+      model: "gpt-5.6-sol",
+      model_reasoning_effort: "xhigh",
       sandbox_mode: "read-only",
     },
   },

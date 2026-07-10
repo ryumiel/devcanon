@@ -36,21 +36,22 @@ modelTiers:
     claude:
       model: claude-haiku-4-5
     codex:
-      model: gpt-5.4-mini
+      model: gpt-5.6-terra
+      reasoning_effort: low
   standard:
     claude:
       model: claude-sonnet-4-6
       effort: medium
     codex:
-      model: gpt-5.4
-      reasoning_effort: medium
+      model: gpt-5.6-sol
+      reasoning_effort: high
   deep:
     claude:
       model: claude-opus-4-7
       effort: high
     codex:
-      model: gpt-5.4
-      reasoning_effort: high
+      model: gpt-5.6-sol
+      reasoning_effort: xhigh
 `;
 
 export const SAMPLE_SKILL_MD = `---
