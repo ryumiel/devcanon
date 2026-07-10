@@ -834,6 +834,16 @@ describe("existing skills source prose contracts", () => {
       expect(normalizedEvidenceBoundary).toContain(phrase);
     }
 
+    expect(normalizedEvidenceBoundary).toContain(
+      "Shared PR, issue, tracker, or review comments may reuse only sanitized shared comments: summary-only outcomes and minimum evidence-pointer fields",
+    );
+    expect(normalizedEvidenceBoundary).toContain(
+      "Durable docs may record only promoted durable truth and evidence pointers",
+    );
+    expect(normalizedEvidenceBoundary).toContain(
+      "They must not copy session-local artifacts or use invented summaries as substitutes for missing private evidence",
+    );
+
     for (const surface of [
       behaviorSpecEvidenceRouting,
       documentationChecklists,
@@ -4596,9 +4606,14 @@ describe("existing skills source prose contracts", () => {
     expect(issueLifecycleSection).toContain(
       "Before dispatching the Phase 2 gate agent",
     );
-    expect(issueLifecycleSection).toContain("Phase 3 research agent");
+    expect(issueLifecycleSection).toContain("either Phase 3 research leaf");
     expect(normalizeWhitespace(issueLifecycleSection)).toContain("gate result");
-    expect(issueLifecycleSection).toContain("research brief path");
+    expect(normalizeWhitespace(issueLifecycleSection)).toContain(
+      "assigned scope, report result, source references, and blocker state for each research leaf",
+    );
+    expect(normalizeWhitespace(issueLifecycleSection)).toContain(
+      "The root, not a research child, owns the final research brief path and synthesized report",
+    );
 
     const issuePhase6Section = sliceBetween(
       issuePrimingWorkflow,
@@ -4798,20 +4813,108 @@ describe("existing skills source prose contracts", () => {
     expect(writeProductSpecRouting).not.toContain("source of origin");
 
     const normalizedResearchPrompt = normalizeWhitespace(researchPrompt);
-    expect(researchPrompt).toContain("subagent-lifecycle");
+    expect(researchPrompt).not.toContain("subagent-lifecycle");
     for (const phrase of [
-      "Before dispatching internal research sub-agents",
-      "target capability",
-      "cleanup gate before spawns",
-      "target-honest cleanup outcomes",
-      "slot-limit recovery",
-      "role-specific state",
-      "scope",
-      "report",
-      "source references",
-      "blocker state",
+      "depth-0 `issue-priming-workflow` root",
+      "internal or external depth-1 `research-agent`",
+      "A research child performs one assigned scope and never dispatches another agent",
+      "Do not spawn or delegate to another agent",
+      "Return only the assigned report body to the dispatching root",
+      "The root validates this report, joins all started siblings, synthesizes the final brief",
     ]) {
       expect(normalizedResearchPrompt).toContain(phrase);
     }
+  });
+
+  it("keeps issue research synthesis, persistence, and evidence ownership root-owned", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const helperContracts = await readRepoFile(
+      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    );
+    const researchAgent = await readRepoFile("agents/research-agent.yaml");
+    const adr0013 = await readRepoFile(
+      "docs/adr/adr-0013-path-based-phase-artifact-handoff.md",
+    );
+    const adr0001 = await readRepoFile(
+      "docs/adr/adr-0001-skills-first-architecture.md",
+    );
+    const adr0020 = await readRepoFile(
+      "docs/adr/adr-0020-subagent-lifecycle-ownership.md",
+    );
+
+    const normalizedWorkflow = normalizeWhitespace(issuePrimingWorkflow);
+    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+    const normalizedHelper = normalizeWhitespace(helperContracts);
+    const normalizedAgent = normalizeWhitespace(researchAgent);
+    const normalizedAdr0013 = normalizeWhitespace(adr0013);
+
+    expect(normalizedWorkflow).toContain(
+      "The depth-0 root alone synthesizes the final 500–1000-word brief",
+    );
+    expect(normalizedWorkflow).toContain(
+      "Write the root-synthesized final brief verbatim to that path",
+    );
+    expect(normalizedHelper).toContain(
+      "Write the root-synthesized final brief verbatim to the stdout path",
+    );
+    expect(normalizedHelper).toContain(
+      "Raw internal and external child reports remain agent-local/controller-local and are never helper inputs or separately persisted artifacts",
+    );
+    expect(normalizedHelper).not.toContain(
+      "Write the `research-agent` returned brief verbatim",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not synthesize the final `## Issue Brief`, combine scopes, persist raw findings, or emit `Research brief written to <repo-relative-path>.`",
+    );
+    expect(normalizedPrompt).not.toContain(
+      "Before dispatching internal research sub-agents",
+    );
+
+    expect(normalizedAdr0013).toContain(
+      "The root synthesizes the final brief from the required internal report and any applicable external report",
+    );
+    expect(normalizedAdr0013).toContain(
+      "Research children are read-only leaves that return agent-local scoped reports",
+    );
+    expect(normalizedAdr0013).toContain(
+      "Only the root invokes the guarded write helper, persists the final brief, and emits `Research brief written to <repo-relative-path>.`",
+    );
+    expect(normalizedAdr0013).toContain(
+      "Shared comments may reuse only sanitized summary-only outcomes and minimum stable evidence pointers",
+    );
+    expect(normalizedAdr0013).toContain(
+      "Durable documentation contains only deliberately promoted durable truth and evidence pointers",
+    );
+    expect(adr0013).toContain("## Status\n\nAccepted");
+    expect(adr0013).not.toContain("## Amendment");
+    expect(adr0013).not.toMatch(/issue\s+#?\d+/i);
+    expect(adr0013).not.toMatch(/PR\s+#?\d+/);
+    expect(adr0013).not.toContain("fix/517");
+    expect(adr0013).not.toContain("`research-agent` (via Phase 3)");
+
+    expect(normalizedAgent).toContain(
+      "Do not delegate, spawn children, or coordinate other agents",
+    );
+    expect(normalizedAgent).toContain(
+      "The caller owns final-brief composition, multi-agent orchestration, cross-scope synthesis, persistence, and notices",
+    );
+    expect(sliceBetween(researchAgent, "claude:\n", "codex:\n").trim()).toBe(
+      "claude:\n  tools:\n    - Read\n    - Grep\n    - WebFetch\n    - WebSearch",
+    );
+    expect(researchAgent.slice(researchAgent.indexOf("codex:\n")).trim()).toBe(
+      "codex:\n  sandbox_mode: read-only",
+    );
+
+    expect(normalizeWhitespace(adr0001)).toContain(
+      "Skills are the primary reusable unit. Agent roles are thin wrappers",
+    );
+    expect(normalizeWhitespace(adr0020)).toContain(
+      "Shared workflows that spawn subagents directly reference that skill before their spawn points",
+    );
   });
 });
