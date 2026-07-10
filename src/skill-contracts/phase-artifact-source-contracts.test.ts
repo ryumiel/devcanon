@@ -260,7 +260,7 @@ describe("phase artifact source contracts", () => {
     );
     expect(issuePrimingWorkflow).toContain("Gate agent fails");
     expect(issuePrimingWorkflow).toContain("Default to `RESEARCH_NEEDED`");
-    expect(issuePrimingWorkflow).toContain("Research agent fails/times out");
+    expect(issuePrimingWorkflow).toContain("Internal research fails/times out");
     expect(issuePrimingWorkflow).toContain("Report partial results");
     expect(issuePrimingWorkflow).toContain("No `docs/adr/` directory");
     expect(issuePrimingWorkflow).toContain('Gate treats as "no covering ADR"');
@@ -449,8 +449,125 @@ describe("phase artifact source contracts", () => {
     }
 
     expect(gatePrompt).toContain("before design work begins");
-    expect(researchPrompt).toContain(
-      "before dispatching any sub-agents or evaluating the issue",
+    expect(normalizeWhitespace(researchPrompt)).toContain(
+      "before investigating the assigned scope",
+    );
+  });
+
+  it("keeps root-owned issue research validation, report, persistence, and failure contracts in source", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const helperReference = await readRepoFile(
+      "skills/issue-priming-workflow/references/helper-invocation-contracts.md",
+    );
+    const phase3 = getMarkdownSection(
+      issuePrimingWorkflow,
+      "Phase 3: Research (Conditional)",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+    const normalizedPrompt = normalizeWhitespace(researchPrompt);
+
+    for (const placeholder of [
+      "<SOURCE>",
+      "<ID>",
+      "<TITLE>",
+      "<ISSUE_BODY_PATH>",
+      "<COMMENT_EVIDENCE_PATH_OR_NONE>",
+      "<GATE_REASON>",
+      "<REPO_ROOT>",
+      "<RESEARCH_SCOPE>",
+      "<EXTERNAL_NECESSITY_OR_NONE>",
+    ]) {
+      expect(researchPrompt).toContain(placeholder);
+    }
+    expect(normalizedPhase3).toContain(
+      "Validate the worktree and guarded issue-body/comment-evidence inputs first",
+    );
+    expect(normalizedPhase3).toContain(
+      "Then validate every scalar and closed value before creating lifecycle state",
+    );
+    expect(normalizedPhase3).toContain(
+      "Missing, empty, multiline, or invalid input stops before lifecycle dispatch, helper invocation, artifact creation, notice emission, or Phase 4",
+    );
+    expect(normalizedPrompt).toContain(
+      "`RESEARCH_SCOPE` is exactly `internal` or `external`",
+    );
+    expect(normalizedPrompt).toContain(
+      "external uses exactly `required` or `useful`; internal uses exactly `(none)`",
+    );
+
+    for (const heading of [
+      "## Internal Research Report",
+      "### Policy Constraints",
+      "### Existing Patterns",
+      "### External Uncertainties",
+      "### Recommended Approaches",
+      "## External Research Report",
+      "### External Precedent",
+      "### Primary Sources",
+      "### Trade-offs",
+      "### Implications",
+    ]) {
+      expect(researchPrompt).toContain(heading);
+    }
+    expect(normalizedPhase3).toContain(
+      "Blank output, a missing required heading, or the wrong scope report is failure",
+    );
+    expect(normalizedPhase3).toContain(
+      "not contradicted by owning repository authority",
+    );
+    expect(normalizedPrompt).toContain(
+      "Put primary-source URLs near the claims they support",
+    );
+    expect(normalizedPrompt).toContain(
+      "distinguish practitioner advice from runtime, protocol, service, or project authority",
+    );
+
+    expect(normalizedPhase3).toContain(
+      "Internal failure with usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Partial — internal research failed: <reason>",
+    );
+    expect(normalizedPhase3).toContain(
+      "Internal failure without usable partial evidence",
+    );
+    expect(normalizedPhase3).toContain(
+      "Do not invoke the helper, create a research artifact, or emit the notice",
+    );
+    expect(normalizedPhase3).toContain(
+      "Required external failure has highest precedence",
+    );
+    expect(normalizedPhase3).toContain(
+      "or invoke Phase 4, and auto mode must not turn the blocker into an assumption",
+    );
+    expect(normalizedPhase3).toContain(
+      "Useful external failure with valid internal evidence",
+    );
+    expect(normalizedPhase3).toContain("bounded uncertainty");
+
+    expect(normalizedPhase3).toContain(
+      "The depth-0 root alone synthesizes the final 500–1000-word brief",
+    );
+    expect(phase3).toContain("## Issue Brief: <ID> — <TITLE>");
+    expect(phase3).toContain("### Policy Constraints");
+    expect(phase3).toContain("### Existing Patterns");
+    expect(phase3).toContain("### External Precedent");
+    expect(phase3).toContain("### Recommended Approaches");
+    expect(phase3).toContain("scripts/write-research-brief.sh");
+    expect(phase3).toContain("Research brief written to <repo-relative-path>.");
+    expect(normalizeWhitespace(helperReference)).toContain(
+      "Write the root-synthesized final brief verbatim to the stdout path",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(normalizedPrompt).toContain(
+      "Do not write files, invoke the research-brief helper, create an artifact, or emit the producer notice",
     );
   });
 

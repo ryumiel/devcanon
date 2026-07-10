@@ -135,7 +135,9 @@ Controller responsibilities:
 
 - Invoke the helper from the issue worktree repository root.
 - Treat nonzero exit as a Phase 3 contract failure.
-- Write the `research-agent` returned brief verbatim to the stdout path.
+- Write the root-synthesized final brief verbatim to the stdout path. Raw
+  internal and external child reports remain agent-local/controller-local and
+  are never helper inputs or separately persisted artifacts.
 - Emit the literal consumer notice line:
   `Research brief written to <repo-relative-path>.`
 

@@ -317,6 +317,86 @@ describe("play subagent routing source contracts", () => {
     expect(issuePrimingWorkflow).not.toContain("Project-Specific Overrides");
   });
 
+  it("routes conditional issue research through depth-1 root-owned leaf siblings", async () => {
+    const issuePrimingWorkflow = await readSkillSource(
+      "issue-priming-workflow",
+    );
+    const researchPrompt = await readRepoFile(
+      "skills/issue-priming-workflow/references/research-agent-prompt.md",
+    );
+    const phase3 = sliceBetween(
+      issuePrimingWorkflow,
+      "## Phase 3: Research (Conditional)",
+      "## Phase 4: Invoke Brainstorming",
+    );
+    const normalizedPhase3 = normalizeWhitespace(phase3);
+
+    expect(normalizedPhase3).toContain(
+      "The depth-0 root is the sole research dispatcher",
+    );
+    expect(normalizedPhase3).toContain(
+      "Every `research-agent` is a direct depth-1 read-only leaf child",
+    );
+    expect(normalizedPhase3).toContain(
+      "Always dispatch exactly one internal-scoped child",
+    );
+    expect(normalizedPhase3).toContain(
+      "immediately and concurrently as a sibling of the internal child",
+    );
+    expect(normalizedPhase3).toContain(
+      "dispatch exactly one late external sibling",
+    );
+    expect(normalizedPhase3).toContain(
+      "record `external research: not applicable` plus a short reason",
+    );
+    expect(normalizedPhase3).toContain(
+      "Complexity or cross-module scope alone is insufficient",
+    );
+    expect(normalizedPhase3).toContain(
+      "Before any external spawn, record `required` or `useful` plus a one-sentence reason",
+    );
+    expect(normalizeWhitespace(researchPrompt)).toContain(
+      "Do not spawn or delegate to another agent",
+    );
+    expect(researchPrompt).not.toContain("Dispatch sub-agents");
+
+    for (const criterion of [
+      "current behavior of an external runtime, API, library, protocol, or hosted service",
+      "external precedent materially affects a design choice",
+      "explicitly requests external research",
+      "material externally owned question",
+      "internal report identifies an externally owned uncertainty",
+    ]) {
+      expect(normalizedPhase3).toContain(criterion);
+    }
+
+    expect(normalizedPhase3).toContain(
+      "Before every internal or external spawn, add an `agent_id=pending` ledger row",
+    );
+    expect(normalizedPhase3).toContain(
+      "classify target lifecycle capability, and run the cleanup gate",
+    );
+    expect(normalizedPhase3).toContain(
+      "capture scope, report result, source references, and blocker state before cleanup",
+    );
+    expect(normalizedPhase3).toContain(
+      "reconstruct the workflow and repository anchors, retry exactly once",
+    );
+
+    expect(normalizedPhase3).toContain(
+      "If internal becomes terminal while external remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+    expect(normalizedPhase3).toContain(
+      "If external becomes terminal while internal remains active, do not invoke the helper, emit the notice, or enter Phase 4",
+    );
+    expect(normalizedPhase3).toContain(
+      "Every started immediate sibling must reach completion, timeout, or failure",
+    );
+    expect(normalizedPhase3).toContain(
+      "Never cancel or abandon an already-started sibling and never route early",
+    );
+  });
+
   it("keeps branch policy in a lazy reference map with explicit load triggers", async () => {
     const skillSource = await readSkillSource("play-subagent-execution");
     const referenceMap = getMarkdownSection(
