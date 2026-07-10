@@ -1,6 +1,12 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  cleanupTempDir,
+  createAgentFixture,
+  createTempDir,
+  makeAgentYaml,
+} from "../__test-helpers__/fixtures.js";
+import {
   parseRenderedMarkdownArtifact,
   parseRenderedTomlArtifact,
 } from "../__test-helpers__/render.js";
@@ -82,7 +88,7 @@ async function loadConfigWithFixedSkillsHome(): Promise<ResolvedConfig> {
 
 function getAgentOutput(
   outputs: RenderOutput[],
-  name: ShippedAgent,
+  name: string,
   target: "claude" | "codex",
 ) {
   const output = outputs.find(
@@ -155,6 +161,47 @@ describe("shipped agents render cleanly", () => {
         (codexToml.developer_instructions as string).trim(),
       ).not.toHaveLength(0);
       expect(codexOutput.content).not.toContain("{{model:");
+    }
+  });
+
+  it("renders the active fast tier through a synthetic agent for both targets", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const config = await loadConfigWithFixedSkillsHome();
+      config.library.agentsDir = path.join(tempDir, "agents");
+      await createAgentFixture(
+        config.library.agentsDir,
+        "fast-tier-probe",
+        makeAgentYaml("fast-tier-probe", {
+          claude: { model: "{{model:fast}}" },
+          codex: {
+            model: "{{model:fast}}",
+            sandbox_mode: "read-only",
+          },
+        }),
+      );
+
+      const { outputs } = await renderAll(config, false);
+      const claudeOutput = getAgentOutput(outputs, "fast-tier-probe", "claude");
+      const codexOutput = getAgentOutput(outputs, "fast-tier-probe", "codex");
+
+      expect(
+        parseRenderedMarkdownArtifact(claudeOutput.content).frontmatter,
+      ).toMatchObject({
+        name: "fast-tier-probe",
+        model: "claude-sonnet-4-6",
+        effort: "medium",
+      });
+      expect(parseRenderedTomlArtifact(codexOutput.content)).toMatchObject({
+        name: "fast-tier-probe",
+        model: "gpt-5.6-terra",
+        model_reasoning_effort: "low",
+        sandbox_mode: "read-only",
+      });
+      expect(claudeOutput.content).not.toContain("{{model:");
+      expect(codexOutput.content).not.toContain("{{model:");
+    } finally {
+      await cleanupTempDir(tempDir);
     }
   });
 });
