@@ -112,7 +112,7 @@ Within `claude`:
 Within `codex`:
 
 - `model`
-- `model_reasoning_effort` (see `docs/specs/configuration.md` for allowed values)
+- `model_reasoning_effort` (allowed values are listed below)
 - `sandbox_mode`
 - `nickname_candidates`
 - `approval_policy`
