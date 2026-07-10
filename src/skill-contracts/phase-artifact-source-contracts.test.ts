@@ -226,6 +226,7 @@ function validateResearchReport(
   scope: "internal" | "external",
   report: string,
   externalQuestion = "(none)",
+  issueTerms: readonly string[] = ["depth-1", "root-owned"],
 ): string[] {
   if (report.trim() === "") {
     return ["blank"];
@@ -249,6 +250,18 @@ function validateResearchReport(
   for (const heading of requiredHeadings) {
     if (!report.includes(heading)) {
       errors.push(`missing-heading:${heading}`);
+    }
+  }
+
+  if (scope === "internal") {
+    const hasRepositoryEvidence =
+      report.includes("AGENTS.md") ||
+      /(?:skills|src|docs)\/[A-Za-z0-9._/-]+/u.test(report);
+    const hasIssueRelevantFinding = issueTerms.some((term) =>
+      report.toLowerCase().includes(term.toLowerCase()),
+    );
+    if (!hasRepositoryEvidence || !hasIssueRelevantFinding) {
+      errors.push("off-scope");
     }
   }
 
@@ -937,6 +950,25 @@ describe("phase artifact source contracts", () => {
       report: `${INTERNAL_REPORT}\n\n${EXTERNAL_REPORT}`,
       question: "(none)",
       error: "combined-family",
+    },
+    {
+      family: "all headings but off-scope internal prose",
+      scope: "internal" as const,
+      report: `## Internal Research Report
+
+### Policy Constraints
+- Use a warm oven.
+
+### Existing Patterns
+- Sourdough recipes often rest overnight.
+
+### External Uncertainties
+None
+
+### Recommended Approaches
+1. Bake until golden brown.`,
+      question: "(none)",
+      error: "off-scope",
     },
     {
       family: "external precedent does not answer its question",
