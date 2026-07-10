@@ -17,6 +17,60 @@ function sliceBetween(content: string, start: string, end: string): string {
   return content.slice(startIndex, endIndex);
 }
 
+function parseDotDirectedEdges(content: string): Array<[string, string]> {
+  const edges: Array<[string, string]> = [];
+
+  for (const line of content.split("\n")) {
+    const edgeClause = line.split("[", 1)[0].trim().replace(/;$/, "");
+    if (!edgeClause.includes("->")) {
+      continue;
+    }
+
+    const nodes = edgeClause.split("->").map((node) => node.trim());
+    for (let index = 0; index < nodes.length - 1; index += 1) {
+      edges.push([nodes[index], nodes[index + 1]]);
+    }
+  }
+
+  return edges;
+}
+
+function dotNeighbors(
+  edges: Array<[string, string]>,
+  node: string,
+  direction: "predecessors" | "successors",
+): string[] {
+  return edges
+    .filter(([source, target]) =>
+      direction === "successors" ? source === node : target === node,
+    )
+    .map(([source, target]) => (direction === "successors" ? target : source))
+    .sort();
+}
+
+function dotCanReach(
+  edges: Array<[string, string]>,
+  source: string,
+  target: string,
+): boolean {
+  const pending = [source];
+  const visited = new Set<string>();
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined || visited.has(current)) {
+      continue;
+    }
+    if (current === target) {
+      return true;
+    }
+    visited.add(current);
+    pending.push(...dotNeighbors(edges, current, "successors"));
+  }
+
+  return false;
+}
+
 const CHILD_AGENT_PROMPT_TEMPLATES = [
   "references/implementer-prompt.md",
   "references/mechanical-implementer-prompt.md",
@@ -635,6 +689,7 @@ describe("play subagent routing source contracts", () => {
       "skills/issue-priming-workflow/references/workflow-diagram.md",
     );
     const normalizedDiagram = normalizeWhitespace(diagram);
+    const edges = parseDotDirectedEdges(diagram);
 
     for (const phrase of [
       "Root dispatches exactly one required internal research-agent",
@@ -647,32 +702,114 @@ describe("play subagent routing source contracts", () => {
     ]) {
       expect(normalizedDiagram).toContain(phrase);
     }
-    expect(diagram).toContain("decide -> internal_research");
-    expect(diagram).toContain("external_policy -> immediate_external_decide");
-    expect(diagram).toContain(
-      'immediate_external_decide -> late_external_wait [label="no: wait for internal report"]',
+
+    expect(
+      dotNeighbors(edges, "immediate_external_decide", "successors"),
+    ).toEqual(["immediate_fork", "late_internal_research"]);
+    expect(dotNeighbors(edges, "immediate_fork", "successors")).toEqual([
+      "immediate_external_research",
+      "immediate_internal_research",
+    ]);
+    expect(
+      dotNeighbors(edges, "immediate_internal_research", "successors"),
+    ).toEqual(["immediate_join"]);
+    expect(
+      dotNeighbors(edges, "immediate_external_research", "successors"),
+    ).toEqual(["immediate_join"]);
+    expect(dotNeighbors(edges, "immediate_join", "predecessors")).toEqual([
+      "immediate_external_research",
+      "immediate_internal_research",
+    ]);
+    expect(dotNeighbors(edges, "immediate_join", "successors")).toEqual([
+      "research_join",
+    ]);
+
+    expect(
+      dotNeighbors(edges, "late_internal_research", "predecessors"),
+    ).toEqual(["immediate_external_decide"]);
+    expect(dotNeighbors(edges, "late_internal_research", "successors")).toEqual(
+      ["late_external_decide"],
     );
-    expect(diagram).toContain(
-      'internal_research -> late_external_wait [label="initial no: internal report"]',
+    expect(dotNeighbors(edges, "late_external_decide", "successors")).toEqual([
+      "late_external_research",
+      "research_join",
+    ]);
+    expect(
+      dotNeighbors(edges, "late_external_research", "predecessors"),
+    ).toEqual(["late_external_decide"]);
+    expect(dotNeighbors(edges, "late_external_research", "successors")).toEqual(
+      ["research_join"],
     );
-    expect(diagram).toContain("late_external_wait -> late_external_decide");
-    expect(diagram).toContain(
-      'late_external_decide -> late_external_research [label="yes: one late leaf"]',
+
+    expect(dotCanReach(edges, "immediate_fork", "late_external_research")).toBe(
+      false,
     );
-    expect(diagram).toContain(
-      'late_external_decide -> research_join [label="no"]',
+    expect(
+      dotCanReach(
+        edges,
+        "late_internal_research",
+        "immediate_external_research",
+      ),
+    ).toBe(false);
+    expect(dotNeighbors(edges, "internal_research", "successors")).toEqual([]);
+    expect(dotNeighbors(edges, "research_join", "predecessors")).toEqual([
+      "immediate_join",
+      "late_external_decide",
+      "late_external_research",
+    ]);
+    expect(dotNeighbors(edges, "research_join", "successors")).toEqual([
+      "research_synthesize",
+    ]);
+    expect(dotNeighbors(edges, "research_synthesize", "successors")).toEqual([
+      "research_persist",
+    ]);
+    expect(dotNeighbors(edges, "research_persist", "successors")).toEqual([
+      "brainstorm",
+    ]);
+    expect(
+      dotCanReach(
+        edges,
+        "immediate_internal_research",
+        "late_external_research",
+      ),
+    ).toBe(false);
+    expect(
+      dotCanReach(
+        edges,
+        "late_external_research",
+        "immediate_external_research",
+      ),
+    ).toBe(false);
+    expect(
+      dotNeighbors(edges, "immediate_internal_research", "predecessors"),
+    ).toEqual(["immediate_fork"]);
+    expect(
+      dotNeighbors(edges, "immediate_external_research", "predecessors"),
+    ).toEqual(["immediate_fork"]);
+    expect(dotNeighbors(edges, "immediate_fork", "predecessors")).toEqual([
+      "immediate_external_decide",
+    ]);
+    expect(
+      dotNeighbors(edges, "immediate_external_decide", "predecessors"),
+    ).toEqual(["external_policy"]);
+    expect(dotNeighbors(edges, "external_policy", "predecessors")).toEqual([
+      "decide",
+    ]);
+    expect(dotNeighbors(edges, "external_policy", "successors")).toEqual([
+      "immediate_external_decide",
+    ]);
+    expect(dotNeighbors(edges, "decide", "successors")).toEqual([
+      "brainstorm",
+      "external_policy",
+    ]);
+    expect(dotCanReach(edges, "immediate_join", "late_internal_research")).toBe(
+      false,
     );
-    expect(diagram).toContain("immediate_external_research -> immediate_join");
-    expect(diagram).toContain("internal_research -> immediate_join");
-    expect(diagram).toContain("late_external_research -> research_join");
-    expect(diagram).toContain(
-      "research_join -> research_synthesize -> research_persist",
+    expect(dotCanReach(edges, "late_external_decide", "immediate_join")).toBe(
+      false,
     );
-    expect(diagram).not.toContain(
-      "internal_research -> immediate_external_research",
-    );
-    expect(diagram).not.toContain(
-      "internal_research -> late_external_research",
+    expect(dotNeighbors(edges, "late_external_decide", "predecessors")).toEqual(
+      ["late_internal_research"],
     );
   });
 
