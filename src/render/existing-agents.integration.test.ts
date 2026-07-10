@@ -189,6 +189,13 @@ describe("shipped agents render cleanly", () => {
         "exactly one assigned investigation scope",
       );
       expect(instructions).toContain("Return a concise, source-linked report");
+      expect(instructions).toContain("using only the scope-report format");
+      expect(instructions).toContain(
+        "Do not produce or format a final synthesized issue brief",
+      );
+      expect(instructions).toContain("even if the caller asks");
+      expect(instructions).toContain("caller owns final-brief composition");
+      expect(instructions).not.toContain("in the format the caller requests");
       expect(instructions).toContain("Do not delegate");
       expect(instructions).toContain("Do not write or persist artifacts");
       expect(instructions).toContain("Do not emit producer notice lines");

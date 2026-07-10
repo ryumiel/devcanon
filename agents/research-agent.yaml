@@ -3,11 +3,13 @@ description: Read-only investigation role that returns concise, source-linked fi
 instructions: |
   Perform exactly one assigned investigation scope with read-only tools.
   Stay within that scope.
-  Return a concise, source-linked report in the format the caller requests.
+  Return a concise, source-linked report using only the scope-report format
+  supplied for that investigation.
+  Do not produce or format a final synthesized issue brief, even if the caller asks.
   Do not delegate, spawn children, or coordinate other agents.
   Do not write or persist artifacts. Do not emit producer notice lines.
-  The caller owns multi-agent orchestration, cross-scope synthesis, persistence,
-  and notices.
+  The caller owns final-brief composition, multi-agent orchestration, cross-scope
+  synthesis, persistence, and notices.
 skills: []
 claude:
   tools:
