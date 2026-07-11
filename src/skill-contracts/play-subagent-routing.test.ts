@@ -2837,20 +2837,30 @@ describe("play subagent routing source contracts", () => {
           return errors;
         }
       }
-      const hasCompletion = example.events.includes("turn-completed");
-      if (
-        (example.operationalState === "completed" && !hasCompletion) ||
-        (example.operationalState === "interrupted" &&
-          !example.events.includes("interrupted")) ||
-        (hasCompletion &&
-          (example.operationalState === "active" ||
-            example.operationalState === "waiting")) ||
-        (example.operationalState === "superseded" &&
-          !example.events.includes("superseded"))
-      ) {
-        errors.push("event-history");
+      const operationalStateByEvent = new Map<
+        string,
+        LifecycleExample["operationalState"]
+      >([
+        ["dispatch-requested", "pending"],
+        ["identity-assigned", "active"],
+        ["followup-dispatch-requested", "active"],
+        ["waiting", "waiting"],
+        ["interrupted", "interrupted"],
+        ["turn-completed", "completed"],
+        ["superseded", "superseded"],
+      ]);
+      let projectedOperationalState:
+        | LifecycleExample["operationalState"]
+        | undefined;
+      for (const event of example.events) {
+        projectedOperationalState =
+          operationalStateByEvent.get(event) ?? projectedOperationalState;
+      }
+      if (projectedOperationalState !== example.operationalState) {
+        errors.push("operational-state-projection");
         return errors;
       }
+      const hasCompletion = example.events.includes("turn-completed");
       if ((example.workflowReturnStatus !== null) !== hasCompletion) {
         errors.push("workflow-result");
         return errors;
@@ -3008,7 +3018,7 @@ describe("play subagent routing source contracts", () => {
       ],
       [
         "a superseded row becomes completed without a completion event",
-        "event-history",
+        "operational-state-projection",
         {
           ...superseded,
           operationalState: "completed",
@@ -3053,13 +3063,59 @@ describe("play subagent routing source contracts", () => {
         ...valid,
         events: valid.events.filter((event) => event !== "interrupted"),
       }),
-    ).toEqual(["event-history"]);
+    ).toEqual(["operational-state-projection"]);
     expect(
       invalidDimensions({ ...returned, operationalState: "active" }),
-    ).toEqual(["event-history"]);
+    ).toEqual(["operational-state-projection"]);
     expect(invalidDimensions({ ...returned, events: valid.events })).toEqual([
-      "event-history",
+      "operational-state-projection",
     ]);
+    const followupActive: LifecycleExample = {
+      ...returned,
+      operationalState: "active",
+      events: [...returned.events, "followup-dispatch-requested"],
+    };
+    expect(invalidDimensions(followupActive)).toEqual([]);
+    const followupWaiting: LifecycleExample = {
+      ...followupActive,
+      operationalState: "waiting",
+      events: [...followupActive.events, "waiting"],
+    };
+    expect(invalidDimensions(followupWaiting)).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...followupWaiting,
+        events: [
+          ...followupWaiting.events.filter(
+            (event) => event !== "closure-unavailable",
+          ),
+          "closure-unavailable",
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      invalidDimensions({
+        ...valid,
+        events: [...valid.events, "turn-completed"],
+        workflowReturnStatus: "DONE",
+        completionEvent: true,
+      }),
+    ).toEqual(["operational-state-projection"]);
+    for (const [events, staleState] of [
+      [["dispatch-requested"], "active"],
+      [["dispatch-requested", "identity-assigned"], "pending"],
+      [["dispatch-requested", "identity-assigned", "waiting"], "active"],
+      [["dispatch-requested", "identity-assigned", "superseded"], "active"],
+    ] as const) {
+      expect(
+        invalidDimensions({
+          ...pending,
+          agentId: staleState === "pending" ? "pending" : "agent-1",
+          events: [...events],
+          operationalState: staleState,
+        }),
+      ).toContain("operational-state-projection");
+    }
     expect(
       invalidDimensions({ ...returned, workflowReturnStatus: null }),
     ).toEqual(["workflow-result"]);
