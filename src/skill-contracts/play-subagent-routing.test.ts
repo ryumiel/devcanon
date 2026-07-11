@@ -4639,6 +4639,7 @@ describe("play subagent routing source contracts", () => {
         | "operational-classified"
         | "dispatch-requested"
         | "followup-dispatch-requested"
+        | "interrupted-reuse-dispatch-requested"
         | "waiting"
         | "interrupted"
         | "required-state-captured"
@@ -5152,6 +5153,28 @@ describe("play subagent routing source contracts", () => {
             }
             advanceOperational(state, "active", event.order);
             break;
+          case "interrupted-reuse-dispatch-requested":
+            if (state.operationalState !== "interrupted") {
+              return fail("illegal-interrupted-reuse-transition");
+            }
+            if (
+              state.sessionIdentity.kind !== "stable" ||
+              event.sessionId === undefined ||
+              !stableSessionId(event.sessionId) ||
+              event.sessionId !== state.sessionIdentity.sessionId
+            ) {
+              return fail("interrupted-reuse-session-mismatch");
+            }
+            if (!state.sessionReusable) {
+              return fail("interrupted-reuse-capability-missing");
+            }
+            if (
+              state.captureFreshThroughOrder <= state.operationalTransitionOrder
+            ) {
+              return fail("interrupted-reuse-capture-stale");
+            }
+            advanceOperational(state, "active", event.order);
+            break;
           case "waiting":
             if (state.operationalState !== "active") {
               return fail("illegal-waiting-transition");
@@ -5589,6 +5612,14 @@ describe("play subagent routing source contracts", () => {
         evidence: "target-reported same-session follow-up capability",
         ...overrides,
       });
+    const interruptedReuse = (
+      order: number,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
+      event("interrupted-reuse-dispatch-requested", order, {
+        sessionId: "session-1",
+        ...overrides,
+      });
     const confirmation = (
       order: number,
       overrides: Partial<LifecycleEvent> = {},
@@ -5725,6 +5756,109 @@ describe("play subagent routing source contracts", () => {
         confirmation(12),
       ]).errors,
     ).toEqual([]);
+
+    type InterruptedReuseFixture = {
+      source?: "interrupted" | "active" | "waiting" | "completed";
+      identity?: "matching" | "missing-event" | "mismatched" | "missing-stable";
+      reuse?: true | false | "absent";
+      capture?: "fresh" | "missing" | "stale";
+    };
+    const interruptedReuseFacts = (
+      fixture: InterruptedReuseFixture = {},
+    ): LifecycleEvent[] => {
+      const source = fixture.source ?? "interrupted";
+      const identity = fixture.identity ?? "matching";
+      const reuse = fixture.reuse ?? true;
+      const capture = fixture.capture ?? "fresh";
+      if (source === "completed") {
+        return [...operationalFacts(), reuseCapability(5), interruptedReuse(6)];
+      }
+      const facts =
+        identity === "missing-stable"
+          ? [
+              event("operational-classified", 1, {
+                operationalState: "interrupted",
+              }),
+            ]
+          : [
+              event("dispatch-requested", 1),
+              event("session-identity-assigned", 2, {
+                sessionId: "session-1",
+              }),
+            ];
+      const nextOrder = (): number => (facts.at(-1)?.order ?? 0) + 1;
+      if (capture === "stale") {
+        facts.push(
+          event("required-state-captured", nextOrder(), {
+            evidence: "capture before interruption",
+          }),
+        );
+      }
+      if (reuse !== "absent" && identity !== "missing-stable") {
+        facts.push(reuseCapability(nextOrder(), reuse));
+      }
+      if (identity !== "missing-stable" && source !== "active") {
+        facts.push(event(source, nextOrder()));
+      }
+      if (capture === "fresh") {
+        facts.push(
+          event("required-state-captured", nextOrder(), {
+            evidence: "interrupted role state captured",
+          }),
+        );
+      }
+      facts.push(
+        interruptedReuse(nextOrder(), {
+          sessionId:
+            identity === "missing-event"
+              ? undefined
+              : identity === "mismatched"
+                ? "session-2"
+                : "session-1",
+        }),
+      );
+      return facts;
+    };
+    const interruptedReuseResult = foldLifecycle([
+      ...interruptedReuseFacts(),
+      event("waiting", 7),
+      event("turn-completed", 8),
+      event("required-state-captured", 9, {
+        evidence: "reused turn result captured",
+      }),
+      episodeStart(),
+      unavailable(11),
+      confirmation(12),
+    ]);
+    expect(interruptedReuseResult.errors).toEqual([]);
+    expect(
+      interruptedReuseResult.histories.get("block-1")?.slice(0, 6),
+    ).toEqual([
+      "dispatch-requested",
+      "session-identity-assigned",
+      "reuse-capability-observed",
+      "interrupted",
+      "required-state-captured",
+      "interrupted-reuse-dispatch-requested",
+    ]);
+    const interruptedReuseErrors: Array<[InterruptedReuseFixture, string]> = [
+      [
+        { identity: "missing-stable", reuse: "absent" },
+        "interrupted-reuse-session-mismatch",
+      ],
+      [{ identity: "missing-event" }, "interrupted-reuse-session-mismatch"],
+      [{ identity: "mismatched" }, "interrupted-reuse-session-mismatch"],
+      [{ reuse: "absent" }, "interrupted-reuse-capability-missing"],
+      [{ reuse: false }, "interrupted-reuse-capability-missing"],
+      [{ capture: "missing" }, "interrupted-reuse-capture-stale"],
+      [{ capture: "stale" }, "interrupted-reuse-capture-stale"],
+      [{ source: "active" }, "illegal-interrupted-reuse-transition"],
+      [{ source: "waiting" }, "illegal-interrupted-reuse-transition"],
+      [{ source: "completed" }, "illegal-interrupted-reuse-transition"],
+    ];
+    for (const [fixture, error] of interruptedReuseErrors) {
+      expectError([...interruptedReuseFacts(fixture), episodeStart()], error);
+    }
 
     const pendingSnapshot = blocker({ sessionRef: { kind: "pending" } });
     expect(
