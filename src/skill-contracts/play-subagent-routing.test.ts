@@ -4610,6 +4610,30 @@ describe("play subagent routing source contracts", () => {
   });
 
   it("separates normal cleanup continuation from slot-limit retry authorization", () => {
+    type CleanupDecisionEvent = {
+      order: number;
+      kind:
+        | "close-deferred"
+        | "retention-resolved"
+        | "close-failed"
+        | "closure-unavailable"
+        | "close-succeeded";
+      detail?: string;
+    };
+    type CloseEvidence = {
+      rowId: string;
+      episodeId: string;
+      order: number;
+    };
+    type ManualCleanupConfirmation = CloseEvidence & {
+      provenance: string;
+      observedAt: string;
+    };
+    type RecoveryEpisode = {
+      episodeId: string;
+      startOrder: number;
+      blockerRowIds: string[];
+    };
     type ContinuationExample = {
       capturedRoleState: boolean;
       cleanupRecordedBeforeSpawn: boolean;
@@ -4622,24 +4646,15 @@ describe("play subagent routing source contracts", () => {
       spawnResult: "succeeded" | "slot-exhausted" | "other-failure";
       slotFailureClassified: boolean;
       blockingRowIds: string[];
-      actualClosedRowIds: string[];
-      actualCloseEpisodeId: string | null;
-      manualCleanupConfirmations: Array<{
-        rowId: string;
-        episodeId: string;
-        provenance: string;
-        observedAt: string;
-      }>;
-      recoveryEpisodeId: string | null;
-      blockingSnapshot: { episodeId: string; rowIds: string[] } | null;
+      actualCloseEvents: CloseEvidence[];
+      manualCleanupConfirmations: ManualCleanupConfirmation[];
+      recoveryEpisodes: RecoveryEpisode[];
       capacityBlockedByRetainedSession: boolean;
       retentionNeedResolved: boolean;
       currentCleanupDecision: "none" | "retained" | "unavailable" | "attempted";
       retentionReason: string | null;
       currentUnavailableReason: string | null;
-      closeDeferredReasonHistory: string[];
-      retentionResolutionHistory: string[];
-      retentionResolvedObserved: boolean;
+      cleanupDecisionEvents: CleanupDecisionEvent[];
       stoppedAndEscalated: boolean;
       retryCount: 0 | 1 | 2;
     };
@@ -4654,90 +4669,185 @@ describe("play subagent routing source contracts", () => {
       if (!example.slotFailureClassified) {
         return ["slot-failure-classification"];
       }
-      if (
-        example.recoveryEpisodeId === null ||
-        example.blockingSnapshot === null ||
-        example.blockingSnapshot.episodeId !== example.recoveryEpisodeId
-      ) {
+      if (example.recoveryEpisodes.length === 0) {
         return ["recovery-episode-evidence"];
       }
-      const blockingRows = new Set(example.blockingRowIds);
+      const episodeIds = new Set<string>();
+      let priorStartOrder = 0;
+      for (const episode of example.recoveryEpisodes) {
+        if (
+          episodeIds.has(episode.episodeId) ||
+          episode.episodeId.trim().length === 0
+        ) {
+          return ["reused-recovery-episode"];
+        }
+        if (
+          !Number.isInteger(episode.startOrder) ||
+          episode.startOrder <= priorStartOrder
+        ) {
+          return ["recovery-event-order"];
+        }
+        if (
+          new Set(episode.blockerRowIds).size !== episode.blockerRowIds.length
+        ) {
+          return ["recovery-blocker-snapshot"];
+        }
+        episodeIds.add(episode.episodeId);
+        priorStartOrder = episode.startOrder;
+      }
+      const currentEpisode =
+        example.recoveryEpisodes[example.recoveryEpisodes.length - 1];
+      if (currentEpisode === undefined) {
+        return ["recovery-episode-evidence"];
+      }
+      const blockingRows = new Set(currentEpisode.blockerRowIds);
       if (
-        example.blockingSnapshot.rowIds.length !== blockingRows.size ||
-        example.blockingSnapshot.rowIds.some(
-          (rowId) => !blockingRows.has(rowId),
-        )
+        new Set(example.blockingRowIds).size !==
+          example.blockingRowIds.length ||
+        example.blockingRowIds.length !== blockingRows.size ||
+        example.blockingRowIds.some((rowId) => !blockingRows.has(rowId))
       ) {
         return ["recovery-blocker-snapshot"];
       }
+      const episodesById = new Map(
+        example.recoveryEpisodes.map((episode) => [episode.episodeId, episode]),
+      );
+      const observedOrders = new Set(
+        example.recoveryEpisodes.map((episode) => episode.startOrder),
+      );
       const confirmationRows = new Set<string>();
       for (const confirmation of example.manualCleanupConfirmations) {
-        if (!blockingRows.has(confirmation.rowId)) {
-          return ["manual-confirmation-scope"];
-        }
-        if (confirmation.episodeId !== example.recoveryEpisodeId) {
+        const episode = episodesById.get(confirmation.episodeId);
+        if (episode === undefined) {
           return ["stale-manual-confirmation"];
         }
+        if (!episode.blockerRowIds.includes(confirmation.rowId)) {
+          return ["manual-confirmation-scope"];
+        }
         if (
-          confirmationRows.has(confirmation.rowId) ||
+          !Number.isInteger(confirmation.order) ||
+          confirmation.order <= episode.startOrder
+        ) {
+          return ["pre-start-manual-confirmation"];
+        }
+        if (
+          observedOrders.has(confirmation.order) ||
           confirmation.provenance.trim().length === 0 ||
           confirmation.observedAt.trim().length === 0
         ) {
           return ["manual-confirmation-evidence"];
         }
-        confirmationRows.add(confirmation.rowId);
+        observedOrders.add(confirmation.order);
+        if (confirmation.episodeId === currentEpisode.episodeId) {
+          if (confirmationRows.has(confirmation.rowId)) {
+            return ["manual-confirmation-evidence"];
+          }
+          confirmationRows.add(confirmation.rowId);
+        }
       }
-      const actualClosedRows = new Set(example.actualClosedRowIds);
-      if (
-        example.actualClosedRowIds.length > 0 &&
-        example.actualCloseEpisodeId !== example.recoveryEpisodeId
-      ) {
-        return ["stale-close-evidence"];
-      }
-      if (
-        example.actualClosedRowIds.some((rowId) => !blockingRows.has(rowId))
-      ) {
-        return ["actual-close-scope"];
+      const actualClosedRows = new Set<string>();
+      for (const closeEvent of example.actualCloseEvents) {
+        const episode = episodesById.get(closeEvent.episodeId);
+        if (episode === undefined) {
+          return ["stale-close-evidence"];
+        }
+        if (!episode.blockerRowIds.includes(closeEvent.rowId)) {
+          return ["actual-close-scope"];
+        }
+        if (
+          !Number.isInteger(closeEvent.order) ||
+          closeEvent.order <= episode.startOrder
+        ) {
+          return ["pre-start-close-evidence"];
+        }
+        if (observedOrders.has(closeEvent.order)) {
+          return ["duplicate-close-evidence"];
+        }
+        observedOrders.add(closeEvent.order);
+        if (closeEvent.episodeId === currentEpisode.episodeId) {
+          if (
+            actualClosedRows.has(closeEvent.rowId) ||
+            confirmationRows.has(closeEvent.rowId)
+          ) {
+            return ["duplicate-cleanup-authorization"];
+          }
+          actualClosedRows.add(closeEvent.rowId);
+        }
       }
       if (
         example.cleanupResult === "closed" &&
-        example.blockingRowIds.some((rowId) => !actualClosedRows.has(rowId))
+        currentEpisode.blockerRowIds.some(
+          (rowId) => !actualClosedRows.has(rowId),
+        )
       ) {
         return ["manual-confirmation-is-not-closure"];
       }
       if (example.capacityBlockedByRetainedSession) {
-        if (
-          example.retentionNeedResolved &&
-          !example.retentionResolvedObserved
-        ) {
+        const decisionOrders = new Set<number>();
+        let priorDecisionOrder = 0;
+        for (const event of example.cleanupDecisionEvents) {
+          if (
+            !Number.isInteger(event.order) ||
+            event.order <= priorDecisionOrder ||
+            decisionOrders.has(event.order)
+          ) {
+            return ["cleanup-decision-order"];
+          }
+          if (
+            (event.kind === "close-deferred" ||
+              event.kind === "retention-resolved" ||
+              event.kind === "closure-unavailable") &&
+            (event.detail === undefined || event.detail.trim().length === 0)
+          ) {
+            return ["cleanup-decision-evidence"];
+          }
+          decisionOrders.add(event.order);
+          priorDecisionOrder = event.order;
+        }
+        let resolutionIndex = -1;
+        for (const [index, event] of example.cleanupDecisionEvents.entries()) {
+          if (event.kind === "retention-resolved") {
+            resolutionIndex = index;
+          }
+        }
+        if (example.retentionNeedResolved && resolutionIndex === -1) {
           return ["retention-resolution-event-missing"];
         }
-        if (example.retentionResolvedObserved) {
-          if (example.closeDeferredReasonHistory.length === 0) {
+        if (resolutionIndex !== -1) {
+          if (
+            !example.cleanupDecisionEvents
+              .slice(0, resolutionIndex)
+              .some((event) => event.kind === "close-deferred")
+          ) {
             return ["retention-resolution-without-deferral"];
           }
           if (!example.retentionNeedResolved) {
             return ["retention-resolution-without-resolved-need"];
           }
+          const latestDecision =
+            example.cleanupDecisionEvents[
+              example.cleanupDecisionEvents.length - 1
+            ];
+          if (latestDecision === undefined) {
+            return ["retention-resolution-event-missing"];
+          }
+          const expectedProjection =
+            latestDecision.kind === "retention-resolved"
+              ? ["none", "closed-no", null, null]
+              : latestDecision.kind === "close-failed"
+                ? ["attempted", "failed", null, null]
+                : latestDecision.kind === "closure-unavailable"
+                  ? ["unavailable", "unavailable", null, latestDecision.detail]
+                  : latestDecision.kind === "close-succeeded"
+                    ? ["attempted", "closed", null, null]
+                    : ["retained", "retained", latestDecision.detail, null];
           if (
-            example.retentionResolutionHistory.length === 0 ||
-            example.retentionResolutionHistory.some(
-              (detail) => detail.trim().length === 0,
-            )
+            example.currentCleanupDecision !== expectedProjection[0] ||
+            example.cleanupResult !== expectedProjection[1] ||
+            example.retentionReason !== expectedProjection[2] ||
+            example.currentUnavailableReason !== expectedProjection[3]
           ) {
-            return ["retention-resolution-evidence"];
-          }
-          if (example.currentCleanupDecision !== "none") {
-            return ["stale-cleanup-decision"];
-          }
-          if (example.retentionReason !== null) {
-            return ["stale-retention-reason"];
-          }
-          if (example.currentUnavailableReason !== null) {
-            return ["stale-unavailable-reason"];
-          }
-          if (example.cleanupResult !== "closed-no") {
-            return ["retention-resolution-cleanup-projection"];
+            return ["latest-cleanup-decision-projection"];
           }
         }
       }
@@ -4759,7 +4869,7 @@ describe("play subagent routing source contracts", () => {
         return ["slot-retry-count"];
       }
       if (
-        example.blockingRowIds.some(
+        currentEpisode.blockerRowIds.some(
           (rowId) =>
             !actualClosedRows.has(rowId) && !confirmationRows.has(rowId),
         )
@@ -4769,6 +4879,46 @@ describe("play subagent routing source contracts", () => {
       return [];
     }
 
+    const closeEvidence = (
+      overrides: Partial<CloseEvidence> = {},
+    ): CloseEvidence => ({
+      rowId: "block-1",
+      episodeId: "recovery-1",
+      order: 11,
+      ...overrides,
+    });
+    const manualConfirmation = (
+      overrides: Partial<ManualCleanupConfirmation> = {},
+    ): ManualCleanupConfirmation => ({
+      ...closeEvidence(),
+      provenance: "operator UI confirmation",
+      observedAt: "2026-07-11T20:00:00Z",
+      ...overrides,
+    });
+    const recoveryEpisode = (
+      overrides: Partial<RecoveryEpisode> = {},
+    ): RecoveryEpisode => ({
+      episodeId: "recovery-1",
+      startOrder: 10,
+      blockerRowIds: ["block-1"],
+      ...overrides,
+    });
+    const deferredCleanupEvents: CleanupDecisionEvent[] = [
+      {
+        order: 1,
+        kind: "close-deferred",
+        detail: "same-session fixup still required",
+      },
+    ];
+    const resolvedCleanupEvents: CleanupDecisionEvent[] = [
+      ...deferredCleanupEvents,
+      {
+        order: 2,
+        kind: "retention-resolved",
+        detail: "same-session state captured before manual cleanup",
+      },
+    ];
+
     const normalGate: ContinuationExample = {
       capturedRoleState: true,
       cleanupRecordedBeforeSpawn: true,
@@ -4776,19 +4926,15 @@ describe("play subagent routing source contracts", () => {
       spawnResult: "succeeded",
       slotFailureClassified: false,
       blockingRowIds: [],
-      actualClosedRowIds: [],
-      actualCloseEpisodeId: null,
+      actualCloseEvents: [],
       manualCleanupConfirmations: [],
-      recoveryEpisodeId: null,
-      blockingSnapshot: null,
+      recoveryEpisodes: [],
       capacityBlockedByRetainedSession: false,
       retentionNeedResolved: false,
       currentCleanupDecision: "none",
       retentionReason: null,
       currentUnavailableReason: null,
-      closeDeferredReasonHistory: [],
-      retentionResolutionHistory: [],
-      retentionResolvedObserved: false,
+      cleanupDecisionEvents: [],
       stoppedAndEscalated: false,
       retryCount: 0,
     };
@@ -4807,10 +4953,8 @@ describe("play subagent routing source contracts", () => {
       spawnResult: "slot-exhausted",
       slotFailureClassified: true,
       blockingRowIds: ["block-1"],
-      actualClosedRowIds: ["block-1"],
-      actualCloseEpisodeId: "recovery-1",
-      recoveryEpisodeId: "recovery-1",
-      blockingSnapshot: { episodeId: "recovery-1", rowIds: ["block-1"] },
+      actualCloseEvents: [closeEvidence()],
+      recoveryEpisodes: [recoveryEpisode()],
       retryCount: 1,
     };
     expect(continuationErrors(slotRecovery)).toEqual([]);
@@ -4825,15 +4969,8 @@ describe("play subagent routing source contracts", () => {
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "failed",
-        actualClosedRowIds: [],
-        manualCleanupConfirmations: [
-          {
-            rowId: "block-1",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
-            observedAt: "2026-07-11T20:00:00Z",
-          },
-        ],
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [manualConfirmation()],
       }),
     ).toEqual([]);
     const resolvedRetainedBlocker: ContinuationExample = {
@@ -4844,19 +4981,10 @@ describe("play subagent routing source contracts", () => {
       currentCleanupDecision: "none",
       retentionReason: null,
       currentUnavailableReason: null,
-      closeDeferredReasonHistory: ["same-session fixup still required"],
-      retentionResolutionHistory: [
-        "same-session state captured before manual cleanup",
-      ],
-      retentionResolvedObserved: true,
-      actualClosedRowIds: [],
+      cleanupDecisionEvents: resolvedCleanupEvents,
+      actualCloseEvents: [],
       manualCleanupConfirmations: [
-        {
-          rowId: "block-1",
-          episodeId: "recovery-1",
-          provenance: "operator UI confirmation",
-          observedAt: "2026-07-11T20:01:00Z",
-        },
+        manualConfirmation({ observedAt: "2026-07-11T20:01:00Z" }),
       ],
     };
     expect(continuationErrors(resolvedRetainedBlocker)).toEqual([]);
@@ -4865,17 +4993,17 @@ describe("play subagent routing source contracts", () => {
         ...resolvedRetainedBlocker,
         cleanupResult: "unavailable",
       }),
-    ).toEqual(["retention-resolution-cleanup-projection"]);
+    ).toEqual(["latest-cleanup-decision-projection"]);
     expect(
       continuationErrors({
         ...resolvedRetainedBlocker,
         currentCleanupDecision: "retained",
       }),
-    ).toEqual(["stale-cleanup-decision"]);
+    ).toEqual(["latest-cleanup-decision-projection"]);
     expect(
       continuationErrors({
         ...resolvedRetainedBlocker,
-        retentionResolvedObserved: false,
+        cleanupDecisionEvents: deferredCleanupEvents,
       }),
     ).toEqual(["retention-resolution-event-missing"]);
     expect(
@@ -4883,11 +5011,13 @@ describe("play subagent routing source contracts", () => {
         ...resolvedRetainedBlocker,
         retentionReason: "stale same-session follow-up reason",
       }),
-    ).toEqual(["stale-retention-reason"]);
+    ).toEqual(["latest-cleanup-decision-projection"]);
     expect(
       continuationErrors({
         ...resolvedRetainedBlocker,
-        closeDeferredReasonHistory: [],
+        cleanupDecisionEvents: [
+          resolvedCleanupEvents[1] as CleanupDecisionEvent,
+        ],
       }),
     ).toEqual(["retention-resolution-without-deferral"]);
     expect(
@@ -4899,42 +5029,84 @@ describe("play subagent routing source contracts", () => {
     expect(
       continuationErrors({
         ...resolvedRetainedBlocker,
-        retentionResolutionHistory: [],
+        cleanupDecisionEvents:
+          resolvedRetainedBlocker.cleanupDecisionEvents.map((event) =>
+            event.kind === "retention-resolved"
+              ? { ...event, detail: "" }
+              : event,
+          ),
       }),
-    ).toEqual(["retention-resolution-evidence"]);
+    ).toEqual(["cleanup-decision-evidence"]);
     expect(
       continuationErrors({
         ...resolvedRetainedBlocker,
         currentUnavailableReason: "stale unavailable projection",
       }),
-    ).toEqual(["stale-unavailable-reason"]);
+    ).toEqual(["latest-cleanup-decision-projection"]);
+
+    const laterFailedCleanup: ContinuationExample = {
+      ...resolvedRetainedBlocker,
+      cleanupResult: "failed",
+      currentCleanupDecision: "attempted",
+      cleanupDecisionEvents: [
+        ...resolvedCleanupEvents,
+        { order: 3, kind: "close-failed" },
+      ],
+    };
+    expect(continuationErrors(laterFailedCleanup)).toEqual([]);
+    const laterUnavailableCleanup: ContinuationExample = {
+      ...resolvedRetainedBlocker,
+      cleanupResult: "unavailable",
+      currentCleanupDecision: "unavailable",
+      currentUnavailableReason: "close operation disappeared",
+      cleanupDecisionEvents: [
+        ...resolvedCleanupEvents,
+        {
+          order: 3,
+          kind: "closure-unavailable",
+          detail: "close operation disappeared",
+        },
+      ],
+    };
+    expect(continuationErrors(laterUnavailableCleanup)).toEqual([]);
+    const laterSuccessfulCleanup: ContinuationExample = {
+      ...resolvedRetainedBlocker,
+      cleanupResult: "closed",
+      currentCleanupDecision: "attempted",
+      cleanupDecisionEvents: [
+        ...resolvedCleanupEvents,
+        { order: 3, kind: "close-succeeded" },
+      ],
+      actualCloseEvents: [closeEvidence()],
+      manualCleanupConfirmations: [],
+    };
+    expect(continuationErrors(laterSuccessfulCleanup)).toEqual([]);
     expect(
       continuationErrors({
-        ...resolvedRetainedBlocker,
-        manualCleanupConfirmations:
-          resolvedRetainedBlocker.manualCleanupConfirmations.map(
-            (confirmation) => ({
-              ...confirmation,
-              episodeId: "recovery-0",
-            }),
-          ),
+        ...laterFailedCleanup,
+        retentionReason: "stale same-session follow-up reason",
       }),
-    ).toEqual(["stale-manual-confirmation"]);
+    ).toEqual(["latest-cleanup-decision-projection"]);
+    expect(
+      continuationErrors({
+        ...laterUnavailableCleanup,
+        currentUnavailableReason: "stale prior unavailable reason",
+      }),
+    ).toEqual(["latest-cleanup-decision-projection"]);
+    expect(
+      continuationErrors({
+        ...laterSuccessfulCleanup,
+        currentUnavailableReason: "stale unavailable reason",
+      }),
+    ).toEqual(["latest-cleanup-decision-projection"]);
     expect(
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
         retentionNeedResolved: true,
-        actualClosedRowIds: [],
-        manualCleanupConfirmations: [
-          {
-            rowId: "block-1",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
-            observedAt: "2026-07-11T20:01:00Z",
-          },
-        ],
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [manualConfirmation()],
       }),
     ).toEqual(["retention-resolution-event-missing"]);
     expect(
@@ -4942,15 +5114,11 @@ describe("play subagent routing source contracts", () => {
         ...slotRecovery,
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
-        actualClosedRowIds: [],
-        manualCleanupConfirmations: [
-          {
-            rowId: "block-1",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
-            observedAt: "2026-07-11T20:01:00Z",
-          },
-        ],
+        currentCleanupDecision: "retained",
+        retentionReason: "same-session fixup still required",
+        cleanupDecisionEvents: deferredCleanupEvents,
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [manualConfirmation()],
       }),
     ).toEqual(["retention-blocker-unresolved"]);
     expect(
@@ -4958,6 +5126,10 @@ describe("play subagent routing source contracts", () => {
         ...slotRecovery,
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
+        currentCleanupDecision: "retained",
+        retentionReason: "same-session fixup still required",
+        cleanupDecisionEvents: deferredCleanupEvents,
+        actualCloseEvents: [],
         retryCount: 0,
         stoppedAndEscalated: true,
       }),
@@ -4967,6 +5139,10 @@ describe("play subagent routing source contracts", () => {
         ...slotRecovery,
         cleanupResult: "retained",
         capacityBlockedByRetainedSession: true,
+        currentCleanupDecision: "retained",
+        retentionReason: "same-session fixup still required",
+        cleanupDecisionEvents: deferredCleanupEvents,
+        actualCloseEvents: [],
         retryCount: 0,
       }),
     ).toEqual(["retention-blocker-not-escalated"]);
@@ -4975,7 +5151,7 @@ describe("play subagent routing source contracts", () => {
         continuationErrors({
           ...slotRecovery,
           cleanupResult,
-          actualClosedRowIds: [],
+          actualCloseEvents: [],
         }),
         cleanupResult,
       ).toEqual(["slot-retry-authorization"]);
@@ -4984,14 +5160,9 @@ describe("play subagent routing source contracts", () => {
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "failed",
-        actualClosedRowIds: [],
+        actualCloseEvents: [],
         manualCleanupConfirmations: [
-          {
-            rowId: "different-row",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
-            observedAt: "2026-07-11T20:02:00Z",
-          },
+          manualConfirmation({ rowId: "different-row" }),
         ],
       }),
     ).toEqual(["manual-confirmation-scope"]);
@@ -4999,33 +5170,24 @@ describe("play subagent routing source contracts", () => {
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "failed",
-        actualClosedRowIds: [],
-        manualCleanupConfirmations: [
-          {
-            rowId: "block-1",
-            episodeId: "recovery-1",
-            provenance: "",
-            observedAt: "2026-07-11T20:02:00Z",
-          },
-        ],
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [manualConfirmation({ provenance: "" })],
       }),
     ).toEqual(["manual-confirmation-evidence"]);
     expect(
       continuationErrors({
         ...slotRecovery,
         blockingRowIds: ["block-1", "block-2"],
-        blockingSnapshot: {
-          episodeId: "recovery-1",
-          rowIds: ["block-1", "block-2"],
-        },
-        actualClosedRowIds: ["block-1"],
+        recoveryEpisodes: [
+          recoveryEpisode({ blockerRowIds: ["block-1", "block-2"] }),
+        ],
+        actualCloseEvents: [closeEvidence()],
         manualCleanupConfirmations: [
-          {
+          manualConfirmation({
             rowId: "block-2",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
+            order: 12,
             observedAt: "2026-07-11T20:03:00Z",
-          },
+          }),
         ],
       }),
     ).toEqual(["manual-confirmation-is-not-closure"]);
@@ -5033,22 +5195,131 @@ describe("play subagent routing source contracts", () => {
       continuationErrors({
         ...slotRecovery,
         cleanupResult: "failed",
-        actualClosedRowIds: ["block-1"],
+        actualCloseEvents: [closeEvidence()],
         manualCleanupConfirmations: [
-          {
+          manualConfirmation({
             rowId: "block-2",
-            episodeId: "recovery-1",
-            provenance: "operator UI confirmation",
+            order: 12,
             observedAt: "2026-07-11T20:03:00Z",
-          },
+          }),
         ],
         blockingRowIds: ["block-1", "block-2"],
-        blockingSnapshot: {
-          episodeId: "recovery-1",
-          rowIds: ["block-1", "block-2"],
-        },
+        recoveryEpisodes: [
+          recoveryEpisode({ blockerRowIds: ["block-1", "block-2"] }),
+        ],
       }),
     ).toEqual([]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        recoveryEpisodes: [
+          recoveryEpisode({ blockerRowIds: ["block-1", "block-1"] }),
+        ],
+      }),
+    ).toEqual(["recovery-blocker-snapshot"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        blockingRowIds: ["block-1", "block-2"],
+      }),
+    ).toEqual(["recovery-blocker-snapshot"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        recoveryEpisodes: [
+          recoveryEpisode({ startOrder: 5 }),
+          recoveryEpisode(),
+        ],
+      }),
+    ).toEqual(["reused-recovery-episode"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        recoveryEpisodes: [
+          recoveryEpisode({ episodeId: "recovery-0" }),
+          recoveryEpisode({ startOrder: 5 }),
+        ],
+      }),
+    ).toEqual(["recovery-event-order"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [
+          manualConfirmation({
+            order: 10,
+            observedAt: "2026-07-11T20:04:00Z",
+          }),
+        ],
+      }),
+    ).toEqual(["pre-start-manual-confirmation"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        actualCloseEvents: [closeEvidence({ order: 10 })],
+      }),
+    ).toEqual(["pre-start-close-evidence"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        actualCloseEvents: [closeEvidence({ rowId: "different-row" })],
+      }),
+    ).toEqual(["actual-close-scope"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualCloseEvents: [],
+        manualCleanupConfirmations: [
+          manualConfirmation({
+            provenance: "first operator confirmation",
+            observedAt: "2026-07-11T20:05:00Z",
+          }),
+          manualConfirmation({
+            order: 12,
+            provenance: "duplicate operator confirmation",
+            observedAt: "2026-07-11T20:06:00Z",
+          }),
+        ],
+      }),
+    ).toEqual(["manual-confirmation-evidence"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        actualCloseEvents: [closeEvidence(), closeEvidence({ order: 12 })],
+      }),
+    ).toEqual(["duplicate-cleanup-authorization"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualCloseEvents: [closeEvidence({ order: 12 })],
+        manualCleanupConfirmations: [manualConfirmation()],
+      }),
+    ).toEqual(["duplicate-cleanup-authorization"]);
+    expect(
+      continuationErrors({
+        ...slotRecovery,
+        cleanupResult: "failed",
+        actualCloseEvents: [],
+        recoveryEpisodes: [
+          recoveryEpisode({
+            episodeId: "recovery-0",
+            startOrder: 1,
+          }),
+          recoveryEpisode(),
+        ],
+        manualCleanupConfirmations: [
+          manualConfirmation({
+            episodeId: "recovery-0",
+            order: 2,
+            provenance: "prior episode operator confirmation",
+            observedAt: "2026-07-11T20:07:00Z",
+          }),
+        ],
+      }),
+    ).toEqual(["slot-retry-authorization"]);
     expect(
       continuationErrors({ ...slotRecovery, slotFailureClassified: false }),
     ).toEqual(["slot-failure-classification"]);
