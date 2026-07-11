@@ -443,7 +443,7 @@ describe("play subagent routing source contracts", () => {
 
     expect(phase6).toContain("subagent-lifecycle");
     expect(normalizedPhase6).toContain(
-      "cleanup gate for completed or superseded gate and research sessions",
+      "cleanup gate for completed, timed-out, failed, or superseded gate and research sessions",
     );
     expect(phase6).toContain("Plan written to <path>.");
     expect(normalizedPhase6).toContain(
@@ -699,6 +699,26 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedPhase3).toContain(
       "capture scope, report result, source references, and blocker state before cleanup",
+    );
+    expect(normalizedPhase3).toContain(
+      "preserve the owner-defined current state `timed-out` or `failed` and the value-bearing `turn-timed-out(reason=...)` or `turn-failed(error=...)` event",
+    );
+    expect(normalizedPhase3).toContain(
+      "When no turn returned, keep workflow return status and its history absent",
+    );
+    expect(normalizedPhase3).toContain(
+      "Before any manual cleanup, use the owner classifications for open blockers",
+    );
+    for (const openStateRule of [
+      "active rows wait or steer to a safe capture boundary or stop",
+      "waiting rows are retained or safely replaced",
+      "reusable interrupted rows are reused or superseded after capture",
+      "pending or unknown rows resolve identity or stop without fabricated cleanup",
+    ]) {
+      expect(normalizedPhase3).toContain(openStateRule);
+    }
+    expect(normalizedPhase3).toContain(
+      "Record row-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry while preserving the row's honest cleanup outcome",
     );
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(
@@ -2382,7 +2402,7 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedExample).toContain("Spec-failure stale-quality path");
     expect(normalizedExample).toContain(
-      "operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes",
+      "reviewer disposition history=[advisory(reason=same-head quality findings are non-final until spec disposition, source-state=task-2-head), stale(reason=task head advanced after fixup, source-state=task-2-fixup-head)], current reviewer disposition=stale",
     );
     expect(normalizedExample).toContain(
       "combined spec and code-quality finding set routed to Task 2 implementer",
@@ -4452,6 +4472,21 @@ describe("play subagent routing source contracts", () => {
       "[Alternative target capability examples - separate runs",
       "Done!",
     );
+    const abnormalTerminalVariants = sliceBetween(
+      targetCapabilityExamples,
+      "[Abnormal terminal lifecycle variants - separate runs]",
+      "[Normal cleanup gate projection variants - separate runs]",
+    );
+    const normalGateVariants = sliceBetween(
+      targetCapabilityExamples,
+      "[Normal cleanup gate projection variants - separate runs]",
+      "[Open capacity-blocker classification variants - separate runs]",
+    );
+    const openCapacityVariants = sliceBetween(
+      targetCapabilityExamples,
+      "[Open capacity-blocker classification variants - separate runs]",
+      "[Isolated lifecycle supersession hypothetical - separate run, not an executor route]",
+    );
     const slotLimitAutomaticCloseFailure = sliceBetween(
       targetCapabilityExamples,
       "[Slot-limit automatic-close failure - separate run]",
@@ -4461,6 +4496,11 @@ describe("play subagent routing source contracts", () => {
       targetCapabilityExamples,
       "[Slot-limit retained-session capacity blocker - separate run]",
       "[Slot-limit automatic-close failure - separate run]",
+    );
+    const slotLimitUnavailable = sliceBetween(
+      targetCapabilityExamples,
+      "[Slot-limit spawn failure on cleanup-unavailable target - separate run]",
+      "[Repeated blocker-family branch in the cleanup-unavailable run]",
     );
     const checkpointRow = (
       source: string,
@@ -4559,20 +4599,137 @@ describe("play subagent routing source contracts", () => {
           errors.push(`missing-${family}`);
         }
       }
+      return errors;
+    };
+    const actualTask3GateErrors = (checkpoint: string): string[] => {
+      const normalizedCheckpoint = normalizeWhitespace(checkpoint);
+      const errors: string[] = [];
       if (
-        normalizedCheckpoint.includes(
-          "closed or recorded with target-honest `close-unavailable` outcomes",
-        )
+        !normalizedCheckpoint.includes("every Task 2 row") ||
+        !normalizedCheckpoint.includes("event=close-succeeded") ||
+        !normalizedCheckpoint.includes("cleanup outcome=closed=yes")
       ) {
-        errors.push("binary-normal-gate-fallback");
+        errors.push("actual-task2-close-state");
+      }
+      for (const unreachableFamily of [
+        "close-deferred",
+        "close-failed",
+        "close-unavailable",
+      ]) {
+        if (normalizedCheckpoint.includes(unreachableFamily)) {
+          errors.push("mixed-actual-and-variant-trace");
+          break;
+        }
+      }
+      return errors;
+    };
+    const manualConfirmationErrors = (
+      section: string,
+      rowId: string,
+      honestOutcome: string,
+    ): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      const errors: string[] = [];
+      const confirmation =
+        "event=manual-cleanup-confirmed(provenance=operator UI, observed-at=";
+      const confirmationIndex = normalizedSection.indexOf(confirmation);
+      const reconstructionIndex = normalizedSection.indexOf("reconstruct");
+      const retryIndex = Math.max(
+        normalizedSection.lastIndexOf("retry"),
+        normalizedSection.lastIndexOf("retries"),
+      );
+      if (confirmationIndex < 0) errors.push("manual-confirmation-absent");
+      if (!normalizedSection.includes(`to row=${rowId}`)) {
+        errors.push("manual-confirmation-scope");
+      }
+      if (!normalizedSection.includes(honestOutcome)) {
+        errors.push("honest-outcome-lost");
       }
       if (
-        !normalizedCheckpoint.includes("no capacity failure") ||
-        !normalizedCheckpoint.includes(
-          "slot-limit recovery and no retry until closure or operator-confirmed manual cleanup",
+        confirmationIndex < 0 ||
+        reconstructionIndex < 0 ||
+        retryIndex < 0 ||
+        confirmationIndex >= reconstructionIndex ||
+        reconstructionIndex >= retryIndex
+      ) {
+        errors.push("manual-confirmation-order");
+      }
+      if (normalizedSection.includes("closed=yes")) {
+        errors.push("manual-confirmation-fabricates-close");
+      }
+      return errors;
+    };
+    const returnHistoryErrors = (row: string): string[] => {
+      const errors: string[] = [];
+      if (
+        !row.includes(
+          "turn-completed status history=[DONE, DONE_WITH_CONCERNS]",
         )
       ) {
-        errors.push("slot-retry-guard");
+        errors.push("turn-status-history");
+      }
+      if (!row.includes("workflow return history=[DONE, DONE_WITH_CONCERNS]")) {
+        errors.push("workflow-return-history");
+      }
+      if (!row.includes("current workflow return status=DONE_WITH_CONCERNS")) {
+        errors.push("workflow-return-projection");
+      }
+      return errors;
+    };
+    const dispositionHistoryErrors = (row: string): string[] => {
+      const errors: string[] = [];
+      if (!row.includes("reviewer disposition history=[advisory(")) {
+        errors.push("advisory-history");
+      }
+      if (!row.includes(", stale(")) errors.push("stale-history");
+      if (!row.includes("current reviewer disposition=stale")) {
+        errors.push("reviewer-disposition-projection");
+      }
+      return errors;
+    };
+    const abnormalTerminalErrors = (section: string): string[] => {
+      const errors: string[] = [];
+      if (
+        !section.includes("operational state=timed-out") ||
+        !section.includes("turn-timed-out(reason=")
+      ) {
+        errors.push("timeout-detail");
+      }
+      if (
+        !section.includes("operational state=failed") ||
+        !section.includes("turn-failed(error=")
+      ) {
+        errors.push("failure-detail");
+      }
+      if (
+        !section.includes("workflow return status absent") ||
+        !section.includes("workflow return history absent")
+      ) {
+        errors.push("absent-return-history");
+      }
+      if (!section.includes("detail captured before cleanup")) {
+        errors.push("abnormal-state-capture");
+      }
+      return errors;
+    };
+    const openCapacityErrors = (section: string): string[] => {
+      const errors: string[] = [];
+      for (const [name, evidence] of [
+        ["active", "Active row: wait or steer to a safe boundary"],
+        [
+          "waiting",
+          "Waiting row: capture the open question and context, then retain or safely replace",
+        ],
+        [
+          "interrupted",
+          "Reusable interrupted row: capture available state, then retain/reuse or supersede only after replacement state is secured",
+        ],
+        [
+          "pending",
+          "Pending or unknown row: resolve identity or stop; do not fabricate cleanup or close another row",
+        ],
+      ] as const) {
+        if (!section.includes(evidence)) errors.push(`missing-${name}`);
       }
       return errors;
     };
@@ -4593,9 +4750,10 @@ describe("play subagent routing source contracts", () => {
       "operational state=active, events=[dispatch-requested, identity-assigned]",
     );
     expect(exampleWorkflow).toContain(
-      "operational state=completed, workflow return status=DONE",
+      "operational state=completed, event=turn-completed(status=DONE)",
     );
-    expect(exampleWorkflow).toContain("event=turn-completed");
+    expect(exampleWorkflow).not.toContain("event=turn-completed,");
+    expect(exampleWorkflow).not.toContain("event=turn-completed appended");
     expect(exampleWorkflow).toContain("operational state=superseded");
     expect(exampleWorkflow).toContain("event=superseded");
     expect(exampleWorkflow).toContain("prior events retained");
@@ -4612,7 +4770,7 @@ describe("play subagent routing source contracts", () => {
       "Every cleanup gate transitions each examined row to `evaluated`",
     );
     expect(normalizeWhitespace(task1Section)).toContain(
-      "operational state=completed, workflow return status=DONE, event=turn-completed appended after dispatch-requested and identity-assigned, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
+      "operational state=completed, event=turn-completed(status=DONE) appended after dispatch-requested and identity-assigned, workflow return history=[DONE], current workflow return status=DONE, report captured, base/head SHA captured, changed files captured, snapshot state=emitted, test state captured, cleanup evaluation=not-evaluated, cleanup outcome=closed=no because reviewer fix loops may still need same-session follow-up",
     );
     expect(task1Section).toContain(
       "Parallel happy path: same-head spec and quality pass",
@@ -4640,10 +4798,19 @@ describe("play subagent routing source contracts", () => {
       ]),
     ).toEqual([]);
     expect(task3Section).toContain("snapshot state=skipped");
-    expect(normalGateProjectionErrors(task3PreSpawnCleanup)).toEqual([]);
+    expect(actualTask3GateErrors(task3PreSpawnCleanup)).toEqual([]);
+    expect(
+      actualTask3GateErrors(
+        task3PreSpawnCleanup.replace(
+          "event=close-succeeded",
+          "event=close-failed",
+        ),
+      ),
+    ).toEqual(["actual-task2-close-state", "mixed-actual-and-variant-trace"]);
+    expect(normalGateProjectionErrors(normalGateVariants)).toEqual([]);
     expect(
       normalGateProjectionErrors(
-        normalizeWhitespace(task3PreSpawnCleanup).replace(
+        normalizeWhitespace(normalGateVariants).replace(
           "deliberate deferral with reason, failed-attempt `closed=no`, ",
           "",
         ),
@@ -4667,7 +4834,7 @@ describe("play subagent routing source contracts", () => {
       "Cleanup gate before Task 2 code-quality re-reviewer spawn",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, workflow return status=findings-recorded",
+      "Task 2 code-quality reviewer: agent_id=quality-2, operational state=completed, event=turn-completed(status=findings-recorded), workflow return history=[findings-recorded], current workflow return status=findings-recorded",
     );
     expect(task2Section).toContain(
       "findings captured: Missing progress reporting",
@@ -4692,16 +4859,16 @@ describe("play subagent routing source contracts", () => {
       "event=followup-dispatch-requested appended after the first turn-completed; all prior events retained",
     );
     expect(normalizeWhitespace(task2Section)).toContain(
-      "a second event=turn-completed appended",
+      "event=turn-completed(status=DONE_WITH_CONCERNS) appended, workflow return history=[DONE, DONE_WITH_CONCERNS], current workflow return status=DONE_WITH_CONCERNS",
     );
     expect(task2Section).toContain(
-      "operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale, close history remains close-attempted then close-succeeded, cleanup outcome remains closed=yes. Only the disposition changes",
+      "reviewer disposition history=[advisory(reason=same-head quality findings are non-final until spec disposition, source-state=task-2-head), stale(reason=task head advanced after fixup, source-state=task-2-fixup-head)], current reviewer disposition=stale",
     );
     expect(task2Section).not.toContain(
       "Task 2 code-quality reviewer: operational state=superseded",
     );
     expect(task2Section).toContain(
-      "operational state=completed, workflow return status=findings-recorded, reviewer disposition=stale",
+      "workflow return history=[findings-recorded]",
     );
     expect(task2Section).not.toContain("quality-backup-1");
     expect(task2Section).not.toContain("backup reviewer");
@@ -4709,7 +4876,7 @@ describe("play subagent routing source contracts", () => {
       "Independent actual session supersession",
     );
     expect(task2Section).toContain(
-      "Task 2 code-quality re-reviewer: operational state=completed, workflow return status=DONE, event=turn-completed, review scope captured",
+      "Task 2 code-quality re-reviewer: operational state=completed, event=turn-completed(status=DONE), workflow return history=[DONE], current workflow return status=DONE, review scope captured",
     );
     expect(task2Section).not.toContain(
       "Task 2 code-quality re-reviewer: status=PASS",
@@ -4722,6 +4889,8 @@ describe("play subagent routing source contracts", () => {
     );
     expect(firstTask2Return).toContain("operational state=completed");
     expect(firstTask2Return).toContain("workflow return status=DONE");
+    expect(firstTask2Return).toContain("event=turn-completed(status=DONE)");
+    expect(firstTask2Return).toContain("workflow return history=[DONE]");
     expect(firstTask2Return).toContain("cleanup evaluation=not-evaluated");
     expect(firstTask2Return).toContain("cleanup outcome=closed=no");
     expect(firstTask2Return).not.toMatch(
@@ -4761,6 +4930,15 @@ describe("play subagent routing source contracts", () => {
     expect(
       historicalDeferralErrors(task2ImplementerCleanup, task2DeferralReasons),
     ).toEqual([]);
+    expect(returnHistoryErrors(task2ImplementerCleanup)).toEqual([]);
+    expect(
+      returnHistoryErrors(
+        task2ImplementerCleanup.replaceAll(
+          "DONE, DONE_WITH_CONCERNS",
+          "DONE_WITH_CONCERNS",
+        ),
+      ),
+    ).toEqual(["turn-status-history", "workflow-return-history"]);
     expect(
       historicalDeferralErrors(
         task2ImplementerCleanup.replace(
@@ -4779,6 +4957,7 @@ describe("play subagent routing source contracts", () => {
     expect(activeFollowupRow).toContain("operational state=active");
     expect(activeFollowupRow).toContain("workflow return status=DONE");
     expectDeferredCleanupRow(activeFollowupRow);
+    expect(activeFollowupRow).toContain("workflow return history=[DONE]");
     expectDeferredCleanupRow(
       checkpointRow(
         task2Section,
@@ -4786,6 +4965,20 @@ describe("play subagent routing source contracts", () => {
         "Task 2 implementer",
       ),
     );
+    const task2QualityCleanup = checkpointRow(
+      task2Section,
+      "[Lifecycle cleanup checkpoint]",
+      "Task 2 code-quality reviewer",
+    );
+    expect(dispositionHistoryErrors(task2QualityCleanup)).toEqual([]);
+    expect(
+      dispositionHistoryErrors(
+        task2QualityCleanup.replace(
+          "reviewer disposition history=[advisory(",
+          "reviewer disposition history=[(",
+        ),
+      ),
+    ).toEqual(["advisory-history"]);
     expectSuccessfulCleanupRow(
       checkpointRow(
         task2Section,
@@ -4838,6 +5031,24 @@ describe("play subagent routing source contracts", () => {
     expect(targetCapabilityExamples).toContain(
       "inventory-only: target exposes session inventory but no close operation",
     );
+    expect(abnormalTerminalErrors(abnormalTerminalVariants)).toEqual([]);
+    expect(
+      abnormalTerminalErrors(
+        abnormalTerminalVariants.replace(
+          "event=turn-timed-out(reason=runtime deadline elapsed before a return)",
+          "event=turn-timed-out",
+        ),
+      ),
+    ).toEqual(["timeout-detail"]);
+    expect(openCapacityErrors(openCapacityVariants)).toEqual([]);
+    expect(
+      openCapacityErrors(
+        openCapacityVariants.replace(
+          "Active row: wait or steer to a safe boundary, capture required state, then retain or supersede; if capture is unsafe, stop and escalate. ",
+          "Active row: clean up manually. ",
+        ),
+      ),
+    ).toEqual(["missing-active"]);
     expect(targetCapabilityExamples).toContain(
       "Isolated lifecycle supersession hypothetical - separate run, not an executor route",
     );
@@ -4869,12 +5080,6 @@ describe("play subagent routing source contracts", () => {
     expect(targetCapabilityExamples).toContain(
       "event=close-succeeded, cleanup outcome=closed=yes",
     );
-    expect(targetCapabilityExamples).toContain(
-      "projects cleanup outcome=closed=no. The controller does not retry the spawn yet",
-    );
-    expect(targetCapabilityExamples).toContain(
-      "same sanitized operator/UI manual-cleanup guidance as unavailable cleanup, waits for operator confirmation, then retries the spawn exactly once",
-    );
     expect(slotLimitRetainedSession).toContain(
       "resolves whether same-session follow-up remains required",
     );
@@ -4888,11 +5093,18 @@ describe("play subagent routing source contracts", () => {
       "preserves the historical close-deferred event and its associated reason",
     );
     expect(slotLimitRetainedSession).toContain(
-      "then retries the spawn exactly once",
+      "reconstruct state and retry the spawn exactly once",
     );
     expect(slotLimitRetainedSession).toContain(
       "stop and escalate without retrying",
     );
+    expect(
+      manualConfirmationErrors(
+        slotLimitRetainedSession,
+        "impl-retained",
+        "closed=no remains unchanged",
+      ),
+    ).toEqual([]);
     const retainedSlotRecoveryErrors = (example: string): string[] => {
       const errors: string[] = [];
       if (
@@ -4907,7 +5119,7 @@ describe("play subagent routing source contracts", () => {
         !example.includes(
           "actual close or operator-confirmed manual cleanup",
         ) ||
-        !example.includes("then retries the spawn exactly once")
+        !example.includes("reconstruct state and retry the spawn exactly once")
       ) {
         errors.push("retained-slot-retry-authorization");
       }
@@ -4948,9 +5160,11 @@ describe("play subagent routing source contracts", () => {
         errors.push("cleanup-projection");
       }
       if (
-        !example.includes("does not retry the spawn yet") ||
-        !example.includes("waits for operator confirmation") ||
-        !example.includes("retries the spawn exactly once")
+        !example.includes("does not retry yet") ||
+        !example.includes("After operator cleanup") ||
+        !example.includes(
+          "reconstructs state and retries the spawn exactly once",
+        )
       ) {
         errors.push("slot-retry-guard");
       }
@@ -4958,6 +5172,40 @@ describe("play subagent routing source contracts", () => {
     };
     expect(
       invalidSlotFailureDimensions(slotLimitAutomaticCloseFailure),
+    ).toEqual([]);
+    expect(
+      manualConfirmationErrors(
+        slotLimitAutomaticCloseFailure,
+        "impl-failed-close",
+        "closed=no remains unchanged",
+      ),
+    ).toEqual([]);
+    expect(
+      manualConfirmationErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "to row=impl-failed-close",
+          "to row=another-row",
+        ),
+        "impl-failed-close",
+        "closed=no remains unchanged",
+      ),
+    ).toEqual(["manual-confirmation-scope"]);
+    expect(
+      manualConfirmationErrors(
+        slotLimitAutomaticCloseFailure.replace(
+          "event=manual-cleanup-confirmed",
+          "event=manual-cleanup-observed",
+        ),
+        "impl-failed-close",
+        "closed=no remains unchanged",
+      ),
+    ).toEqual(["manual-confirmation-absent", "manual-confirmation-order"]);
+    expect(
+      manualConfirmationErrors(
+        slotLimitUnavailable,
+        "impl-unavailable",
+        "close-unavailable outcome remains unchanged",
+      ),
     ).toEqual([]);
     expect(
       invalidSlotFailureDimensions(
@@ -4980,23 +5228,14 @@ describe("play subagent routing source contracts", () => {
     expect(targetCapabilityExamples).toContain(
       "Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure",
     );
-    expect(targetCapabilityExamples).toContain(
-      "appends event=closure-unavailable and projects `close-unavailable: no inventory or close operation`",
+    expect(slotLimitUnavailable).toContain(
+      "event=closure-unavailable(reason=no inventory or close operation)",
     );
-    expect(targetCapabilityExamples).toContain(
-      "waits for operator confirmation that manual cleanup is complete",
-    );
-    expect(targetCapabilityExamples).toContain(
+    expect(slotLimitUnavailable).toContain(
       "reconstructs active task state from the lifecycle ledger and git",
     );
     expect(targetCapabilityExamples).toContain(
-      "then retries the spawn exactly once",
-    );
-    expect(targetCapabilityExamples).toContain(
       "Repeated blocker-family branch",
-    );
-    expect(targetCapabilityExamples).toContain(
-      "Controller runs the cleanup gate",
     );
     expect(targetCapabilityExamples).toContain("Initial blocker-family record");
     expect(targetCapabilityExamples).toContain(
@@ -5036,6 +5275,12 @@ describe("play subagent routing source contracts", () => {
       );
       expect(normalizedSurface).toContain(
         "A capacity-blocking retained session must first resolve and safely capture or replace its follow-up need, or stop and escalate without retrying",
+      );
+      expect(normalizedSurface).toContain(
+        "completed, timed-out, failed, or superseded gate and research sessions",
+      );
+      expect(normalizedSurface).toContain(
+        "For timed-out or failed rows, preserve the value-bearing runtime terminal event, keep return status/history absent when no turn returned, and capture the gate or research error/blocker detail before cleanup",
       );
     }
 

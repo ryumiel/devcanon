@@ -334,10 +334,23 @@ and unavailable outcomes. Do not collapse deferred or failed open sessions
 into `close-unavailable`; preserve the owner-projected events, associated
 reason history, and outcome before continuing.
 
+For an abnormal terminal child, preserve the owner-defined current state
+`timed-out` or `failed` and the value-bearing `turn-timed-out(reason=...)` or
+`turn-failed(error=...)` event. When no turn returned, keep workflow return
+status and its history absent. Capture the research error or blocker detail
+with the available scope, sources, and report state before cleanup or routing.
+
 If any internal, immediate external, or late external spawn fails because slots
 are exhausted, follow `subagent-lifecycle` § Slot-Limit Recovery. Preserve the
 captured research scope, report result, source references, blocker state,
 lifecycle ledger, and repository anchors across that shared recovery procedure.
+Before any manual cleanup, use the owner classifications for open blockers:
+active rows wait or steer to a safe capture boundary or stop; waiting rows are
+retained or safely replaced; reusable interrupted rows are reused or
+superseded after capture; pending or unknown rows resolve identity or stop
+without fabricated cleanup. Record row-scoped `manual-cleanup-confirmed`
+evidence before reconstruction and retry while preserving the row's honest
+cleanup outcome.
 Resume research outcome routing only when the shared recovery procedure
 succeeds. Repeated slot failure or escalation stops under that shared policy
 without research persistence or Phase 4. This shared recovery applies to
@@ -656,12 +669,15 @@ AUTO_HANDOFF_FILE=$(
 ```
 
 Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate for
-completed or superseded gate and research sessions. Capture their
+completed, timed-out, failed, or superseded gate and research sessions. Capture their
 role-specific state first. The required order is: capture role-specific state,
 evaluate and record cleanup, then hand off. Preserve each applicable
 successful, unavailable, deliberately deferred, or failed-attempt cleanup
 history according to the shared owner contract before invoking
 `play-subagent-execution`. Missing captured role state blocks the handoff.
+For timed-out or failed rows, preserve the value-bearing runtime terminal event,
+keep return status/history absent when no turn returned, and capture the gate or
+research error/blocker detail before cleanup.
 Normal cleanup may continue with target-honest open evidence, but shared
 slot-limit recovery remains blocked until actual closure or
 operator-confirmed manual cleanup.

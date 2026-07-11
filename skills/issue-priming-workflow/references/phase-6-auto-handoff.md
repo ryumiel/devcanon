@@ -93,7 +93,7 @@ Phase 6 must fail closed for route eligibility:
 ## Lifecycle Before Handoff
 
 Before invoking `play-subagent-execution`, run the `subagent-lifecycle` cleanup
-gate for completed or superseded gate and research sessions. Capture
+gate for completed, timed-out, failed, or superseded gate and research sessions. Capture
 role-specific state first. The required order is: capture role-specific state,
 evaluate and record cleanup, then hand off. Preserve each applicable
 successful, unavailable, deliberately deferred, or failed-attempt cleanup
@@ -101,6 +101,9 @@ history according to the shared owner contract before continuing. Missing
 captured role state blocks the handoff. Normal cleanup may continue with
 target-honest open evidence, but shared slot-limit recovery remains blocked
 until actual closure or operator-confirmed manual cleanup.
+For timed-out or failed rows, preserve the value-bearing runtime terminal event,
+keep return status/history absent when no turn returned, and capture the gate or
+research error/blocker detail before cleanup.
 A capacity-blocking retained session must first resolve and safely capture or
 replace its follow-up need, or stop and escalate without retrying.
 
