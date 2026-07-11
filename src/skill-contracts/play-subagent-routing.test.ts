@@ -649,6 +649,55 @@ describe("play subagent routing source contracts", () => {
       ) {
         errors.push("owner-projection-delegation");
       }
+      if (
+        !normalizedSection.includes("unavailable-reason history") ||
+        !normalizedSection.includes(
+          "current unavailable-cleanup reason as a separate latest projection",
+        )
+      ) {
+        errors.push("unavailable-reason-history");
+      }
+      return errors;
+    };
+    const immediateJoinRecoveryErrors = (section: string): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      const errors: string[] = [];
+      if (
+        !normalizedSection.includes(
+          "started immediate internal or external research sibling",
+        ) ||
+        !normalizedSection.includes(
+          "do not authorize replacement or supersession as a terminal shortcut",
+        )
+      ) {
+        errors.push("started-sibling-no-shortcut");
+      }
+      if (
+        !normalizedSection.includes(
+          "Wait, reuse, or steer the original sibling until it reaches completion, timeout, or runtime failure",
+        )
+      ) {
+        errors.push("started-sibling-reachable-terminal");
+      }
+      if (
+        !normalizedSection.includes("cannot be done safely, stop and escalate")
+      ) {
+        errors.push("unsafe-join-stops");
+      }
+      if (
+        !normalizedSection.includes(
+          "pending row that never actually started may resolve identity or record dispatch failure separately",
+        )
+      ) {
+        errors.push("pre-start-pending-distinction");
+      }
+      if (
+        !normalizedSection.includes(
+          "Preserve the original internal-before-external dispatch order and join both started sibling rows",
+        )
+      ) {
+        errors.push("join-order");
+      }
       return errors;
     };
 
@@ -721,6 +770,23 @@ describe("play subagent routing source contracts", () => {
       "Record row-scoped `manual-cleanup-confirmed` evidence before reconstruction and retry while preserving the row's honest cleanup outcome",
     );
     expect(lifecycleProjectionErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(
+      immediateJoinRecoveryErrors(
+        normalizeWhitespace(lifecycleConcurrentJoin).replace(
+          "do not authorize replacement or supersession as a terminal shortcut",
+          "authorize replacement or supersession as a terminal shortcut",
+        ),
+      ),
+    ).toEqual(["started-sibling-no-shortcut"]);
+    expect(
+      immediateJoinRecoveryErrors(
+        normalizeWhitespace(lifecycleConcurrentJoin).replace(
+          "cannot be done safely, stop and escalate",
+          "cannot be done safely, replace the sibling",
+        ),
+      ),
+    ).toEqual(["unsafe-join-stops"]);
     expect(
       lifecycleProjectionErrors(
         normalizeWhitespace(lifecycleConcurrentJoin).replace(
@@ -2369,7 +2435,16 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizedSkill).not.toContain("quality-only rerun proven valid");
     expect(normalizedLifecycle).toContain(
-      "reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",
+      "reviewer integration-result state (`pending` or `integrated`), reviewer disposition (`final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`)",
+    );
+    expect(normalizedLifecycle).not.toContain(
+      "reviewer disposition (`pending`",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "record each controller-local integration-result state as `pending` until its report is integrated",
+    );
+    expect(normalizedHandlingStatus).toContain(
+      "reviewer disposition remains absent until the controller classifies the integrated result",
     );
     expect(normalizedHandlingStatus).toContain(
       "A quality result may become final only after same-head spec pass and current task-head validation",
@@ -4560,7 +4635,7 @@ describe("play subagent routing source contracts", () => {
       "`play-subagent-execution` owns only the execution-specific lifecycle details below",
     );
     expect(normalizedLifecycle).toContain(
-      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer result disposition (`pending`, `final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
+      "role-specific captured state includes implementer reports, changed files, test results, snapshot state (`requested`, `emitted`, `skipped`, or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer integration-result state (`pending` or `integrated`), reviewer disposition (`final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing target, re-review target, task base/head SHA, reviewed head SHA, fixup count, and blocker state",
     );
     expect(normalizedLifecycle).toContain(
       "Run the shared cleanup gate before dispatching the next implementer, reviewer, re-reviewer, or final reviewer",
@@ -4633,6 +4708,24 @@ describe("play subagent routing source contracts", () => {
       "[Abnormal terminal lifecycle variants - separate runs]",
       "[Normal cleanup gate projection variants - separate runs]",
     );
+    const followupTimeoutVariant = sliceBetween(
+      abnormalTerminalVariants,
+      "Returned reviewer follow-up timeout:",
+      "Returned reviewer follow-up failure:",
+    );
+    const followupFailureVariant = sliceBetween(
+      abnormalTerminalVariants,
+      "Returned reviewer follow-up failure:",
+      "Timed-out then superseded:",
+    );
+    const timedOutSupersededVariant = sliceBetween(
+      abnormalTerminalVariants,
+      "Timed-out then superseded:",
+      "Failed then superseded:",
+    );
+    const failedSupersededVariant = abnormalTerminalVariants.slice(
+      abnormalTerminalVariants.indexOf("Failed then superseded:"),
+    );
     const normalGateVariants = sliceBetween(
       targetCapabilityExamples,
       "[Normal cleanup gate projection variants - separate runs]",
@@ -4642,6 +4735,21 @@ describe("play subagent routing source contracts", () => {
       targetCapabilityExamples,
       "[Open capacity-blocker classification variants - separate runs]",
       "[Isolated lifecycle supersession hypothetical - separate run, not an executor route]",
+    );
+    const inventoryOnlyVariant = sliceBetween(
+      targetCapabilityExamples,
+      "[Inventory-only target variant]",
+      "[Tracked-ID-only inventory-only target variant]",
+    );
+    const trackedInventoryVariant = sliceBetween(
+      targetCapabilityExamples,
+      "[Tracked-ID-only inventory-only target variant]",
+      "[Unavailable-to-close reevaluation - separate run]",
+    );
+    const unavailableReevaluationVariant = sliceBetween(
+      targetCapabilityExamples,
+      "[Unavailable-to-close reevaluation - separate run]",
+      "[Automatic-close retry projection - separate run]",
     );
     const slotLimitAutomaticCloseFailure = sliceBetween(
       targetCapabilityExamples,
@@ -4815,6 +4923,21 @@ describe("play subagent routing source contracts", () => {
       }
       return errors;
     };
+    const pendingIntegrationErrors = (row: string): string[] => {
+      const errors: string[] = [];
+      if (!row.includes("controller-local integration-result state=pending")) {
+        errors.push("integration-pending");
+      }
+      if (
+        !row.includes("reviewer disposition absent") ||
+        row.includes("current reviewer disposition=") ||
+        row.includes("reviewer disposition history=[") ||
+        row.includes("reviewer-disposition-classified")
+      ) {
+        errors.push("pending-disposition-boundary");
+      }
+      return errors;
+    };
     const returnHistoryErrors = (row: string): string[] => {
       const errors: string[] = [];
       if (
@@ -4865,6 +4988,103 @@ describe("play subagent routing source contracts", () => {
       }
       if (!section.includes("detail captured before cleanup")) {
         errors.push("abnormal-state-capture");
+      }
+      return errors;
+    };
+    const abnormalFollowupHistoryErrors = (
+      section: string,
+      terminal: "timed-out" | "failed",
+      disposition: "advisory" | "final-findings",
+    ): string[] => {
+      const errors: string[] = [];
+      const terminalEvent =
+        terminal === "timed-out"
+          ? "turn-timed-out(reason="
+          : "turn-failed(error=";
+      if (
+        !section.includes("turn-completed(status=findings-recorded)") ||
+        !section.includes("followup-dispatch-requested") ||
+        !section.includes(terminalEvent) ||
+        !section.includes(`current operational state=${terminal}`)
+      ) {
+        errors.push("followup-terminal-history");
+      }
+      if (
+        !section.includes("workflow return history=[findings-recorded]") ||
+        !section.includes("current workflow return status=findings-recorded") ||
+        !section.includes("adds no new return value")
+      ) {
+        errors.push("followup-return-preservation");
+      }
+      if (
+        !section.includes(`reviewer disposition history=[${disposition}(`) ||
+        !section.includes(`current reviewer disposition=${disposition}`)
+      ) {
+        errors.push("followup-disposition-preservation");
+      }
+      if (!section.includes("captured before cleanup")) {
+        errors.push("followup-abnormal-capture");
+      }
+      return errors;
+    };
+    const abnormalSupersessionErrors = (
+      section: string,
+      terminalEvent: "turn-timed-out" | "turn-failed",
+    ): string[] => {
+      const errors: string[] = [];
+      if (
+        !section.includes(`events retain ${terminalEvent}(`) ||
+        !section.includes("then append superseded") ||
+        !section.includes("current operational state=superseded")
+      ) {
+        errors.push("abnormal-supersession-history");
+      }
+      if (
+        !section.includes("abnormal capture state=missing") ||
+        !section.includes("cleanup evaluation=not-evaluated") ||
+        !section.includes("cleanup outcome=closed=no") ||
+        !section.includes("cleanup eligibility=blocked") ||
+        !section.includes("does not make the row cleanup-eligible") ||
+        !section.includes("Only after the reviewer scope")
+      ) {
+        errors.push("abnormal-supersession-capture-gate");
+      }
+      return errors;
+    };
+    const unavailableReasonHistoryErrors = (
+      section: string,
+      reason: string,
+    ): string[] => {
+      const errors: string[] = [];
+      if (!section.includes(`closure-unavailable(reason=${reason})`)) {
+        errors.push("unavailable-event-reason");
+      }
+      if (!section.includes(`unavailable-reason history=[${reason}]`)) {
+        errors.push("unavailable-reason-history");
+      }
+      if (!section.includes(`current unavailable-cleanup reason=${reason}`)) {
+        errors.push("current-unavailable-reason");
+      }
+      return errors;
+    };
+    const unavailableReevaluationErrors = (section: string): string[] => {
+      const errors = unavailableReasonHistoryErrors(
+        section,
+        "stable identity missing",
+      );
+      if (
+        !section.includes("event=close-attempted then event=close-succeeded") ||
+        !section.includes("cleanup outcome=closed=yes")
+      ) {
+        errors.push("reevaluated-close-projection");
+      }
+      if (
+        !section.includes("current unavailable-cleanup reason is cleared") ||
+        !section.includes(
+          "unavailable-reason history=[stable identity missing] remain append-only",
+        )
+      ) {
+        errors.push("reevaluation-history-preservation");
       }
       return errors;
     };
@@ -4983,6 +5203,25 @@ describe("play subagent routing source contracts", () => {
     );
 
     expect(task2Section).toContain("Spec-failure stale-quality path");
+    for (const reviewer of [
+      "Task 2 spec reviewer",
+      "Task 2 code-quality reviewer",
+    ]) {
+      const pendingIntegrationRow = checkpointRow(
+        task2Section,
+        "[Same-head integration checkpoint before classification]",
+        reviewer,
+      );
+      expect(pendingIntegrationErrors(pendingIntegrationRow)).toEqual([]);
+      expect(
+        pendingIntegrationErrors(
+          pendingIntegrationRow.replace(
+            "reviewer disposition absent",
+            "current reviewer disposition=pending",
+          ),
+        ),
+      ).toEqual(["pending-disposition-boundary"]);
+    }
     expect(task2Section).toContain(
       "Cleanup gate before Task 2 spec re-review spawn",
     );
@@ -5190,12 +5429,105 @@ describe("play subagent routing source contracts", () => {
     expect(abnormalTerminalErrors(abnormalTerminalVariants)).toEqual([]);
     expect(
       abnormalTerminalErrors(
-        abnormalTerminalVariants.replace(
-          "event=turn-timed-out(reason=runtime deadline elapsed before a return)",
-          "event=turn-timed-out",
+        abnormalTerminalVariants.replaceAll(
+          "turn-timed-out(reason=",
+          "turn-timed-out(detail=",
         ),
       ),
     ).toEqual(["timeout-detail"]);
+    expect(
+      abnormalFollowupHistoryErrors(
+        followupTimeoutVariant,
+        "timed-out",
+        "advisory",
+      ),
+    ).toEqual([]);
+    expect(
+      abnormalFollowupHistoryErrors(
+        followupFailureVariant,
+        "failed",
+        "final-findings",
+      ),
+    ).toEqual([]);
+    expect(
+      abnormalFollowupHistoryErrors(
+        followupTimeoutVariant.replace(
+          "workflow return history=[findings-recorded]",
+          "workflow return history=[]",
+        ),
+        "timed-out",
+        "advisory",
+      ),
+    ).toEqual(["followup-return-preservation"]);
+    expect(
+      abnormalFollowupHistoryErrors(
+        followupFailureVariant.replace(
+          "reviewer disposition history=[final-findings(",
+          "reviewer disposition history=[(",
+        ),
+        "failed",
+        "final-findings",
+      ),
+    ).toEqual(["followup-disposition-preservation"]);
+    expect(
+      abnormalSupersessionErrors(timedOutSupersededVariant, "turn-timed-out"),
+    ).toEqual([]);
+    expect(
+      abnormalSupersessionErrors(failedSupersededVariant, "turn-failed"),
+    ).toEqual([]);
+    expect(
+      abnormalSupersessionErrors(
+        timedOutSupersededVariant.replace(
+          "cleanup eligibility=blocked",
+          "cleanup eligibility=allowed",
+        ),
+        "turn-timed-out",
+      ),
+    ).toEqual(["abnormal-supersession-capture-gate"]);
+    expect(
+      unavailableReasonHistoryErrors(
+        normalGateVariants,
+        "no usable close operation",
+      ),
+    ).toEqual([]);
+    expect(
+      unavailableReasonHistoryErrors(
+        inventoryOnlyVariant,
+        "inventory-only; no close operation",
+      ),
+    ).toEqual([]);
+    expect(
+      unavailableReasonHistoryErrors(
+        trackedInventoryVariant,
+        "tracked stable identity; no close operation",
+      ),
+    ).toEqual([]);
+    expect(
+      unavailableReevaluationErrors(unavailableReevaluationVariant),
+    ).toEqual([]);
+    expect(
+      unavailableReevaluationErrors(
+        unavailableReevaluationVariant.replace(
+          "unavailable-reason history=[stable identity missing] remain append-only",
+          "unavailable-reason history=[]",
+        ),
+      ),
+    ).toEqual(["reevaluation-history-preservation"]);
+    expect(
+      unavailableReasonHistoryErrors(
+        slotLimitUnavailable,
+        "no inventory or close operation",
+      ),
+    ).toEqual([]);
+    expect(
+      unavailableReasonHistoryErrors(
+        trackedInventoryVariant.replace(
+          "unavailable-reason history=[tracked stable identity; no close operation]",
+          "unavailable-reason history=[]",
+        ),
+        "tracked stable identity; no close operation",
+      ),
+    ).toEqual(["unavailable-reason-history"]);
     expect(openCapacityErrors(openCapacityVariants)).toEqual([]);
     expect(
       openCapacityErrors(

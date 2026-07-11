@@ -2576,6 +2576,45 @@ describe("existing skills source prose contracts", () => {
     );
     const normalizedPhase3 = normalizeWhitespace(phase3);
     const normalizedPhase5 = normalizeWhitespace(phase5);
+    const abnormalReviewerCleanupErrors = (section: string): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      const errors: string[] = [];
+      if (
+        !normalizedSection.includes(
+          "completed, superseded, timed-out, or failed topical reviewer sessions",
+        )
+      ) {
+        errors.push("abnormal-reviewer-cleanup-states");
+      }
+      if (
+        !normalizedSection.includes("turn-timed-out(reason=...)") ||
+        !normalizedSection.includes("turn-failed(error=...)")
+      ) {
+        errors.push("abnormal-reviewer-terminal-detail");
+      }
+      if (
+        !normalizedSection.includes(
+          "capture the reviewer scope, any partial report/findings, sanitized runtime detail, and missing-report/error state before cleanup",
+        )
+      ) {
+        errors.push("abnormal-reviewer-role-capture");
+      }
+      if (
+        !normalizedSection.includes(
+          "partial result or missing reviewer may continue to the independent critic only after that abnormal failure state is captured, with that reviewer marked unavailable and unverified",
+        )
+      ) {
+        errors.push("captured-missing-reviewer-continuation");
+      }
+      if (
+        !normalizedSection.includes(
+          "missing required review context, uncaptured abnormal detail, or otherwise unsafe state stops before critic dispatch",
+        )
+      ) {
+        errors.push("unsafe-reviewer-state-stops");
+      }
+      return errors;
+    };
 
     expectSharedLifecycleReference(phase3);
     expect(normalizedPhase3).toContain("Phase 3");
@@ -2593,6 +2632,20 @@ describe("existing skills source prose contracts", () => {
     );
     expect(normalizedPhase5).toContain("critic report");
     expect(normalizedPhase5).toContain("verdicts");
+    expect(abnormalReviewerCleanupErrors(phase5)).toEqual([]);
+    expect(
+      abnormalReviewerCleanupErrors(
+        phase5.replace(
+          "completed, superseded, timed-out, or failed topical reviewer sessions",
+          "completed or superseded topical reviewer sessions",
+        ),
+      ),
+    ).toEqual(["abnormal-reviewer-cleanup-states"]);
+    expect(
+      abnormalReviewerCleanupErrors(
+        phase5.replace("uncaptured abnormal detail", "ignored abnormal detail"),
+      ),
+    ).toEqual(["unsafe-reviewer-state-stops"]);
   });
 
   it("keeps wrapper language hints from implying dynamic or language-agent fanout", async () => {

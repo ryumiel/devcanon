@@ -334,6 +334,11 @@ and unavailable outcomes. Do not collapse deferred or failed open sessions
 into `close-unavailable`; preserve the owner-projected events, associated
 reason history, and outcome before continuing.
 
+Every unavailable outcome retains
+`closure-unavailable(reason=<concrete reason>)` and unavailable-reason history;
+record the current unavailable-cleanup reason as a separate latest projection
+that later retention or a real close attempt may clear without erasing history.
+
 For an abnormal terminal child, preserve the owner-defined current state
 `timed-out` or `failed` and the value-bearing `turn-timed-out(reason=...)` or
 `turn-failed(error=...)` event. When no turn returned, keep workflow return
@@ -351,6 +356,15 @@ superseded after capture; pending or unknown rows resolve identity or stop
 without fabricated cleanup. Record row-scoped `manual-cleanup-confirmed`
 evidence before reconstruction and retry while preserving the row's honest
 cleanup outcome.
+
+For a started immediate internal or external research sibling, those generic
+open-blocker options do not authorize replacement or supersession as a
+terminal shortcut. Wait, reuse, or steer the original sibling until it reaches
+completion, timeout, or runtime failure; if that cannot be done safely, stop
+and escalate. A pending row that never actually started may resolve identity or
+record dispatch failure separately, but it does not satisfy the started-sibling
+join. Preserve the original internal-before-external dispatch order and join
+both started sibling rows before late dispatch or routing.
 Resume research outcome routing only when the shared recovery procedure
 succeeds. Repeated slot failure or escalation stops under that shared policy
 without research persistence or Phase 4. This shared recovery applies to

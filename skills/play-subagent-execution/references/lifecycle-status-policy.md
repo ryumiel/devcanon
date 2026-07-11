@@ -14,9 +14,10 @@ the execution-specific lifecycle details below.
 For this workflow, role-specific captured state includes implementer reports,
 changed files, test results, snapshot state (`requested`, `emitted`, `skipped`,
 or `malformed`), reviewer scope, reviewer report, concrete findings, reviewer
-result disposition (`pending`, `final-pass`, `final-findings`, `advisory`,
-`stale`, or `superseded`), routing target, re-review target, task base/head SHA,
-reviewed head SHA, fixup count, and blocker state when applicable. Run the
+integration-result state (`pending` or `integrated`), reviewer disposition
+(`final-pass`, `final-findings`, `advisory`, `stale`, or `superseded`), routing
+target, re-review target, task base/head SHA, reviewed head SHA, fixup count,
+and blocker state when applicable. Run the
 shared cleanup gate before dispatching the next implementer, reviewer,
 re-reviewer, or final reviewer.
 
@@ -65,9 +66,13 @@ concerns are observations, note them and proceed to the next route step.
 ### Spec-And-Quality Reviewer Disposition
 
 For multi-task `spec-and-quality` routes, dispatch both reviewers against the
-same captured task head when practical and record both as `pending` until their
-reports are integrated. A quality result may become final only after same-head
-spec pass and current task-head validation. A same-head quality pass becomes
+same captured task head when practical and record each controller-local
+integration-result state as `pending` until its report is integrated. This is
+not a reviewer disposition: reviewer disposition remains absent until the
+controller classifies the integrated result, then appends a value-bearing
+classification with reason and source-state history. A quality result may
+become final only after same-head spec pass and current task-head validation. A
+same-head quality pass becomes
 `final-pass` only when the spec reviewer also passes for that reviewed head;
 same-head quality findings become `final-findings` only after same-head spec
 pass and current task-head validation.

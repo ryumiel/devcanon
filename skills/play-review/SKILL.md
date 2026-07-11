@@ -321,11 +321,19 @@ Spec Sub-check B is report-only and out-of-diff.
 ## Phase 5: Critic verification
 
 Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
-completed or superseded reviewer sessions, preserving target-honest cleanup
-outcomes, slot-limit recovery, and the controller-local lifecycle ledger. Then
-record the critic session in that ledger. Capture critic role-specific state
-before closing or superseding it: review scope, merged findings input, critic
-report, verdicts, and carry-forward state.
+completed, superseded, timed-out, or failed topical reviewer sessions,
+preserving target-honest cleanup outcomes, slot-limit recovery, and the
+controller-local lifecycle ledger. For a timed-out or failed reviewer, append
+the owner-defined value-bearing `turn-timed-out(reason=...)` or
+`turn-failed(error=...)` event and capture the reviewer scope, any partial
+report/findings, sanitized runtime detail, and missing-report/error state before
+cleanup. A partial result or missing reviewer may continue to the independent
+critic only after that abnormal failure state is captured, with that reviewer
+marked unavailable and unverified; a missing required review context,
+uncaptured abnormal detail, or otherwise unsafe state stops before critic
+dispatch. Then add the critic session to that ledger. Capture critic
+role-specific state before closing or superseding it: review scope, merged
+findings input, critic report, verdicts, and carry-forward state.
 
 Lifecycle sentinel: subagent-lifecycle, target-honest cleanup outcomes, and
 slot-limit recovery remain required around the critic.
