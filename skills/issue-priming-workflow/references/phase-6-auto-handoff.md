@@ -94,9 +94,13 @@ Phase 6 must fail closed for route eligibility:
 
 Before invoking `play-subagent-execution`, run the `subagent-lifecycle` cleanup
 gate for completed or superseded gate and research sessions. Capture
-role-specific state first. Close sessions only when the target reports
-`automatic-close-supported`; otherwise record the target-honest
-`close-unavailable` outcome and continue to the handoff.
+role-specific state first. The required order is: capture role-specific state,
+evaluate and record cleanup, then hand off. Preserve each applicable
+successful, unavailable, deliberately deferred, or failed-attempt cleanup
+history according to the shared owner contract before continuing. Missing
+captured role state blocks the handoff. Normal cleanup may continue with
+target-honest open evidence, but shared slot-limit recovery remains blocked
+until actual closure or operator-confirmed manual cleanup.
 
 ## Single-Task Final-Review Carve-Out
 

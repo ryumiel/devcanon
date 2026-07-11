@@ -655,9 +655,14 @@ AUTO_HANDOFF_FILE=$(
 
 Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate for
 completed or superseded gate and research sessions. Capture their
-role-specific state first, then close them when the target is
-`automatic-close-supported`, or record the target-honest
-`close-unavailable` outcome before invoking `play-subagent-execution`.
+role-specific state first. The required order is: capture role-specific state,
+evaluate and record cleanup, then hand off. Preserve each applicable
+successful, unavailable, deliberately deferred, or failed-attempt cleanup
+history according to the shared owner contract before invoking
+`play-subagent-execution`. Missing captured role state blocks the handoff.
+Normal cleanup may continue with target-honest open evidence, but shared
+slot-limit recovery remains blocked until actual closure or
+operator-confirmed manual cleanup.
 
 Invoke `play-subagent-execution` and pass the plan as a `Plan: <path>`
 reference plus `Auto handoff: <repo-relative-path>` in the invocation prose, NOT

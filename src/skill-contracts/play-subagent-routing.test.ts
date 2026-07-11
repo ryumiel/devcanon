@@ -3799,6 +3799,58 @@ describe("play subagent routing source contracts", () => {
       "[Alternative target capability examples - separate runs",
       "Done!",
     );
+    const checkpointRow = (
+      source: string,
+      checkpoint: string,
+      role: string,
+    ): string => {
+      const lines = source.split("\n");
+      for (const [checkpointIndex, line] of lines.entries()) {
+        if (line !== checkpoint) {
+          continue;
+        }
+        const segment = lines.slice(checkpointIndex + 1);
+        const nextCheckpoint = segment.findIndex((candidate) =>
+          candidate.startsWith("["),
+        );
+        const checkpointLines =
+          nextCheckpoint < 0 ? segment : segment.slice(0, nextCheckpoint);
+        const rowStart = checkpointLines.findIndex((candidate) =>
+          candidate.startsWith(`${role}:`),
+        );
+        if (rowStart < 0) {
+          continue;
+        }
+        const rowLines = [checkpointLines[rowStart]];
+        for (const candidate of checkpointLines.slice(rowStart + 1)) {
+          if (
+            /^(?:Task \d+ .+|final-code-quality-reviewer):/u.test(candidate)
+          ) {
+            break;
+          }
+          rowLines.push(candidate);
+        }
+        return normalizeWhitespace(rowLines.join("\n"));
+      }
+      throw new Error(`${checkpoint} row for ${role} not found`);
+    };
+    const expectSuccessfulCleanupRow = (row: string): void => {
+      expect(row).toContain("cleanup evaluation=evaluated");
+      expect(row).toContain("close-attempted");
+      expect(row).toContain("close-succeeded");
+      expect(row).toContain("cleanup outcome=closed=yes");
+      expect(row.indexOf("close-attempted")).toBeLessThan(
+        row.indexOf("close-succeeded"),
+      );
+    };
+    const expectDeferredCleanupRow = (row: string): void => {
+      expect(row).toContain("cleanup evaluation=evaluated");
+      expect(row).toContain("close-deferred");
+      expect(row).toContain("retention reason=");
+      expect(row).toContain("cleanup outcome=closed=no");
+      expect(row).not.toContain("close-attempted");
+      expect(row).not.toContain("close-failed");
+    };
 
     expect(exampleWorkflow).toContain(
       "generic\nlifecycle ledger, target capability classes, cleanup gate, target-honest\ncleanup outcomes, and slot-limit recovery live in `subagent-lifecycle`",
@@ -3843,6 +3895,15 @@ describe("play subagent routing source contracts", () => {
     expect(task1Section).toContain("base/head SHA captured (head pending)");
     expect(task1Section).toContain("Lifecycle cleanup checkpoint");
     expect(task1Section).toContain("cleanup outcome=closed=yes");
+    for (const role of [
+      "Task 1 implementer",
+      "Task 1 spec reviewer",
+      "Task 1 code-quality reviewer",
+    ]) {
+      expectSuccessfulCleanupRow(
+        checkpointRow(task1Section, "[Lifecycle cleanup checkpoint]", role),
+      );
+    }
     expect(task3Section).toContain("snapshot state=skipped");
     expect(normalizeWhitespace(task3Section)).toContain(
       "The implementer must report the default DONE fields: status, summary, tests, files changed, base SHA, and head SHA.",
@@ -3881,7 +3942,7 @@ describe("play subagent routing source contracts", () => {
     expect(task2Section).toContain("findings captured: Magic number (100)");
     expect(task2Section).toContain("re-review target=quality-2-rereview");
     expect(task2Section).toContain(
-      "event=followup-dispatch-requested appended after the first turn-completed, operational state transitions from completed to active before follow-up work; all prior events retained",
+      "event=followup-dispatch-requested appended after the first turn-completed; all prior events retained",
     );
     expect(normalizeWhitespace(task2Section)).toContain(
       "a second event=turn-completed appended",
@@ -3907,14 +3968,101 @@ describe("play subagent routing source contracts", () => {
       "Task 2 code-quality re-reviewer: status=PASS",
     );
 
+    const firstTask2Return = checkpointRow(
+      task2Section,
+      "[Lifecycle ledger update]",
+      "Task 2 implementer",
+    );
+    expect(firstTask2Return).toContain("operational state=completed");
+    expect(firstTask2Return).toContain("workflow return status=DONE");
+    expect(firstTask2Return).toContain("cleanup evaluation=not-evaluated");
+    expect(firstTask2Return).toContain("cleanup outcome=closed=no");
+    expect(firstTask2Return).not.toMatch(
+      /close-(?:deferred|attempted|failed|succeeded)/u,
+    );
+    expectDeferredCleanupRow(
+      checkpointRow(
+        task2Section,
+        "[Cleanup gate before Task 2 reviewer spawn]",
+        "Task 2 implementer",
+      ),
+    );
+
+    for (const role of [
+      "Task 2 implementer",
+      "Task 2 spec reviewer",
+      "Task 2 spec re-reviewer",
+      "Task 2 code-quality reviewer",
+      "Task 2 code-quality re-reviewer",
+    ]) {
+      expectSuccessfulCleanupRow(
+        checkpointRow(task2Section, "[Lifecycle cleanup checkpoint]", role),
+      );
+    }
+
+    const activeFollowupRow = checkpointRow(
+      task2Section,
+      "[Same-session follow-up dispatch]",
+      "Task 2 implementer",
+    );
+    expect(activeFollowupRow).toContain("operational state=active");
+    expect(activeFollowupRow).toContain("workflow return status=DONE");
+    expectDeferredCleanupRow(activeFollowupRow);
+    expectDeferredCleanupRow(
+      checkpointRow(
+        task2Section,
+        "[Cleanup gate before Task 2 spec re-review spawn]",
+        "Task 2 implementer",
+      ),
+    );
+    expectSuccessfulCleanupRow(
+      checkpointRow(
+        task2Section,
+        "[Cleanup gate before Task 2 code-quality re-reviewer spawn]",
+        "Task 2 spec re-reviewer",
+      ),
+    );
+    expectDeferredCleanupRow(
+      checkpointRow(
+        task2Section,
+        "[Cleanup gate before Task 2 code-quality re-reviewer spawn]",
+        "Task 2 implementer",
+      ),
+    );
+
     expect(normalizeWhitespace(task3Section)).toContain(
       "cleanup outcome=closed=yes after the effective route completed",
+    );
+    expectSuccessfulCleanupRow(
+      checkpointRow(
+        task3Section,
+        "[Lifecycle cleanup checkpoint]",
+        "Task 3 implementer",
+      ),
     );
     expect(exampleWorkflow).toContain(
       "Cleanup gate before final code-quality reviewer spawn",
     );
     expect(exampleWorkflow).toContain("final-code-quality-reviewer");
     expect(exampleWorkflow).toContain("review scope captured");
+    const finalReviewerPreDispatch = checkpointRow(
+      exampleWorkflow,
+      "[Cleanup gate before final code-quality reviewer spawn]",
+      "final-code-quality-reviewer",
+    );
+    expect(finalReviewerPreDispatch).toContain(
+      "cleanup evaluation=not-evaluated",
+    );
+    expect(finalReviewerPreDispatch).toContain("cleanup outcome=closed=no");
+    expect(finalReviewerPreDispatch).not.toContain("workflow return status=");
+    expect(finalReviewerPreDispatch).not.toContain("reviewer disposition=");
+    expectSuccessfulCleanupRow(
+      checkpointRow(
+        exampleWorkflow,
+        "[Lifecycle cleanup checkpoint]",
+        "final-code-quality-reviewer",
+      ),
+    );
 
     expect(targetCapabilityExamples).toContain(
       "inventory-only: target exposes session inventory but no close operation",
@@ -4005,12 +4153,28 @@ describe("play subagent routing source contracts", () => {
       "### Phase 6: Implement",
       "### Phase 7: Branch Review",
     );
+    const phase6Reference = await readRepoFile(
+      "skills/issue-priming-workflow/references/phase-6-auto-handoff.md",
+    );
+
+    for (const surface of [issuePhase6Section, phase6Reference]) {
+      const normalizedSurface = normalizeWhitespace(surface);
+      expect(normalizedSurface).toContain(
+        "successful, unavailable, deliberately deferred, or failed-attempt cleanup history",
+      );
+      expect(normalizedSurface).toContain(
+        "capture role-specific state, evaluate and record cleanup, then hand off",
+      );
+      expect(normalizedSurface).toContain(
+        "Missing captured role state blocks the handoff",
+      );
+      expect(normalizedSurface).toContain(
+        "slot-limit recovery remains blocked until actual closure or operator-confirmed manual cleanup",
+      );
+    }
 
     expect(issuePhase6Section).toContain(
       "Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate",
-    );
-    expect(normalizeWhitespace(issuePhase6Section)).toContain(
-      "close them when the target is `automatic-close-supported`, or record the target-honest `close-unavailable` outcome before invoking `play-subagent-execution`",
     );
     expect(issuePhase6Section.indexOf("`subagent-lifecycle`")).toBeLessThan(
       issuePhase6Section.indexOf("Invoke `play-subagent-execution`"),
