@@ -95,8 +95,9 @@ never erase prior events or their associated detail. An identity assignment,
 wait, interruption, completion, supersession, deferral reason, or closure
 result therefore remains recoverable after current state advances.
 
-`followup-dispatch-requested` is reserved for a row currently `completed` after
-an observed `turn-completed`.
+`followup-dispatch-requested(session-id=...)` is reserved for a row currently
+`completed` after an observed `turn-completed`, when the supplied id matches
+its known stable identity and observed same-session reuse capability is positive.
 `interrupted-reuse-dispatch-requested(session-id=...)` is legal only when the
 row is currently `interrupted`, the supplied id matches its stable identity,
 observed reuse capability is positive, and required role-state capture is
@@ -104,9 +105,6 @@ strictly newer than its latest `interrupted` event. Append the interrupted-reuse
 event without erasing history or detail and project `active`. Project `waiting`
 only after an observed `waiting` event. This re-entry never fabricates
 `turn-completed`, a workflow return status, or any other return fact.
-
-Example: stable reusable `interrupted` row + newer capture + matching reuse
-event -> `active`; history stays and no return is added.
 
 When a previously deferred same-session need is finished, captured, or safely
 replaced, append `retention-resolved` with concise evidence of that resolution.
@@ -161,11 +159,10 @@ operational state `completed`, workflow return status `findings-recorded`, and
 reviewer disposition `advisory`; a later `stale` classification appends a new
 value without erasing `advisory` or its reason.
 
-After a returned session is observed and classified,
-`followup-dispatch-requested` is reserved for a current `completed` row with a
-prior observed `turn-completed`; never use it for interrupted-session reuse. It
-projects `active`, only a later observed wait projects `waiting`, and all prior
-return-status and reviewer-disposition history remains intact.
+Completed-session follow-up uses the exact `followup-dispatch-requested` guard
+above, never the interrupted-reuse event. It projects `active`, preserves
+history, and fabricates no completion or return; only an observed wait projects
+`waiting`.
 
 ## Target Lifecycle Capability
 
@@ -349,8 +346,8 @@ When a spawn fails because of a slot/session limit:
    deliberate retention or safe replacement and supersession.
 5. For reusable `interrupted`, capture available role state and reuse only under
    the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above.
-   Otherwise decide deliberate retention or supersession only after replacement
-   state is secured.
+   After fresh capture, guarded reuse or deliberate retention requires no
+   replacement. Supersession alone requires secured replacement state.
 6. For `pending` or unknown identity, do not fabricate cleanup, guess an id,
    or close another row. Resolve identity safely or stop and escalate.
 7. Do not make any open row cleanup-eligible until required state is captured

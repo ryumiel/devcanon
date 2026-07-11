@@ -764,6 +764,23 @@ describe("play subagent routing source contracts", () => {
       }
       return errors;
     };
+    const interruptedReuseRequirements = [
+      "current operational state is `interrupted`",
+      "`interrupted-reuse-dispatch-requested(session-id=<matching-stable-id>)`",
+      "positive observed reuse capability",
+      "required role-state capture newer than its latest interruption",
+      "project `active`",
+      "preserve history",
+      "add no completion or return",
+      "guarded reuse or deliberate retention requires no replacement",
+      "supersession alone requires secured replacement state",
+    ] as const;
+    const interruptedReuseGuidanceErrors = (section: string): string[] => {
+      const normalizedSection = normalizeWhitespace(section);
+      return interruptedReuseRequirements.filter(
+        (evidence) => !normalizedSection.includes(evidence),
+      );
+    };
 
     expect(normalizedPhase3).toContain(
       "The depth-0 root is the sole research dispatcher",
@@ -825,8 +842,7 @@ describe("play subagent routing source contracts", () => {
     for (const openStateRule of [
       "active rows wait or steer to a safe capture boundary or stop",
       "waiting rows are retained or safely replaced",
-      "reusable interrupted rows are reused or superseded after capture",
-      "pending or unknown rows resolve identity or stop without fabricated cleanup",
+      "Pending or unknown rows resolve identity or stop without fabricated cleanup",
     ]) {
       expect(normalizedPhase3).toContain(openStateRule);
     }
@@ -837,6 +853,17 @@ describe("play subagent routing source contracts", () => {
     expect(immediateJoinRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(retainedRecoveryErrors(lifecycleConcurrentJoin)).toEqual([]);
     expect(recoveryEpisodeErrors(lifecycleConcurrentJoin)).toEqual([]);
+    expect(interruptedReuseGuidanceErrors(lifecycleConcurrentJoin)).toEqual([]);
+    for (const evidence of interruptedReuseRequirements) {
+      expect(
+        interruptedReuseGuidanceErrors(
+          normalizeWhitespace(lifecycleConcurrentJoin).replace(
+            evidence,
+            "weakened interrupted reuse rule",
+          ),
+        ),
+      ).toContain(evidence);
+    }
     expect(
       recoveryEpisodeErrors(
         lifecycleConcurrentJoin.replace(
@@ -2743,7 +2770,7 @@ describe("play subagent routing source contracts", () => {
       "State changes never erase prior events",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "`followup-dispatch-requested` is reserved for a row currently `completed` after an observed `turn-completed`",
+      "`followup-dispatch-requested(session-id=...)` is reserved for a row currently `completed` after an observed `turn-completed`, when the supplied id matches its known stable identity and observed same-session reuse capability is positive",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "`interrupted-reuse-dispatch-requested(session-id=...)` is legal only when the row is currently `interrupted`, the supplied id matches its stable identity, observed reuse capability is positive, and required role-state capture is strictly newer than its latest `interrupted` event",
@@ -2753,9 +2780,6 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Project `waiting` only after an observed `waiting` event. This re-entry never fabricates `turn-completed`, a workflow return status, or any other return fact",
-    );
-    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
-      "stable reusable `interrupted` row + newer capture + matching reuse event -> `active`; history stays and no return is added",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Record the concrete workflow-owned retention reason as event-associated detail on each `close-deferred`; an event name without its reason is incomplete",
@@ -2804,7 +2828,7 @@ describe("play subagent routing source contracts", () => {
       "Every classification or reclassification appends the disposition plus a concise reason and source-state anchor; the latest value is the current projection",
     );
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
-      "`followup-dispatch-requested` is reserved for a current `completed` row with a prior observed `turn-completed`; never use it for interrupted-session reuse. It projects `active`, only a later observed wait projects `waiting`, and all prior return-status and reviewer-disposition history remains intact",
+      "Completed-session follow-up uses the exact `followup-dispatch-requested` guard above, never the interrupted-reuse event. It projects `active`, preserves history, and fabricates no completion or return; only an observed wait projects `waiting`",
     );
 
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
@@ -2968,6 +2992,9 @@ describe("play subagent routing source contracts", () => {
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For reusable `interrupted`, capture available role state and reuse only under the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above",
+    );
+    expect(normalizeWhitespace(slotLimitRecovery)).toContain(
+      "After fresh capture, guarded reuse or deliberate retention requires no replacement. Supersession alone requires secured replacement state",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For `pending` or unknown identity, do not fabricate cleanup, guess an id, or close another row",
@@ -4576,6 +4603,15 @@ describe("play subagent routing source contracts", () => {
     for (const blocker of [active, waiting, interrupted, pendingBlocker]) {
       expect(openBlockerErrors(blocker)).toEqual([]);
     }
+    for (const action of ["reuse", "defer-and-retain"] as const) {
+      expect(
+        openBlockerErrors({
+          ...interrupted,
+          replacementStateSecured: false,
+          action,
+        }),
+      ).toEqual([]);
+    }
     expect(openBlockerErrors({ ...active, classified: false })).toEqual([
       "capacity-blocker-unclassified",
     ]);
@@ -5164,6 +5200,9 @@ describe("play subagent routing source contracts", () => {
               state.operationalState !== "completed" ||
               state.latestTerminalOrder === 0 ||
               state.sessionIdentity.kind !== "stable" ||
+              event.sessionId === undefined ||
+              !stableSessionId(event.sessionId) ||
+              event.sessionId !== state.sessionIdentity.sessionId ||
               !state.sessionReusable
             ) {
               return fail("illegal-followup-dispatch-transition");
@@ -5637,6 +5676,14 @@ describe("play subagent routing source contracts", () => {
         sessionId: "session-1",
         ...overrides,
       });
+    const completedFollowup = (
+      order: number,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
+      event("followup-dispatch-requested", order, {
+        sessionId: "session-1",
+        ...overrides,
+      });
     const confirmation = (
       order: number,
       overrides: Partial<LifecycleEvent> = {},
@@ -5762,7 +5809,7 @@ describe("play subagent routing source contracts", () => {
       foldLifecycle([
         ...operationalFacts(),
         reuseCapability(5),
-        event("followup-dispatch-requested", 6),
+        completedFollowup(6),
         event("waiting", 7),
         event("turn-completed", 8),
         event("required-state-captured", 9, {
@@ -6008,32 +6055,39 @@ describe("play subagent routing source contracts", () => {
         event("operational-classified", 1, {
           operationalState: "active",
         }),
-        event("followup-dispatch-requested", 2),
+        completedFollowup(2),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
     );
+    for (const sessionId of [undefined, "session-2"] as const) {
+      expectError(
+        [
+          ...operationalFacts(),
+          reuseCapability(5),
+          completedFollowup(6, { sessionId }),
+          episodeStart(),
+        ],
+        "illegal-followup-dispatch-transition",
+      );
+    }
     expectError(
       [
         ...operationalFacts("completed", false),
-        event("followup-dispatch-requested", 4),
+        completedFollowup(4),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
     );
     expectError(
-      [
-        ...operationalFacts(),
-        event("followup-dispatch-requested", 5),
-        episodeStart(),
-      ],
+      [...operationalFacts(), completedFollowup(5), episodeStart()],
       "illegal-followup-dispatch-transition",
     );
     expectError(
       [
         ...operationalFacts(),
         reuseCapability(5, false),
-        event("followup-dispatch-requested", 6),
+        completedFollowup(6),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
@@ -6043,7 +6097,7 @@ describe("play subagent routing source contracts", () => {
         [
           ...operationalFacts(terminal),
           reuseCapability(6),
-          event("followup-dispatch-requested", 7),
+          completedFollowup(7),
           episodeStart(),
         ],
         "illegal-followup-dispatch-transition",
@@ -6054,7 +6108,7 @@ describe("play subagent routing source contracts", () => {
         ...operationalFacts(),
         reuseCapability(5),
         event("superseded", 6),
-        event("followup-dispatch-requested", 7),
+        completedFollowup(7),
         episodeStart(),
       ],
       "illegal-followup-dispatch-transition",
@@ -6063,7 +6117,7 @@ describe("play subagent routing source contracts", () => {
       [
         ...operationalFacts(),
         reuseCapability(5),
-        event("followup-dispatch-requested", 6),
+        completedFollowup(6),
         event("turn-completed", 7),
         episodeStart(),
       ],
@@ -6076,7 +6130,7 @@ describe("play subagent routing source contracts", () => {
         episodeStart(),
         unavailable(11),
         confirmation(12),
-        event("followup-dispatch-requested", 13),
+        completedFollowup(13),
         event("turn-completed", 14),
         event("required-state-captured", 15, {
           evidence: "new result captured",
@@ -6091,7 +6145,7 @@ describe("play subagent routing source contracts", () => {
         reuseCapability(5),
         episodeStart(),
         unavailable(11),
-        event("followup-dispatch-requested", 12),
+        completedFollowup(12),
         event("turn-completed", 13),
         event("required-state-captured", 14, {
           evidence: "new result captured",
@@ -6989,6 +7043,18 @@ describe("play subagent routing source contracts", () => {
       }
       return errors;
     };
+    const executorInterruptedReuseRequirements = [
+      "agent_id=support-1 is stable",
+      "observed reuse capability=positive",
+      "current operational state=interrupted",
+      "events end with interrupted then required-state-captured, so capture is newer than interruption",
+      "event=interrupted-reuse-dispatch-requested(session-id=support-1)",
+      "projects current operational state=active",
+      "preserves all prior events",
+      "adds no turn-completed event or workflow return",
+      "guarded reuse or deliberate retention requires no replacement",
+      "supersession alone requires event=replacement-secured first",
+    ] as const;
     const openCapacityErrors = (section: string): string[] => {
       const errors: string[] = [];
       for (const [name, evidence] of [
@@ -6998,15 +7064,14 @@ describe("play subagent routing source contracts", () => {
           "Waiting row: capture the open question and context, then retain or safely replace",
         ],
         [
-          "interrupted",
-          "Reusable interrupted row: capture available state, then retain/reuse or supersede only after replacement state is secured",
-        ],
-        [
           "pending",
           "Pending or unknown row: resolve identity or stop; do not fabricate cleanup or close another row",
         ],
       ] as const) {
         if (!section.includes(evidence)) errors.push(`missing-${name}`);
+      }
+      for (const evidence of executorInterruptedReuseRequirements) {
+        if (!section.includes(evidence)) errors.push(evidence);
       }
       return errors;
     };
@@ -7448,6 +7513,16 @@ describe("play subagent routing source contracts", () => {
       ),
     ).toEqual(["unavailable-reason-history"]);
     expect(openCapacityErrors(openCapacityVariants)).toEqual([]);
+    for (const evidence of executorInterruptedReuseRequirements) {
+      expect(
+        openCapacityErrors(
+          openCapacityVariants.replace(
+            evidence,
+            "weakened interrupted reuse example",
+          ),
+        ),
+      ).toContain(evidence);
+    }
     expect(
       openCapacityErrors(
         openCapacityVariants.replace(

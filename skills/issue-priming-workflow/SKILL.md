@@ -357,11 +357,16 @@ append-only history, but never use stale-episode or non-snapshot evidence to
 authorize the current retry.
 Before any manual cleanup, use the owner classifications for open blockers:
 active rows wait or steer to a safe capture boundary or stop; waiting rows are
-retained or safely replaced; reusable interrupted rows are reused or
-superseded after capture; pending or unknown rows resolve identity or stop
-without fabricated cleanup. Record row-scoped `manual-cleanup-confirmed`
-evidence before reconstruction and retry while preserving the row's honest
-cleanup outcome.
+retained or safely replaced. A row whose current operational state is
+`interrupted` may append
+`interrupted-reuse-dispatch-requested(session-id=<matching-stable-id>)` only
+with positive observed reuse capability and required role-state capture newer
+than its latest interruption; project `active`, preserve history, and add no
+completion or return. After fresh capture, guarded reuse or deliberate
+retention requires no replacement; supersession alone requires secured
+replacement state. Pending or unknown rows resolve identity or stop without
+fabricated cleanup. Record row-scoped `manual-cleanup-confirmed` evidence before
+reconstruction and retry while preserving the row's honest cleanup outcome.
 When a capacity-blocking row was deliberately retained, first finish, capture,
 or safely replace that workflow need, then append
 `retention-resolved(evidence=<concise resolution evidence>)`. Preserve the
