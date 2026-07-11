@@ -2720,6 +2720,8 @@ describe("play subagent routing source contracts", () => {
     );
     for (const event of [
       "dispatch-requested",
+      "followup-dispatch-requested",
+      "interrupted-reuse-dispatch-requested",
       "waiting",
       "interrupted",
       "turn-completed",
@@ -2739,6 +2741,21 @@ describe("play subagent routing source contracts", () => {
     }
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "State changes never erase prior events",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "`followup-dispatch-requested` is reserved for a row currently `completed` after an observed `turn-completed`",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "`interrupted-reuse-dispatch-requested(session-id=...)` is legal only when the row is currently `interrupted`, the supplied id matches its stable identity, observed reuse capability is positive, and required role-state capture is strictly newer than its latest `interrupted` event",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Append the interrupted-reuse event without erasing history or detail and project `active`",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "Project `waiting` only after an observed `waiting` event. This re-entry never fabricates `turn-completed`, a workflow return status, or any other return fact",
+    );
+    expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
+      "stable reusable `interrupted` row + newer capture + matching reuse event -> `active`; history stays and no return is added",
     );
     expect(normalizeWhitespace(orderedLifecycleEvents)).toContain(
       "Record the concrete workflow-owned retention reason as event-associated detail on each `close-deferred`; an event name without its reason is incomplete",
@@ -2787,7 +2804,7 @@ describe("play subagent routing source contracts", () => {
       "Every classification or reclassification appends the disposition plus a concise reason and source-state anchor; the latest value is the current projection",
     );
     expect(normalizeWhitespace(resultAndDispositionDimensions)).toContain(
-      "A same-session follow-up may append `followup-dispatch-requested` and move current operational state back to `active` or `waiting`; that operational re-entry does not remove prior `turn-completed` events, status values, disposition values, or their associated detail",
+      "`followup-dispatch-requested` is reserved for a current `completed` row with a prior observed `turn-completed`; never use it for interrupted-session reuse. It projects `active`, only a later observed wait projects `waiting`, and all prior return-status and reviewer-disposition history remains intact",
     );
 
     expect(targetLifecycleCapability).toContain("automatic-close-supported");
@@ -2950,7 +2967,7 @@ describe("play subagent routing source contracts", () => {
       "For `waiting`, capture the open question and needed context, then decide deliberate retention or safe replacement and supersession",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
-      "For reusable `interrupted`, capture available state, then decide reuse or deliberate retention versus supersession only after replacement state is secured",
+      "For reusable `interrupted`, capture available role state and reuse only under the exact `interrupted-reuse-dispatch-requested(session-id=...)` guard above",
     );
     expect(normalizeWhitespace(slotLimitRecovery)).toContain(
       "For `pending` or unknown identity, do not fabricate cleanup, guess an id, or close another row",
