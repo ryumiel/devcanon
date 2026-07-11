@@ -4610,17 +4610,28 @@ describe("play subagent routing source contracts", () => {
   });
 
   it("folds recovery authority from one ordered per-row lifecycle stream", () => {
+    type OperationalState =
+      | "active"
+      | "waiting"
+      | "interrupted"
+      | "pending"
+      | "unknown"
+      | "completed"
+      | "timed-out"
+      | "failed"
+      | "superseded";
     type BlockerRecord = {
       rowId: string;
       identity: string;
-      state: "active" | "waiting" | "interrupted" | "pending" | "unknown";
-      classified: boolean;
-      captureState: "required" | "captured" | "not-required";
-      replacementState: "none" | "secured";
     };
     type LifecycleEvent = {
       order: number;
       kind:
+        | "identity-resolved"
+        | "operational-classified"
+        | "required-state-captured"
+        | "replacement-secured"
+        | "abnormal-context-captured"
         | "slot-recovery-started"
         | "close-deferred"
         | "retention-resolved"
@@ -4632,6 +4643,9 @@ describe("play subagent routing source contracts", () => {
       rowId?: string;
       episodeId?: string;
       blockers?: BlockerRecord[];
+      identity?: string;
+      operationalState?: OperationalState;
+      blockerIdentity?: string;
       reason?: string;
       evidence?: string;
       provenance?: string;
@@ -4645,9 +4659,15 @@ describe("play subagent routing source contracts", () => {
     };
     type RowFold = {
       history: LifecycleEvent["kind"][];
+      resolvedIdentity: string | null;
+      operationalState: OperationalState | null;
+      requiredStateCaptured: boolean;
+      replacementSecured: boolean;
+      abnormalContextCaptured: boolean;
       retained: boolean;
       terminal: boolean;
-      outstandingAttemptEpisode: string | null;
+      outstandingAttemptScope: string | null;
+      manualEligibleEpisode: string | null;
       authorizedEpisodes: Set<string>;
       projection: Projection;
     };
@@ -4663,6 +4683,18 @@ describe("play subagent routing source contracts", () => {
       projections: Map<string, Projection>;
     };
 
+    const NORMAL_GATE_SCOPE = "normal-gate";
+    const cleanupEligibleTerminals = new Set<OperationalState>([
+      "completed",
+      "timed-out",
+      "failed",
+      "superseded",
+    ]);
+    const abnormalTerminals = new Set<OperationalState>([
+      "timed-out",
+      "failed",
+      "superseded",
+    ]);
     const fail = (error: string): FoldResult => ({
       errors: [error],
       histories: new Map(),
@@ -4670,35 +4702,21 @@ describe("play subagent routing source contracts", () => {
     });
     const sanitizedIdentity = (value: string): boolean =>
       /^[A-Za-z0-9._-]+$/.test(value);
-
-    function blockerError(blocker: BlockerRecord): string | null {
-      if (
-        !sanitizedIdentity(blocker.rowId) ||
-        !sanitizedIdentity(blocker.identity)
-      ) {
-        return "blank-or-unsanitized-blocker-identity";
+    const validProvenance = (value: string): boolean =>
+      value === value.trim() &&
+      value.length > 0 &&
+      value.length <= 160 &&
+      /^[A-Za-z0-9 ._:/@+-]+$/.test(value);
+    const validObservedAt = (value: string): boolean => {
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) {
+        return false;
       }
-      if (!blocker.classified) {
-        return "capacity-blocker-unclassified";
-      }
-      if (
-        (blocker.state === "pending" || blocker.state === "unknown") &&
-        blocker.captureState !== "captured" &&
-        blocker.replacementState !== "secured"
-      ) {
-        return "pending-or-unknown-state-unresolved";
-      }
-      if (
-        (blocker.state === "active" ||
-          blocker.state === "waiting" ||
-          blocker.state === "interrupted") &&
-        blocker.captureState === "required" &&
-        blocker.replacementState !== "secured"
-      ) {
-        return "required-state-not-captured";
-      }
-      return null;
-    }
+      const parsed = Date.parse(value);
+      return (
+        !Number.isNaN(parsed) &&
+        new Date(parsed).toISOString() === value.replace(/Z$/, ".000Z")
+      );
+    };
 
     function foldLifecycle(events: LifecycleEvent[]): FoldResult {
       const seenOrders = new Set<number>();
@@ -4735,9 +4753,11 @@ describe("play subagent routing source contracts", () => {
         const rowIds = new Set<string>();
         const identities = new Set<string>();
         for (const blocker of event.blockers) {
-          const error = blockerError(blocker);
-          if (error !== null) {
-            return fail(error);
+          if (
+            !sanitizedIdentity(blocker.rowId) ||
+            !sanitizedIdentity(blocker.identity)
+          ) {
+            return fail("blank-or-unsanitized-blocker-identity");
           }
           if (rowIds.has(blocker.rowId) || identities.has(blocker.identity)) {
             return fail("duplicate-capacity-blocker-record");
@@ -4760,10 +4780,6 @@ describe("play subagent routing source contracts", () => {
         ...episode,
         nextStartOrder: episodeStarts[index + 1]?.startOrder ?? null,
       }));
-      const currentEpisode = episodes[episodes.length - 1];
-      if (currentEpisode === undefined) {
-        return fail("recovery-episode-missing");
-      }
       const episodeById = new Map(
         episodes.map((episode) => [episode.episodeId, episode]),
       );
@@ -4780,9 +4796,15 @@ describe("play subagent routing source contracts", () => {
         }
         const created: RowFold = {
           history: [],
+          resolvedIdentity: null,
+          operationalState: null,
+          requiredStateCaptured: false,
+          replacementSecured: false,
+          abnormalContextCaptured: false,
           retained: false,
           terminal: false,
-          outstandingAttemptEpisode: null,
+          outstandingAttemptScope: null,
+          manualEligibleEpisode: null,
           authorizedEpisodes: new Set(),
           projection: {
             decision: "none",
@@ -4794,12 +4816,94 @@ describe("play subagent routing source contracts", () => {
         rows.set(rowId, created);
         return created;
       };
+      const eligibilityError = (
+        state: RowFold,
+        blocker: BlockerRecord,
+      ): string | null => {
+        if (state.resolvedIdentity === null) {
+          return "blocker-identity-not-resolved";
+        }
+        if (state.resolvedIdentity !== blocker.identity) {
+          return "blocker-identity-mismatch";
+        }
+        if (state.operationalState === null) {
+          return "operational-state-not-classified";
+        }
+        if (!cleanupEligibleTerminals.has(state.operationalState)) {
+          return "cleanup-ineligible-operational-state";
+        }
+        if (!state.requiredStateCaptured) {
+          return "required-state-not-captured";
+        }
+        if (
+          abnormalTerminals.has(state.operationalState) &&
+          !state.abnormalContextCaptured
+        ) {
+          return "abnormal-terminal-context-missing";
+        }
+        return null;
+      };
+      const episodeError = (
+        episode: EpisodeWindow,
+        intermediate: boolean,
+      ): string | null => {
+        for (const blocker of episode.blockers) {
+          const state = rowState(blocker.rowId);
+          const eligibility = eligibilityError(state, blocker);
+          if (eligibility !== null) {
+            return eligibility;
+          }
+          if (state.retained) {
+            return intermediate
+              ? "intermediate-episode-retention-unresolved"
+              : "retention-blocker-unresolved";
+          }
+          if (state.outstandingAttemptScope !== null) {
+            return intermediate
+              ? "intermediate-episode-attempt-unresolved"
+              : "unpaired-close-attempt";
+          }
+          if (!state.authorizedEpisodes.has(episode.episodeId)) {
+            return intermediate
+              ? "intermediate-episode-unauthorized"
+              : "slot-retry-authorization";
+          }
+          if (
+            !state.terminal &&
+            state.manualEligibleEpisode !== episode.episodeId
+          ) {
+            return intermediate
+              ? "intermediate-episode-unsafe-final-state"
+              : "unsafe-final-cleanup-state";
+          }
+        }
+        return null;
+      };
 
+      let priorEpisode: EpisodeWindow | undefined;
       for (const event of events) {
         if (event.kind === "slot-recovery-started") {
-          for (const blocker of event.blockers ?? []) {
-            rowState(blocker.rowId).history.push(event.kind);
+          if (priorEpisode !== undefined) {
+            const error = episodeError(priorEpisode, true);
+            if (error !== null) {
+              return fail(error);
+            }
           }
+          const episode =
+            event.episodeId === undefined
+              ? undefined
+              : episodeById.get(event.episodeId);
+          if (episode === undefined) {
+            return fail("lifecycle-event-episode-scope");
+          }
+          for (const blocker of episode.blockers) {
+            const state = rowState(blocker.rowId);
+            if (state.terminal) {
+              return fail("terminal-row-relisted-as-blocker");
+            }
+            state.history.push(event.kind);
+          }
+          priorEpisode = episode;
           continue;
         }
         if (
@@ -4815,12 +4919,14 @@ describe("play subagent routing source contracts", () => {
         }
         state.history.push(event.kind);
 
-        const episodeBound =
+        const cleanupEvent =
           event.kind === "close-attempted" ||
           event.kind === "close-failed" ||
           event.kind === "close-succeeded" ||
-          event.kind === "closure-unavailable" ||
-          event.kind === "manual-cleanup-confirmed";
+          event.kind === "closure-unavailable";
+        const episodeBound =
+          event.kind === "manual-cleanup-confirmed" ||
+          (cleanupEvent && event.episodeId !== undefined);
         let episode: EpisodeWindow | undefined;
         if (episodeBound) {
           episode =
@@ -4845,8 +4951,56 @@ describe("play subagent routing source contracts", () => {
             return fail("lifecycle-event-blocker-scope");
           }
         }
+        const episodeBlocker = episode?.blockers.find(
+          (blocker) => blocker.rowId === event.rowId,
+        );
 
         switch (event.kind) {
+          case "identity-resolved":
+            if (
+              event.identity === undefined ||
+              !sanitizedIdentity(event.identity)
+            ) {
+              return fail("resolved-identity-evidence");
+            }
+            if (state.resolvedIdentity !== null) {
+              return fail("identity-already-resolved");
+            }
+            state.resolvedIdentity = event.identity;
+            break;
+          case "operational-classified":
+            if (event.operationalState === undefined) {
+              return fail("operational-classification-evidence");
+            }
+            state.operationalState = event.operationalState;
+            break;
+          case "required-state-captured":
+            if (
+              event.evidence === undefined ||
+              event.evidence.trim().length === 0
+            ) {
+              return fail("required-state-capture-evidence");
+            }
+            state.requiredStateCaptured = true;
+            break;
+          case "replacement-secured":
+            if (
+              event.evidence === undefined ||
+              event.evidence.trim().length === 0
+            ) {
+              return fail("replacement-evidence");
+            }
+            state.replacementSecured = true;
+            break;
+          case "abnormal-context-captured":
+            if (
+              event.evidence === undefined ||
+              event.evidence.trim().length === 0
+            ) {
+              return fail("abnormal-context-evidence");
+            }
+            state.abnormalContextCaptured = true;
+            break;
           case "close-deferred":
             if (
               event.reason === undefined ||
@@ -4883,14 +5037,16 @@ describe("play subagent routing source contracts", () => {
               unavailableReason: null,
             };
             break;
-          case "close-attempted":
+          case "close-attempted": {
             if (state.retained) {
               return fail("retention-unresolved-before-cleanup");
             }
-            if (state.outstandingAttemptEpisode !== null) {
+            if (state.outstandingAttemptScope !== null) {
               return fail("overlapping-close-attempt");
             }
-            state.outstandingAttemptEpisode = episode?.episodeId ?? null;
+            state.outstandingAttemptScope =
+              episode?.episodeId ?? NORMAL_GATE_SCOPE;
+            state.manualEligibleEpisode = null;
             state.projection = {
               decision: "attempted",
               outcome: "closed=no",
@@ -4898,15 +5054,14 @@ describe("play subagent routing source contracts", () => {
               unavailableReason: null,
             };
             break;
+          }
           case "close-failed":
-          case "close-succeeded":
-            if (
-              episode === undefined ||
-              state.outstandingAttemptEpisode !== episode.episodeId
-            ) {
+          case "close-succeeded": {
+            const scope = episode?.episodeId ?? NORMAL_GATE_SCOPE;
+            if (state.outstandingAttemptScope !== scope) {
               return fail("unpaired-close-result");
             }
-            state.outstandingAttemptEpisode = null;
+            state.outstandingAttemptScope = null;
             state.projection = {
               decision: "attempted",
               outcome:
@@ -4914,16 +5069,25 @@ describe("play subagent routing source contracts", () => {
               retentionReason: null,
               unavailableReason: null,
             };
-            if (event.kind === "close-succeeded") {
-              state.terminal = true;
+            if (event.kind === "close-failed") {
+              state.manualEligibleEpisode = episode?.episodeId ?? null;
+              break;
+            }
+            if (episode !== undefined && episodeBlocker !== undefined) {
+              const error = eligibilityError(state, episodeBlocker);
+              if (error !== null) {
+                return fail(error);
+              }
               state.authorizedEpisodes.add(episode.episodeId);
             }
+            state.terminal = true;
             break;
+          }
           case "closure-unavailable":
             if (state.retained) {
               return fail("retention-unresolved-before-cleanup");
             }
-            if (state.outstandingAttemptEpisode !== null) {
+            if (state.outstandingAttemptScope !== null) {
               return fail("unavailable-during-close-attempt");
             }
             if (
@@ -4932,6 +5096,7 @@ describe("play subagent routing source contracts", () => {
             ) {
               return fail("closure-unavailable-reason");
             }
+            state.manualEligibleEpisode = episode?.episodeId ?? null;
             state.projection = {
               decision: "unavailable",
               outcome: "close-unavailable",
@@ -4940,14 +5105,42 @@ describe("play subagent routing source contracts", () => {
             };
             break;
           case "manual-cleanup-confirmed":
+            if (episode === undefined || episodeBlocker === undefined) {
+              return fail("lifecycle-event-episode-scope");
+            }
+            if (state.retained) {
+              return fail("manual-confirmation-before-retention-resolution");
+            }
+            if (state.outstandingAttemptScope !== null) {
+              return fail("manual-confirmation-during-close-attempt");
+            }
+            if (state.manualEligibleEpisode !== episode.episodeId) {
+              return fail("manual-confirmation-cleanup-path-missing");
+            }
             if (
-              episode === undefined ||
-              event.provenance === undefined ||
-              event.provenance.trim().length === 0 ||
-              event.observedAt === undefined ||
-              event.observedAt.trim().length === 0
+              event.blockerIdentity === undefined ||
+              !sanitizedIdentity(event.blockerIdentity) ||
+              event.blockerIdentity !== episodeBlocker.identity
             ) {
-              return fail("manual-cleanup-confirmation-evidence");
+              return fail("manual-confirmation-identity-mismatch");
+            }
+            if (
+              event.provenance === undefined ||
+              !validProvenance(event.provenance)
+            ) {
+              return fail("manual-confirmation-provenance");
+            }
+            if (
+              event.observedAt === undefined ||
+              !validObservedAt(event.observedAt)
+            ) {
+              return fail("manual-confirmation-time");
+            }
+            {
+              const error = eligibilityError(state, episodeBlocker);
+              if (error !== null) {
+                return fail(error);
+              }
             }
             if (state.authorizedEpisodes.has(episode.episodeId)) {
               return fail("duplicate-cleanup-authorization");
@@ -4957,21 +5150,13 @@ describe("play subagent routing source contracts", () => {
         }
       }
 
-      for (const state of rows.values()) {
-        if (state.outstandingAttemptEpisode !== null) {
-          return fail("unpaired-close-attempt");
-        }
+      if (priorEpisode === undefined) {
+        return fail("recovery-episode-missing");
       }
-      for (const blocker of currentEpisode.blockers) {
-        const state = rowState(blocker.rowId);
-        if (state.retained) {
-          return fail("retention-blocker-unresolved");
-        }
-        if (!state.authorizedEpisodes.has(currentEpisode.episodeId)) {
-          return fail("slot-retry-authorization");
-        }
+      const finalError = episodeError(priorEpisode, false);
+      if (finalError !== null) {
+        return fail(finalError);
       }
-
       return {
         errors: [],
         histories: new Map(
@@ -4988,23 +5173,9 @@ describe("play subagent routing source contracts", () => {
     ): BlockerRecord => ({
       rowId: "block-1",
       identity: "agent-1",
-      state: "waiting",
-      classified: true,
-      captureState: "captured",
-      replacementState: "none",
       ...overrides,
     });
-    const episodeStart = (
-      order = 10,
-      overrides: Partial<LifecycleEvent> = {},
-    ): LifecycleEvent => ({
-      order,
-      kind: "slot-recovery-started",
-      episodeId: "recovery-1",
-      blockers: [blocker()],
-      ...overrides,
-    });
-    const cleanupEvent = (
+    const event = (
       kind: LifecycleEvent["kind"],
       order: number,
       overrides: Partial<LifecycleEvent> = {},
@@ -5012,47 +5183,77 @@ describe("play subagent routing source contracts", () => {
       order,
       kind,
       rowId: "block-1",
-      episodeId: "recovery-1",
       ...overrides,
     });
-    const deferral = (order = 1): LifecycleEvent =>
-      cleanupEvent("close-deferred", order, {
-        episodeId: undefined,
+    const eligibility = (
+      state: OperationalState = "completed",
+    ): LifecycleEvent[] => [
+      event("identity-resolved", 1, { identity: "agent-1" }),
+      event("operational-classified", 2, { operationalState: state }),
+      event("required-state-captured", 3, {
+        evidence: "required role state captured",
+      }),
+      ...(abnormalTerminals.has(state)
+        ? [
+            event("abnormal-context-captured", 4, {
+              evidence: "abnormal terminal context captured",
+            }),
+          ]
+        : []),
+    ];
+    const episodeStart = (
+      order = 10,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
+      event("slot-recovery-started", order, {
+        rowId: undefined,
+        episodeId: "recovery-1",
+        blockers: [blocker()],
+        ...overrides,
+      });
+    const cleanupEvent = (
+      kind:
+        | "close-attempted"
+        | "close-failed"
+        | "close-succeeded"
+        | "closure-unavailable",
+      order: number,
+      overrides: Partial<LifecycleEvent> = {},
+    ): LifecycleEvent =>
+      event(kind, order, {
+        episodeId: "recovery-1",
+        ...overrides,
+      });
+    const deferral = (order = 6): LifecycleEvent =>
+      event("close-deferred", order, {
         reason: "same-session fixup required",
       });
-    const resolution = (order = 2): LifecycleEvent =>
-      cleanupEvent("retention-resolved", order, {
-        episodeId: undefined,
+    const resolution = (order = 7): LifecycleEvent =>
+      event("retention-resolved", order, {
         evidence: "fixup state captured and safely replaced",
       });
     const confirmation = (
       order: number,
       overrides: Partial<LifecycleEvent> = {},
     ): LifecycleEvent =>
-      cleanupEvent("manual-cleanup-confirmed", order, {
+      event("manual-cleanup-confirmed", order, {
+        episodeId: "recovery-1",
+        blockerIdentity: "agent-1",
         provenance: "operator UI",
         observedAt: "2026-07-12T00:00:00Z",
         ...overrides,
       });
 
-    const failedEvents: LifecycleEvent[] = [
+    const failed = foldLifecycle([
+      ...eligibility(),
       deferral(),
       resolution(),
       episodeStart(),
       cleanupEvent("close-attempted", 11),
       cleanupEvent("close-failed", 12),
       confirmation(13),
-    ];
-    const failed = foldLifecycle(failedEvents);
-    expect(failed.errors).toEqual([]);
-    expect(failed.histories.get("block-1")).toEqual([
-      "close-deferred",
-      "retention-resolved",
-      "slot-recovery-started",
-      "close-attempted",
-      "close-failed",
-      "manual-cleanup-confirmed",
     ]);
+    expect(failed.errors).toEqual([]);
     expect(failed.projections.get("block-1")).toEqual({
       decision: "attempted",
       outcome: "closed=no",
@@ -5061,6 +5262,7 @@ describe("play subagent routing source contracts", () => {
     });
 
     const unavailable = foldLifecycle([
+      ...eligibility(),
       deferral(),
       resolution(),
       episodeStart(),
@@ -5070,14 +5272,8 @@ describe("play subagent routing source contracts", () => {
       confirmation(12),
     ]);
     expect(unavailable.errors).toEqual([]);
-    expect(unavailable.projections.get("block-1")).toEqual({
-      decision: "unavailable",
-      outcome: "close-unavailable",
-      retentionReason: null,
-      unavailableReason: "no usable close operation",
-    });
-
     const successful = foldLifecycle([
+      ...eligibility(),
       deferral(),
       resolution(),
       episodeStart(),
@@ -5085,26 +5281,77 @@ describe("play subagent routing source contracts", () => {
       cleanupEvent("close-succeeded", 12),
     ]);
     expect(successful.errors).toEqual([]);
-    expect(successful.projections.get("block-1")).toEqual({
-      decision: "attempted",
-      outcome: "closed=yes",
-      retentionReason: null,
-      unavailableReason: null,
-    });
-
-    const immediatelyResolved = foldLifecycle([
-      deferral(),
-      resolution(),
+    const capturedWithReplacement = foldLifecycle([
+      ...eligibility(),
+      event("replacement-secured", 4, {
+        evidence: "replacement handoff also secured",
+      }),
       episodeStart(),
-      confirmation(11),
+      cleanupEvent("closure-unavailable", 11, {
+        reason: "no usable close operation",
+      }),
+      confirmation(12),
     ]);
-    expect(immediatelyResolved.errors).toEqual([]);
-    expect(immediatelyResolved.projections.get("block-1")).toEqual({
-      decision: "none",
-      outcome: "closed=no",
-      retentionReason: null,
-      unavailableReason: null,
-    });
+    expect(capturedWithReplacement.errors).toEqual([]);
+
+    for (const terminal of [
+      "completed",
+      "timed-out",
+      "failed",
+      "superseded",
+    ] as const) {
+      expect(
+        foldLifecycle([
+          ...eligibility(terminal),
+          episodeStart(),
+          cleanupEvent("closure-unavailable", 11, {
+            reason: "no usable close operation",
+          }),
+          confirmation(12),
+        ]).errors,
+        terminal,
+      ).toEqual([]);
+    }
+
+    const normalFailedHistory = foldLifecycle([
+      ...eligibility(),
+      cleanupEvent("close-attempted", 4, { episodeId: undefined }),
+      cleanupEvent("close-failed", 5, { episodeId: undefined }),
+      episodeStart(),
+      cleanupEvent("close-attempted", 11),
+      cleanupEvent("close-failed", 12),
+      confirmation(13),
+    ]);
+    expect(normalFailedHistory.errors).toEqual([]);
+    const normalUnavailableHistory = foldLifecycle([
+      ...eligibility(),
+      cleanupEvent("closure-unavailable", 4, {
+        episodeId: undefined,
+        reason: "normal gate had no close operation",
+      }),
+      episodeStart(),
+      cleanupEvent("closure-unavailable", 11, {
+        reason: "recovery still has no close operation",
+      }),
+      confirmation(12),
+    ]);
+    expect(normalUnavailableHistory.errors).toEqual([]);
+
+    const validTwoEpisodes = foldLifecycle([
+      ...eligibility(),
+      episodeStart(10, { episodeId: "recovery-0" }),
+      cleanupEvent("closure-unavailable", 11, {
+        episodeId: "recovery-0",
+        reason: "no close operation",
+      }),
+      confirmation(12, { episodeId: "recovery-0" }),
+      episodeStart(20, { episodeId: "recovery-1" }),
+      cleanupEvent("closure-unavailable", 21, {
+        reason: "no close operation",
+      }),
+      confirmation(22),
+    ]);
+    expect(validTwoEpisodes.errors).toEqual([]);
 
     const expectError = (events: LifecycleEvent[], expected: string): void => {
       expect(foldLifecycle(events).errors).toEqual([expected]);
@@ -5112,49 +5359,189 @@ describe("play subagent routing source contracts", () => {
 
     expectError(
       [
-        episodeStart(10, {
-          blockers: [
-            blocker(),
-            blocker({
-              rowId: "block-2",
-              identity: "agent-2",
-              state: "unknown",
-              captureState: "required",
-            }),
-          ],
+        event("operational-classified", 1, {
+          operationalState: "completed",
         }),
-        confirmation(11),
-        confirmation(12, { rowId: "block-2" }),
+        event("required-state-captured", 2, { evidence: "captured" }),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12),
       ],
-      "pending-or-unknown-state-unresolved",
+      "blocker-identity-not-resolved",
     );
     expectError(
       [
-        episodeStart(10, {
-          blockers: [
-            blocker({
-              state: "pending",
-              captureState: "required",
-            }),
-          ],
+        event("identity-resolved", 1, { identity: "agent-1" }),
+        event("operational-classified", 2, {
+          operationalState: "completed",
         }),
-        confirmation(11),
+        event("replacement-secured", 3, { evidence: "replacement ready" }),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12),
       ],
-      "pending-or-unknown-state-unresolved",
+      "required-state-not-captured",
+    );
+    expectError([...eligibility(), episodeStart()], "slot-retry-authorization");
+    for (const state of ["pending", "unknown"] as const) {
+      expectError(
+        [
+          event("identity-resolved", 1, { identity: "agent-1" }),
+          event("operational-classified", 2, {
+            operationalState: state,
+          }),
+          event("required-state-captured", 3, { evidence: "captured" }),
+          episodeStart(),
+          cleanupEvent("closure-unavailable", 11, {
+            reason: "no close operation",
+          }),
+          confirmation(12),
+        ],
+        "cleanup-ineligible-operational-state",
+      );
+    }
+    expectError(
+      [
+        ...eligibility("failed").filter(
+          (item) => item.kind !== "abnormal-context-captured",
+        ),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12),
+      ],
+      "abnormal-terminal-context-missing",
+    );
+    expectError(
+      [...eligibility(), episodeStart(), confirmation(11)],
+      "manual-confirmation-cleanup-path-missing",
     );
     expectError(
       [
-        episodeStart(10, {
-          blockers: [
-            blocker({
-              state: "pending",
-              captureState: "required",
-              replacementState: "secured",
-            }),
-          ],
+        ...eligibility(),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
         }),
+        deferral(12),
+        confirmation(13),
       ],
-      "slot-retry-authorization",
+      "manual-confirmation-before-retention-resolution",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        cleanupEvent("close-attempted", 12),
+        confirmation(13),
+      ],
+      "manual-confirmation-during-close-attempt",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12, { blockerIdentity: "agent-2" }),
+      ],
+      "manual-confirmation-identity-mismatch",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12, { blockerIdentity: "agent 1" }),
+      ],
+      "manual-confirmation-identity-mismatch",
+    );
+    for (const provenance of ["operator\nUI", "operator\tUI"] as const) {
+      expectError(
+        [
+          ...eligibility(),
+          episodeStart(),
+          cleanupEvent("closure-unavailable", 11, {
+            reason: "no close operation",
+          }),
+          confirmation(12, { provenance }),
+        ],
+        "manual-confirmation-provenance",
+      );
+    }
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12, { observedAt: "not-a-time" }),
+      ],
+      "manual-confirmation-time",
+    );
+    expectError(
+      [
+        event("identity-resolved", 1, { identity: "agent-1" }),
+        event("operational-classified", 2, {
+          operationalState: "completed",
+        }),
+        episodeStart(),
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
+        }),
+        confirmation(12),
+        event("required-state-captured", 13, { evidence: "too late" }),
+      ],
+      "required-state-not-captured",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(10, { episodeId: "recovery-0" }),
+        episodeStart(20, { episodeId: "recovery-1" }),
+        cleanupEvent("closure-unavailable", 21, {
+          reason: "no close operation",
+        }),
+        confirmation(22),
+      ],
+      "intermediate-episode-unauthorized",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(10, { episodeId: "recovery-0" }),
+        cleanupEvent("closure-unavailable", 11, {
+          episodeId: "recovery-0",
+          reason: "no close operation",
+        }),
+        confirmation(12, { episodeId: "recovery-0" }),
+        deferral(13),
+        episodeStart(20, { episodeId: "recovery-1" }),
+      ],
+      "intermediate-episode-retention-unresolved",
+    );
+    expectError(
+      [
+        ...eligibility(),
+        episodeStart(10, { episodeId: "recovery-0" }),
+        cleanupEvent("close-attempted", 11, {
+          episodeId: "recovery-0",
+        }),
+        episodeStart(20, { episodeId: "recovery-1" }),
+      ],
+      "intermediate-episode-attempt-unresolved",
     );
     expectError(
       [episodeStart(10, { blockers: [] })],
@@ -5165,93 +5552,22 @@ describe("play subagent routing source contracts", () => {
       "blank-or-unsanitized-blocker-identity",
     );
     expectError(
-      [
-        episodeStart(10, {
-          blockers: [
-            blocker(),
-            blocker({ rowId: "block-2", identity: "agent-1" }),
-          ],
-        }),
-      ],
-      "duplicate-capacity-blocker-record",
-    );
-    expectError(
-      [episodeStart(), cleanupEvent("close-attempted", 10)],
-      "duplicate-lifecycle-order",
-    );
-    expectError(
-      [episodeStart(), cleanupEvent("close-attempted", 9)],
-      "unordered-lifecycle-events",
-    );
-    expectError(
-      [cleanupEvent("close-attempted", 9), episodeStart()],
-      "lifecycle-evidence-before-episode",
-    );
-    expectError(
-      [episodeStart(), cleanupEvent("close-attempted", 11), confirmation(11)],
-      "duplicate-lifecycle-order",
-    );
-    expectError(
-      [
-        episodeStart(10, { episodeId: "recovery-0" }),
-        episodeStart(20, { episodeId: "recovery-1" }),
-        confirmation(21, { episodeId: "recovery-0" }),
-      ],
-      "stale-evidence-after-next-episode",
-    );
-    expectError(
-      [episodeStart(), cleanupEvent("close-failed", 11)],
+      [...eligibility(), episodeStart(), cleanupEvent("close-failed", 11)],
       "unpaired-close-result",
     );
     expectError(
-      [episodeStart(), cleanupEvent("close-attempted", 11)],
-      "unpaired-close-attempt",
-    );
-    expectError(
       [
-        episodeStart(10, { episodeId: "recovery-0" }),
-        cleanupEvent("close-attempted", 11, {
-          episodeId: "recovery-0",
-        }),
-        episodeStart(20, { episodeId: "recovery-1" }),
-        cleanupEvent("close-failed", 21, {
-          episodeId: "recovery-0",
-        }),
-      ],
-      "stale-evidence-after-next-episode",
-    );
-    expectError(
-      [
-        episodeStart(),
-        cleanupEvent("close-attempted", 11, {
-          episodeId: "unknown-episode",
-        }),
-      ],
-      "lifecycle-event-episode-scope",
-    );
-    expectError(
-      [
-        episodeStart(),
-        cleanupEvent("close-attempted", 11, { rowId: "outside-row" }),
-      ],
-      "lifecycle-event-row-scope",
-    );
-    expectError(
-      [deferral(), resolution(), deferral(3), episodeStart(), confirmation(11)],
-      "retention-blocker-unresolved",
-    );
-    expectError(
-      [
+        ...eligibility(),
         deferral(),
         resolution(),
-        resolution(3),
+        resolution(8),
         episodeStart(),
-        confirmation(11),
       ],
       "retention-resolution-without-deferral",
     );
     expectError(
       [
+        ...eligibility(),
         episodeStart(),
         cleanupEvent("close-attempted", 11),
         cleanupEvent("close-succeeded", 12),
@@ -5263,54 +5579,13 @@ describe("play subagent routing source contracts", () => {
     );
     expectError(
       [
-        episodeStart(10, {
-          blockers: [
-            blocker(),
-            blocker({ rowId: "block-2", identity: "agent-2" }),
-          ],
-        }),
-        confirmation(11),
-      ],
-      "slot-retry-authorization",
-    );
-    expectError(
-      [
-        episodeStart(10, { episodeId: "recovery-0" }),
-        confirmation(11, { episodeId: "recovery-0" }),
-        episodeStart(20, { episodeId: "recovery-1" }),
-      ],
-      "slot-retry-authorization",
-    );
-    expectError(
-      [
-        episodeStart(10, {
-          blockers: [
-            blocker({
-              state: "active",
-              captureState: "required",
-            }),
-          ],
-        }),
-        confirmation(11),
-      ],
-      "required-state-not-captured",
-    );
-    expectError(
-      [
+        ...eligibility(),
         episodeStart(),
-        cleanupEvent("close-attempted", 11),
-        cleanupEvent("closure-unavailable", 12, {
-          reason: "operation disappeared",
+        cleanupEvent("closure-unavailable", 11, {
+          reason: "no close operation",
         }),
       ],
-      "unavailable-during-close-attempt",
-    );
-    expectError(
-      [
-        episodeStart(10, { episodeId: "recovery-1" }),
-        episodeStart(20, { episodeId: "recovery-1" }),
-      ],
-      "invalid-or-reused-recovery-episode",
+      "slot-retry-authorization",
     );
   });
   it("keeps play-subagent-execution lifecycle delegation and local exceptions in source", async () => {
