@@ -106,8 +106,9 @@ never authorizes the current retry.
 For timed-out or failed rows, preserve the value-bearing runtime terminal event,
 keep return status/history absent when no turn returned, and capture the gate or
 research error/blocker detail before cleanup.
-A capacity-blocking retained session must first resolve and safely capture or
-replace its follow-up need, append `retention-resolved` with concise resolution
+A capacity-blocking retained session must first establish that the deferred
+need finished, or required state was freshly captured and the follow-up need
+safely replaced, then append `retention-resolved` with concise resolution
 evidence, preserve the historical `close-deferred` reason, clear the current
 retained cleanup decision and current retention reason, and apply the canonical
 post-resolution projection: cleanup evaluation remains `evaluated`, current

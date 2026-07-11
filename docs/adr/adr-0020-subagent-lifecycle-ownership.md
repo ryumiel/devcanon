@@ -123,8 +123,9 @@ implementers continue to read the worktree from disk.
   exhaustion, retry remains blocked until actual closure or operator-confirmed
   manual cleanup.
 - A capacity-blocking retained session requires an owning-workflow decision:
-  resolve and safely capture or replace the follow-up need before actual or
-  operator-confirmed cleanup, or stop and escalate while that need remains.
+  establish that the deferred need finished, or required state was freshly
+  captured and the follow-up need safely replaced before actual or
+  operator-confirmed cleanup; otherwise stop and escalate.
 - Active, waiting, interrupted, pending, and unknown-identity capacity blockers
   require state-specific classification before cleanup; unsafe or unresolved
   open state stops recovery instead of being destroyed or guessed.
